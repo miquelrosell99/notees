@@ -2,7 +2,6 @@
  * useBlockDragDrop touch handlers
  */
 
-import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
 import {
   findBlockRow,
   findScrollableAncestor,
@@ -139,7 +138,6 @@ export function createTouchHandlers(
       const anchor = activeAnchorRef.current;
       const blockIds = state.topLevelIds.length > 1 ? state.topLevelIds : [state.blockId];
       if (anchor && onDrop) {
-        flushAllContentSaves();
         await onDrop(anchor, blockIds);
       }
       cleanup(state);

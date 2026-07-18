@@ -19,7 +19,7 @@
  *   1. FocusedBlockContent - Block as top-level list item (list view only)
  *   2. LinkedReferences
  */
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEffectiveNodePermissions } from '@/hooks';
 import { useProperties, useSetNodeProperty, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty } from '@/features/properties';
@@ -83,10 +83,6 @@ import { getOrCreateDaily } from '@/api/nodes';
 
 import './NodeView.css';
 import { Icon } from '@/components/ui/icons';
-import { getOperationRuntime } from '@/runtime';
-import { getNode, getAllNodes } from '@/runtime/graphHelpers';
-import { upsertNodes } from '@/runtime/eventBus';
-import { apiNodeToGraphNode } from '@/features/content/hooks/useRuntimeSync';
 
 
 // Local storage key for collapse state (banner only; cover derives from image presence)
@@ -154,18 +150,8 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
   }, [onAddSidebarCard]);
 
   const handleAddClass = useCallback((blockId: string, classId: string) => {
-    // Optimistically update the runtime for immediate visual feedback
-    const runtime = getOperationRuntime();
-    const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
-    if (graphNode) {
-      const classStrId = String(classId);
-      if (!graphNode.classIds.includes(classStrId)) {
-        upsertNodes([{
-          ...graphNode,
-          classIds: [...graphNode.classIds, classStrId],
-        }]);
-      }
-    }
+    // The core-backed addClass mutation applies the class assignment immediately,
+    // so no separate optimistic runtime update is needed.
     addClass.mutate({ nodeUuid: blockId, classId });
   }, [addClass]);
 
@@ -364,14 +350,6 @@ export function NodeView({
   
   // Hooks (needed for page header sections)
   const { data: allClasses } = useClasses();
-
-  // Keep the current page itself in the runtime. useBlockTree only syncs children,
-  // so page-level operations (add class, update name, etc.) need the root node too.
-  useEffect(() => {
-    if (node) {
-      upsertNodes([apiNodeToGraphNode(node, allClasses ?? undefined)]);
-    }
-  }, [node, allClasses]);
 
   const { data: allTags } = useTags();
   const { data: aliasedNodeData } = useNode(node?.aliased_uuid ?? null);
@@ -606,8 +584,9 @@ export function NodeView({
   // Handle keyboard shortcut Ctrl+Alt+P to add property
   useKeyboardShortcut(SHORTCUT_IDS.ADD_PROPERTY, () => {
     if (!node) return;
-    
-    // Try to detect the focused block from the DOM
+
+    // Try to detect the focused block from the DOM. Core store uses public UUIDs
+    // directly, so the data-block-id attribute is already the node UUID.
     let targetId: string | null = null;
     const active = document.activeElement;
     if (active) {
@@ -615,15 +594,11 @@ export function NodeView({
       if (blockEl) {
         const blockId = blockEl.dataset.blockId;
         if (blockId) {
-          const runtime = getOperationRuntime();
-          const graphNode = getNode(runtime, blockId);
-          if (graphNode?.blockId) {
-            targetId = graphNode.blockId;
-          }
+          targetId = blockId;
         }
       }
     }
-    
+
     // Use detected block, or fall back to current node
     setPropertyTargetNodeId(targetId ?? node.uuid);
     setShowPropertyPopup(true);

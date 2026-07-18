@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
-import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 import * as nodesApi from '@/api/nodes';
 
 
@@ -47,7 +46,6 @@ export function useConvertToPage() {
 
   return useMutation<Node, Error, { nodeUuid: string; name?: string; oldParentId?: string | null }>({
     mutationFn: async ({ nodeUuid, name }) => {
-      await awaitAllContentSaves();
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.convertToPage(nodeUuid, name);
     },
@@ -69,7 +67,6 @@ export function useConvertToBlock() {
     { nodeUuid: string; parentId: string; position?: number; oldParentId?: string | null }
   >({
     mutationFn: async ({ nodeUuid, parentId, position }) => {
-      await awaitAllContentSaves();
       if (!nodeUuid || !parentId) throw new Error('Node UUID not found');
       return nodesApi.convertToBlock(nodeUuid, parentId, position);
     },

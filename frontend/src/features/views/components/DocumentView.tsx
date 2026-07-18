@@ -9,17 +9,10 @@ import { useMemo, useCallback, type JSX, memo } from 'react';
 import { BlockList } from '@/features/content';
 
 import { parseLinkId } from '@/lib/astBuilder';
-import { uploadAsset } from '@/features/assets';
-import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
 import './DocumentView.css';
 import { registerView } from './registry';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
-import { upsertNodes, getRuntimeEventBus } from '@/runtime/eventBus';
-import { getUndoEngine } from '@/stores/undoEngine';
-import type { MutationIntent } from '@/runtime/types';
 
 /**
  * DocumentView - Document view rendering blocks via BlockList
@@ -73,13 +66,7 @@ export const DocumentView = memo(function DocumentView({
 
   // Handler for navigation from editor
   const handleNavigateToNode = useCallback((linkId: string) => {
-    // Resolve to a target UUID synchronously. Use the runtime when available,
-    // otherwise parse the link id. Avoiding an async fetch here eliminates the
-    // stale-closure race where a later click could be overwritten by an earlier
-    // fetch that finishes second.
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, linkId);
-    const nodeUuid = graphNode?.blockId ?? parseLinkId(linkId).nodeUuid;
+    const nodeUuid = parseLinkId(linkId).nodeUuid;
 
     const targetNode = allNodes.find(n => n.uuid === nodeUuid);
     if (targetNode) {
@@ -100,49 +87,10 @@ export const DocumentView = memo(function DocumentView({
     onContentChange?.(blockId, content);
   }, [onContentChange]);
 
-  // Handler for external file drops — creates asset blocks
-  const handleDropFiles = useCallback(async (files: File[]) => {
-    if (!_pageId) return;
-
-    for (const file of files) {
-      try {
-        const asset = await uploadAsset(file, _nodeUuid ?? undefined);
-        const newBlockId = generateUUID();
-        const nodeChildren = allNodes;
-        const lastChild = nodeChildren.length > 0 ? nodeChildren[nodeChildren.length - 1] : null;
-
-        const intent: MutationIntent = {
-          type: 'create_block',
-          parentId: _nodeUuid ?? '',
-          afterBlockId: lastChild?.uuid ?? null,
-          blockId: newBlockId,
-          contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-        };
-        await getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
-        // Immediately convert the new empty block to an asset
-        if (asset.node_id) {
-          upsertNodes([{
-            blockId: newBlockId,
-            parentId: _nodeUuid ?? '',
-            orderIndex: 0,
-            nodeType: 'block',
-            contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-            collapsed: false,
-            isDeleted: false,
-            isPage: false,
-            classIds: [],
-            tagIds: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            version: 1,
-          }]);
-        }
-        getRuntimeEventBus().flushEvents();
-      } catch (err) {
-        console.error('[DocumentView] Failed to upload dropped file:', err);
-      }
-    }
-  }, [_pageId, _nodeUuid, allNodes]);
+  // TODO: External file drops previously went through the legacy OperationRuntime
+  // undo engine and runtime event bus. Re-implement this with the core workspace
+  // store (useCreateNode / asset class assignment) once the asset operation flow
+  // is wired to the SQLite-derived state.
 
   // Early return if no nodes
   if (allNodes.length === 0) {
@@ -163,7 +111,6 @@ export const DocumentView = memo(function DocumentView({
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
         onPasteImage={onPasteImage}
-        onDropFiles={handleDropFiles}
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
         nodeUuid={_nodeUuid}

@@ -1,41 +1,33 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'react-router-dom';
 import type { Node } from '@/types/api';
+import { useWorkspaceStore, useUndoManager } from '@/core/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
-import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
-import {
-  findNodeInCache,
-  ensureNodeInRuntime,
-  applyNodeIntent,
-} from './useNodeMutations.utils';
-import { waitForOperationAck } from '@/sync/waitForOperation';
+import { findNodeInCache } from './useNodeMutations.utils';
 
 /**
  * Hook to remove a tag from a node (tags are stored in node.tag_ids).
  *
- * The optimistic update is handled by OperationRuntime. SyncManager dispatches
- * the API call and writes the result back to the cache.
+ * The optimistic update is handled by the local-first core store. Tags are
+ * represented as class assignments in the core model.
  */
 export function useRemoveTag() {
   const queryClient = useQueryClient();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const manager = useUndoManager(workspaceId ?? '');
 
   return useMutation<Node | null, Error, { nodeUuid: string; tagId: string }>({
     mutationFn: async ({ nodeUuid, tagId }) => {
-      await awaitAllContentSaves();
       if (!nodeUuid) throw new Error('Node UUID not found');
       const tagUuid = tagId;
       if (!tagUuid) throw new Error('Tag UUID not found');
-      const blockId = ensureNodeInRuntime(nodeUuid);
-      if (!blockId) {
-        throw new Error(`Node ${nodeUuid} is not available in the runtime`);
+      if (!store || !manager) {
+        throw new Error(`Node ${nodeUuid} is not available in the workspace store`);
       }
 
-      const operationId = await applyNodeIntent({
-        type: 'remove_tag',
-        blockId,
-        tagId: tagUuid,
-      });
-      await waitForOperationAck(operationId);
+      manager.unassignClass(nodeUuid, tagUuid);
       return findNodeInCache(queryClient, nodeUuid);
     },
     onSuccess: (_data, { nodeUuid, tagId }) => {

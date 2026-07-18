@@ -14,8 +14,6 @@ import { useMemo, useCallback } from 'react';
 import type { Node, LinkedReference } from '@/types';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { useSettingsStore } from '@/stores';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
 import { useContentSave } from '@/features/editor';
 import { NodeBreadcrumbs } from './NodeBreadcrumbs';
 import './PropertyReferencesSection.css';
@@ -138,32 +136,16 @@ export function PropertyReferencesSection({
 
   // Handle shift-click (open in sidebar)
   const handleOpenInSidebar = useCallback((blockId: string) => {
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, blockId);
-    if (graphNode?.blockId) {
-      const targetNode = allNodes.find(n => n.uuid === graphNode.blockId);
-      if (targetNode) {
-        onNodeShiftClick?.(targetNode);
-      } else {
-        onNodeShiftClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
-      }
-      return;
-    }
-    // Fallback: UUID-based lookup
-    const node = allNodes.find(n => n.uuid === blockId);
-    if (node) {
-      onNodeShiftClick?.(node);
+    // Core store uses public UUIDs directly, so blockId is the node UUID.
+    const targetNode = allNodes.find(n => n.uuid === blockId);
+    if (targetNode) {
+      onNodeShiftClick?.(targetNode);
     }
   }, [allNodes, onNodeShiftClick]);
 
-  // Handle content changes (bridge from UUID to serverId for persistence)
+  // Handle content changes (core store uses public UUIDs directly)
   const handleContentChange = useCallback((blockId: string, content: string) => {
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, blockId);
-    const serverId = graphNode?.blockId;
-    if (serverId != null) {
-      saveContent(serverId, content);
-    }
+    saveContent(blockId, content);
   }, [saveContent]);
 
   if (items.length === 0) return null;

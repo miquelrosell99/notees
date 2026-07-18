@@ -3,8 +3,6 @@
  */
 
 import { type RefObject } from 'react';
-import { getOperationRuntime } from '@/runtime';
-import { getSiblings } from '@/runtime/graphHelpers';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -129,8 +127,8 @@ export function getSiblingIds(blockId: string, store?: { getNode: (id: string) =
     if (!parentId) return [];
     return store.getChildren(parentId);
   }
-  const runtime = getOperationRuntime();
-  return getSiblings(runtime, blockId).map((s) => s.blockId);
+  // Without a core store, sibling resolution is not available.
+  return [];
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────

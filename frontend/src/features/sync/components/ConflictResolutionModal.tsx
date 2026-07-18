@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/Button';
 import { useModalStore } from '@/stores/modalStore';
 import { useConflictStore } from '../stores/conflictStore';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
-import { getOperationRuntime } from '@/runtime';
 import { useLivePresenceStore } from '@/features/collab';
 import DiffMatchPatch from 'diff-match-patch';
 import type { Node } from '@/types/api';
@@ -107,12 +106,8 @@ export function ConflictResolutionModal(): JSX.Element | null {
 
   const handleKeepMine = useCallback(() => {
     if (!conflict) return;
-    const runtime = getOperationRuntime();
-    for (const opId of conflict.operationIds) {
-      runtime.retryOperation(opId);
-    }
-    // The legacy v2 sync engine has been removed; persistence is now handled
-    // by the SQLite core sync engine.
+    // TODO: The core sync engine does not yet expose per-operation retry/fail
+    // controls. Re-wire retry once the outbox operation API is available.
     resolveConflict(conflict.workspaceUuid, conflict.nodeUuid);
     clearConflict(conflict.nodeUuid, conflict.nodeUuid, null);
     handleClose();
@@ -120,10 +115,8 @@ export function ConflictResolutionModal(): JSX.Element | null {
 
   const handleKeepTheirs = useCallback(() => {
     if (!conflict) return;
-    const runtime = getOperationRuntime();
-    for (const opId of conflict.operationIds) {
-      runtime.failOperation(opId, 'User accepted server state');
-    }
+    // TODO: The core sync engine does not yet expose per-operation retry/fail
+    // controls. Re-wire fail once the outbox operation API is available.
     resolveConflict(conflict.workspaceUuid, conflict.nodeUuid);
     clearConflict(conflict.nodeUuid, conflict.nodeUuid, null);
     handleClose();

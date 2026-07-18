@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { type QueryClient } from '@tanstack/react-query';
 import type { UndoEntry } from '@/core/undo';
 import { UndoManager } from '@/core/undo';
-import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useNotificationStore } from '@/stores/notificationStore';
 
@@ -142,12 +141,6 @@ export const useUndoStore = create<UndoState>()((set, get) => {
       const workspaceId = get().currentWorkspaceId;
       const manager = getManager(workspaceId);
 
-      try {
-        await awaitAllContentSaves();
-      } catch {
-        // Proceed with undo even if flush times out; local state is still valid.
-      }
-
       if (!manager) {
         await get().refreshStack();
         return;
@@ -170,12 +163,6 @@ export const useUndoStore = create<UndoState>()((set, get) => {
       const workspaceId = get().currentWorkspaceId;
       const manager = getManager(workspaceId);
 
-      try {
-        await awaitAllContentSaves();
-      } catch {
-        // Proceed even if flush times out.
-      }
-
       if (!manager) {
         await get().refreshStack();
         return;
@@ -197,12 +184,6 @@ export const useUndoStore = create<UndoState>()((set, get) => {
     performUndoTo: async (queryClient: QueryClient, entry: UnifiedUndoEntry) => {
       const workspaceId = get().currentWorkspaceId;
       const manager = getManager(workspaceId);
-
-      try {
-        await awaitAllContentSaves();
-      } catch {
-        // Proceed even if flush times out.
-      }
 
       if (!manager || entry.runtimeId == null || entry.runtimeId >= 0) {
         await get().refreshStack();
@@ -228,12 +209,6 @@ export const useUndoStore = create<UndoState>()((set, get) => {
     performRedoTo: async (queryClient: QueryClient, entry: UnifiedUndoEntry) => {
       const workspaceId = get().currentWorkspaceId;
       const manager = getManager(workspaceId);
-
-      try {
-        await awaitAllContentSaves();
-      } catch {
-        // Proceed even if flush times out.
-      }
 
       if (!manager || entry.runtimeId == null || entry.runtimeId >= 0) {
         await get().refreshStack();

@@ -13,9 +13,6 @@ import { NodeCollection } from './NodeCollection';
 import { useAuthStore } from '@/stores';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
-import { setOperationRuntime } from '@/runtime/runtimeInstance';
-import { resetRuntimeEventBus } from '@/runtime/eventBus';
-import { OperationRuntime } from '@/runtime/OperationRuntime';
 import type { Node } from '@/types';
 
 const PAGE_ONE_UUID = '11111111-1111-1111-1111-111111111111';
@@ -103,20 +100,11 @@ vi.mock('@/features/editor', () => ({
   BlockFindReplacePlugin: vi.fn(() => null),
 }));
 
-vi.mock('@/stores/undoEngine', () => ({
-  getUndoEngine: vi.fn(() => ({
-    applyIntent: vi.fn(),
-  })),
-}));
-
 describe('NodeCollection list-mode grouping', () => {
   beforeEach(() => {
     useAuthStore.setState({ authVerified: false });
     useEditorFocusStore.setState({ activeBlockId: null, pendingFocusBlockId: null });
     useBlockSelectionStore.setState({ selectedIds: new Set(), anchorId: null, focusId: null, isDragging: false });
-    const runtime = new OperationRuntime();
-    setOperationRuntime(runtime);
-    resetRuntimeEventBus(runtime);
   });
 
   it('groups list-mode rows by page even without the group-by selector', () => {

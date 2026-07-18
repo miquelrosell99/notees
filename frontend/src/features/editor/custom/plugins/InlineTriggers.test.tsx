@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CustomInlineEditor } from '../components/CustomInlineEditor';
 import { getDOMSelectionOffset } from '../model/selectionSync';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import type { ContentAST } from '@/runtime/types';
+import type { ASTDocument as ContentAST } from '@/types/ast';
 import type { Node } from '@/types';
 
 const PAGE_NODE: Node = {

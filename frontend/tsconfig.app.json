@@ -19,8 +19,7 @@
       "@/hooks/*": ["./src/hooks/*"],
       "@/stores/*": ["./src/stores/*"],
       "@/api/*": ["./src/api/*"],
-      "@/editor/*": ["./src/editor/*"],
-      "@/runtime/*": ["./src/runtime/*"]
+      "@/editor/*": ["./src/editor/*"]
     },
     "strict": true,
     "noUnusedLocals": true,

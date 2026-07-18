@@ -96,9 +96,6 @@ export * from './hooks/useTemplates';
 export * from './hooks/useConvertNode';
 export * from './hooks/dnd';
 
-// Runtime sync helpers consumed by other features
-export { apiNodesToGraphNodes } from './hooks/useRuntimeSync';
-
 // Activity API (moved from src/api)
 export * from './api/activity';
 

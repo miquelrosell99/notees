@@ -90,9 +90,10 @@ def test_websocket_connect_with_valid_actor(client: TestClient) -> None:
 
 def test_websocket_connect_without_actor_is_rejected(client: TestClient) -> None:
     """A connection without an actor id is closed before accept."""
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/api/relay/ws/ws-1") as websocket:
-            pass  # pragma: no cover
+    with pytest.raises(WebSocketDisconnect), client.websocket_connect(
+        "/api/relay/ws/ws-1"
+    ):
+        pass  # pragma: no cover
 
 
 def test_websocket_connect_permission_denied() -> None:
@@ -116,13 +117,13 @@ def test_websocket_connect_permission_denied() -> None:
     app.dependency_overrides[get_permission_checker] = lambda: DenyAll()
     app.dependency_overrides[get_effective_permission_checker] = lambda: DenyAll()
 
-    with TestClient(app) as deny_client:
-        with pytest.raises(WebSocketDisconnect):
-            with deny_client.websocket_connect(
-                "/api/relay/ws/ws-1",
-                headers={"x-actor-id": "actor-1"},
-            ) as websocket:
-                pass  # pragma: no cover
+    with TestClient(app) as deny_client, pytest.raises(
+        WebSocketDisconnect
+    ), deny_client.websocket_connect(
+        "/api/relay/ws/ws-1",
+        headers={"x-actor-id": "actor-1"},
+    ):
+        pass  # pragma: no cover
 
 
 def test_websocket_batch_is_broadcast_to_other_client(
@@ -131,14 +132,16 @@ def test_websocket_batch_is_broadcast_to_other_client(
     """Sending a batch over WS stores the envelope and forwards it to peers."""
     envelope = _envelope("op-1", workspace_id="ws-1", actor_id="actor-1")
 
-    with client.websocket_connect(
-        "/api/relay/ws/ws-1",
-        headers={"x-actor-id": "actor-1"},
-    ) as sender:
-        with client.websocket_connect(
+    with (
+        client.websocket_connect(
+            "/api/relay/ws/ws-1",
+            headers={"x-actor-id": "actor-1"},
+        ) as sender,
+        client.websocket_connect(
             "/api/relay/ws/ws-1",
             headers={"x-actor-id": "actor-2"},
-        ) as receiver:
+        ) as receiver,
+    ):
             sender.send_json(
                 {
                     "type": "batch",

@@ -4,7 +4,7 @@ import { createRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CustomInlineEditor } from './CustomInlineEditor';
 import type { InlineEditorHandle } from '@/features/editor/editor/types';
-import type { ContentAST } from '@/runtime/types';
+import type { ASTDocument as ContentAST } from '@/types/ast';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { getDOMSelectionOffset } from '../model/selectionSync';
 

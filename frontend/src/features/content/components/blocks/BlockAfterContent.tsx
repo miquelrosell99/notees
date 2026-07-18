@@ -21,10 +21,12 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
   TASK_STATUSES,
   TASK_CLOSED_STATUSES,
 } from '@/constants/systemProperties';
 import type { TaskStatus } from '@/features/tasks';
+import { useProperties } from '@/features/properties';
 import { nodeNameToText } from '@/features/queries';
 import { AssetImage } from '@/features/content/components/nodes/AssetImage';
 import { QuerySection } from '@/features/content/components/nodes/QuerySection';
@@ -41,8 +43,6 @@ import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { NodeLinkContextMenuTrigger } from '@/features/content';
 import type { JSX } from 'react';
 import './BlockAfterContent.css';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
 
 interface BlockAfterContentProps {
   node: Node;
@@ -162,9 +162,19 @@ const TASK_BADGE_CLASS: Record<TaskStatus, string> = {
 };
 
 function TaskBadges({ node }: { node: Node }): JSX.Element | null {
-  const runtime = getOperationRuntime();
-  const graphNode = getNode(runtime, node.uuid);
-  const taskStatus = graphNode?.taskStatus;
+  const { data: allProperties } = useProperties();
+
+  const statusValue = node.properties_uuid?.[SYSTEM_PROPERTY_UUIDS.task_status];
+  let taskStatus: string | null = null;
+  if (statusValue != null) {
+    if (typeof statusValue === 'string') {
+      const statusProp = allProperties?.find(p => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status);
+      const option = statusProp?.options?.find(o => o.uuid === statusValue);
+      taskStatus = option?.name ?? statusValue;
+    } else {
+      taskStatus = String(statusValue);
+    }
+  }
 
   if (!taskStatus || !TASK_STATUSES.includes(taskStatus as TaskStatus)) {
     return null;
@@ -337,15 +347,13 @@ function BacklinkPreview({ node, expanded }: { node: Node; expanded?: boolean })
 function QueryPreview({ node }: { node: Node }): JSX.Element | null {
   const openNode = useNavigationStore((s) => s.openNode);
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
-  const runtime = getOperationRuntime();
-  const graphNode = getNode(runtime, node.uuid);
   const { queryAST, saveQueryAST } = useQueryBlock(node.uuid);
 
   return (
     <div className="block-after-content__query">
       <QueryNodeCollection
         nodeUuid={node.uuid}
-        nodeName={graphNode?.name}
+        nodeName={node.name}
         viewType="main_content"
         onNodeClick={(id, isPage) => {
           if (isPage) openNode(id);
@@ -436,16 +444,14 @@ function TablePreview({ node }: { node: Node }): JSX.Element | null {
 // ─── Main Component ──────────────────────────────────────────────
 
 export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentProps): JSX.Element {
-  const runtime = getOperationRuntime();
-  const graphNode = getNode(runtime, node.uuid);
-  const classIds = graphNode?.classIds ?? [];
+  const classIds = node.classes_uuid ?? [];
 
   const isAsset = classIds.includes(SYSTEM_CLASS_UUIDS.asset);
   const isCode = classIds.includes(SYSTEM_CLASS_UUIDS.code);
   const isQuery = classIds.includes(SYSTEM_CLASS_UUIDS.query);
   const isTable = classIds.includes(SYSTEM_CLASS_UUIDS.table);
   const hasBacklinks = (node.backlink_count ?? 0) > 0;
-  const isTask = graphNode?.taskStatus != null;
+  const isTask = node.properties_uuid?.[SYSTEM_PROPERTY_UUIDS.task_status] != null;
   const calloutType = detectCalloutType(classIds);
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const isCollapsed = useUIStateStore(

@@ -3,8 +3,8 @@
 import pytest
 from fastapi import APIRouter
 
-from app.plugins.core.registry import PluginRegistry
 from app.plugins.core.ports import RouterRegistration
+from app.plugins.core.registry import PluginRegistry
 
 
 @pytest.mark.unit

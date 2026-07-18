@@ -17,9 +17,7 @@ import { useSetNodeProperty, useProperties } from '@/features/properties';
 import { useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode } from '@/features/content';
 import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
-import { stringifyAST, StringifyMode } from '@/lib';
-import { useLazyChildren } from '@/features/content/hooks/useLazyChildren';
-import { getEffectiveIcon } from '@/utils/nodeIcon';
+import { nodeNameToText } from '@/features/queries';
 
 import type { Node } from '@/types';
 // GraphNode type no longer needed here — projection moved to useBlockTree
@@ -37,9 +35,6 @@ import { useTemplateVariables } from '../../hooks/useTemplates';
 import { useAuthStore } from '@/features/auth/stores/authStore';
 
 import './NodeContent.css';
-import { getOperationRuntime } from '@/runtime';
-import { getAllNodes } from '@/runtime/graphHelpers';
-import { upsertNodes } from '@/runtime/eventBus';
 import { useQueryClient } from '@tanstack/react-query';
 import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 
@@ -79,9 +74,6 @@ export function NodeContent({
 
   const { handleNodeClick, handleNodeShiftClick } = useNodeNavigation();
 
-  // Lazy-load children of collapsed blocks when they are expanded
-  useLazyChildren();
-
   // Debounced content save - batches rapid edits to reduce API calls
   // saveImmediate bypasses debounce for operations like asset uploads
   const { handleContentChange: handleBlockChange, saveImmediate } = useContentSave();
@@ -118,24 +110,8 @@ export function NodeContent({
   const [manualAssetBlockId, setManualAssetBlockId] = useState<string | null>(null);
 
   const handleAddClass = useCallback((blockId: string, classId: string) => {
-    // Optimistically update the runtime so the block's class pills and bullet
-    // icon change immediately, without waiting for the API round-trip + cache
-    // sync. Color is deliberately NOT touched: the runtime color is the node's
-    // own color, and the block background tint must not adopt class colors.
-    const runtime = getOperationRuntime();
-    const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
-    if (graphNode && allClasses) {
-      const classStrId = String(classId);
-      if (!graphNode.classIds.includes(classStrId)) {
-        const classNode = allClasses.find(c => c.uuid === classId);
-        const effectiveIcon = classNode ? getEffectiveIcon(classNode, allClasses) : undefined;
-        upsertNodes([{
-          ...graphNode,
-          classIds: [...graphNode.classIds, classStrId],
-          icon: effectiveIcon ?? graphNode.icon,
-        }]);
-      }
-    }
+    // The core-backed addClass mutation applies the class assignment immediately,
+    // so no separate optimistic runtime update is needed.
 
     // Check if this is adding the asset class manually
     if (systemClassMap?.asset != null && classId === systemClassMap.asset) {
@@ -151,7 +127,7 @@ export function NodeContent({
       return;
     }
     addClass.mutate({ nodeUuid: blockId, classId });
-  }, [addClass, systemClassMap, allClasses]);
+  }, [addClass, systemClassMap]);
 
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
@@ -180,12 +156,11 @@ export function NodeContent({
 
   // Handle template instantiation from the inline /template picker
   const handleTemplateInstantiate = useCallback((templateNodeId: string, blockServerId: string | undefined) => {
-    const runtime = getOperationRuntime();
-    const allRuntimeNodes = getAllNodes(runtime);
-    const templateNode = allRuntimeNodes.find(n => n.blockId === templateNodeId);
+    // Use the current node's name as a fallback title; the template dialog will
+    // be replaced by the actual template content once instantiated.
     setPendingTemplate({
       templateNodeId,
-      templateName: templateNode?.name ?? 'Template',
+      templateName: 'Template',
       blockServerId,
     });
   }, []);
@@ -199,97 +174,84 @@ export function NodeContent({
     try {
       const { instantiateTemplate } = await import('@/api/nodes');
 
-      const runtime = getOperationRuntime();
-
-      // Insert template children as children of the block where /template was typed
-      const parentId = blockServerId ?? node.uuid;
-      let parentUuid = node.uuid;
-      if (blockServerId != null) {
-        const allRuntimeNodes = getAllNodes(runtime);
-        const blockNode = allRuntimeNodes.find(n => n.blockId === blockServerId);
-        if (blockNode) {
-          parentUuid = blockNode.blockId;
-        }
-      }
+      // Insert template children as children of the block where /template was typed.
+      // Core store uses public UUIDs directly, so blockServerId is the parent UUID.
+      const parentUuid = blockServerId ?? node.uuid;
       const result = await instantiateTemplate(templateNodeId, {
         parent_uuid: parentUuid,
         as_blocks: true,
         variables,
         dynamic_context: dynamicContext,
       });
-      if (result.blocks.length > 0) {
-        const { apiNodesToGraphNodes } = await import('@/features/content/hooks/useRuntimeSync');
-        const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentUuid);
-        upsertNodes(graphNodes);
+      if (result.blocks.length === 0) return;
 
-        // Optimistically update the TanStack query cache so that BlockEditor's
-        // stale-cleanup sees the new blocks in the `nodes` prop immediately,
-        // rather than waiting for an async refetch.
-        // The API returns blocks as a flat list; build a nested tree first.
-        const blockMap = new Map<string, Node>();
-        for (const b of result.blocks) blockMap.set(b.uuid, { ...b, children: [] });
-        const topLevel: Node[] = [];
-        for (const b of result.blocks) {
-          const mapped = blockMap.get(b.uuid)!;
-          if (b.parent_uuid === parentId) {
-            topLevel.push(mapped);
-          } else {
-            const parent = blockMap.get(b.parent_uuid!);
-            if (parent) {
-              parent.children = parent.children || [];
-              parent.children.push(mapped);
-            }
+      // Optimistically update the TanStack query cache so that BlockEditor's
+      // stale-cleanup sees the new blocks in the `nodes` prop immediately,
+      // rather than waiting for an async refetch.
+      // The API returns blocks as a flat list; build a nested tree first.
+      const blockMap = new Map<string, Node>();
+      for (const b of result.blocks) blockMap.set(b.uuid, { ...b, children: [] });
+      const topLevel: Node[] = [];
+      for (const b of result.blocks) {
+        const mapped = blockMap.get(b.uuid)!;
+        if (b.parent_uuid === parentUuid) {
+          topLevel.push(mapped);
+        } else {
+          const parent = blockMap.get(b.parent_uuid!);
+          if (parent) {
+            parent.children = parent.children || [];
+            parent.children.push(mapped);
           }
         }
-
-        // Use explicit cache iteration (setQueriesData is unreliable for
-        // nested structures — see useNodeMutations.ts for rationale).
-        const { nodeKeys } = await import('@/hooks/queryKeys');
-        const { queryClient } = await import('@/lib/queryClient');
-        const addBlocksToParent = (n: Node): Node => {
-          if (n.uuid === parentId) {
-            return {
-              ...n,
-              children: [...(n.children || []), ...topLevel],
-              has_children: true,
-            };
-          }
-          if (n.children) {
-            const mapped = n.children.map(addBlocksToParent);
-            if (mapped.some((c, i) => c !== n.children![i])) {
-              return { ...n, children: mapped };
-            }
-          }
-          return n;
-        };
-        const queryCache = queryClient.getQueryCache();
-        const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
-        let cacheUpdated = false;
-        for (const query of detailQueries) {
-          const oldData = query.state.data as Node | undefined;
-          if (oldData) {
-            const newData = addBlocksToParent(oldData);
-            if (newData !== oldData) {
-              queryClient.setQueryData(query.queryKey, newData);
-              cacheUpdated = true;
-            }
-          }
-        }
-        if (!cacheUpdated) {
-          console.warn('[TEMPLATE] No cache entries were updated! parentId:', parentId);
-        }
-
-        // Invalidate detail queries for the current node so a background
-        // refetch brings in the full server tree.  The manual cache update
-        // above provides instant visual feedback; this refetch ensures the
-        // data is authoritative and fixes edge-cases the optimistic update
-        // might miss (e.g. deeply nested structures or collapsed state).
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.uuid) });
       }
+
+      // Use explicit cache iteration (setQueriesData is unreliable for
+      // nested structures — see useNodeMutations.ts for rationale).
+      const { nodeKeys } = await import('@/hooks/queryKeys');
+      const { queryClient: qc } = await import('@/lib/queryClient');
+      const addBlocksToParent = (n: Node): Node => {
+        if (n.uuid === parentUuid) {
+          return {
+            ...n,
+            children: [...(n.children || []), ...topLevel],
+            has_children: true,
+          };
+        }
+        if (n.children) {
+          const mapped = n.children.map(addBlocksToParent);
+          if (mapped.some((c, i) => c !== n.children![i])) {
+            return { ...n, children: mapped };
+          }
+        }
+        return n;
+      };
+      const queryCache = qc.getQueryCache();
+      const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
+      let cacheUpdated = false;
+      for (const query of detailQueries) {
+        const oldData = query.state.data as Node | undefined;
+        if (oldData) {
+          const newData = addBlocksToParent(oldData);
+          if (newData !== oldData) {
+            qc.setQueryData(query.queryKey, newData);
+            cacheUpdated = true;
+          }
+        }
+      }
+      if (!cacheUpdated) {
+        console.warn('[TEMPLATE] No cache entries were updated! parentUuid:', parentUuid);
+      }
+
+      // Invalidate detail queries for the current node so a background
+      // refetch brings in the full server tree.  The manual cache update
+      // above provides instant visual feedback; this refetch ensures the
+      // data is authoritative and fixes edge-cases the optimistic update
+      // might miss (e.g. deeply nested structures or collapsed state).
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.uuid) });
     } catch (e) {
       console.error('[NodeContent] template instantiation failed', e);
     }
-  }, [node.uuid, node.uuid, queryClient]);
+  }, [node.uuid, queryClient]);
 
   // Handle slash commands from the editor
   const handleSlashCommand = useCallback((commandId: string, blockServerId: string | undefined) => {
@@ -374,11 +336,8 @@ export function NodeContent({
           { nodeUuid: blockServerId, classId },
           {
             onSuccess: () => {
-              const runtime = getOperationRuntime();
-              const graphNode = getAllNodes(runtime).find(n => n.blockId === blockServerId);
-              const frontText = graphNode
-                ? stringifyAST(graphNode.contentAST, { mode: StringifyMode.TEXT_ONLY }).trim()
-                : '';
+              const block = children.find(c => c.uuid === blockServerId);
+              const frontText = block ? nodeNameToText(block.name).trim() : '';
               createFlashcard.mutate({ nodeUuid: blockServerId, frontText, backText: '' });
             },
           },
@@ -392,7 +351,7 @@ export function NodeContent({
         break;
       }
     }
-  }, [systemClassMap, addClass, node.uuid, allProperties, setNodeProperty, createFlashcard]);
+  }, [systemClassMap, addClass, node.uuid, allProperties, setNodeProperty, createFlashcard, children]);
 
   // Handle table creation from modal — new table with selected dimensions
   const handleTableConfirm = useCallback(async (size: TableGridSize) => {

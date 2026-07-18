@@ -5,7 +5,6 @@ import type { InlineEditorHandle } from '@/features/editor';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useNavigationStore } from '@/stores';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
-import { getRuntimeDisplayName } from '@/features/content/hooks/runtimeContentOverlay';
 
 interface NodeCellEditableProps {
   node: Node;
@@ -32,9 +31,9 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
   const isPendingFocus = useEditorFocusStore((s) => s.pendingFocusBlockId === node.uuid);
   const shouldMountEditor = isActive || isPendingFocus;
 
-  // Live content from the runtime overlay, so the cell reflects the latest
-  // edits right after blur instead of waiting for the server round-trip.
-  const displayName = getRuntimeDisplayName(node);
+  // The cell receives the node directly; its name is the source of truth for
+  // the table cell (core-store subscription happens at the parent level).
+  const displayName = node.name;
   const contentAST = useMemo(() => parseAST(displayName), [displayName]);
 
   // Focus the editor on the render that mounts it.

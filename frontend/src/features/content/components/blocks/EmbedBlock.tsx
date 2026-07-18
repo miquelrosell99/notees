@@ -12,26 +12,20 @@
  */
 
 import { useState, useEffect, useCallback, useRef, type JSX } from 'react';
+import { useParams } from 'react-router-dom';
 
 import { generateUUID } from '@/utils/uuid';
+import { useWorkspaceStore } from '@/core/hooks';
 import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
 import { useContentSave } from '@/features/editor';
+import { useCoreBlockMutations } from '@/features/content/hooks/useCoreBlockMutations';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { nodeNameToText } from '@/features/queries';
 
 import './EmbedBlock.css';
 import { Icon } from '@/components/ui/icons';
 import { Spinner } from '@/components/ui/Spinner';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
-import { getRuntimeEventBus } from '@/runtime/eventBus';
-import { getUndoEngine } from '@/stores/undoEngine';
-import type { MutationIntent } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-
-async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
-  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
-}
 
 // ─── Props ───────────────────────────────────────────────────────
 
@@ -57,6 +51,10 @@ export function EmbedBlock({
   const [borderSelected, setBorderSelected] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { deleteBlock, createBlock } = useCoreBlockMutations(workspaceId);
+
   // Fetch the embedded node with its children
   const { data: embeddedNode, isLoading, isError } = useNodeByUuid(embeddedNodeUuid, {
     include_children: true,
@@ -72,27 +70,24 @@ export function EmbedBlock({
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    await applyRuntimeIntent({ type: 'delete_block', blockId: hostBlockId });
-    getRuntimeEventBus().flushEvents();
+    await deleteBlock({ blockId: hostBlockId });
     setBorderSelected(false);
-  }, [hostBlockId]);
+  }, [hostBlockId, deleteBlock]);
 
   const handleCreateSiblingAfterHost = useCallback(async () => {
-    const runtime = getOperationRuntime();
-    const hostNode = getNode(runtime, hostBlockId);
+    if (!store) return;
+    const hostNode = store.getNode(hostBlockId);
     if (!hostNode?.parentId) return;
     const newBlockId = generateUUID();
     useEditorFocusStore.getState().setPendingFocus(newBlockId);
-    await applyRuntimeIntent({
-      type: 'create_block',
+    await createBlock({
       parentId: hostNode.parentId,
       afterBlockId: hostBlockId,
       blockId: newBlockId,
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
-    getRuntimeEventBus().flushEvents();
     setBorderSelected(false);
-  }, [hostBlockId]);
+  }, [hostBlockId, store, createBlock]);
 
   // Global keydown handler when border is selected
   useEffect(() => {
@@ -155,13 +150,8 @@ export function EmbedBlock({
   // ─── Inner content change handler ─────────────────────────
 
   const handleInnerContentChange = useCallback((blockId: string, content: string) => {
-    // BlockList passes UUIDs; look up server ID via runtime
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, blockId);
-    const serverId = graphNode?.blockId;
-    if (serverId != null) {
-      handleContentChange(serverId, content);
-    }
+    // Core store uses public UUIDs directly, so blockId is the node UUID.
+    handleContentChange(blockId, content);
   }, [handleContentChange]);
 
   // ─── Render states ─────────────────────────────────────────

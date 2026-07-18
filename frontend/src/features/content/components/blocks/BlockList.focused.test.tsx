@@ -162,6 +162,7 @@ vi.mock('@/core/hooks', () => ({
   useWorkspaceStore: vi.fn(() => ({ store: mockStore as unknown as WorkspaceStore, isLoading: false, error: null })),
   useNode: vi.fn(() => ({ node: undefined, isLoading: false })),
   useChildren: vi.fn(() => ({ children: [], isLoading: false })),
+  useUndoManager: vi.fn(() => ({ group: vi.fn(), wrap: vi.fn() })),
 }));
 
 vi.mock('@/features/content/hooks/useCoreBlockMutations', () => ({
