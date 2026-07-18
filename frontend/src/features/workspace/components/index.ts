@@ -8,7 +8,6 @@
 export {
   ExportPageModal,
   ImportDataModal,
-  ImportLogseqModal,
   ImportMarkdownModal,
   ImportOptionsModal,
   AutoExportProgressModal,

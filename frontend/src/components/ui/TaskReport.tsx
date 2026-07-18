@@ -1,8 +1,8 @@
 /**
  * TaskReport — Reusable phase-based report with expandable error rows.
  *
- * Used by ImportOptionsModal, ImportLogseqModal, FixRawLinksModal, and
- * any future operation that produces a phase-by-phase summary.
+ * Used by ImportOptionsModal, FixRawLinksModal, and any future operation
+ * that produces a phase-by-phase summary.
  */
 import { useState } from 'react';
 
