@@ -10,10 +10,8 @@ import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useNavigationStore } from '@/stores';
 import { useNotifyActions } from '@/features/layout';
 import { queryClient } from '@/lib/queryClient';
-import { updateNode, createNode } from '@/api/nodes';
 import { resetNodeViews } from '@/api/nodeViews';
-import { usePageClass, useClasses } from '@/features/content';
-import { nodeKeys } from '@/hooks/queryKeys';
+import { usePageClass, useClasses, useCreateNode } from '@/features/content';
 import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 
@@ -23,27 +21,13 @@ export function CommandRegistrations() {
   const openNode = useNavigationStore((s) => s.openNode);
   const currentNodeUuid = useNavigationStore((s) => s.currentNodeUuid);
   const { notifyError, notifyWarning, notifySuccess } = useNotifyActions();
+  const createNodeMutation = useCreateNode();
 
-  // Toggle page privacy — needs queryClient and current node data
+  // Toggle page privacy — not modeled in the core store yet, so this is a no-op.
   useCommand(
     COMMAND_IDS.TOGGLE_PRIVATE,
     () => {
-      if (!currentNodeUuid) return;
-      const allDetails = queryClient.getQueriesData<{ is_private?: boolean }>({ queryKey: nodeKeys.details() });
-      const currentNodeEntry = allDetails.find(([key]) => Array.isArray(key) && key[2] === currentNodeUuid);
-      const currentNode = currentNodeEntry?.[1];
-      if (currentNode) {
-        const nodeUuid = (currentNode as { uuid?: string }).uuid ?? String(currentNodeUuid);
-        updateNode(nodeUuid, { is_private: !currentNode.is_private })
-          .then(() => {
-            queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(currentNodeUuid) });
-          })
-          .catch(() => {
-            notifyError('Failed to toggle privacy', 'Please try again.');
-          });
-      } else {
-        notifyWarning('Cannot toggle privacy', 'Page data is not loaded. Please try again.');
-      }
+      notifyWarning('Privacy toggle not available', 'Page privacy is not yet supported in the local-first store.');
     },
     {
       label: 'Toggle page privacy',
@@ -92,16 +76,20 @@ export function CommandRegistrations() {
         notifyWarning('Setup incomplete', 'Task class not found. Please reload the app.');
         return;
       }
-      createNode({
-        name: 'New Task',
-        class_uuids: [pageClassUuid, taskClassUuid],
-      })
-        .then((newNode) => {
-          openNode(newNode.uuid);
-        })
-        .catch(() => {
-          notifyError('Failed to create task', 'Please try again.');
-        });
+      createNodeMutation.mutate(
+        {
+          name: 'New Task',
+          class_uuids: [pageClassUuid, taskClassUuid],
+        },
+        {
+          onSuccess: (newNode) => {
+            openNode(newNode.uuid);
+          },
+          onError: () => {
+            notifyError('Failed to create task', 'Please try again.');
+          },
+        }
+      );
     },
     {
       label: 'Capture task',
