@@ -3,11 +3,19 @@ import { createSchema } from './schema';
 
 let sqlModule: Awaited<ReturnType<typeof initSqlJs>> | null = null;
 
+function isRealBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (typeof navigator === 'undefined') return false;
+  // jsdom (used in tests) identifies itself in the user agent; use the default
+  // Node wasm loader there instead of a browser-relative URL.
+  return !navigator.userAgent.includes('jsdom');
+}
+
 async function getSqlModule(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
   if (!sqlModule) {
-    sqlModule = await initSqlJs({
-      locateFile: () => `/sql-wasm.wasm`,
-    });
+    sqlModule = await initSqlJs(
+      isRealBrowser() ? { locateFile: () => `/sql-wasm.wasm` } : undefined
+    );
   }
   return sqlModule;
 }
