@@ -97,6 +97,15 @@ CREATE TABLE IF NOT EXISTS crdt_state (
     text_state BLOB,
     tree_state BLOB
 );
+
+CREATE TABLE IF NOT EXISTS class_hierarchy (
+    class_id TEXT NOT NULL,
+    ancestor_id TEXT NOT NULL,
+    PRIMARY KEY (class_id, ancestor_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor
+    ON class_hierarchy (ancestor_id);
 """
 
 
@@ -202,6 +211,31 @@ def _rebuild_edges_for_node(conn: sqlite3.Connection, op: Operation) -> None:
     for target_id, row in existing_targets.items():
         if target_id not in desired:
             conn.execute("DELETE FROM edge WHERE id = ?", (row["id"],))
+
+
+def _apply_class_hierarchy(conn: sqlite3.Connection, class_id: str, extends: list[str] | None) -> None:
+    """Maintain the transitive class_hierarchy closure for ``class_id``.
+
+    Replaces any existing rows for the class with ``(class_id, class_id)`` and
+    one row for every ancestor reachable through the ``extends`` chain.
+    """
+    conn.execute("DELETE FROM class_hierarchy WHERE class_id = ?", (class_id,))
+    conn.execute(
+        "INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)",
+        (class_id, class_id),
+    )
+    for ancestor_uuid in extends or []:
+        conn.execute(
+            "INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)",
+            (class_id, ancestor_uuid),
+        )
+        for row in conn.execute(
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?", (ancestor_uuid,)
+        ).fetchall():
+            conn.execute(
+                "INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)",
+                (class_id, row["ancestor_id"]),
+            )
 
 
 def _apply_node_create(conn: sqlite3.Connection, op: Operation) -> None:
@@ -532,10 +566,14 @@ def _apply_class_create(conn: sqlite3.Connection, op: Operation) -> None:
             op.envelope.actor_id,
         ),
     )
+    _apply_class_hierarchy(conn, node_id, payload.get("extends"))
 
 
 def _apply_class_update(conn: sqlite3.Connection, op: Operation) -> None:
-    """Class updates do not affect derived reconciliation counts."""
+    """Recompute the class hierarchy when the ``extends`` list changes."""
+    payload = op.payload
+    node_id = payload["classId"]
+    _apply_class_hierarchy(conn, node_id, payload.get("extends"))
 
 
 def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:

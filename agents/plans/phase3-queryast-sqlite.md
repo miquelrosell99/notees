@@ -97,10 +97,11 @@ docker compose -f compose.dev.yaml exec frontend npm run test:run src/core/query
 
 ## Subagent breakdown
 
-- **Subagent C1 — Backend SQLite compiler**
-  - Create `app/core/query_ast/compiler.py`, `__init__.py`, and backend tests.
-  - Extend `app/core/migration/replay.py` with `class_hierarchy`.
-  - Add `tests/core/query_ast/` coverage.
+- **Subagent C1 — Backend SQLite compiler** ✅ Done
+  - Created `app/core/query_ast/compiler.py`, `__init__.py`, and backend tests.
+  - Extended `app/core/migration/replay.py` with `class_hierarchy` table and appliers for `class.create`/`class.update`.
+  - Added `tests/core/query_ast/test_compiler.py` and `tests/core/query_ast/test_executor_against_replay.py`.
+  - Caveats: `tag` conditions and `regex`/`fts` content operators remain out of scope; `StyleCondition` `is`/`is_not` operators are best-effort using JSON1; dynamic `nested_group` modes for path conditions are supported for simple cases but not exhaustively tested.
 - **Subagent C2 — Frontend SQLite compiler** ✅ Done
   - Created `frontend/src/core/query/compileToSqlite.ts` and `frontend/src/core/query/__tests__/compileToSqlite.test.ts`.
   - Added `class_hierarchy` table to `frontend/src/core/db/schema.ts` and populated it from `class.create`/`class.update` in `frontend/src/core/derived/node.ts`.
