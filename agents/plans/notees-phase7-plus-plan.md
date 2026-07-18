@@ -183,7 +183,7 @@ The E2E smoke suite is green, but the backend logs still show many 404s from the
 **Progress:**
 1. ✅ `listNodes` callers — `useNodeListQueries.ts`, `useQuickAdd.ts`, `PageHeader.tsx`, `useCommandPaletteSelection.ts` ported to the core store. Added `frontend/src/core/query/listPages.ts` helper and extended `queryNodes` to list pages/classes without a text query.
 2. ✅ Node read/write callers — `useNodeLinkQueries.ts`, `useNodeGraphQueries.ts`, `useNodeMiscQueries.ts`, `useBatchNodesByUuid.ts`, `useBatchedNode.ts`, and `useBatchedNodeByUuid.ts` ported to the core store. Added local-first query helpers under `frontend/src/core/query/` for backlinks, linked references, property backlinks, graph nodes/links/data, tasks, text links, suggestions, and breadcrumbs. Moved `GraphNode`, `GraphLink`, `GraphData`, `TextLink`, and `NodeVersion` types from `@/api/nodes` to `@/types/api` so core query code never imports the legacy API client.
-3. ⏳ Mutation callers — `useTrash.ts`, `useArchiveNode.ts`, `useAddClass.ts`, `useSetNodeProperty.ts`, `CommandRegistrations.tsx`, `Layout.tsx`.
+3. ✅ Mutation callers — `useTrash.ts`, `useArchiveNode.ts`, `useUnarchiveNode.ts`, `useArchivedPages.ts`, `useAddClass.ts`, `useRemoveClass.ts`, `useSetNodeProperty.ts`/`useSetNodePropertyAdapter.ts`, `useConvertNode.ts`, `useAddTagLink.ts`, `useRemoveTagLink.ts`, `useAddAlias.ts`, `useRemoveAlias.ts`, `useEmptyTrash.ts`, `CommandRegistrations.tsx`, `Layout.tsx`. Core store gained `active` flag support, archive/restore/permanent-delete/convert operations, and `includeArchived` query filtering. Snapshot commit `4d4efd8f`.
 4. ⏳ Importer/maintenance callers — `useLogseqImporter*.ts`, `FixRawLinksModal.tsx`, `RebuildLinksModal.tsx`.
 5. ⏳ `api/nodes.ts` itself can be deleted once all consumers are gone.
 
@@ -265,6 +265,6 @@ A pre-commit Phase 8 backup was also created before the final legacy-removal com
 - [x] `cd frontend && npm run test:run` passes (no legacy failures).
 - [x] Multi-client convergence tests pass.
 - [x] E2E smoke tests pass.
-- [ ] Remove remaining legacy `/api/nodes/*` callers from normal app load.
+- [x] Remove remaining legacy `/api/nodes/*` callers from normal app load — mutation callers done; importer/maintenance callers remain.
 - [ ] `AGENTS.md`, plans, and changelog updated.
 - [ ] Final milestone commit created.
