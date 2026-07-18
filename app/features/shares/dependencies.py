@@ -7,8 +7,9 @@ from collections.abc import AsyncGenerator
 import asyncpg
 from fastapi import Depends, HTTPException
 
-from app.db.connection import get_pool
-from app.dependencies import get_current_user, get_workspace_id
+from app.core.workspace_store import WorkspaceStore
+from app.db.connection import get_pool, get_workspace_uuid
+from app.dependencies import _get_workspace_context_cached, get_current_user, get_workspace_id
 from app.features.export.dependencies import _make_export_repository
 from app.features.export.service import ExportService
 from app.features.nodes.dependencies import _make_node_repository
@@ -96,3 +97,48 @@ async def get_public_property_repository(
         raise HTTPException(status_code=404, detail="Share not found or expired")
     pool = await get_pool()
     return _make_property_repository(pool, share.workspace_id, 0)
+
+
+async def get_public_workspace_store(
+    share_uuid: str,
+    share_repo: ShareRepository = Depends(get_share_repository_for_public),
+) -> AsyncGenerator[WorkspaceStore, None]:
+    """Get a WorkspaceStore scoped to the workspace of a public share.
+
+    PostgreSQL is still used to resolve the share token to a workspace; the
+    WorkspaceStore then supplies the derived node/share state.
+    """
+    share = await share_repo.get_share_by_uuid(share_uuid)
+    if share is None or not share.is_valid():
+        raise HTTPException(status_code=404, detail="Share not found or expired")
+    workspace_uuid = await get_workspace_uuid(share.workspace_id)
+    if workspace_uuid is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    store = WorkspaceStore(
+        workspace_id=workspace_uuid,
+        actor_id="anonymous",
+    )
+    try:
+        yield store
+    finally:
+        await store.close()
+
+
+async def get_workspace_store(
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[WorkspaceStore, None]:
+    """Get a WorkspaceStore for the current user's workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if workspace_uuid is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    store = WorkspaceStore(
+        workspace_id=workspace_uuid,
+        actor_id=user.uuid,
+    )
+    try:
+        yield store
+    finally:
+        await store.close()

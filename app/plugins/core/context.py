@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter
 
-from app.domain.entities import Node, NodeCreateData, NodeUpdateData
+from app.core.uuid import uuidv7
+from app.core.workspace_store import WorkspaceStore
 from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
-from app.domain.entities.property import PropertyScope, PropertyType
 from app.utils.datetime_utils import utc_now
 
 from .exceptions import PluginPermissionError
@@ -24,22 +25,54 @@ from .ports import (
 
 if TYPE_CHECKING:
     from app.domain.repositories.interfaces import SettingsRepository
-    from app.features.nodes.node_service import NodeService
-    from app.features.nodes.port import NodeRepository
-    from app.features.properties.service import PropertyService
 
     from .registry import PluginRegistry
 
 
-PortFactory = Callable[[int, int], Awaitable[Any]]
+# Port factories may take UUID strings (WorkspaceStore) or integer ids
+# (legacy/global repositories). The exact signature is defined by the registered
+# factory and enforced at call sites.
+PortFactory = Callable[..., Awaitable[Any]]
+
+
+def _content_to_text(raw_content: str | None) -> str | None:
+    """Extract plain text from a node's JSON content, falling back to None."""
+    if not raw_content:
+        return None
+    try:
+        content = json.loads(raw_content)
+    except (ValueError, TypeError):
+        return None
+
+    def _walk(node: Any) -> str:
+        if isinstance(node, dict):
+            if "text" in node:
+                text = node["text"]
+                if isinstance(text, str):
+                    return text
+                return ""
+            return "".join(_walk(child) for child in node.get("children", []))
+        if isinstance(node, list):
+            return "".join(_walk(child) for child in node)
+        if isinstance(node, str):
+            return node
+        return ""
+
+    text = _walk(content).strip()
+    return text or None
 
 
 class PluginContext:
     """Runtime context passed to a plugin's backend setup() function.
 
     The context exposes extension-point registration methods and a small set of
-    core domain-service factories. All registration methods validate that the
-    plugin has declared the required permission in its manifest.
+    core service factories. All registration methods validate that the plugin
+    has declared the required permission in its manifest.
+
+    During Phase 7 the mutable-row node/property services are replaced by
+    :class:`app.core.workspace_store.WorkspaceStore`. Helpers that read or write
+    workspace data now operate on UUID strings and emit operations into the
+    local-first operation log.
     """
 
     def __init__(
@@ -56,12 +89,18 @@ class PluginContext:
 
     # Permissions required to obtain a core service factory via get_port().
     _PORT_PERMISSIONS: dict[str, set[str]] = {
-        "NodeService": {"read_nodes", "write_nodes"},
-        "NodeRepository": {"read_nodes", "write_nodes"},
-        "PropertyService": {"read_properties", "write_properties"},
-        "PropertyRepository": {"read_properties", "write_properties"},
-        "AssetService": {"read_assets", "write_assets"},
-        "AssetRepository": {"read_assets", "write_assets"},
+        "WorkspaceStore": {
+            "read_nodes",
+            "write_nodes",
+            "read_properties",
+            "write_properties",
+            "read_assets",
+            "write_assets",
+            "background_sync",
+            "export",
+            "import",
+            "router",
+        },
         "SettingsRepository": {"settings"},
     }
 
@@ -82,10 +121,13 @@ class PluginContext:
     def get_port(self, name: str) -> PortFactory:
         """Return a factory for a core domain service.
 
-        The factory accepts ``(workspace_id, user_id)`` and returns a service
-        instance scoped to that workspace/user. Available ports depend on what
-        the PluginManager has registered and which permissions the plugin
-        declared.
+        The factory accepts arguments defined by the registered port:
+
+        - ``WorkspaceStore``: ``(workspace_uuid: str, actor_uuid: str)``.
+        - ``SettingsRepository``: ``(workspace_id: int, user_id: int)``.
+
+        Available ports depend on what the PluginManager has registered and
+        which permissions the plugin declared.
         """
         required = self._PORT_PERMISSIONS.get(name)
         if required is not None:
@@ -137,10 +179,22 @@ class PluginContext:
         """Namespace a plugin setting under its plugin id."""
         return f"plugin:{self.plugin_id}:{key}"
 
+    async def _get_workspace_store(
+        self, workspace_uuid: str, actor_uuid: str
+    ) -> WorkspaceStore:
+        """Return a WorkspaceStore scoped to the given workspace/actor."""
+        factory = self.get_port("WorkspaceStore")
+        store: WorkspaceStore = await factory(workspace_uuid, actor_uuid)
+        return store
+
     async def get_setting(
         self, workspace_id: int, user_id: int, key: str, default: Any = None
     ) -> Any:
-        """Read a workspace-scoped plugin setting."""
+        """Read a workspace-scoped plugin setting.
+
+        Settings still live in PostgreSQL, so this helper continues to use
+        integer workspace/user ids for the settings repository.
+        """
         factory = self.get_port("SettingsRepository")
         repo: SettingsRepository = await factory(workspace_id, user_id)
         settings = await repo.get_workspace_settings(workspace_id)
@@ -160,206 +214,233 @@ class PluginContext:
             user_id,
         )
 
-    async def _get_node_service(self, workspace_id: int, user_id: int) -> NodeService:
-        factory = self.get_port("NodeService")
-        return await factory(workspace_id, user_id)
+    async def emit_op(
+        self,
+        workspace_uuid: str,
+        actor_uuid: str,
+        op_type: str,
+        data: dict[str, Any],
+        node_id: str | None = None,
+    ) -> None:
+        """Emit a ``plugin.op`` operation for this plugin.
 
-    async def _get_node_repository(
-        self, workspace_id: int, user_id: int
-    ) -> NodeRepository:
-        factory = self.get_port("NodeRepository")
-        return await factory(workspace_id, user_id)
-
-    async def _get_property_service(
-        self, workspace_id: int, user_id: int
-    ) -> PropertyService:
-        factory = self.get_port("PropertyService")
-        return await factory(workspace_id, user_id)
-
-    async def _find_class_by_name(
-        self, node_repo: NodeRepository, name: str
-    ) -> Node | None:
-        """Find an existing class node by exact name."""
-        classes = await node_repo.list_classes()
-        for cls in classes:
-            if cls.name == name:
-                return cls
-        return None
+        The operation is encrypted and persisted through the relay, then applied
+        to the derived SQLite state via the ``plugin_op_log`` table.
+        """
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            await store.plugin_op(self.plugin_id, op_type, data, node_id=node_id)
+        finally:
+            await store.close()
 
     async def ensure_class(
         self,
-        workspace_id: int,
-        user_id: int,
+        workspace_uuid: str,
+        actor_uuid: str,
         name: str,
         icon: str | None = None,
-    ) -> int:
-        """Return the id of a class with the given name, creating it if needed."""
+    ) -> str:
+        """Return the UUID of a class with the given name, creating it if needed.
+
+        System classes are resolved from :data:`SYSTEM_CLASS_UUIDS`. For
+        user-created classes the derived state currently does not store class
+        names, so a new ``class.create`` operation is emitted each time. Once
+        the derived schema materialises class names this helper will become
+        fully idempotent.
+        """
         self._require("write_nodes")
-        node_repo = await self._get_node_repository(workspace_id, user_id)
-        node_service = await self._get_node_service(workspace_id, user_id)
+        for class_name, class_uuid in SYSTEM_CLASS_UUIDS.items():
+            if class_name == name:
+                return class_uuid
 
-        existing = await self._find_class_by_name(node_repo, name)
-        if existing and existing.id is not None:
-            return existing.id
-
-        class_class = await node_repo.find_node_id_by_uuid(SYSTEM_CLASS_UUIDS["class"])
-        if class_class is None:
-            raise RuntimeError("System 'class' class not found")
-        data = NodeCreateData(
-            name=name,
-            icon=icon,
-            classes=[class_class],
-        )
-        node = await node_service.create_node(data, user_id=user_id)
-        if node.id is None:
-            raise RuntimeError(f"Failed to create class '{name}'")
-        return node.id
-
-    async def ensure_property(
-        self,
-        workspace_id: int,
-        user_id: int,
-        name: str,
-        prop_type: PropertyType = PropertyType.TEXT,
-        icon: str | None = None,
-    ) -> int:
-        """Return the id of a global property with the given name, creating it if needed."""
-        self._require("write_nodes")
-        prop_service = await self._get_property_service(workspace_id, user_id)
-
-        for prop in await prop_service.list_properties():
-            if prop.name == name and prop.id is not None:
-                return prop.id
-
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
         try:
-            created = await prop_service.create_property(
-                name=name,
-                prop_type=prop_type,
-                scope=PropertyScope.GLOBAL,
-                icon=icon,
-            )
-        except ValueError:
-            # Another concurrent caller created it; fetch and return.
-            for prop in await prop_service.list_properties():
-                if prop.name == name and prop.id is not None:
-                    return prop.id
-            raise RuntimeError(f"Failed to create property '{name}'") from None
+            class_uuid = uuidv7()
+            await store.create_class(class_id=class_uuid, name=name)
+            return class_uuid
+        finally:
+            await store.close()
 
-        if created.id is None:
-            raise RuntimeError(f"Failed to create property '{name}'")
-        return created.id
+    async def ensure_property_schema(
+        self,
+        workspace_uuid: str,
+        actor_uuid: str,
+        name: str,
+        prop_type: str = "text",
+        icon: str | None = None,
+    ) -> str:
+        """Return the UUID of a property schema with the given name.
+
+        Property schemas are not materialised in the derived SQLite state, so a
+        new ``propertySchema.create`` operation is emitted on each call. Plugins
+        that need idempotent schema creation should store the generated UUID in
+        their own derived rows via :meth:`emit_op`.
+        """
+        self._require("write_properties")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            schema_uuid = uuidv7()
+            await store.create_property_schema(
+                schema_id=schema_uuid, name=name, prop_type=prop_type
+            )
+            return schema_uuid
+        finally:
+            await store.close()
+
+    async def find_page_by_name(
+        self, workspace_uuid: str, actor_uuid: str, name: str
+    ) -> str | None:
+        """Return the UUID of the first active page whose text content matches ``name``."""
+        self._require("read_nodes")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            await store.sync()
+            rows = await store.query("SELECT id, content FROM node WHERE kind = 'page'")
+            for row in rows:
+                if _content_to_text(row["content"]) == name:
+                    return row["id"]
+            return None
+        finally:
+            await store.close()
 
     async def create_page(
         self,
-        workspace_id: int,
-        user_id: int,
+        workspace_uuid: str,
+        actor_uuid: str,
         name: str,
-        additional_classes: list[int] | None = None,
-        property_values: dict[int, Any] | None = None,
+        class_uuids: list[str] | None = None,
+        property_values: dict[str, Any] | None = None,
         icon: str | None = None,
-    ) -> Node:
-        """Create a page node with optional classes and property values."""
-        self._require("write_nodes")
-        node_service = await self._get_node_service(workspace_id, user_id)
-        node = await node_service.create_page(
-            name=name,
-            icon=icon,
-            additional_classes=additional_classes,
-            user_id=user_id,
-        )
-        if node.id is not None and property_values:
-            await node_service.apply_node_extras(node.id, classes=None, tags=None, properties=property_values)
-            node = await node_service.get_node_by_id(node.id) or node
-        return node
+    ) -> str:
+        """Create a page node with optional classes and property values.
 
-    async def _find_node_by_property_value(
-        self,
-        prop_service: PropertyService,
-        property_id: int,
-        value: str,
-    ) -> int | None:
-        """Find the first page whose scalar property equals ``value``."""
-        candidates = await prop_service.get_nodes_with_property(property_id)
-        for candidate in candidates:
-            if not candidate.get("is_page"):
-                continue
-            prop_data = candidate.get("properties", {}).get(property_id)
-            if not prop_data:
-                continue
-            for scalar in prop_data.get("values", []):
-                if getattr(scalar, "value_text", None) == value:
-                    return candidate["node_id"]
-        return None
+        Returns the UUID of the newly created page.
+        """
+        self._require("write_nodes")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            node_uuid = uuidv7()
+            initial_content: list[dict[str, Any]] = [
+                {
+                    "type": "paragraph",
+                    "children": [{"text": name}],
+                }
+            ]
+            await store.create_node(
+                node_id=node_uuid,
+                kind="page",
+                initial_content=initial_content,
+                class_ids=class_uuids or [],
+            )
+            if icon is not None:
+                await store.set_property(
+                    property_value_id=uuidv7(),
+                    node_id=node_uuid,
+                    schema_id="system:icon",
+                    value=icon,
+                )
+            for schema_uuid, value in (property_values or {}).items():
+                await store.set_property(
+                    property_value_id=uuidv7(),
+                    node_id=node_uuid,
+                    schema_id=schema_uuid,
+                    value=value,
+                )
+            return node_uuid
+        finally:
+            await store.close()
 
     async def _find_page_by_name_and_classes(
-        self,
-        node_repo: NodeRepository,
-        name: str,
-        class_ids: set[int],
-    ) -> int | None:
-        """Return the first active page with ``name`` and any of ``class_ids``."""
-        rows = await node_repo.find_page_by_name(name)
+        self, store: WorkspaceStore, name: str, class_uuids: set[str]
+    ) -> str | None:
+        """Return the first page with ``name`` and any of ``class_uuids``."""
+        rows = await store.query(
+            "SELECT id, content, class_ids FROM node WHERE kind = 'page'"
+        )
         for row in rows:
-            if class_ids and row.get("class_id") in class_ids:
-                return row["id"]
-            if not class_ids:
-                return row["id"]
+            if _content_to_text(row["content"]) != name:
+                continue
+            node_classes = set(json.loads(row["class_ids"]) or [])
+            if class_uuids and not class_uuids.intersection(node_classes):
+                continue
+            return row["id"]
         return None
 
     async def upsert_page_by_external_id(
         self,
-        workspace_id: int,
-        user_id: int,
+        workspace_uuid: str,
+        actor_uuid: str,
         external_id: str,
         *,
-        external_id_property_id: int,
+        external_id_schema_uuid: str,
         name: str,
-        class_ids: list[int] | None = None,
-        property_values: dict[int, Any] | None = None,
+        class_uuids: list[str] | None = None,
+        property_values: dict[str, Any] | None = None,
         icon: str | None = None,
-    ) -> Node:
+    ) -> str:
         """Find or create a page mapped by an external identity property.
 
-        The external id is stored on the page as ``external_id_property_id`` so
+        The external id is stored on the page as ``external_id_schema_uuid`` so
         that renames on either side do not break the mapping. If the page
         already exists, its name and property values are refreshed.
+
+        If no page carries the external id, the helper falls back to matching by
+        ``name`` and any of ``class_uuids``. All integer identifiers have been
+        replaced by UUID strings.
         """
         self._require("write_nodes")
-        node_service = await self._get_node_service(workspace_id, user_id)
-        node_repo = await self._get_node_repository(workspace_id, user_id)
-        prop_service = await self._get_property_service(workspace_id, user_id)
-
-        existing_id = await self._find_node_by_property_value(
-            prop_service, external_id_property_id, external_id
-        )
-
-        if existing_id is None and class_ids:
-            existing_id = await self._find_page_by_name_and_classes(
-                node_repo, name, set(class_ids)
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        class_set = set(class_uuids or [])
+        try:
+            await store.sync()
+            rows = await store.query(
+                "SELECT node_id FROM property_value "
+                "WHERE property_schema_id = ? AND value = ?",
+                (external_id_schema_uuid, json.dumps(external_id)),
             )
+            if rows:
+                node_uuid = rows[0]["node_id"]
+            else:
+                node_uuid = await self._find_page_by_name_and_classes(
+                    store, name, class_set
+                )
 
-        all_properties = {**(property_values or {})}
-        all_properties[external_id_property_id] = external_id
+            if node_uuid is not None:
+                await store.update_content(
+                    node_uuid,
+                    [
+                        {
+                            "type": "paragraph",
+                            "children": [{"text": name}],
+                        }
+                    ],
+                )
+                all_properties = {
+                    **(property_values or {}),
+                    external_id_schema_uuid: external_id,
+                }
+                for schema_uuid, value in all_properties.items():
+                    await store.set_property(
+                        property_value_id=uuidv7(),
+                        node_id=node_uuid,
+                        schema_id=schema_uuid,
+                        value=value,
+                    )
+                return node_uuid
 
-        if existing_id is not None:
-            await node_service.update_node(
-                existing_id,
-                NodeUpdateData(name=name, icon=icon),
-                properties=all_properties,
+            return await self.create_page(
+                workspace_uuid,
+                actor_uuid,
+                name,
+                class_uuids=class_uuids,
+                property_values={
+                    **(property_values or {}),
+                    external_id_schema_uuid: external_id,
+                },
+                icon=icon,
             )
-            node = await node_service.get_node_by_id(existing_id)
-            if node is None:
-                raise RuntimeError(f"Failed to reload mapped page {existing_id}")
-            return node
-
-        return await self.create_page(
-            workspace_id,
-            user_id,
-            name,
-            additional_classes=class_ids,
-            property_values=all_properties,
-            icon=icon,
-        )
+        finally:
+            await store.close()
 
     def get_registered_routers(self) -> list[RouterRegistration]:
         """Return router registrations for this plugin (convenience)."""

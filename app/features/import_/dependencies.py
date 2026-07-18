@@ -4,27 +4,37 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 
-from app.dependencies import get_node_repository, get_node_service, get_property_repository
+from app.core.workspace_store import WorkspaceStore
+from app.db.connection import get_pool, get_workspace_uuid
+from app.dependencies import _get_workspace_context_cached, get_current_user
 from app.features.import_.service import ImportService
-from app.features.nodes.node_service import NodeService
-from app.features.nodes.port import NodeRepository
-from app.features.properties.dependencies import get_property_service
-from app.features.properties.port import PropertyRepository
-from app.features.properties.service import PropertyService
+from app.models import User
+
+
+async def get_workspace_store(
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[WorkspaceStore, None]:
+    """Get a WorkspaceStore for the current user's workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if workspace_uuid is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    store = WorkspaceStore(
+        workspace_id=workspace_uuid,
+        actor_id=user.uuid,
+    )
+    try:
+        yield store
+    finally:
+        await store.close()
 
 
 async def get_import_service(
-    node_service: NodeService = Depends(get_node_service),
-    property_service: PropertyService = Depends(get_property_service),
-    node_repo: NodeRepository = Depends(get_node_repository),
-    property_repo: PropertyRepository = Depends(get_property_repository),
+    store: WorkspaceStore = Depends(get_workspace_store),
 ) -> AsyncGenerator[ImportService, None]:
-    """Yield an ImportService wired to the current user's workspace."""
-    yield ImportService(
-        node_service=node_service,
-        property_service=property_service,
-        node_repo=node_repo,
-        property_repo=property_repo,
-    )
+    """Yield an ImportService wired to the current workspace store."""
+    yield ImportService(store)
