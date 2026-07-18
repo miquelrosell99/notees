@@ -7,17 +7,19 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import Depends, Request, WebSocket
+from fastapi import Depends, HTTPException, Request, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
 from app.db.connection import get_pool
+from app.dependencies import get_current_user
 from app.features import auth as auth_module
+from app.models import User
 from app.relay.key_management import KeyManagementService
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
 from app.relay.permissions_postgres import PostgresPermissionChecker
 from app.relay.service import RelayService
-from app.relay.storage import RelayStorage, SqliteRelayStorage
+from app.relay.storage import PostgresRelayStorage, RelayStorage, SqliteRelayStorage
 
 _security = HTTPBearer(auto_error=False)
 
@@ -51,13 +53,43 @@ def _default_db_path() -> str:
 def get_relay_storage() -> RelayStorage:
     """Return the shared relay storage adapter.
 
-    Uses a persistent SQLite file by default. Falls back to an in-memory store
-    in tests.
+    Uses PostgreSQL in production/development and an in-memory SQLite store in
+    tests so unit tests do not require a running database.
     """
     global _storage_instance
     if _storage_instance is None:
-        _storage_instance = SqliteRelayStorage(_default_db_path())
+        _storage_instance = (
+            SqliteRelayStorage(_default_db_path())
+            if _is_test_environment()
+            else PostgresRelayStorage()
+        )
     return _storage_instance
+
+
+async def require_workspace_owner_or_admin(
+    workspace_id: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> User:
+    """Require that the current user is an admin or owns ``workspace_id``."""
+    if user.role == "admin":
+        return user
+
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
+        workspace_id,
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found",
+        )
+    if int(row["create_uid"]) != int(user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or workspace owner access required",
+        )
+    return user
 
 
 def get_permission_checker() -> PermissionChecker:

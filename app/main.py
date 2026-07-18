@@ -167,9 +167,14 @@ async def lifespan(app: FastAPI):
         # Stop backup scheduler
         await get_backup_scheduler().stop()
 
-    # Close relay storage (SQLite connection).
+    # Close relay storage. SQLite returns synchronously; the PostgreSQL adapter
+    # returns a coroutine, so we await it when necessary.
     try:
-        get_relay_storage().close()
+        import asyncio
+
+        close_result = get_relay_storage().close()
+        if asyncio.iscoroutine(close_result):
+            await close_result
         logger.info("Relay storage closed")
     except Exception as exc:
         logger.warning(f"Could not close relay storage during shutdown: {exc}")

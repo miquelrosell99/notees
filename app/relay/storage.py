@@ -1,19 +1,27 @@
 """Storage ports and adapters for the operation relay.
 
 The abstract :class:`RelayStorage` port is intentionally small: save, catch-up
-lookup, and idempotent existence checks. The SQLite implementation is fully
-functional for unit tests; the PostgreSQL adapter is a stub for Phase 5.
+lookup, idempotent existence checks, and maintenance operations for snapshots and
+compaction. The SQLite implementation is fully functional for unit tests and
+lightweight deployments; the PostgreSQL adapter is the production store.
 """
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import sqlite3
+import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+
+import asyncpg
 
 from app.core.clock import Hlc, compare_hlc
+from app.db.connection import get_pool
 from app.relay.models import EncryptedEnvelope
 
 
@@ -23,6 +31,10 @@ class RelayStorage(ABC):
     @abstractmethod
     def save_envelope(self, envelope: EncryptedEnvelope) -> None:
         """Persist ``envelope``. Callers should dedupe via ``envelope_exists``."""
+
+    @abstractmethod
+    def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> None:
+        """Persist many envelopes efficiently."""
 
     @abstractmethod
     def get_catch_up(self, workspace_id: str, hlc: Hlc) -> list[EncryptedEnvelope]:
@@ -59,8 +71,46 @@ class RelayStorage(ABC):
         """Return the total byte size of encrypted payloads for ``workspace_id``."""
 
     @abstractmethod
+    def create_snapshot(self, workspace_id: str, up_to_hlc: Hlc) -> str:
+        """Create a snapshot covering all envelopes up to ``up_to_hlc``.
+
+        Returns:
+            The new snapshot id.
+        """
+
+    @abstractmethod
+    def create_compaction_segment(
+        self,
+        workspace_id: str,
+        up_to_hlc: Hlc,
+        prune: bool = True,
+    ) -> dict[str, Any]:
+        """Create a snapshot and record a compacted operation segment.
+
+        Args:
+            workspace_id: Workspace to compact.
+            up_to_hlc: Highest HLC included in the compaction.
+            prune: If ``True``, delete envelopes covered by the segment.
+
+        Returns:
+            A dict with ``snapshot_id``, ``segment_id``, and ``operation_count``.
+        """
+
+    @abstractmethod
+    def prune_envelopes(self, workspace_id: str, up_to_hlc: Hlc) -> int:
+        """Delete envelopes with HLC less than or equal to ``up_to_hlc``.
+
+        Returns:
+            The number of envelopes deleted.
+        """
+
+    @abstractmethod
     def close(self) -> None:
         """Release any resources held by this storage adapter."""
+
+
+def _hlc_to_dict(hlc: Hlc) -> dict[str, int]:
+    return {"physical": hlc.physical, "logical": hlc.logical}
 
 
 class SqliteRelayStorage(RelayStorage):
@@ -89,6 +139,29 @@ class SqliteRelayStorage(RelayStorage):
             );
             CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_hlc
                 ON relay_envelope (workspace_id, physical, logical, id);
+
+            CREATE TABLE IF NOT EXISTS relay_snapshot (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                hlc TEXT NOT NULL,
+                state_hash TEXT,
+                data BLOB,
+                created_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_relay_snapshot_workspace
+                ON relay_snapshot (workspace_id);
+
+            CREATE TABLE IF NOT EXISTS compacted_operation_segment (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                from_hlc TEXT NOT NULL,
+                to_hlc TEXT NOT NULL,
+                snapshot_id TEXT REFERENCES relay_snapshot(id) ON DELETE SET NULL,
+                operation_count INTEGER,
+                created_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_compacted_segment_workspace
+                ON compacted_operation_segment (workspace_id);
             """
         )
         self._connection.commit()
@@ -261,52 +334,338 @@ class SqliteRelayStorage(RelayStorage):
         row = cursor.fetchone()
         return row[0] if row else 0
 
+    def create_snapshot(self, workspace_id: str, up_to_hlc: Hlc) -> str:
+        snapshot_id = str(uuid.uuid4())
+        hlc_json = json.dumps(_hlc_to_dict(up_to_hlc))
+        state_hash = hashlib.sha256(
+            f"{workspace_id}:{hlc_json}".encode()
+        ).hexdigest()
+        self._connection.execute(
+            """
+            INSERT INTO relay_snapshot (
+                id, workspace_id, hlc, state_hash, data, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                workspace_id,
+                hlc_json,
+                state_hash,
+                b"",
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+        self._connection.commit()
+        return snapshot_id
+
+    def create_compaction_segment(
+        self,
+        workspace_id: str,
+        up_to_hlc: Hlc,
+        prune: bool = True,
+    ) -> dict[str, Any]:
+        snapshot_id = self.create_snapshot(workspace_id, up_to_hlc)
+        hlc_json = json.dumps(_hlc_to_dict(up_to_hlc))
+        count = self._connection.execute(
+            """
+            SELECT COUNT(*) FROM relay_envelope
+            WHERE workspace_id = ?
+              AND (physical < ? OR (physical = ? AND logical <= ?))
+            """,
+            (
+                workspace_id,
+                up_to_hlc.physical,
+                up_to_hlc.physical,
+                up_to_hlc.logical,
+            ),
+        ).fetchone()[0]
+        segment_id = str(uuid.uuid4())
+        self._connection.execute(
+            """
+            INSERT INTO compacted_operation_segment (
+                id, workspace_id, from_hlc, to_hlc, snapshot_id, operation_count, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                segment_id,
+                workspace_id,
+                json.dumps(_hlc_to_dict(Hlc(physical=0, logical=0))),
+                hlc_json,
+                snapshot_id,
+                count,
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+        self._connection.commit()
+        if prune:
+            self.prune_envelopes(workspace_id, up_to_hlc)
+        return {
+            "snapshot_id": snapshot_id,
+            "segment_id": segment_id,
+            "operation_count": count,
+        }
+
+    def prune_envelopes(self, workspace_id: str, up_to_hlc: Hlc) -> int:
+        cursor = self._connection.execute(
+            """
+            DELETE FROM relay_envelope
+            WHERE workspace_id = ?
+              AND (physical < ? OR (physical = ? AND logical <= ?))
+            """,
+            (
+                workspace_id,
+                up_to_hlc.physical,
+                up_to_hlc.physical,
+                up_to_hlc.logical,
+            ),
+        )
+        self._connection.commit()
+        return cursor.rowcount
+
     def close(self) -> None:
         """Close the underlying SQLite connection."""
         self._connection.close()
 
 
 class PostgresRelayStorage(RelayStorage):
-    """Production PostgreSQL storage adapter (stub for Phase 5).
+    """Production PostgreSQL storage adapter using asyncpg."""
 
-    The real implementation will use asyncpg, store HLCs as JSONB, and rely on
-    the server schema defined in the ideal architecture specification.
-    """
+    def __init__(self, pool: Any | None = None) -> None:
+        self._pool = pool
+        self._pool_lock = asyncio.Lock()
 
-    def save_envelope(self, envelope: EncryptedEnvelope) -> None:
-        """TODO: Persist ``envelope`` to PostgreSQL in Phase 5."""
-        raise NotImplementedError("PostgresRelayStorage.save_envelope is a stub for Phase 5")
+    async def _get_pool(self) -> Any:
+        if self._pool is None:
+            async with self._pool_lock:
+                if self._pool is None:
+                    self._pool = await get_pool()
+        return self._pool
 
-    def get_catch_up(self, workspace_id: str, hlc: Hlc) -> list[EncryptedEnvelope]:
-        """TODO: Query catch-up envelopes from PostgreSQL in Phase 5."""
-        raise NotImplementedError("PostgresRelayStorage.get_catch_up is a stub for Phase 5")
+    @staticmethod
+    def _row_to_envelope(row: asyncpg.Record) -> EncryptedEnvelope:
+        return EncryptedEnvelope(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            actor_id=row["actor_id"],
+            hlc={"physical": row["physical"], "logical": row["logical"]},
+            affected_node_ids=row["affected_node_ids"],
+            op_type=row["op_type"],
+            ciphertext=row["ciphertext"],
+            iv=row["iv"],
+            timestamp=row["timestamp"],
+        )
 
-    def get_catch_up_paginated(
+    async def save_envelope(self, envelope: EncryptedEnvelope) -> None:
+        pool = await self._get_pool()
+        await pool.execute(
+            """
+            INSERT INTO relay_envelope (
+                id, workspace_id, actor_id, physical, logical,
+                affected_node_ids, op_type, ciphertext, iv, timestamp
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (id) DO NOTHING
+            """,
+            envelope.id,
+            envelope.workspace_id,
+            envelope.actor_id,
+            envelope.hlc.physical,
+            envelope.hlc.logical,
+            envelope.affected_node_ids,
+            envelope.op_type,
+            envelope.ciphertext,
+            envelope.iv,
+            envelope.timestamp,
+        )
+
+    async def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> None:
+        pool = await self._get_pool()
+        rows = [
+            (
+                envelope.id,
+                envelope.workspace_id,
+                envelope.actor_id,
+                envelope.hlc.physical,
+                envelope.hlc.logical,
+                envelope.affected_node_ids,
+                envelope.op_type,
+                envelope.ciphertext,
+                envelope.iv,
+                envelope.timestamp,
+            )
+            for envelope in envelopes
+        ]
+        async with pool.acquire() as conn:
+            await conn.executemany(
+                """
+                INSERT INTO relay_envelope (
+                    id, workspace_id, actor_id, physical, logical,
+                    affected_node_ids, op_type, ciphertext, iv, timestamp
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                rows,
+            )
+
+    async def get_catch_up(self, workspace_id: str, hlc: Hlc) -> list[EncryptedEnvelope]:
+        pool = await self._get_pool()
+        rows = await pool.fetch(
+            """
+            SELECT * FROM relay_envelope
+            WHERE workspace_id = $1
+              AND (physical, logical) > ($2, $3)
+            ORDER BY physical ASC, logical ASC, id ASC
+            """,
+            workspace_id,
+            hlc.physical,
+            hlc.logical,
+        )
+        return [self._row_to_envelope(row) for row in rows]
+
+    async def get_catch_up_paginated(
         self,
         workspace_id: str,
         hlc: Hlc,
         limit: int = 1000,
         after_id: str | None = None,
     ) -> tuple[list[EncryptedEnvelope], str | None]:
-        """TODO: Query paginated catch-up envelopes from PostgreSQL in Phase 5."""
-        raise NotImplementedError(
-            "PostgresRelayStorage.get_catch_up_paginated is a stub for Phase 5"
+        pool = await self._get_pool()
+        if after_id is not None:
+            rows = await pool.fetch(
+                """
+                SELECT * FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND (physical, logical, id) > (
+                      SELECT physical, logical, id FROM relay_envelope WHERE id = $2::text
+                  )
+                ORDER BY physical ASC, logical ASC, id ASC
+                LIMIT $3
+                """,
+                workspace_id,
+                after_id,
+                limit,
+            )
+        else:
+            rows = await pool.fetch(
+                """
+                SELECT * FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND (physical, logical) > ($2, $3)
+                ORDER BY physical ASC, logical ASC, id ASC
+                LIMIT $4
+                """,
+                workspace_id,
+                hlc.physical,
+                hlc.logical,
+                limit,
+            )
+        results = [self._row_to_envelope(row) for row in rows]
+        next_after_id = results[-1].id if len(results) == limit else None
+        return results, next_after_id
+
+    async def envelope_exists(self, envelope_id: str) -> bool:
+        pool = await self._get_pool()
+        row = await pool.fetchrow(
+            "SELECT 1 FROM relay_envelope WHERE id = $1",
+            envelope_id,
         )
+        return row is not None
 
-    def envelope_exists(self, envelope_id: str) -> bool:
-        """TODO: Check existence against PostgreSQL in Phase 5."""
-        raise NotImplementedError("PostgresRelayStorage.envelope_exists is a stub for Phase 5")
-
-    def count_operations(self, workspace_id: str) -> int:
-        """TODO: Count operations against PostgreSQL in Phase 5."""
-        raise NotImplementedError("PostgresRelayStorage.count_operations is a stub for Phase 5")
-
-    def get_operation_size_estimate(self, workspace_id: str) -> int:
-        """TODO: Sum payload sizes against PostgreSQL in Phase 5."""
-        raise NotImplementedError(
-            "PostgresRelayStorage.get_operation_size_estimate is a stub for Phase 5"
+    async def count_operations(self, workspace_id: str) -> int:
+        pool = await self._get_pool()
+        row = await pool.fetchrow(
+            "SELECT COUNT(*) FROM relay_envelope WHERE workspace_id = $1",
+            workspace_id,
         )
+        return row[0] if row else 0
 
-    def close(self) -> None:
-        """TODO: Close PostgreSQL resources in Phase 5."""
-        raise NotImplementedError("PostgresRelayStorage.close is a stub for Phase 5")
+    async def get_operation_size_estimate(self, workspace_id: str) -> int:
+        pool = await self._get_pool()
+        row = await pool.fetchrow(
+            """
+            SELECT COALESCE(SUM(LENGTH(ciphertext) + LENGTH(iv)), 0)
+            FROM relay_envelope
+            WHERE workspace_id = $1
+            """,
+            workspace_id,
+        )
+        return row[0] if row else 0
+
+    async def create_snapshot(self, workspace_id: str, up_to_hlc: Hlc) -> str:
+        pool = await self._get_pool()
+        hlc_dict = _hlc_to_dict(up_to_hlc)
+        state_hash = hashlib.sha256(
+            f"{workspace_id}:{json.dumps(hlc_dict)}".encode()
+        ).hexdigest()
+        row = await pool.fetchrow(
+            """
+            INSERT INTO relay_snapshot (workspace_id, hlc, state_hash, data)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id
+            """,
+            workspace_id,
+            hlc_dict,
+            state_hash,
+            b"",
+        )
+        return str(row["id"])
+
+    async def create_compaction_segment(
+        self,
+        workspace_id: str,
+        up_to_hlc: Hlc,
+        prune: bool = True,
+    ) -> dict[str, Any]:
+        pool = await self._get_pool()
+        snapshot_id = await self.create_snapshot(workspace_id, up_to_hlc)
+        count_row = await pool.fetchrow(
+            """
+            SELECT COUNT(*) FROM relay_envelope
+            WHERE workspace_id = $1
+              AND (physical, logical) <= ($2, $3)
+            """,
+            workspace_id,
+            up_to_hlc.physical,
+            up_to_hlc.logical,
+        )
+        count = count_row[0] if count_row else 0
+        segment_row = await pool.fetchrow(
+            """
+            INSERT INTO compacted_operation_segment (
+                workspace_id, from_hlc, to_hlc, snapshot_id, operation_count
+            ) VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+            """,
+            workspace_id,
+            _hlc_to_dict(Hlc(physical=0, logical=0)),
+            _hlc_to_dict(up_to_hlc),
+            snapshot_id,
+            count,
+        )
+        segment_id = str(segment_row["id"])
+        if prune:
+            await self.prune_envelopes(workspace_id, up_to_hlc)
+        return {
+            "snapshot_id": snapshot_id,
+            "segment_id": segment_id,
+            "operation_count": count,
+        }
+
+    async def prune_envelopes(self, workspace_id: str, up_to_hlc: Hlc) -> int:
+        pool = await self._get_pool()
+        result = await pool.execute(
+            """
+            DELETE FROM relay_envelope
+            WHERE workspace_id = $1
+              AND (physical, logical) <= ($2, $3)
+            """,
+            workspace_id,
+            up_to_hlc.physical,
+            up_to_hlc.logical,
+        )
+        # asyncpg DELETE returns "DELETE N"
+        parts = result.split()
+        return int(parts[-1]) if parts else 0
+
+    async def close(self) -> None:
+        """No persistent per-instance connection; drop the cached pool reference."""
+        self._pool = None
