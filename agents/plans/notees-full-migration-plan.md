@@ -259,7 +259,7 @@ Alternatives considered and rejected:
 **Subagent breakdown:**
 - Subagent D1: Core hooks + store adapter + IndexedDB persistence. ✅ Done (`8a74fe71`).
 - Subagent D2: Content/editor feature bridge. ✅ Done (`06626a6d`).
-- Subagent D3: Properties/views/QueryAST bridge.
+- Subagent D3: Properties/views/QueryAST bridge. ✅ Done (`c2fe306f`).
 - Subagent D4: Service worker/PWA offline + relay router mount + backend seed script.
 
 ---

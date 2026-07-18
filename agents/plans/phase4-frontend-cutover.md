@@ -133,7 +133,9 @@ What is missing:
 
 ---
 
-### D3 — Properties, views, and QueryAST bridge
+### D3 — Properties, views, and QueryAST bridge ✅ Done
+
+**Status:** Committed as `feat(core,frontend): Phase 4 D3 property and QueryAST bridge` (`c2fe306f`).
 
 **Goal:** Property panels, views, and QueryAST collections read from SQLite.
 
@@ -154,6 +156,13 @@ What is missing:
 - `frontend/src/core/query/__tests__` expanded with hook-level tests.
 - `cd frontend && npm run test:run src/core && npx tsc -b --noEmit` passes.
 - Manual smoke test: open a page with properties, edit a property, open a QueryAST collection view.
+
+**Results:**
+- `npm run test:run src/core/hooks src/core/adapters` → 23 passed.
+- `npx tsc -b --noEmit` → clean.
+- `npm run lint` → clean (only pre-existing warnings).
+- `npm run test:run src/core` → 46 passed.
+- `npm run test:run src/features/properties/hooks src/features/views` → 14 passed.
 
 ---
 
