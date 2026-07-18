@@ -108,22 +108,47 @@ All legacy mutable-row consumers have been removed and the only runtime path is 
 
 ## Phase 9: Production Hardening (in progress)
 
-1. **Snapshots and compaction**:
-   - Implement client-side snapshot creation and restore (`snapshot` table in `frontend/src/core/db/schema.ts`).
-   - Implement `compacted_operation_segment` tracking on the server.
-   - Add a maintenance endpoint to create server-side snapshots.
+Current gaps discovered at the start of Phase 9:
+- `PostgresRelayStorage` is a stub; production still falls back to `SqliteRelayStorage`.
+- PostgreSQL has no `relay_envelope`, `snapshot`, or `compacted_operation_segment` schema.
+- Frontend schema has `snapshot`/`compacted_operation_segment` tables but no implementation.
+- `frontend/src/core/db/connection.ts` returns an in-memory DB; persistence helpers in `frontend/src/core/persistence/indexedDb.ts` are not wired in.
+- `SyncEngine.push()` re-pushes the entire operation log every sync; needs a push watermark or outbox.
+- No storage quota monitoring or warnings.
+- No relay rate-limiting or envelope-size validation.
+- No WebSocket reconnection/backoff tests or catch-up stress tests.
+- No Playwright E2E tests.
 
-2. **Browser storage**:
-   - Validate OPFS/sql.js behavior across reloads and large workspaces.
-   - Add storage quota handling and eviction warnings.
+### Phase 9A — Backend relay production adapter
 
-3. **Relay hardening**:
-   - Rate-limit batch submissions per actor/workspace.
-   - Validate operation envelope sizes and HLC ordering.
-   - WebSocket reconnection backoff and catch-up pagination stress tests.
+1. Add PostgreSQL relay schema (`app/db/schema/relay.sql` or migration):
+   - `relay_envelope` (id, workspace_id, actor_id, physical, logical, affected_node_ids JSONB, op_type, ciphertext, iv, timestamp).
+   - `relay_snapshot` (id, workspace_id, hlc, state_hash, data bytea/blob, created_at).
+   - `compacted_operation_segment` (id, workspace_id, from_hlc, to_hlc, snapshot_id, operation_count, created_at).
+   - Indexes for workspace + HLC, envelope id uniqueness.
+2. Implement `PostgresRelayStorage` in `app/relay/storage.py` using asyncpg.
+3. Switch `app/relay/dependencies.py::get_relay_storage` to return `PostgresRelayStorage` in production/dev and `SqliteRelayStorage` only in tests.
+4. Add `/api/relay/snapshot` maintenance endpoint and `app/relay/service.py` snapshot/compaction helpers.
+5. Add relay rate-limiting (per-actor/workspace batch buckets) and envelope size/HLC validation.
+6. Add WebSocket reconnection backoff and catch-up pagination stress tests.
 
-4. **E2E smoke tests**:
-   - Playwright tests for login, workspace creation, page edit, property edit, query view, share, offline toggle.
+### Phase 9B — Frontend persistence, snapshots, and storage quota
+
+1. Wire `openWorkspaceDatabase` to load/save from IndexedDB via `frontend/src/core/persistence/indexedDb.ts`.
+2. Implement snapshot creation and restore in `WorkspaceStore` (`frontend/src/core/store.ts`):
+   - Serialize derived tables + CRDT state into `snapshot.data`.
+   - On startup: load latest snapshot, then replay operations newer than snapshot HLC.
+3. Implement client-side compaction:
+   - Delete local operations covered by a snapshot/compacted segment.
+   - Keep a configurable retention window for undo/audit.
+4. Fix `SyncEngine.push()` to only push operations newer than the last pushed HLC (push watermark).
+5. Add storage quota monitoring (`navigator.storage.estimate`) and UI warnings when approaching quota.
+
+### Phase 9C — E2E smoke tests
+
+1. Verify Playwright is installed and configured.
+2. Add smoke tests for login, workspace creation, page edit, property edit, query view, share, offline toggle.
+3. Run E2E suite against the dev stack.
 
 ## Phase 10: Final Documentation and Release
 
