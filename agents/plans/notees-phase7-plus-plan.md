@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-18  
 **Branch:** `main`  
-**Status:** In progress  
+**Status:** Phase 8 complete, Phase 9 in progress  
 
 ## Goal
 
@@ -90,19 +90,23 @@ Replace the remaining legacy frontend data paths with the core store.
 
 **Verification:** `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 399 passed, 3 skipped.
 
-## Phase 8: Final Legacy Removal (in progress)
+## Phase 8: Final Legacy Removal (done)
 
-## Phase 8: Final Legacy Removal
+All legacy mutable-row consumers have been removed and the only runtime path is the core operation-log/SQLite store.
 
-Once all consumers of the legacy stack are ported:
+1. Deleted `app/features/nodes/` and `app/features/properties/` (service, repository, postgres, ports, helpers).
+2. Deleted `frontend/src/runtime/`, `frontend/src/sync/`, and remaining legacy runtime wrappers.
+3. Removed legacy exception handlers and imports from `app/main.py` and `app/dependencies.py`.
+4. Removed `app/domain/services/query_ast_sql.py`, `app/domain/repositories/postgres_query.py`, and `app/domain/services/query_ast_validation.py`.
+5. Updated remaining consumers: shares, tasks, assets, plugins, editor, content, views, layout.
 
-1. Delete `app/features/nodes/` and `app/features/properties/` (service, repository, postgres, ports, helpers).
-2. Delete `frontend/src/runtime/` and `frontend/src/features/sync/local/`.
-3. Remove legacy exception handlers and imports from `app/main.py`.
-4. Drop unused PostgreSQL tables/columns (or keep them empty for historical reference only).
-5. Remove `app/domain/services/query_ast_sql.py`, `app/domain/repositories/postgres_query.py`, and `app/domain/services/query_ast_validation.py`.
+**Verification:**
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 326 passed, 3 skipped, 6 deselected.
+- `cd frontend && npx tsc -b --noEmit && npm run lint && npm run test:run` → clean typecheck, lint 0 errors (4 pre-existing warnings), 81 test files / 528 tests passed.
 
-## Phase 9: Production Hardening
+**Commit:** `4ccce511` — `feat(core,frontend): Phase 8 final legacy removal complete`.
+
+## Phase 9: Production Hardening (in progress)
 
 1. **Snapshots and compaction**:
    - Implement client-side snapshot creation and restore (`snapshot` table in `frontend/src/core/db/schema.ts`).
@@ -176,15 +180,19 @@ A full pre-Phase 7 backup was created before destructive work:
 - `data/backups/pre-phase7-20260718-104213-data.tar.gz` (workspace files, relay SQLite, plugins, user data)
 - `data/backups/pre-phase7-20260718-104213-postgres.sql.gz` (PostgreSQL dump)
 
+A pre-commit Phase 8 backup was also created before the final legacy-removal commit:
+
+- `data/backups/phase8/` (workspace files, relay SQLite, plugins, user data, app db snapshot)
+
 ## Verification Checklist
 
-- [ ] Core operation types/appliers extended and tested.
-- [ ] Backend islands ported and no longer import legacy nodes/properties services.
-- [ ] Frontend runtime overlay and local query helpers replaced by core store.
-- [ ] `uv run pytest tests/core tests/unit -m unit --no-cov` passes.
-- [ ] `cd frontend && npx tsc -b --noEmit && npm run lint` passes.
-- [ ] `cd frontend && npm run test:run` passes (no legacy failures).
-- [ ] Multi-client convergence tests pass.
+- [x] Core operation types/appliers extended and tested.
+- [x] Backend islands ported and no longer import legacy nodes/properties services.
+- [x] Frontend runtime overlay and local query helpers replaced by core store.
+- [x] `uv run pytest tests/core tests/unit -m unit --no-cov` passes.
+- [x] `cd frontend && npx tsc -b --noEmit && npm run lint` passes.
+- [x] `cd frontend && npm run test:run` passes (no legacy failures).
+- [x] Multi-client convergence tests pass.
 - [ ] E2E smoke tests pass.
 - [ ] `AGENTS.md`, plans, and changelog updated.
 - [ ] Final milestone commit created.
