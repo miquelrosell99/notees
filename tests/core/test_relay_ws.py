@@ -1,0 +1,170 @@
+"""WebSocket tests for the encrypted operation relay."""
+
+from __future__ import annotations
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
+
+from app.core.clock import Hlc
+from app.relay.broadcast import _registry as broadcast_registry
+from app.relay.dependencies import get_permission_checker, get_relay_storage
+from app.relay.models import EncryptedEnvelope
+from app.relay.permissions import PermissionChecker, StubPermissionChecker
+from app.relay.router import router
+from app.relay.storage import RelayStorage, SqliteRelayStorage
+
+pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def storage() -> RelayStorage:
+    return SqliteRelayStorage()
+
+
+@pytest.fixture
+def permissions() -> PermissionChecker:
+    return StubPermissionChecker()
+
+
+@pytest.fixture
+def app(storage: RelayStorage, permissions: PermissionChecker) -> FastAPI:
+    application = FastAPI()
+    application.include_router(router)
+    application.dependency_overrides[get_relay_storage] = lambda: storage
+    application.dependency_overrides[get_permission_checker] = lambda: permissions
+    return application
+
+
+@pytest.fixture
+def client(app: FastAPI) -> TestClient:
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture(autouse=True)
+def clear_broadcast_registry() -> None:
+    broadcast_registry.clear()
+    yield
+    broadcast_registry.clear()
+
+
+def _envelope(
+    envelope_id: str,
+    workspace_id: str = "ws-1",
+    actor_id: str = "actor-1",
+    op_type: str = "node.create",
+    physical: int = 1000,
+    logical: int = 0,
+) -> EncryptedEnvelope:
+    return EncryptedEnvelope(
+        id=envelope_id,
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        hlc=Hlc(physical=physical, logical=logical),
+        affected_node_ids=["node-1"],
+        op_type=op_type,
+        ciphertext="ZW5jcnlwdGVk",
+        iv="c3R1Yml2MTIz",
+        timestamp="2026-07-17T00:00:00Z",
+    )
+
+
+def test_websocket_connect_with_valid_actor(client: TestClient) -> None:
+    """A connection with a valid X-Actor-Id header is accepted."""
+    with client.websocket_connect(
+        "/api/relay/ws/ws-1",
+        headers={"x-actor-id": "actor-1"},
+    ) as websocket:
+        websocket.send_json({"type": "batch", "envelopes": []})
+        response = websocket.receive_json()
+        assert response["type"] == "ack"
+        assert response["saved_ids"] == []
+
+
+def test_websocket_connect_without_actor_is_rejected(client: TestClient) -> None:
+    """A connection without an actor id is closed before accept."""
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/api/relay/ws/ws-1") as websocket:
+            pass  # pragma: no cover
+
+
+def test_websocket_connect_permission_denied() -> None:
+    """A connection is closed when the actor lacks read permission."""
+
+    class DenyAll(PermissionChecker):
+        def can_write(
+            self,
+            workspace_id: str,
+            actor_id: str,
+            affected_node_ids: list[str],
+        ) -> bool:
+            return False
+
+        def can_read(self, workspace_id: str, actor_id: str) -> bool:
+            return False
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_relay_storage] = lambda: SqliteRelayStorage()
+    app.dependency_overrides[get_permission_checker] = lambda: DenyAll()
+
+    with TestClient(app) as deny_client:
+        with pytest.raises(WebSocketDisconnect):
+            with deny_client.websocket_connect(
+                "/api/relay/ws/ws-1",
+                headers={"x-actor-id": "actor-1"},
+            ) as websocket:
+                pass  # pragma: no cover
+
+
+def test_websocket_batch_is_broadcast_to_other_client(
+    client: TestClient,
+) -> None:
+    """Sending a batch over WS stores the envelope and forwards it to peers."""
+    envelope = _envelope("op-1", workspace_id="ws-1", actor_id="actor-1")
+
+    with client.websocket_connect(
+        "/api/relay/ws/ws-1",
+        headers={"x-actor-id": "actor-1"},
+    ) as sender:
+        with client.websocket_connect(
+            "/api/relay/ws/ws-1",
+            headers={"x-actor-id": "actor-2"},
+        ) as receiver:
+            sender.send_json(
+                {
+                    "type": "batch",
+                    "envelopes": [envelope.model_dump(mode="json")],
+                }
+            )
+
+            received = receiver.receive_json()
+            assert received["id"] == "op-1"
+            assert received["workspace_id"] == "ws-1"
+
+            # Sender also receives the broadcast (idempotently) before the ack.
+            broadcast_to_sender = sender.receive_json()
+            assert broadcast_to_sender["id"] == "op-1"
+
+            ack = sender.receive_json()
+            assert ack["type"] == "ack"
+            assert ack["saved_ids"] == ["op-1"]
+
+
+def test_websocket_malformed_json_is_handled(client: TestClient) -> None:
+    """Malformed JSON receives an error message and the connection stays open."""
+    with client.websocket_connect(
+        "/api/relay/ws/ws-1",
+        headers={"x-actor-id": "actor-1"},
+    ) as websocket:
+        websocket.send_text("not valid json")
+        response = websocket.receive_json()
+        assert response["type"] == "error"
+        assert "Malformed JSON" in response["message"]
+
+        # Connection remains usable after the error.
+        websocket.send_json({"type": "batch", "envelopes": []})
+        ack = websocket.receive_json()
+        assert ack["type"] == "ack"
