@@ -1,127 +1,35 @@
 /**
  * Batched Node-by-UUID Fetching
  *
- * Automatically batches individual node-by-UUID requests into a single
- * POST /batch-get-by-uuid API call. This eliminates N+1 query waterfalls when
- * many components (NodeRef, breadcrumbs, table rows, etc.) each need
- * to fetch a node independently.
- *
- * How it works:
- * 1. Components call useBatchedNode(nodeUuid) instead of useNode(nodeUuid)
- * 2. UUIDs are queued in a microtask batch window
- * 3. After the microtask settles, all queued UUIDs are fetched in one API call
- * 4. Results are split back into individual React Query cache entries
- *
- * Each individual node is cached under nodeKeys.byUuid(nodeUuid) so it can
- * be read from cache by other hooks as well.
+ * Reads nodes directly from the local-first core SQLite store.
+ * The global HTTP batcher has been removed; store lookups are cheap enough
+ * that batching is no longer required.
  */
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { isApiError } from '@/api/client';
-import * as nodesApi from '@/api/nodes';
+import { useQuery } from '@tanstack/react-query';
 import { nodeKeys } from './queryKeys';
-import type { Node } from '@/types/api';
-
-
-// ─── Global Batcher ──────────────────────────────────────────────────────────
-
-/** Pending batch state — shared across all hook instances */
-let pendingUuids: Set<string> = new Set();
-let batchTimer: ReturnType<typeof setTimeout> | null = null;
-let batchResolvers: Array<(value: Record<string, Node>) => void> = [];
-
-/** Time window to collect UUIDs before firing the batch (ms) */
-const BATCH_DELAY_MS = 10;
-
-/** Maximum batch size — split into multiple requests if exceeded */
-const MAX_BATCH_SIZE = 200;
+import { useCurrentWorkspaceUuid } from './useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { projectNode } from '@/core/adapters/nodeProjection';
+import { buildBreadcrumbs } from '@/core/query/breadcrumbs';
+import type { Node, BreadcrumbItemResponse } from '@/types/api';
 
 /**
- * Queue a node UUID for batched fetching.
- * Returns a promise that resolves with the full batch result map.
- */
-function queueForBatch(nodeUuid: string, queryClient: QueryClient): Promise<Record<string, Node>> {
-  // Skip if already cached
-  const cached = queryClient.getQueryData<Node>(nodeKeys.byUuid(nodeUuid));
-  if (cached) {
-    return Promise.resolve({ [nodeUuid]: cached });
-  }
-
-  pendingUuids.add(nodeUuid);
-
-  return new Promise<Record<string, Node>>((resolve) => {
-    batchResolvers.push(resolve);
-
-    // Reset/start the batch timer
-    if (batchTimer !== null) {
-      clearTimeout(batchTimer);
-    }
-
-    batchTimer = setTimeout(async () => {
-      const uuidsToFetch = Array.from(pendingUuids);
-      const resolvers = [...batchResolvers];
-
-      // Reset global state immediately so new requests create a new batch
-      pendingUuids = new Set();
-      batchResolvers = [];
-      batchTimer = null;
-
-      if (uuidsToFetch.length === 0) {
-        const empty = {};
-        resolvers.forEach(r => r(empty));
-        return;
-      }
-
-      try {
-        // Split into chunks if needed
-        const allNodes: Record<string, Node> = {};
-
-        for (let i = 0; i < uuidsToFetch.length; i += MAX_BATCH_SIZE) {
-          const chunk = uuidsToFetch.slice(i, i + MAX_BATCH_SIZE);
-          const response = await nodesApi.batchGetNodesByUuid({ uuids: chunk });
-          Object.assign(allNodes, response.nodes);
-        }
-
-        // Populate individual cache entries
-        for (const [fetchedUuid, node] of Object.entries(allNodes)) {
-          queryClient.setQueryData(nodeKeys.byUuid(fetchedUuid), node);
-        }
-
-        resolvers.forEach(r => r(allNodes));
-      } catch {
-        // On error, resolve with empty — individual queries will show as errors
-        resolvers.forEach(r => r({}));
-      }
-    }, BATCH_DELAY_MS);
-  });
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
-/**
- * Fetch a single node using the batched fetcher.
+ * Fetch a single node using the core store.
  *
- * Multiple concurrent useBatchedNode(nodeUuid) calls within a render cycle
- * are automatically combined into a single POST /batch-get-by-uuid API call.
- *
- * Use this instead of useNodeByUuid(nodeUuid) when you only need basic node data
- * (no children, backlinks, or properties) — e.g., NodeRef, breadcrumbs,
- * link previews, table cells.
+ * Use this when you only need basic node data (no children, backlinks, or
+ * properties) — e.g., NodeRef, breadcrumbs, link previews, table cells.
  */
 export function useBatchedNode(nodeUuid: string | null, meta?: Record<string, unknown>) {
-  const queryClient = useQueryClient();
-  return useQuery({
-    queryKey: nodeKeys.byUuid(nodeUuid ?? '__unresolved__'),
-    queryFn: async () => {
-      if (!nodeUuid) return null;
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
 
-      const result = await queueForBatch(nodeUuid, queryClient);
-      const node = result[nodeUuid];
-      if (!node) {
-        throw new Error(`Node ${nodeUuid} not found`);
-      }
-      return node;
+  const result = useQuery<Node | null>({
+    queryKey: nodeKeys.byUuid(nodeUuid ?? '__unresolved__'),
+    queryFn: () => {
+      if (!nodeUuid || !store) return null;
+      return projectNode(store, nodeUuid) ?? null;
     },
-    enabled: !!nodeUuid,
+    enabled: !!nodeUuid && !!store,
     staleTime: 1000 * 60 * 10, // 10 minutes — metadata is stable
     retry: (failureCount, error) => {
       // Don't retry on "not found"
@@ -132,34 +40,36 @@ export function useBatchedNode(nodeUuid: string | null, meta?: Record<string, un
     },
     meta,
   });
+
+  return {
+    ...result,
+    isLoading: result.isLoading || isLoading,
+    error: result.error ?? error,
+  };
 }
 
 /**
- * Hook to fetch breadcrumbs for a node via the dedicated API endpoint.
+ * Hook to fetch breadcrumbs for a node from the core store.
  *
  * Returns an ordered list of ancestors from root to immediate parent.
- * Uses the closure table — O(1) regardless of depth.
  */
 export function useBreadcrumbs(nodeUuid: string | null) {
-  return useQuery({
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+
+  const result = useQuery<BreadcrumbItemResponse[]>({
     queryKey: nodeKeys.breadcrumbsByUuid(nodeUuid ?? '__unresolved__'),
-    queryFn: async () => {
-      if (!nodeUuid) return [];
-      try {
-        const response = await nodesApi.getBreadcrumbs(nodeUuid);
-        return response.breadcrumbs;
-      } catch (error) {
-        // Breadcrumbs for a node that has not been persisted yet (e.g. an
-        // optimistic create) are not a fatal error; returning an empty chain
-        // prevents a spurious "node not found" toast.
-        if (isApiError(error) && error.response?.status === 404) {
-          return [];
-        }
-        throw error;
-      }
+    queryFn: () => {
+      if (!nodeUuid || !store) return [];
+      return buildBreadcrumbs(store, nodeUuid);
     },
-    enabled: !!nodeUuid,
+    enabled: !!nodeUuid && !!store,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
-}
 
+  return {
+    ...result,
+    isLoading: result.isLoading || isLoading,
+    error: result.error ?? error,
+  };
+}
