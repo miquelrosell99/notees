@@ -51,6 +51,14 @@ class RelayStorage(ABC):
         """Return ``True`` if an envelope with the given id is already stored."""
 
     @abstractmethod
+    def count_operations(self, workspace_id: str) -> int:
+        """Return the number of envelopes stored for ``workspace_id``."""
+
+    @abstractmethod
+    def get_operation_size_estimate(self, workspace_id: str) -> int:
+        """Return the total byte size of encrypted payloads for ``workspace_id``."""
+
+    @abstractmethod
     def close(self) -> None:
         """Release any resources held by this storage adapter."""
 
@@ -200,6 +208,26 @@ class SqliteRelayStorage(RelayStorage):
         )
         return cursor.fetchone() is not None
 
+    def count_operations(self, workspace_id: str) -> int:
+        cursor = self._connection.execute(
+            "SELECT COUNT(*) FROM relay_envelope WHERE workspace_id = ?",
+            (workspace_id,),
+        )
+        row = cursor.fetchone()
+        return row[0] if row else 0
+
+    def get_operation_size_estimate(self, workspace_id: str) -> int:
+        cursor = self._connection.execute(
+            """
+            SELECT COALESCE(SUM(LENGTH(ciphertext) + LENGTH(iv)), 0)
+            FROM relay_envelope
+            WHERE workspace_id = ?
+            """,
+            (workspace_id,),
+        )
+        row = cursor.fetchone()
+        return row[0] if row else 0
+
     def close(self) -> None:
         """Close the underlying SQLite connection."""
         self._connection.close()
@@ -235,6 +263,16 @@ class PostgresRelayStorage(RelayStorage):
     def envelope_exists(self, envelope_id: str) -> bool:
         """TODO: Check existence against PostgreSQL in Phase 5."""
         raise NotImplementedError("PostgresRelayStorage.envelope_exists is a stub for Phase 5")
+
+    def count_operations(self, workspace_id: str) -> int:
+        """TODO: Count operations against PostgreSQL in Phase 5."""
+        raise NotImplementedError("PostgresRelayStorage.count_operations is a stub for Phase 5")
+
+    def get_operation_size_estimate(self, workspace_id: str) -> int:
+        """TODO: Sum payload sizes against PostgreSQL in Phase 5."""
+        raise NotImplementedError(
+            "PostgresRelayStorage.get_operation_size_estimate is a stub for Phase 5"
+        )
 
     def close(self) -> None:
         """TODO: Close PostgreSQL resources in Phase 5."""

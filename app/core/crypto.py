@@ -128,3 +128,32 @@ def encrypt_operation_payload(payload: dict[str, Any], key: bytes) -> dict[str, 
         "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
         "iv": base64.b64encode(iv).decode("ascii"),
     }
+
+
+def decrypt_operation_payload(ciphertext_b64: str, iv_b64: str, key: bytes) -> dict[str, Any]:
+    """Decrypt an AES-GCM operation payload produced by :func:`encrypt_operation_payload`.
+
+    Args:
+        ciphertext_b64: Base64-encoded ciphertext.
+        iv_b64: Base64-encoded 12-byte IV.
+        key: 32-byte AES key.
+
+    Returns:
+        The decrypted JSON payload as a Python dictionary.
+
+    Raises:
+        ValueError: If the ciphertext or IV is malformed or authentication fails.
+    """
+    try:
+        ciphertext = base64.b64decode(ciphertext_b64)
+        iv = base64.b64decode(iv_b64)
+    except (KeyError, ValueError) as exc:
+        raise ValueError("Invalid envelope encoding") from exc
+
+    aes = AESGCM(key)
+    try:
+        plaintext = aes.decrypt(iv, ciphertext, None)
+    except Exception as exc:
+        raise ValueError("Failed to decrypt operation payload") from exc
+
+    return json.loads(plaintext.decode("utf-8"))
