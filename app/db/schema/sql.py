@@ -13,6 +13,8 @@ Key changes from v3:
 - Node foreign key column renamed: asset_file_id -> asset_id
 """
 
+from pathlib import Path
+
 SCHEMA_SQL = """
 -- ============================================================
 -- CORE IDENTITY & ACCESS
@@ -2205,3 +2207,7 @@ BEGIN
     END IF;
 END $$;
 """
+
+# Append the relay storage schema maintained in a dedicated SQL file.
+SCHEMA_SQL += (Path(__file__).parent / "relay.sql").read_text()
+
