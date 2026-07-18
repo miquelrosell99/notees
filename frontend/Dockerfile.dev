@@ -2,9 +2,43 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# System dependencies for Playwright Chromium in Alpine dev containers.
+# Playwright's bundled Chromium is linked against glibc, so we use the
+# Alpine chromium package and point Playwright to it at runtime.
+RUN apk add --no-cache \
+  chromium \
+  nss \
+  freetype \
+  freetype-dev \
+  harfbuzz \
+  ca-certificates \
+  font-freefont \
+  libstdc++ \
+  libgcc \
+  glib \
+  gtk+3.0 \
+  libx11 \
+  libxcomposite \
+  libxdamage \
+  libxext \
+  libxfixes \
+  libxrandr \
+  mesa-gbm \
+  expat \
+  libxcb \
+  libxkbcommon \
+  alsa-lib \
+  at-spi2-core \
+  dbus-libs \
+  eudev \
+  curl
+
 # Copy package files and install dependencies at build time
 COPY package.json package-lock.json* ./
 RUN npm ci
+
+# Install Playwright Chromium browser for E2E tests inside the container.
+RUN npx playwright install chromium
 
 # Source code is mounted as a volume at runtime
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

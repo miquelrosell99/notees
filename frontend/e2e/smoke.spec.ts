@@ -16,16 +16,20 @@ test.describe('Smoke Tests', () => {
   });
 
   test.describe('authenticated', () => {
-    test('workspace management loads', async ({ page }) => {
-      await page.goto('/workspaces');
-      await expect(page.locator('body')).toContainText(/Welcome! Create your first workspace|Your workspaces/i, { timeout: 10000 });
+    test('workspace loads and redirects to active workspace', async ({ page }) => {
+      await page.goto('/');
+      await expect(page).toHaveURL(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i, { timeout: 10000 });
+      await expect(page.locator('body')).toContainText('E2E Workspace', { timeout: 10000 });
     });
 
-    test('offline toggle shows banner', async ({ page, context }) => {
-      await page.goto('/workspaces');
-      await context.setOffline(true);
-      await expect(page.locator('body')).toContainText(/offline|connection/i, { timeout: 10000 });
-      await context.setOffline(false);
+    test('offline event shows banner', async ({ page }) => {
+      await page.goto('/');
+      await expect(page).toHaveURL(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i, { timeout: 10000 });
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+        window.dispatchEvent(new Event('offline'));
+      });
+      await expect(page.locator('body')).toContainText(/Working offline/i, { timeout: 10000 });
     });
   });
 });
