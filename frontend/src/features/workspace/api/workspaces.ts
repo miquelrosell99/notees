@@ -189,15 +189,15 @@ export async function downloadExportJob(jobUuid: string): Promise<Blob> {
 }
 
 /**
- * Get all settings for the current workspace
+ * Get all settings for the current user.
  */
 export async function getSettings(): Promise<Record<string, unknown>> {
-  const response = await api.get('/settings');
+  const response = await api.get('/auth/me/settings');
   return response.data;
 }
 
 /**
- * Get a specific setting
+ * Get a specific user setting.
  */
 export async function getSetting(key: string): Promise<unknown | null> {
   const settings = await getSettings();
@@ -205,25 +205,25 @@ export async function getSetting(key: string): Promise<unknown | null> {
 }
 
 /**
- * Set a setting value
+ * Set a user setting value.
  */
 export async function setSetting(key: string, value: unknown): Promise<void> {
-  await api.put(`/settings/${encodeURIComponent(key)}`, { value });
+  await api.put(`/auth/me/settings/${encodeURIComponent(key)}`, { value });
 }
 
 /**
- * Get all settings for the current workspace (graph)
+ * Get all settings for a workspace.
  */
-export async function getWorkspaceSettings(): Promise<Record<string, unknown>> {
-  const response = await api.get('/workspace-settings');
+export async function getWorkspaceSettings(workspaceUuid: string): Promise<Record<string, unknown>> {
+  const response = await api.get(`/workspaces/${encodeURIComponent(workspaceUuid)}/settings`);
   return response.data;
 }
 
 /**
- * Set a workspace setting value
+ * Set a workspace setting value.
  */
-export async function setWorkspaceSetting(key: string, value: unknown): Promise<void> {
-  await api.put(`/workspace-settings/${encodeURIComponent(key)}`, { value });
+export async function setWorkspaceSetting(workspaceUuid: string, key: string, value: unknown): Promise<void> {
+  await api.put(`/workspaces/${encodeURIComponent(workspaceUuid)}/settings/${encodeURIComponent(key)}`, { value });
 }
 
 

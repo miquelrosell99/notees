@@ -1,10 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NodeRef } from './NodeRef';
 import { useAuthStore } from '@/stores';
-import { nodeKeys } from '@/hooks/queryKeys';
 import type { Node } from '@/types';
+
+const { classListRef } = vi.hoisted(() => ({ classListRef: { current: [] as Node[] } }));
+
+vi.mock('@/core/hooks', () => ({
+  useWorkspaceStore: vi.fn(() => ({ store: null, isLoading: false, error: null })),
+  useNode: vi.fn(() => ({ node: undefined, isLoading: false })),
+  useChildren: vi.fn(() => ({ children: [], isLoading: false })),
+  useUndoManager: vi.fn(() => ({ group: vi.fn(), wrap: vi.fn() })),
+  useClasses: vi.fn(() => ({ data: classListRef.current, isLoading: false, error: null })),
+}));
 
 function makeNode(overrides: Partial<Node> = {}): Node {
   return {
@@ -23,9 +32,8 @@ function makeNode(overrides: Partial<Node> = {}): Node {
   } as Node;
 }
 
-function TestWrapper({ children, allClasses }: { children: React.ReactNode; allClasses: Node[] }) {
+function TestWrapper({ children }: { children: React.ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
-  queryClient.setQueryData(nodeKeys.classes(), allClasses);
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
@@ -49,8 +57,9 @@ describe('NodeRef class pill color', () => {
       extends_uuid: [agent.uuid],
     });
 
+    classListRef.current = [agent, person];
     render(
-      <TestWrapper allClasses={[agent, person]}>
+      <TestWrapper>
         <NodeRef node={person} readOnly />
       </TestWrapper>
     );
@@ -68,8 +77,9 @@ describe('NodeRef class pill color', () => {
       is_class: true,
     });
 
+    classListRef.current = [agent];
     render(
-      <TestWrapper allClasses={[agent]}>
+      <TestWrapper>
         <NodeRef node={agent} readOnly />
       </TestWrapper>
     );
@@ -100,8 +110,9 @@ describe('NodeRef class pill color', () => {
       extends_uuid: [agent.uuid],
     });
 
+    classListRef.current = [agent, canonicalPerson];
     render(
-      <TestWrapper allClasses={[agent, canonicalPerson]}>
+      <TestWrapper>
         <NodeRef node={personFromGenericResponse} readOnly />
       </TestWrapper>
     );
@@ -127,7 +138,7 @@ describe('NodeRef class pill color', () => {
       extends_uuid: [agent.uuid],
     });
 
-    queryClient.setQueryData(nodeKeys.classes(), [agent, person]);
+    classListRef.current = [agent, person];
 
     const { rerender } = render(
       <QueryClientProvider client={queryClient}>
@@ -137,7 +148,7 @@ describe('NodeRef class pill color', () => {
 
     expect((screen.getByText('Person').closest('.pill') as HTMLElement).style.backgroundColor).toBe('');
 
-    // Simulate the classes query being re-resolved with a colored parent.
+    // Simulate the classes list being re-resolved with a colored parent.
     // The resolved class node for "person" becomes a new object even though
     // its field values are identical.
     const agentWithColor = makeNode({
@@ -154,7 +165,7 @@ describe('NodeRef class pill color', () => {
       extends_uuid: [agentWithColor.uuid],
     });
 
-    queryClient.setQueryData(nodeKeys.classes(), [agentWithColor, freshPerson]);
+    classListRef.current = [agentWithColor, freshPerson];
 
     rerender(
       <QueryClientProvider client={queryClient}>

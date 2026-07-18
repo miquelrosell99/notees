@@ -163,6 +163,7 @@ vi.mock('@/core/hooks', () => ({
   useNode: vi.fn(() => ({ node: undefined, isLoading: false })),
   useChildren: vi.fn(() => ({ children: [], isLoading: false })),
   useUndoManager: vi.fn(() => ({ group: vi.fn(), wrap: vi.fn() })),
+  useClasses: vi.fn(() => ({ data: [], isLoading: false, error: null })),
 }));
 
 vi.mock('@/features/content/hooks/useCoreBlockMutations', () => ({

@@ -21,7 +21,6 @@ from .config import settings
 from .db.connection import get_data_dir, get_pool, get_workspace_assets_dir
 from .domain.repositories.factories import make_cleanup_repository
 from .domain.repositories.interfaces import CleanupRepository
-from .features.assets.repository import PostgresAssetRepository
 from .features.assets.service import AssetFileService
 from .logging_config import get_logger
 from .system_settings import get_system_setting
@@ -197,9 +196,7 @@ class CleanupScheduler:
                 continue
 
             cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-            pool = await get_pool()
-            asset_repo = PostgresAssetRepository(pool, workspace_id, 0)
-            file_service = AssetFileService(workspace_uuid, asset_repo)
+            file_service = AssetFileService(workspace_uuid)
 
             while True:
                 rows = await (await self._get_repo()).hard_delete_trashed_nodes_batch(
