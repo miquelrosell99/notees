@@ -161,9 +161,16 @@ Current gaps discovered at the start of Phase 9:
 
 ### Phase 9C — E2E smoke tests
 
-1. Verify Playwright is installed and configured.
-2. Add smoke tests for login, workspace creation, page edit, property edit, query view, share, offline toggle.
-3. Run E2E suite against the dev stack.
+**Status:** Playwright configured and basic auth/workspace-load tests pass. Discovered two leftover legacy API calls that must be removed before authenticated workspace/Page/Property/Query/Share E2E flows can run cleanly:
+
+1. `frontend/src/features/content/hooks/useNodeListQueries.ts` still calls `/api/nodes/classes` (deleted in Phase 8). Replace with core store class lookup.
+2. `frontend/src/features/workspace/api/workspaces.ts` still calls `/api/settings` and `/api/workspace-settings` (deleted in Phase 8). User settings are now local-first; remove the legacy sync.
+
+**Deliverables:**
+1. Fix the two leftover legacy frontend API calls.
+2. Verify Playwright is installed and configured.
+3. Add smoke tests for login, workspace creation, page edit, property edit, query view, share, offline toggle.
+4. Run E2E suite against the dev stack.
 
 ## Phase 10: Final Documentation and Release (in progress)
 
