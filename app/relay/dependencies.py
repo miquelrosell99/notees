@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, Request, WebSocket
 
 from app.config import settings
+from app.db.connection import get_pool
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
+from app.relay.permissions_postgres import PostgresPermissionChecker
 from app.relay.service import RelayService
 from app.relay.storage import RelayStorage, SqliteRelayStorage
 
@@ -61,6 +65,26 @@ def get_permission_checker() -> PermissionChecker:
     return _permission_checker_instance
 
 
+@asynccontextmanager
+async def get_postgres_permission_checker() -> AsyncGenerator[PermissionChecker, None]:
+    """Yield a :class:`PostgresPermissionChecker` tied to the app pool."""
+    pool = await get_pool()
+    yield PostgresPermissionChecker(pool)
+
+
+async def get_effective_permission_checker() -> PermissionChecker:
+    """Return the permission checker appropriate for the current environment.
+
+    Tests continue to use the permissive stub so unit tests do not require a
+    running database. Production / development requests use the PostgreSQL
+    checker with real workspace membership and share lookups.
+    """
+    if _is_test_environment():
+        return get_permission_checker()
+    pool = await get_pool()
+    return PostgresPermissionChecker(pool)
+
+
 def _actor_id_from_headers(headers: Any) -> str:
     """Return the actor id from request/websocket headers."""
     return headers.get("x-actor-id", "anonymous")
@@ -88,9 +112,9 @@ def get_actor_id_ws(websocket: WebSocket) -> str:
     return _actor_id_from_headers(websocket.headers)
 
 
-def get_relay_service(
+async def get_relay_service(
     storage: RelayStorage = Depends(get_relay_storage),
-    permissions: PermissionChecker = Depends(get_permission_checker),
+    permissions: PermissionChecker = Depends(get_effective_permission_checker),
 ) -> RelayService:
     """Build a :class:`RelayService` from the configured storage and permissions."""
     return RelayService(storage, permissions)

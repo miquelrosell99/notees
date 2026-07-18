@@ -7,7 +7,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.clock import Hlc
-from app.relay.dependencies import get_permission_checker, get_relay_storage
+from app.relay.dependencies import (
+    get_effective_permission_checker,
+    get_permission_checker,
+    get_relay_storage,
+)
 from app.relay.models import EncryptedEnvelope
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
 from app.relay.router import router
@@ -40,6 +44,7 @@ def app(storage: RelayStorage, permissions: PermissionChecker) -> FastAPI:
     application.include_router(router)
     application.dependency_overrides[get_relay_storage] = _get_storage
     application.dependency_overrides[get_permission_checker] = _get_permissions
+    application.dependency_overrides[get_effective_permission_checker] = _get_permissions
     return application
 
 
@@ -82,6 +87,7 @@ def test_relay_router_mounted_and_reachable(storage: RelayStorage, permissions: 
     application.include_router(router)
     application.dependency_overrides[get_relay_storage] = _get_storage
     application.dependency_overrides[get_permission_checker] = _get_permissions
+    application.dependency_overrides[get_effective_permission_checker] = _get_permissions
 
     with TestClient(application) as client:
         envelope = _envelope("op-mounted")
@@ -119,11 +125,12 @@ def test_receive_batch_rejects_actor_mismatch(client: TestClient) -> None:
     assert response.status_code == 403
 
 
-def test_catch_up_returns_newer_envelopes(client: TestClient, storage: RelayStorage) -> None:
+@pytest.mark.asyncio
+async def test_catch_up_returns_newer_envelopes(client: TestClient, storage: RelayStorage) -> None:
     service = RelayService(storage, StubPermissionChecker())
     old = _envelope("op-1", physical=1000)
     new = _envelope("op-2", physical=2000)
-    service.receive_batch(type("Batch", (), {"envelopes": [old, new]})(), "actor-1")
+    await service.receive_batch(type("Batch", (), {"envelopes": [old, new]})(), "actor-1")
 
     response = client.post(
         "/api/relay/catch-up",
@@ -138,16 +145,17 @@ def test_catch_up_returns_newer_envelopes(client: TestClient, storage: RelayStor
 
 def test_catch_up_rejects_permission_denied(client: TestClient, permissions: PermissionChecker) -> None:
     class DenyAll(PermissionChecker):
-        def can_write(self, workspace_id: str, actor_id: str, affected_node_ids: list[str]) -> bool:
+        async def can_write(self, workspace_id: str, actor_id: str, affected_node_ids: list[str]) -> bool:
             return False
 
-        def can_read(self, workspace_id: str, actor_id: str) -> bool:
+        async def can_read(self, workspace_id: str, actor_id: str) -> bool:
             return False
 
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_relay_storage] = lambda: SqliteRelayStorage()
     app.dependency_overrides[get_permission_checker] = lambda: DenyAll()
+    app.dependency_overrides[get_effective_permission_checker] = lambda: DenyAll()
     deny_client = TestClient(app)
 
     response = deny_client.post(
@@ -158,14 +166,15 @@ def test_catch_up_rejects_permission_denied(client: TestClient, permissions: Per
     assert response.status_code == 403
 
 
-def test_catch_up_paginated_pages_through_envelopes(
+@pytest.mark.asyncio
+async def test_catch_up_paginated_pages_through_envelopes(
     client: TestClient,
     storage: RelayStorage,
 ) -> None:
     """Paginated catch-up returns pages with has_more and next_after_id."""
     service = RelayService(storage, StubPermissionChecker())
     envelopes = [_envelope(f"op-{i:02d}", physical=i * 1000) for i in range(1, 11)]
-    service.receive_batch(type("Batch", (), {"envelopes": envelopes})(), "actor-1")
+    await service.receive_batch(type("Batch", (), {"envelopes": envelopes})(), "actor-1")
 
     all_ids: list[str] = []
     hlc: dict[str, int] = {"physical": 0, "logical": 0}

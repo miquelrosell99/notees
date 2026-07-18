@@ -9,7 +9,11 @@ from starlette.websockets import WebSocketDisconnect
 
 from app.core.clock import Hlc
 from app.relay.broadcast import _registry as broadcast_registry
-from app.relay.dependencies import get_permission_checker, get_relay_storage
+from app.relay.dependencies import (
+    get_effective_permission_checker,
+    get_permission_checker,
+    get_relay_storage,
+)
 from app.relay.models import EncryptedEnvelope
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
 from app.relay.router import router
@@ -34,6 +38,7 @@ def app(storage: RelayStorage, permissions: PermissionChecker) -> FastAPI:
     application.include_router(router)
     application.dependency_overrides[get_relay_storage] = lambda: storage
     application.dependency_overrides[get_permission_checker] = lambda: permissions
+    application.dependency_overrides[get_effective_permission_checker] = lambda: permissions
     return application
 
 
@@ -94,7 +99,7 @@ def test_websocket_connect_permission_denied() -> None:
     """A connection is closed when the actor lacks read permission."""
 
     class DenyAll(PermissionChecker):
-        def can_write(
+        async def can_write(
             self,
             workspace_id: str,
             actor_id: str,
@@ -102,13 +107,14 @@ def test_websocket_connect_permission_denied() -> None:
         ) -> bool:
             return False
 
-        def can_read(self, workspace_id: str, actor_id: str) -> bool:
+        async def can_read(self, workspace_id: str, actor_id: str) -> bool:
             return False
 
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_relay_storage] = lambda: SqliteRelayStorage()
     app.dependency_overrides[get_permission_checker] = lambda: DenyAll()
+    app.dependency_overrides[get_effective_permission_checker] = lambda: DenyAll()
 
     with TestClient(app) as deny_client:
         with pytest.raises(WebSocketDisconnect):
