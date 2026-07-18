@@ -1,5 +1,6 @@
 import initSqlJs, { type Database } from 'sql.js';
 import { createSchema } from './schema';
+import { loadWorkspaceDatabase, saveWorkspaceDatabase } from '../persistence/indexedDb';
 
 let sqlModule: Awaited<ReturnType<typeof initSqlJs>> | null = null;
 
@@ -27,8 +28,26 @@ export async function createDatabase(data?: ArrayBuffer | Uint8Array): Promise<D
   return db;
 }
 
-export async function openWorkspaceDatabase(_workspaceId: string): Promise<Database> {
-  // In a browser environment this would read from OPFS/IndexedDB using
-  // workspaceId as the key. For now the in-memory sql.js Database is returned.
+export async function openWorkspaceDatabase(workspaceId: string): Promise<Database> {
+  // In a real browser, load persisted bytes from IndexedDB. Tests and jsdom
+  // fall back to a fresh in-memory database.
+  if (isRealBrowser()) {
+    const saved = await loadWorkspaceDatabase(workspaceId);
+    if (saved) {
+      return createDatabase(saved);
+    }
+  }
   return createDatabase();
+}
+
+export function exportDatabase(db: Database): Uint8Array {
+  return db.export();
+}
+
+export async function persistWorkspaceDatabase(
+  workspaceId: string,
+  db: Database
+): Promise<void> {
+  if (!isRealBrowser()) return;
+  await saveWorkspaceDatabase(workspaceId, db.export());
 }

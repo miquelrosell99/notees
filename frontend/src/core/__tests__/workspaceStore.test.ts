@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { webcrypto } from 'node:crypto';
 import { WorkspaceStore } from '../store';
 import { uuidv7 } from '../uuid';
@@ -87,5 +87,61 @@ describe('WorkspaceStore', () => {
     store.deleteNode(nodeId);
 
     expect(store.getNode(nodeId)).toBeUndefined();
+  });
+
+  it('calls onPersist after mutations', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const onPersist = vi.fn();
+    const store = new WorkspaceStore(db, workspaceId, actorId, {
+      onPersist,
+      persistDebounceMs: 10,
+    });
+
+    store.createNode({ nodeId: uuidv7(), kind: 'page', parentId: null });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onPersist).toHaveBeenCalled();
+    expect(onPersist.mock.calls[0][0]).toBeInstanceOf(Uint8Array);
+  });
+
+  it('creates and restores snapshots', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+
+    const snapshotHlc = store.getClock().advance(Date.now());
+    const snapshotId = store.createSnapshot(snapshotHlc);
+    expect(snapshotId).toBeDefined();
+
+    // Mutate after snapshot.
+    store.createNode({ nodeId: uuidv7(), kind: 'page', parentId: null });
+
+    const restoredHlc = await store.restoreLatestSnapshot();
+    expect(restoredHlc).toEqual(snapshotHlc);
+    expect(store.getNode(nodeId)).toBeDefined();
+  });
+
+  it('compacts operations older than a given HLC', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    const opHlc = store.getClock().advance(Date.now());
+
+    store.compactOperations(opHlc);
+
+    const ops = db.exec(
+      `SELECT id FROM operation WHERE workspace_id = '${workspaceId}'`
+    );
+    expect(ops.length).toBe(0);
   });
 });

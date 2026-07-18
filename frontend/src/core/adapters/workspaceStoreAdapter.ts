@@ -1,6 +1,6 @@
-import { createDatabase } from '../db/connection';
+import { openWorkspaceDatabase } from '../db/connection';
 import { deriveUserWrappingKey, unwrapWorkspaceKey } from '../crypto';
-import { loadWorkspaceDatabase, saveWorkspaceDatabase } from '../persistence/indexedDb';
+import { saveWorkspaceDatabase } from '../persistence/indexedDb';
 import { SyncEngine } from '../sync';
 import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
@@ -59,9 +59,12 @@ export async function getOrCreateWorkspaceStore(
     key = keyOrSpec;
   }
 
-  const saved = await loadWorkspaceDatabase(workspaceId);
-  const db = await createDatabase(saved);
-  const store = new WorkspaceStore(db, workspaceId, actorId);
+  const db = await openWorkspaceDatabase(workspaceId);
+  const store = new WorkspaceStore(db, workspaceId, actorId, {
+    onPersist: async (data) => {
+      await saveWorkspaceDatabase(workspaceId, data);
+    },
+  });
   UndoManager.getOrCreateUndoManager(workspaceId, store);
   const syncEngine = new SyncEngine(store, key, transport);
   registry.set(workspaceId, { store, syncEngine, key });

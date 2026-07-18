@@ -14,6 +14,33 @@ describe('SyncEngine', () => {
     }
   });
 
+  it('only pushes operations newer than the last push watermark', async () => {
+    const workspaceId = uuidv7();
+    const actorA = uuidv7();
+    const key = await deriveKey('test-password');
+    const relay = new MemoryRelay();
+    const transport = new MemoryTransport(relay, workspaceId);
+
+    const dbA = await createTestDatabase();
+    const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
+    const syncA = new SyncEngine(storeA, key, transport);
+
+    const nodeId = uuidv7();
+    storeA.createNode({ nodeId, kind: 'page', parentId: null });
+
+    await syncA.push();
+    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(1);
+
+    // A second push with no new operations should not send anything.
+    await syncA.push();
+    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(1);
+
+    // A new operation should be pushed.
+    storeA.updateText(nodeId, (text) => text.insert(0, 'hello'));
+    await syncA.push();
+    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(2);
+  });
+
   it('converges two workspace stores via in-memory transport', async () => {
     const workspaceId = uuidv7();
     const actorA = uuidv7();
