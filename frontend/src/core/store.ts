@@ -10,11 +10,25 @@ import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from './derived/crdtState';
 import { createOperation, type Operation } from './types/operation';
 
+export interface NodeRow {
+  id: string;
+  workspaceId: string;
+  kind: 'page' | 'block' | 'class';
+  parentId: string | null;
+  classIds: string[];
+  content: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+}
+
 export class WorkspaceStore {
   private clock: Clock;
   private db: Database;
   private workspaceId: string;
   private actorId: string;
+  private listeners = new Map<string, Set<() => void>>();
 
   constructor(db: Database, workspaceId: string, actorId: string) {
     this.db = db;
@@ -53,6 +67,38 @@ export class WorkspaceStore {
         rebuildEdgesForNode(db, payload.nodeId as string);
       }
     });
+
+    for (const nodeId of op.envelope.affectedNodeIds) {
+      this.notify(nodeId);
+    }
+  }
+
+  subscribe(nodeId: string, callback: () => void): () => void {
+    let set = this.listeners.get(nodeId);
+    if (!set) {
+      set = new Set();
+      this.listeners.set(nodeId, set);
+    }
+    set.add(callback);
+    return () => {
+      set?.delete(callback);
+      if (set?.size === 0) {
+        this.listeners.delete(nodeId);
+      }
+    };
+  }
+
+  private notify(nodeId: string): void {
+    const set = this.listeners.get(nodeId);
+    if (!set) return;
+    for (const callback of set) {
+      try {
+        callback();
+      } catch (err) {
+        // Listener errors should not break store operations.
+        console.error('WorkspaceStore listener error:', err);
+      }
+    }
   }
 
   createNode(args: {
@@ -143,6 +189,10 @@ export class WorkspaceStore {
       { nodeId, newParentId }
     );
     this.apply(op);
+
+    if (oldParentId !== null) {
+      this.notify(oldParentId);
+    }
   }
 
   deleteNode(nodeId: string): void {
@@ -199,8 +249,58 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
-  getNode(id: string): { kind: string; content: string } | undefined {
-    return queryOne<{ kind: string; content: string }>(this.db, 'SELECT kind, content FROM node WHERE id = ?', [id]);
+  getOrCreateNode(id: string, defaults: Partial<Omit<NodeRow, 'id'>> & { kind: NodeRow['kind'] }): NodeRow {
+    const existing = this.getNode(id);
+    if (existing) return existing;
+
+    this.createNode({
+      nodeId: id,
+      kind: defaults.kind,
+      parentId: defaults.parentId ?? null,
+      classIds: defaults.classIds ?? [],
+    });
+
+    const created = this.getNode(id);
+    if (!created) {
+      throw new Error(`Failed to create node ${id}`);
+    }
+    return created;
+  }
+
+  getNode(id: string): NodeRow | undefined {
+    const row = queryOne<{
+      id: string;
+      workspaceId: string;
+      kind: 'page' | 'block' | 'class';
+      parentId: string | null;
+      classIds: string;
+      content: string;
+      createdAt: string | null;
+      updatedAt: string | null;
+      createdBy: string | null;
+      updatedBy: string | null;
+    }>(
+      this.db,
+      `SELECT
+         id,
+         workspace_id AS workspaceId,
+         kind,
+         parent_id AS parentId,
+         class_ids AS classIds,
+         content,
+         created_at AS createdAt,
+         updated_at AS updatedAt,
+         created_by AS createdBy,
+         updated_by AS updatedBy
+       FROM node
+       WHERE id = ?`,
+      [id]
+    );
+    if (!row) return undefined;
+    return {
+      ...row,
+      classIds: JSON.parse(row.classIds) as string[],
+    };
   }
 
   getBacklinks(nodeId: string): string[] {
