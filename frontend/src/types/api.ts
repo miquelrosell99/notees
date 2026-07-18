@@ -217,6 +217,54 @@ export interface LinkedReference {
 
 export type LinkType = 'page' | 'block';
 
+// ==================== Graph Types ====================
+
+/**
+ * Graph node for visualization
+ */
+export interface GraphNode {
+  uuid: string;
+  name: string;
+  type?: 'page' | 'block';
+  tags?: string[];
+  class_uuids?: string[];
+  properties?: Record<string, unknown>;
+  is_daily?: boolean;
+  is_class?: boolean;
+  is_monthly?: boolean;
+  is_yearly?: boolean;
+  icon?: string;
+  created_at?: string;
+  backlink_count?: number;
+  internal_link_count?: number;
+  block_count?: number;
+  aliased_uuid?: string | null;
+}
+
+/**
+ * Graph link for visualization
+ */
+export interface GraphLink {
+  source: string;
+  target: string;
+  type: 'parent' | 'reference' | 'class' | 'extends' | 'property-reference' | 'cooccurrence';
+  weight?: number;
+}
+
+/**
+ * Graph data response
+ * @deprecated Use graph nodes + graph links separately instead
+ */
+export interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+  total?: number;
+  page?: number;
+  page_size?: number;
+  has_next?: boolean;
+  has_prev?: boolean;
+}
+
 /**
  * Data for creating a new node
  */
@@ -523,6 +571,17 @@ export interface PropertyBacklink {
   source_page: Node;
   property_uuid: string;
   property_name: string;
+}
+
+/**
+ * Text link info
+ */
+export interface TextLink {
+  uuid: string;
+  source_node_uuid: string;
+  target_node_uuid: string;
+  position: number;
+  name?: string | null;
 }
 
 /**
@@ -882,6 +941,18 @@ export interface ClassExtendsResponse {
 export interface SearchResponse {
   results: Node[];
   count?: number;
+}
+
+// ==================== Version History ====================
+
+/**
+ * Lightweight node version snapshot
+ */
+export interface NodeVersion {
+  uuid: string;
+  name: string | null;
+  created_at: string;
+  user: string | null;
 }
 
 // ==================== Date Helpers ====================

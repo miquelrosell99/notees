@@ -3,15 +3,32 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
+
 import { nodeKeys } from '@/hooks/queryKeys';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { buildGraphData } from '@/core/query/graphData';
+import { buildGraphNodes } from '@/core/query/graphNodes';
+import { buildGraphLinks } from '@/core/query/graphLinks';
 
 export function useGraphData(options?: { enabled?: boolean }) {
-  return useQuery({
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+
+  const result = useQuery<ReturnType<typeof buildGraphData>>({
     queryKey: nodeKeys.graph(),
-    queryFn: () => nodesApi.getWorkspaceData(),
-    enabled: options?.enabled ?? true,
+    queryFn: () => {
+      if (!store) throw new Error('Workspace store is not ready');
+      return buildGraphData(store);
+    },
+    enabled: (options?.enabled ?? true) && !!store,
   });
+
+  return {
+    ...result,
+    isLoading: result.isLoading || isLoading,
+    error: result.error ?? error,
+  };
 }
 
 /**
@@ -20,12 +37,24 @@ export function useGraphData(options?: { enabled?: boolean }) {
  */
 
 export function useGraphNodes(options?: { enabled?: boolean }) {
-  return useQuery({
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+
+  const result = useQuery<ReturnType<typeof buildGraphNodes>, Error, ReturnType<typeof buildGraphNodes>['items']>({
     queryKey: nodeKeys.graphNodes(),
-    queryFn: () => nodesApi.getGraphNodes(),
-    enabled: options?.enabled ?? true,
+    queryFn: () => {
+      if (!store) throw new Error('Workspace store is not ready');
+      return buildGraphNodes(store);
+    },
+    enabled: (options?.enabled ?? true) && !!store,
     select: (data) => data.items,
   });
+
+  return {
+    ...result,
+    isLoading: result.isLoading || isLoading,
+    error: result.error ?? error,
+  };
 }
 
 /**
@@ -39,16 +68,21 @@ export function useGraphLinks(
   options?: { enabled?: boolean; scope?: 'between' | 'touching'; cooccurrence?: boolean; contextNodeUuid?: string | null }
 ) {
   const scope = options?.scope ?? 'between';
-  const cooccurrence = options?.cooccurrence ?? false;
-  const contextNodeUuid = options?.contextNodeUuid ?? null;
-  return useQuery({
-    queryKey: nodeKeys.graphLinks(nodeUuids, scope, cooccurrence, contextNodeUuid),
-    queryFn: () => nodesApi.getLinksForNodes(nodeUuids, scope, cooccurrence, contextNodeUuid ?? undefined),
-    enabled: (options?.enabled ?? true) && nodeUuids.length > 0,
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+
+  const result = useQuery<ReturnType<typeof buildGraphLinks>>({
+    queryKey: nodeKeys.graphLinks(nodeUuids, scope, options?.cooccurrence, options?.contextNodeUuid),
+    queryFn: () => {
+      if (!store) throw new Error('Workspace store is not ready');
+      return buildGraphLinks(store, nodeUuids, scope);
+    },
+    enabled: (options?.enabled ?? true) && nodeUuids.length > 0 && !!store,
   });
+
+  return {
+    ...result,
+    isLoading: result.isLoading || isLoading,
+    error: result.error ?? error,
+  };
 }
-
-/**
- * Hook to fetch backlinks for a node
- */
-
