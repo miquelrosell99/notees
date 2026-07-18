@@ -29,14 +29,14 @@ import type {
   BatchGetNodesByUuidRequest,
   BatchGetNodesByUuidResponse,
   BreadcrumbsResponse,
+  GraphNode,
+  GraphLink,
+  GraphData,
+  TextLink,
+  NodeVersion,
 } from '@/types/api';
 
-export interface NodeVersion {
-  uuid: string;
-  name: string | null;
-  created_at: string;
-  user: string | null;
-}
+export type { GraphNode, GraphLink, GraphData, TextLink, NodeVersion };
 
 const BASE = '/nodes';
 
@@ -477,52 +477,6 @@ export async function listTasks(
 // ==================== Graph ====================
 
 /**
- * Graph node for visualization
- */
-export interface GraphNode {
-  uuid: string;
-  name: string;
-  type?: 'page' | 'block';
-  tags?: string[];
-  class_uuids?: string[];
-  properties?: Record<string, unknown>;
-  is_daily?: boolean;
-  is_class?: boolean;
-  is_monthly?: boolean;
-  is_yearly?: boolean;
-  icon?: string;
-  created_at?: string;
-  backlink_count?: number;
-  internal_link_count?: number;
-  block_count?: number;
-  aliased_uuid?: string | null;
-}
-
-/**
- * Graph link for visualization
- */
-export interface GraphLink {
-  source: string;
-  target: string;
-  type: 'parent' | 'reference' | 'class' | 'extends' | 'property-reference' | 'cooccurrence';
-  weight?: number;
-}
-
-/**
- * Graph data response
- * @deprecated Use getGraphNodes + getLinksForNodes separately instead
- */
-export interface GraphData {
-  nodes: GraphNode[];
-  links: GraphLink[];
-  total?: number;
-  page?: number;
-  page_size?: number;
-  has_next?: boolean;
-  has_prev?: boolean;
-}
-
-/**
  * Get workspace data for visualization
  * @deprecated Use getGraphNodes + getLinksForNodes separately instead
  */
@@ -664,17 +618,6 @@ export async function deleteComment(nodeUuid: string, commentUuid: string): Prom
 export async function getCommentCount(nodeUuid: string): Promise<number> {
   const response = await api.get<{ count: number }>(`${BASE}/${nodeUuid}/comment-count`);
   return response.data.count;
-}
-
-/**
- * Text link info
- */
-export interface TextLink {
-  uuid: string;
-  source_node_uuid: string;
-  target_node_uuid: string;
-  position: number;
-  name?: string | null;
 }
 
 /**
