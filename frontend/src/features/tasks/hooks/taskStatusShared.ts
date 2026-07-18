@@ -1,32 +1,18 @@
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
-import { upsertNodes } from '@/runtime/eventBus';
 import { queryClient } from '@/lib/queryClient';
 import { propertyKeys, taskKeys } from '@/hooks/queryKeys';
 import {
   SYSTEM_PROPERTY_UUIDS,
+  TASK_STATUSES,
   TASK_CLOSED_STATUSES,
   TASK_POPUP_HIDDEN_STATUSES,
 } from '@/constants/systemProperties';
 import { compareDayUuids, dateToDayUuid, getTodayDayUuid, isDayUuid } from '@/utils/dateUuid';
-import type { TASK_STATUSES } from '@/constants/systemProperties';
 import type { QueryExecuteResponse } from '@/types/nodeView';
 import type { Node } from '@/types/api';
 import type { PopupSection } from './useTasksPopupData';
 
 /** All known task statuses (matches backend TASK_STATUS_OPTIONS). */
 export type TaskStatus = (typeof TASK_STATUSES)[number];
-
-/**
- * Optimistically mirror a task-status change into the runtime so the status
- * badge (read from the runtime projection in BlockAfterContent) updates
- * immediately, without waiting for a server refetch.
- */
-export function setRuntimeTaskStatus(nodeUuid: string, status: TaskStatus | null): void {
-  const runtime = getOperationRuntime();
-  const gn = getNode(runtime, nodeUuid);
-  if (gn) upsertNodes([{ ...gn, taskStatus: status }]);
-}
 
 /**
  * Resolve the property UUID and option UUID for a given task status name.
@@ -45,6 +31,24 @@ export function resolveTaskStatusIds(
   const option = statusProp.options?.find((o) => o.name === statusName);
   if (!option) return null;
   return { propertyId: statusProp.uuid, optionId: option.uuid };
+}
+
+/**
+ * Resolve the task status name for a given selection option UUID.
+ * Looks up from the TanStack Query property cache.
+ */
+export function resolveTaskStatusName(optionId: string): TaskStatus | null {
+  const allProperties = queryClient.getQueryData<
+    { uuid: string; options?: { uuid: string; name: string }[] }[]
+  >(propertyKeys.lists());
+  const statusProp = allProperties?.find(
+    (p) => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status
+  );
+  const option = statusProp?.options?.find((o) => o.uuid === optionId);
+  if (!option) return null;
+  return TASK_STATUSES.includes(option.name as TaskStatus)
+    ? (option.name as TaskStatus)
+    : null;
 }
 
 /** Invalidate all tasks-popup section queries (badge + list refresh). */

@@ -2,7 +2,6 @@
  * useBlockDragDrop engine — shared helpers and mouse event handlers
  */
 
-import { getDragCoordinator } from '@/runtime/DragCoordinator';
 import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
 import {
   findBlockRow,
@@ -46,6 +45,7 @@ export function createDragEngine(
   rootEl: HTMLElement,
   editorId: string,
   refs: DragDropRefs,
+  onDrop?: (anchor: DropAnchor, blockIds: string[]) => void | Promise<void>,
 ): DragDropHelpers & {
   handleMouseDown: (e: MouseEvent) => void;
   handleMouseMove: (e: MouseEvent) => void;
@@ -75,11 +75,9 @@ export function createDragEngine(
     const ghost = ghostRef.current;
     if (!ghost) return;
 
-    const coordinator = getDragCoordinator();
     const anchor = findNearestAnchor(anchorsRef.current, cx, cy);
 
     if (anchor) {
-      coordinator.updateTarget(anchor.target);
       ghost.classList.add('block-drag-ghost--snapped');
       ghost.classList.remove('block-drag-ghost--floating');
       ghost.style.transition = 'none';
@@ -90,7 +88,6 @@ export function createDragEngine(
       ghost.style.top = `${anchor.y}px`;
       applyDropSpacing(anchor);
     } else {
-      coordinator.updateTarget(null);
       positionGhostFloat(ghost, cx, cy);
       state.snapped = false;
       activeAnchorRef.current = null;
@@ -279,12 +276,10 @@ export function createDragEngine(
 
       window.getSelection()?.removeAllRanges();
       const isMultiDrag = state.topLevelIds.length > 1;
-      getDragCoordinator().startDrag({
-        blockId: state.blockId,
-        sourceEditorId: editorId,
-        sourceDepth: state.sourceDepth,
-        ...(isMultiDrag ? { blockIds: state.topLevelIds } : {}),
-      });
+      // Legacy DragCoordinator lifecycle removed; the engine now reports drops
+      // directly through the onDrop callback supplied by the host component.
+      void editorId;
+      void isMultiDrag;
 
       scrollContainerRef.current = findScrollableAncestor(rootEl);
       const idsToExclude = isMultiDrag ? state.topLevelIds : [state.blockId];
@@ -320,12 +315,11 @@ export function createDragEngine(
     const state = dragStateRef.current;
     if (!state) return;
     if (state.active) {
-      const coordinator = getDragCoordinator();
-      if (activeAnchorRef.current) {
+      const anchor = activeAnchorRef.current;
+      const blockIds = state.topLevelIds.length > 1 ? state.topLevelIds : [state.blockId];
+      if (anchor && onDrop) {
         flushAllContentSaves();
-        await coordinator.completeDrag();
-      } else {
-        coordinator.cancelDrag();
+        await onDrop(anchor, blockIds);
       }
       cleanup(state);
 
@@ -346,7 +340,6 @@ export function createDragEngine(
     const state = dragStateRef.current;
     if (!state) return;
     if (state.active) {
-      getDragCoordinator().cancelDrag();
       cleanup(state);
     }
     dragStateRef.current = null;

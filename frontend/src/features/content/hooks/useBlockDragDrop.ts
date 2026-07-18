@@ -24,9 +24,11 @@ export interface UseBlockDragDropOptions {
   readOnly?: boolean;
   /** Block IDs that should be excluded from drag interactions (e.g. ghost blocks). */
   excludedIds?: string[];
+  /** Called when a drag completes on a valid drop anchor. */
+  onDrop?: (anchor: DropAnchor, blockIds: string[]) => void | Promise<void>;
 }
 
-export function useBlockDragDrop({ containerRef, editorId, readOnly, excludedIds }: UseBlockDragDropOptions): void {
+export function useBlockDragDrop({ containerRef, editorId, readOnly, excludedIds, onDrop }: UseBlockDragDropOptions): void {
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const anchorsRef = useRef<DropAnchor[]>([]);
   const activeAnchorRef = useRef<DropAnchor | null>(null);
@@ -68,8 +70,8 @@ export function useBlockDragDrop({ containerRef, editorId, readOnly, excludedIds
       dragStateRef,
     };
 
-    const engine = createDragEngine(rootEl, editorId, refs);
-    const touch = createTouchHandlers(rootEl, editorId, refs, engine);
+    const engine = createDragEngine(rootEl, editorId, refs, onDrop);
+    const touch = createTouchHandlers(rootEl, editorId, refs, engine, onDrop);
 
     rootEl.addEventListener('mousedown', engine.handleMouseDown, true);
     document.addEventListener('mousemove', engine.handleMouseMove);
@@ -89,5 +91,5 @@ export function useBlockDragDrop({ containerRef, editorId, readOnly, excludedIds
       touch.cancelLongPress();
       engine.stopAutoScroll();
     };
-  }, [containerRef, editorId, readOnly]);
+  }, [containerRef, editorId, readOnly, onDrop]);
 }
