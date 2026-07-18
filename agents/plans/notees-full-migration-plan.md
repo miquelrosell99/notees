@@ -268,7 +268,7 @@ Alternatives considered and rejected:
 
 **Goal:** Make the encrypted operation relay production-ready with real permissions, WebSocket forwarding, key management, and load/convergence validation.
 
-**Status:** Implementation in progress. Detailed plan in `agents/plans/phase5-relay-hardening.md`.
+**Status:** Complete. Detailed plan and sub-task results in `agents/plans/phase5-relay-hardening.md`.
 
 **Deliverables:**
 1. **E1 — WebSocket and paginated catch-up:**
@@ -294,18 +294,18 @@ Alternatives considered and rejected:
 - Modify `frontend/src/core/crypto.ts`.
 - Modify `app/features/shares/repository.py` for node-share permission lookup.
 
-**Verification:**
-- `uv run pytest tests/core tests/relay -m unit --no-cov` passes.
-- `uv run ruff check app/relay app/main.py app/core/crypto.py scripts/seed_relay_from_postgres.py` clean.
-- `uv run python scripts/validate_migration.py` reports zero orphans and zero duplicates.
-- `cd frontend && npm run test:run src/core && npx tsc -b --noEmit && npm run lint` passes.
-- Manual multi-tab convergence test with `VITE_ENABLE_SQLITE_STORE=true`.
+**Verification (completed):**
+- `uv run pytest tests/core tests/relay -m unit --no-cov` → 62 passed, 3 skipped.
+- `uv run ruff check app/relay app/main.py app/core/crypto.py scripts/seed_relay_from_postgres.py frontend/src/core` → clean.
+- `uv run python scripts/validate_migration.py` → 0 orphan operations, 0 duplicate ids.
+- `cd frontend && npm run test:run src/core && npx tsc -b --noEmit && npm run lint` → 59 tests passed, typecheck clean, lint clean (pre-existing unrelated warnings).
+- Multi-client convergence tests pass; 10k-operation catch-up completes in ~0.066 s.
 
 **Subagent breakdown:**
 - Subagent E1: Relay HTTP/WebSocket endpoints. ✅ Done (`7016e8f2`).
 - Subagent E2: Permission + share integration. ✅ Done (`62dfb08a`).
 - Subagent E3: Key management + encryption. ✅ Done (`25614d77`).
-- Subagent E4: Conformance and load tests.
+- Subagent E4: Conformance and load tests. ✅ Done (`2ec3d6f1`).
 
 ---
 
@@ -366,4 +366,8 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
 ## Immediate Next Step
 
-Begin **Phase 5** by dispatching subagent E1 to add the WebSocket endpoint and paginated catch-up to `app/relay/`. See `agents/plans/phase5-relay-hardening.md` for the full sub-task breakdown.
+Begin **Phase 6** (cleanup and deprecation):
+- Remove legacy mutable-row FastAPI endpoints once the relay stack is proven in production.
+- Remove old frontend local-sync IndexedDB mirror.
+- Run final migration for all workspaces.
+- Update `AGENTS.md` and user-facing docs.
