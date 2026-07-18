@@ -80,12 +80,17 @@ Replace the remaining legacy frontend data paths with the core store.
 
 **Note:** `frontend/src/features/sync/local/` files have been deleted because all consumers now use the core store. `frontend/src/runtime/` still exists and will be removed in Phase 8.
 
-### G4 — Integration and Convergence Validation (in progress)
+### G4 — Integration and Convergence Validation (done)
 
-- Multi-client convergence tests for text edits, moves, property changes, and asset uploads.
-- Offline → reconnect tests.
-- Import round-trip tests.
-- Share permission tests against the relay.
+- `tests/core/test_relay_convergence.py` extended with content-edit and asset-upload convergence tests.
+- `tests/core/test_relay_offline_reconnect.py` added for offline → reconnect scenarios.
+- `tests/core/test_import_roundtrip.py` added for Markdown import round-trip.
+- `tests/core/test_relay_permissions.py` extended with relay-level editor/viewer/revoked-share tests.
+- Fixed `apply_node_update_content` to be last-write-wins aware using operation HLC (added `hlc_physical`/`hlc_logical` to derived `node` table).
+
+**Verification:** `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 399 passed, 3 skipped.
+
+## Phase 8: Final Legacy Removal (in progress)
 
 ## Phase 8: Final Legacy Removal
 
