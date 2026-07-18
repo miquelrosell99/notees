@@ -150,12 +150,17 @@ Current gaps discovered at the start of Phase 9:
 2. Add smoke tests for login, workspace creation, page edit, property edit, query view, share, offline toggle.
 3. Run E2E suite against the dev stack.
 
-## Phase 10: Final Documentation and Release
+## Phase 10: Final Documentation and Release (in progress)
 
-1. Update `AGENTS.md` to remove all legacy references.
-2. Update `docs/CHANGELOG.md` with Phase 7–10 notes.
-3. Update `compose.yaml` / `compose.dev.yaml` if any service dependencies changed.
-4. Final milestone commit: `feat(core,relay,frontend): Notees 2.0 local-first migration complete`.
+1. Update `AGENTS.md` to remove all legacy references — done.
+2. Update `docs/CHANGELOG.md` with Phase 7–10 notes — Phase 6–8 done; Phase 9/10 notes pending.
+3. Update agent reference docs — in progress:
+   - `agents/data-model.md` — rewritten for operation-log architecture.
+   - `agents/frontend.md` — updated data-flow and path aliases.
+   - `agents/backend.md` — updated for core/relay and Phase 8 removal.
+   - `agents/subsystems.md` — updated block-editor mutation flow.
+4. Update `compose.yaml` / `compose.dev.yaml` if any service dependencies changed.
+5. Final milestone commit: `feat(core,relay,frontend): Notees 2.0 local-first migration complete`.
 
 ## Detailed Island Mapping (from Phase 7 audits)
 
