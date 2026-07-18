@@ -112,15 +112,21 @@ CREATE TABLE IF NOT EXISTS task_completion (
     id TEXT PRIMARY KEY,
     node_id TEXT NOT NULL,
     completed_at TEXT NOT NULL,
-    actor_id TEXT NOT NULL
+    actor_id TEXT NOT NULL,
+    scheduled_date TEXT,
+    deadline_date TEXT,
+    status TEXT NOT NULL DEFAULT 'done'
 );
 
 CREATE INDEX IF NOT EXISTS idx_task_completion_node
     ON task_completion (node_id);
 
 CREATE TABLE IF NOT EXISTS task_recurrence (
+    id TEXT,
     node_id TEXT PRIMARY KEY,
-    rule_json TEXT NOT NULL
+    rule_json TEXT NOT NULL,
+    created_at TEXT,
+    updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS activity_log (
@@ -158,7 +164,8 @@ CREATE TABLE IF NOT EXISTS node_public_share (
     workspace_id TEXT NOT NULL,
     slug TEXT,
     password_hash TEXT,
-    expiry_date TEXT
+    expiry_date TEXT,
+    created_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_node_public_share_node

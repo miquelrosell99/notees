@@ -68,13 +68,12 @@ class RecurrenceRuleRequest(BaseModel):
 
 
 class RecurrenceRuleResponse(BaseModel):
-    """Serialized recurrence rule."""
+    """Serialized recurrence rule using public UUIDs only."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    uuid: str
-    task_node_id: int
+    recurrence_uuid: str
+    task_node_uuid: str
     rule_type: str
     interval: int
     weekdays: list[int] | None
@@ -106,16 +105,15 @@ class TaskCompletionRequest(BaseModel):
 
 
 class TaskCompletionResponse(BaseModel):
-    """Serialized task completion record."""
+    """Serialized task completion record using public UUIDs only."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    uuid: str
-    task_node_id: int
+    completion_uuid: str
+    task_node_uuid: str
     scheduled_date: date | None
     deadline_date: date | None
     status: str
     completed_at: str
-    completed_by: int | None
+    completed_by: str | None
     create_date: str

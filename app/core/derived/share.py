@@ -24,20 +24,22 @@ def apply_share_public_create(conn: sqlite3.Connection, op: Operation) -> None:
     slug = payload.get("slug")
     password_hash = payload.get("passwordHash")
     expiry_date = payload.get("expiryDate")
+    created_at = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
 
     conn.execute(
         """
         INSERT INTO node_public_share (
-            share_id, node_id, workspace_id, slug, password_hash, expiry_date
-        ) VALUES (?, ?, ?, ?, ?, ?)
+            share_id, node_id, workspace_id, slug, password_hash, expiry_date, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(share_id) DO UPDATE SET
             node_id = excluded.node_id,
             workspace_id = excluded.workspace_id,
             slug = excluded.slug,
             password_hash = excluded.password_hash,
-            expiry_date = excluded.expiry_date
+            expiry_date = excluded.expiry_date,
+            created_at = excluded.created_at
         """,
-        (share_id, node_id, workspace_id, slug, password_hash, expiry_date),
+        (share_id, node_id, workspace_id, slug, password_hash, expiry_date, created_at),
     )
 
 

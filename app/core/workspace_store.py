@@ -45,7 +45,7 @@ class WorkspaceStore:
         db_path: str | None = None,
         key_storage: WorkspaceKeyStorage | None = None,
     ) -> None:
-        self._workspace_id = workspace_id
+        self.workspace_id = workspace_id
         self._actor_id = actor_id
         self._key_storage = key_storage or WorkspaceKeyStorage()
         self._master_key: bytes | None = None
@@ -60,9 +60,7 @@ class WorkspaceStore:
         if db_path is not None:
             self._db_path = db_path
         else:
-            self._db_path = str(
-                settings.database_dir / "relay" / "derived" / f"{workspace_id}.db"
-            )
+            self._db_path = str(settings.database_dir / "relay" / "derived" / f"{workspace_id}.db")
 
         self._clock = Clock(device_id=actor_id)
         self._conn: sqlite3.Connection | None = None
@@ -94,9 +92,7 @@ class WorkspaceStore:
     async def _get_master_key(self) -> bytes:
         """Return the workspace master key, fetching it once per instance."""
         if self._master_key is None:
-            self._master_key = await self._key_storage.get_or_create_master_key(
-                self._workspace_id, settings.secret_key
-            )
+            self._master_key = await self._key_storage.get_or_create_master_key(self.workspace_id, settings.secret_key)
         return self._master_key
 
     def _advance_clock(self) -> Hlc:
@@ -113,7 +109,7 @@ class WorkspaceStore:
         return Operation(
             envelope=OperationEnvelope(
                 id=uuidv7(),
-                workspace_id=self._workspace_id,
+                workspace_id=self.workspace_id,
                 actor_id=self._actor_id,
                 hlc=self._advance_clock(),
                 affected_node_ids=affected_node_ids or [],
@@ -122,14 +118,18 @@ class WorkspaceStore:
             payload=payload,
         )
 
-    async def apply(self, operation: Operation) -> None:
+    async def apply(self, operation: Operation) -> EncryptedEnvelope | None:
         """Encrypt, persist, and apply a single operation.
 
         Skips saving/applying when the operation id already exists in relay
         storage, making the method safely idempotent.
+
+        Returns:
+            The encrypted envelope that was saved, or ``None`` when the
+            operation was already present and was skipped.
         """
         if self._relay_storage.envelope_exists(operation.id):
-            return
+            return None
 
         master_key = await self._get_master_key()
         encrypted = encrypt_operation_payload(operation.payload, master_key)
@@ -153,6 +153,7 @@ class WorkspaceStore:
             (operation.id,),
         )
         conn.commit()
+        return envelope
 
     async def sync(self) -> None:
         """Fetch all operations from the relay and apply them idempotently.
@@ -162,18 +163,14 @@ class WorkspaceStore:
         for increment-only appliers such as ``link.click``.
         """
         master_key = await self._get_master_key()
-        envelopes = self._relay_storage.get_catch_up(
-            self._workspace_id, Hlc(physical=0, logical=0)
-        )
+        envelopes = self._relay_storage.get_catch_up(self.workspace_id, Hlc(physical=0, logical=0))
         conn = await self._ensure_connection()
 
         for envelope in envelopes:
             if self._is_applied(conn, envelope.id):
                 continue
 
-            payload = decrypt_operation_payload(
-                envelope.ciphertext, envelope.iv, master_key
-            )
+            payload = decrypt_operation_payload(envelope.ciphertext, envelope.iv, master_key)
             operation = Operation(
                 envelope=OperationEnvelope(
                     id=envelope.id,
@@ -195,9 +192,7 @@ class WorkspaceStore:
         conn.commit()
 
     def _is_applied(self, conn: sqlite3.Connection, operation_id: str) -> bool:
-        row = conn.execute(
-            "SELECT 1 FROM applied_operation_id WHERE id = ?", (operation_id,)
-        ).fetchone()
+        row = conn.execute("SELECT 1 FROM applied_operation_id WHERE id = ?", (operation_id,)).fetchone()
         return row is not None
 
     async def create_node(
@@ -223,9 +218,7 @@ class WorkspaceStore:
 
     async def delete_node(self, node_id: str) -> None:
         """Emit a ``node.delete`` operation."""
-        await self.apply(
-            self._build_operation("node.delete", {"nodeId": node_id}, [node_id])
-        )
+        await self.apply(self._build_operation("node.delete", {"nodeId": node_id}, [node_id]))
 
     async def move_node(
         self,
@@ -240,6 +233,33 @@ class WorkspaceStore:
         if new_index != 0:
             payload["newIndex"] = new_index
         await self.apply(self._build_operation("node.move", payload, [node_id]))
+
+    async def create_class(
+        self,
+        class_id: str,
+        name: str,
+        extends: list[str] | None = None,
+    ) -> None:
+        """Emit a ``class.create`` operation."""
+        payload: dict[str, Any] = {"classId": class_id, "name": name}
+        if extends is not None:
+            payload["extends"] = extends
+        await self.apply(self._build_operation("class.create", payload, [class_id]))
+
+    async def create_property_schema(
+        self,
+        schema_id: str,
+        name: str,
+        prop_type: str,
+    ) -> None:
+        """Emit a ``propertySchema.create`` operation."""
+        await self.apply(
+            self._build_operation(
+                "propertySchema.create",
+                {"schemaId": schema_id, "name": name, "type": prop_type},
+                [schema_id],
+            )
+        )
 
     async def assign_class(self, node_id: str, class_id: str) -> None:
         """Emit a ``class.assign`` operation."""
@@ -310,9 +330,7 @@ class WorkspaceStore:
             payload["targetNodeId"] = target_node_id
         if details is not None:
             payload["details"] = details
-        await self.apply(
-            self._build_operation("activity.record", payload, [node_id])
-        )
+        await self.apply(self._build_operation("activity.record", payload, [node_id]))
 
     async def record_link_click(
         self,
@@ -327,22 +345,46 @@ class WorkspaceStore:
         }
         if clicked_at is not None:
             payload["clickedAt"] = clicked_at
-        await self.apply(
-            self._build_operation(
-                "link.click", payload, [source_node_id, target_node_id]
-            )
-        )
+        await self.apply(self._build_operation("link.click", payload, [source_node_id, target_node_id]))
 
     async def update_content(
         self,
         node_id: str,
         content: list[dict[str, Any]],
     ) -> None:
-        """Emit a ``node.updateContent`` operation."""
+        """Emit a ``node.updateContent`` operation.
+
+        The backend derived-state applier accepts a simplified content AST under
+        ``crdtUpdate`` during the migration, so this helper forwards the AST in
+        that shape.
+        """
         await self.apply(
             self._build_operation(
                 "node.updateContent",
-                {"nodeId": node_id, "content": content},
+                {"nodeId": node_id, "crdtUpdate": content},
+                [node_id],
+            )
+        )
+
+    async def update_text_crdt(
+        self,
+        node_id: str,
+        update: bytes,
+    ) -> EncryptedEnvelope | None:
+        """Emit a ``node.updateContent`` operation carrying a Yjs text update.
+
+        The raw bytes are serialized as a list of ints so the payload remains
+        JSON-serializable and matches the format expected by the frontend
+        derived-state applier.
+
+        Returns:
+            The encrypted envelope that was saved, or ``None`` when the
+            operation was a duplicate.
+        """
+        return await self.apply(
+            self._build_operation(
+                "node.updateContent",
+                {"nodeId": node_id, "textUpdate": list(update)},
                 [node_id],
             )
         )
@@ -353,19 +395,25 @@ class WorkspaceStore:
         node_id: str,
         completed_at: str | None = None,
         completed_by: str | None = None,
+        scheduled_date: str | None = None,
+        deadline_date: str | None = None,
+        status: str = "done",
     ) -> None:
         """Emit a ``task.recordCompletion`` operation."""
         payload: dict[str, Any] = {
             "completionId": completion_id,
             "nodeId": node_id,
+            "status": status,
         }
         if completed_at is not None:
             payload["completedAt"] = completed_at
         if completed_by is not None:
             payload["completedBy"] = completed_by
-        await self.apply(
-            self._build_operation("task.recordCompletion", payload, [node_id])
-        )
+        if scheduled_date is not None:
+            payload["scheduledDate"] = scheduled_date
+        if deadline_date is not None:
+            payload["deadlineDate"] = deadline_date
+        await self.apply(self._build_operation("task.recordCompletion", payload, [node_id]))
 
     async def delete_task_completion(
         self,
@@ -426,9 +474,9 @@ class WorkspaceStore:
                 {
                     "assetId": asset_id,
                     "nodeId": node_id,
-                    "fileHash": file_hash,
+                    "assetHash": file_hash,
                     "mimeType": mime_type,
-                    "size": size,
+                    "sizeBytes": size,
                     "originalName": original_name,
                 },
                 [node_id],
@@ -450,31 +498,29 @@ class WorkspaceStore:
         share_id: str,
         node_id: str,
         slug: str,
-        access: str = "read",
+        password_hash: str | None = None,
+        expiry_date: str | None = None,
     ) -> None:
         """Emit a ``share.public.create`` operation."""
-        await self.apply(
-            self._build_operation(
-                "share.public.create",
-                {
-                    "shareId": share_id,
-                    "nodeId": node_id,
-                    "slug": slug,
-                    "access": access,
-                },
-                [node_id],
-            )
-        )
+        payload: dict[str, Any] = {
+            "shareId": share_id,
+            "nodeId": node_id,
+            "slug": slug,
+        }
+        if password_hash is not None:
+            payload["passwordHash"] = password_hash
+        if expiry_date is not None:
+            payload["expiryDate"] = expiry_date
+        await self.apply(self._build_operation("share.public.create", payload, [node_id]))
 
-    async def revoke_public_share(self, share_id: str, node_id: str) -> None:
+    async def revoke_public_share(self, share_id: str, node_id: str | None = None) -> None:
         """Emit a ``share.public.revoke`` operation."""
-        await self.apply(
-            self._build_operation(
-                "share.public.revoke",
-                {"shareId": share_id, "nodeId": node_id},
-                [node_id],
-            )
-        )
+        payload: dict[str, Any] = {"shareId": share_id}
+        affected_nodes: list[str] = []
+        if node_id is not None:
+            payload["nodeId"] = node_id
+            affected_nodes.append(node_id)
+        await self.apply(self._build_operation("share.public.revoke", payload, affected_nodes))
 
     async def grant_user_share(
         self,
@@ -483,44 +529,72 @@ class WorkspaceStore:
         user_id: str,
         permission: str,
     ) -> None:
-        """Emit a ``share.user.grant`` operation."""
+        """Emit a ``share.user.grant`` operation.
+
+        ``permission`` is encoded as a bitmask: read = 1, write = 2, create = 4,
+        delete = 8. ``read`` maps to bit 1; ``write`` maps to read + write +
+        create (bits 1|2|4 = 7) to match the legacy repository semantics where
+        write implies create.
+        """
+        permission_bits = self._encode_share_permission_bits(permission)
         await self.apply(
             self._build_operation(
                 "share.user.grant",
                 {
                     "shareId": share_id,
                     "nodeId": node_id,
-                    "userId": user_id,
-                    "permission": permission,
+                    "targetUserId": user_id,
+                    "permissionBits": permission_bits,
                 },
                 [node_id, user_id],
             )
         )
 
-    async def revoke_user_share(self, share_id: str, node_id: str, user_id: str) -> None:
+    @staticmethod
+    def _encode_share_permission_bits(permission: str) -> int:
+        """Encode a share permission string into a bitmask."""
+        bits = 0
+        norm = permission.lower().strip()
+        if norm in {"read", "r"}:
+            bits |= 1
+        elif norm in {"write", "w"}:
+            bits |= 1 | 2 | 4
+        return bits
+
+    async def revoke_user_share(
+        self,
+        share_id: str,
+        node_id: str | None = None,
+        user_id: str | None = None,
+    ) -> None:
         """Emit a ``share.user.revoke`` operation."""
-        await self.apply(
-            self._build_operation(
-                "share.user.revoke",
-                {"shareId": share_id, "nodeId": node_id, "userId": user_id},
-                [node_id, user_id],
-            )
-        )
+        payload: dict[str, Any] = {"shareId": share_id}
+        affected_nodes: list[str] = []
+        if node_id is not None:
+            payload["nodeId"] = node_id
+            affected_nodes.append(node_id)
+        if user_id is not None:
+            payload["targetUserId"] = user_id
+            affected_nodes.append(user_id)
+        await self.apply(self._build_operation("share.user.revoke", payload, affected_nodes))
 
     async def plugin_op(
         self,
         plugin_id: str,
         op_type: str,
         data: dict[str, Any],
+        node_id: str | None = None,
     ) -> None:
-        """Emit a ``plugin.op`` operation."""
-        await self.apply(
-            self._build_operation(
-                "plugin.op",
-                {"pluginId": plugin_id, "opType": op_type, "data": data},
-                [],
-            )
-        )
+        """Emit a ``plugin.op`` operation.
+
+        If ``node_id`` is provided it is included in the payload and in the
+        operation's affected-node list so the relay can route the operation.
+        """
+        payload: dict[str, Any] = {"pluginId": plugin_id, "opType": op_type, "data": data}
+        if node_id is not None:
+            payload["nodeId"] = node_id
+        affected = [node_id] if node_id is not None else []
+        await self.apply(self._build_operation("plugin.op", payload, affected))
 
     async def query(
         self,

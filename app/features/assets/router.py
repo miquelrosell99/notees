@@ -1,7 +1,8 @@
 """Assets router - handles file uploads and downloads.
 
-Routers are thin: validation, auth, and response formatting only.  All
-persistence and filesystem operations are delegated to the domain AssetService.
+Routers are thin: validation, auth, and response formatting only. All
+operation-log writes and filesystem operations are delegated to
+:class:`app.features.assets.service.AssetService` via WorkspaceStore.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -13,7 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.config import settings
-from app.dependencies import get_current_user, get_node_repository, require_write_scope
+from app.dependencies import get_current_user, require_write_scope
 from app.features.assets.dependencies import (
     get_asset_service,
     get_asset_service_with_token,
@@ -29,8 +30,6 @@ from app.features.assets.utils import (
     check_magic_bytes,
     get_extension_from_content_type,
 )
-from app.features.nodes.port import NodeRepository
-from app.features.nodes.router.dependencies import resolve_node_uuid
 from app.logging_config import get_logger
 from app.models import User
 
@@ -91,14 +90,14 @@ async def upload_asset(
     existing_node_uuid: str | None = None,
     content: str | None = Form(None),
     asset_service: AssetService = Depends(get_asset_service),
-    node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
     """Upload a new asset file.
 
-    Creates a node with the 'asset' type and stores the file in the workspace's
-    assets folder.  If existing_node_id is provided, that node is converted to an
-    asset instead of creating a new one.
+    Creates a block node with the 'asset' class and stores the file in the
+    workspace's assets folder content-addressed by SHA-256. If
+    ``existing_node_uuid`` is provided, that node is converted to an asset
+    instead of creating a new one.
 
     Supported file types: Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM)
     Max file size: 50MB
@@ -107,14 +106,16 @@ async def upload_asset(
     if content_type not in ALLOWED_CONTENT_TYPES:
         allowed_types = "Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM)"
         raise HTTPException(
-            status_code=400, detail=f"Unsupported file type: {content_type}. Allowed types: {allowed_types}"
+            status_code=400,
+            detail=f"Unsupported file type: {content_type}. Allowed types: {allowed_types}",
         )
 
     file_content = await file.read()
 
     if len(file_content) > MAX_FILE_SIZE:
         raise HTTPException(
-            status_code=400, detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB"
+            status_code=400,
+            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB",
         )
 
     if not check_magic_bytes(file_content, content_type):
@@ -124,16 +125,13 @@ async def upload_asset(
             "Upload rejected to prevent content-type spoofing.",
         )
 
-    parent_id = await resolve_node_uuid(parent_uuid, node_repo) if parent_uuid else None
-    existing_node_id = await resolve_node_uuid(existing_node_uuid, node_repo) if existing_node_uuid else None
-
     try:
         result = await asset_service.upload_asset(
             file_bytes=file_content,
             filename=file.filename or f"asset{get_extension_from_content_type(content_type)}",
             content_type=content_type,
-            parent_id=parent_id,
-            existing_node_id=existing_node_id,
+            parent_uuid=parent_uuid,
+            existing_node_uuid=existing_node_uuid,
             content=content,
         )
     except AssetPermissionError as e:
@@ -174,7 +172,7 @@ def _parse_range_header(range_header: str, file_size: int) -> tuple[int, int] | 
     if not range_header.startswith("bytes="):
         return None
     try:
-        range_spec = range_header[len("bytes="):]
+        range_spec = range_header[len("bytes=") :]
         start_str, end_str = range_spec.split("-", 1)
         start = int(start_str) if start_str else 0
         end = int(end_str) if end_str else file_size - 1

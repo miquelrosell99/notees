@@ -1,4 +1,9 @@
-"""Dependency injection for the import feature."""
+"""FastAPI dependencies for plugin routers.
+
+Plugin routers mounted under ``/api/plugins/<plugin_id>`` use
+``get_workspace_store`` to participate in the same local-first operation log as
+clients.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +14,6 @@ from fastapi import Depends, HTTPException
 from app.core.workspace_store import WorkspaceStore
 from app.db.connection import get_pool, get_workspace_uuid
 from app.dependencies import _get_workspace_context_cached, get_current_user
-from app.features.import_.service import ImportService
 from app.models import User
 
 
@@ -31,10 +35,3 @@ async def get_workspace_store(
         yield store
     finally:
         await store.close()
-
-
-async def get_import_service(
-    store: WorkspaceStore = Depends(get_workspace_store),
-) -> AsyncGenerator[ImportService, None]:
-    """Yield an ImportService wired to the current workspace store."""
-    yield ImportService(store)

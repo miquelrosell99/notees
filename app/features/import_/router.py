@@ -30,7 +30,7 @@ async def import_markdown(
     results: list[MarkdownImportResult] = []
     for item in request.items:
         try:
-            node, created = await import_service.import_markdown(
+            node_uuid, title, created = await import_service.import_markdown(
                 content=item.content,
                 parent_uuid=item.parent_uuid,
                 sequence=item.sequence,
@@ -43,21 +43,10 @@ async def import_markdown(
             ) from exc
         results.append(
             MarkdownImportResult(
-                node_uuid=str(node.uuid),
-                title=_node_title(node.name),
+                node_uuid=node_uuid,
+                title=title,
                 created=created,
                 existing=not created,
             )
         )
     return results
-
-
-def _node_title(name: str) -> str:
-    """Return a plain-text title from a serialized AST name."""
-    from app.domain.stringify_ast import StringifyMode, StringifyOptions, parse_ast, stringify_ast
-
-    try:
-        ast = parse_ast(name)
-        return stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
-    except Exception:
-        return name

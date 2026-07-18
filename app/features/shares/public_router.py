@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import contextlib
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.dependencies import get_node_repository
-from app.features.nodes.port import NodeRepository
-from app.features.nodes.router.helpers import _name_text, extract_properties_dict
-from app.features.properties.port import PropertyRepository
+from app.core.workspace_store import WorkspaceStore
+from app.domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from app.features.shares.dependencies import (
-    _get_public_share_service,
-    get_public_property_repository,
+    get_public_workspace_store,
     get_share_repository_for_public,
 )
 from app.features.shares.port import ShareRepository
@@ -21,57 +21,41 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/public", tags=["Public"])
 
 
-def _node_to_public_dict(node, depth: int = 0, display_name: str = "") -> dict:
-    """Serialize a node for public access (minimal fields)."""
+def _content_to_display_name(content: list | str | None) -> str:
+    """Extract plain text from node content for public display."""
+    if not content:
+        return "Untitled"
+    raw = json.dumps(content) if isinstance(content, list) else str(content)
+    try:
+        ast = parse_ast(raw, ParseMode.JSON)
+        text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
+        return text.strip() or "Untitled"
+    except (ValueError, TypeError, KeyError):
+        text = raw.strip()
+        return text or "Untitled"
+
+
+def _node_row_to_public_dict(row: dict, depth: int = 0) -> dict:
+    """Serialize a derived node row for public access (UUIDs only)."""
+    content: list | str = []
+    with contextlib.suppress(json.JSONDecodeError, TypeError):
+        content = json.loads(row.get("content") or "[]")
+
+    class_ids: list | str = []
+    with contextlib.suppress(json.JSONDecodeError, TypeError):
+        class_ids = json.loads(row.get("class_ids") or "[]")
+
     return {
-        "id": node.id,
-        "uuid": node.uuid,
-        "name": node.name,
-        "display_name": display_name,
-        "icon": node.icon,
-        "color": node.color,
-        "is_page": node.is_page,
-        "is_class": node.is_class,
-        "is_day": node.is_day,
-        "is_month": node.is_month,
-        "is_year": node.is_year,
-        "is_template": node.is_template,
-        "parent_id": node.parent_id,
-        "sequence": node.sequence,
-        "class_ids": node.class_ids,
-        "create_date": node.create_date,
-        "write_date": node.write_date,
+        "uuid": row["id"],
+        "display_name": _content_to_display_name(content),
+        "icon": row.get("icon"),
+        "color": row.get("color"),
+        "is_page": row.get("kind") == "page",
+        "is_class": "class" in class_ids,
+        "class_ids": class_ids,
+        "create_date": row.get("created_at"),
+        "write_date": row.get("updated_at"),
         "depth": depth,
-    }
-
-
-def _property_to_public_dict(prop) -> dict:
-    """Serialize a property definition for public access."""
-    return {
-        "id": prop.id,
-        "uuid": prop.uuid,
-        "name": prop.name,
-        "icon": prop.icon,
-        "type": prop.type.value if hasattr(prop.type, "value") else str(prop.type),
-        "multi": prop.is_multi,
-        "is_system": prop.is_system,
-        "scope": prop.scope.value if hasattr(prop.scope, "value") else str(prop.scope),
-        "node_id": prop.node_id,
-        "icon_visibility": prop.icon_visibility,
-        "validation_rules": prop.validation_rules,
-        "create_date": prop.create_date,
-        "write_date": prop.write_date,
-        "class_filters": list(prop._class_filters) if hasattr(prop, "_class_filters") else [],
-        "options": [
-            {
-                "id": opt.id,
-                "name": opt.name,
-                "icon": opt.icon,
-                "color": opt.color,
-                "sequence": opt.sequence,
-            }
-            for opt in (prop._selection_lines if hasattr(prop, "_selection_lines") else [])
-        ],
     }
 
 
@@ -79,24 +63,35 @@ def _property_to_public_dict(prop) -> dict:
 async def get_shared_node(
     share_uuid: str,
     request: Request,
-    repo: NodeRepository = Depends(get_node_repository),
     share_repo: ShareRepository = Depends(get_share_repository_for_public),
-    prop_repo: PropertyRepository = Depends(get_public_property_repository),
+    store: WorkspaceStore = Depends(get_public_workspace_store),
 ):
-    """Get a publicly shared node and its direct children."""
-    share = await share_repo.get_share_by_uuid(share_uuid)
+    """Get a publicly shared node and its direct children.
 
+    PostgreSQL resolves the share token to a workspace; the node content is read
+    from the WorkspaceStore derived state.
+    """
+    share = await share_repo.get_share_by_uuid(share_uuid)
     if share is None or not share.is_valid():
         raise HTTPException(status_code=404, detail="Share not found or expired")
 
-    # Check password if set
-    if share.password_hash:
+    await store.sync()
+
+    # Verify the share exists in derived state and check password if set.
+    share_rows = await store.query(
+        "SELECT node_id, password_hash, expiry_date FROM node_public_share WHERE share_id = ?",
+        (share_uuid,),
+    )
+    if not share_rows:
+        raise HTTPException(status_code=404, detail="Share not found or expired")
+
+    derived_share = dict(share_rows[0])
+    password_hash = derived_share.get("password_hash") or share.password_hash
+    if password_hash:
         password = request.query_params.get("password") or ""
         try:
-            password_ok = bool(password) and verify_password(password, share.password_hash)
+            password_ok = bool(password) and verify_password(password, password_hash)
         except PasswordVerificationError:
-            # Technical fault verifying the share password; do not misreport it
-            # as a wrong password.
             raise HTTPException(
                 status_code=503,
                 detail="This share is temporarily unavailable. Please try again shortly.",
@@ -104,64 +99,46 @@ async def get_shared_node(
         if not password_ok:
             raise HTTPException(status_code=403, detail="password_required")
 
-    service = await _get_public_share_service(share.workspace_id)
-    node = await service.get_shared_node(share_uuid)
-
-    if node is None:
+    node_uuid = derived_share["node_id"]
+    node_rows = await store.query("SELECT * FROM node WHERE id = ?", (node_uuid,))
+    if not node_rows:
         raise HTTPException(status_code=404, detail="Share not found or expired")
 
-    # Get all non-page descendants (full block hierarchy, excluding child pages)
-    rows = await repo.get_shared_node_children(node.id)
+    node = _node_row_to_public_dict(dict(node_rows[0]), depth=0)
 
-    # Resolve display names for nodes that contain inline links
-    rows_as_dicts = [{"name": node.name, "uuid": node.uuid}] + [dict(r) for r in rows]
-    resolved = await repo.resolve_referenced_display_names(rows_as_dicts)
+    # Load direct children (non-page descendants one level deep).
+    child_rows = await store.query(
+        """
+        SELECT c.*
+        FROM node_child_order o
+        JOIN node c ON c.id = o.child_id
+        WHERE o.parent_id = ?
+        ORDER BY o.position
+        """,
+        (node_uuid,),
+    )
+    children = [_node_row_to_public_dict(dict(row), depth=1) for row in child_rows]
 
-    node_display_name = resolved.get(node.uuid) or _name_text(node.name, max_len=1000) or "Untitled"
+    # Load property values from the derived state.
+    prop_rows = await store.query(
+        "SELECT property_schema_id, value FROM property_value WHERE node_id = ?",
+        (node_uuid,),
+    )
+    properties: dict[str, list] = {}
+    for row in prop_rows:
+        key = row["property_schema_id"]
+        try:
+            value = json.loads(row["value"])
+        except (json.JSONDecodeError, TypeError):
+            value = row["value"]
+        properties.setdefault(key, []).append(value)
+    node["properties"] = properties
 
-    children = []
-    for r in rows:
-        uuid_str = str(r["uuid"])
-        child_display_name = resolved.get(uuid_str) or _name_text(r["name"], max_len=1000) or "Untitled"
-        children.append({
-            "id": r["id"],
-            "uuid": uuid_str,
-            "name": r["name"],
-            "display_name": child_display_name,
-            "icon": r.get("icon"),
-            "color": r.get("color"),
-            "is_page": r["is_page"],
-            "is_class": r.get("is_class", False),
-            "is_day": r.get("is_day", False),
-            "is_month": r.get("is_month", False),
-            "is_year": r.get("is_year", False),
-            "is_template": r.get("is_template", False),
-            "parent_id": r["parent_id"],
-            "sequence": r["sequence"],
-            "class_ids": r.get("class_ids", []),
-            "create_date": r["create_date"].isoformat() if r.get("create_date") else None,
-            "write_date": r["write_date"].isoformat() if r.get("write_date") else None,
-            "depth": r["depth"],
-        })
-
-    # Load node properties and definitions for the public share
-    raw_properties = await prop_repo.get_all_property_values(node.id)
-    properties_dict = extract_properties_dict(raw_properties)
-
-    # Only include property definitions for properties that have values on this node
-    active_prop_ids = {int(k) for k in properties_dict}
-    all_props = await prop_repo.get_all(include_local=True)
-    property_definitions = [
-        _property_to_public_dict(p)
-        for p in all_props
-        if p.id in active_prop_ids
-    ]
+    # Property definitions are not yet materialized in the derived state.
+    property_definitions: list[dict] = []
 
     return {
-        "node": {
-            **_node_to_public_dict(node, display_name=node_display_name),
-            "properties": properties_dict,
-        },
+        "node": node,
         "children": children,
         "property_definitions": property_definitions,
     }

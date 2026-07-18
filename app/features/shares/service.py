@@ -107,12 +107,15 @@ class ShareService:
         if result.get("status") != "pending":
             return {
                 "share_id": result["id"],
+                "uuid": str(result["uuid"]),
                 "node_id": result["node_id"],
                 "shared_with_user_id": result["user_id"],
+                "shared_with_user_uuid": str(result.get("user_uuid", "")),
                 "shared_with_email": email,
                 "permission": "write" if result["can_write"] else "read",
                 "created_at": result["create_date"].isoformat() if result["create_date"] else None,
                 "created_by": result["create_uid"],
+                "created_by_uuid": str(result.get("create_user_uuid", "")),
             }
 
         invite_result: InviteEmailResult | None = None

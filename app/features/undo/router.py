@@ -1,109 +1,105 @@
-"""Undo / Redo API router."""
+"""Undo / Redo API router (deprecated).
 
-from fastapi import APIRouter, Depends, HTTPException
+The server-side undo stack has been removed as part of the Phase 7 migration to
+the local-first operation log. Undo is now implemented client-side by generating
+inverse operations (``property.unset`` for ``property.set``, reverse
+``node.move``, ``node.delete`` for created nodes, etc.) and appending them to
+the local operation log.
 
-from app.dependencies import get_current_user, require_write_scope
-from app.features.undo.dependencies import get_undo_repository
-from app.features.undo.port import UndoRepository
-from app.models import User
+All legacy endpoints under ``/undo`` return ``410 Gone`` so that clients receive
+a clear, actionable failure instead of a missing route or silent no-op.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends
+
+from app.dependencies import get_current_user, require_read_or_write_scope
 
 router = APIRouter(
     prefix="/undo",
     tags=["undo"],
-    dependencies=[Depends(get_current_user), Depends(require_write_scope)],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
 )
+
+_GONE_DETAIL = {
+    "message": "Server-side undo has been deprecated. Undo is now implemented client-side by generating inverse operations and appending them to the local operation log."
+}
 
 
 @router.post("/undo")
-async def undo(
-    user: User = Depends(get_current_user),
-    undo_repo: UndoRepository = Depends(get_undo_repository),
-):
-    """Undo the most recent operation."""
-    from app.features.undo.service import UndoService
+async def undo() -> dict:
+    """Undo the most recent operation.
 
-    service = UndoService(undo_repo)
-    result = await service.undo()
-    if result is None:
-        raise HTTPException(status_code=404, detail="Nothing to undo")
-    return result
+    .. deprecated::
+        Server-side undo is no longer supported. Clients should generate and
+        append inverse operations locally.
+    """
+    from fastapi import HTTPException
+
+    raise HTTPException(status_code=410, detail=_GONE_DETAIL)
 
 
 @router.post("/redo")
-async def redo(
-    user: User = Depends(get_current_user),
-    undo_repo: UndoRepository = Depends(get_undo_repository),
-):
-    """Redo the most recently undone operation."""
-    from app.features.undo.service import UndoService
+async def redo() -> dict:
+    """Redo the most recently undone operation.
 
-    service = UndoService(undo_repo)
-    result = await service.redo()
-    if result is None:
-        raise HTTPException(status_code=404, detail="Nothing to redo")
-    return result
+    .. deprecated::
+        Server-side redo is no longer supported. Clients should generate and
+        append inverse operations locally.
+    """
+    from fastapi import HTTPException
+
+    raise HTTPException(status_code=410, detail=_GONE_DETAIL)
 
 
 @router.get("/stack")
-async def get_stack(
-    user: User = Depends(get_current_user),
-    undo_repo: UndoRepository = Depends(get_undo_repository),
-):
-    """Get the current undo/redo stack counts and entries."""
-    from app.features.undo.service import UndoService
+async def get_stack() -> dict:
+    """Get the current undo/redo stack counts and entries.
 
-    service = UndoService(undo_repo)
-    return await service.get_stack_info()
+    .. deprecated::
+        Server-side undo stack is no longer maintained. Undo state lives in the
+        client-side operation log.
+    """
+    from fastapi import HTTPException
+
+    raise HTTPException(status_code=410, detail=_GONE_DETAIL)
 
 
 @router.post("/undo-to/{entry_uuid}")
-async def undo_to(
-    entry_uuid: str,
-    user: User = Depends(get_current_user),
-    undo_repo: UndoRepository = Depends(get_undo_repository),
-):
-    """Undo all operations down to (and including) the given entry."""
-    from app.features.undo.service import UndoService
+async def undo_to(entry_uuid: str) -> dict:
+    """Undo all operations down to (and including) the given entry.
 
-    entry_id = await undo_repo.get_undo_entry_id_by_uuid(entry_uuid)
-    if entry_id is None:
-        raise HTTPException(status_code=404, detail="Entry not found")
+    .. deprecated::
+        Server-side undo is no longer supported. Clients should generate and
+        append inverse operations locally.
+    """
+    from fastapi import HTTPException
 
-    service = UndoService(undo_repo)
-    results = await service.undo_to(entry_id)
-    if not results:
-        raise HTTPException(status_code=404, detail="Nothing to undo")
-    return results
+    raise HTTPException(status_code=410, detail=_GONE_DETAIL)
 
 
 @router.post("/redo-to/{entry_uuid}")
-async def redo_to(
-    entry_uuid: str,
-    user: User = Depends(get_current_user),
-    undo_repo: UndoRepository = Depends(get_undo_repository),
-):
-    """Redo all operations up to (and including) the given entry."""
-    from app.features.undo.service import UndoService
+async def redo_to(entry_uuid: str) -> dict:
+    """Redo all operations up to (and including) the given entry.
 
-    entry_id = await undo_repo.get_undo_entry_id_by_uuid(entry_uuid)
-    if entry_id is None:
-        raise HTTPException(status_code=404, detail="Entry not found")
+    .. deprecated::
+        Server-side redo is no longer supported. Clients should generate and
+        append inverse operations locally.
+    """
+    from fastapi import HTTPException
 
-    service = UndoService(undo_repo)
-    results = await service.redo_to(entry_id)
-    if not results:
-        raise HTTPException(status_code=404, detail="Nothing to redo")
-    return results
+    raise HTTPException(status_code=410, detail=_GONE_DETAIL)
 
 
 @router.delete("/history")
-async def clear_history(
-    user: User = Depends(get_current_user),
-    undo_repo: UndoRepository = Depends(get_undo_repository),
-):
-    """Clear all undo/redo history."""
-    from app.features.undo.service import UndoService
+async def clear_history() -> dict:
+    """Clear all undo/redo history.
 
-    service = UndoService(undo_repo)
-    await service.clear_history()
-    return {"status": "ok"}
+    .. deprecated::
+        Server-side undo history is no longer maintained. Clients manage undo
+        state locally.
+    """
+    from fastapi import HTTPException
+
+    raise HTTPException(status_code=410, detail=_GONE_DETAIL)

@@ -34,6 +34,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.core.workspace_store import WorkspaceStore
 from app.db.connection import clear_request_conn, get_pool
 from app.dependencies import (
     _make_permission_repository,
@@ -43,6 +44,7 @@ from app.domain.permissions import PermissionChecker
 from app.features.auth import authenticate_api_key, decode_token, get_user_by_id
 from app.infrastructure.redis_pubsub import collab_pubsub
 from app.logging_config import get_logger
+from app.relay.broadcast import broadcast as relay_broadcast
 
 logger = get_logger(__name__)
 
@@ -238,6 +240,17 @@ async def _authorize_v2_room(
     return workspace_uuid, can_write
 
 
+def _make_workspace_store(workspace_uuid: str, actor_id: str) -> WorkspaceStore:
+    """Build a WorkspaceStore scoped to the WebSocket room.
+
+    This helper is module-level so tests can patch it with an in-memory store.
+    """
+    return WorkspaceStore(
+        workspace_id=workspace_uuid,
+        actor_id=actor_id,
+    )
+
+
 @router.websocket("/{workspace_uuid}")
 async def live_sync_websocket(
     websocket: WebSocket,
@@ -272,6 +285,8 @@ async def live_sync_websocket(
         return
 
     room_id, can_write = auth_result
+
+    store = _make_workspace_store(workspace_uuid, user.get("uuid") or str(user_id))
 
     await websocket.accept()
 
@@ -395,6 +410,16 @@ async def live_sync_websocket(
                     yjs_blob = base64.b64decode(yjs_blob_b64)
                 except Exception:
                     continue
+
+                # Persist the Yjs text update as a node.updateContent operation
+                # in the operation log and broadcast the encrypted envelope over
+                # the relay WebSocket.
+                envelope = await store.update_text_crdt(yjs_node_uuid, yjs_blob)
+                if envelope is not None:
+                    await relay_broadcast(room_id, envelope)
+
+                # Keep the legacy collab-WebSocket broadcast for clients that
+                # have not yet migrated to the relay WebSocket.
                 await broadcast_yjs_update(
                     room_id,
                     yjs_node_uuid,
@@ -416,6 +441,8 @@ async def live_sync_websocket(
             redis_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await redis_task
+
+        await store.close()
 
         _page_connections.setdefault(room_id, set()).discard(connection)
         if not _page_connections.get(room_id):
