@@ -5,9 +5,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
 import { nodeKeys, nodeViewKeys } from '@/hooks/queryKeys';
+import { useSetNodePropertyAdapter } from '@/core/adapters/useSetNodePropertyAdapter';
 
-
-export function useSetNodeProperty() {
+/**
+ * Legacy set-node-property mutation. Imported by the SQLite adapter so it can
+ * delegate when ENABLE_SQLITE_STORE is off without creating a circular call.
+ */
+export function useSetNodePropertyLegacy() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -85,4 +89,8 @@ export function useSetNodeProperty() {
       });
     },
   });
+}
+
+export function useSetNodeProperty() {
+  return useSetNodePropertyAdapter();
 }

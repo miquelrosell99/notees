@@ -6,9 +6,18 @@ import * as propertiesApi from '@/api/properties';
 import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
+import {
+  usePropertiesAdapter,
+  useAvailablePropertiesAdapter,
+  usePropertyAdapter,
+  useBatchPropertyValuesAdapter,
+} from '@/core/adapters/usePropertiesAdapter';
 
-
-export function useProperties() {
+/**
+ * Legacy list-properties query. Imported by the SQLite adapter so it can
+ * delegate when ENABLE_SQLITE_STORE is off without creating a circular call.
+ */
+export function usePropertiesLegacy() {
   return useQuery({
     // NOTE: must stay on propertyKeys.lists() — imperative readers
     // (useRuntimeSync.resolveTaskStatus, useTaskActions.resolveTaskStatusIds)
@@ -18,7 +27,14 @@ export function useProperties() {
   });
 }
 
-export function useAvailableProperties(opts: {
+export function useProperties() {
+  return usePropertiesAdapter();
+}
+
+/**
+ * Legacy available-properties query. Imported by the SQLite adapter.
+ */
+export function useAvailablePropertiesLegacy(opts: {
   contextNodeId?: string;
   contextClassIds?: string[];
 } = {}) {
@@ -34,7 +50,17 @@ export function useAvailableProperties(opts: {
   });
 }
 
-export function useProperty(id: string | null) {
+export function useAvailableProperties(opts: {
+  contextNodeId?: string;
+  contextClassIds?: string[];
+} = {}) {
+  return useAvailablePropertiesAdapter(opts);
+}
+
+/**
+ * Legacy single-property query. Imported by the SQLite adapter.
+ */
+export function usePropertyLegacy(id: string | null) {
   return useQuery({
     queryKey: propertyKeys.detail(id ?? ''),
     queryFn: () => propertiesApi.getProperty(id!),
@@ -42,11 +68,22 @@ export function useProperty(id: string | null) {
   });
 }
 
-export function useBatchPropertyValues(nodeUuids: string[]) {
+export function useProperty(id: string | null) {
+  return usePropertyAdapter(id);
+}
+
+/**
+ * Legacy batch-property-values query. Imported by the SQLite adapter.
+ */
+export function useBatchPropertyValuesLegacy(nodeUuids: string[]) {
   return useQuery<BatchPropertiesResult>({
     queryKey: nodeKeys.batchProperties(nodeUuids),
     queryFn: () => nodesApi.batchGetPropertyValues(nodeUuids),
     enabled: nodeUuids.length > 0,
     staleTime: 30_000,
   });
+}
+
+export function useBatchPropertyValues(nodeUuids: string[]) {
+  return useBatchPropertyValuesAdapter(nodeUuids);
 }
