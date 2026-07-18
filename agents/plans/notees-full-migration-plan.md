@@ -313,7 +313,7 @@ Alternatives considered and rejected:
 
 **Goal:** Remove the surfaces that are genuinely superseded by the new core, while keeping legacy service/repo/runtime layers as a compatibility shim for still-active feature islands.
 
-**Status:** In progress. Detailed plan: `agents/plans/phase6-cleanup-deprecation.md`.
+**Status:** Complete. Detailed plan: `agents/plans/phase6-cleanup-deprecation.md`.
 
 **Deliverables:**
 1. **F1 — Backend safe cleanup:**
