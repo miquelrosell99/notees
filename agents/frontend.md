@@ -5,46 +5,48 @@
 ## React SPA
 
 - **Build tool**: Vite with PWA plugin (`vite-plugin-pwa`). The build outputs to `app/static/dist`.
-- **State**: Zustand for client state (navigation, UI, auth, settings, undo); TanStack Query for server state and caching.
+- **State**: Zustand for client state (navigation, UI, auth, settings, undo); `frontend/src/core/` for local-first workspace state; TanStack Query for server state and caching where legacy HTTP endpoints remain.
 - **Feature-first frontend**: `frontend/src/features/` owns cohesive domains: `content` (core node/page/block logic), `editor` (custom inline editor, plugins, content-save), `properties` (property cells/renderers/registry), `views` (graph, timeline, gantt, kanban, table, etc.), `whiteboard`, `tasks`, `queries`, `auth`, `workspace`, `shares`, `journals`, `layout`, `sidebar`, and `collab`. Cross-feature imports go through feature barrels.
 - **Editor**: Custom contentEditable inline editor (`CustomInlineEditor`) mounted per active block, with plugins for triggers, node links, copy/paste, and a floating toolbar. Static blocks render via `InlineContentStatic`. Editor code lives in `frontend/src/features/editor/`; composable primitives are documented in `building-blocks.md`.
 - **Routing**: Client-side routing within the SPA via a custom router (`src/hooks/useRouter.hook.ts`). FastAPI serves `index.html` for all non-API routes (`spa_fallback`).
-- **Path aliases**: `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`, `@/features`.
-- **Optimistic UI**: Mutations update TanStack Query cache immediately and roll back on failure.
+- **Path aliases**: `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/core`, `@/types`, `@/features`. (The legacy `@/runtime` alias was removed with `frontend/src/runtime/`.)
+- **Optimistic UI**: Local operations are applied immediately to the SQLite derived store; sync failures are surfaced by the sync engine and retried.
 - **View modes**: `NodeCollection` dispatches to view components in `frontend/src/features/views/` (`ListView`, `DocumentView`, `CardView`, `TableView`, `GanttView`, `GraphView`, `TimelineView`, etc.).
 - **Canvas Renderers**: `GanttView` and `TimelineView` use extracted imperative canvas renderers (`GanttRenderer.ts`, `TimelineRenderer.ts`) in `frontend/src/features/views/renderers/`.
 - **PWA**: Service worker auto-updates; precaches JS/CSS/HTML/ICO/PNG/SVG/WOFF2; network-first API caching; CacheFirst WASM caching; Web Share Target support.
 
 ## Data Flow Architecture
 
-The frontend follows the `react-ui-patterns` three-layer model without deviation:
+The frontend follows the local-first derived-state model:
 
 ```
-Backend API ←→ TanStack Query (server state) ←→ SyncManager (adapter) ←→ OperationRuntime + helpers (derived state) ←→ React UI
+User input → WorkspaceStore (SQLite operation log + derived tables) → encrypted relay (/api/relay/*)
+                                           ↓
+                              React UI ← core hooks/adapters
 ```
 
 **Layers:**
 
-1. **OperationRuntime** (`frontend/src/runtime/OperationRuntime.ts`): Pure derived-state engine. It owns base nodes (from TanStack Query) + pending operations = projected nodes. It has no React, TanStack Query, or API imports.
-2. **Runtime helpers** (`frontend/src/runtime/graphHelpers.ts`, `eventBus.ts`, `serverIdMap.ts`, plus `frontend/src/stores/undoEngine.ts`): Thin modules around OperationRuntime. They provide graph traversal, typed event emission, server-id mapping, undo/redo, and intent dispatch. None of them call the API.
-3. **SyncManager** (`frontend/src/sync/SyncManager.tsx`): The **sole** React adapter between OperationRuntime and TanStack Query. Mounted once in `App.tsx`, it observes dispatchable operations, fires `useMutation` hooks, applies targeted cache updates, and acknowledges operations on success.
-4. **useContentSave** (`frontend/src/features/editor/hooks/useContentSave.ts`): Debounces editor content changes and forwards them to the undo engine as `update_content` intents. It no longer calls the API directly.
+1. **WorkspaceStore** (`frontend/src/core/store.ts`): Owns a per-workspace sql.js Database. It appends operations to the local operation log and applies derived-state appliers (`frontend/src/core/derived/`). It exposes subscriptions per affected node id.
+2. **SyncEngine** (`frontend/src/core/sync.ts`): Encrypts local operations and pushes them to the relay; pulls remote operations and applies them to the store. Tracks pull and push watermarks in `sync_watermark`.
+3. **Core hooks/adapters** (`frontend/src/core/hooks/`, `frontend/src/core/adapters/`): React bindings around `WorkspaceStore`. They subscribe to node changes and return projections for components.
+4. **useContentSave** (`frontend/src/features/editor/hooks/useContentSave.ts`): Debounces editor content changes and forwards them to `WorkspaceStore.updateText()`, which emits `node.updateContent` operations backed by a text CRDT.
+5. **UndoManager** (`frontend/src/core/undo/`): Generates inverse operations client-side and applies them through `WorkspaceStore`.
 
 **Boundary rules:**
 
-- The runtime never calls the API or TanStack Query directly.
-- Only SyncManager dispatches API mutations.
-- Cache updates are centralized in `cacheWriter.ts` and `mutationMap.ts`.
-- Offline/ordering is handled by OperationRuntime's operation log and dependency graph; operations dispatch only after their dependencies are acknowledged.
-- Graph helper functions return **ephemeral projections**, not persistent state.
-- Legacy bridge hooks (`useBlockPersist`, `useStructureSync`, `useOfflineQueue`) are no-ops; their responsibilities moved to SyncManager and OperationRuntime.
+- `WorkspaceStore` is the only source of truth for workspace data.
+- Core hooks never call the HTTP API directly; sync goes through `SyncEngine`.
+- Feature UI components read from core hooks and write through core hooks/adapters.
+- Graph/helper functions return ephemeral projections, not persistent state.
+- Legacy `frontend/src/runtime/` and `frontend/src/sync/local/` have been removed.
 
 ## Conventions
 
 > Generic React patterns — See the `react-ui-patterns` skill for cross-project guidance on strict TypeScript, path aliases, CSS co-location, import boundaries, data flow architecture, store boundaries, query key discipline, mutation cache invalidation, API layer purity, barrel files, hook decomposition, and TanStack Query v5 unmounting behavior. The items below are Notees-specific implementations and file paths.
 
 - **Strict TypeScript**: `strict: true`, `noUnusedLocals: true`, `noUnusedParameters: true`, `verbatimModuleSyntax: true`.
-- **Path Aliases**: Mandatory. Use `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`. Never use relative `../../../` paths.
+- **Path Aliases**: Mandatory. Use `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/core`, `@/types`, `@/features`. Never use relative `../../../` paths.
 - **CSS Co-location**: Each component has a `.css` file with the same base name in the same directory.
 - **Component File Extensions**: `.tsx` for React components, `.ts` for utilities.
 - **Import Boundaries**:
