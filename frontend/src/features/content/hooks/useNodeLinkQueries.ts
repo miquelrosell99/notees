@@ -8,7 +8,8 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useWorkspaceRole } from '@/features/workspace';
-import { buildOfflineLinkedReferences } from '@/features/sync/local/buildOfflineLinkedReferences';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { buildLinkedReferences } from '@/core/query/linkedReferences';
 import type { MentionsResponse } from '@/types/api';
 
 export function useBacklinks(nodeUuid: string | null) {
@@ -43,7 +44,9 @@ export function useLinkedReferences(
     queryFn: () => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       if (offlineReady) {
-        return buildOfflineLinkedReferences(workspaceUuid, nodeUuid, params);
+        const store = getWorkspaceStore(workspaceUuid);
+        if (!store) throw new Error('Workspace store is not ready');
+        return buildLinkedReferences(store, nodeUuid, params);
       }
       return nodesApi.getLinkedReferences(nodeUuid, params);
     },

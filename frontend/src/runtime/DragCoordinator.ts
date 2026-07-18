@@ -2,17 +2,36 @@
  * DragCoordinator — Global coordinator for cross-editor drag & drop.
  *
  * All drag/reparent/reorder operations go through DragCoordinator,
- * which delegates structural mutations to the undo engine / event bus.
- * Inline editors never move nodes themselves; they emit drag intents.
+ * which delegates structural mutations to the core WorkspaceStore via
+ * the per-workspace UndoManager so that moves are automatically recorded
+ * as undoable actions.
  */
 
-import type { DragPayload, DropTarget, MutationIntent } from './types';
-import { getOperationRuntime } from '@/runtime';
-import { getNode, getChildren, getSiblings, getDescendants } from '@/runtime/graphHelpers';
-import { getUndoEngine } from '@/stores/undoEngine';
+import type { DragPayload, DropTarget } from '@/runtime/types';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { UndoManager } from '@/core/undo/UndoManager';
+import { useUndoStore } from '@/stores';
+import type { WorkspaceStore } from '@/core/store';
 
-async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
-  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+async function applyCoreMove(workspaceId: string, blockId: string, newParentId: string): Promise<void> {
+  const manager = UndoManager.getUndoManager(workspaceId);
+  if (!manager) {
+    throw new Error(`No UndoManager found for workspace ${workspaceId}`);
+  }
+  manager.moveNode(blockId, newParentId || null);
+}
+
+function getDescendantIds(store: WorkspaceStore, blockId: string): Set<string> {
+  const ids = new Set<string>();
+  const stack = [blockId];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    for (const childId of store.getChildren(current)) {
+      ids.add(childId);
+      stack.push(childId);
+    }
+  }
+  return ids;
 }
 
 export type DragState =
@@ -47,35 +66,35 @@ export class DragCoordinator {
     }
 
     const { payload, currentTarget } = this.state;
+
+    const workspaceId = useUndoStore.getState().currentWorkspaceId;
+    if (!workspaceId) {
+      this.cancelDrag();
+      return;
+    }
+
+    const store = getWorkspaceStore(workspaceId);
+    if (!store) {
+      this.cancelDrag();
+      return;
+    }
+
     this.state = { status: 'completing' };
     this.notify();
 
-    const runtime = getOperationRuntime();
-
-    // Compute the actual parent and anchor position for the first (or only) block
+    // Compute the target parent. Precise ordering is not supported by the
+    // prototype core store; moves append to the end of the target parent.
     let newParentId: string;
-    let afterBlockId: string | null;
 
     switch (currentTarget.position) {
-      case 'before': {
-        const targetNode = getNode(runtime, currentTarget.blockId);
-        newParentId = targetNode?.parentId || '';
-        // Find the sibling before the target
-        const siblings = getSiblings(runtime, currentTarget.blockId);
-        const targetIdx = siblings.findIndex(s => s.blockId === currentTarget.blockId);
-        afterBlockId = targetIdx > 0 ? siblings[targetIdx - 1].blockId : null;
-        break;
-      }
+      case 'before':
       case 'after': {
-        const targetNode = getNode(runtime, currentTarget.blockId);
+        const targetNode = store.getNode(currentTarget.blockId);
         newParentId = targetNode?.parentId || '';
-        afterBlockId = currentTarget.blockId;
         break;
       }
       case 'child': {
         newParentId = currentTarget.blockId;
-        const children = getChildren(runtime, currentTarget.blockId);
-        afterBlockId = children.length > 0 ? children[children.length - 1].blockId : null;
         break;
       }
     }
@@ -87,8 +106,7 @@ export class DragCoordinator {
 
     // Prevent any dragged block from being dropped onto itself or its descendants
     for (const blockId of blockIds) {
-      const descendants = getDescendants(runtime, blockId);
-      const descendantIds = new Set(descendants.map(d => d.blockId));
+      const descendantIds = getDescendantIds(store, blockId);
       if (descendantIds.has(newParentId) || newParentId === blockId) {
         this.cancelDrag();
         return;
@@ -105,25 +123,14 @@ export class DragCoordinator {
 
     if (blockIds.length === 1) {
       // Single block — existing behaviour
-      const intent: MutationIntent = {
-        type: 'move_block',
-        blockId: blockIds[0],
-        newParentId,
-        afterBlockId,
-      };
-      await applyRuntimeIntent(intent);
+      await applyCoreMove(workspaceId, blockIds[0], newParentId);
     } else {
-      // Multi-block — move each top-level block in DOM order, placing each one
-      // after the previous so their relative order is preserved.
-      const intents: MutationIntent[] = [];
-      let afterId = afterBlockId;
+      // Multi-block — move each top-level block in DOM order. Because the core
+      // store appends moved nodes to the end of the target parent's children,
+      // iterating in DOM order preserves the blocks' relative order.
       for (const blockId of blockIds) {
-        intents.push({ type: 'move_block', blockId, newParentId, afterBlockId: afterId });
-        // The next block goes after this one (i.e., after blockId itself, not after
-        // its subtree — the runtime treats afterBlockId as a direct-sibling anchor).
-        afterId = blockId;
+        await applyCoreMove(workspaceId, blockId, newParentId);
       }
-      await applyRuntimeIntent({ type: 'batch', intents });
     }
 
     this.state = { status: 'idle' };

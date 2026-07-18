@@ -1,31 +1,43 @@
 /**
- * Tests for runtimeContentOverlay — the read-only projection of live runtime
- * content onto a query-cache node.
+ * Tests for runtimeContentOverlay compatibility shim.
+ *
+ * The module now delegates to the core store for live subscriptions; the
+ * non-hook helpers are pass-throughs because core-projected nodes are already
+ * live.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { OperationRuntime } from '@/runtime';
-import type { Operation } from '@/runtime';
-import { getRuntimeEventBus, resetRuntimeEventBus } from '@/runtime/eventBus';
-import type { Node } from '@/types';
+import { webcrypto } from 'node:crypto';
+import { WorkspaceStore } from '@/core/store';
+import { uuidv7 } from '@/core/uuid';
+import { createTestDatabase } from '@/core/__tests__/helpers';
 import {
   overlayRuntimeContent,
   getRuntimeDisplayName,
   readRuntimeName,
   useRuntimeDisplayName,
 } from './runtimeContentOverlay';
+import type { Node } from '@/types/api';
+import type { OperationRuntime } from '@/runtime';
 
-const PAGE_UUID = '11111111-1111-1111-1111-111111111111';
+vi.mock('react-router-dom', () => ({
+  useParams: vi.fn(() => ({ workspaceId: 'ws-test' })),
+}));
+
+vi.mock('@/core/hooks', () => ({
+  useWorkspaceStore: vi.fn(() => ({ store: undefined, isLoading: false })),
+}));
+
 const BLOCK_UUID = '22222222-2222-2222-2222-222222222222';
 
 function makePropNode(overrides: Partial<Node> = {}): Node {
   return {
     uuid: BLOCK_UUID,
-    name: '[{"type":"paragraph","children":[{"type":"text","text":""}]}]',
+    name: '[{"type":"paragraph","children":[{"type":"text","text":"cached"}]}]',
     icon: null,
     color: null,
-    parent_uuid: PAGE_UUID,
+    parent_uuid: 'page-uuid',
     page_uuid: null,
     sequence: 0,
     active: true,
@@ -39,123 +51,62 @@ function makePropNode(overrides: Partial<Node> = {}): Node {
     tags_uuid: [],
     properties_uuid: {},
     ...overrides,
-  };
-}
-
-function loadBase(runtime: OperationRuntime): void {
-  runtime.loadBaseNodes([
-    {
-      blockId: BLOCK_UUID,
-      parentId: PAGE_UUID,
-      orderIndex: 0,
-      nodeType: 'block',
-      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-      collapsed: false,
-      isDeleted: false,
-      isPage: false,
-      name: '',
-      icon: null,
-      color: null,
-      classIds: [],
-      tagIds: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      version: 1,
-    },
-  ]);
-}
-
-function applyContent(runtime: OperationRuntime, text: string): void {
-  runtime.applyOperation({
-    id: 'update-op',
-    type: 'update_content',
-    blockId: BLOCK_UUID,
-    state: 'pending',
-    dependsOn: [],
-    retryCount: 0,
-    maxRetries: 3,
-    createdAt: Date.now(),
-    payload: {
-      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text }] }],
-    },
-  } as Operation);
+  } as Node;
 }
 
 describe('overlayRuntimeContent', () => {
-  it('overlays live runtime content onto a stale query-cache node', () => {
-    const runtime = new OperationRuntime();
-    loadBase(runtime);
-    applyContent(runtime, 'typed content');
-
-    const staleNode = makePropNode();
-    const projected = overlayRuntimeContent(runtime, staleNode);
-
-    expect(projected.name).toBe(
-      '[{"type":"paragraph","children":[{"type":"text","text":"typed content"}]}]',
-    );
-    // The original query-cache node is not mutated.
-    expect(staleNode.name).toBe('[{"type":"paragraph","children":[{"type":"text","text":""}]}]');
-  });
-
-  it('returns the node unchanged when no runtime projection exists', () => {
-    const runtime = new OperationRuntime();
+  it('returns the node unchanged (core nodes are already live)', () => {
     const node = makePropNode();
-    expect(overlayRuntimeContent(runtime, node)).toBe(node);
+    expect(overlayRuntimeContent(null as unknown as OperationRuntime, node)).toBe(node);
   });
 });
 
 describe('getRuntimeDisplayName', () => {
-  it('returns the live name after a content edit', () => {
-    const runtime = new OperationRuntime();
-    loadBase(runtime);
-    applyContent(runtime, 'fresh text');
-
-    expect(getRuntimeDisplayName(makePropNode(), runtime)).toBe(
-      '[{"type":"paragraph","children":[{"type":"text","text":"fresh text"}]}]',
-    );
+  it('returns the node name directly', () => {
+    const node = makePropNode();
+    expect(getRuntimeDisplayName(node)).toBe(node.name);
   });
 });
 
 describe('readRuntimeName', () => {
-  it('returns the fallback when the node is not projected', () => {
-    const runtime = new OperationRuntime();
-    expect(readRuntimeName(runtime, BLOCK_UUID, 'cached-name')).toBe('cached-name');
-  });
-
-  it('returns the live JSON name once projected', () => {
-    const runtime = new OperationRuntime();
-    loadBase(runtime);
-    applyContent(runtime, 'projected');
-    expect(readRuntimeName(runtime, BLOCK_UUID, 'cached-name')).toBe(
-      '[{"type":"paragraph","children":[{"type":"text","text":"projected"}]}]',
-    );
+  it('returns the fallback when no runtime projection exists', () => {
+    expect(readRuntimeName(null, BLOCK_UUID, 'cached-name')).toBe('cached-name');
   });
 });
 
 describe('useRuntimeDisplayName', () => {
-  it('returns the fallback, then updates live after a runtime content edit', () => {
-    const runtime = new OperationRuntime();
-    resetRuntimeEventBus(runtime);
-    try {
-      const fallback = '[{"type":"paragraph","children":[{"type":"text","text":"cached"}]}]';
-      const { result } = renderHook(() => useRuntimeDisplayName(BLOCK_UUID, fallback, runtime));
-
-      // Not projected yet → falls back to the query-cache name.
-      expect(result.current).toBe(fallback);
-
-      act(() => {
-        loadBase(runtime);
-        applyContent(runtime, 'live edit');
-        getRuntimeEventBus(runtime).flushEvents();
-      });
-
-      expect(result.current).toBe(
-        '[{"type":"paragraph","children":[{"type":"text","text":"live edit"}]}]',
-      );
-    } finally {
-      // Restore the default event bus (wired to the global runtime) so other
-      // test files are not affected by this test's runtime-scoped bus.
-      resetRuntimeEventBus();
+  beforeAll(() => {
+    if (!globalThis.crypto?.subtle) {
+      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
     }
+  });
+
+  it('returns the fallback, then updates live after a core content edit', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    store.createNode({ nodeId: BLOCK_UUID, kind: 'block', parentId: null });
+    store.updateText(BLOCK_UUID, (text) => text.insert(0, 'cached'));
+
+    const { useWorkspaceStore } = await import('@/core/hooks');
+    vi.mocked(useWorkspaceStore).mockReturnValue({ store, isLoading: false, error: null });
+
+    const fallback = '[{"type":"paragraph","children":[{"type":"text","text":"fallback"}]}]';
+    const { result } = renderHook(() => useRuntimeDisplayName(BLOCK_UUID, fallback));
+
+    // Core-projected nodes are already live, so the hook returns the derived name.
+    expect(result.current).toBe('cached');
+
+    act(() => {
+      store.updateText(BLOCK_UUID, (text) => {
+        const current = text.toPlaintext();
+        text.delete(0, current.length);
+        text.insert(0, 'live edit');
+      });
+    });
+
+    expect(result.current).toBe('live edit');
   });
 });

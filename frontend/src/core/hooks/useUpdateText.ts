@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { TextCrdt } from '../crdt/text';
 import { useWorkspaceStore } from './useWorkspaceStore';
+import { useUndoManager } from './useUndoManager';
 
 export interface UseUpdateTextResult {
   mutate: (
@@ -14,6 +15,7 @@ export interface UseUpdateTextResult {
 
 export function useUpdateText(workspaceId: string): UseUpdateTextResult {
   const { store } = useWorkspaceStore(workspaceId);
+  const manager = useUndoManager(workspaceId);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -23,7 +25,11 @@ export function useUpdateText(workspaceId: string): UseUpdateTextResult {
       setIsPending(true);
       setError(null);
       try {
-        store.updateText(args.nodeId, args.editor);
+        if (manager) {
+          manager.updateText(args.nodeId, args.editor);
+        } else {
+          store.updateText(args.nodeId, args.editor);
+        }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         setError(error);
@@ -32,7 +38,7 @@ export function useUpdateText(workspaceId: string): UseUpdateTextResult {
         setIsPending(false);
       }
     },
-    [store]
+    [store, manager]
   );
 
   const mutate = useCallback(

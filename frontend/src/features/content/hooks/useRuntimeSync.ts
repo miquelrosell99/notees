@@ -5,7 +5,6 @@
  * Converts API Node objects to GraphNode format and loads them into the runtime.
  */
 
-import { useEffect } from 'react';
 import type { GraphNode, GraphNodeType, ContentAST } from '@/runtime/types';
 import type { Node } from '@/types/api';
 import { parseAST } from '@/lib/astBuilder';
@@ -15,7 +14,6 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { propertyKeys } from '@/hooks/queryKeys';
-import { upsertNodes } from '@/runtime/eventBus';
 
 /** Map of system class UUIDs to callout banner types */
 const CALLOUT_UUID_TO_TYPE: Record<string, string> = {
@@ -72,15 +70,6 @@ export function apiNodeToGraphNode(
     // Track if server says this node has children that weren't sent (collapsed pruning)
     hasServerChildren: node.has_children ?? false,
   };
-}
-
-/**
- * Convert an array of API Nodes to GraphNodes.
- * Simple version used by sync hooks.
- */
-function convertNodesToGraphNodes(nodes: Node[]): GraphNode[] {
-  const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
-  return nodes.map(n => apiNodeToGraphNode(n, allClasses ?? undefined));
 }
 
 /**
@@ -183,29 +172,24 @@ function inferNodeType(node: Node): GraphNodeType {
 
 /**
  * Hook: Sync API nodes into the runtime when they change.
+ *
+ * Compatibility shim: the local-first core store is now the source of truth, so
+ * syncing API nodes into the legacy OperationRuntime is no longer required.
+ * The hook is kept for callers that have not been migrated yet.
  */
-export function useRuntimeSync(nodes: Node[] | undefined, isLoading: boolean): void {
-  useEffect(() => {
-    if (!nodes || isLoading) return;
-
-    const graphNodes = convertNodesToGraphNodes(nodes);
-    upsertNodes(graphNodes);
-  }, [nodes, isLoading]);
+export function useRuntimeSync(_nodes: Node[] | undefined, _isLoading: boolean): void {
+  // No-op: core store subscribes directly to derived state.
 }
 
 /**
  * Hook: Sync a single page and its children into the runtime.
+ *
+ * Compatibility shim: see useRuntimeSync.
  */
 export function useRuntimePageSync(
-  page: Node | undefined,
-  children: Node[] | undefined,
-  isLoading: boolean,
+  _page: Node | undefined,
+  _children: Node[] | undefined,
+  _isLoading: boolean,
 ): void {
-  useEffect(() => {
-    if (!page || isLoading) return;
-
-    const allNodes: Node[] = [page, ...(children || [])];
-    const graphNodes = convertNodesToGraphNodes(allNodes);
-    upsertNodes(graphNodes);
-  }, [page, children, isLoading]);
+  // No-op: core store subscribes directly to derived state.
 }

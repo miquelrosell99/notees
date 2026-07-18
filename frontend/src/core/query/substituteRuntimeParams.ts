@@ -2,8 +2,8 @@
  * Substitute runtime parameter placeholders into a QueryAST.
  *
  * The backend resolves placeholders like `{current_node_uuid}` from the
- * `runtime_params` map. For offline evaluation we perform the same substitution
- * client-side before handing the AST to the local evaluator.
+ * `runtime_params` map. For client-side SQLite evaluation we perform the same
+ * substitution before handing the AST to the SQLite compiler.
  */
 
 import type { QueryAST } from '@/types/queryAST';

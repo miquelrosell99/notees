@@ -3,6 +3,7 @@ import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { getOrCreateWorkspaceStore } from '../adapters/workspaceStoreAdapter';
 import { WorkspaceStoreContext } from './WorkspaceStoreContext';
+import { UndoManager } from '../undo';
 
 export interface UnsetPropertyArgs {
   nodeId: string;
@@ -28,7 +29,8 @@ export function useUnsetProperty(): UseMutationResult<void, Error, UnsetProperty
         ctx.cryptoKey,
         ctx.transport
       );
-      store.unsetProperty(args);
+      const manager = UndoManager.getOrCreateUndoManager(workspaceId, store);
+      manager.unsetProperty(args);
     },
   });
 }
