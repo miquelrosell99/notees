@@ -6,3 +6,15 @@ export { useCreateNodeAdapter } from './useCreateNodeAdapter';
 export { useUpdateNodeAdapter } from './useUpdateNodeAdapter';
 export { useMoveNodeAdapter } from './useMoveNodeAdapter';
 export { useDeleteNodeAdapter } from './useDeleteNodeAdapter';
+export {
+  usePropertiesAdapter,
+  useAvailablePropertiesAdapter,
+  usePropertyAdapter,
+  useBatchPropertyValuesAdapter,
+} from './usePropertiesAdapter';
+export { useSetNodePropertyAdapter } from './useSetNodePropertyAdapter';
+export {
+  useClassPropertiesAdapter,
+  useNodeClassPropertyEdgesAdapter,
+} from './useClassPropertiesAdapter';
+export { useExecuteQueryAdapter, useQueryResultsAdapter } from './useQueryAstAdapter';
