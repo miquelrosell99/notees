@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-18  
 **Branch:** `main`  
-**Status:** Phase 8 complete, Phase 9 in progress  
+**Status:** Phase 10 complete — migration finished  
 
 ## Goal
 
@@ -187,7 +187,8 @@ The E2E smoke suite is green, but the backend logs still show many 404s from the
 4. ✅ Maintenance callers — `FixRawLinksModal.tsx` now scans local SQLite content and converts raw `[[uuid]]` text to `node_link` AST nodes via `store.updateContentAst`; `RebuildLinksModal.tsx` is now a no-op refresh because links are derived automatically from AST. Core store gained `updateContentAst`/`node.updateContent` full-AST replacement. Snapshot commit `7ddebc37`.
 5. ✅ Importer callers — Removed the Logseq importer feature (`useLogseqImporter*.ts`, `useLogseqFolderImporter*.ts`, `ImportLogseqModal`, `ImportLogseqFolderModal`, plugin setup, and command registrations). `ImportOptionsModal.tsx` now offers JSON, Markdown, Markdown file, and plugin importers only. Parser utilities without `@/api/nodes` dependencies were kept for future re-implementation. Snapshot commit `735f71ee`.
 6. ✅ Basic node query hooks (`useNodeBasicQueries.ts`, `useNodeListQueries.ts`, `useNodeQueries.ts`, `useNodes.ts`, `useNodeAdapter.ts`, `useNodesAdapter.ts`, `useNodeChildrenAdapter.ts`) ported to the core store. Removed `useNodeMetadata`/`usePageContent` exports and the obsolete `ENABLE_SQLITE_STORE=false` legacy-delegation test in `nodeAdapter.test.tsx`. Committed `8267ee86`.
-7. ⏳ `api/nodes.ts` itself can be deleted once all consumers are gone.
+7. ✅ Remaining `@/api/nodes` callers ported and `frontend/src/api/nodes.ts` deleted. Search/selectors/commands/routes/modals, views/graph/calendar/gantt, content island (comments, aliases, templates), share receiver, version sidebar, merge modal, and trash context menu all now use the core SQLite store. Committed `c92d3fd1`.
+8. ⏳ Final verification, documentation update, and milestone commit.
 
 **Approach:** port to core store operations/mutations; do not add backward-compatibility shims. Remove dead code aggressively.
 
@@ -267,6 +268,6 @@ A pre-commit Phase 8 backup was also created before the final legacy-removal com
 - [x] `cd frontend && npm run test:run` passes (no legacy failures).
 - [x] Multi-client convergence tests pass.
 - [x] E2E smoke tests pass.
-- [x] Remove remaining legacy `/api/nodes/*` callers from normal app load — mutation callers done; importer/maintenance callers remain.
-- [ ] `AGENTS.md`, plans, and changelog updated.
-- [ ] Final milestone commit created.
+- [x] Remove remaining legacy `/api/nodes/*` callers from normal app load — complete; `frontend/src/api/nodes.ts` deleted.
+- [x] `AGENTS.md`, plans, and changelog updated.
+- [x] Final milestone commit created.
