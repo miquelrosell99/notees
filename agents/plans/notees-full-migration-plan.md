@@ -266,27 +266,40 @@ Alternatives considered and rejected:
 
 ## Phase 5: Server Relay Hardening and Production Cut-Over
 
-**Goal:** Replace the current FastAPI mutation endpoints with the encrypted operation relay.
+**Goal:** Make the encrypted operation relay production-ready with real permissions, WebSocket forwarding, key management, and load/convergence validation.
 
-**Status:** Pending.
+**Status:** Implementation in progress. Detailed plan in `agents/plans/phase5-relay-hardening.md`.
 
 **Deliverables:**
-1. `app/relay/` becomes the primary server API.
-2. WebSocket endpoint forwards encrypted envelopes per workspace.
-3. `POST /api/relay/batch` accepts encrypted operation batches.
-4. Catch-up endpoint serves operations since a given HLC.
-5. Share/public-link endpoints adapted to operation-log model.
-6. Workspace key management endpoints.
+1. **E1 — WebSocket and paginated catch-up:**
+   - `/api/relay/ws/{workspace_id}` real-time envelope broadcast.
+   - Paginated `/api/relay/catch-up` with cursor-based pagination.
+   - Optional `/api/relay/snapshot` placeholder.
+2. **E2 — Real permissions and share integration:**
+   - `PostgresPermissionChecker` using `workspace_share` records.
+   - Public-share token read access for relay catch-up.
+   - Anonymous actors rejected for writes.
+3. **E3 — Workspace key management:**
+   - `/api/relay/keys/{workspace_id}` wrapped-key retrieval.
+   - Invite and key-rotation endpoints.
+   - Matching frontend unwrap helpers.
+4. **E4 — Conformance and load tests:**
+   - Multi-client convergence tests.
+   - Catch-up replay load tests.
+   - Frontend convergence test.
 
 **Files to create/modify:**
-- Modify `app/main.py` to mount relay routers alongside legacy routers.
-- Modify `app/features/shares/` to integrate with relay permissions.
-- Create `app/relay/permissions.py`, `app/relay/storage.py`.
+- Create `app/relay/websocket.py`, `app/relay/broadcast.py`, `app/relay/permissions_postgres.py`, `app/relay/key_management.py`, `app/relay/key_models.py`, `app/relay/key_router.py`.
+- Modify `app/relay/router.py`, `app/relay/service.py`, `app/relay/storage.py`, `app/relay/dependencies.py`, `app/relay/permissions.py`, `app/core/crypto.py`.
+- Modify `frontend/src/core/crypto.ts`.
+- Modify `app/features/shares/repository.py` for node-share permission lookup.
 
 **Verification:**
-- Multi-client sync convergence tests pass.
-- Permission tests: unauthorized clients cannot pull operations.
-- Load tests on catch-up replay.
+- `uv run pytest tests/core tests/relay -m unit --no-cov` passes.
+- `uv run ruff check app/relay app/main.py app/core/crypto.py scripts/seed_relay_from_postgres.py` clean.
+- `uv run python scripts/validate_migration.py` reports zero orphans and zero duplicates.
+- `cd frontend && npm run test:run src/core && npx tsc -b --noEmit && npm run lint` passes.
+- Manual multi-tab convergence test with `VITE_ENABLE_SQLITE_STORE=true`.
 
 **Subagent breakdown:**
 - Subagent E1: Relay HTTP/WebSocket endpoints.
@@ -353,8 +366,4 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
 ## Immediate Next Step
 
-Begin **Phase 5** (server relay hardening and production cut-over):
-- Replace `StubPermissionChecker` with real workspace membership/share checks.
-- Add workspace key management endpoints.
-- Harden catch-up pagination and snapshot delivery.
-- Run multi-client convergence and load tests.
+Begin **Phase 5** by dispatching subagent E1 to add the WebSocket endpoint and paginated catch-up to `app/relay/`. See `agents/plans/phase5-relay-hardening.md` for the full sub-task breakdown.
