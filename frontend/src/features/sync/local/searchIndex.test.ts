@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { del } from 'idb-keyval';
 import MiniSearch from 'minisearch';
 import { indexNodes, searchIndex, unindexNodes, clearSearchIndex, _resetMemoryIndex } from './searchIndex';
 import type { Node } from '@/types/api';
@@ -31,8 +32,9 @@ function makeNode(
 }
 
 describe('searchIndex', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     _resetMemoryIndex();
+    await del(`notees:search-index:${WORKSPACE}`);
   });
 
   it('finds nodes by name text', async () => {

@@ -12,7 +12,9 @@
 import { get, set } from 'idb-keyval';
 import { getOperationRuntime } from '@/runtime';
 import type { Operation } from '@/runtime';
-import type { BaseVector } from '@/features/sync';
+
+/** Per-node sequence vector used by the legacy v2 outbox format. */
+type BaseVector = Record<string, number>;
 
 const STORAGE_KEY = 'notees-pending-operations';
 const OUTBOX_STATE_KEY = 'notees-outbox-state-v2';

@@ -1,16 +1,13 @@
 import { useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
-import { useUpdateNodeLegacy } from '@/features/content/hooks/useUpdateNode';
 import type { Node, NodeUpdate } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
 import { projectNode } from './nodeProjection';
-import { ENABLE_SQLITE_STORE } from '../utils/featureFlags';
 
 /**
- * Adapter hook that updates a node in the SQLite store when ENABLE_SQLITE_STORE
- * is on, otherwise delegates to the legacy hook.
+ * Adapter hook that updates a node in the SQLite store.
  */
 export function useUpdateNodeAdapter(): UseMutationResult<
   Node,
@@ -19,9 +16,8 @@ export function useUpdateNodeAdapter(): UseMutationResult<
 > {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const ctx = useContext(WorkspaceStoreContext);
-  const legacyResult = useUpdateNodeLegacy();
 
-  const sqliteResult = useMutation<Node, Error, { nodeUuid: string; data: NodeUpdate }>({
+  return useMutation<Node, Error, { nodeUuid: string; data: NodeUpdate }>({
     mutationFn: async ({ nodeUuid, data }) => {
       if (!ctx || !workspaceId) {
         throw new Error('Workspace not available for SQLite update');
@@ -60,9 +56,4 @@ export function useUpdateNodeAdapter(): UseMutationResult<
       return projected;
     },
   });
-
-  if (!ENABLE_SQLITE_STORE) {
-    return legacyResult as UseMutationResult<Node, Error, { nodeUuid: string; data: NodeUpdate }>;
-  }
-  return sqliteResult;
 }

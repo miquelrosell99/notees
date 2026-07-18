@@ -13,7 +13,6 @@ import { useModalStore } from '@/stores/modalStore';
 import { useConflictStore } from '../stores/conflictStore';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { getOperationRuntime } from '@/runtime';
-import { localSyncEngine } from '../engine/localSyncEngine';
 import { useLivePresenceStore } from '@/features/collab';
 import DiffMatchPatch from 'diff-match-patch';
 import type { Node } from '@/types/api';
@@ -112,8 +111,8 @@ export function ConflictResolutionModal(): JSX.Element | null {
     for (const opId of conflict.operationIds) {
       runtime.retryOperation(opId);
     }
-    // Re-queue immediately so SyncManagerV2 retries on the next tick.
-    void localSyncEngine.flush();
+    // The legacy v2 sync engine has been removed; persistence is now handled
+    // by the SQLite core sync engine.
     resolveConflict(conflict.workspaceUuid, conflict.nodeUuid);
     clearConflict(conflict.nodeUuid, conflict.nodeUuid, null);
     handleClose();
@@ -124,7 +123,6 @@ export function ConflictResolutionModal(): JSX.Element | null {
     const runtime = getOperationRuntime();
     for (const opId of conflict.operationIds) {
       runtime.failOperation(opId, 'User accepted server state');
-      void localSyncEngine.remove(opId);
     }
     resolveConflict(conflict.workspaceUuid, conflict.nodeUuid);
     clearConflict(conflict.nodeUuid, conflict.nodeUuid, null);
