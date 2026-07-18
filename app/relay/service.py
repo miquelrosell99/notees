@@ -70,6 +70,29 @@ class RelayService:
             raise PermissionDeniedError(f"Read denied for actor {actor_id} in workspace {workspace_id}")
         return self._storage.get_catch_up(workspace_id, hlc)
 
+    def catch_up_paginated(
+        self,
+        workspace_id: str,
+        actor_id: str,
+        hlc: Hlc,
+        limit: int = 1000,
+        after_id: str | None = None,
+    ) -> tuple[list[EncryptedEnvelope], str | None]:
+        """Return a paginated page of operations newer than ``hlc``.
+
+        Raises:
+            PermissionDeniedError: If ``actor_id`` is not allowed to read the
+                requested workspace.
+        """
+        if not self._permissions.can_read(workspace_id, actor_id):
+            raise PermissionDeniedError(f"Read denied for actor {actor_id} in workspace {workspace_id}")
+        return self._storage.get_catch_up_paginated(
+            workspace_id,
+            hlc,
+            limit=limit,
+            after_id=after_id,
+        )
+
     def catch_up_from_request(
         self,
         request: CatchUpRequest,

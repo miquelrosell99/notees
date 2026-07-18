@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, WebSocket
 
 from app.config import settings
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
@@ -60,8 +61,13 @@ def get_permission_checker() -> PermissionChecker:
     return _permission_checker_instance
 
 
+def _actor_id_from_headers(headers: Any) -> str:
+    """Return the actor id from request/websocket headers."""
+    return headers.get("x-actor-id", "anonymous")
+
+
 def get_actor_id(request: Request) -> str:
-    """Extract the actor id for the relay request.
+    """Extract the actor id for the relay HTTP request.
 
     Prefers the authenticated user id, falls back to the ``X-Actor-Id`` header,
     and finally defaults to ``anonymous``. This preserves the Phase 1 header
@@ -70,7 +76,16 @@ def get_actor_id(request: Request) -> str:
     user_id = getattr(request.state, "user_id", None)
     if user_id:
         return str(user_id)
-    return request.headers.get("x-actor-id", "anonymous")
+    return _actor_id_from_headers(request.headers)
+
+
+def get_actor_id_ws(websocket: WebSocket) -> str:
+    """Extract the actor id for the relay WebSocket connection.
+
+    WebSocket authentication is header-based in this phase; there is no
+    request state to inspect.
+    """
+    return _actor_id_from_headers(websocket.headers)
 
 
 def get_relay_service(

@@ -156,3 +156,56 @@ def test_catch_up_rejects_permission_denied(client: TestClient, permissions: Per
         headers={"x-actor-id": "actor-1"},
     )
     assert response.status_code == 403
+
+
+def test_catch_up_paginated_pages_through_envelopes(
+    client: TestClient,
+    storage: RelayStorage,
+) -> None:
+    """Paginated catch-up returns pages with has_more and next_after_id."""
+    service = RelayService(storage, StubPermissionChecker())
+    envelopes = [_envelope(f"op-{i:02d}", physical=i * 1000) for i in range(1, 11)]
+    service.receive_batch(type("Batch", (), {"envelopes": envelopes})(), "actor-1")
+
+    all_ids: list[str] = []
+    hlc: dict[str, int] = {"physical": 0, "logical": 0}
+    after_id: str | None = None
+    page_count = 0
+    while page_count < 5:
+        payload: dict = {
+            "workspace_id": "ws-1",
+            "hlc": hlc,
+            "limit": 3,
+        }
+        if after_id is not None:
+            payload["after_id"] = after_id
+
+        response = client.post(
+            "/api/relay/catch-up",
+            json=payload,
+            headers={"x-actor-id": "actor-1"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        page_ids = [envelope["id"] for envelope in data["envelopes"]]
+        all_ids.extend(page_ids)
+        assert data["has_more"] is (data["next_after_id"] is not None)
+
+        if not data["has_more"]:
+            break
+
+        last_envelope = data["envelopes"][-1]
+        hlc = last_envelope["hlc"]
+        after_id = data["next_after_id"]
+        assert after_id == page_ids[-1]
+        page_count += 1
+
+    assert all_ids == [f"op-{i:02d}" for i in range(1, 11)]
+
+
+def test_snapshot_returns_not_implemented(client: TestClient) -> None:
+    """The snapshot endpoint reserves the route but returns 501."""
+    response = client.get("/api/relay/snapshot")
+    assert response.status_code == 501
+    assert "not implemented" in response.json()["detail"].lower()

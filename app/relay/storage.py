@@ -32,6 +32,21 @@ class RelayStorage(ABC):
         """
 
     @abstractmethod
+    def get_catch_up_paginated(
+        self,
+        workspace_id: str,
+        hlc: Hlc,
+        limit: int = 1000,
+        after_id: str | None = None,
+    ) -> tuple[list[EncryptedEnvelope], str | None]:
+        """Return a page of envelopes newer than ``hlc`` for ``workspace_id``.
+
+        Results are sorted lexicographically by HLC, then by envelope id.
+        The returned ``next_after_id`` is the id of the last envelope when the
+        page is full, indicating that more results may be available.
+        """
+
+    @abstractmethod
     def envelope_exists(self, envelope_id: str) -> bool:
         """Return ``True`` if an envelope with the given id is already stored."""
 
@@ -123,6 +138,61 @@ class SqliteRelayStorage(RelayStorage):
                 results.append(envelope)
         return results
 
+    def get_catch_up_paginated(
+        self,
+        workspace_id: str,
+        hlc: Hlc,
+        limit: int = 1000,
+        after_id: str | None = None,
+    ) -> tuple[list[EncryptedEnvelope], str | None]:
+        if after_id is not None:
+            cursor = self._connection.execute(
+                """
+                SELECT * FROM relay_envelope
+                WHERE workspace_id = ?
+                  AND (
+                    physical > ?
+                    OR (physical = ? AND logical > ?)
+                    OR (physical = ? AND logical = ? AND id > ?)
+                  )
+                ORDER BY physical ASC, logical ASC, id ASC
+                LIMIT ?
+                """,
+                (
+                    workspace_id,
+                    hlc.physical,
+                    hlc.physical,
+                    hlc.logical,
+                    hlc.physical,
+                    hlc.logical,
+                    after_id,
+                    limit,
+                ),
+            )
+        else:
+            cursor = self._connection.execute(
+                """
+                SELECT * FROM relay_envelope
+                WHERE workspace_id = ?
+                  AND (
+                    physical > ?
+                    OR (physical = ? AND logical > ?)
+                  )
+                ORDER BY physical ASC, logical ASC, id ASC
+                LIMIT ?
+                """,
+                (
+                    workspace_id,
+                    hlc.physical,
+                    hlc.physical,
+                    hlc.logical,
+                    limit,
+                ),
+            )
+        results = [self._row_to_envelope(row) for row in cursor.fetchall()]
+        next_after_id = results[-1].id if len(results) == limit else None
+        return results, next_after_id
+
     def envelope_exists(self, envelope_id: str) -> bool:
         cursor = self._connection.execute(
             "SELECT 1 FROM relay_envelope WHERE id = ?",
@@ -149,6 +219,18 @@ class PostgresRelayStorage(RelayStorage):
     def get_catch_up(self, workspace_id: str, hlc: Hlc) -> list[EncryptedEnvelope]:
         """TODO: Query catch-up envelopes from PostgreSQL in Phase 5."""
         raise NotImplementedError("PostgresRelayStorage.get_catch_up is a stub for Phase 5")
+
+    def get_catch_up_paginated(
+        self,
+        workspace_id: str,
+        hlc: Hlc,
+        limit: int = 1000,
+        after_id: str | None = None,
+    ) -> tuple[list[EncryptedEnvelope], str | None]:
+        """TODO: Query paginated catch-up envelopes from PostgreSQL in Phase 5."""
+        raise NotImplementedError(
+            "PostgresRelayStorage.get_catch_up_paginated is a stub for Phase 5"
+        )
 
     def envelope_exists(self, envelope_id: str) -> bool:
         """TODO: Check existence against PostgreSQL in Phase 5."""

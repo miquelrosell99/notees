@@ -5,9 +5,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.relay.dependencies import get_actor_id, get_relay_service
-from app.relay.models import BatchRequest, CatchUpRequest, CatchUpResponse
+from app.relay.models import (
+    BatchRequest,
+    CatchUpPaginatedResponse,
+    CatchUpRequest,
+)
 from app.relay.permissions import PermissionDeniedError
 from app.relay.service import RelayService
+from app.relay.websocket import websocket_endpoint
 
 router = APIRouter(prefix="/api/relay", tags=["relay"])
 
@@ -34,13 +39,40 @@ def catch_up(
     request: CatchUpRequest,
     actor_id: str = Depends(get_actor_id),
     service: RelayService = Depends(get_relay_service),
-) -> CatchUpResponse:
+) -> CatchUpPaginatedResponse:
     """Serve encrypted operation envelopes newer than the given HLC."""
     try:
-        envelopes = service.catch_up_from_request(request, actor_id)
+        limit = min(request.limit, 10_000)
+        envelopes, next_after_id = service.catch_up_paginated(
+            request.workspace_id,
+            actor_id,
+            request.hlc,
+            limit=limit,
+            after_id=request.after_id,
+        )
     except PermissionDeniedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc),
         ) from exc
-    return CatchUpResponse(envelopes=envelopes)
+    return CatchUpPaginatedResponse(
+        envelopes=envelopes,
+        next_after_id=next_after_id,
+        has_more=next_after_id is not None,
+    )
+
+
+@router.get("/snapshot")
+def snapshot() -> None:
+    """Placeholder for snapshot-based catch-up support.
+
+    Snapshot sync will be implemented in a later phase; this endpoint reserves
+    the route and returns a clear 501 Not Implemented response.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Snapshot sync is not implemented yet.",
+    )
+
+
+router.add_api_websocket_route("/ws/{workspace_id}", websocket_endpoint)
