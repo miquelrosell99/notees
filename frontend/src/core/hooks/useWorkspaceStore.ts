@@ -11,17 +11,22 @@ export interface UseWorkspaceStoreResult {
 
 export function useWorkspaceStore(workspaceId: string): UseWorkspaceStoreResult {
   const ctx = useContext(WorkspaceStoreContext);
-  if (!ctx) {
-    throw new Error('useWorkspaceStore must be used within a WorkspaceStoreProvider');
-  }
+  const actorId = ctx?.actorId;
+  const cryptoKey = ctx?.cryptoKey;
+  const transport = ctx?.transport;
 
   const [result, setResult] = useState<UseWorkspaceStoreResult>({
     store: undefined,
-    isLoading: true,
+    isLoading: !!ctx && !!workspaceId,
     error: null,
   });
 
   useEffect(() => {
+    if (!ctx || !workspaceId) {
+      setResult({ store: undefined, isLoading: false, error: null });
+      return;
+    }
+
     let cancelled = false;
     setResult({ store: undefined, isLoading: true, error: null });
 
@@ -41,7 +46,7 @@ export function useWorkspaceStore(workspaceId: string): UseWorkspaceStoreResult 
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, ctx.actorId, ctx.cryptoKey, ctx.transport]);
+  }, [workspaceId, ctx, actorId, cryptoKey, transport]);
 
   return result;
 }
