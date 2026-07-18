@@ -170,6 +170,14 @@ export function applyNodeOperation(db: Database, op: Operation): void {
         payload.nodeId as string,
       ]);
       reindexNode(db, payload.nodeId as string);
+    } else if (payload.content) {
+      db.run('UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+        JSON.stringify(payload.content),
+        new Date().toISOString(),
+        op.envelope.actorId,
+        payload.nodeId as string,
+      ]);
+      reindexNode(db, payload.nodeId as string);
     }
   }
 }
