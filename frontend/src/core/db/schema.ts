@@ -121,6 +121,12 @@ export function createSchema(db: Database): void {
       hlc_logical INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS sync_push_watermark (
+      workspace_id TEXT PRIMARY KEY,
+      hlc_physical INTEGER NOT NULL,
+      hlc_logical INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS node_asset (
       node_id TEXT NOT NULL,
       asset_hash TEXT NOT NULL,

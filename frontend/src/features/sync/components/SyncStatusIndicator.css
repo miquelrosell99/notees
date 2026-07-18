@@ -92,3 +92,20 @@
   margin-top: var(--space-2);
   margin-bottom: 0;
 }
+
+.sync-status-indicator__quota {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-warning);
+  background: var(--color-warning-subtle, color-mix(in srgb, var(--color-warning) 10%, transparent));
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+}
+
+.sync-status-indicator__quota--critical {
+  color: var(--color-danger);
+  background: var(--color-danger-subtle, color-mix(in srgb, var(--color-danger) 10%, transparent));
+}

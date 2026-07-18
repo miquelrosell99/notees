@@ -27,6 +27,7 @@ interface OperationRow {
 
 export class SyncEngine {
   private lastReceivedHlc: Hlc;
+  private lastPushedHlc: Hlc;
   private store: WorkspaceStore;
   private key: CryptoKey;
   private transport: Transport;
@@ -41,25 +42,28 @@ export class SyncEngine {
     this.key = key;
     this.transport = transport;
     this.callbacks = callbacks;
-    this.lastReceivedHlc = this.loadWatermark();
+    this.lastReceivedHlc = this.loadWatermark('received');
+    this.lastPushedHlc = this.loadWatermark('pushed');
   }
 
-  private loadWatermark(): Hlc {
+  private loadWatermark(kind: 'received' | 'pushed'): Hlc {
     const db = this.store.getDb();
     const workspaceId = this.store.getWorkspaceId();
+    const table = kind === 'received' ? 'sync_watermark' : 'sync_push_watermark';
     const row = queryOne<{ hlc_physical: number; hlc_logical: number }>(
       db,
-      'SELECT hlc_physical, hlc_logical FROM sync_watermark WHERE workspace_id = ?',
+      `SELECT hlc_physical, hlc_logical FROM ${table} WHERE workspace_id = ?`,
       [workspaceId]
     );
     return row ? { physical: row.hlc_physical, logical: row.hlc_logical } : { physical: 0, logical: 0 };
   }
 
-  private saveWatermark(hlc: Hlc): void {
+  private saveWatermark(hlc: Hlc, kind: 'received' | 'pushed'): void {
     const db = this.store.getDb();
     const workspaceId = this.store.getWorkspaceId();
+    const table = kind === 'received' ? 'sync_watermark' : 'sync_push_watermark';
     db.run(
-      `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical)
+      `INSERT INTO ${table} (workspace_id, hlc_physical, hlc_logical)
        VALUES (?, ?, ?)
        ON CONFLICT(workspace_id) DO UPDATE SET
          hlc_physical = excluded.hlc_physical,
@@ -99,8 +103,18 @@ export class SyncEngine {
     const db = this.store.getDb();
     const rows = queryAll<OperationRow>(
       db,
-      'SELECT * FROM operation ORDER BY hlc_physical ASC, hlc_logical ASC'
+      `SELECT * FROM operation
+       WHERE workspace_id = ?
+         AND (hlc_physical > ? OR (hlc_physical = ? AND hlc_logical > ?))
+       ORDER BY hlc_physical ASC, hlc_logical ASC`,
+      [
+        this.store.getWorkspaceId(),
+        this.lastPushedHlc.physical,
+        this.lastPushedHlc.physical,
+        this.lastPushedHlc.logical,
+      ]
     );
+    let pushedMaxHlc = this.lastPushedHlc;
     for (const row of rows) {
       const op: Operation = {
         envelope: {
@@ -121,7 +135,10 @@ export class SyncEngine {
         hlc: op.envelope.hlc,
       });
       await this.transport.send(encrypted);
+      pushedMaxHlc = maxHlc(pushedMaxHlc, op.envelope.hlc);
     }
+    this.lastPushedHlc = pushedMaxHlc;
+    this.saveWatermark(this.lastPushedHlc, 'pushed');
     this.callbacks.onPush?.(rows.length);
   }
 
@@ -148,7 +165,7 @@ export class SyncEngine {
       this.store.apply(op);
       this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, env.hlc);
     }
-    this.saveWatermark(this.lastReceivedHlc);
+    this.saveWatermark(this.lastReceivedHlc, 'received');
     this.callbacks.onPull?.(envelopes.length);
   }
 
