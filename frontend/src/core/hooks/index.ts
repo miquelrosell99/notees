@@ -18,6 +18,7 @@ export { useMoveNode } from './useMoveNode';
 export type { UseMoveNodeResult } from './useMoveNode';
 export { useDeleteNode } from './useDeleteNode';
 export type { UseDeleteNodeResult } from './useDeleteNode';
+export { useUndoManager } from './useUndoManager';
 export { useSync } from './useSync';
 export type { UseSyncResult } from './useSync';
 export { useProperty } from './useProperty';

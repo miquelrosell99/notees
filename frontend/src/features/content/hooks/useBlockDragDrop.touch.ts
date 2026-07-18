@@ -2,7 +2,6 @@
  * useBlockDragDrop touch handlers
  */
 
-import { getDragCoordinator } from '@/runtime/DragCoordinator';
 import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
 import {
   findBlockRow,
@@ -14,6 +13,7 @@ import {
 } from './useBlockDragDrop.utils';
 import { buildGhostContent } from './useBlockDragDrop.anchors';
 import type { DragDropRefs, DragDropHelpers } from './useBlockDragDrop.engine';
+import type { DropAnchor } from './useBlockDragDrop.utils';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
@@ -27,6 +27,7 @@ export function createTouchHandlers(
   editorId: string,
   refs: DragDropRefs,
   helpers: DragDropHelpers,
+  onDrop?: (anchor: DropAnchor, blockIds: string[]) => void | Promise<void>,
 ) {
   const {
     ghostRef,
@@ -62,13 +63,9 @@ export function createTouchHandlers(
     vibrateIfAllowed(30);
     window.getSelection()?.removeAllRanges();
 
+    // Legacy DragCoordinator lifecycle removed; drops are reported through onDrop.
+    void editorId;
     const isMultiDrag = state.topLevelIds.length > 1;
-    getDragCoordinator().startDrag({
-      blockId: state.blockId,
-      sourceEditorId: editorId,
-      sourceDepth: state.sourceDepth,
-      ...(isMultiDrag ? { blockIds: state.topLevelIds } : {}),
-    });
 
     scrollContainerRef.current = findScrollableAncestor(rootEl);
     const idsToExclude = isMultiDrag ? state.topLevelIds : [state.blockId];
@@ -139,12 +136,11 @@ export function createTouchHandlers(
     if (!state) return;
 
     if (state.active) {
-      const coordinator = getDragCoordinator();
-      if (activeAnchorRef.current) {
+      const anchor = activeAnchorRef.current;
+      const blockIds = state.topLevelIds.length > 1 ? state.topLevelIds : [state.blockId];
+      if (anchor && onDrop) {
         flushAllContentSaves();
-        await coordinator.completeDrag();
-      } else {
-        coordinator.cancelDrag();
+        await onDrop(anchor, blockIds);
       }
       cleanup(state);
       return;

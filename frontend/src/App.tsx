@@ -402,6 +402,10 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const unregisterVisibilityRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    useUndoStore.getState().setWorkspaceId(workspaceId);
+  }, [workspaceId]);
+
+  useEffect(() => {
     if (!workspaceId || !key) {
       setCtx(undefined);
       return;

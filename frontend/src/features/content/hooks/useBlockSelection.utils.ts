@@ -123,7 +123,12 @@ export function updateSelectionOverlay(rootEl: HTMLElement, selectedEls: HTMLEle
   wrapper.appendChild(overlay);
 }
 
-export function getSiblingIds(blockId: string): string[] {
+export function getSiblingIds(blockId: string, store?: { getNode: (id: string) => { parentId: string | null } | undefined; getChildren: (id: string) => string[] }): string[] {
+  if (store) {
+    const parentId = store.getNode(blockId)?.parentId;
+    if (!parentId) return [];
+    return store.getChildren(parentId);
+  }
   const runtime = getOperationRuntime();
   return getSiblings(runtime, blockId).map((s) => s.blockId);
 }

@@ -1,51 +1,55 @@
 import { create } from 'zustand';
 import { type QueryClient } from '@tanstack/react-query';
-import * as undoApi from '@/api/undo';
-import type { UndoStackEntry } from '@/api/undo';
-import type { UndoEntry } from '@/runtime/types';
-import { getUndoEngine } from './undoEngine';
+import type { UndoEntry } from '@/core/undo';
+import { UndoManager } from '@/core/undo';
 import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useNotificationStore } from '@/stores/notificationStore';
 
-interface UnifiedUndoEntry extends UndoStackEntry {
-  /** Negative IDs indicate runtime (local) entries. */
+export interface UnifiedUndoEntry {
+  nodeUuid: string;
+  uuid: string;
+  operation: string;
+  entity_type: string;
+  entity_id: string;
+  description: string;
+  /** Negative IDs indicate local (core) entries. */
   runtimeId?: number;
 }
 
 interface UndoState {
+  currentWorkspaceId: string | null;
   canUndo: boolean;
   canRedo: boolean;
   undoEntries: UnifiedUndoEntry[];
   redoEntries: UnifiedUndoEntry[];
   /** Bump this to force consumers to re-evaluate runtime state. */
   runtimeVersion: number;
-  refreshStack: (queryClient?: QueryClient) => Promise<void>;
+  setWorkspaceId: (workspaceId: string | null) => void;
+  refreshStack: () => Promise<void>;
   syncRuntimeState: () => void;
   performUndo: (queryClient: QueryClient) => Promise<void>;
   performRedo: (queryClient: QueryClient) => Promise<void>;
   performUndoTo: (queryClient: QueryClient, entry: UnifiedUndoEntry) => Promise<void>;
   performRedoTo: (queryClient: QueryClient, entry: UnifiedUndoEntry) => Promise<void>;
-  clearHistory: () => Promise<void>;
+  clearHistory: () => void;
 }
 
-/** Generate a display label from a runtime undo entry. */
-function runtimeEntryDescription(entry: UndoEntry): string {
+/** Generate a display label from a core undo entry. */
+function entryDescription(entry: UndoEntry): string {
   return entry.label || 'Edit';
 }
 
-/** Build synthetic UndoStackEntry rows from the runtime stacks. */
-function buildRuntimeEntries(stack: UndoEntry[]): UnifiedUndoEntry[] {
+/** Build synthetic undo-history rows from the core undo-manager stacks. */
+function buildLocalEntries(stack: UndoEntry[]): UnifiedUndoEntry[] {
   // Assign negative IDs based on display order (top/first = -1, next = -2, …).
-  // For both undo and redo stacks we display in the same order the arrays
-  // are returned: undo newest-first (reverse of storage), redo oldest-first.
   return stack.map((entry, displayIndex) => ({
     nodeUuid: '',
     uuid: '',
-    operation: entry.forward.type === 'batch' ? 'batch' : entry.forward.type,
+    operation: 'edit',
     entity_type: 'node',
     entity_id: '',
-    description: runtimeEntryDescription(entry),
+    description: entryDescription(entry),
     runtimeId: -(displayIndex + 1),
   }));
 }
@@ -63,35 +67,32 @@ function notifyUndoRedoError(action: string, error: unknown): void {
   useNotificationStore.getState().error(`${action} failed`, message);
 }
 
-export const useUndoStore = create<UndoState>()((set, get) => ({
-  canUndo: false,
-  canRedo: false,
-  undoEntries: [],
-  redoEntries: [],
-  runtimeVersion: 0,
+function getManager(workspaceId: string | null): UndoManager | undefined {
+  if (!workspaceId) return undefined;
+  return UndoManager.getUndoManager(workspaceId);
+}
 
-  refreshStack: async () => {
-    const engine = getUndoEngine();
-    let backendStack: undoApi.UndoStack | null = null;
-    try {
-      backendStack = await undoApi.getUndoStack();
-    } catch {
-      // Ignore errors (e.g. not authenticated)
+export const useUndoStore = create<UndoState>()((set, get) => {
+  let unsubscribeManager: (() => void) | undefined;
+
+  const syncWithManager = (workspaceId: string | null) => {
+    const manager = getManager(workspaceId);
+    if (!manager) {
+      set({
+        canUndo: false,
+        canRedo: false,
+        undoEntries: [],
+        redoEntries: [],
+        runtimeVersion: get().runtimeVersion + 1,
+      });
+      return;
     }
 
+    const stacks = manager.getStacks();
     // Undo stack: newest first for display (reverse of internal storage)
-    const runtimeUndo = buildRuntimeEntries([...engine.getUndoStack()].reverse());
+    const undoEntries = buildLocalEntries([...stacks.undo].reverse());
     // Redo stack: oldest first for display (same as internal storage)
-    const runtimeRedo = buildRuntimeEntries(engine.getRedoStack());
-
-    const undoEntries: UnifiedUndoEntry[] = [
-      ...runtimeUndo,
-      ...(backendStack?.undo_entries ?? []),
-    ];
-    const redoEntries: UnifiedUndoEntry[] = [
-      ...runtimeRedo,
-      ...(backendStack?.redo_entries ?? []),
-    ];
+    const redoEntries = buildLocalEntries(stacks.redo);
 
     set({
       canUndo: undoEntries.length > 0,
@@ -100,188 +101,174 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       redoEntries,
       runtimeVersion: get().runtimeVersion + 1,
     });
-  },
+  };
 
-  syncRuntimeState: () => {
-    const engine = getUndoEngine();
-    // Preserve backend entries that are already in state
-    const backendUndoEntries = get().undoEntries.filter(e => e.runtimeId == null);
-    const backendRedoEntries = get().redoEntries.filter(e => e.runtimeId == null);
-
-    const runtimeUndo = buildRuntimeEntries([...engine.getUndoStack()].reverse());
-    const runtimeRedo = buildRuntimeEntries(engine.getRedoStack());
-
-    const undoEntries: UnifiedUndoEntry[] = [...runtimeUndo, ...backendUndoEntries];
-    const redoEntries: UnifiedUndoEntry[] = [...runtimeRedo, ...backendRedoEntries];
-
-    set({
-      canUndo: undoEntries.length > 0,
-      canRedo: redoEntries.length > 0,
-      undoEntries,
-      redoEntries,
-      runtimeVersion: get().runtimeVersion + 1,
-    });
-  },
-
-  performUndo: async (queryClient: QueryClient) => {
-    const engine = getUndoEngine();
-
-    try {
-      await awaitAllContentSaves();
-    } catch {
-      // Proceed with undo even if flush times out; local state is still valid.
+  const attachManager = (workspaceId: string | null) => {
+    if (unsubscribeManager) {
+      unsubscribeManager();
+      unsubscribeManager = undefined;
     }
-
-    // 1. Try runtime first (local block operations are always more recent)
-    const localEntry = await engine.undo();
-    if (localEntry) {
-      notifyUndo(runtimeEntryDescription(localEntry));
-      await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      await get().refreshStack();
-      return;
+    const manager = getManager(workspaceId);
+    if (manager) {
+      unsubscribeManager = manager.subscribe(() => syncWithManager(workspaceId));
     }
+    syncWithManager(workspaceId);
+  };
 
-    // 2. Fall back to backend undo log
-    try {
-      const result = await undoApi.undo();
-      notifyUndo(result.description);
-      await invalidateForEntity(queryClient, result.entity_type, result.entity_id);
-      await get().refreshStack();
-    } catch (error) {
-      notifyUndoRedoError('Undo', error);
-      await get().refreshStack();
-    }
-  },
+  return {
+    currentWorkspaceId: null,
+    canUndo: false,
+    canRedo: false,
+    undoEntries: [],
+    redoEntries: [],
+    runtimeVersion: 0,
 
-  performRedo: async (queryClient: QueryClient) => {
-    const engine = getUndoEngine();
+    setWorkspaceId: (workspaceId) => {
+      if (get().currentWorkspaceId === workspaceId) return;
+      set({ currentWorkspaceId: workspaceId });
+      attachManager(workspaceId);
+    },
 
-    try {
-      await awaitAllContentSaves();
-    } catch {
-      // Proceed even if flush times out.
-    }
+    refreshStack: async () => {
+      syncWithManager(get().currentWorkspaceId);
+      return Promise.resolve();
+    },
 
-    // 1. Try backend first (backend redos are the most recently undone persisted ops)
-    try {
-      const result = await undoApi.redo();
-      notifyRedo(result.description);
-      await invalidateForEntity(queryClient, result.entity_type, result.entity_id);
-      await get().refreshStack();
-      return;
-    } catch (error) {
-      // 404 = nothing on backend to redo — fall through to runtime
-      const apiError = error as { response?: { status?: number } };
-      if (apiError.response?.status !== 404) {
-        notifyUndoRedoError('Redo', error);
+    syncRuntimeState: () => {
+      syncWithManager(get().currentWorkspaceId);
+    },
+
+    performUndo: async (queryClient: QueryClient) => {
+      const workspaceId = get().currentWorkspaceId;
+      const manager = getManager(workspaceId);
+
+      try {
+        await awaitAllContentSaves();
+      } catch {
+        // Proceed with undo even if flush times out; local state is still valid.
+      }
+
+      if (!manager) {
         await get().refreshStack();
         return;
       }
-    }
 
-    // 2. Fall back to runtime redo stack
-    const localEntry = await engine.redo();
-    if (localEntry) {
-      notifyRedo(runtimeEntryDescription(localEntry));
-      await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      await get().refreshStack();
-    } else {
-      await get().refreshStack();
-    }
-  },
-
-  performUndoTo: async (queryClient: QueryClient, entry: UnifiedUndoEntry) => {
-    const engine = getUndoEngine();
-
-    try {
-      await awaitAllContentSaves();
-    } catch {
-      // Proceed even if flush times out.
-    }
-
-    if (entry.runtimeId != null && entry.runtimeId < 0) {
-      // Target is a runtime entry — undo N times where N is the display position.
-      const steps = Math.abs(entry.runtimeId);
-      let lastDescription = '';
-      for (let i = 0; i < steps; i++) {
-        const localEntry = await engine.undo();
-        if (localEntry) lastDescription = runtimeEntryDescription(localEntry);
+      try {
+        const entry = manager.undo();
+        if (entry) {
+          notifyUndo(entryDescription(entry));
+          await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+        }
+      } catch (error) {
+        notifyUndoRedoError('Undo', error);
+      } finally {
+        await get().refreshStack();
       }
-      if (lastDescription) notifyUndo(lastDescription);
-      await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      await get().refreshStack();
-      return;
-    }
+    },
 
-    // Target is a backend entry
-    try {
-      const results = await undoApi.undoTo(entry.uuid);
-      if (results.length > 0) {
-        notifyUndo(results[0].description);
+    performRedo: async (queryClient: QueryClient) => {
+      const workspaceId = get().currentWorkspaceId;
+      const manager = getManager(workspaceId);
+
+      try {
+        await awaitAllContentSaves();
+      } catch {
+        // Proceed even if flush times out.
       }
-      for (const r of results) {
-        await invalidateForEntity(queryClient, r.entity_type, r.entity_id);
+
+      if (!manager) {
+        await get().refreshStack();
+        return;
       }
-      await get().refreshStack();
-    } catch (error) {
-      notifyUndoRedoError('Undo', error);
-      await get().refreshStack();
-    }
-  },
 
-  performRedoTo: async (queryClient: QueryClient, entry: UnifiedUndoEntry) => {
-    const engine = getUndoEngine();
-
-    try {
-      await awaitAllContentSaves();
-    } catch {
-      // Proceed even if flush times out.
-    }
-
-    if (entry.runtimeId != null && entry.runtimeId < 0) {
-      // Target is a runtime entry — redo N times where N is the display position.
-      const steps = Math.abs(entry.runtimeId);
-      let lastDescription = '';
-      for (let i = 0; i < steps; i++) {
-        const localEntry = await engine.redo();
-        if (localEntry) lastDescription = runtimeEntryDescription(localEntry);
+      try {
+        const entry = manager.redo();
+        if (entry) {
+          notifyRedo(entryDescription(entry));
+          await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+        }
+      } catch (error) {
+        notifyUndoRedoError('Redo', error);
+      } finally {
+        await get().refreshStack();
       }
-      if (lastDescription) notifyRedo(lastDescription);
-      await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      await get().refreshStack();
-      return;
-    }
+    },
 
-    // Target is a backend entry
-    try {
-      const results = await undoApi.redoTo(entry.uuid);
-      if (results.length > 0) {
-        notifyRedo(results[results.length - 1].description);
-      }
-      for (const r of results) {
-        await invalidateForEntity(queryClient, r.entity_type, r.entity_id);
-      }
-      await get().refreshStack();
-    } catch (error) {
-      notifyUndoRedoError('Redo', error);
-      await get().refreshStack();
-    }
-  },
+    performUndoTo: async (queryClient: QueryClient, entry: UnifiedUndoEntry) => {
+      const workspaceId = get().currentWorkspaceId;
+      const manager = getManager(workspaceId);
 
-  clearHistory: async () => {
-    const engine = getUndoEngine();
-    engine.clearUndoRedo();
-    try {
-      await undoApi.clearHistory();
+      try {
+        await awaitAllContentSaves();
+      } catch {
+        // Proceed even if flush times out.
+      }
+
+      if (!manager || entry.runtimeId == null || entry.runtimeId >= 0) {
+        await get().refreshStack();
+        return;
+      }
+
+      try {
+        const steps = Math.abs(entry.runtimeId);
+        let lastDescription = '';
+        for (let i = 0; i < steps; i++) {
+          const localEntry = manager.undo();
+          if (localEntry) lastDescription = entryDescription(localEntry);
+        }
+        if (lastDescription) notifyUndo(lastDescription);
+        await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      } catch (error) {
+        notifyUndoRedoError('Undo', error);
+      } finally {
+        await get().refreshStack();
+      }
+    },
+
+    performRedoTo: async (queryClient: QueryClient, entry: UnifiedUndoEntry) => {
+      const workspaceId = get().currentWorkspaceId;
+      const manager = getManager(workspaceId);
+
+      try {
+        await awaitAllContentSaves();
+      } catch {
+        // Proceed even if flush times out.
+      }
+
+      if (!manager || entry.runtimeId == null || entry.runtimeId >= 0) {
+        await get().refreshStack();
+        return;
+      }
+
+      try {
+        const steps = Math.abs(entry.runtimeId);
+        let lastDescription = '';
+        for (let i = 0; i < steps; i++) {
+          const localEntry = manager.redo();
+          if (localEntry) lastDescription = entryDescription(localEntry);
+        }
+        if (lastDescription) notifyRedo(lastDescription);
+        await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      } catch (error) {
+        notifyUndoRedoError('Redo', error);
+      } finally {
+        await get().refreshStack();
+      }
+    },
+
+    clearHistory: () => {
+      const workspaceId = get().currentWorkspaceId;
+      const manager = getManager(workspaceId);
+      if (manager) {
+        manager.clear();
+      }
       useNotificationStore.getState().success('History cleared', 'Undo/redo history has been cleared.');
-    } catch (error) {
-      notifyUndoRedoError('Clear history', error);
-    }
-    set({ canUndo: false, canRedo: false, undoEntries: [], redoEntries: [] });
-  },
-}));
+      set({ canUndo: false, canRedo: false, undoEntries: [], redoEntries: [] });
+    },
+  };
+});
 
-async function invalidateForEntity(queryClient: QueryClient, _entityType: string, entityUuid: string) {
+export async function invalidateForEntity(queryClient: QueryClient, _entityType: string, entityUuid: string) {
   // Broad invalidation to ensure UI consistency after undo/redo
   await queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(entityUuid) });
   await queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(entityUuid) });
