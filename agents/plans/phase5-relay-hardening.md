@@ -1,7 +1,7 @@
 # Phase 5: Server Relay Hardening and Production Cut-Over
 
 **Date:** 2026-07-18  
-**Status:** Implementation plan — pending execution  
+**Status:** Complete — all E1–E4 sub-tasks implemented and committed  
 **Depends on:** Phase 4 (frontend cut-over) complete  
 **Leads to:** Phase 6 (cleanup and deprecation)
 
@@ -185,7 +185,9 @@ What is missing:
 
 ---
 
-### E4 — Conformance and load tests
+### E4 — Conformance and load tests ✅ Done
+
+**Status:** Committed as `test(relay): Phase 5 E4 convergence and load tests` (`2ec3d6f1`).
 
 **Goal:** Prove multi-client convergence and catch-up performance.
 
@@ -208,6 +210,14 @@ What is missing:
 **Verification:**
 - `uv run pytest tests/core/test_relay_convergence.py tests/core/test_relay_load.py -m unit --no-cov` passes.
 - Load test reports acceptable catch-up latency.
+
+**Results:**
+- `uv run pytest tests/core/test_relay_convergence.py tests/core/test_relay_load.py tests/core/test_relay_keys.py tests/core/test_relay_permissions.py tests/core/test_relay.py tests/core/test_relay_router.py tests/core/test_relay_ws.py -m unit --no-cov` → 62 passed.
+- `uv run ruff check app/relay app/core/crypto.py scripts/seed_relay_from_postgres.py` → clean.
+- `uv run python scripts/validate_migration.py` → 0 orphans, 0 duplicates.
+- `npm run test:run src/core` → 18 files, 59 tests passed.
+- `npx tsc -b --noEmit` and `npm run lint` → clean (only pre-existing warnings).
+- Load-test timings: 1k ops ~0.008 s, 10k ops ~0.066 s.
 
 ---
 
