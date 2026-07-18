@@ -108,7 +108,9 @@ What is missing:
 
 ---
 
-### E2 — Permission + share integration
+### E2 — Permission + share integration ✅ Done
+
+**Status:** Committed as `feat(relay): Phase 5 E2 real permissions and share integration` (`62dfb08a`).
 
 **Goal:** Replace `StubPermissionChecker` with real checks against PostgreSQL workspace membership and node shares.
 
@@ -134,6 +136,11 @@ What is missing:
 - `uv run pytest tests/core/test_relay_permissions.py -m unit --no-cov` passes.
 - Unauthorized actor cannot read/write.
 - Public-share token can read but not write.
+
+**Results:**
+- `uv run pytest tests/core/test_relay_permissions.py tests/core/test_relay.py tests/core/test_relay_router.py tests/core/test_relay_ws.py -m unit --no-cov` → 34 passed.
+- `uv run ruff check app/relay` → clean.
+- `cd frontend && npm run test:run src/core && npx tsc -b --noEmit` → 52 passed, typecheck clean.
 
 ---
 
