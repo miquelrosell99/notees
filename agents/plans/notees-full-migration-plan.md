@@ -257,7 +257,7 @@ Alternatives considered and rejected:
 - Manual smoke test with `VITE_ENABLE_SQLITE_STORE=true`: open workspace, CRUD nodes, edit properties, run QueryAST view, go offline, reconnect, converge.
 
 **Subagent breakdown:**
-- Subagent D1: Core hooks + store adapter + IndexedDB persistence.
+- Subagent D1: Core hooks + store adapter + IndexedDB persistence. ✅ Done (`8a74fe71`).
 - Subagent D2: Content/editor feature bridge.
 - Subagent D3: Properties/views/QueryAST bridge.
 - Subagent D4: Service worker/PWA offline + relay router mount + backend seed script.
