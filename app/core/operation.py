@@ -16,18 +16,39 @@ from app.core.uuid import uuidv7
 
 KNOWN_OP_TYPES: frozenset[str] = frozenset(
     [
+        # Structural
         "node.create",
         "node.delete",
         "node.move",
         "node.updateContent",
         "class.assign",
         "class.unassign",
+        # Properties
         "property.set",
         "property.unset",
+        # Schema
         "propertySchema.create",
         "propertySchema.update",
         "class.create",
         "class.update",
+        # Tasks
+        "task.recordCompletion",
+        "task.deleteCompletion",
+        "task.setRecurrence",
+        "task.deleteRecurrence",
+        # Assets
+        "asset.upload",
+        "asset.delete",
+        # Activity
+        "activity.record",
+        "link.click",
+        # Shares
+        "share.public.create",
+        "share.public.revoke",
+        "share.user.grant",
+        "share.user.revoke",
+        # Plugins
+        "plugin.op",
     ]
 )
 
