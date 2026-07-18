@@ -7,7 +7,6 @@ export * from './hooks/useSettings';
 export { useSettingsQuery as useSettings } from './hooks/useSettings';
 export * from './hooks/useViewSettings';
 export * from './hooks/useWorkspaceRole';
-export * from './hooks/useLogseqImporter';
 export * from './hooks/useWorkspaces';
 export * from './hooks/useSwitchWorkspace';
 export * from './hooks/useCreateWorkspace';

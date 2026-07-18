@@ -13,8 +13,6 @@ interface ModalState {
 
   isCommandPaletteOpen: boolean;
   isImportDataModalOpen: boolean;
-  isImportLogseqModalOpen: boolean;
-  isImportLogseqFolderModalOpen: boolean;
   isImportMarkdownModalOpen: boolean;
   isExportPageModalOpen: boolean;
   isRebuildLinksModalOpen: boolean;
@@ -41,8 +39,6 @@ interface ModalState {
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
   setImportDataModalOpen: (open: boolean) => void;
-  setImportLogseqModalOpen: (open: boolean) => void;
-  setImportLogseqFolderModalOpen: (open: boolean) => void;
   setImportMarkdownModalOpen: (open: boolean) => void;
   setExportPageModalOpen: (open: boolean) => void;
   setRebuildLinksModalOpen: (open: boolean) => void;
@@ -67,8 +63,6 @@ export const useModalStore = create<ModalState>()((set) => ({
 
   isCommandPaletteOpen: false,
   isImportDataModalOpen: false,
-  isImportLogseqModalOpen: false,
-  isImportLogseqFolderModalOpen: false,
   isImportMarkdownModalOpen: false,
   isExportPageModalOpen: false,
   isRebuildLinksModalOpen: false,
@@ -95,8 +89,6 @@ export const useModalStore = create<ModalState>()((set) => ({
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
   toggleCommandPalette: () => set((s) => ({ isCommandPaletteOpen: !s.isCommandPaletteOpen })),
   setImportDataModalOpen: (open) => set({ isImportDataModalOpen: open }),
-  setImportLogseqModalOpen: (open) => set({ isImportLogseqModalOpen: open }),
-  setImportLogseqFolderModalOpen: (open) => set({ isImportLogseqFolderModalOpen: open }),
   setImportMarkdownModalOpen: (open) => set({ isImportMarkdownModalOpen: open }),
   setExportPageModalOpen: (open) => set({ isExportPageModalOpen: open }),
   setRebuildLinksModalOpen: (open) => set({ isRebuildLinksModalOpen: open }),

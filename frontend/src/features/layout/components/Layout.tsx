@@ -33,8 +33,6 @@ import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
 import { BrokenLinkFixContext } from '@/features/content';
 const ImportDataModal = React.lazy(() => import('@/features/workspace/components/ImportDataModal').then(m => ({ default: m.ImportDataModal })));
-const ImportLogseqModal = React.lazy(() => import('@/features/workspace/components/ImportLogseqModal').then(m => ({ default: m.ImportLogseqModal })));
-const ImportLogseqFolderModal = React.lazy(() => import('@/plugins/builtin/logseq_importer/components/ImportLogseqFolderModal').then(m => ({ default: m.ImportLogseqFolderModal })));
 const ImportMarkdownModal = React.lazy(() => import('@/features/workspace/components/ImportMarkdownModal').then(m => ({ default: m.ImportMarkdownModal })));
 const ExportPageModal = React.lazy(() => import('@/features/workspace/components/ExportPageModal').then(m => ({ default: m.ExportPageModal })));
 const ShareModal = React.lazy(() => import('@/features/content/components/nodes/ShareModal').then(m => ({ default: m.ShareModal })));
@@ -66,10 +64,6 @@ export function Layout() {
   const setCommandPaletteOpen = useModalStore(s => s.setCommandPaletteOpen);
   const isImportDataModalOpen = useModalStore(s => s.isImportDataModalOpen);
   const setImportDataModalOpen = useModalStore(s => s.setImportDataModalOpen);
-  const isImportLogseqModalOpen = useModalStore(s => s.isImportLogseqModalOpen);
-  const setImportLogseqModalOpen = useModalStore(s => s.setImportLogseqModalOpen);
-  const isImportLogseqFolderModalOpen = useModalStore(s => s.isImportLogseqFolderModalOpen);
-  const setImportLogseqFolderModalOpen = useModalStore(s => s.setImportLogseqFolderModalOpen);
 
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const isImportMarkdownModalOpen = useModalStore(s => s.isImportMarkdownModalOpen);
@@ -389,22 +383,6 @@ export function Layout() {
         {isMinimapOpen && (
           <GraphMinimap onClose={() => setMinimapOpen(false)} />
         )}
-
-        {/* Import Logseq Modal */}
-        <Suspense fallback={null}>
-          <ImportLogseqModal
-            isOpen={isImportLogseqModalOpen}
-            onClose={() => setImportLogseqModalOpen(false)}
-          />
-        </Suspense>
-
-        {/* Import Logseq Folder Modal */}
-        <Suspense fallback={null}>
-          <ImportLogseqFolderModal
-            isOpen={isImportLogseqFolderModalOpen}
-            onClose={() => setImportLogseqFolderModalOpen(false)}
-          />
-        </Suspense>
 
         {/* Import Markdown Modal */}
         <Suspense fallback={null}>

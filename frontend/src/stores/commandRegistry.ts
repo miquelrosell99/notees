@@ -190,8 +190,6 @@ export const COMMAND_IDS = {
   PASTE: 'selection.paste',
 
   // Commands (command palette actions)
-  IMPORT_LOGSEQ: 'data.importLogseq',
-  IMPORT_LOGSEQ_FOLDER: 'data.importLogseqFolder',
   IMPORT_MARKDOWN: 'data.importMarkdown',
   REBUILD_LINKS: 'data.rebuildLinks',
   FIX_RAW_LINKS: 'data.fixRawLinks',

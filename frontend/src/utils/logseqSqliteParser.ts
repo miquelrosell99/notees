@@ -11,8 +11,7 @@
  * 4. Reconstructs entities from datoms
  * 5. Converts to LogseqExport interface (same as EDN parser output)
  *
- * The resulting LogseqExport can be fed directly into ImportLogseqModal's
- * 7-phase import pipeline.
+ * The resulting LogseqExport can be fed into a Logseq import pipeline.
  */
  
 import initSqlJs, { type Database } from 'sql.js';
@@ -297,8 +296,7 @@ function journalDayToDate(day: number): string | undefined {
 }
 
 /**
- * Convert reconstructed entities into a LogseqExport that can be consumed
- * by ImportLogseqModal's 7-phase pipeline.
+ * Convert reconstructed entities into a LogseqExport.
  */
 function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
   // Build eid→UUID lookup (skip invalid UUIDs — short Transit artefacts like "a1V")
@@ -766,7 +764,7 @@ function buildLogseqExport(entities: Map<number, RawEntity>): LogseqExport {
  * Parse a Logseq SQLite database file and return a LogseqExport.
  *
  * @param buffer - The raw bytes of the .sqlite file (ArrayBuffer or Uint8Array)
- * @returns LogseqExport compatible with ImportLogseqModal
+ * @returns LogseqExport in the same shape as the EDN parser output.
  */
 export async function parseLogseqSqlite(buffer: ArrayBuffer | Uint8Array): Promise<LogseqExport> {
   // Initialize sql.js with WASM served from public/

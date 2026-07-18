@@ -13,8 +13,6 @@ import type { WorkspaceInfo } from '@/features/workspace/api/workspaces';
 import { useModalStore } from '@/stores';
 import { WorkspaceModal } from '@/features/workspace/components/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '@/features/workspace/components/ImportOptionsModal';
-import { ImportLogseqModal } from '@/features/workspace/components/ImportLogseqModal';
-
 import { WorkspaceNameModal } from '@/features/workspace/components/WorkspaceNameModal';
 import { WorkspaceActionsMenu } from '@/features/workspace/components/WorkspaceActionsMenu';
 import { WorkspaceShareModal } from '@/features/workspace/components/WorkspaceShareModal';
@@ -65,8 +63,6 @@ export function WorkspaceManagementView({
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
-  const isImportLogseqModalOpen = useModalStore((s) => s.isImportLogseqModalOpen);
-  const setImportLogseqModalOpen = useModalStore((s) => s.setImportLogseqModalOpen);
 
   // Fetch workspaces
   const { data, isLoading, error, refetch } = useWorkspaces({
@@ -93,8 +89,6 @@ export function WorkspaceManagementView({
   };
 
   // Handle successful import from the unified ImportOptionsModal
-  // Note: logseq-edn and logseq-sqlite are handled entirely inside ImportOptionsModal
-  // (workspace switch + import pipeline + report), so they never reach this handler.
   const handleImportSuccess = async ({ workspace, type }: ImportResult) => {
     if (type === 'markdown') {
       setIsImportOptionsOpen(false);
@@ -430,12 +424,6 @@ export function WorkspaceManagementView({
       <SystemSettingsModal
         isOpen={isSystemSettingsOpen}
         onClose={() => setIsSystemSettingsOpen(false)}
-      />
-
-      {/* Logseq Import Modal – rendered here so it's available before Layout mounts */}
-      <ImportLogseqModal
-        isOpen={isImportLogseqModalOpen}
-        onClose={() => setImportLogseqModalOpen(false)}
       />
 
       {/* Workspace Export Modal */}
