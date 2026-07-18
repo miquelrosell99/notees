@@ -11,7 +11,9 @@ import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { NodeSelector, useCreateNode, usePageClass } from '@/features/content';
 import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
-import { getNodeByUuid } from '@/api/nodes';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getNodeByUuid } from '@/core/query/nodeByUuid';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import type { Node } from '@/types';
 import { generateUUID } from '@/utils/uuid';
 import './CreatePageWithUuidModal.css';
@@ -41,6 +43,7 @@ export function CreatePageWithUuidModal({
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+  const workspaceUuid = useCurrentWorkspaceUuid();
   const createNodeMutation = useCreateNode();
   const { pageClassUuid } = usePageClass();
 
@@ -88,11 +91,11 @@ export function CreatePageWithUuidModal({
     try {
       // Check whether a node with this UUID already exists
       let exists = false;
-      try {
-        await getNodeByUuid(trimmedUuid);
-        exists = true;
-      } catch {
-        // 404 means it does not exist — that's the happy path
+      if (workspaceUuid) {
+        const store = getWorkspaceStore(workspaceUuid);
+        if (store) {
+          exists = getNodeByUuid(store, trimmedUuid) !== null;
+        }
       }
 
       if (exists) {
@@ -128,7 +131,7 @@ export function CreatePageWithUuidModal({
     } finally {
       setIsCreating(false);
     }
-  }, [nodeName, uuid, isPage, parentUuid, pageClassUuid, isValidUuid, createNodeMutation, onSuccess, onClose]);
+  }, [nodeName, uuid, isPage, parentUuid, pageClassUuid, isValidUuid, createNodeMutation, onSuccess, onClose, workspaceUuid]);
 
   const handleCreate = useCallback(() => doCreate(false), [doCreate]);
   const handleCreateAndOpen = useCallback(() => doCreate(true), [doCreate]);

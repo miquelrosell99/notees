@@ -10,7 +10,9 @@
  */
 import { useCallback } from 'react';
 import { useNavigationStore } from '@/stores';
-import { getNodeByUuid } from '@/api/nodes';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { getNodeByUuid } from '@/core/query/nodeByUuid';
 import { parseNoteesUri } from '@/lib/noteesUri';
 import { getLogger } from '@/utils/logger';
 
@@ -21,22 +23,23 @@ const log = getLogger('NoteesUri');
  */
 export function useNoteesUri() {
   const openNode = useNavigationStore(state => state.openNode);
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store } = useWorkspaceStore(workspaceUuid ?? '');
 
   /** Navigate to a node by its UUID */
   const navigateToUuid = useCallback(async (nodeUuid: string): Promise<boolean> => {
-    try {
-      const node = await getNodeByUuid(nodeUuid);
-      if (node?.uuid) {
-        openNode(node.uuid);
-        return true;
-      }
-      log.warn('Node not found for UUID', { nodeUuid });
-      return false;
-    } catch (err) {
-      log.error('Failed to navigate to node', { nodeUuid, err });
+    if (!store) {
+      log.warn('Workspace store not available for URI navigation', { nodeUuid });
       return false;
     }
-  }, [openNode]);
+    const node = getNodeByUuid(store, nodeUuid);
+    if (node?.uuid) {
+      openNode(node.uuid);
+      return true;
+    }
+    log.warn('Node not found for UUID', { nodeUuid });
+    return false;
+  }, [openNode, store]);
 
   /** Navigate to a node by its notees: URI */
   const navigateToUri = useCallback(async (uri: string): Promise<boolean> => {

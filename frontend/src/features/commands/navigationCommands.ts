@@ -7,11 +7,33 @@
 import { registerCommand, COMMAND_IDS } from '@/stores/commandRegistry';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { getRandomPages } from '@/api/nodes';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { queryNodes } from '@/core/query/queryNodes';
+import type { Node } from '@/types/api';
 import { buildTodayQueryAST } from '@/utils/taskQueries';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import type { QueryAST, StyleCondition } from '@/types/queryAST';
+
+function getCurrentWorkspaceUuid(): string | null {
+  const match = window.location.pathname.match(/^\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
+async function getRandomPages(limit: number): Promise<Node[]> {
+  const workspaceUuid = getCurrentWorkspaceUuid();
+  if (!workspaceUuid) return [];
+  const store = getWorkspaceStore(workspaceUuid);
+  if (!store) return [];
+  const pages = queryNodes(store, { isPage: true });
+  if (pages.length === 0) return [];
+  const shuffled = [...pages];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, limit);
+}
 
 registerCommand({
   id: COMMAND_IDS.OPEN_JOURNALS,
