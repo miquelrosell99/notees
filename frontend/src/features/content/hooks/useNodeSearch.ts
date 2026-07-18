@@ -18,7 +18,9 @@ import { useMemo } from 'react';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggestions } from './useNodes';
-import * as nodesApi from '@/api/nodes';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { queryNodes } from '@/core/query/queryNodes';
 import { parseHierarchicalPath } from '@/utils/hierarchicalPath';
 import { nodeNameToText } from '@/features/queries';
 import type { NodeSearchMode, NodeSearchFilters, NodeSearchItem, UseNodeSearchReturn } from './useNodeSearch.types';
@@ -80,10 +82,16 @@ export function useNodeSearch(
     useSuggestionsForEmpty && !nodeUuid && isPage === undefined && isClass === undefined && isDaily === undefined && isUserPage === undefined,
   );
   // Filtered pages query for when class_filters are present (empty-query case)
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store } = useWorkspaceStore(workspaceUuid ?? '');
   const { data: filteredPages } = useQuery({
     queryKey: nodeKeys.filteredPages(classFiltersParam),
-    queryFn: () => nodesApi.listNodes({ pages_only: true, class_filters: classFiltersParam }),
-    enabled: !!classFiltersParam,
+    queryFn: () => {
+      if (!store) return [];
+      const classIds = classFiltersParam ? classFiltersParam.split(',').filter(Boolean) : undefined;
+      return queryNodes(store, { isPage: true, classIds });
+    },
+    enabled: !!classFiltersParam && !!store,
     placeholderData: keepPreviousData,
   });
   const { data: allNodes } = useNodes(

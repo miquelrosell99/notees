@@ -23,7 +23,7 @@ import { useSettingsQuery, setSetting } from '@/features/workspace';
 import { useNavigationStore } from '@/stores';
 import { nodeNameToText } from '@/features/queries';
 import { NodeIcon } from '@/components/ui/icons';
-import type { GraphNode as ApiGraphNode, GraphLink as ApiGraphLink } from '@/api/nodes';
+import type { GraphNode as ApiGraphNode, GraphLink as ApiGraphLink } from '@/types/api';
 import { GraphRenderer, type GraphRendererRef } from '../renderers/GraphRenderer';
 import type {
   GraphNode,

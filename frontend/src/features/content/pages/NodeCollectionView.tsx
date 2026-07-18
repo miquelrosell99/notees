@@ -19,12 +19,14 @@ import { useCollectionNavigation } from '@/features/layout';
 import { useSaveQueryAsView } from '@/features/queries';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import { nodeKeys } from '@/hooks/queryKeys';
-import * as nodesApi from '@/api/nodes';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { getNodeByUuid } from '@/core/query/nodeByUuid';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { TextField } from '@/components/ui/TextField';
 import type { QueryAST } from '@/types/queryAST';
-import type { Node } from '@/types';
+import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import './NodeCollectionView.css';
 
@@ -49,6 +51,8 @@ export function NodeCollectionView({ title, queryAST, nodeUuids }: NodeCollectio
   const { openNode, closeNodeCollection, addSidebarCard } = useCollectionNavigation();
   const { saveAsView, isSaving } = useSaveQueryAsView();
   const { data: allClasses } = useClasses();
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store } = useWorkspaceStore(workspaceUuid ?? '');
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [resultCount, setResultCount] = useState<number | null>(null);
   const [isSavePromptOpen, setIsSavePromptOpen] = useState(false);
@@ -70,7 +74,13 @@ export function NodeCollectionView({ title, queryAST, nodeUuids }: NodeCollectio
   const nodeResults = useQueries({
     queries: (nodeUuids ?? []).map((uuid) => ({
       queryKey: nodeKeys.detail(uuid),
-      queryFn: () => nodesApi.getNode(uuid),
+      queryFn: () => {
+        if (!store) throw new Error('Workspace store is not ready');
+        const node = getNodeByUuid(store, uuid);
+        if (!node) throw new Error(`Node ${uuid} not found`);
+        return node;
+      },
+      enabled: !!store,
     })),
   });
   const resolvedNodes = useMemo(
