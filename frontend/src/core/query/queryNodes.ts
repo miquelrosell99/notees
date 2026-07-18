@@ -64,10 +64,55 @@ export function queryNodes(
   }
 
   const searchFilters = buildSearchFilters(filters);
-  const results = searchNodes(store, filters.query ?? '', searchFilters);
+  const query = filters.query ?? '';
+
+  // If there is no text query but metadata filters are present, list matching
+  // nodes directly instead of returning an empty search result.
+  const hasMetadataFilters =
+    filters.isPage !== undefined ||
+    filters.isClass !== undefined ||
+    filters.isDaily !== undefined ||
+    (filters.classIds !== undefined && filters.classIds.length > 0);
+
+  if (query.trim() === '' && hasMetadataFilters) {
+    const { sql, params } = listNodesSql(store.getWorkspaceId(), filters);
+    const rows = queryAll<{ id: string }>(store.getDb(), sql, params);
+    return rows
+      .map((row) => projectNode(store, row.id))
+      .filter((n): n is Node => n !== undefined)
+      .slice(0, LOCAL_QUERY_RESULT_LIMIT);
+  }
+
+  const results = searchNodes(store, query, searchFilters);
   return results
     .sort((a, b) => b.score - a.score)
     .map((r) => projectNode(store, r.id))
     .filter((n): n is Node => n !== undefined)
     .slice(0, LOCAL_QUERY_RESULT_LIMIT);
+}
+
+function listNodesSql(workspaceId: string, filters: QueryNodesFilters): { sql: string; params: (string | number)[] } {
+  const where: string[] = ['n.workspace_id = ?'];
+  const params: (string | number)[] = [workspaceId];
+
+  if (filters.isPage !== undefined) {
+    where.push('n.kind = ?');
+    params.push(filters.isPage ? 'page' : 'block');
+  }
+
+  if (filters.isClass !== undefined) {
+    where.push(filters.isClass ? "n.kind = 'class'" : "n.kind != 'class'");
+  }
+
+  if (filters.classIds !== undefined && filters.classIds.length > 0) {
+    const clauses: string[] = [];
+    for (const classUuid of filters.classIds) {
+      clauses.push('EXISTS (SELECT 1 FROM json_each(n.class_ids) WHERE value = ?)');
+      params.push(classUuid);
+    }
+    where.push(`(${clauses.join(' OR ')})`);
+  }
+
+  const sql = `SELECT n.id FROM node n WHERE ${where.join(' AND ')} ORDER BY n.id`;
+  return { sql, params };
 }
