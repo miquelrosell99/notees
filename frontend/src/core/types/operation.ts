@@ -28,7 +28,93 @@ const OP_TYPES = new Set([
   'propertySchema.update',
   'class.create',
   'class.update',
+  'task.recordCompletion',
+  'task.deleteCompletion',
+  'task.setRecurrence',
+  'task.deleteRecurrence',
+  'asset.upload',
+  'asset.delete',
+  'activity.record',
+  'link.click',
+  'share.public.create',
+  'share.public.revoke',
+  'share.user.grant',
+  'share.user.revoke',
+  'plugin.op',
 ]);
+
+export interface TaskRecordCompletionPayload {
+  nodeId: string;
+  completionId?: string;
+  completedAt?: string;
+}
+
+export interface TaskDeleteCompletionPayload {
+  nodeId: string;
+  completionId: string;
+}
+
+export interface TaskSetRecurrencePayload {
+  nodeId: string;
+  recurrenceId?: string;
+  rule: string;
+}
+
+export interface TaskDeleteRecurrencePayload {
+  nodeId: string;
+  recurrenceId: string;
+}
+
+export interface AssetUploadPayload {
+  nodeId: string;
+  assetHash: string;
+  mimeType: string;
+  size: number;
+  originalName: string;
+}
+
+export interface AssetDeletePayload {
+  nodeId: string;
+  assetHash?: string;
+}
+
+export interface ActivityRecordPayload {
+  activityType: string;
+  nodeId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface LinkClickPayload {
+  nodeId: string;
+  targetId?: string;
+}
+
+export interface SharePublicCreatePayload {
+  nodeId: string;
+  slug?: string;
+  passwordHash?: string;
+}
+
+export interface SharePublicRevokePayload {
+  nodeId: string;
+}
+
+export interface ShareUserGrantPayload {
+  nodeId: string;
+  userId: string;
+  role: string;
+}
+
+export interface ShareUserRevokePayload {
+  nodeId: string;
+  userId: string;
+}
+
+export interface PluginOpPayload {
+  pluginId: string;
+  opType: string;
+  data: Record<string, unknown>;
+}
 
 export function createOperation(
   partial: Omit<OperationEnvelope, 'id'> & { id?: string },
