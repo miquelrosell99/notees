@@ -35,6 +35,10 @@ class RelayStorage(ABC):
     def envelope_exists(self, envelope_id: str) -> bool:
         """Return ``True`` if an envelope with the given id is already stored."""
 
+    @abstractmethod
+    def close(self) -> None:
+        """Release any resources held by this storage adapter."""
+
 
 class SqliteRelayStorage(RelayStorage):
     """In-process SQLite storage for unit tests and lightweight deployments."""
@@ -56,7 +60,8 @@ class SqliteRelayStorage(RelayStorage):
                 logical INTEGER NOT NULL,
                 affected_node_ids TEXT NOT NULL DEFAULT '[]',
                 op_type TEXT NOT NULL,
-                encrypted_payload BLOB NOT NULL,
+                ciphertext TEXT NOT NULL,
+                iv TEXT NOT NULL,
                 timestamp TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_hlc
@@ -74,7 +79,8 @@ class SqliteRelayStorage(RelayStorage):
             hlc={"physical": row["physical"], "logical": row["logical"]},
             affected_node_ids=json.loads(row["affected_node_ids"]),
             op_type=row["op_type"],
-            encrypted_payload=row["encrypted_payload"],
+            ciphertext=row["ciphertext"],
+            iv=row["iv"],
             timestamp=timestamp,
         )
 
@@ -83,8 +89,8 @@ class SqliteRelayStorage(RelayStorage):
             """
             INSERT OR IGNORE INTO relay_envelope (
                 id, workspace_id, actor_id, physical, logical,
-                affected_node_ids, op_type, encrypted_payload, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                affected_node_ids, op_type, ciphertext, iv, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 envelope.id,
@@ -94,7 +100,8 @@ class SqliteRelayStorage(RelayStorage):
                 envelope.hlc.logical,
                 json.dumps(envelope.affected_node_ids),
                 envelope.op_type,
-                envelope.encrypted_payload,
+                envelope.ciphertext,
+                envelope.iv,
                 envelope.timestamp.isoformat() if envelope.timestamp else None,
             ),
         )
@@ -146,3 +153,7 @@ class PostgresRelayStorage(RelayStorage):
     def envelope_exists(self, envelope_id: str) -> bool:
         """TODO: Check existence against PostgreSQL in Phase 5."""
         raise NotImplementedError("PostgresRelayStorage.envelope_exists is a stub for Phase 5")
+
+    def close(self) -> None:
+        """TODO: Close PostgreSQL resources in Phase 5."""
+        raise NotImplementedError("PostgresRelayStorage.close is a stub for Phase 5")

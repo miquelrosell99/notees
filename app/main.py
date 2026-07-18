@@ -70,6 +70,8 @@ from .logging_config import get_logger, setup_logging
 from .plugins.core import plugin_manager
 from .plugins.core.bootstrap import register_core_ports
 from .rate_limit import PerKeyBucketFactory, ip_only_identifier, per_ip_limiter
+from .relay.dependencies import get_relay_storage
+from .relay.router import router as relay_router
 from .routers import (
     activity_router,
     admin_router,
@@ -168,6 +170,13 @@ async def lifespan(app: FastAPI):
 
         # Stop backup scheduler
         await get_backup_scheduler().stop()
+
+    # Close relay storage (SQLite connection).
+    try:
+        get_relay_storage().close()
+        logger.info("Relay storage closed")
+    except Exception as exc:
+        logger.warning(f"Could not close relay storage during shutdown: {exc}")
 
     # Close PostgreSQL connection pool
     await close_pool()
@@ -584,6 +593,9 @@ plugin_manager.mount_routers(app)
 # Mount WebSocket router separately — it cannot inherit HTTP-only dependencies
 # like RateLimiter because WebSocket scopes lack an HTTP Request object.
 app.include_router(live_sync_ws_router, prefix="/api")
+
+# Mount encrypted operation relay router.
+app.include_router(relay_router)
 
 
 # ============ Static Routes ============

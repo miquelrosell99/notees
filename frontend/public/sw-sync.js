@@ -35,6 +35,15 @@ async function handleBackgroundSync() {
     clients.forEach((client) => {
       client.postMessage({ type: 'BACKGROUND_SYNC' });
     });
+    // Also register a one-shot sync tag so the PWA runtime can wake the app
+    // if it is backgrounded when connectivity returns.
+    if ('sync' in self.registration) {
+      try {
+        await self.registration.sync.register('notees-sqlite-sync');
+      } catch {
+        // SW sync registration may fail in unsupported browsers — safe to ignore.
+      }
+    }
   } else {
     // App is closed. Ping the server to keep the service worker alive.
     // A full sync requires client-side state and runs when the app reopens.
