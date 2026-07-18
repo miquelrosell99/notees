@@ -42,6 +42,8 @@ class ScopeType(StrEnum):
     ENTIRE_WORKSPACE = "entire_workspace"  # All nodes in the workspace
     PAGES = "pages"  # All pages in the workspace (is_page=true)
     CURRENT_PAGE = "current_page"  # Current page being viewed
+    SPECIFIC_PAGES = "specific_pages"  # Query within a specific set of pages
+    LINKED_REFS = "linked_refs"  # Nodes that reference the current node
 
 
 @dataclass
@@ -52,6 +54,8 @@ class ScopeNode:
     scope_type: ScopeType = ScopeType.ENTIRE_WORKSPACE
     # For parent_path filtering (nodes inside specific pages)
     include_descendants: bool | None = None
+    # For specific_pages scope: the pages to query within
+    page_uuids: list[str] | None = None
     # For negated scope filters
     excluded_page_uuids: list[str] | None = None
 
@@ -63,6 +67,8 @@ class ScopeNode:
         }
         if self.include_descendants is not None:
             result["include_descendants"] = self.include_descendants
+        if self.page_uuids:
+            result["page_uuids"] = self.page_uuids
         if self.excluded_page_uuids:
             result["excluded_page_uuids"] = self.excluded_page_uuids
         return result
@@ -79,6 +85,7 @@ class ScopeNode:
         return ScopeNode(
             scope_type=ScopeType(scope_type_value),
             include_descendants=data.get("include_descendants"),
+            page_uuids=data.get("page_uuids"),
             excluded_page_uuids=data.get("excluded_page_uuids"),
         )
 

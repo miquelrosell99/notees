@@ -1105,11 +1105,11 @@ ORDER BY {order_by_sql}"""
             # Node has at least one parent
             return "n.parent_id IS NOT NULL"
 
-        if not condition.nested_group or not condition.nested_group.blocks:
+        if not condition.nested_group or not condition.nested_group.children:
             return None
 
-        # Get the first block in the group - typically a UUID block
-        first_block = condition.nested_group.blocks[0]
+        # Get the first child in the group - typically a UUID block
+        first_block = condition.nested_group.children[0]
 
         # Handle UUID block (most common case for current_node_uuid)
         if hasattr(first_block, "value"):
@@ -1121,9 +1121,6 @@ ORDER BY {order_by_sql}"""
             if condition.max_depth is not None:
                 depth_param = self._add_param(condition.max_depth)
                 depth_condition = f" AND depth = %({depth_param})s"
-            elif condition.min_depth is not None:
-                min_depth_param = self._add_param(condition.min_depth)
-                depth_condition = f" AND depth >= %({min_depth_param})s"
 
             if operator == "not_has_ancestor":
                 return f"""(NOT EXISTS (
@@ -1468,11 +1465,11 @@ ORDER BY {order_by_sql}"""
             # Node has at least one child
             return "EXISTS (SELECT 1 FROM node child WHERE child.parent_id = n.id)"
 
-        if not condition.nested_group or not condition.nested_group.blocks:
+        if not condition.nested_group or not condition.nested_group.children:
             return None
 
-        # Get the first block in the group
-        first_block = condition.nested_group.blocks[0]
+        # Get the first child in the group
+        first_block = condition.nested_group.children[0]
 
         # Handle UUID block (for specific node matching)
         if hasattr(first_block, "value"):
