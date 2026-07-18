@@ -1,20 +1,16 @@
 import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { useNodeChildrenLegacy } from '@/features/content/hooks/useNodeBasicQueries';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
 import { projectNode } from './nodeProjection';
-import { ENABLE_SQLITE_STORE } from '../utils/featureFlags';
 
 /**
- * Adapter hook that reads direct children from the SQLite store when
- * ENABLE_SQLITE_STORE is on, otherwise delegates to the legacy hook.
+ * Adapter hook that reads direct children from the SQLite core store.
  */
 export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<Node[], Error> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const legacyResult = useNodeChildrenLegacy(parentId);
 
   const ctx = useContext(WorkspaceStoreContext);
   const [data, setData] = useState<Node[]>([]);
@@ -22,7 +18,7 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!ENABLE_SQLITE_STORE || !ctx || !workspaceId || !parentId) {
+    if (!ctx || !workspaceId || !parentId) {
       setData([]);
       setIsLoading(false);
       setError(null);
@@ -61,10 +57,6 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
       unsubscribe?.();
     };
   }, [ctx, workspaceId, parentId]);
-
-  if (!ENABLE_SQLITE_STORE) {
-    return legacyResult as UseQueryResult<Node[], Error>;
-  }
 
   const isPending = isLoading;
   const isSuccess = !isLoading && !error;

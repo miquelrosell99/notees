@@ -1,7 +1,7 @@
 /**
  * Node Query Hooks — Barrel File
  */
-export { useNodes, useNode, useNodeMetadata, useNodeChildren, useNodeByUuid, usePageContent } from './useNodeBasicQueries';
+export { useNodes, useNode, useNodeChildren, useNodeByUuid } from './useNodeBasicQueries';
 export { useGraphData, useGraphNodes, useGraphLinks } from './useNodeGraphQueries';
 export {
   useBacklinks,

@@ -9,8 +9,7 @@ import { useWorkspaceStore } from '../../hooks/useWorkspaceStore';
 import { deriveKey } from '../../crypto';
 import { MemoryRelay, MemoryTransport } from '../../transport';
 import { uuidv7 } from '../../uuid';
-import * as nodesApi from '@/api/nodes';
-import type { Node } from '@/types/api';
+
 import {
   useNodeAdapter,
   useNodesAdapter,
@@ -55,15 +54,6 @@ function sqliteWrapper(props: { actorId: string; key: CryptoKey; transport: Memo
       </QueryClientProvider>
     );
   };
-}
-
-function legacyWrapper({ children }: { children: ReactNode }) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return (
-    <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/ws-test']}>{children}</MemoryRouter>
-    </QueryClientProvider>
-  );
 }
 
 describe('nodeAdapter', () => {
@@ -193,27 +183,4 @@ describe('nodeAdapter', () => {
     });
   });
 
-  describe('when ENABLE_SQLITE_STORE is false', () => {
-    it('useNodeAdapter delegates to the legacy hook', async () => {
-      mockEnableSqliteStore = false;
-      const node: Node = {
-        uuid: 'legacy-uuid',
-        name: 'Legacy node',
-        icon: null,
-        color: null,
-        parent_uuid: null,
-        page_uuid: null,
-        sequence: 0,
-        active: true,
-        is_page: true,
-        create_date: new Date().toISOString(),
-        write_date: new Date().toISOString(),
-      };
-      vi.spyOn(nodesApi, 'getNode').mockResolvedValue(node as never);
-
-      const { result } = renderHook(() => useNodeAdapter('legacy-uuid'), { wrapper: legacyWrapper });
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-      expect(result.current.data).toEqual(node);
-    });
-  });
 });

@@ -26,10 +26,8 @@ export {
 export {
   useNodes,
   useNode,
-  useNodeMetadata,
   useNodeChildren,
   useNodeByUuid,
-  usePageContent,
   useGraphData,
   useGraphNodes,
   useGraphLinks,

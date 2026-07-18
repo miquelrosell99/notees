@@ -1,13 +1,11 @@
 import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { useNodesLegacy } from '@/features/content/hooks/useNodeBasicQueries';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
 import { projectNode } from './nodeProjection';
 import { queryAll } from '../db/sqlite';
-import { ENABLE_SQLITE_STORE } from '../utils/featureFlags';
 
 const NODES_LIMIT = 100;
 
@@ -19,14 +17,12 @@ export interface UseNodesAdapterFilters {
 }
 
 /**
- * Adapter hook that lists nodes from the SQLite store when ENABLE_SQLITE_STORE
- * is on, otherwise delegates to the legacy hook.
+ * Adapter hook that lists nodes from the SQLite core store.
  */
 export function useNodesAdapter(
   filters?: UseNodesAdapterFilters | null
 ): UseQueryResult<Node[], Error> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const legacyResult = useNodesLegacy(filters ?? undefined);
 
   const ctx = useContext(WorkspaceStoreContext);
   const [data, setData] = useState<Node[]>([]);
@@ -34,7 +30,7 @@ export function useNodesAdapter(
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!ENABLE_SQLITE_STORE || !ctx || !workspaceId) {
+    if (!ctx || !workspaceId) {
       setData([]);
       setIsLoading(false);
       setError(null);
@@ -50,13 +46,11 @@ export function useNodesAdapter(
         if (cancelled) return;
         const db = store.getDb();
 
-        // Prototype slice: return pages only when pages_only is truthy, otherwise
-        // all nodes. Limit to NODES_LIMIT to avoid returning the whole workspace.
         const where = filters?.pages_only ? "WHERE kind = 'page'" : '';
         const rows = queryAll<{ id: string }>(
           db,
           `SELECT id FROM node ${where} ORDER BY created_at DESC LIMIT ?`,
-          [NODES_LIMIT]
+          [filters?.page_size ?? NODES_LIMIT]
         );
         const nodes = rows
           .map((row) => projectNode(store, row.id))
@@ -73,11 +67,7 @@ export function useNodesAdapter(
     return () => {
       cancelled = true;
     };
-  }, [ctx, workspaceId, filters?.pages_only]);
-
-  if (!ENABLE_SQLITE_STORE) {
-    return legacyResult as UseQueryResult<Node[], Error>;
-  }
+  }, [ctx, workspaceId, filters?.pages_only, filters?.page_size]);
 
   const isPending = isLoading;
   const isSuccess = !isLoading && !error;

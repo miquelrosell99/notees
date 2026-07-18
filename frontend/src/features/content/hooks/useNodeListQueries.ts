@@ -3,12 +3,7 @@
  */
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { useConnectionStore } from '@/stores/connectionStore';
-import { useWorkspaces } from '@/features/workspace';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { queryNodes } from '@/core/query/queryNodes';
 import { useClasses as useCoreClasses } from '@/core/hooks';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
@@ -61,13 +56,8 @@ export function useSearch(query: string, filters?: {
   isDaily?: boolean;
   isUserPage?: boolean;
 }) {
-  const isOnline = useOnlineStatus();
-  const backendHealthy = useConnectionStore((s) => s.healthy);
-  const isOffline = !isOnline || backendHealthy === false;
-
-  const { data: workspacesData } = useWorkspaces({ enabled: isOffline });
-  const activeWorkspace = workspacesData?.items?.find((ws) => ws.is_active) ?? workspacesData?.items?.[0];
-  const workspaceUuid = activeWorkspace?.uuid;
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
 
   const searchFilters: Record<string, string | boolean | undefined> = {
     classFilters: filters?.classFilters,
@@ -86,38 +76,31 @@ export function useSearch(query: string, filters?: {
     filters?.isDaily !== undefined ||
     filters?.isUserPage !== undefined;
 
-  const serverEnabled = !isOffline && (query.length > 0 || hasFilters);
-  const localEnabled = isOffline && !!workspaceUuid && (query.length > 0 || hasFilters);
+  const enabled = !!store && (query.length > 0 || hasFilters);
 
-  return useQuery({
+  const result = useQuery({
     queryKey: nodeKeys.search(query, searchFilters),
-    queryFn: async () => {
-      if (isOffline) {
-        if (!workspaceUuid) return [];
-        const store = getWorkspaceStore(workspaceUuid);
-        if (!store) return [];
-        const classIds = filters?.classFilters ? filters.classFilters.split(',') : undefined;
-        return queryNodes(store, {
-          query,
-          isPage: filters?.isPage,
-          isClass: filters?.isClass,
-          isDaily: filters?.isDaily,
-          classIds,
-        });
-      }
-      return nodesApi.searchNodes(query, {
-        class_filters: filters?.classFilters,
-        node_uuid: filters?.nodeUuid,
-        is_page: filters?.isPage,
-        is_class: filters?.isClass,
-        is_daily: filters?.isDaily,
-        is_user_page: filters?.isUserPage,
+    queryFn: () => {
+      if (!store) return [];
+      const classIds = filters?.classFilters ? filters.classFilters.split(',') : undefined;
+      return queryNodes(store, {
+        query,
+        isPage: filters?.isPage,
+        isClass: filters?.isClass,
+        isDaily: filters?.isDaily,
+        classIds,
       });
     },
-    enabled: serverEnabled || localEnabled,
+    enabled,
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30, // 30s - search results change less often than typed
   });
+
+  return {
+    ...result,
+    isLoading: result.isLoading || isLoading,
+    error: result.error ?? error,
+  };
 }
 
 /**
