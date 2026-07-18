@@ -8,16 +8,22 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, Request, WebSocket
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
 from app.db.connection import get_pool
+from app.features import auth as auth_module
+from app.relay.key_management import KeyManagementService
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
 from app.relay.permissions_postgres import PostgresPermissionChecker
 from app.relay.service import RelayService
 from app.relay.storage import RelayStorage, SqliteRelayStorage
 
+_security = HTTPBearer(auto_error=False)
+
 _storage_instance: RelayStorage | None = None
 _permission_checker_instance: PermissionChecker | None = None
+_key_management_service_instance: KeyManagementService | None = None
 
 
 def _is_test_environment() -> bool:
@@ -90,16 +96,30 @@ def _actor_id_from_headers(headers: Any) -> str:
     return headers.get("x-actor-id", "anonymous")
 
 
-def get_actor_id(request: Request) -> str:
+async def get_actor_id(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(_security),  # noqa: B008
+) -> str:
     """Extract the actor id for the relay HTTP request.
 
-    Prefers the authenticated user id, falls back to the ``X-Actor-Id`` header,
-    and finally defaults to ``anonymous``. This preserves the Phase 1 header
-    contract while integrating with the existing auth middleware.
+    Prefers the authenticated user id (from request state or a valid JWT Bearer
+    token), falls back to the ``X-Actor-Id`` header, and finally defaults to
+    ``anonymous``. This preserves the Phase 1 header contract while integrating
+    with the existing auth system.
     """
     user_id = getattr(request.state, "user_id", None)
     if user_id:
         return str(user_id)
+
+    if credentials:
+        payload = auth_module.decode_token(credentials.credentials)
+        if payload and not auth_module.is_preauth_payload(payload):
+            user_id = payload.get("user_id")
+            if user_id:
+                user = await auth_module.get_user_by_id(str(user_id))
+                if user:
+                    return str(user["uuid"])
+
     return _actor_id_from_headers(request.headers)
 
 
@@ -118,3 +138,11 @@ async def get_relay_service(
 ) -> RelayService:
     """Build a :class:`RelayService` from the configured storage and permissions."""
     return RelayService(storage, permissions)
+
+
+def get_key_management_service() -> KeyManagementService:
+    """Return the shared workspace key-management service."""
+    global _key_management_service_instance
+    if _key_management_service_instance is None:
+        _key_management_service_instance = KeyManagementService()
+    return _key_management_service_instance
