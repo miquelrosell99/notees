@@ -54,7 +54,9 @@ What is missing:
 
 ## Sub-Task Breakdown
 
-### D1 — Core hooks, workspace store adapter, and IndexedDB persistence
+### D1 — Core hooks, workspace store adapter, and IndexedDB persistence ✅ Done
+
+**Status:** Committed as `feat(core,frontend): Phase 4 D1 core hooks, store adapter, and IndexedDB persistence` (`8a74fe71`).
 
 **Goal:** Provide a single source of truth React layer on top of `WorkspaceStore`.
 
@@ -83,6 +85,13 @@ What is missing:
   - IndexedDB round-trip preserves database state.
   - sync engine pushes pending operations and pulls remote ones.
 - `cd frontend && npm run test:run src/core/hooks && npx tsc -b --noEmit` passes.
+
+**Results:**
+- `npm run test:run src/core` → 9 files, 27 tests passed.
+- `npx tsc -b --noEmit` → clean.
+- `npm run lint` → clean (only pre-existing unrelated warnings).
+- Backend `uv run pytest tests/core -m unit --no-cov` → 153 passed, 3 skipped.
+- `uv run ruff check app/core frontend/src/core scripts/validate_migration.py` → clean.
 
 ---
 
