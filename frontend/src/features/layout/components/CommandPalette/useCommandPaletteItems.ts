@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { Node } from '@/types';
-import type { RecentPage } from '@/api/nodes';
 import type { Command } from '@/stores/commandRegistry';
 import type { ItemEntry, AppliedFilter, FilterPrefixConfig } from './CommandPalette.types';
 import type { Property } from '@/types';
@@ -19,9 +18,9 @@ interface UseCommandPaletteItemsParams {
   existingDateNode: Node | null;
   commands: Command[];
   pageMap: Map<string, Node>;
-  recentAccessedPages: RecentPage[];
-  recentCreatedPages: RecentPage[];
-  randomPages: RecentPage[];
+  recentAccessedPages: Node[];
+  recentCreatedPages: Node[];
+  randomPages: Node[];
   maxPages: number;
   maxBlocks: number;
   maxProperties: number;
@@ -78,7 +77,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     // When no query and no filters, show browse sections
     if (!searchTerm.trim() && !uuidSearch && appliedFilters.length === 0) {
       for (const page of recentAccessedPages) {
-        items.push({ type: 'browse-page', result: { node: page as unknown as Node, type: 'page' }, browseSection: 'recent-accessed' });
+        items.push({ type: 'browse-page', result: { node: page, type: 'page' }, browseSection: 'recent-accessed' });
       }
       for (const page of recentCreatedPages) {
         items.push({ type: 'browse-page', result: { node: page as unknown as Node, type: 'page' }, browseSection: 'recent-created' });

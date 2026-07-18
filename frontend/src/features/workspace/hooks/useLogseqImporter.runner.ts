@@ -1,5 +1,6 @@
 import { listClasses } from '@/api/nodes';
 import { nodeNameToText } from '@/features/queries';
+import type { WorkspaceStore } from '@/core/store';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import type { QueryClient } from '@tanstack/react-query';
@@ -20,6 +21,7 @@ import { runPhase7 } from './useLogseqImporter.phase7';
 interface RunImportDeps {
   pageClassUuid: string;
   classClassUuid: string | null;
+  store: WorkspaceStore;
   mutations: {
     createNode: { mutateAsync: (...args: any[]) => Promise<Node> };
     updateNode: { mutateAsync: (...args: any[]) => Promise<Node | null> };
@@ -88,6 +90,7 @@ export async function runImport(
       phases,
       pageClassUuid: deps.pageClassUuid,
       classClassUuid: deps.classClassUuid,
+      store: deps.store,
       mutations: deps.mutations,
       queryClient: deps.queryClient,
       setImportStatus,

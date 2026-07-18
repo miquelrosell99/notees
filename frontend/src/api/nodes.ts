@@ -28,7 +28,6 @@ import type {
   BatchPermanentDeleteResponse,
   BatchGetNodesByUuidRequest,
   BatchGetNodesByUuidResponse,
-  BatchNodeDailyResponse,
   BreadcrumbsResponse,
 } from '@/types/api';
 
@@ -169,62 +168,6 @@ export async function createPage(
 ): Promise<Node> {
   const response = await api.post<Node>(`${BASE}/page`, null, {
     params: { name, icon, color, additional_tags: additionalTags },
-  });
-  return response.data;
-}
-
-/**
- * List all existing daily pages
- */
-export async function listDailyPages(
-  page: number = 1,
-  page_size: number = 50,
-): Promise<PaginatedResponse<Node>> {
-  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/daily/list`, {
-    params: { page, page_size },
-  });
-  return response.data;
-}
-
-/**
- * @deprecated Use listDailyPages instead. Kept as alias for backward compatibility.
- */
-export const getDailyPages = listDailyPages;
-
-/**
- * Get or create a daily note
- */
-export async function getOrCreateDaily(dateStr: string): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/daily`, null, {
-    params: { date: dateStr },
-  });
-  return response.data;
-}
-
-/**
- * Get or create multiple daily notes in a single batch request.
- */
-export async function batchGetOrCreateDaily(dates: string[]): Promise<BatchNodeDailyResponse> {
-  const response = await api.post<BatchNodeDailyResponse>(`${BASE}/daily/batch`, { dates });
-  return response.data;
-}
-
-/**
- * Get or create a monthly note
- */
-export async function getOrCreateMonthly(year: number, month: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/monthly`, null, {
-    params: { year, month },
-  });
-  return response.data;
-}
-
-/**
- * Get or create a yearly note
- */
-export async function getOrCreateYearly(year: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/yearly`, null, {
-    params: { year },
   });
   return response.data;
 }
@@ -802,57 +745,18 @@ export async function removeAlias(nodeUuid: string, aliasNodeUuid: string): Prom
 // ============== Page View Tracking & Recents ==============
 
 /**
- * Mark a page as opened/viewed (updates open_date)
- */
-export async function markPageOpened(nodeUuid: string): Promise<{ status: string; open_date: string }> {
-  const response = await api.patch<{ status: string; open_date: string }>(`${BASE}/${nodeUuid}/open`);
-  return response.data;
-}
-
-/**
- * Recent page info
- */
-export interface RecentPage {
-  uuid: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  parent_uuid: string | null;
-  page_uuid: string | null;
-  is_page: boolean;
-  is_class: boolean;
-  is_daily: boolean;
-  is_monthly: boolean;
-  is_yearly: boolean;
-  create_date: string;
-  write_date: string;
-  open_date: string;
-  class_uuids?: string[];
-  aliased_uuid?: string | null;
-  aliases_uuid?: string[];
-}
-
-/**
- * Get recently opened pages, ordered by open_date DESC
- */
-export async function getRecentPages(limit: number = 10): Promise<RecentPage[]> {
-  const response = await api.get<{ nodes: RecentPage[] }>(`${BASE}/recents`, { params: { limit } });
-  return response.data.nodes ?? [];
-}
-
-/**
  * Get random pages from the workspace
  */
-export async function getRandomPages(limit: number = 5): Promise<RecentPage[]> {
-  const response = await api.get<{ nodes: RecentPage[] }>(`${BASE}/random`, { params: { limit } });
+export async function getRandomPages(limit: number = 5): Promise<Node[]> {
+  const response = await api.get<{ nodes: Node[] }>(`${BASE}/random`, { params: { limit } });
   return response.data.nodes ?? [];
 }
 
 /**
  * Get recently created pages, ordered by create_date DESC
  */
-export async function getRecentlyCreatedPages(limit: number = 5): Promise<RecentPage[]> {
-  const response = await api.get<{ nodes: RecentPage[] }>(`${BASE}/recently-created`, { params: { limit } });
+export async function getRecentlyCreatedPages(limit: number = 5): Promise<Node[]> {
+  const response = await api.get<{ nodes: Node[] }>(`${BASE}/recently-created`, { params: { limit } });
   return response.data.nodes ?? [];
 }
 
@@ -896,57 +800,8 @@ export async function restoreNodeVersion(nodeUuid: string, versionUuid: string):
   return response.data;
 }
 
-// ============== Favorites (DB-backed) ==============
-
 /**
- * Get the list of favorite page IDs
- */
-export async function getFavorites(
-  page: number = 1,
-  page_size: number = 50,
-): Promise<PaginatedResponse<Node>> {
-  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/favorites`, {
-    params: { page, page_size },
-  });
-  return response.data;
-}
 
-/**
- * Set the entire list of favorite page IDs
- */
-export async function setFavorites(favorites: string[]): Promise<string[]> {
-  const response = await api.put<{ status: string; favorites: string[] }>(`${BASE}/favorites`, { favorites });
-  return response.data.favorites ?? [];
-}
-
-/**
- * Add a page to favorites
- */
-export async function addFavorite(nodeUuid: string): Promise<string[]> {
-  const response = await api.post<{ status: string; favorites: string[] }>(`${BASE}/favorites/${nodeUuid}`);
-  return response.data.favorites ?? [];
-}
-
-/**
- * Remove a page from favorites
- */
-export async function removeFavorite(nodeUuid: string): Promise<string[]> {
-  const response = await api.delete<{ status: string; favorites: string[] }>(`${BASE}/favorites/${nodeUuid}`);
-  return response.data.favorites ?? [];
-}
-
-/**
- * Reorder favorites
- */
-export async function reorderFavorites(fromIndex: number, toIndex: number): Promise<string[]> {
-  const response = await api.put<{ status: string; favorites: string[] }>(`${BASE}/favorites/reorder`, {
-    from_index: fromIndex,
-    to_index: toIndex,
-  });
-  return response.data.favorites ?? [];
-}
-
-/**
  * Get all soft-deleted nodes (trash)
  */
 export async function getTrash(

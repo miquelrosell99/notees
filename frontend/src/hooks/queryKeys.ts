@@ -153,20 +153,6 @@ export const workspaceSettingsKeys = {
   detail: (workspaceUuid: string) => [...workspaceSettingsKeys.all, workspaceUuid] as const,
 };
 
-// ==================== Favorites Query Keys ====================
-
-export const favoriteKeys = {
-  all: ['favorites'] as const,
-  list: () => [...favoriteKeys.all, 'list'] as const,
-};
-
-// ==================== Recents Query Keys ====================
-
-export const recentKeys = {
-  all: ['recents'] as const,
-  list: (limit?: number) => [...recentKeys.all, 'list', limit ?? 10] as const,
-};
-
 // ==================== Task Recurrence Query Keys ====================
 
 export const taskKeys = {

@@ -1,6 +1,8 @@
-import { getOrCreateDaily, searchNodes, getNodeByUuid, createNode as createNodeApi, getNode, removeProperty } from '@/api/nodes';
+import { searchNodes, getNodeByUuid, createNode as createNodeApi, getNode, removeProperty } from '@/api/nodes';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
 import { nodeNameToText } from '@/features/queries';
 import type { NodeInfo, PhaseResult } from './useLogseqImporter.types';
+import type { WorkspaceStore } from '@/core/store';
 import { buildAstFromLogseqText } from './useLogseqImporter.ast';
 import { errorMessage } from './useLogseqImporter.utils';
 
@@ -24,13 +26,14 @@ export async function resolvePropertyValueForImport(
   titleToNodeInfo: Map<string, NodeInfo>,
   classIdMap: Map<string, string>,
   pageClassUuid: string,
+  store: WorkspaceStore,
 ): Promise<unknown> {
   if (value === null || value === undefined) return undefined;
 
   if (Array.isArray(value)) {
     const resolved = [];
     for (const item of value) {
-      const r = await resolvePropertyValueForImport(item, uuidMap, titleToNodeInfo, classIdMap, pageClassUuid);
+      const r = await resolvePropertyValueForImport(item, uuidMap, titleToNodeInfo, classIdMap, pageClassUuid, store);
       if (r !== undefined) resolved.push(r);
     }
     return resolved.length > 0 ? resolved : undefined;
@@ -88,7 +91,7 @@ export async function resolvePropertyValueForImport(
       }
       case 'date-ref': {
         try {
-          const dayNode = await getOrCreateDaily(typed.date as string);
+          const dayNode = getOrCreateDailyNote(store, typed.date as string);
           return dayNode.uuid;
         } catch {
           return undefined;
@@ -149,6 +152,7 @@ export async function assignProperties(
   titleToNodeInfo: Map<string, NodeInfo>,
   classIdMap: Map<string, string>,
   pageClassUuid: string,
+  store: WorkspaceStore,
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeUuid: string; propertyId: string; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
@@ -199,7 +203,7 @@ export async function assignProperties(
     }
 
     try {
-      let resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo, classIdMap, pageClassUuid);
+      let resolved = await resolvePropertyValueForImport(rawValue, uuidMap, titleToNodeInfo, classIdMap, pageClassUuid, store);
 
       if (resolved !== undefined && textPropIds.has(noteesPropId)) {
         const strValues = Array.isArray(resolved)
@@ -248,6 +252,7 @@ export async function assignBlockProperties(
   titleToNodeInfo: Map<string, NodeInfo>,
   classIdMap: Map<string, string>,
   pageClassUuid: string,
+  store: WorkspaceStore,
   setImportStatus: (s: string) => void,
   setNodePropertyMutation: { mutateAsync: (args: { nodeUuid: string; propertyId: string; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
@@ -263,7 +268,7 @@ export async function assignBlockProperties(
         const blockLabel = `${block.title || '(block)'} [${block.uuid}]`;
         await assignProperties(
           block.properties, nodeInfo.nodeUuid, blockLabel,
-          propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassUuid, setImportStatus,
+          propIdMap, uuidMap, titleToNodeInfo, classIdMap, pageClassUuid, store, setImportStatus,
           setNodePropertyMutation, phase, override, isExisting, textPropIds,
         );
       }
@@ -272,7 +277,7 @@ export async function assignBlockProperties(
       await assignBlockProperties(
         block.children as { uuid?: string; properties?: Record<string, unknown>; title?: string; children?: unknown[] }[],
         propIdMap, uuidMap, titleToNodeInfo, classIdMap,
-        pageClassUuid, setImportStatus, setNodePropertyMutation, phase,
+        pageClassUuid, store, setImportStatus, setNodePropertyMutation, phase,
         override, existingNodeIds, textPropIds,
       );
     }

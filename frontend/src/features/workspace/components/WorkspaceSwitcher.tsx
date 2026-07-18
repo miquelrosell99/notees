@@ -9,8 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
-import { useNavigationStore, useModalStore } from '@/stores';
-import { favoriteKeys, recentKeys, workspaceKeys } from '@/hooks/queryKeys';
+import { useNavigationStore, useModalStore, useFavoritesStore, useRecentsStore } from '@/stores';
+import { workspaceKeys } from '@/hooks/queryKeys';
 import { Button } from '@/components/ui/Button';
 import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown';
 import './WorkspaceSwitcher.css';
@@ -39,9 +39,9 @@ export function WorkspaceSwitcher() {
       localGraphNodeUuid: null,
       mainViewType: 'node',
     });
-    queryClient.removeQueries({ queryKey: favoriteKeys.all });
-    queryClient.removeQueries({ queryKey: recentKeys.all });
-    
+    useFavoritesStore.getState().clearFavorites();
+    useRecentsStore.getState().clearRecents();
+
     // Navigate to new workspace home
     navigate(`/${switchedUuid}`, { replace: true });
     

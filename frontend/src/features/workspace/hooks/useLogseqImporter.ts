@@ -23,6 +23,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCreateNode, useUpdateNode } from '@/features/content';
 import { usePageClass, useClassClass } from '@/features/content';
 import { useCreateProperty } from '@/features/properties';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import type { LogseqExport } from '@/utils/ednParser';
 import type { TaskReportData } from '@/components/ui/TaskReport';
 import { runImport } from './useLogseqImporter.runner';
@@ -39,6 +41,7 @@ export function useLogseqImporter() {
   const createPropertyMutation = useCreateProperty();
   const { pageClassUuid } = usePageClass();
   const { classClassUuid } = useClassClass();
+  const workspaceUuid = useCurrentWorkspaceUuid();
 
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
@@ -58,11 +61,14 @@ export function useLogseqImporter() {
     parsed: LogseqExport,
     options: { importMode: ImportMode; uuidOverrides?: Record<string, string> },
   ) => {
-    if (!parsed || !pageClassUuid) return;
+    if (!parsed || !pageClassUuid || !workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
 
     await runImport(parsed, options, {
       pageClassUuid,
       classClassUuid,
+      store,
       mutations: {
         createNode: createNodeMutation,
         updateNode: updateNodeMutation,
@@ -77,7 +83,7 @@ export function useLogseqImporter() {
         setError,
       },
     });
-  }, [createNodeMutation, updateNodeMutation, createPropertyMutation, pageClassUuid, classClassUuid, queryClient]);
+  }, [createNodeMutation, updateNodeMutation, createPropertyMutation, pageClassUuid, classClassUuid, queryClient, workspaceUuid]);
 
   return {
     importing,

@@ -2,9 +2,12 @@
  * React Query mutation for persisting Gantt bar date changes.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { setProperty, getOrCreateDaily } from '@/api/nodes';
+import { setProperty } from '@/api/nodes';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/features/content';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { formatDateForApi } from '../renderers/GanttRenderer';
 import type { Property } from '@/types/api';
 
@@ -24,16 +27,19 @@ export function useGanttDateMutation(
   }
 ) {
   const queryClient = useQueryClient();
+  const workspaceUuid = useCurrentWorkspaceUuid();
 
   return useMutation({
     mutationFn: async ({ nodeUuid, mode, newStart, newEnd }: PersistGanttDatesInput) => {
-      if (!startDateProperty) return;
+      if (!startDateProperty || !workspaceUuid) return;
+      const store = getWorkspaceStore(workspaceUuid);
+      if (!store) return;
       if (mode === 'move') {
-        const startDayNode = await getOrCreateDaily(formatDateForApi(newStart));
+        const startDayNode = getOrCreateDailyNote(store, formatDateForApi(newStart));
         await setProperty(nodeUuid, startDateProperty.uuid, startDayNode.uuid);
       }
       if (newEnd && endDateProperty) {
-        const endDayNode = await getOrCreateDaily(formatDateForApi(newEnd));
+        const endDayNode = getOrCreateDailyNote(store, formatDateForApi(newEnd));
         await setProperty(nodeUuid, endDateProperty.uuid, endDayNode.uuid);
       }
     },

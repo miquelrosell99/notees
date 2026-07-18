@@ -1,4 +1,5 @@
-import { batchUpdateNodes, batchGetNodesByUuid, createNode as createNodeApi, getNode, getOrCreateDaily } from '@/api/nodes';
+import { batchUpdateNodes, batchGetNodesByUuid, createNode as createNodeApi, getNode } from '@/api/nodes';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
 import { nodeNameToText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import type { BatchNodeUpdateItem } from '@/types/api';
@@ -8,7 +9,7 @@ import { buildAstFromLogseqText } from './useLogseqImporter.ast';
 import { createBlocksRecursively } from './useLogseqImporter.blocks';
 
 export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<void> {
-  const { parsed, titleToNodeInfo, uuidMap, tempIdxToNodeInfo, nodeIdToProperties, existingPageMap, regularPageClasses, setImportStatus, tickN } = ctx;
+  const { parsed, titleToNodeInfo, uuidMap, tempIdxToNodeInfo, nodeIdToProperties, existingPageMap, regularPageClasses, setImportStatus, tickN, store } = ctx;
 
   const regularPages = parsed.pages.filter(p => !p.journal);
 
@@ -110,7 +111,7 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
       const today = new Date().toISOString().slice(0, 10);
       setImportStatus(`Adding block to today's page (${today})…`);
       try {
-        const dayNode = await getOrCreateDaily(today);
+        const dayNode = getOrCreateDailyNote(store, today);
         parentUuid = dayNode.uuid;
       } catch (e) {
         p3.failed++;

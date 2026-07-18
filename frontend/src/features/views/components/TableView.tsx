@@ -22,7 +22,9 @@ import { getPropertyValueRenderer } from '@/features/properties';
 import '@/features/properties';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
-import * as nodesApi from '@/api/nodes';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { useProperties } from '@/features/properties';
 import { useClasses, useAddClass, useRemoveClass } from '@/features/content';
 import type { TableColumn, ExpandableConfig, ReorderableConfig, SortEntry } from './NodeTable';
@@ -128,6 +130,7 @@ export const TableView = memo(function TableView({
   const { openNode, addSidebarCard } = useNavigationStore(
     useShallow((state) => ({ openNode: state.openNode, addSidebarCard: state.addSidebarCard })),
   );
+  const workspaceUuid = useCurrentWorkspaceUuid();
 
   // Get user's date format preference
   const dateFormat = useSettingsStore((state) => state.dateFormat);
@@ -159,12 +162,15 @@ export const TableView = memo(function TableView({
   // Helper to open daily page for a date
   const openDailyPage = useCallback(async (dateStr: string, inSidebar: boolean) => {
     if (!dateStr || dateStr === '') return;
+    if (!workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return;
     const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
     try {
-      const dailyNode = await nodesApi.getOrCreateDaily(formattedDate);
+      const dailyNode = getOrCreateDailyNote(store, formattedDate);
       if (inSidebar) {
         addSidebarCard(dailyNode.uuid, 'page');
       } else {
@@ -173,7 +179,7 @@ export const TableView = memo(function TableView({
     } catch (error) {
       console.error('Failed to open daily page:', error);
     }
-  }, [openNode, addSidebarCard]);
+  }, [openNode, addSidebarCard, workspaceUuid]);
 
   // Create date column renderer with action buttons
   const dateColumnRenderer = useCallback((dateField: 'create_date' | 'write_date') => (node: Node): ReactNode => {

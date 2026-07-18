@@ -9,8 +9,8 @@ import {
   renameWorkspace,
   restoreWorkspace,
 } from '../api/workspaces';
-import { workspaceKeys, favoriteKeys, recentKeys } from '@/hooks/queryKeys';
-import { useNavigationStore } from '@/stores';
+import { workspaceKeys } from '@/hooks/queryKeys';
+import { useNavigationStore, useFavoritesStore, useRecentsStore } from '@/stores';
 
 export function useWorkspaceMutations() {
   const queryClient = useQueryClient();
@@ -29,8 +29,8 @@ export function useWorkspaceMutations() {
         localGraphNodeUuid: null,
         mainViewType: 'node',
       });
-      queryClient.removeQueries({ queryKey: favoriteKeys.all });
-      queryClient.removeQueries({ queryKey: recentKeys.all });
+      useFavoritesStore.getState().clearFavorites();
+      useRecentsStore.getState().clearRecents();
       navigate(`/${switchedWorkspaceUuid}`, { replace: true });
       queryClient.clear();
       useNavigationStore.setState({ isSwitchingWorkspace: false });

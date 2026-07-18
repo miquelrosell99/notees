@@ -2,7 +2,9 @@ import { useState, useRef, useMemo, useCallback } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '../hooks';
 import { useNode } from '@/features/content';
-import { getOrCreateDaily } from '@/api/nodes';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { DatePickerPopup } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import './PropertyCell.css';
@@ -27,6 +29,7 @@ export function DatePropertyCell({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const cellRef = useRef<HTMLButtonElement>(null);
   const setPropertyMutation = useSetNodeProperty();
+  const workspaceUuid = useCurrentWorkspaceUuid();
 
   // value is a day-page node UUID (string)
   const dayNodeId = typeof value === 'string' ? value : null;
@@ -46,8 +49,11 @@ export function DatePropertyCell({
 
   const handleSelect = useCallback(async (selectedIsoDate: string) => {
     setIsPickerOpen(false);
+    if (!workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
     try {
-      const dayPage = await getOrCreateDaily(selectedIsoDate);
+      const dayPage = getOrCreateDailyNote(store, selectedIsoDate);
       await setPropertyMutation.mutateAsync({
         nodeUuid: node.uuid,
         propertyId: property.uuid,
@@ -56,7 +62,7 @@ export function DatePropertyCell({
     } catch (error) {
       console.error('Failed to save date property:', error);
     }
-  }, [node.uuid, property.uuid, setPropertyMutation]);
+  }, [node.uuid, property.uuid, setPropertyMutation, workspaceUuid]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!editable) return;

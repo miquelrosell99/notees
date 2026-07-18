@@ -1,17 +1,19 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
+import { listNodes } from '@/api/nodes';
 import {
-  listNodes,
-  getOrCreateDaily,
-  getOrCreateMonthly,
-  getOrCreateYearly,
-} from '@/api/nodes';
+  getOrCreateDailyNote,
+  getOrCreateMonthlyNote,
+  getOrCreateYearlyNote,
+} from '@/features/content/hooks/useNodeDateQueries';
 import { useNavigationStore } from '@/stores';
 import { useCommandRegistry } from '@/stores/commandRegistry';
 import { useNotifications } from '@/stores/notificationStore';
 import { useCreateNode } from '@/features/content';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
 import type { ItemEntry, DuplicateModalState } from './CommandPalette.types';
 
@@ -51,6 +53,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
   } = params;
 
   const queryClient = useQueryClient();
+  const workspaceUuid = useCurrentWorkspaceUuid();
   const openNode = useNavigationStore((s) => s.openNode);
   const openPropertyView = useNavigationStore((s) => s.openPropertyView);
   const { error: notifyError, warning: notifyWarning } = useNotifications();
@@ -63,7 +66,13 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     switch (item.type) {
       case 'date': {
         const pd = item.parsedDate;
-        if (!pd) break;
+        if (!pd || !workspaceUuid) break;
+        const store = getWorkspaceStore(workspaceUuid);
+        if (!store) {
+          notifyError('Failed to navigate to date', 'Workspace store not available.');
+          onClose();
+          break;
+        }
         try {
           let dateNode: Node;
           if (item.existingNode) {
@@ -71,11 +80,11 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           } else {
             if (pd.type === 'day' && pd.month && pd.day) {
               const dateStr = `${pd.year}-${String(pd.month).padStart(2, '0')}-${String(pd.day).padStart(2, '0')}`;
-              dateNode = await getOrCreateDaily(dateStr);
+              dateNode = getOrCreateDailyNote(store, dateStr);
             } else if (pd.type === 'month' && pd.month) {
-              dateNode = await getOrCreateMonthly(pd.year, pd.month);
+              dateNode = getOrCreateMonthlyNote(store, pd.year, pd.month);
             } else {
-              dateNode = await getOrCreateYearly(pd.year);
+              dateNode = getOrCreateYearlyNote(store, pd.year);
             }
             queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
             queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -212,7 +221,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     destinationPage, onSelect, openNode, openPropertyView, createNodeMutation,
     onClose, queryClient, handlePrefixSelect, handleBooleanSelect,
     setDuplicateModal, setMaxPages, setMaxBlocks, setMaxProperties,
-    notifyError, notifyWarning,
+    notifyError, notifyWarning, workspaceUuid,
   ]);
 
   return { handleSelect };

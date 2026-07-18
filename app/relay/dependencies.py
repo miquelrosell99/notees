@@ -135,16 +135,21 @@ async def get_actor_id(
     """Extract the actor id for the relay HTTP request.
 
     Prefers the authenticated user id (from request state or a valid JWT Bearer
-    token), falls back to the ``X-Actor-Id`` header, and finally defaults to
-    ``anonymous``. This preserves the Phase 1 header contract while integrating
-    with the existing auth system.
+    token), then the HTTPOnly ``access_token`` cookie used by the rest of the
+    app, falls back to the ``X-Actor-Id`` header, and finally defaults to
+    ``anonymous``. This keeps relay authentication aligned with the existing
+    cookie-based auth system.
     """
     user_id = getattr(request.state, "user_id", None)
     if user_id:
         return str(user_id)
 
-    if credentials:
-        payload = auth_module.decode_token(credentials.credentials)
+    jwt_token = request.cookies.get("access_token")
+    if credentials and not jwt_token:
+        jwt_token = credentials.credentials
+
+    if jwt_token:
+        payload = auth_module.decode_token(jwt_token)
         if payload and not auth_module.is_preauth_payload(payload):
             user_id = payload.get("user_id")
             if user_id:

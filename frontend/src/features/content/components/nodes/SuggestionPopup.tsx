@@ -34,9 +34,13 @@ import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from '@/componen
 import { Checkbox } from '@/components/ui/Checkbox';
 import { NodeResultItem } from './NodeResultItem';
 import { parseDate, generateDateUuid } from '@/utils/dateParser';
-import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
-import { useQueryClient } from '@tanstack/react-query';
-import { nodeKeys } from '@/hooks/queryKeys';
+import {
+  getOrCreateDailyNote,
+  getOrCreateMonthlyNote,
+  getOrCreateYearlyNote,
+} from '@/features/content/hooks/useNodeDateQueries';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { nodeNameToText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -225,7 +229,7 @@ export function SuggestionPopup({
     return allPagesForDate.find(p => p.uuid === datePageUuid) ?? null;
   }, [parsedDate, allPagesForDate]);
   
-  const queryClient = useQueryClient();
+  const workspaceUuid = useCurrentWorkspaceUuid();
   const hasDateSuggestion = parsedDate !== null && !multiSelect && !!onSelectDatePage;
   
   // Get selected nodes from allNodes for multi-select mode
@@ -307,32 +311,30 @@ export function SuggestionPopup({
   
   // Handle date suggestion selection
   const handleDateSelect = useCallback(async () => {
-    if (!parsedDate || !onSelectDatePage) return;
+    if (!parsedDate || !onSelectDatePage || !workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
     try {
       let dateNode: Node;
       if (existingDateNode) {
         // Page already exists, use it directly
         dateNode = existingDateNode;
       } else {
-        // Create the date page via API
+        // Create the date page in the local-first core store
         if (parsedDate.type === 'day' && parsedDate.month && parsedDate.day) {
           const dateStr = `${parsedDate.year}-${String(parsedDate.month).padStart(2, '0')}-${String(parsedDate.day).padStart(2, '0')}`;
-          dateNode = await getOrCreateDaily(dateStr);
+          dateNode = getOrCreateDailyNote(store, dateStr);
         } else if (parsedDate.type === 'month' && parsedDate.month) {
-          dateNode = await getOrCreateMonthly(parsedDate.year, parsedDate.month);
+          dateNode = getOrCreateMonthlyNote(store, parsedDate.year, parsedDate.month);
         } else {
-          dateNode = await getOrCreateYearly(parsedDate.year);
+          dateNode = getOrCreateYearlyNote(store, parsedDate.year);
         }
-        // Invalidate caches
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
-        queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-        queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
       }
       onSelectDatePage(dateNode.uuid, nodeNameToText(dateNode.name) || parsedDate.label);
     } catch (error) {
       console.error('Failed to create date page from suggestion:', error);
     }
-  }, [parsedDate, onSelectDatePage, queryClient, existingDateNode]);
+  }, [parsedDate, onSelectDatePage, existingDateNode, workspaceUuid]);
   
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {

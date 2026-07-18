@@ -14,10 +14,10 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePageClass } from '@/features/content';
 import { nodeKeys } from '@/hooks/queryKeys';
-import {
-  batchCreateNodes,
-  batchGetOrCreateDaily,
-} from '@/api/nodes';
+import { batchCreateNodes } from '@/api/nodes';
+import { batchGetOrCreateDailyNotes } from '@/features/content/hooks/useNodeDateQueries';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { uploadAsset } from '@/features/assets';
 import {
   countMdBlocks,
@@ -45,6 +45,7 @@ export function useLogseqFolderImporter() {
 
   const queryClient = useQueryClient();
   const { pageClassUuid } = usePageClass();
+  const workspaceUuid = useCurrentWorkspaceUuid();
 
   const reset = useCallback(() => {
     setImporting(false);
@@ -57,6 +58,15 @@ export function useLogseqFolderImporter() {
   const runImport = useCallback(async (folderResult: LogseqFolderResult) => {
     if (!pageClassUuid) {
       setError('Page class not available. Please try again.');
+      return;
+    }
+    if (!workspaceUuid) {
+      setError('Workspace not available. Please try again.');
+      return;
+    }
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) {
+      setError('Workspace store not available. Please try again.');
       return;
     }
 
@@ -90,7 +100,7 @@ export function useLogseqFolderImporter() {
 
         for (let i = 0; i < dates.length; i += BATCH_SIZE) {
           const batch = dates.slice(i, i + BATCH_SIZE);
-          const resp = await batchGetOrCreateDaily(batch);
+          const resp = batchGetOrCreateDailyNotes(store, batch);
           for (const item of resp.results) {
             if (item.success && item.node) {
               const journal = journals.find((j) => j.journalDate === item.date);
@@ -153,7 +163,7 @@ export function useLogseqFolderImporter() {
           const isoDates = [...missingDates.keys()];
           for (let i = 0; i < isoDates.length; i += BATCH_SIZE) {
             const batch = isoDates.slice(i, i + BATCH_SIZE);
-            const resp = await batchGetOrCreateDaily(batch);
+            const resp = batchGetOrCreateDailyNotes(store, batch);
             for (const item of resp.results) {
               if (item.success && item.node) {
                 const info = { nodeUuid: item.node.uuid, uuid: item.node.uuid };
@@ -217,7 +227,7 @@ export function useLogseqFolderImporter() {
     } finally {
       setImporting(false);
     }
-  }, [pageClassUuid, queryClient]);
+  }, [pageClassUuid, queryClient, workspaceUuid]);
 
   return { importing, progress, statusText, error, done, reset, runImport, pageClassUuid };
 }

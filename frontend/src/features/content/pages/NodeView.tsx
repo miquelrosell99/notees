@@ -79,7 +79,9 @@ import { ReferencedNodesProvider } from '@/features/content';
 import type { Asset } from '@/features/assets';
 import { extractImageFromDragEvent } from '@/features/content/hooks/useDragDropImage';
 import { uploadAsset } from '@/features/assets';
-import { getOrCreateDaily } from '@/api/nodes';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 
 import './NodeView.css';
 import { Icon } from '@/components/ui/icons';
@@ -377,6 +379,7 @@ export function NodeView({
   const setPropertyMutation = useSetNodeProperty();
   const createPropertyMutation = useCreateProperty();
   const openNodeAction = useOpenNodeAction();
+  const workspaceUuid = useCurrentWorkspaceUuid();
   // Property popup state
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   // When set, the property popup targets a specific block; otherwise the current node
@@ -386,13 +389,16 @@ export function NodeView({
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return;
     const formatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    if (!workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
     try {
-      const dailyNode = await getOrCreateDaily(formatted);
+      const dailyNode = getOrCreateDailyNote(store, formatted);
       openNode(dailyNode.uuid);
     } catch (error) {
       console.error('Failed to open daily page:', error);
     }
-  }, [openNode]);
+  }, [openNode, workspaceUuid]);
   
   // Resolve page class details from IDs (excluding the implicit "page" class)
   // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable

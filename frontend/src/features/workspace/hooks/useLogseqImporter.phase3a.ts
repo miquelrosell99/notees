@@ -1,9 +1,10 @@
-import { batchCreateNodes, batchGetOrCreateDaily, getNode } from '@/api/nodes';
+import { batchCreateNodes, getNode } from '@/api/nodes';
+import { batchGetOrCreateDailyNotes } from '@/features/content/hooks/useNodeDateQueries';
 import type { PhaseResult, ImportContext } from './useLogseqImporter.types';
 import { errorMessage } from './useLogseqImporter.utils';
 
 export async function runPhase3a(ctx: ImportContext, p3: PhaseResult): Promise<void> {
-  const { parsed, options, override, uuidMap, titleToNodeInfo, existingNodeIds, existingPageMap, regularPageClasses, journalStartSeqs, setImportStatus, tick } = ctx;
+  const { parsed, options, override, uuidMap, titleToNodeInfo, existingNodeIds, existingPageMap, regularPageClasses, journalStartSeqs, setImportStatus, tick, store } = ctx;
 
   const journalPages = parsed.pages.filter(p => p.journal);
   const regularPages = parsed.pages.filter(p => !p.journal);
@@ -22,19 +23,7 @@ export async function runPhase3a(ctx: ImportContext, p3: PhaseResult): Promise<v
       const group = journalChunks.slice(ci, ci + CONCURRENT_PAGES);
       await Promise.allSettled(
         group.map(async (chunk) => {
-          let batchDailyResult: Awaited<ReturnType<typeof batchGetOrCreateDaily>>;
-          try {
-            batchDailyResult = await batchGetOrCreateDaily(chunk.map(p => p.journal!));
-          } catch (e) {
-            for (const page of chunk) {
-              p3.failed++;
-              p3.errors.push({ item: `Journal: ${page.journal}${page.uuid ? ` [${page.uuid}]` : ''}`, message: errorMessage(e) });
-              tick();
-            }
-            journalsDone += chunk.length;
-            setImportStatus(`Creating journal pages… (${journalsDone}/${journalPages.length})`);
-            return;
-          }
+          const batchDailyResult = batchGetOrCreateDailyNotes(store, chunk.map(p => p.journal!));
           for (let i = 0; i < batchDailyResult.results.length; i++) {
             const result = batchDailyResult.results[i];
             const page = chunk[i];

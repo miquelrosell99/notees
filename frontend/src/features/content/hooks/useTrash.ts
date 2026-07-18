@@ -3,7 +3,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
-import { trashKeys, nodeKeys, favoriteKeys, recentKeys } from '@/hooks/queryKeys';
+import { trashKeys, nodeKeys } from '@/hooks/queryKeys';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
 import type { Node, PaginatedResponse } from '@/types/api';
@@ -58,8 +58,6 @@ export function useTrashMutations() {
     mutationFn: nodesApi.emptyTrash,
     onSuccess: () => {
       invalidateTrash(queryClient);
-      queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
-      queryClient.invalidateQueries({ queryKey: recentKeys.all });
     },
   });
 
