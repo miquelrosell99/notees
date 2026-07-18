@@ -15,7 +15,8 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
-import { listNodes } from '@/api/nodes';
+import { listCorePages } from '@/core/query/listPages';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { useNavigationStore } from '@/stores';
@@ -76,7 +77,8 @@ export function PageHeader({
   const { pageClassUuid } = usePageClass();
   const { classClassUuid } = useClassClass();
   const addSidebarCard = useNavigationStore((state) => state.addSidebarCard);
-  
+  const workspaceUuid = useCurrentWorkspaceUuid();
+
   // Icon picker state
   const [showIconPicker, setShowIconPicker] = useState(false);
 
@@ -223,7 +225,7 @@ export function PageHeader({
       if (parsed.parentSegments.length > 0 && parsed.parentSegments[0] === originalName) {
         try {
           // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = await listNodes({ pages_only: true, include_children: true });
+          const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
           // The child hierarchy starts after the original name
           const childSegments = parsed.parentSegments.slice(1);
           
@@ -277,7 +279,7 @@ export function PageHeader({
       if (parsed.leaf === originalName && parsed.parentSegments.length > 0) {
         try {
           // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = await listNodes({ pages_only: true, include_children: true });
+          const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
           
           // Resolve or create parent pages (supports multiple levels)
           const parentUuid = await resolveHierarchicalParentUuid(
@@ -312,7 +314,7 @@ export function PageHeader({
       if (parsed.leaf !== originalName) {
         try {
           // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = await listNodes({ pages_only: true, include_children: true });
+          const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
           
           // Resolve or create parent pages (supports multiple levels)
           const parentUuid = await resolveHierarchicalParentUuid(
