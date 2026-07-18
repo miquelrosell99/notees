@@ -8,8 +8,57 @@ export type { Operation, OperationEnvelope } from './types/operation';
 export { createSchema } from './db/schema';
 export { createDatabase, openWorkspaceDatabase } from './db/connection';
 export { WorkspaceStore } from './store';
+export type { NodeRow } from './store';
 export { SyncEngine } from './sync';
+export type { SyncEngineCallbacks, SyncStatus } from './sync';
 export { MemoryRelay, MemoryTransport } from './transport';
 export type { Transport } from './transport';
 export { deriveKey, encryptEnvelope, decryptEnvelope } from './crypto';
 export type { EncryptedEnvelope } from './crypto';
+
+// Phase 4 D1 local-first hooks, adapter, and persistence
+export {
+  WorkspaceStoreProvider,
+  WorkspaceStoreContext,
+  useWorkspaceStore,
+  useNode,
+  useNodes,
+  useChildren,
+  useCreateNode,
+  useUpdateText,
+  useMoveNode,
+  useDeleteNode,
+  useSync,
+} from './hooks';
+export type {
+  WorkspaceStoreProviderProps,
+  WorkspaceStoreContextValue,
+  UseWorkspaceStoreResult,
+  UseNodeResult,
+  UseNodesResult,
+  UseChildrenResult,
+  CreateNodeArgs,
+  UseCreateNodeResult,
+  UseUpdateTextResult,
+  UseMoveNodeResult,
+  UseDeleteNodeResult,
+  UseSyncResult,
+} from './hooks';
+export {
+  getOrCreateWorkspaceStore,
+  getWorkspaceStore,
+  getWorkspaceSyncEngine,
+  closeWorkspaceStore,
+  syncWorkspace,
+} from './adapters/workspaceStoreAdapter';
+export {
+  saveWorkspaceDatabase,
+  loadWorkspaceDatabase,
+  deleteWorkspaceDatabase,
+} from './persistence/indexedDb';
+export {
+  queueOperation,
+  drainQueuedOperations,
+  clearQueuedOperations,
+} from './persistence/operationQueue';
+export { ENABLE_SQLITE_STORE } from './utils/featureFlags';
