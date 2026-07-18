@@ -146,7 +146,8 @@ class TestSqliteRelayStorage:
 
 
 class TestRelayService:
-    def test_receive_batch_saves_envelopes(self) -> None:
+    @pytest.mark.asyncio
+    async def test_receive_batch_saves_envelopes(self) -> None:
         storage = SqliteRelayStorage()
         service = RelayService(storage, StubPermissionChecker())
         envelope = _envelope(
@@ -156,12 +157,13 @@ class TestRelayService:
             hlc=Hlc(physical=10, logical=0),
         )
 
-        saved = service.receive_batch(BatchRequest(envelopes=[envelope]), "actor-1")
+        saved = await service.receive_batch(BatchRequest(envelopes=[envelope]), "actor-1")
 
         assert [envelope.id for envelope in saved] == ["env-1"]
         assert storage.envelope_exists("env-1") is True
 
-    def test_receive_batch_deduplicates_existing_envelopes(self) -> None:
+    @pytest.mark.asyncio
+    async def test_receive_batch_deduplicates_existing_envelopes(self) -> None:
         storage = SqliteRelayStorage()
         service = RelayService(storage, StubPermissionChecker())
         first = _envelope(
@@ -177,8 +179,8 @@ class TestRelayService:
             hlc=Hlc(physical=10, logical=1),
         )
 
-        service.receive_batch(BatchRequest(envelopes=[first]), "actor-1")
-        saved = service.receive_batch(
+        await service.receive_batch(BatchRequest(envelopes=[first]), "actor-1")
+        saved = await service.receive_batch(
             BatchRequest(envelopes=[first, second]),
             "actor-1",
         )
@@ -186,7 +188,8 @@ class TestRelayService:
         assert [envelope.id for envelope in saved] == ["env-2"]
         assert len(storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))) == 2
 
-    def test_receive_batch_rejects_actor_mismatch(self) -> None:
+    @pytest.mark.asyncio
+    async def test_receive_batch_rejects_actor_mismatch(self) -> None:
         storage = SqliteRelayStorage()
         service = RelayService(storage, StubPermissionChecker())
         envelope = _envelope(
@@ -197,15 +200,16 @@ class TestRelayService:
         )
 
         with pytest.raises(PermissionDeniedError):
-            service.receive_batch(BatchRequest(envelopes=[envelope]), "actor-2")
+            await service.receive_batch(BatchRequest(envelopes=[envelope]), "actor-2")
 
         assert storage.envelope_exists("env-1") is False
 
-    def test_receive_batch_rejects_write_permission_denied(self) -> None:
+    @pytest.mark.asyncio
+    async def test_receive_batch_rejects_write_permission_denied(self) -> None:
         storage = SqliteRelayStorage()
 
         class DenyWriteChecker(StubPermissionChecker):
-            def can_write(
+            async def can_write(
                 self,
                 workspace_id: str,
                 actor_id: str,
@@ -222,11 +226,12 @@ class TestRelayService:
         )
 
         with pytest.raises(PermissionDeniedError):
-            service.receive_batch(BatchRequest(envelopes=[envelope]), "actor-1")
+            await service.receive_batch(BatchRequest(envelopes=[envelope]), "actor-1")
 
         assert storage.envelope_exists("env-1") is False
 
-    def test_catch_up_returns_newer_envelopes(self) -> None:
+    @pytest.mark.asyncio
+    async def test_catch_up_returns_newer_envelopes(self) -> None:
         storage = SqliteRelayStorage()
         service = RelayService(storage, StubPermissionChecker())
         old = _envelope(
@@ -242,22 +247,23 @@ class TestRelayService:
             hlc=Hlc(physical=10, logical=0),
         )
 
-        service.receive_batch(BatchRequest(envelopes=[old, new]), "actor-1")
-        results = service.catch_up("ws-1", "actor-1", Hlc(physical=5, logical=0))
+        await service.receive_batch(BatchRequest(envelopes=[old, new]), "actor-1")
+        results = await service.catch_up("ws-1", "actor-1", Hlc(physical=5, logical=0))
 
         assert [envelope.id for envelope in results] == [new.id]
 
-    def test_catch_up_rejects_read_permission_denied(self) -> None:
+    @pytest.mark.asyncio
+    async def test_catch_up_rejects_read_permission_denied(self) -> None:
         storage = SqliteRelayStorage()
 
         class DenyReadChecker(StubPermissionChecker):
-            def can_read(self, workspace_id: str, actor_id: str) -> bool:
+            async def can_read(self, workspace_id: str, actor_id: str) -> bool:
                 return False
 
         service = RelayService(storage, DenyReadChecker())
 
         with pytest.raises(PermissionDeniedError):
-            service.catch_up("ws-1", "actor-1", Hlc(physical=0, logical=0))
+            await service.catch_up("ws-1", "actor-1", Hlc(physical=0, logical=0))
 
 
 class TestPostgresRelayStorage:

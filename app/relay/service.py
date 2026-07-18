@@ -19,7 +19,7 @@ class RelayService:
         self._storage = storage
         self._permissions = permissions
 
-    def receive_batch(
+    async def receive_batch(
         self,
         batch: BatchRequest,
         actor_id: str,
@@ -42,7 +42,7 @@ class RelayService:
         for envelope in batch.envelopes:
             if envelope.actor_id != actor_id:
                 raise PermissionDeniedError("Envelope actor_id does not match the authenticated actor")
-            if not self._permissions.can_write(
+            if not await self._permissions.can_write(
                 envelope.workspace_id,
                 actor_id,
                 envelope.affected_node_ids,
@@ -54,11 +54,12 @@ class RelayService:
             saved.append(envelope)
         return saved
 
-    def catch_up(
+    async def catch_up(
         self,
         workspace_id: str,
         actor_id: str,
         hlc: Hlc,
+        share_token: str | None = None,
     ) -> list[EncryptedEnvelope]:
         """Return all operations newer than ``hlc`` that ``actor_id`` may read.
 
@@ -66,17 +67,18 @@ class RelayService:
             PermissionDeniedError: If ``actor_id`` is not allowed to read the
                 requested workspace.
         """
-        if not self._permissions.can_read(workspace_id, actor_id):
+        if not await self._may_read(workspace_id, actor_id, share_token):
             raise PermissionDeniedError(f"Read denied for actor {actor_id} in workspace {workspace_id}")
         return self._storage.get_catch_up(workspace_id, hlc)
 
-    def catch_up_paginated(
+    async def catch_up_paginated(
         self,
         workspace_id: str,
         actor_id: str,
         hlc: Hlc,
         limit: int = 1000,
         after_id: str | None = None,
+        share_token: str | None = None,
     ) -> tuple[list[EncryptedEnvelope], str | None]:
         """Return a paginated page of operations newer than ``hlc``.
 
@@ -84,7 +86,7 @@ class RelayService:
             PermissionDeniedError: If ``actor_id`` is not allowed to read the
                 requested workspace.
         """
-        if not self._permissions.can_read(workspace_id, actor_id):
+        if not await self._may_read(workspace_id, actor_id, share_token):
             raise PermissionDeniedError(f"Read denied for actor {actor_id} in workspace {workspace_id}")
         return self._storage.get_catch_up_paginated(
             workspace_id,
@@ -93,10 +95,49 @@ class RelayService:
             after_id=after_id,
         )
 
-    def catch_up_from_request(
+    async def catch_up_from_request(
         self,
         request: CatchUpRequest,
         actor_id: str,
+        share_token: str | None = None,
     ) -> list[EncryptedEnvelope]:
         """Convenience wrapper for :meth:`catch_up` using a request model."""
-        return self.catch_up(request.workspace_id, actor_id, request.hlc)
+        return await self.catch_up(
+            request.workspace_id,
+            actor_id,
+            request.hlc,
+            share_token=share_token,
+        )
+
+    async def can_read_public_share(
+        self,
+        workspace_id: str,
+        share_token: str,
+        node_id: str | None = None,
+    ) -> bool:
+        """Return ``True`` if the share token grants read access to the workspace."""
+        return await self._permissions.can_read_public_share(
+            workspace_id,
+            share_token,
+            node_id=node_id,
+        )
+
+    async def _may_read(
+        self,
+        workspace_id: str,
+        actor_id: str,
+        share_token: str | None = None,
+    ) -> bool:
+        """Return ``True`` if the actor may read the workspace.
+
+        Anonymous actors may read via a valid public-share token; authenticated
+        actors are checked through normal workspace membership.
+        """
+        if actor_id != "anonymous":
+            return await self._permissions.can_read(workspace_id, actor_id)
+        if share_token is not None:
+            return await self._permissions.can_read_public_share(
+                workspace_id,
+                share_token,
+            )
+        return False
