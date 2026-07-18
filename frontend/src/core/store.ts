@@ -6,6 +6,12 @@ import { queryAll, queryOne, transaction } from './db/sqlite';
 import { applyNodeOperation } from './derived/node';
 import { applyChildOrderOperation } from './derived/childOrder';
 import { applyPropertyOperation } from './derived/property';
+import { applyAssetOperation } from './derived/asset';
+import { applyTaskOperation } from './derived/task';
+import { applyActivityOperation } from './derived/activity';
+import { applyLinkOperation } from './derived/link';
+import { applyShareOperation } from './derived/share';
+import { applyPluginOperation } from './derived/plugin';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from './derived/crdtState';
 import { createOperation, type Operation } from './types/operation';
@@ -62,6 +68,12 @@ export class WorkspaceStore {
       applyNodeOperation(db, op);
       applyChildOrderOperation(db, op);
       applyPropertyOperation(db, op);
+      applyAssetOperation(db, op);
+      applyTaskOperation(db, op);
+      applyActivityOperation(db, op);
+      applyLinkOperation(db, op);
+      applyShareOperation(db, op);
+      applyPluginOperation(db, op);
       const payload = op.payload as Record<string, unknown>;
       if (payload?.nodeId) {
         rebuildEdgesForNode(db, payload.nodeId as string);

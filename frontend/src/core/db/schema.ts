@@ -120,5 +120,96 @@ export function createSchema(db: Database): void {
       hlc_physical INTEGER NOT NULL,
       hlc_logical INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS node_asset (
+      node_id TEXT NOT NULL,
+      asset_hash TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL DEFAULT 0,
+      original_name TEXT NOT NULL DEFAULT '',
+      uploaded_at TEXT,
+      PRIMARY KEY (node_id, asset_hash)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_node_asset_hash
+    ON node_asset (asset_hash);
+
+    CREATE TABLE IF NOT EXISTS task_completion (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL,
+      completed_at TEXT,
+      actor_id TEXT,
+      created_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_task_completion_node
+    ON task_completion (node_id);
+
+    CREATE TABLE IF NOT EXISTS task_recurrence (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL,
+      rule TEXT NOT NULL,
+      actor_id TEXT,
+      created_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_task_recurrence_node
+    ON task_recurrence (node_id);
+
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      op_id TEXT NOT NULL UNIQUE,
+      node_id TEXT,
+      op_type TEXT,
+      metadata TEXT,
+      recorded_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_activity_log_node
+    ON activity_log (node_id);
+
+    CREATE INDEX IF NOT EXISTS idx_activity_log_workspace_recorded
+    ON activity_log (workspace_id, recorded_at);
+
+    CREATE TABLE IF NOT EXISTS link_click (
+      node_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      click_count INTEGER NOT NULL DEFAULT 0,
+      last_clicked_at TEXT,
+      PRIMARY KEY (node_id, target_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS node_public_share (
+      node_id TEXT PRIMARY KEY,
+      slug TEXT,
+      password_hash TEXT,
+      created_at TEXT,
+      created_by TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS node_user_share (
+      node_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT,
+      created_by TEXT,
+      PRIMARY KEY (node_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS plugin_op_log (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      op_id TEXT NOT NULL UNIQUE,
+      plugin_id TEXT NOT NULL,
+      op_type TEXT,
+      data TEXT,
+      actor_id TEXT,
+      recorded_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plugin_op_log_plugin
+    ON plugin_op_log (plugin_id);
   `);
 }
