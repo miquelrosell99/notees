@@ -43,45 +43,17 @@ Rewrite each backend island to operate on the core/relay stack instead of the le
 - `app/core/workspace_store.py` provides a server-side `(workspace_id, actor_id)` store that encrypts operations, writes them to the relay, and applies them to a local SQLite derived-state database.
 - `get_workspace_store` dependency in `app/features/activity/dependencies.py` resolves the current user's workspace UUID and yields a `WorkspaceStore`.
 
-**Completed island:**
-- **Activity** (`app/features/activity/`): router rewritten to read from `WorkspaceStore` derived state; request/response shapes now use UUIDs instead of internal integer IDs. `DELETE /node/{uuid}/{activity_uuid}` and `POST /link/reset/...` only remove the derived row; because the operation log is append-only, a subsequent `sync()` can recreate the row. These endpoints are candidates for removal or replacement with explicit inverse operations in a later cleanup phase.
+**Completed islands:**
+- **Activity** (`app/features/activity/`): router rewritten to read from `WorkspaceStore` derived state; UUID-based request/response shapes.
+- **Assets** (`app/features/assets/`): content-addressed file storage, `asset.upload/delete` operations, UUID-based API.
+- **Tasks** (`app/features/tasks/`): recurrence/completion endpoints emit task operations and read from derived SQLite tables.
+- **Import** (`app/features/import_/`): Markdown import generates `node.create`, `property.set`, `class.assign`, and `node.updateContent` operations.
+- **Shares** (`app/features/shares/`): public/user share operations drive derived share tables; membership metadata remains in PostgreSQL.
+- **Plugins** (`app/plugins/core/`): `PluginContext` uses `WorkspaceStore`; built-in importers/sync plugins updated.
+- **Collab / Yjs** (`app/features/collab/`): Yjs text updates emit `node.updateContent`; server rooms broadcast operations over the relay WebSocket.
+- **Undo** (`app/features/undo/`): server undo endpoint returns `410 Gone`; undo becomes client-side inverse operations.
 
-**Remaining islands:**
-
-1. **Assets** (`app/features/assets`):
-   - Upload endpoint stores file bytes content-addressed (keep `AssetFileService`).
-   - Creates an asset node via the operation log instead of `NodeRepository`.
-   - Download endpoint resolves the asset node and reads the content-addressed file.
-   - Remove dependency on `app/features/nodes/port.py`.
-
-2. **Tasks** (`app/features/tasks/`):
-   - Status change endpoint issues `property.set` operations.
-   - Recurrence/completion logic becomes a derived-state listener or a core service that reads the SQLite derived store.
-   - Completion history table is populated by the activity/task applier.
-
-3. **Import** (`app/features/import_/`):
-   - Runtime Markdown import parses frontmatter and body, generates operations, and writes them to the relay via the local core store or directly to the relay SQLite.
-   - Remove dependency on `NodeService`/`PropertyService`.
-
-4. **Shares** (`app/features/shares/`):
-   - Keep PostgreSQL share tables for metadata.
-   - Public-share generation renders static HTML from the derived SQLite state (client-side or server-side) and stores it in `data/share_static/`.
-   - Integrate share checks into `app/relay/permissions_postgres.py`.
-
-5. **Activity** (`app/features/activity/`):
-   - Replace the activity repository with the derived activity applier.
-   - Activity router reads from the derived SQLite store (or from the relay SQLite file on the server).
-
-6. **Undo** (`app/features/undo/`):
-   - Server undo endpoint is deprecated; undo becomes a client-side inverse-operation generator.
-
-7. **Plugins** (`app/plugins/core/`):
-   - Bootstrap registers derived-state handlers instead of legacy service ports.
-   - Context helpers read from the core store.
-
-8. **Collab / Yjs** (`app/features/collab/`):
-   - Replace the direct PostgreSQL/Yjs state path with operation-log integration.
-   - Server-side Yjs rooms become lightweight operation broadcasters over the relay WebSocket.
+**Verification:** `uv run pytest tests/core tests/unit -m unit --no-cov` → 391 passed, 3 skipped.
 
 ### G3 — Port Frontend Runtime and Query Helpers
 
