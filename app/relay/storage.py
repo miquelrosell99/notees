@@ -130,6 +130,39 @@ class SqliteRelayStorage(RelayStorage):
         )
         self._connection.commit()
 
+    def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> None:
+        """Persist many envelopes in a single transaction.
+
+        This is much faster than calling :meth:`save_envelope` in a loop for
+        bulk seeding/migration, where thousands of individual commits would
+        otherwise fsync the WAL on every insert.
+        """
+        rows = [
+            (
+                envelope.id,
+                envelope.workspace_id,
+                envelope.actor_id,
+                envelope.hlc.physical,
+                envelope.hlc.logical,
+                json.dumps(envelope.affected_node_ids),
+                envelope.op_type,
+                envelope.ciphertext,
+                envelope.iv,
+                envelope.timestamp.isoformat() if envelope.timestamp else None,
+            )
+            for envelope in envelopes
+        ]
+        self._connection.executemany(
+            """
+            INSERT OR IGNORE INTO relay_envelope (
+                id, workspace_id, actor_id, physical, logical,
+                affected_node_ids, op_type, ciphertext, iv, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
+        self._connection.commit()
+
     def get_catch_up(self, workspace_id: str, hlc: Hlc) -> list[EncryptedEnvelope]:
         cursor = self._connection.execute(
             """
