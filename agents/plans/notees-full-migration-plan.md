@@ -303,7 +303,7 @@ Alternatives considered and rejected:
 
 **Subagent breakdown:**
 - Subagent E1: Relay HTTP/WebSocket endpoints. ✅ Done (`7016e8f2`).
-- Subagent E2: Permission + share integration.
+- Subagent E2: Permission + share integration. ✅ Done (`62dfb08a`).
 - Subagent E3: Key management + encryption.
 - Subagent E4: Conformance and load tests.
 
