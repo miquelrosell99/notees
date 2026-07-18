@@ -39,7 +39,16 @@ Add the operation types and derived-state appliers needed by the remaining islan
 
 Rewrite each backend island to operate on the core/relay stack instead of the legacy nodes/properties services.
 
-1. **Assets** (`app/features/assets/`):
+**Foundation (done):**
+- `app/core/workspace_store.py` provides a server-side `(workspace_id, actor_id)` store that encrypts operations, writes them to the relay, and applies them to a local SQLite derived-state database.
+- `get_workspace_store` dependency in `app/features/activity/dependencies.py` resolves the current user's workspace UUID and yields a `WorkspaceStore`.
+
+**Completed island:**
+- **Activity** (`app/features/activity/`): router rewritten to read from `WorkspaceStore` derived state; request/response shapes now use UUIDs instead of internal integer IDs. `DELETE /node/{uuid}/{activity_uuid}` and `POST /link/reset/...` only remove the derived row; because the operation log is append-only, a subsequent `sync()` can recreate the row. These endpoints are candidates for removal or replacement with explicit inverse operations in a later cleanup phase.
+
+**Remaining islands:**
+
+1. **Assets** (`app/features/assets`):
    - Upload endpoint stores file bytes content-addressed (keep `AssetFileService`).
    - Creates an asset node via the operation log instead of `NodeRepository`.
    - Download endpoint resolves the asset node and reads the content-addressed file.
