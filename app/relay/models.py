@@ -51,10 +51,12 @@ class BatchRequest(BaseModel):
 
 
 class CatchUpRequest(BaseModel):
-    """Request all operations for a workspace newer than the given HLC."""
+    """Request operations for a workspace newer than the given HLC."""
 
     workspace_id: str
     hlc: Hlc
+    limit: int = 1000
+    after_id: str | None = None
 
     @field_validator("hlc", mode="before")
     @classmethod
@@ -69,3 +71,11 @@ class CatchUpResponse(BaseModel):
     """A list of encrypted operation envelopes for catch-up sync."""
 
     envelopes: list[EncryptedEnvelope]
+
+
+class CatchUpPaginatedResponse(BaseModel):
+    """A paginated page of encrypted operation envelopes for catch-up sync."""
+
+    envelopes: list[EncryptedEnvelope]
+    next_after_id: str | None = None
+    has_more: bool = False
