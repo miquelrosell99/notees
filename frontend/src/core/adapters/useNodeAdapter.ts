@@ -1,12 +1,10 @@
 import { useContext, useEffect, useState } from 'react';
 import { useNavigate, useParams, type NavigateOptions } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { useNodeLegacy } from '@/features/content/hooks/useNodeBasicQueries';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
 import { projectNode } from './nodeProjection';
-import { ENABLE_SQLITE_STORE } from '../utils/featureFlags';
 
 const NOT_FOUND_REDIRECT_DELAY_MS = 100;
 
@@ -19,16 +17,17 @@ export interface UseNodeAdapterOptions {
 }
 
 /**
- * Adapter hook that reads a single node from the SQLite store when
- * ENABLE_SQLITE_STORE is on, otherwise delegates to the legacy hook.
+ * Adapter hook that reads a single node from the SQLite core store.
+ *
+ * Mirrors the legacy 404 behaviour: if the node disappears or is not found,
+ * navigate away from it after a short delay.
  */
 export function useNodeAdapter(
   id: string | null,
-  options?: UseNodeAdapterOptions
+  _options?: UseNodeAdapterOptions
 ): UseQueryResult<Node, Error> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const navigate = useNavigate();
-  const legacyResult = useNodeLegacy(id, options);
 
   const ctx = useContext(WorkspaceStoreContext);
   const [data, setData] = useState<Node | undefined>(undefined);
@@ -36,7 +35,7 @@ export function useNodeAdapter(
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!ENABLE_SQLITE_STORE || !ctx || !workspaceId || !id) {
+    if (!ctx || !workspaceId || !id) {
       setData(undefined);
       setIsLoading(false);
       setError(null);
@@ -72,10 +71,7 @@ export function useNodeAdapter(
     };
   }, [ctx, workspaceId, id]);
 
-  // Mirror the legacy 404 behaviour: if the node disappears or is not found,
-  // navigate away from it after a short delay.
   useEffect(() => {
-    if (!ENABLE_SQLITE_STORE) return;
     if (!isLoading && data === undefined && id) {
       const timer = setTimeout(() => {
         void import('@/stores').then(({ useNavigationStore }) => {
@@ -92,10 +88,6 @@ export function useNodeAdapter(
       return () => clearTimeout(timer);
     }
   }, [isLoading, data, id, navigate, workspaceId]);
-
-  if (!ENABLE_SQLITE_STORE) {
-    return legacyResult as UseQueryResult<Node, Error>;
-  }
 
   const isPending = isLoading;
   const isSuccess = !isLoading && !error && data !== undefined;
