@@ -26,9 +26,6 @@ const ExportPageModalLazy = lazy(() =>
 const ImportDataModalLazy = lazy(() =>
   import('./ImportDataModal').then((m) => ({ default: m.ImportDataModal }))
 );
-const ImportLogseqModalLazy = lazy(() =>
-  import('./ImportLogseqModal').then((m) => ({ default: m.ImportLogseqModal }))
-);
 const ImportMarkdownModalLazy = lazy(() =>
   import('./ImportMarkdownModal').then((m) => ({ default: m.ImportMarkdownModal }))
 );
@@ -44,7 +41,6 @@ const WorkspaceExportModalLazy = lazy(() =>
 
 export const ExportPageModal = withSuspense(ExportPageModalLazy);
 export const ImportDataModal = withSuspense(ImportDataModalLazy);
-export const ImportLogseqModal = withSuspense(ImportLogseqModalLazy);
 export const ImportMarkdownModal = withSuspense(ImportMarkdownModalLazy);
 export const ImportOptionsModal = withSuspense(ImportOptionsModalLazy);
 export const AutoExportProgressModal = withSuspense(AutoExportProgressModalLazy);

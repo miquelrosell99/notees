@@ -1,8 +1,8 @@
 /**
  * TaskProgress — Reusable progress bar with status text.
  *
- * Used by ImportOptionsModal, ImportLogseqModal, and any future task
- * that needs to show a progress indicator inside a modal body.
+ * Used by ImportOptionsModal and any future task that needs to show a
+ * progress indicator inside a modal body.
  */
 import './TaskProgress.css';
 
