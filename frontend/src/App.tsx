@@ -26,9 +26,6 @@ import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { useUndoStore, useAuthStore } from './stores';
 import { useInputContext } from './stores/inputContext';
-import { SyncManagerV2 } from '@/features/sync/SyncManagerV2';
-import { LocalIndexManager } from '@/features/sync/components/LocalIndexManager';
-import { QueryLiveUpdater } from '@/features/sync/components/QueryLiveUpdater';
 import { useBackendHealth } from './hooks/useBackendHealth';
 import { useBackgroundSync } from './hooks/useBackgroundSync';
 import { useWorkspaces } from '@/features/workspace';
@@ -45,8 +42,6 @@ import {
 } from '@/core/adapters/workspaceStoreAdapter';
 import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
 import './App.css';
-
-const ENABLE_SQLITE_STORE = import.meta.env.VITE_ENABLE_SQLITE_STORE === 'true';
 
 const log = getLogger('App');
 
@@ -159,18 +154,7 @@ function App() {
         Skip to main content
       </a>
       <EncryptedPersistProvider>
-        {ENABLE_SQLITE_STORE ? (
-          <WorkspaceStoreInitializer>
-            <AppProviders>
-              <BrowserRouter>
-                <ErrorBoundary context="App">
-                  <AppContent />
-                </ErrorBoundary>
-              </BrowserRouter>
-              <ConnectedNotificationToast />
-            </AppProviders>
-          </WorkspaceStoreInitializer>
-        ) : (
+        <WorkspaceStoreInitializer>
           <AppProviders>
             <BrowserRouter>
               <ErrorBoundary context="App">
@@ -179,7 +163,7 @@ function App() {
             </BrowserRouter>
             <ConnectedNotificationToast />
           </AppProviders>
-        )}
+        </WorkspaceStoreInitializer>
       </EncryptedPersistProvider>
       <BackendUnavailableOverlay />
     </>
@@ -396,8 +380,6 @@ function useUnwrappedWorkspaceKey(
 /**
  * Initialize the local-first workspace store for the active workspace and
  * provide it (plus the crypto key and transport) to the rest of the app.
- *
- * Only rendered when ENABLE_SQLITE_STORE is true.
  */
 function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -476,9 +458,6 @@ function AppProviders({ children }: { children: React.ReactNode }) {
         <AuthSyncListener />
         <GlobalKeyboardHandler />
         <CommandRegistrations />
-        <SyncManagerV2 />
-        <LocalIndexManager />
-        <QueryLiveUpdater />
         {children}
       </DndProvider>
     </KeyboardShortcutsProvider>

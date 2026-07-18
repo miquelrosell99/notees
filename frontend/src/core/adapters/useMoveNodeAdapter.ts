@@ -1,16 +1,13 @@
 import { useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
-import { useMoveNodeLegacy } from '@/features/content/hooks/useMoveNode';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
 import { projectNode } from './nodeProjection';
-import { ENABLE_SQLITE_STORE } from '../utils/featureFlags';
 
 /**
- * Adapter hook that moves a node in the SQLite store when ENABLE_SQLITE_STORE
- * is on, otherwise delegates to the legacy hook.
+ * Adapter hook that moves a node in the SQLite store.
  *
  * Position is out of scope for the prototype: the node is always appended to
  * the end of the target parent's children.
@@ -22,9 +19,8 @@ export function useMoveNodeAdapter(): UseMutationResult<
 > {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const ctx = useContext(WorkspaceStoreContext);
-  const legacyResult = useMoveNodeLegacy();
 
-  const sqliteResult = useMutation<
+  return useMutation<
     Node,
     Error,
     { nodeUuid: string; parentId: string | null; position?: number }
@@ -57,13 +53,4 @@ export function useMoveNodeAdapter(): UseMutationResult<
       return projected;
     },
   });
-
-  if (!ENABLE_SQLITE_STORE) {
-    return legacyResult as UseMutationResult<
-      Node,
-      Error,
-      { nodeUuid: string; parentId: string | null; position?: number }
-    >;
-  }
-  return sqliteResult;
 }

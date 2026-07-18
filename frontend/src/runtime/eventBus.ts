@@ -12,7 +12,6 @@ import { getOperationRuntime } from './runtimeInstance';
 import type { GraphNode, MutationIntent, RuntimeEvent, RuntimeEventHandler } from './types';
 import type { CoreNode } from './operation';
 import { applyIntent as applyIntentOperations } from '@/sync/intents';
-import { localSyncEngine } from '@/features/sync/engine/localSyncEngine';
 import { graphNodeToCoreNode } from './nodeMapping';
 
 // ─── Global singleton ─────────────────────────────────────────────
@@ -85,19 +84,11 @@ export class RuntimeEventBus {
       const operations = applyIntentOperations(this.runtime, intent);
       if (operations.length === 0) return;
 
-      if (isStructuralIntent(intent)) {
-        // Structural ops: persist before applying so a crash cannot lose the
-        // operation after the UI has already updated.
-        await localSyncEngine.prepareStructuralOperations(operations);
-        for (const operation of operations) {
-          this.runtime.applyOperation(operation);
-        }
-      } else {
-        // Text/content ops: apply immediately for responsive typing, then stage.
-        for (const operation of operations) {
-          this.runtime.applyOperation(operation);
-        }
-        localSyncEngine.stageOperationsFireAndForget(operations);
+      // Text/content ops and structural ops both apply immediately to the
+      // runtime projection. Persistence is handled by the SQLite core sync
+      // engine; the legacy v2 local sync engine has been removed.
+      for (const operation of operations) {
+        this.runtime.applyOperation(operation);
       }
     });
   }
@@ -359,18 +350,6 @@ export async function applyRuntimeIntent(
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
-
-function isStructuralIntent(intent: MutationIntent): boolean {
-  switch (intent.type) {
-    case 'update_content':
-      return false;
-    case 'batch':
-      // A batch is structural unless every sub-intent is a content update.
-      return intent.intents.some(isStructuralIntent);
-    default:
-      return true;
-  }
-}
 
 function coreNodeContentChanged(a: CoreNode, b: CoreNode): boolean {
   return (

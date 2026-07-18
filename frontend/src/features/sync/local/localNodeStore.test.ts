@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { del } from 'idb-keyval';
 import {
   addOrUpdateNode,
   addOrUpdateNodes,
@@ -35,8 +36,9 @@ function makeNode(uuid: string, name: string, overrides: Partial<Node> = {}): No
 }
 
 describe('localNodeStore', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     _resetMemoryStore();
+    await del(`notees:nodes:${WORKSPACE}`);
   });
 
   it('stores and retrieves a single node', async () => {

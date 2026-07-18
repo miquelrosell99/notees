@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { webcrypto } from 'node:crypto';
@@ -9,9 +9,6 @@ import { useWorkspaceStore } from '../../hooks/useWorkspaceStore';
 import { deriveKey } from '../../crypto';
 import { MemoryRelay, MemoryTransport } from '../../transport';
 import { uuidv7 } from '../../uuid';
-import * as propertiesApi from '@/api/properties';
-import * as nodesApi from '@/api/nodes';
-import type { Property } from '@/types/api';
 import {
   usePropertiesAdapter,
   usePropertyAdapter,
@@ -19,12 +16,8 @@ import {
   useSetNodePropertyAdapter,
 } from '@/core/adapters';
 
-let mockEnableSqliteStore = false;
-
 vi.mock('@/core/utils/featureFlags', () => ({
-  get ENABLE_SQLITE_STORE() {
-    return mockEnableSqliteStore;
-  },
+  ENABLE_SQLITE_STORE: true,
 }));
 
 async function createProviderProps() {
@@ -61,15 +54,6 @@ function sqliteWrapper(props: { actorId: string; key: CryptoKey; transport: Memo
   };
 }
 
-function legacyWrapper({ children }: { children: ReactNode }) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return (
-    <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/ws-test']}>{children}</MemoryRouter>
-    </QueryClientProvider>
-  );
-}
-
 describe('propertyAdapter', () => {
   beforeAll(() => {
     if (!globalThis.crypto?.subtle) {
@@ -79,172 +63,122 @@ describe('propertyAdapter', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-    mockEnableSqliteStore = false;
   });
 
-  describe('when ENABLE_SQLITE_STORE is true', () => {
-    beforeEach(() => {
-      mockEnableSqliteStore = true;
+  it('usePropertiesAdapter derives schemas from property_value rows', async () => {
+    const props = await createProviderProps();
+    const Wrapper = sqliteWrapper(props);
+    const nodeId = uuidv7();
+    const schemaId = uuidv7();
+
+    const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(storeResult.current.store).toBeDefined());
+    const store = storeResult.current.store!;
+
+    act(() => {
+      store.createNode({ nodeId, kind: 'page', parentId: null });
+      store.setProperty({
+        propertyValueId: uuidv7(),
+        nodeId,
+        schemaId,
+        value: 'sqlite value',
+      });
     });
 
-    it('usePropertiesAdapter derives schemas from property_value rows', async () => {
-      const props = await createProviderProps();
-      const Wrapper = sqliteWrapper(props);
-      const nodeId = uuidv7();
-      const schemaId = uuidv7();
-
-      const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
-        wrapper: Wrapper,
-      });
-      await waitFor(() => expect(storeResult.current.store).toBeDefined());
-      const store = storeResult.current.store!;
-
-      act(() => {
-        store.createNode({ nodeId, kind: 'page', parentId: null });
-        store.setProperty({
-          propertyValueId: uuidv7(),
-          nodeId,
-          schemaId,
-          value: 'sqlite value',
-        });
-      });
-
-      const { result } = renderHook(() => usePropertiesAdapter(), { wrapper: Wrapper });
-      await waitFor(() =>
-        expect(result.current.data?.some((s) => s.uuid === schemaId)).toBe(true)
-      );
-    });
-
-    it('usePropertyAdapter returns a derived schema by UUID', async () => {
-      const props = await createProviderProps();
-      const Wrapper = sqliteWrapper(props);
-      const nodeId = uuidv7();
-      const schemaId = uuidv7();
-
-      const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
-        wrapper: Wrapper,
-      });
-      await waitFor(() => expect(storeResult.current.store).toBeDefined());
-      const store = storeResult.current.store!;
-
-      act(() => {
-        store.createNode({ nodeId, kind: 'page', parentId: null });
-        store.setProperty({
-          propertyValueId: uuidv7(),
-          nodeId,
-          schemaId,
-          value: 'x',
-        });
-      });
-
-      const { result } = renderHook(() => usePropertyAdapter(schemaId), { wrapper: Wrapper });
-      await waitFor(() => expect(result.current.data).toBeDefined());
-      expect(result.current.data!.uuid).toBe(schemaId);
-    });
-
-    it('useBatchPropertyValuesAdapter returns property values for nodes', async () => {
-      const props = await createProviderProps();
-      const Wrapper = sqliteWrapper(props);
-      const nodeId = uuidv7();
-      const schemaId = uuidv7();
-
-      const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
-        wrapper: Wrapper,
-      });
-      await waitFor(() => expect(storeResult.current.store).toBeDefined());
-      const store = storeResult.current.store!;
-
-      act(() => {
-        store.createNode({ nodeId, kind: 'page', parentId: null });
-        store.setProperty({
-          propertyValueId: uuidv7(),
-          nodeId,
-          schemaId,
-          value: 'batch value',
-        });
-      });
-
-      const { result } = renderHook(() => useBatchPropertyValuesAdapter([nodeId]), {
-        wrapper: Wrapper,
-      });
-      await waitFor(() =>
-        expect(result.current.data?.[nodeId]?.[schemaId]).toBe('batch value')
-      );
-    });
-
-    it('useSetNodePropertyAdapter writes a value through the SQLite store', async () => {
-      const props = await createProviderProps();
-      const Wrapper = sqliteWrapper(props);
-      const nodeId = uuidv7();
-      const schemaId = uuidv7();
-
-      const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
-        wrapper: Wrapper,
-      });
-      await waitFor(() => expect(storeResult.current.store).toBeDefined());
-      const store = storeResult.current.store!;
-
-      act(() => {
-        store.createNode({ nodeId, kind: 'page', parentId: null });
-      });
-
-      const { result } = renderHook(() => useSetNodePropertyAdapter(), { wrapper: Wrapper });
-      await waitFor(() => expect(result.current.isPending).toBe(false));
-
-      await act(async () => {
-        await result.current.mutateAsync({
-          nodeUuid: nodeId,
-          propertyId: schemaId,
-          value: 'adapter value',
-        });
-      });
-
-      const row = store.getProperty({ nodeId, schemaId });
-      expect(row).toBeDefined();
-      expect(JSON.parse(row!.value)).toBe('adapter value');
-    });
+    const { result } = renderHook(() => usePropertiesAdapter(), { wrapper: Wrapper });
+    await waitFor(() =>
+      expect(result.current.data?.some((s) => s.uuid === schemaId)).toBe(true)
+    );
   });
 
-  describe('when ENABLE_SQLITE_STORE is false', () => {
-    it('usePropertiesAdapter delegates to the legacy hook', async () => {
-      mockEnableSqliteStore = false;
-      const property: Property = {
-        uuid: 'legacy-prop-uuid',
-        name: 'Legacy Property',
-        icon: null,
-        type: 'text',
-        multi: false,
-        is_system: false,
-        scope: 'global',
-        node_uuid: null,
-        icon_visibility: 'hidden',
-        validation_rules: null,
-        required: false,
-        readonly: false,
-        hide_when_empty: false,
-        default_value: null,
-        create_date: new Date().toISOString(),
-        write_date: new Date().toISOString(),
-        class_filter_uuids: [],
-        options: [],
-      };
-      vi.spyOn(propertiesApi, 'listProperties').mockResolvedValue([property]);
+  it('usePropertyAdapter returns a derived schema by UUID', async () => {
+    const props = await createProviderProps();
+    const Wrapper = sqliteWrapper(props);
+    const nodeId = uuidv7();
+    const schemaId = uuidv7();
 
-      const { result } = renderHook(() => usePropertiesAdapter(), { wrapper: legacyWrapper });
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-      expect(result.current.data).toEqual([property]);
+    const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
+      wrapper: Wrapper,
     });
+    await waitFor(() => expect(storeResult.current.store).toBeDefined());
+    const store = storeResult.current.store!;
 
-    it('useBatchPropertyValuesAdapter delegates to the legacy hook', async () => {
-      mockEnableSqliteStore = false;
-      const batchResult = { 'node-a': { 'prop-a': 'value-a' } };
-      vi.spyOn(nodesApi, 'batchGetPropertyValues').mockResolvedValue(batchResult);
-
-      const { result } = renderHook(() => useBatchPropertyValuesAdapter(['node-a']), {
-        wrapper: legacyWrapper,
+    act(() => {
+      store.createNode({ nodeId, kind: 'page', parentId: null });
+      store.setProperty({
+        propertyValueId: uuidv7(),
+        nodeId,
+        schemaId,
+        value: 'x',
       });
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-      expect(result.current.data).toEqual(batchResult);
     });
+
+    const { result } = renderHook(() => usePropertyAdapter(schemaId), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data!.uuid).toBe(schemaId);
+  });
+
+  it('useBatchPropertyValuesAdapter returns property values for nodes', async () => {
+    const props = await createProviderProps();
+    const Wrapper = sqliteWrapper(props);
+    const nodeId = uuidv7();
+    const schemaId = uuidv7();
+
+    const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(storeResult.current.store).toBeDefined());
+    const store = storeResult.current.store!;
+
+    act(() => {
+      store.createNode({ nodeId, kind: 'page', parentId: null });
+      store.setProperty({
+        propertyValueId: uuidv7(),
+        nodeId,
+        schemaId,
+        value: 'batch value',
+      });
+    });
+
+    const { result } = renderHook(() => useBatchPropertyValuesAdapter([nodeId]), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() =>
+      expect(result.current.data?.[nodeId]?.[schemaId]).toBe('batch value')
+    );
+  });
+
+  it('useSetNodePropertyAdapter writes a value through the SQLite store', async () => {
+    const props = await createProviderProps();
+    const Wrapper = sqliteWrapper(props);
+    const nodeId = uuidv7();
+    const schemaId = uuidv7();
+
+    const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => expect(storeResult.current.store).toBeDefined());
+    const store = storeResult.current.store!;
+
+    act(() => {
+      store.createNode({ nodeId, kind: 'page', parentId: null });
+    });
+
+    const { result } = renderHook(() => useSetNodePropertyAdapter(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        nodeUuid: nodeId,
+        propertyId: schemaId,
+        value: 'adapter value',
+      });
+    });
+
+    const row = store.getProperty({ nodeId, schemaId });
+    expect(row).toBeDefined();
+    expect(JSON.parse(row!.value)).toBe('adapter value');
   });
 });

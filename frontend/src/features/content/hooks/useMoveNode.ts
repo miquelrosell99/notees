@@ -1,72 +1,14 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Node } from '@/types/api';
-import { nodeKeys } from '@/hooks/queryKeys';
-import { getOperationRuntime } from '@/runtime';
-import {
-  findNodeInCache,
-  ensureNodeInRuntime,
-  applyNodeIntent,
-} from './useNodeMutations.utils';
-import { waitForOperationAck } from '@/sync/waitForOperation';
-import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
+/**
+ * useMoveNode
+ *
+ * TanStack Query mutation hook for moving nodes.
+ *
+ * The SQLite core path is now the default implementation. This file re-exports
+ * the core adapter for backwards compatibility with existing callers.
+ */
+
 import { useMoveNodeAdapter } from '@/core/adapters';
 
-/**
- * Hook to move a node.
- *
- * The optimistic update is handled by OperationRuntime. SyncManager dispatches
- * the API call and writes the result back to the cache.
- */
-export function useMoveNodeLegacy() {
-  const queryClient = useQueryClient();
-
-  return useMutation<Node | null, Error, { nodeUuid: string; parentId: string | null; position?: number }>({
-    mutationFn: async ({ nodeUuid, parentId, position }) => {
-      const blockId = ensureNodeInRuntime(nodeUuid);
-      if (!blockId) {
-        throw new Error(`Node ${nodeUuid} is not available in the runtime`);
-      }
-
-      // Resolve the runtime parent block id and the sibling to insert after.
-      const runtime = getOperationRuntime();
-      let parentBlockId: string | null = null;
-      if (parentId) {
-        parentBlockId = ensureNodeInRuntime(parentId);
-        if (!parentBlockId) {
-          throw new Error(`Parent ${parentId} is not available in the runtime`);
-        }
-      }
-      const siblings = parentBlockId ? runtime.getChildren(parentBlockId) : [];
-      const afterIndex = position != null ? position - 1 : -1;
-      const afterBlockId =
-        afterIndex >= 0 && afterIndex < siblings.length ? siblings[afterIndex].blockId : null;
-
-      const operationId = await applyNodeIntent({
-        type: 'move_node',
-        blockId,
-        parentId: parentBlockId,
-        afterBlockId,
-      });
-      await waitForOperationAck(operationId);
-      return findNodeInCache(queryClient, nodeUuid);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.details(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.uuids(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allPropertyBacklinks() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pages(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.searchAll(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbsAll(), refetchType: 'none' });
-    },
-  });
-}
-
 export function useMoveNode() {
-  const legacyResult = useMoveNodeLegacy();
-  const sqliteResult = useMoveNodeAdapter();
-
-  return ENABLE_SQLITE_STORE ? sqliteResult : legacyResult;
+  return useMoveNodeAdapter();
 }

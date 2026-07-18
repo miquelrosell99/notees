@@ -1,24 +1,20 @@
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { useCreateNodeLegacy } from '@/features/content/hooks/useCreateNode';
+import { useContext } from 'react';
 import type { Node, NodeCreate } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
 import { projectNode } from './nodeProjection';
-import { ENABLE_SQLITE_STORE } from '../utils/featureFlags';
 import { uuidv7 } from '../uuid';
-import { useContext } from 'react';
 
 /**
- * Adapter hook that creates a node in the SQLite store when ENABLE_SQLITE_STORE
- * is on, otherwise delegates to the legacy hook.
+ * Adapter hook that creates a node in the SQLite store.
  */
 export function useCreateNodeAdapter(): UseMutationResult<Node, Error, NodeCreate> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const ctx = useContext(WorkspaceStoreContext);
-  const legacyResult = useCreateNodeLegacy();
 
-  const sqliteResult = useMutation<Node, Error, NodeCreate>({
+  return useMutation<Node, Error, NodeCreate>({
     mutationFn: async (data) => {
       if (!ctx || !workspaceId) {
         throw new Error('Workspace not available for SQLite create');
@@ -58,9 +54,4 @@ export function useCreateNodeAdapter(): UseMutationResult<Node, Error, NodeCreat
       return projected;
     },
   });
-
-  if (!ENABLE_SQLITE_STORE) {
-    return legacyResult as UseMutationResult<Node, Error, NodeCreate>;
-  }
-  return sqliteResult;
 }
