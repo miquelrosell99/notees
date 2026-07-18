@@ -30,8 +30,6 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 
-import { apiNodesToGraphNodes } from '@/features/content';
-
 import type { Node } from '@/types';
 import type { NodeKanbanViewProps } from '@/types/nodeCollection';
 
@@ -47,7 +45,6 @@ import { useInView } from '@/hooks/useInView';
 import './KanbanView.css';
 
 import { registerView } from './registry';
-import { upsertNodes } from '@/runtime/eventBus';
 
 
 /** Lazy wrapper around NodeCard that only mounts the expensive BlockEditor when visible */
@@ -254,25 +251,6 @@ export const KanbanView = memo(function KanbanView({
   groupByProperty,
   showBreadcrumbs = false,
 }: NodeKanbanViewProps): JSX.Element {
-  // ─── Persist collapse state to database ─────────────────────
-
-
-  // ─── Sync nodes to runtime ──────────────────────────────────
-  useMemo(() => {
-    if (!nodes || nodes.length === 0) return;
-    const allNodes: Node[] = [];
-    const collect = (n: Node) => {
-      allNodes.push(n);
-      if (n.children) {
-        for (const child of n.children) collect(child);
-      }
-    };
-    for (const n of nodes) collect(n);
-
-    const { graphNodes } = apiNodesToGraphNodes(allNodes);
-    upsertNodes(graphNodes);
-  }, [nodes]);
-
   // Sort cards by sequence (order field)
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
 

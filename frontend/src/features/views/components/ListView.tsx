@@ -26,8 +26,6 @@ import { parseLinkId } from '@/lib/astBuilder';
 import { NodeBreadcrumbs } from '@/features/content';
 import './ListView.css';
 import { registerView } from './registry';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
 
 
 // ── Group types ───────────────────────────────────────────────────────────────
@@ -248,13 +246,7 @@ export const ListView = memo(function ListView({
 
   // Handler for navigation from editor
   const handleNavigateToNode = useCallback((blockId: string) => {
-    // Resolve to a target UUID synchronously. Use the runtime when available,
-    // otherwise parse the link id. Avoiding an async fetch here eliminates the
-    // stale-closure race where a later click could be overwritten by an earlier
-    // fetch that finishes second.
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, blockId);
-    const nodeUuid = graphNode?.blockId ?? parseLinkId(blockId).nodeUuid;
+    const nodeUuid = parseLinkId(blockId).nodeUuid;
 
     const targetNode = allNodes.find(n => n.uuid === nodeUuid);
     if (targetNode) {
@@ -269,28 +261,16 @@ export const ListView = memo(function ListView({
 
   // Handler for shift-click (open in sidebar) from editor
   const handleOpenInSidebar = useCallback((blockId: string) => {
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, blockId);
-    if (graphNode?.blockId) {
-      const targetNode = allNodes.find(n => n.uuid === graphNode.blockId);
-      if (targetNode) {
-        onNodeShiftClick?.(targetNode);
-      } else {
-        onNodeShiftClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
-      }
-      return;
-    }
-    // Fallback: UUID-based lookup
-    const node = allNodes.find(n => n.uuid === blockId);
-    if (node) {
-      onNodeShiftClick?.(node);
+    const nodeUuid = parseLinkId(blockId).nodeUuid;
+    const targetNode = allNodes.find(n => n.uuid === nodeUuid);
+    if (targetNode) {
+      onNodeShiftClick?.(targetNode);
+    } else {
+      onNodeShiftClick?.({ uuid: nodeUuid, is_page: false } as unknown as Node);
     }
   }, [allNodes, onNodeShiftClick]);
 
   // Handler for content changes from editor.
-  // Pass the runtime block id (UUID) through; useContentSave resolves it to the
-  // runtime node and creates an update_content operation even if the block has
-  // not been persisted yet.
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
     onContentChange?.(blockId, content);
   }, [onContentChange]);

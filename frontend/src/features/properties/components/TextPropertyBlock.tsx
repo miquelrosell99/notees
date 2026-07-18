@@ -15,18 +15,15 @@
  * 
  * NOTE: The bullet for the main text block is rendered by PropertiesSection, not here.
  */
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
-import { useNode, useCreateNode, useMoveNode, useNodeNavigation } from '@/features/content';
+import { useNode, useCreateNode, useNodeNavigation } from '@/features/content';
 
 import { useContentSave } from '@/features/editor';
 import { isApiError } from '@/api/client';
 import type { Property, Node } from '@/types/api';
 import { NodeCollection } from '@/features/content';
 import { Button } from '@/components/ui/Button';
-import { getDragCoordinator } from '@/runtime/DragCoordinator';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
 
 
 interface TextPropertyBlockProps {
@@ -165,8 +162,7 @@ export function TextPropertyBlock({
       onPropertyChange,
       onBulletClick: _onBulletClick }: TextPropertyBlockProps) {
   const [isCreating, setIsCreating] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  
+
   const isMulti = property.multi;
   const ids = useMemo(
     () => (isMulti ? (blockNodeIds ?? []) : (blockNodeId != null ? [blockNodeId] : [])),
@@ -194,7 +190,6 @@ export function TextPropertyBlock({
   }, [singleBlockError, blockNodeId, isMulti, readOnly, property.uuid, onPropertyChange]);
   
   const createNode = useCreateNode();
-  const moveNode = useMoveNode();
   const { handleNodeClick } = useNodeNavigation();
   
   // Handle creating a new text block
@@ -228,95 +223,17 @@ export function TextPropertyBlock({
     }
   }, [readOnly, isCreating, createNode, nodeUuid, property.uuid, onPropertyChange, isMulti, ids]);
   
-  // ─── DragCoordinator-based drop zone ─────────────────────────
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [isDragActive, setIsDragActive] = useState(false);
-  const isOverRef = useRef(false);
+  // TODO: Drag-and-drop into text properties was wired through the legacy
+  // DragCoordinator, which has been removed. Re-implement with @dnd-kit or
+  // local drag state if this feature is still required.
 
-  // Subscribe to DragCoordinator to detect active drags
-  useEffect(() => {
-    if (readOnly) return;
-    const coordinator = getDragCoordinator();
-    const unsub = coordinator.subscribe((state) => {
-      setIsDragActive(state.status === 'dragging');
-      if (state.status !== 'dragging') {
-        setIsDragOver(false);
-        isOverRef.current = false;
-      }
-    });
-    return unsub;
-  }, [readOnly]);
-
-  // Handle mouseup on the container during a drag → intercept the drop
-  useEffect(() => {
-    if (readOnly || !isDragActive) return;
-    const el = containerRef.current;
-    if (!el) return;
-
-    const handleMouseEnter = () => {
-      isOverRef.current = true;
-      setIsDragOver(true);
-    };
-    const handleMouseLeave = () => {
-      isOverRef.current = false;
-      setIsDragOver(false);
-    };
-
-    const handleMouseUp = (_e: MouseEvent) => {
-      if (!isOverRef.current) return;
-      const coordinator = getDragCoordinator();
-      const payload = coordinator.getDragPayload();
-      if (!payload) return;
-
-      // Resolve the dragged block's server ID from the runtime
-      const runtime = getOperationRuntime();
-      const graphNode = getNode(runtime, payload.blockId);
-      const serverId = graphNode?.blockId;
-      if (!serverId) return;
-
-      // Don't allow dropping on self
-      if (ids.includes(serverId)) return;
-
-      // Cancel the DragCoordinator drag so the DragDropPlugin's handler
-      // treats it as a cancelled drag and runs cleanup (ghost, classes, etc.)
-      coordinator.cancelDrag();
-
-      // Move the block to be a child of this node.
-      // The useMoveNode optimistic cache update removes the block from its
-      // old parent's children, which causes the page body's BlockEditor to
-      // remove it from the runtime via stale-child cleanup on re-render.
-      moveNode.mutate({ nodeUuid: serverId, parentId: nodeUuid });
-
-      if (isMulti) {
-        onPropertyChange(property.uuid, [...ids, serverId]);
-      } else {
-        onPropertyChange(property.uuid, serverId);
-      }
-
-      setIsDragOver(false);
-      isOverRef.current = false;
-    };
-
-    el.addEventListener('mouseenter', handleMouseEnter);
-    el.addEventListener('mouseleave', handleMouseLeave);
-    el.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      el.removeEventListener('mouseenter', handleMouseEnter);
-      el.removeEventListener('mouseleave', handleMouseLeave);
-      el.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [readOnly, isDragActive, ids, nodeUuid, property.uuid, moveNode, onPropertyChange, isMulti]);
-
-  const dropZoneClass = isDragOver ? ' text-property-block--drop-target' : '';
+  const dropZoneClass = '';
 
   // === Multi mode rendering ===
   if (isMulti) {
     if (ids.length === 0) {
       return (
-        <div 
-          ref={containerRef}
-          className={`text-property-block text-property-block--empty${dropZoneClass}`}
-        >
+        <div className={`text-property-block text-property-block--empty${dropZoneClass}`}>
           <Button
             className="text-property-block__add-btn"
             onClick={handleAddText}
@@ -332,10 +249,7 @@ export function TextPropertyBlock({
     }
 
     return (
-      <div 
-        ref={containerRef}
-        className={`text-property-block text-property-block--has-content text-property-block--multi${dropZoneClass}`}
-      >
+      <div className={`text-property-block text-property-block--has-content text-property-block--multi${dropZoneClass}`}>
         {ids.map((id) => (
           <SingleTextBlock
             key={id}
@@ -369,10 +283,7 @@ export function TextPropertyBlock({
   // Show empty state with "Add text" button
   if (!blockNodeId || !singleBlockNode) {
     return (
-      <div 
-        ref={containerRef}
-        className={`text-property-block text-property-block--empty${dropZoneClass}`}
-      >
+      <div className={`text-property-block text-property-block--empty${dropZoneClass}`}>
         <Button
           className="text-property-block__add-btn"
           onClick={handleAddText}
@@ -389,10 +300,7 @@ export function TextPropertyBlock({
   
   // Show the block with a full inline editor (like FocusedBlockContent)
   return (
-    <div 
-      ref={containerRef}
-      className={`text-property-block text-property-block--has-content${dropZoneClass}`}
-    >
+    <div className={`text-property-block text-property-block--has-content${dropZoneClass}`}>
       <SingleTextBlock
         blockNodeId={blockNodeId}
         readOnly={readOnly}

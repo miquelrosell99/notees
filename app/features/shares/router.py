@@ -9,32 +9,23 @@ metadata tables.
 
 from __future__ import annotations
 
-from collections import defaultdict
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pydantic import BaseModel
 from pyrate_limiter import Duration, Limiter, Rate
 
 from app.core.workspace_store import WorkspaceStore
-from app.dependencies import (
-    _get_node_service,
-    _get_node_service_for_workspace,
-    get_current_user,
-    get_node_repository,
-    require_read_or_write_scope,
-    require_write_scope,
-)
+from app.dependencies import get_current_user, require_read_or_write_scope, require_write_scope
+from app.domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from app.features.auth import hash_password
-from app.features.nodes.port import NodeRepository
-from app.features.nodes.router.dependencies import resolve_node_uuid
-from app.features.nodes.router.helpers import _name_text, _resolve_referenced_display_names
 from app.infrastructure.export.share_files import delete_share_html
 from app.logging_config import get_logger
 from app.models import PaginatedResponse, User
 from app.utils import utc_now_iso
 
 from .dependencies import (
+    NodeIdResolver,
+    get_node_id_resolver,
     get_share_repository,
     get_share_service,
     get_workspace_store,
@@ -43,6 +34,56 @@ from .port import ShareRepository
 from .service import ShareService
 
 logger = get_logger(__name__)
+
+
+def _name_text(name: str | None, max_len: int | None = 60) -> str:
+    """Extract plain text from a node name (plain or JSON AST).
+
+    Falls back to the raw string when it cannot be parsed as AST.
+    """
+    if not name:
+        return ""
+    try:
+        ast = parse_ast(name, ParseMode.JSON)
+        text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY)) or ""
+    except (ValueError, TypeError):
+        text = name
+    if max_len is not None and len(text) > max_len:
+        return text[:max_len]
+    return text
+
+
+async def _resolve_display_name(store: WorkspaceStore, node_uuid: str) -> str:
+    """Return a plain-text display name for ``node_uuid`` from derived state."""
+    await store.sync()
+    rows = await store.query(
+        "SELECT content FROM node WHERE id = ?",
+        (node_uuid,),
+    )
+    if not rows:
+        return "Untitled"
+    content = rows[0]["content"]
+    try:
+        ast = parse_ast(content, ParseMode.JSON)
+        text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY)) or ""
+    except (ValueError, TypeError):
+        text = content or ""
+    return text.strip() or "Untitled"
+
+
+async def _resolve_referenced_display_names(
+    store: WorkspaceStore,
+    target_rows: list[dict],
+) -> dict[str, str]:
+    """Resolve display names for a list of ``{"uuid": ...}`` rows."""
+    await store.sync()
+    resolved: dict[str, str] = {}
+    for row in target_rows:
+        node_uuid = row.get("uuid")
+        if node_uuid:
+            resolved[node_uuid] = await _resolve_display_name(store, node_uuid)
+    return resolved
+
 
 # -----------------------------------------------------------------------------
 # Workspace-level share router
@@ -68,7 +109,7 @@ class WorkspaceShareResponse(BaseModel):
 
 def _workspace_share_to_response(row: dict, resolved_names: dict | None = None) -> dict:
     node_uuid = row["node_uuid"]
-    node_name = (resolved_names or {}).get(node_uuid) or "Untitled"
+    node_name = (resolved_names or {}).get(node_uuid) or row.get("node_name") or "Untitled"
     return {
         "share_uuid": row["share_uuid"],
         "created_at": row["created_at"],
@@ -88,7 +129,7 @@ async def list_workspace_shares(
     await store.sync()
     rows = await store.query(
         """
-        SELECT share_id as share_uuid, expiry_date, created_at, node_id as node_uuid
+        SELECT share_id as share_uuid, expiry_date, created_at, node_id as node_uuid, node_name
         FROM node_public_share
         WHERE workspace_id = ?
         ORDER BY created_at DESC
@@ -96,15 +137,7 @@ async def list_workspace_shares(
         (store.workspace_id,),
     )
 
-    share_rows = [
-        {"name": row["node_name"], "uuid": row["node_uuid"]} for row in rows if row["node_uuid"]
-    ]
-    resolved: dict[str, str] = {}
-    if share_rows:
-        node_service = await _get_node_service(user)
-        resolved = await _resolve_referenced_display_names(node_service, share_rows)
-
-    return [_workspace_share_to_response(dict(row), resolved) for row in rows]
+    return [_workspace_share_to_response(dict(row)) for row in rows]
 
 
 @workspace_shares_router.delete("/{share_uuid}", dependencies=[Depends(require_write_scope)])
@@ -144,22 +177,11 @@ async def get_share_inbox(
     """
     total, rows = await share_repo.list_share_inbox(int(user.id), page, page_size)
 
-    # Resolve node names that contain inline links to plain text
-    workspace_rows: dict[int, list[dict]] = defaultdict(list)
-    for r in rows:
-        workspace_rows[r["workspace_id"]].append({"name": r["node_name"], "uuid": r["node_uuid"]})
-
-    resolved: dict[str, str] = {}
-    for ws_id, ws_rows in workspace_rows.items():
-        node_service = await _get_node_service_for_workspace(user, ws_id)
-        ws_resolved = await _resolve_referenced_display_names(node_service, ws_rows)
-        resolved.update(ws_resolved)
-
     items = [
         {
             "share_uuid": str(r["share_uuid"]) if r["share_uuid"] else None,
             "node_uuid": str(r["node_uuid"]),
-            "node_name": resolved.get(str(r["node_uuid"])) or _name_text(r["node_name"]) or "Untitled",
+            "node_name": r["node_name"] or "Untitled",
             "node_icon": r["node_icon"],
             "is_page": r["is_page"],
             "permission": "write" if r["can_write"] else "read",
@@ -237,10 +259,11 @@ async def create_share(
     store: WorkspaceStore = Depends(get_workspace_store),
     share_service: ShareService = Depends(get_share_service),
     share_repo: ShareRepository = Depends(get_share_repository),
-    repo: NodeRepository = Depends(get_node_repository),
+    node_id_resolver: NodeIdResolver = Depends(get_node_id_resolver),
 ):
     """Create a new public share link for a node."""
-    node_id = await resolve_node_uuid(node_uuid, repo)
+    workspace_id = share_repo.workspace_id
+    node_id = await node_id_resolver(workspace_id, node_uuid)
     try:
         share = await share_service.create_share(node_id, expiry_date=body.expiry_date)
     except ValueError as e:
@@ -262,9 +285,7 @@ async def create_share(
 
     # Generate static HTML for the share
     try:
-        node = await share_service.get_node_by_id(node_id)
-        if node is not None:
-            await share_service.write_share_html(str(share.uuid), node.uuid)
+        await share_service.write_share_html(str(share.uuid), node_uuid)
     except (OSError, ValueError):
         logger.exception(f"Failed to generate static HTML for share {share.uuid}")
 
@@ -322,13 +343,18 @@ async def create_user_share(
     user: User = Depends(get_current_user),  # noqa: B008
     store: WorkspaceStore = Depends(get_workspace_store),
     share_service: ShareService = Depends(get_share_service),
-    repo: NodeRepository = Depends(get_node_repository),
+    share_repo: ShareRepository = Depends(get_share_repository),
+    node_id_resolver: NodeIdResolver = Depends(get_node_id_resolver),
 ):
     """Share a node with a specific user."""
-    node_id = await resolve_node_uuid(node_uuid, repo)
+    workspace_id = share_repo.workspace_id
+    node_id = await node_id_resolver(workspace_id, node_uuid)
+
+    node_name = await _resolve_display_name(store, node_uuid)
+
     try:
         result = await share_service.create_node_user_share(
-            node_id, body.email, body.permission
+            node_id, node_name, body.email, body.permission
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -360,7 +386,7 @@ async def create_user_share(
         node_uuid=node_uuid,
         shared_with_user_id=str(result["shared_with_user_uuid"]),
         permission=result.get("permission", "read"),
-        created_at=result["create_date"].isoformat() if result.get("create_date") else utc_now_iso(),
+        created_at=result["created_at"] if result.get("created_at") else utc_now_iso(),
         created_by=created_by_uuid,
     )
 
@@ -371,12 +397,12 @@ async def list_node_user_shares(
     user: User = Depends(get_current_user),  # noqa: B008
     store: WorkspaceStore = Depends(get_workspace_store),
     share_repo: ShareRepository = Depends(get_share_repository),
-    repo: NodeRepository = Depends(get_node_repository),
+    node_id_resolver: NodeIdResolver = Depends(get_node_id_resolver),
 ):
     """List user shares for a node."""
     workspace_id = share_repo.workspace_id
     user_id = int(user.id)
-    node_id = await resolve_node_uuid(node_uuid, repo)
+    node_id = await node_id_resolver(workspace_id, node_uuid)
 
     try:
         # PostgreSQL still enforces the ownership check.

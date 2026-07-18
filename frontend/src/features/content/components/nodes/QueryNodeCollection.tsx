@@ -52,9 +52,6 @@ import './QueryNodeCollection.css';
 
 import { applyCollapseLevelToChildren, extractUuidsFromAST } from './QueryNodeCollection/helpers';
 import { dedupeNodesByUuid } from '@/utils/nodeTree';
-import { getOperationRuntime } from '@/runtime';
-import { getAllNodes } from '@/runtime/graphHelpers';
-import { upsertNodes } from '@/runtime/eventBus';
 import { queryKeys } from '@/hooks/queryKeys';
 
 const PSEUDO_NODE_UUID = '00000000-0000-0000-0000-000000000000';
@@ -256,18 +253,8 @@ export function QueryNodeCollection({
   // Add class mutation
   const addClass = useAddClass();
   const handleAddClass = useCallback((blockId: string, classId: string) => {
-    // Optimistically update the runtime for immediate visual feedback
-    const runtime = getOperationRuntime();
-    const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
-    if (graphNode) {
-      const classStrId = String(classId);
-      if (!graphNode.classIds.includes(classStrId)) {
-        upsertNodes([{
-          ...graphNode,
-          classIds: [...graphNode.classIds, classStrId],
-        }]);
-      }
-    }
+    // The core-backed addClass mutation applies the class assignment immediately,
+    // so no separate optimistic runtime update is needed.
     addClass.mutate({ nodeUuid: blockId, classId });
   }, [addClass]);
 

@@ -35,7 +35,6 @@ export { useLiveSyncStatus } from '@/features/collab';
 export * from './useCommandPaletteSearch';
 export * from './useListDragSort';
 export { useFocusMode } from './useFocusMode';
-export * from './contentSaveTracker';
 export * from './keyboardShortcutHelpers';
 export * from './cacheUtils';
 export * from './queryKeys';

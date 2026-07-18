@@ -2,15 +2,19 @@
  * useBlockDragDrop utilities — types, constants, and DOM helpers
  */
 
-import type { DropTarget as CoordinatorTarget } from '@/runtime/types';
-
 // ─── Types ────────────────────────────────────────────────────────
+
+export interface DropTarget {
+  blockId: string;
+  position: 'before' | 'after' | 'child';
+  targetEditorId?: string;
+}
 
 export interface DropAnchor {
   x: number;
   y: number;
   depth: number;
-  target: CoordinatorTarget;
+  target: DropTarget;
 }
 
 export interface DragState {

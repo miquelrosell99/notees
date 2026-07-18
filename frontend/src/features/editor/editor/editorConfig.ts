@@ -7,7 +7,7 @@
  * defeats Fast Refresh and causes stale editor state on hot updates.
  */
 
-import type { ContentAST } from '@/runtime/types';
+import type { ASTDocument as ContentAST } from '@/types/ast';
 
 /**
  * Serialize a ContentAST to a JSON string suitable for API persistence.
