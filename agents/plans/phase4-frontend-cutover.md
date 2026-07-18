@@ -1,7 +1,7 @@
 # Phase 4: Frontend Cut-Over to Local-First SQLite Core
 
 **Date:** 2026-07-18  
-**Status:** Implementation plan — pending execution  
+**Status:** Complete — all D1–D4 sub-tasks implemented and committed  
 **Depends on:** Phase 3 (QueryAST retarget to SQLite) complete  
 **Leads to:** Phase 5 (server relay hardening)
 
@@ -166,7 +166,9 @@ What is missing:
 
 ---
 
-### D4 — Service worker/PWA offline, relay router mount, backend seed script
+### D4 — Service worker/PWA offline, relay router mount, backend seed script ✅ Done
+
+**Status:** Committed as `feat(relay,frontend): Phase 4 D4 offline sync, relay mount, and seed script` (`02b9c08f`).
 
 **Goal:** Offline works end-to-end; backend relay is wired; existing workspaces can be seeded.
 
@@ -189,6 +191,14 @@ What is missing:
 - `uv run ruff check app/relay scripts/seed_relay_from_postgres.py` clean.
 - `cd frontend && npm run test:run src/core/serviceWorker` passes.
 - Manual offline smoke test: create a node offline, reconnect, verify convergence via the relay.
+
+**Results:**
+- `uv run pytest tests/core/test_relay_router.py tests/core/test_relay.py -m unit --no-cov` → 18 passed.
+- `uv run ruff check app/relay app/main.py scripts/seed_relay_from_postgres.py app/core/crypto.py` → clean.
+- `npm run test:run src/core` → 16 files, 52 tests passed.
+- `npx tsc -b --noEmit` → clean.
+- `npm run lint` → clean (only pre-existing warnings).
+- `uv run python scripts/validate_migration.py` → 0 orphan operations, 0 duplicate ids.
 
 ---
 
