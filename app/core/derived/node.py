@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from app.core.clock import Hlc
 from app.core.operation import Operation
 
 from .child_order import (
@@ -141,21 +142,37 @@ def apply_class_unassign(conn: sqlite3.Connection, op: Operation) -> None:
     )
 
 
+def _node_hlc_from_row(row: sqlite3.Row) -> Hlc:
+    return Hlc(physical=row["hlc_physical"], logical=row["hlc_logical"])
+
+
 def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
     """Apply a ``node.updateContent`` operation.
 
     Supports two payload shapes:
 
     * ``crdtUpdate`` — a simplified content AST (list or single dict). This is
-      used by migration scripts and legacy content paths.
+      used by migration scripts and legacy content paths. Updates are merged
+      with last-write-wins ordering using the operation HLC.
     * ``textUpdate`` — a Yjs text update as a list of byte values (or bytes).
       The update is stored in ``crdt_state.text_state`` so the server can serve
       it back as a binary Yjs state blob; the node content is set to a minimal
       text placeholder because the server does not interpret Yjs updates.
     """
+    from app.core.clock import compare_hlc
+
     payload = op.payload
     node_id = payload["nodeId"]
     ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
+    incoming_hlc = op.envelope.hlc
+
+    existing = conn.execute(
+        "SELECT hlc_physical, hlc_logical FROM node WHERE id = ?", (node_id,)
+    ).fetchone()
+    if existing is not None:
+        existing_hlc = _node_hlc_from_row(existing)
+        if compare_hlc(incoming_hlc, existing_hlc) <= 0:
+            return
 
     text_update = payload.get("textUpdate")
     if text_update is not None:
@@ -186,8 +203,20 @@ def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
             content = []
 
     conn.execute(
-        "UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?",
-        (json.dumps(content), ts, op.envelope.actor_id, node_id),
+        """
+        UPDATE node
+        SET content = ?, updated_at = ?, updated_by = ?,
+            hlc_physical = ?, hlc_logical = ?
+        WHERE id = ?
+        """,
+        (
+            json.dumps(content),
+            ts,
+            op.envelope.actor_id,
+            incoming_hlc.physical,
+            incoming_hlc.logical,
+            node_id,
+        ),
     )
     reindex_node(conn, node_id)
     rebuild_edges_for_node(conn, op)

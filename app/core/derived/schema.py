@@ -21,7 +21,9 @@ CREATE TABLE IF NOT EXISTS node (
     created_at TEXT,
     updated_at TEXT,
     created_by TEXT,
-    updated_by TEXT
+    updated_by TEXT,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_node_workspace ON node (workspace_id);

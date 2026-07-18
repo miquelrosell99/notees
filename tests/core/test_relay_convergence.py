@@ -15,6 +15,7 @@ import pytest
 
 from app.core.clock import Hlc
 from app.core.crypto import derive_workspace_key
+from app.core.operation import create_operation
 from app.core.store import WorkspaceStore
 from app.core.sync import SyncEngine
 from app.core.transport import MemoryRelay, MemoryTransport
@@ -231,3 +232,121 @@ class TestPropertyConvergence:
 
         assert store_a.get_property(node_id="node-y", schema_id="schema-priority") == "from-b"
         assert store_b.get_property(node_id="node-y", schema_id="schema-priority") == "from-b"
+
+
+class TestContentConvergence:
+    async def test_both_edit_same_node_content_offline(self) -> None:
+        relay = MemoryRelay()
+        store_a = _make_store(_make_db(), ACTOR_A)
+        store_b = _make_store(_make_db(), ACTOR_B)
+        _install_deterministic_clock(store_a, store_b)
+
+        sync_a = _make_sync(store_a, relay)
+        sync_b = _make_sync(store_b, relay)
+
+        store_a.create_node("shared-node", kind="block")
+        await sync_a.sync_once()
+        await sync_b.sync_once()
+
+        # Both stores edit the same node while disconnected. B's clock is later,
+        # so its content wins the last-write-wins merge.
+        store_a.update_content(
+            "shared-node",
+            [{"type": "paragraph", "children": [{"type": "text", "text": "from A"}]}],
+        )
+        store_b.update_content(
+            "shared-node",
+            [{"type": "paragraph", "children": [{"type": "text", "text": "from B"}]}],
+        )
+
+        await sync_a.sync_once()
+        await sync_b.sync_once()
+        await sync_a.sync_once()
+
+        expected = [{"type": "paragraph", "children": [{"type": "text", "text": "from B"}]}]
+        assert store_a.get_node("shared-node")["content"] == expected
+        assert store_b.get_node("shared-node")["content"] == expected
+
+
+class TestAssetConvergence:
+    async def test_both_upload_assets_offline_and_converge(self) -> None:
+        relay = MemoryRelay()
+        store_a = _make_store(_make_db(), ACTOR_A)
+        store_b = _make_store(_make_db(), ACTOR_B)
+        _install_deterministic_clock(store_a, store_b)
+
+        sync_a = _make_sync(store_a, relay)
+        sync_b = _make_sync(store_b, relay)
+
+        # Each store creates a local asset node and applies an asset.upload op.
+        store_a.create_node("asset-a", kind="block")
+        store_b.create_node("asset-b", kind="block")
+
+        _apply_asset_upload(
+            store_a,
+            "asset-a",
+            asset_hash="sha256-aaaa",
+            mime_type="image/png",
+            size_bytes=100,
+            original_name="a.png",
+        )
+        _apply_asset_upload(
+            store_b,
+            "asset-b",
+            asset_hash="sha256-bbbb",
+            mime_type="image/jpeg",
+            size_bytes=200,
+            original_name="b.jpg",
+        )
+
+        # Sync both ways so each store receives the other's asset upload.
+        await sync_a.sync_once()
+        await sync_b.sync_once()
+        await sync_a.sync_once()
+
+        assets_a = _node_asset_rows(store_a)
+        assets_b = _node_asset_rows(store_b)
+        assert assets_a == assets_b
+        assert set(assets_a.keys()) == {"asset-a", "asset-b"}
+        assert assets_a["asset-a"]["asset_hash"] == "sha256-aaaa"
+        assert assets_a["asset-b"]["asset_hash"] == "sha256-bbbb"
+
+
+def _apply_asset_upload(
+    store: WorkspaceStore,
+    node_id: str,
+    asset_hash: str,
+    mime_type: str,
+    size_bytes: int,
+    original_name: str,
+) -> None:
+    op = create_operation(
+        {
+            "workspace_id": store.workspace_id,
+            "actor_id": store.actor_id,
+            "hlc": store._advance_clock(),  # noqa: SLF001
+            "affected_node_ids": [node_id],
+            "op_type": "asset.upload",
+        },
+        {
+            "nodeId": node_id,
+            "assetHash": asset_hash,
+            "mimeType": mime_type,
+            "sizeBytes": size_bytes,
+            "originalName": original_name,
+        },
+    )
+    store.apply(op)
+
+
+def _node_asset_rows(store: WorkspaceStore) -> dict[str, dict[str, object]]:
+    rows = store.get_db().execute("SELECT * FROM node_asset").fetchall()
+    return {
+        row["node_id"]: {
+            "asset_hash": row["asset_hash"],
+            "mime_type": row["mime_type"],
+            "size_bytes": row["size_bytes"],
+            "original_name": row["original_name"],
+        }
+        for row in rows
+    }

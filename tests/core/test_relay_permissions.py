@@ -6,7 +6,9 @@ import secrets
 
 import pytest
 
+from app.core.clock import Hlc
 from app.features.auth import auth
+from app.relay.models import BatchRequest, EncryptedEnvelope
 from app.relay.permissions import PermissionDeniedError
 from app.relay.permissions_postgres import PostgresPermissionChecker
 from app.relay.service import RelayService
@@ -222,10 +224,7 @@ async def test_public_share_write_rejected_via_service(db_pool, test_user) -> No
             "SELECT id FROM node WHERE uuid::text = $1", node_uuid
         )
         node_id = node_id_row["id"]
-        share_token = await _create_public_share(conn, node_id, workspace_id, owner_id)
-
-    from app.core.clock import Hlc
-    from app.relay.models import BatchRequest, EncryptedEnvelope
+        await _create_public_share(conn, node_id, workspace_id, owner_id)
 
     envelope = EncryptedEnvelope(
         id="env-public",
@@ -240,3 +239,140 @@ async def test_public_share_write_rejected_via_service(db_pool, test_user) -> No
 
     with pytest.raises(PermissionDeniedError):
         await service.receive_batch(BatchRequest(envelopes=[envelope]), "anonymous")
+
+
+async def test_shared_editor_can_read_and_write_through_relay(db_pool, test_user) -> None:
+    """A workspace member with write access can submit and receive operations."""
+    checker = PostgresPermissionChecker(db_pool)
+    storage = SqliteRelayStorage()
+    service = RelayService(storage, checker)
+    workspace_id = test_user["workspace_id"]
+    workspace_uuid = test_user["workspace_uuid"]
+    owner_id = int(test_user["id"])
+
+    editor = await _create_user(f"editor_{secrets.token_hex(4)}@example.com")
+    async with db_pool.acquire() as conn:
+        await _create_workspace_share(
+            conn, workspace_id, int(editor["id"]), owner_id, can_read=True, can_write=True
+        )
+
+    envelope = EncryptedEnvelope(
+        id="env-editor-write",
+        workspace_id=workspace_uuid,
+        actor_id=editor["uuid"],
+        hlc=Hlc(1, 0),
+        affected_node_ids=["node-1"],
+        op_type="node.create",
+        ciphertext="ZW5jcnlwdGVk",
+        iv="c3R1Yml2",
+    )
+
+    saved = await service.receive_batch(BatchRequest(envelopes=[envelope]), editor["uuid"])
+    assert len(saved) == 1
+
+    caught_up = await service.catch_up(workspace_uuid, editor["uuid"], Hlc(0, 0))
+    assert len(caught_up) == 1
+    assert caught_up[0].id == "env-editor-write"
+
+
+async def test_shared_viewer_can_read_but_not_write_through_relay(db_pool, test_user) -> None:
+    """A workspace member with read-only access can catch up but cannot submit."""
+    checker = PostgresPermissionChecker(db_pool)
+    storage = SqliteRelayStorage()
+    service = RelayService(storage, checker)
+    workspace_id = test_user["workspace_id"]
+    workspace_uuid = test_user["workspace_uuid"]
+    owner_id = int(test_user["id"])
+
+    viewer = await _create_user(f"viewer_{secrets.token_hex(4)}@example.com")
+    async with db_pool.acquire() as conn:
+        await _create_workspace_share(
+            conn, workspace_id, int(viewer["id"]), owner_id, can_read=True, can_write=False
+        )
+
+    # Owner seeds an operation that the viewer should be able to read.
+    owner_envelope = EncryptedEnvelope(
+        id="env-owner",
+        workspace_id=workspace_uuid,
+        actor_id=test_user["uuid"],
+        hlc=Hlc(1, 0),
+        affected_node_ids=["node-1"],
+        op_type="node.create",
+        ciphertext="ZW5jcnlwdGVk",
+        iv="c3R1Yml2",
+    )
+    await service.receive_batch(BatchRequest(envelopes=[owner_envelope]), test_user["uuid"])
+
+    caught_up = await service.catch_up(workspace_uuid, viewer["uuid"], Hlc(0, 0))
+    assert len(caught_up) == 1
+
+    viewer_envelope = EncryptedEnvelope(
+        id="env-viewer",
+        workspace_id=workspace_uuid,
+        actor_id=viewer["uuid"],
+        hlc=Hlc(2, 0),
+        affected_node_ids=["node-1"],
+        op_type="node.create",
+        ciphertext="ZW5jcnlwdGVk",
+        iv="c3R1Yml2",
+    )
+    with pytest.raises(PermissionDeniedError):
+        await service.receive_batch(BatchRequest(envelopes=[viewer_envelope]), viewer["uuid"])
+
+
+async def test_revoked_share_immediately_loses_write_access(db_pool, test_user) -> None:
+    """Deactivating a workspace share blocks further writes through the relay."""
+    checker = PostgresPermissionChecker(db_pool)
+    storage = SqliteRelayStorage()
+    service = RelayService(storage, checker)
+    workspace_id = test_user["workspace_id"]
+    workspace_uuid = test_user["workspace_uuid"]
+    owner_id = int(test_user["id"])
+
+    editor = await _create_user(f"editor_{secrets.token_hex(4)}@example.com")
+    async with db_pool.acquire() as conn:
+        await _create_workspace_share(
+            conn, workspace_id, int(editor["id"]), owner_id, can_read=True, can_write=True
+        )
+
+    envelope_before = EncryptedEnvelope(
+        id="env-before-revoke",
+        workspace_id=workspace_uuid,
+        actor_id=editor["uuid"],
+        hlc=Hlc(1, 0),
+        affected_node_ids=["node-1"],
+        op_type="node.create",
+        ciphertext="ZW5jcnlwdGVk",
+        iv="c3R1Yml2",
+    )
+    saved = await service.receive_batch(
+        BatchRequest(envelopes=[envelope_before]), editor["uuid"]
+    )
+    assert len(saved) == 1
+
+    # Revoke the share.
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE workspace_share
+            SET active = FALSE, can_read = FALSE, can_write = FALSE,
+                can_create = FALSE, can_delete = FALSE, write_uid = $1, write_date = NOW()
+            WHERE workspace_id = $2 AND user_id = $3
+            """,
+            owner_id,
+            workspace_id,
+            int(editor["id"]),
+        )
+
+    envelope_after = EncryptedEnvelope(
+        id="env-after-revoke",
+        workspace_id=workspace_uuid,
+        actor_id=editor["uuid"],
+        hlc=Hlc(2, 0),
+        affected_node_ids=["node-1"],
+        op_type="node.create",
+        ciphertext="ZW5jcnlwdGVk",
+        iv="c3R1Yml2",
+    )
+    with pytest.raises(PermissionDeniedError):
+        await service.receive_batch(BatchRequest(envelopes=[envelope_after]), editor["uuid"])
