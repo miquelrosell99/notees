@@ -5,6 +5,15 @@ import { createOperation, type Operation } from './types/operation';
 import type { WorkspaceStore } from './store';
 import type { Transport } from './transport';
 
+export type SyncStatus = 'idle' | 'syncing' | 'error';
+
+export interface SyncEngineCallbacks {
+  onPush?: (envelopeCount: number) => void;
+  onPull?: (envelopeCount: number) => void;
+  onError?: (error: Error) => void;
+  onStatusChange?: (status: SyncStatus, error: Error | null) => void;
+}
+
 interface OperationRow {
   id: string;
   workspace_id: string;
@@ -21,11 +30,17 @@ export class SyncEngine {
   private store: WorkspaceStore;
   private key: CryptoKey;
   private transport: Transport;
+  private callbacks: SyncEngineCallbacks;
+  private status: SyncStatus = 'idle';
+  private lastError: Error | null = null;
+  private autoSyncTimer: ReturnType<typeof setInterval> | null = null;
+  private statusListeners = new Set<(status: SyncStatus, error: Error | null) => void>();
 
-  constructor(store: WorkspaceStore, key: CryptoKey, transport: Transport) {
+  constructor(store: WorkspaceStore, key: CryptoKey, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
     this.store = store;
     this.key = key;
     this.transport = transport;
+    this.callbacks = callbacks;
     this.lastReceivedHlc = this.loadWatermark();
   }
 
@@ -51,6 +66,33 @@ export class SyncEngine {
          hlc_logical = excluded.hlc_logical`,
       [workspaceId, hlc.physical, hlc.logical]
     );
+  }
+
+  private setStatus(status: SyncStatus, error: Error | null = null): void {
+    this.status = status;
+    this.lastError = error;
+    this.callbacks.onStatusChange?.(status, error);
+    for (const listener of this.statusListeners) {
+      listener(status, error);
+    }
+  }
+
+  getStatus(): SyncStatus {
+    return this.status;
+  }
+
+  getLastError(): Error | null {
+    return this.lastError;
+  }
+
+  subscribeStatus(callback: (status: SyncStatus, error: Error | null) => void): () => void {
+    // Emit current status immediately so consumers start with the right value.
+    callback(this.status, this.lastError);
+
+    this.statusListeners.add(callback);
+    return () => {
+      this.statusListeners.delete(callback);
+    };
   }
 
   async push(): Promise<void> {
@@ -80,6 +122,7 @@ export class SyncEngine {
       });
       await this.transport.send(encrypted);
     }
+    this.callbacks.onPush?.(rows.length);
   }
 
   async pull(): Promise<void> {
@@ -106,10 +149,38 @@ export class SyncEngine {
       this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, env.hlc);
     }
     this.saveWatermark(this.lastReceivedHlc);
+    this.callbacks.onPull?.(envelopes.length);
   }
 
   async sync(): Promise<void> {
-    await this.push();
-    await this.pull();
+    await this.syncOnce();
+  }
+
+  async syncOnce(): Promise<void> {
+    this.setStatus('syncing');
+    try {
+      await this.push();
+      await this.pull();
+      this.setStatus('idle', null);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.setStatus('error', error);
+      this.callbacks.onError?.(error);
+      throw error;
+    }
+  }
+
+  startAutoSync(intervalMs: number): void {
+    this.stopAutoSync();
+    this.autoSyncTimer = setInterval(() => {
+      void this.syncOnce();
+    }, intervalMs);
+  }
+
+  stopAutoSync(): void {
+    if (this.autoSyncTimer) {
+      clearInterval(this.autoSyncTimer);
+      this.autoSyncTimer = null;
+    }
   }
 }
