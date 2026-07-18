@@ -36,7 +36,7 @@ import type {
 import type { Property } from '@/types';
 import { DEFAULT_VIEW_MODES_ORDER } from '@/constants/viewModes';
 import { sortNodesByEntries } from '@/utils/nodeSort';
-import { dedupeNodesByUuidDeep } from '@/utils/nodeTree';
+import { dedupeNodesByUuidDeep, filterTextPropertyBlocks } from '@/utils/nodeTree';
 import { getViewDefinition } from '@/features/views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import { Card } from '@/components/ui/Card';
@@ -147,11 +147,21 @@ export const NodeCollection = memo(function NodeCollection({
       queryAst,
       isTransient = false,
       inPropertyEditor = false }: NodeCollectionProps) {
-  // Defensive deduplication: backend queries or cache merges can occasionally
-  // produce duplicate UUIDs, which break React key uniqueness. Keep the first
-  // occurrence at every tree level and warn in development so the root cause
-  // can be investigated.
-  const nodes = useMemo(() => dedupeNodesByUuidDeep(nodesProp, 'NodeCollection'), [nodesProp]);
+  // Resolve properties first; we need them to filter text-property value blocks
+  // out of the tree before rendering.
+  const { data: allProperties = [] } = useProperties();
+
+  // Text properties store their value as a block node that is also returned as
+  // a child of the owning node. Filter those property-value blocks out of the
+  // tree so they don't render twice (property panel + main block list). Then
+  // deduplicate defensively because backend/cache merges can produce duplicate
+  // UUIDs that break React key uniqueness.
+  const nodes = useMemo(() => {
+    const filtered = allProperties.length > 0
+      ? filterTextPropertyBlocks(nodesProp, allProperties)
+      : nodesProp;
+    return dedupeNodesByUuidDeep(filtered, 'NodeCollection');
+  }, [nodesProp, allProperties]);
 
   // Use store for card layout unless transient or controlled
   const storeCardLayout = useAppStore((state) => state.cardLayout);
@@ -174,8 +184,6 @@ export const NodeCollection = memo(function NodeCollection({
     }
   };
 
-  // Resolve groupBy properties for single and multi-level grouping
-  const { data: allProperties = [] } = useProperties();
   const normalizedGroupBy = useMemo(() => normalizeGroupBy(groupBy), [groupBy]);
   const groupByProperty = useMemo(() => {
     const first = normalizedGroupBy.find((g) => g !== 'page' && g !== 'none');

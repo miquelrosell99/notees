@@ -21,8 +21,7 @@ import { useNode, useCreateNode, useMoveNode, useNodeNavigation } from '@/featur
 
 import { useContentSave } from '@/features/editor';
 import { isApiError } from '@/api/client';
-import type { Property } from '@/types/api';
-import type { Node } from '@/types/api';
+import type { Property, Node } from '@/types/api';
 import { NodeCollection } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { getDragCoordinator } from '@/runtime/DragCoordinator';
@@ -84,6 +83,15 @@ function SingleTextBlock({
     onOpenInSidebar?.(clickedNode.uuid);
   }, [onOpenInSidebar]);
 
+  // Detach the property block from its owner before rendering it in its own
+  // NodeCollection. If we kept the real parent_uuid, the runtime would treat
+  // the block as a child of the owning page/block and the main block list
+  // would resurrect it as a runtime-only row.
+  const detachedBlockNode = useMemo<Node | null>(
+    () => (blockNode ? { ...blockNode, parent_uuid: null } : null),
+    [blockNode]
+  );
+
   if (isLoading) {
     return (
       <div className="text-property-block text-property-block--loading">
@@ -92,7 +100,7 @@ function SingleTextBlock({
     );
   }
 
-  if (!blockNode) return null;
+  if (!detachedBlockNode) return null;
 
   return (
     <div className="text-property-block__editor">
@@ -123,7 +131,7 @@ function SingleTextBlock({
         )}
       </div>
       <NodeCollection
-        nodes={[blockNode]}
+        nodes={[detachedBlockNode]}
         viewMode="list"
         availableViewModes={['list']}
         groupBy="none"
@@ -131,8 +139,8 @@ function SingleTextBlock({
         onNodeClick={handleNodeClick}
         onNodeShiftClick={handleNodeShiftClick}
         onContentChange={handleContentChange}
-        pageId={blockNode.uuid}
-        nodeUuid={blockNode.uuid}
+        pageId={detachedBlockNode.uuid}
+        nodeUuid={detachedBlockNode.uuid}
         hideToolbar={true}
         showClasses={true}
         onEnterAtRoot={onEnterAtRoot}
