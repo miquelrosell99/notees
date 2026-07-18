@@ -148,8 +148,7 @@ async def _seed_workspace(
     if direct:
         if storage is None:
             raise ValueError("direct=True requires a SqliteRelayStorage instance")
-        for envelope in envelopes:
-            storage.save_envelope(EncryptedEnvelope(**envelope))
+        storage.save_envelopes([EncryptedEnvelope(**envelope) for envelope in envelopes])
         posted = len(envelopes)
     else:
         posted = 0
