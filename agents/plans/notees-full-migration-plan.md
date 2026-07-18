@@ -344,14 +344,26 @@ Alternatives considered and rejected:
 
 ---
 
+## Phase 7+: Port Remaining Islands, Final Cleanup, and Release
+
+**Status:** In progress. Detailed plan: `agents/plans/notees-phase7-plus-plan.md`.
+
+**Overview:**
+- **Phase 7:** Port tasks, assets, import, shares, activity, undo, plugins, and collab/Yjs to the operation-log core; replace the frontend runtime overlay and local query helpers with the core SQLite store.
+- **Phase 8:** Delete the remaining legacy `app/features/nodes/`, `app/features/properties/`, `frontend/src/runtime/`, and `frontend/src/features/sync/local/` code.
+- **Phase 9:** Production hardening — snapshots/compaction, OPFS/sql.js validation, relay rate limits, E2E smoke tests.
+- **Phase 10:** Final documentation update and release milestone commit.
+
+---
+
 ## Execution Order
 
 Phases run mostly sequentially because each depends on the previous, but within a phase subagents work in parallel:
 
 ```
-Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
-   │          │          │          │          │          │
-   └─ A1..A4  └─ B1..B4  └─ C1..C2  └─ D1..D4  └─ E1..E4  └─ cleanup
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10
+   │          │          │          │          │          │          │          │          │          │
+   └─ A1..A4  └─ B1..B4  └─ C1..C2  └─ D1..D4  └─ E1..E4  └─ F1..F3  └─ G1..G4  └─ H      └─ I       └─ J
 ```
 
 ---
@@ -379,8 +391,8 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
 ## Immediate Next Step
 
-Begin **Phase 6** (cleanup and deprecation):
-- Remove legacy mutable-row FastAPI endpoints once the relay stack is proven in production.
-- Remove old frontend local-sync IndexedDB mirror.
-- Run final migration for all workspaces.
-- Update `AGENTS.md` and user-facing docs.
+Begin **Phase 7** (port remaining feature islands):
+- Extend core operation types and derived appliers for assets, tasks, shares, activity, undo, plugins, and collab/Yjs.
+- Port backend feature islands off the legacy nodes/properties services.
+- Replace the frontend OperationRuntime overlay and local query helpers with the core SQLite store.
+- Update `agents/plans/notees-phase7-plus-plan.md` as subphases complete.
