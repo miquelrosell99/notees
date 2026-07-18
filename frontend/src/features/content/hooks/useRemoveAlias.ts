@@ -1,45 +1,27 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
+
 /**
- * Hook to remove an alias from a node
+ * Hook to remove an alias from a node.
+ *
+ * Aliases are not modeled in the local-first core store yet, so this mutation
+ * is a no-op that invalidates the relevant query keys to keep the UI consistent.
  */
 export function useRemoveAlias() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ nodeUuid, aliasNodeUuid }: { nodeUuid: string; aliasNodeUuid: string }) => {
+  return useMutation<void, Error, { nodeUuid: string; aliasNodeUuid: string }>({
+    mutationFn: async ({ nodeUuid, aliasNodeUuid }) => {
       if (!nodeUuid || !aliasNodeUuid) throw new Error('Node UUID not found');
-      return nodesApi.removeAlias(nodeUuid, aliasNodeUuid);
+      // No-op: aliases are pending core-store modeling.
     },
     onSuccess: (_, { nodeUuid, aliasNodeUuid }) => {
-      // Invalidate with active refetch to ensure changes show immediately
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.detailBase(nodeUuid),
-        refetchType: 'active'
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.pageContent(nodeUuid),
-        refetchType: 'active'
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.detailBase(aliasNodeUuid),
-        refetchType: 'active'
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.linkedRefs(nodeUuid),
-        refetchType: 'active'
-      });
-      // Invalidate pages list (aliased_id cleared on the alias node)
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.pages(),
-        refetchType: 'active'
-      });
-      // Invalidate aliases query so the UI list updates
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.aliases(nodeUuid),
-        refetchType: 'active'
-      });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(aliasNodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.aliases(nodeUuid) });
     },
   });
 }

@@ -46,6 +46,7 @@ export function createSchema(db: Database): void {
       class_ids TEXT NOT NULL DEFAULT '[]',
       parent_id TEXT,
       content TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT,
       updated_at TEXT,
       created_by TEXT,
@@ -218,4 +219,27 @@ export function createSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_plugin_op_log_plugin
     ON plugin_op_log (plugin_id);
   `);
+
+  migrateSchema(db);
+}
+
+/**
+ * Lightweight schema migrations for existing client-side SQLite databases.
+ *
+ * The operation-log core ships inside the browser, so older IndexedDB snapshots
+ * may be missing columns added after the initial release. PRAGMA user_version
+ * tracks which migrations have already run.
+ */
+function migrateSchema(db: Database): void {
+  const versionRow = db.exec('PRAGMA user_version')[0];
+  const version = versionRow?.values[0]?.[0] as number | undefined ?? 0;
+
+  if (version < 1) {
+    try {
+      db.exec('ALTER TABLE node ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
+    } catch {
+      // Column may already exist in some states; ignore and continue.
+    }
+    db.exec('PRAGMA user_version = 1');
+  }
 }

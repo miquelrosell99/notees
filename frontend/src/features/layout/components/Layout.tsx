@@ -22,7 +22,6 @@ import { useCreateNode, useNode, addRecent } from '@/features/content';
 import { RouteAdapter } from './RouteAdapter';
 import { NavigationUrlSync } from './NavigationUrlSync';
 import { useSettingsQuery } from '@/features/workspace';
-import { fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar, SidebarRail } from './Sidebar';
 import { MainContent } from './MainContent';
@@ -479,10 +478,6 @@ export function Layout() {
             onSuccess={(node) => {
               setCreateWithUuidModalOpen(false, null);
               openNode(node.uuid);
-              // If this was opened from a broken-link context menu, fix all references
-              if (createWithUuidPrefill) {
-                fixLinksForUuid(createWithUuidPrefill).catch(console.error);
-              }
             }}
           />
         </Suspense>

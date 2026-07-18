@@ -38,8 +38,8 @@ export function applyNodeOperation(db: Database, op: Operation): void {
 
   if (opType === 'node.create') {
     db.run(
-      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, created_at, updated_at, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, active, created_at, updated_at, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payload.nodeId as string,
         op.envelope.workspaceId,
@@ -47,6 +47,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
         JSON.stringify((payload.classIds as string[]) ?? []),
         (payload.parentId as string | null) ?? null,
         JSON.stringify((payload.initialContent as unknown[]) ?? []),
+        1,
         new Date().toISOString(),
         new Date().toISOString(),
         op.envelope.actorId,
@@ -54,6 +55,28 @@ export function applyNodeOperation(db: Database, op: Operation): void {
       ]
     );
     reindexNode(db, payload.nodeId as string);
+  } else if (opType === 'node.archive') {
+    db.run('UPDATE node SET active = 0, updated_at = ?, updated_by = ? WHERE id = ?', [
+      new Date().toISOString(),
+      op.envelope.actorId,
+      payload.nodeId as string,
+    ]);
+  } else if (opType === 'node.restore') {
+    db.run('UPDATE node SET active = 1, updated_at = ?, updated_by = ? WHERE id = ?', [
+      new Date().toISOString(),
+      op.envelope.actorId,
+      payload.nodeId as string,
+    ]);
+  } else if (opType === 'node.permanentDelete') {
+    const nodeId = payload.nodeId as string;
+    db.run('DELETE FROM node WHERE id = ?', [nodeId]);
+    db.run('DELETE FROM node_child_order WHERE parent_id = ? OR child_id = ?', [nodeId, nodeId]);
+    db.run('DELETE FROM property_value WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM property_value_tombstone WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM edge WHERE source_id = ? OR target_id = ?', [nodeId, nodeId]);
+    db.run('DELETE FROM crdt_state WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
   } else if (opType === 'node.delete') {
     const nodeId = payload.nodeId as string;
     db.run('DELETE FROM node WHERE id = ?', [nodeId]);
@@ -67,8 +90,8 @@ export function applyNodeOperation(db: Database, op: Operation): void {
   } else if (opType === 'class.create') {
     const classId = payload.classId as string;
     db.run(
-      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, created_at, updated_at, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, active, created_at, updated_at, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         classId,
         op.envelope.workspaceId,
@@ -76,6 +99,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
         '[]',
         null,
         '[]',
+        1,
         new Date().toISOString(),
         new Date().toISOString(),
         op.envelope.actorId,
@@ -92,6 +116,18 @@ export function applyNodeOperation(db: Database, op: Operation): void {
       op.envelope.actorId,
       payload.nodeId as string,
     ]);
+  } else if (opType === 'node.convert') {
+    db.run(
+      'UPDATE node SET kind = ?, parent_id = ?, class_ids = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      [
+        payload.kind as string,
+        (payload.parentId as string | null) ?? null,
+        JSON.stringify((payload.classIds as string[]) ?? []),
+        new Date().toISOString(),
+        op.envelope.actorId,
+        payload.nodeId as string,
+      ]
+    );
   } else if (opType === 'class.assign') {
     const row = queryOne<{ class_ids: string }>(db, 'SELECT class_ids FROM node WHERE id = ?', [
       payload.nodeId as string,
