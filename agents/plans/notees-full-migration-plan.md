@@ -1,7 +1,7 @@
 # Notees Full Migration Plan: Current App → Ideal Architecture
 
-**Date:** 2026-07-17  
-**Branch:** `main` (Phase 2 snapshot committed)  
+**Date:** 2026-07-18  
+**Branch:** `main` (Phase 3 complete, Phase 4 in progress)  
 **Scope:** Migrate the real Notees app (`app/`, `frontend/`, PostgreSQL) to the local-first, operation-log, CRDT-driven architecture defined in `docs/superpowers/specs/2026-07-17-notees-ideal-data-architecture-design.md`.
 
 ---
@@ -207,29 +207,60 @@ Alternatives considered and rejected:
 
 **Goal:** Replace the authoritative TanStack Query cache with the local SQLite store.
 
-**Status:** Pending.
+**Status:** Implementation in progress. Detailed plan in `agents/plans/phase4-frontend-cutover.md`.
+
+**Approach:**
+- Build React hooks and an adapter layer so existing feature components can read/write through the new core without a full rewrite.
+- Gate the cut-over behind `VITE_ENABLE_SQLITE_STORE` so legacy TanStack Query code keeps running until the new layer is proven.
+- Persist the SQLite database and pending operations in IndexedDB for offline support.
+- Mount the encrypted relay router on the backend and provide a seed script for existing workspaces.
+
+**Key design decisions:**
+- SQLite is the primary runtime store; TanStack Query becomes a transitional loading-state helper only.
+- `node.delete` maps to a hard delete in the operation log for Phase 4. Trash/archive behavior is deferred.
+- One workspace = one SQLite database. The active workspace store is opened lazily by `useWorkspaceStore(workspaceId)`.
 
 **Deliverables:**
-1. `frontend/src/core/stores/workspaceStore.ts` — Zustand/TanStack Query integration where SQLite is source of truth.
-2. `frontend/src/core/hooks/useNode.ts`, `useQueryAst.ts`, `useSync.ts`.
-3. Adapter layer that bridges existing UI components to the new core while old components are rewritten.
-4. Service worker updated to serve offline from SQLite.
+1. **D1 — Core hooks + workspace store adapter + IndexedDB persistence:**
+   - `frontend/src/core/hooks/useWorkspaceStore.ts`, `useNode.ts`, `useNodes.ts`, `useChildren.ts`, `useCreateNode.ts`, `useUpdateText.ts`, `useMoveNode.ts`, `useDeleteNode.ts`, `useSync.ts`.
+   - `frontend/src/core/persistence/indexedDb.ts` and `operationQueue.ts`.
+   - `frontend/src/core/adapters/workspaceStoreAdapter.ts` singleton registry.
+   - Reactive subscriptions added to `WorkspaceStore`; auto-sync controls added to `SyncEngine`.
+2. **D2 — Node read/write bridge:**
+   - Adapter hooks that expose legacy node shapes (`useNodeAdapter`, `useNodesAdapter`, `useNodeChildrenAdapter`, `useInlineEditorAdapter`).
+   - Legacy feature hooks delegate to adapters when the feature flag is on.
+3. **D3 — Properties / views / QueryAST bridge:**
+   - `useProperty.ts`, `useProperties.ts`, `usePropertySchemas.ts`, `useQueryAst.ts`.
+   - Adapter hooks compatible with `features/properties/` and `features/queries/`.
+4. **D4 — Offline + relay integration:**
+   - Service-worker offline strategy aligned with local-first state.
+   - `app/relay/router.py`, `permissions.py`, `storage.py` mounted in `app/main.py`.
+   - `scripts/seed_relay_from_postgres.py` to migrate all workspaces into the relay.
 
 **Files to create/modify:**
 - Create `frontend/src/core/hooks/`.
-- Modify `frontend/src/main.tsx` to initialize SQLite runtime.
-- Modify `frontend/src/App.tsx` routing to use new data hooks.
-- Gradually modify `frontend/src/features/content/`, `frontend/src/features/properties/`.
+- Create `frontend/src/core/persistence/`.
+- Create `frontend/src/core/adapters/`.
+- Create `frontend/src/core/serviceWorker/`.
+- Create/modify `app/relay/router.py`, `app/relay/permissions.py`, `app/relay/storage.py`.
+- Create `scripts/seed_relay_from_postgres.py`.
+- Modify `frontend/src/core/index.ts`, `frontend/src/core/store.ts`, `frontend/src/core/sync.ts`, `frontend/src/core/db/connection.ts`.
+- Modify `frontend/src/App.tsx` to initialize the workspace store adapter.
+- Modify `frontend/src/main.tsx` to restore IndexedDB-backed SQLite databases.
+- Modify legacy feature hooks under `frontend/src/features/content/hooks/`, `frontend/src/features/properties/hooks/`, `frontend/src/features/queries/hooks/`.
 
 **Verification:**
-- Existing E2E tests pass against new data layer (or are replaced).
-- Offline smoke test: create node, go offline, edit, reconnect, converge.
+- `uv run pytest tests/core tests/relay -m unit --no-cov` passes.
+- `uv run ruff check app/core app/relay scripts/seed_relay_from_postgres.py frontend/src/core` clean.
+- `uv run python scripts/validate_migration.py` reports zero orphans and zero duplicates.
+- `cd frontend && npm run test:run src/core && npx tsc -b --noEmit && npm run lint` passes.
+- Manual smoke test with `VITE_ENABLE_SQLITE_STORE=true`: open workspace, CRUD nodes, edit properties, run QueryAST view, go offline, reconnect, converge.
 
 **Subagent breakdown:**
-- Subagent D1: Core hooks + store adapter.
+- Subagent D1: Core hooks + store adapter + IndexedDB persistence.
 - Subagent D2: Content/editor feature bridge.
-- Subagent D3: Properties/views feature bridge.
-- Subagent D4: Service worker + PWA offline tests.
+- Subagent D3: Properties/views/QueryAST bridge.
+- Subagent D4: Service worker/PWA offline + relay router mount + backend seed script.
 
 ---
 
@@ -322,4 +353,4 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
 ## Immediate Next Step
 
-Begin **Phase 3** (QueryAST retarget to SQLite) by creating `app/core/query_ast/` and a SQLite SQL compiler that mirrors the current PostgreSQL QueryAST compiler against the new derived tables.
+Begin **Phase 4** (frontend cut-over) by dispatching subagent D1 to build the core React hooks, workspace store adapter, and IndexedDB persistence layer. See `agents/plans/phase4-frontend-cutover.md` for the full sub-task breakdown.
