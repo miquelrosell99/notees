@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 
 import asyncpg
 from fastapi import Depends, HTTPException
 
 from app.core.workspace_store import WorkspaceStore
-from app.db.connection import get_pool, get_workspace_uuid
+from app.db.connection import acquire_connection, get_pool, get_workspace_uuid
 from app.dependencies import _get_workspace_context_cached, get_current_user, get_workspace_id
 from app.features.export.dependencies import _make_export_repository
 from app.features.export.service import ExportService
-from app.features.nodes.dependencies import _make_node_repository
-from app.features.properties.dependencies import _make_property_repository
-from app.features.properties.port import PropertyRepository
 from app.infrastructure.export.renderer import HtmlPdfExportRenderer
 from app.models import User
 
@@ -58,26 +55,46 @@ async def get_share_repository_for_public() -> AsyncGenerator[ShareRepository, N
     yield _make_share_repository(pool, 0, None)
 
 
+NodeIdResolver = Callable[[int, str], Awaitable[int]]
+
+
+async def _resolve_node_uuid_to_id(workspace_id: int, node_uuid: str) -> int:
+    """Resolve a public node UUID to its internal numeric id in PostgreSQL."""
+    pool = await get_pool()
+    async with acquire_connection(pool) as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2",
+            workspace_id,
+            node_uuid,
+        )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return row["id"]
+
+
+async def get_node_id_resolver() -> AsyncGenerator[NodeIdResolver, None]:
+    """Yield the default node UUID -> internal id resolver."""
+    yield _resolve_node_uuid_to_id
+
+
 async def _get_share_service(user: User) -> ShareService:
     """Return a ShareService wired to the user's workspace."""
     pool = await get_pool()
     user_id = int(user.id)
     workspace_id = await get_workspace_id(user)
     share_repo = _make_share_repository(pool, workspace_id, user_id)
-    node_repo = _make_node_repository(pool, workspace_id, 0, user_id)
     export_repo = await _make_export_repository(workspace_id)
     export_service = ExportService(export_repo, _get_export_renderer())
-    return ShareService(share_repo, node_repo, export_service, workspace_id, user_id)
+    return ShareService(share_repo, export_service, workspace_id, user_id)
 
 
 async def _get_public_share_service(workspace_id: int) -> ShareService:
     """Return a ShareService for anonymous public share access."""
     pool = await get_pool()
     share_repo = _make_share_repository(pool, workspace_id, 0)
-    node_repo = _make_node_repository(pool, workspace_id, 0, 0)
     export_repo = await _make_export_repository(workspace_id)
     export_service = ExportService(export_repo, _get_export_renderer())
-    return ShareService(share_repo, node_repo, export_service, workspace_id, 0)
+    return ShareService(share_repo, export_service, workspace_id, 0)
 
 
 async def get_share_service(
@@ -85,18 +102,6 @@ async def get_share_service(
 ) -> AsyncGenerator[ShareService, None]:
     """FastAPI dependency yielding a ShareService."""
     yield await _get_share_service(user)
-
-
-async def get_public_property_repository(
-    share_uuid: str,
-    share_repo: ShareRepository = Depends(get_share_repository_for_public),
-) -> PropertyRepository:
-    """Get a PropertyRepository scoped to the workspace of a public share."""
-    share = await share_repo.get_share_by_uuid(share_uuid)
-    if share is None or not share.is_valid():
-        raise HTTPException(status_code=404, detail="Share not found or expired")
-    pool = await get_pool()
-    return _make_property_repository(pool, share.workspace_id, 0)
 
 
 async def get_public_workspace_store(

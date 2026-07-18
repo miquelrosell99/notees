@@ -19,8 +19,7 @@ import { useNodeSearch, type NodeSearchItem } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useClasses, usePages } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
-import { getOperationRuntime } from '@/runtime';
-import { getAllNodes } from '@/runtime/graphHelpers';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { NodeResultItem } from '@/features/content';
 import { useCreateNode } from '@/features/content';
 import { usePageClass, useClassClass } from '@/features/content';
@@ -143,6 +142,8 @@ export interface TriggerPopupProps {
   contextBlockServerId?: string;
   /** Constrains the link popup (`type === 'link'`) to a subset of nodes (e.g. blocks only) */
   linkSearchMode?: 'all' | 'pages' | 'blocks';
+  /** Workspace ID used to look up the context block in the core store. */
+  workspaceId?: string;
   /**
    * Inline mode: the editor block is the filter field (slash only). The popup has no
    * search input, does not steal focus, and is driven by the parent.
@@ -168,6 +169,7 @@ export function TriggerPopup({
   hiddenSlashCommandIds,
   contextBlockServerId,
   linkSearchMode,
+  workspaceId,
   inline = false,
   controlledQuery,
   controlledSelectedIndex,
@@ -245,13 +247,14 @@ export function TriggerPopup({
   const { data: allPages = [] } = usePages();
 
   const parentIsCard = useMemo(() => {
-    if (contextBlockServerId == null) return false;
-    const runtime = getOperationRuntime();
-    const blockNode = getAllNodes(runtime).find((n) => n.blockId === contextBlockServerId);
+    if (contextBlockServerId == null || workspaceId == null) return false;
+    const store = getWorkspaceStore(workspaceId);
+    if (!store) return false;
+    const blockNode = store.getNode(contextBlockServerId);
     if (!blockNode?.parentId) return false;
-    const parentNode = getAllNodes(runtime).find((n) => n.blockId === blockNode.parentId);
+    const parentNode = store.getNode(blockNode.parentId);
     return parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
-  }, [contextBlockServerId]);
+  }, [contextBlockServerId, workspaceId]);
 
   // Determine search mode and filter props from active filters
   const searchMode =

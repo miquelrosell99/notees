@@ -19,7 +19,7 @@ import {
   memo,
   type JSX,
 } from 'react';
-import type { ContentAST } from '@/runtime/types';
+import type { ASTDocument as ContentAST } from '@/types/ast';
 import type { ASTInlineNode } from '@/types/ast';
 import { serializeContentAST } from '@/features/editor/editor/editorConfig';
 import {

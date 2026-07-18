@@ -10,7 +10,7 @@
 
 import React, { useCallback, useRef, type JSX } from 'react';
 import { useParams } from 'react-router-dom';
-import type { ContentAST } from '@/runtime/types';
+import type { ASTDocument as ContentAST } from '@/types/ast';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';

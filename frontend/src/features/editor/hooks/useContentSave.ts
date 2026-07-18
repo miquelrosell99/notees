@@ -1,36 +1,38 @@
 /**
- * useContentSave — Debounced content-save bridge to OperationRuntime.
+ * useContentSave — Debounced content-save bridge to the core WorkspaceStore.
  *
- * This hook no longer talks to the API directly. It simply debounces local
- * content changes and forwards them to the runtime as `update_content` intents.
- * The runtime projection updates immediately; SyncManager observes pending
- * operations and persists them through TanStack Query.
+ * This hook no longer talks to the legacy OperationRuntime. It debounces local
+ * content changes and applies them to the local-first core store via
+ * `store.updateText`. The sync engine observes operations and persists them.
  *
  * Re-exports:
  * - flushAllContentSaves: flushes every active instance's debounce timers.
- * - awaitAllContentSaves: waits until the runtime has no pending/in-flight
- *   content operations (best-effort timeout).
+ * - awaitAllContentSaves: best-effort await (resolves immediately in the core
+ *   path because updates are synchronous once flushed).
  */
 
-import { useCallback, useRef, useEffect, useContext } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
-import type { MutationIntent } from '@/runtime/types';
-import { getUndoEngine } from '@/stores/undoEngine';
-import { liveSyncManager } from '@/features/collab';
-import { flushRegistry } from '@/hooks/contentSaveTracker';
-import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
-import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { useWorkspaceStore } from '@/core/hooks';
 
-export { flushAllContentSaves, awaitAllContentSaves } from '@/hooks/contentSaveTracker';
+const flushRegistry = new Set<() => void>();
+
+export function flushAllContentSaves(): void {
+  flushRegistry.forEach((flush) => flush());
+}
+
+export async function awaitAllContentSaves(): Promise<void> {
+  flushAllContentSaves();
+  // Core store updates are synchronous once flushed; there is no in-flight REST
+  // request to wait for in this path.
+  return Promise.resolve();
+}
 
 /** Number of keystrokes between forced text-edit flushes. */
 const KEYSTROKE_FLUSH_INTERVAL = 10;
 
-/** Default debounce for text edits in the v2 local-first sync path. */
+/** Default debounce for text edits in the local-first path. */
 const DEFAULT_TEXT_DEBOUNCE_MS = 150;
 
 /** Pending change entry */
@@ -42,64 +44,32 @@ interface PendingChange {
 }
 
 interface UseContentSaveOptions {
-  /** Debounce delay in ms (default: 500) */
+  /** Debounce delay in ms (default: 150) */
   delay?: number;
 }
 
 /**
- * Hook for debounced content saving through the runtime.
+ * Hook for debounced content saving through the core WorkspaceStore.
  */
 export function useContentSave(options: UseContentSaveOptions = {}) {
   const { delay = DEFAULT_TEXT_DEBOUNCE_MS } = options;
   const pendingChangesRef = useRef<Map<string, PendingChange>>(new Map());
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const ctx = useContext(WorkspaceStoreContext);
-
-  const resolveGraphNode = useCallback((blockId: string) => {
-    const runtime = getOperationRuntime();
-    return getNode(runtime, blockId);
-  }, []);
+  const { store } = useWorkspaceStore(workspaceId ?? '');
 
   const saveBlock = useCallback(async (blockId: string, content: string) => {
+    if (!store) return;
+
     const ast = parseAST(content);
     const converted = convertMarkdownInAST(ast);
-
     const finalContent = converted !== ast ? JSON.stringify(converted) : content;
 
-    if (ENABLE_SQLITE_STORE) {
-      if (!ctx || !workspaceId) return;
-      const store = await getOrCreateWorkspaceStore(
-        workspaceId,
-        ctx.actorId,
-        ctx.cryptoKey,
-        ctx.transport
-      );
-      store.updateText(blockId, (text) => {
-        const current = text.toPlaintext();
-        text.delete(0, current.length);
-        text.insert(0, finalContent);
-      });
-      return;
-    }
-
-    const graphNode = resolveGraphNode(blockId);
-    if (!graphNode) return;
-
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
-      try {
-        liveSyncManager.sendBlockUpdate(graphNode.blockId, graphNode.blockId, finalContent);
-      } catch {
-        // Ignore broadcast errors — REST save is the source of truth.
-      }
-    }
-
-    const intent: MutationIntent = {
-      type: 'update_content',
-      blockId: graphNode.blockId,
-      contentAST: converted,
-    };
-    await getUndoEngine().applyIntent(intent, { sourceEditorId: intent.sourceEditorId });
-  }, [resolveGraphNode, ctx, workspaceId]);
+    store.updateText(blockId, (text) => {
+      const current = text.toPlaintext();
+      text.delete(0, current.length);
+      text.insert(0, finalContent);
+    });
+  }, [store]);
 
   const flushBlock = useCallback((blockId: string) => {
     const pending = pendingChangesRef.current.get(blockId);

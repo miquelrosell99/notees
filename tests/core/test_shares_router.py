@@ -15,14 +15,14 @@ from httpx import ASGITransport, AsyncClient
 from app.core.workspace_store import WorkspaceStore
 from app.dependencies import (
     get_current_user,
-    get_node_repository,
     require_read_or_write_scope,
     require_write_scope,
 )
-from app.domain.entities import Node
 from app.domain.entities.share import PublicShare
 from app.features.export.service import ExportService
 from app.features.shares.dependencies import (
+    NodeIdResolver,
+    get_node_id_resolver,
     get_public_workspace_store,
     get_share_repository,
     get_share_repository_for_public,
@@ -66,29 +66,6 @@ async def _make_test_store(
 TEST_NODE_UUID = "node-uuid-1"
 TEST_NODE_INTERNAL_ID = 42
 TEST_TARGET_USER_UUID = "user-uuid-target"
-
-
-class FakeNodeRepository:
-    """Minimal in-memory node repository for share router tests."""
-
-    def __init__(self) -> None:
-        self._nodes: dict[int, Node] = {
-            TEST_NODE_INTERNAL_ID: Node(
-                id=TEST_NODE_INTERNAL_ID,
-                uuid=TEST_NODE_UUID,
-                name="Test Node",
-                workspace_id=1,
-            )
-        }
-
-    async def get_by_id(self, node_id: int) -> Node | None:
-        return self._nodes.get(node_id)
-
-    async def get_by_uuid(self, uuid: str) -> Node | None:
-        for node in self._nodes.values():
-            if node.uuid == uuid:
-                return node
-        return None
 
 
 class FakeShareRepository:
@@ -140,11 +117,11 @@ class FakeShareRepository:
         share.active = False
         return True
 
-    async def get_shared_node(self, share_uuid: str) -> Node | None:
+    async def get_shared_node(self, share_uuid: str) -> dict[str, Any] | None:
         share = await self.get_share_by_uuid(share_uuid)
         if share is None or not share.is_valid():
             return None
-        return Node(id=share.node_id, uuid=TEST_NODE_UUID, name="Shared")
+        return {"id": share.node_id, "uuid": TEST_NODE_UUID, "name": "Shared"}
 
     async def set_share_password(self, share_id: int, password_hash: str) -> None:
         for share in self._public.values():
@@ -220,7 +197,6 @@ def _make_share_service(share_repo: FakeShareRepository) -> ShareService:
     export_service = AsyncMock(spec=ExportService)
     return ShareService(
         share_repository=share_repo,
-        node_repository=FakeNodeRepository(),
         node_export_service=export_service,
         workspace_id=1,
         user_id=1,
@@ -232,7 +208,6 @@ def _make_share_service(share_repo: FakeShareRepository) -> ShareService:
 async def shares_client() -> AsyncGenerator[AsyncClient, None]:
     """Authenticated test client with the shares store dependency overridden."""
     store = await _make_test_store()
-    node_repo = FakeNodeRepository()
     share_repo = FakeShareRepository()
     share_service = _make_share_service(share_repo)
 
@@ -254,8 +229,11 @@ async def shares_client() -> AsyncGenerator[AsyncClient, None]:
     async def _override_require_scope() -> User:
         return await _override_get_current_user()
 
-    async def _override_get_node_repository() -> AsyncGenerator[Any, None]:
-        yield node_repo
+    async def _override_get_node_id_resolver() -> AsyncGenerator[NodeIdResolver, None]:
+        async def _fake_resolver(_workspace_id: int, _node_uuid: str) -> int:
+            return TEST_NODE_INTERNAL_ID
+
+        yield _fake_resolver
 
     async def _override_get_share_repository() -> AsyncGenerator[Any, None]:
         yield share_repo
@@ -282,7 +260,7 @@ async def shares_client() -> AsyncGenerator[AsyncClient, None]:
     test_app.dependency_overrides[get_current_user] = _override_get_current_user
     test_app.dependency_overrides[require_read_or_write_scope] = _override_require_scope
     test_app.dependency_overrides[require_write_scope] = _override_require_scope
-    test_app.dependency_overrides[get_node_repository] = _override_get_node_repository
+    test_app.dependency_overrides[get_node_id_resolver] = _override_get_node_id_resolver
     test_app.dependency_overrides[get_share_repository] = _override_get_share_repository
     test_app.dependency_overrides[
         get_share_repository_for_public

@@ -7,11 +7,13 @@
  */
 
 import { useEffect, useCallback, useRef, type JSX } from 'react';
+import { useParams } from 'react-router-dom';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseLinkId } from '@/lib/astBuilder';
 import { copyToClipboard } from '@/utils/clipboardManager';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
+import { useWorkspaceStore } from '@/core/hooks';
+import type { WorkspaceStore } from '@/core/store';
+import { nodeNameToText } from '@/features/queries';
 import {
   astToUnits,
   getInlineChildren,
@@ -86,7 +88,7 @@ function getSelectedPillNode(state: InlineEditorState, linkId: string): ASTInlin
   return null;
 }
 
-function computeDisplayLabel(node: ASTInlineNode): string {
+function computeDisplayLabel(node: ASTInlineNode, store: WorkspaceStore | undefined): string {
   if (node.type === 'external_link') {
     const label = node.children.map((c) => ('text' in c ? (c as { text: string }).text : '')).join('');
     if (label && label !== node.url) return label;
@@ -102,9 +104,11 @@ function computeDisplayLabel(node: ASTInlineNode): string {
     const { nodeUuid } = parseLinkId(node.link_id);
     if (node.label) return node.label;
     if (nodeUuid) {
-      const runtime = getOperationRuntime();
-      const target = getNode(runtime, nodeUuid);
-      if (target?.name) return target.name;
+      const target = store?.getNode(nodeUuid);
+      if (target) {
+        const name = nodeNameToText(target.content);
+        if (name) return name;
+      }
       return nodeUuid;
     }
   }
@@ -120,6 +124,9 @@ export function InlineNodeLinks({
   setSelectedPillLinkId,
   onPillClick,
 }: InlineNodeLinksProps): JSX.Element | null {
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
+
   const selectedLinkIdRef = useRef(selectedPillLinkId);
   selectedLinkIdRef.current = selectedPillLinkId;
 
@@ -259,7 +266,7 @@ export function InlineNodeLinks({
           event.stopPropagation();
 
           const refType = getLinkRefType(node);
-          const displayLabel = computeDisplayLabel(node);
+          const displayLabel = computeDisplayLabel(node, store);
           const linkIdForParse = getLinkId(node);
           const { nodeUuid } = linkIdForParse ? parseLinkId(linkIdForParse) : { nodeUuid: '' };
 
@@ -355,7 +362,7 @@ export function InlineNodeLinks({
         selection.removeAllRanges();
       }
     },
-    [rootRef, stateRef, applyMutation, onPillClick, clearSelection, setSelectedPillLinkId],
+    [rootRef, stateRef, applyMutation, onPillClick, clearSelection, setSelectedPillLinkId, store],
   );
 
   useEffect(() => {

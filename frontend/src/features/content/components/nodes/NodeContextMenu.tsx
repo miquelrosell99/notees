@@ -44,7 +44,7 @@ import { ShareModal } from './ShareModal';
 import { startSingleExportJob, pollExportJob, fetchExportResult } from '@/api/exportJobs';
 import type { Node, NodeUpdate } from '@/types';
 
-import type { ContentAST } from '@/runtime/types';
+import type { ASTDocument as ContentAST } from '@/types/ast';
 import { IconColorPickerRow } from './NodeContextMenu/iconRow';
 import { MoveToSubmenu } from './NodeContextMenu/moveTo';
 import {

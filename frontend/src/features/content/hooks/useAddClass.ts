@@ -1,45 +1,37 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'react-router-dom';
 import type { Node } from '@/types/api';
 import * as nodesApi from '@/api/nodes';
+import { useWorkspaceStore, useUndoManager } from '@/core/hooks';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
-import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
-import {
-  findNodeInCache,
-  ensureNodeInRuntime,
-  applyNodeIntent,
-} from './useNodeMutations.utils';
-import { waitForOperationAck } from '@/sync/waitForOperation';
+import { findNodeInCache } from './useNodeMutations.utils';
 
 /**
  * Hook to add a class to a node.
  *
- * The optimistic update is handled by OperationRuntime. SyncManager dispatches
- * the API call and writes the result back to the cache.
+ * The optimistic update is handled by the local-first core store. When the store
+ * is available, the class assignment is applied (and undo-recorded) immediately;
+ * otherwise the direct API fallback is used.
  */
 export function useAddClass() {
   const queryClient = useQueryClient();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const manager = useUndoManager(workspaceId ?? '');
 
   return useMutation<Node | null, Error, { nodeUuid: string; classId: string }>({
     mutationFn: async ({ nodeUuid, classId }) => {
-      await awaitAllContentSaves();
       if (!nodeUuid) throw new Error('Node UUID not found');
       const classUuid = classId;
       if (!classUuid) throw new Error('Class UUID not found');
-      const blockId = ensureNodeInRuntime(nodeUuid);
 
-      if (blockId) {
-        // Optimistic runtime path
-        const operationId = await applyNodeIntent({
-          type: 'add_class',
-          blockId,
-          classId: classUuid,
-        });
-        await waitForOperationAck(operationId);
+      if (store && manager) {
+        manager.assignClass(nodeUuid, classUuid);
         return findNodeInCache(queryClient, nodeUuid);
       }
 
-      // Fallback: node is not in the runtime or any cache, use direct API
+      // Fallback: core store is not available, use direct API
       return nodesApi.addClass(nodeUuid, classUuid);
     },
     onSuccess: (updatedNode, { nodeUuid, classId }) => {

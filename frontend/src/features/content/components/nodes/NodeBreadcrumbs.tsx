@@ -33,7 +33,7 @@ import { ChevronRightIcon, NodeIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { NodeSelector } from './NodeSelector';
-import { useRuntimeDisplayName } from '@/features/content/hooks/runtimeContentOverlay';
+import { useCoreDisplayName } from '@/features/content/hooks/useCoreDisplayName';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { PROPERTY_TYPE_ICONS } from '@/features/properties';
 import './NodeBreadcrumbs.css';
@@ -81,9 +81,9 @@ function NodeBreadcrumbsElement({
   onContextMenu,
 }: NodeBreadcrumbsElementProps) {
   const wrapperRef = useRef<HTMLSpanElement>(null);
-  // Live name from the runtime so a block-ancestor crumb reflects content
+  // Live name from the core store so a block-ancestor crumb reflects content
   // edits immediately instead of after the next breadcrumb-cache refetch.
-  const liveName = useRuntimeDisplayName(
+  const liveName = useCoreDisplayName(
     item.isProperty ? null : item.nodeUuid,
     item.name,
   );
@@ -135,9 +135,9 @@ function NodeBreadcrumbsElement({
 // ─── BreadcrumbPopupItem ────────────────────────────────────────────────
 
 /** Single item inside the breadcrumbs overflow popup. Lives in its own
- *  component so it can subscribe to the runtime for a fresh name. */
+ *  component so it can subscribe to the core store for a fresh name. */
 function BreadcrumbPopupItem({ item, onClick }: { item: BreadcrumbItem; onClick: (item: BreadcrumbItem) => void }) {
-  const liveName = useRuntimeDisplayName(item.isProperty ? null : item.nodeUuid, item.name);
+  const liveName = useCoreDisplayName(item.isProperty ? null : item.nodeUuid, item.name);
   const label = item.isProperty
     ? item.name
     : (item.displayName || nodeNameToText(liveName) || 'Untitled');
