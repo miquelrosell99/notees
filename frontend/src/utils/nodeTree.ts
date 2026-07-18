@@ -4,7 +4,7 @@
  * Common tree traversal and manipulation functions for node hierarchies.
  * Consolidates duplicate implementations from NodeListView, NodeDocumentView, etc.
  */
-import type { Node } from '@/types';
+import type { Node, Property } from '@/types';
 
 /**
  * Find a node by UUID in a tree structure (recursive depth-first search)
@@ -230,6 +230,70 @@ export function dedupeNodesByUuidDeep(nodes: Node[], context?: string): Node[] {
   }
 
   return result;
+}
+
+/**
+ * Remove children that are referenced by text-type properties on their parent.
+ *
+ * Text properties store their value as a block node UUID. That block is created
+ * as a child of the owning node, so it normally appears both in the property
+ * panel and in the main block list. This filter removes those property-value
+ * blocks from the tree while preserving all other children.
+ *
+ * Returns the same array reference when nothing changes.
+ */
+export function filterTextPropertyBlocks(nodes: Node[], allProperties: Property[]): Node[] {
+  if (!allProperties || allProperties.length === 0) return nodes;
+
+  const textPropertyUuids = new Set(
+    allProperties.filter((p) => p.type === 'text').map((p) => p.uuid)
+  );
+  if (textPropertyUuids.size === 0) return nodes;
+
+  function collectTextBlockIds(node: Node): Set<string> {
+    const ids = new Set<string>();
+    const props = node.properties_uuid as Record<string, unknown> | undefined;
+    if (!props) return ids;
+
+    for (const [propUuid, value] of Object.entries(props)) {
+      if (!textPropertyUuids.has(propUuid)) continue;
+      if (typeof value === 'string') {
+        ids.add(value);
+      } else if (Array.isArray(value)) {
+        for (const v of value) {
+          if (typeof v === 'string') ids.add(v);
+        }
+      }
+    }
+    return ids;
+  }
+
+  function filterNode(node: Node): Node {
+    const textBlockIds = collectTextBlockIds(node);
+    let children = node.children;
+
+    if (children && children.length > 0) {
+      if (textBlockIds.size > 0) {
+        const filtered = children.filter((child) => !textBlockIds.has(child.uuid));
+        if (filtered.length !== children.length) {
+          children = filtered;
+        }
+      }
+
+      const recursed = children.map(filterNode);
+      if (recursed.some((child, index) => child !== children![index])) {
+        children = recursed;
+      }
+    }
+
+    if (children !== node.children) {
+      return { ...node, children };
+    }
+    return node;
+  }
+
+  const result = nodes.map(filterNode);
+  return result.some((node, index) => node !== nodes[index]) ? result : nodes;
 }
 
 /**

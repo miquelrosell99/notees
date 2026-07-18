@@ -865,56 +865,20 @@ export function NodeView({
     }
   }, [coverProperty, node, setPropertyMutation, isCoverCollapsed]);
   
-  // Collect block IDs that are referenced by text properties (these should not appear in content)
-  const textPropertyBlockIds = useMemo(() => {
-    if (!node?.properties_uuid || !allProperties) return new Set<string>();
-    
-    const blockIds = new Set<string>();
-    const nodeProps = node.properties_uuid as Record<string, unknown>;
-
-    for (const prop of allProperties) {
-      if (prop.type === 'text') {
-        const value = nodeProps[prop.uuid];
-        if (typeof value === 'string') {
-          blockIds.add(value);
-        } else if (Array.isArray(value)) {
-          // Multi-value text properties store an array of block IDs
-          for (const v of value) {
-            if (typeof v === 'string') blockIds.add(v);
-          }
-        }
-      }
-    }
-    
-    return blockIds;
-  }, [node?.properties_uuid, allProperties]);
-  
   // Separate block children from page children
-  const { blockChildren } = useMemo(() => {
-    if (!node?.children) return { blockChildren: [], pageChildren: [] };
-    
-    const blocks: Node[] = [];
-    const pages: Node[] = [];
-    
-    for (const child of node.children) {
+  const blockChildren = useMemo(() => {
+    if (!node?.children) return [];
+
+    return node.children.filter((child) => {
       // Skip children with this node as their class (they appear in classed_nodes view)
-      if (child.classes_uuid?.includes(node.uuid)) continue;
-      
+      if (child.classes_uuid?.includes(node.uuid)) return false;
+
       // Skip comment blocks (they appear in the comments sidebar section)
-      if (child.is_comment) continue;
-      
-      // Skip blocks that are referenced by text properties (they appear in PropertiesSection)
-      if (textPropertyBlockIds.has(child.uuid)) continue;
-      
-      if (child.is_page) {
-        pages.push(child);
-      } else {
-        blocks.push(child);
-      }
-    }
-    
-    return { blockChildren: blocks, pageChildren: pages };
-  }, [node?.children, node?.uuid, textPropertyBlockIds]);
+      if (child.is_comment) return false;
+
+      return !child.is_page;
+    });
+  }, [node?.children, node?.uuid]);
   
   // Context menu handlers
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
