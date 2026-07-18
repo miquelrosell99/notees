@@ -22,6 +22,7 @@ from app.dependencies import (
     require_read_or_write_scope,
     require_write_scope,
 )
+from app.domain.repositories.interfaces import SettingsRepository
 from app.export_jobs import create_job, get_job, update_job
 from app.features.workspaces.dependencies import (
     _get_workspace_io_service,
@@ -37,7 +38,6 @@ from app.features.workspaces.manager import (
     switch_workspace,
 )
 from app.features.workspaces.service import WorkspaceService
-from app.domain.repositories.interfaces import SettingsRepository
 from app.logging_config import get_logger
 from app.models import PaginatedResponse, User, WorkspaceCreate
 from app.utils.datetime_utils import utc_now

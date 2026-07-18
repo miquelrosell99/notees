@@ -28,7 +28,20 @@
   - `data/backups/notees-data-20260718-085514.tar.gz`
 - A pre-Phase 8 backup is available at `data/backups/phase8/`.
 
+### Phase 9D/E — Remove remaining legacy frontend API callers
+
+- The last `frontend/src/api/nodes.ts` consumers (search, selectors, command palette, navigation, views/graph, comments, aliases, templates, share receiver, version history, merge, and trash) have been ported to the core SQLite store.
+- `frontend/src/api/nodes.ts` has been deleted. The frontend no longer calls any `/api/nodes/*` endpoints.
+- Comments are implemented as child blocks with the `comment` system class.
+- Templates are pages with the `template` class; variables are parsed from content placeholders.
+- Aliases and version restore are intentionally not yet modeled in the operation-log core and return empty/no-op results.
+
+### Phase 10 — Final documentation and release milestone
+
+- `AGENTS.md` and agent reference docs updated to reflect the completed migration.
+- This changelog entry finalized.
+
 ### Developer Notes
 
 - `frontend/src/core/` is the sole path for state, hooks, and sync.
-- `agents/plans/notees-phase7-plus-plan.md` tracks Phase 9C/E2E and Phase 10 release tasks.
+- `agents/plans/notees-phase7-plus-plan.md` is marked complete.
