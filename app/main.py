@@ -46,7 +46,6 @@ from app.features.collab.yjs_router import router as yjs_router
 from app.features.export import auto_export_router
 from app.features.export.router import router as export_router
 from app.features.import_ import router as import_router
-from app.features.properties.router import router as properties_router
 from app.features.shares import public_router
 from app.features.shares.router import workspace_shares_router as shares_router
 
@@ -63,8 +62,6 @@ from .domain.errors import (
 )
 from .domain.repositories.factories import make_user_repository
 from .features.auth import is_strong_admin_password
-from .features.nodes.router import router as nodes_router
-from .features.sync.router import router as sync_router
 from .infrastructure.export.share_files import get_static_share_path
 from .logging_config import get_logger, setup_logging
 from .plugins.core import plugin_manager
@@ -561,9 +558,6 @@ v1_router = APIRouter(
 routers = [
     auth_router,
     workspaces_router,
-    nodes_router,
-    properties_router,
-    sync_router,
     tasks_router,
     export_router,
     import_router,

@@ -29,7 +29,6 @@ from app.features.workspaces.port import WorkspaceIORepository, WorkspaceReposit
 from .config import settings
 from .db.connection import acquire_connection, get_pool
 from .db.schema import get_or_create_user_workspace
-from .domain.entities.sync_v2 import SyncBatchRequest
 from .domain.permissions import PermissionChecker
 from .domain.ports import EmailSender, PushNotificationSender
 from .domain.repositories import (
@@ -71,13 +70,6 @@ from .features.notifications.repository import (
 from .features.notifications.service import NotificationService
 from .features.properties.port import PropertyRepository
 from .features.properties.repository import PostgresPropertyRepository
-from .features.properties.service import PropertyService
-from .features.sync.dependencies import _make_sync_repository
-from .features.sync.service import SyncService
-from .features.sync.service_v2 import SyncServiceV2
-from .features.tasks.repository import PostgresTaskRecurrenceRepository
-from .features.tasks.repository_completion import PostgresTaskCompletionRepository
-from .features.tasks.service import TaskAutomationService
 from .features.undo.repository import PostgresUndoRepository
 from .features.undo.service import UndoService
 from .features.workspaces.dependencies import (
@@ -88,7 +80,7 @@ from .features.workspaces.manager import get_active_workspace_id
 from .infrastructure.email import SmtpEmailSender
 from .infrastructure.push.fcm import FcmPushSender
 from .logging_config import get_logger
-from .models import SyncRequest, User
+from .models import User
 
 logger = get_logger(__name__)
 
@@ -344,14 +336,6 @@ def _make_query_repository(
     return PostgresQueryRepository(pool, workspace_id, user_id)
 
 
-async def _get_sync_service(user: User, workspace_id: int) -> SyncService:
-    """Return a SyncService wired to the user's workspace."""
-    # Import here to avoid a circular import at module load time.
-    from app.features.sync.dependencies import _get_sync_service as feature_get_sync_service
-
-    return await feature_get_sync_service(user, workspace_id)
-
-
 # ------------------------------------------------------------------------------
 # FastAPI dependencies yielding repository interfaces
 # ------------------------------------------------------------------------------
@@ -447,85 +431,6 @@ async def get_permission_checker(
     user_id = int(user.id)
     permission_repo = _make_permission_repository(pool, workspace_id, user_id)
     yield PermissionChecker(user_id, permission_repo)
-
-
-async def get_sync_service(
-    request: SyncRequest,
-    user: User = Depends(get_current_user),
-) -> AsyncGenerator[SyncService, None]:
-    """Get a SyncService for the requested or active workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    if request.workspace_uuid:
-        workspace_repo = _make_workspace_repository(pool)
-        ws_row = await workspace_repo.get_by_uuid_for_user(request.workspace_uuid, user_id)
-        if not ws_row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        workspace_id = ws_row["id"]
-    else:
-        workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    sync_service = await _get_sync_service(user, workspace_id)
-    yield sync_service
-
-
-async def _get_sync_service_v2(
-    user: User, workspace_id: int, workspace_uuid: str | None = None
-) -> SyncServiceV2:
-    """Build a SyncServiceV2 wired to a specific workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    sync_repo = _make_sync_repository(pool, workspace_id, user_id)
-    page_class_id = await _get_page_class_id_cached(pool, workspace_id, user_id)
-    node_service = await _get_node_service_for_workspace(user, workspace_id, page_class_id)
-    permission_repo = _make_permission_repository(pool, workspace_id, user_id)
-    permission_checker = PermissionChecker(user_id, permission_repo)
-    property_repo = _make_property_repository(pool, workspace_id, user_id)
-    recurrence_repo = PostgresTaskRecurrenceRepository(pool, workspace_id, user_id)
-    completion_repo = PostgresTaskCompletionRepository(pool, workspace_id, user_id)
-    task_service = TaskAutomationService(
-        node_service,
-        property_repo,
-        recurrence_repo,
-        completion_repo,
-        user_id=user_id,
-    )
-    activity_repo = PostgresActivityRepository(pool, workspace_id, user_id)
-    property_service = PropertyService(
-        workspace_id,
-        property_repo,
-        node_service,
-        task_service=task_service,
-        activity_repo=activity_repo,
-        user_id=user_id,
-    )
-    return SyncServiceV2(
-        sync_repo,
-        node_service,
-        permission_checker,
-        workspace_id,
-        user_id,
-        workspace_uuid,
-        property_service=property_service,
-    )
-
-
-async def get_sync_service_v2(
-    request: SyncBatchRequest,
-    user: User = Depends(get_current_user),
-) -> AsyncGenerator[SyncServiceV2, None]:
-    """Get a SyncServiceV2 for the requested or active workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_uuid = request.workspace_uuid
-    if workspace_uuid:
-        workspace_repo = _make_workspace_repository(pool)
-        ws_row = await workspace_repo.get_by_uuid_for_user(workspace_uuid, user_id)
-        if not ws_row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        workspace_id = ws_row["id"]
-    else:
-        workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    yield await _get_sync_service_v2(user, workspace_id, workspace_uuid)
 
 
 async def _get_node_view_repo(user: User) -> NodeViewRepository:
