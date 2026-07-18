@@ -74,9 +74,13 @@ Replace the remaining legacy frontend data paths with the core store.
    - `frontend/src/features/sync/local/searchIndex.ts` (MiniSearch) is replaced by SQLite FTS5 over the derived node/search tables.
 
 5. **Feature UI hooks**:
-   - `frontend/src/features/tasks/hooks/`, `frontend/src/features/assets/`, `frontend/src/features/shares/`, `frontend/src/features/import/` updated to use core hooks and adapters.
+   - `frontend/src/features/tasks/hooks/`, `frontend/src/features/content/`, `frontend/src/features/layout/` updated to use core hooks and adapters.
 
-### G4 — Integration and Convergence Validation
+**Verification:** `cd frontend && npx tsc -b --noEmit && npm run lint` → clean (6 pre-existing warnings). `npm run test:run` → 91 files, 616 tests passed.
+
+**Note:** `frontend/src/features/sync/local/` files have been deleted because all consumers now use the core store. `frontend/src/runtime/` still exists and will be removed in Phase 8.
+
+### G4 — Integration and Convergence Validation (in progress)
 
 - Multi-client convergence tests for text edits, moves, property changes, and asset uploads.
 - Offline → reconnect tests.
