@@ -2,70 +2,107 @@
 
 ## Data Model at a Glance
 
+The authoritative source of truth is the **immutable operation log**. Every mutation is appended as an operation; PostgreSQL stores the encrypted relay log and server-side snapshots/compaction segments; the client maintains a derived SQLite database that is rebuilt by applying operations.
+
 ```
-workspace
-  └── node (pages, blocks, tags, properties, journals, tasks, templates, comments, assets)
-        ├── node_link (parsed [[Page]] and ((block-uuid)) references for backlinks)
-        ├── property (schema definitions + values)
-        ├── asset (files on disk under data/workspaces/{workspace_uuid}/assets/)
-        ├── task_recurrence (structured recurrence rule per task node)
-        └── task_completion (history of completed/skipped occurrences)
+operation log (source of truth)
+  └── derived SQLite state
+        ├── node (pages, blocks, classes)
+        ├── node_child_order (tree ordering)
+        ├── property_value / property_value_tombstone
+        ├── edge (backlinks and references)
+        ├── crdt_state (Yjs text/tree state for concurrent editing)
+        ├── search_index
+        ├── node_asset
+        ├── task_completion / task_recurrence
+        ├── activity_log / link_click
+        └── node_public_share / node_user_share
 ```
 
-- **Everything is a Node**: One `node` table with boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, `is_template`, `is_system`). `is_task` is kept in sync with the `task` system class assignment and indexed for fast queries.
-- **Task Recurrence**: A dedicated `task_recurrence` table is the source of truth for automation. The legacy `task_recurrence` selection property is kept for QueryAST compatibility but is no longer used by `TaskAutomationService`. Completion history lives in `task_completion`.
-- **Adjacency-List Tree**: The `node` table stores hierarchy via `parent_id`. Recursive CTEs provide ancestor/descendant/breadcrumb queries and soft-delete cascading. The legacy `node_path` closure table has been removed.
-- **Links**: `node_link` is the source of truth for backlinks; it is populated by parsing the block content AST.
-- **Workspace Isolation**: Every node, property, and asset belongs to exactly one workspace.
+PostgreSQL also stores non-workspace-private metadata: `user`, `workspace`, `workspace_share`, relay envelopes, relay snapshots, and compaction segments.
+
+## Operation Log
+
+- Operations are immutable, idempotent, and totally ordered by **Hybrid Logical Clock (HLC)**.
+- Each operation has an envelope with routing metadata (`workspace_id`, `actor_id`, `hlc`, `affected_node_ids`, `op_type`) and an opaque encrypted payload.
+- Known operation types live in `app/core/operation.py` and `frontend/src/core/types/operation.ts`.
+- The server relay stores encrypted envelopes and serves catch-up queries without decrypting payloads.
 
 ## Node Model
 
-Everything in the system is a **Node**. Differentiation happens via boolean columns and tags:
-- `is_page = true` → Page (can contain blocks and child pages)
-- `is_page = false` → Block (content within a page)
-- `is_tag = true` → Tag (also a page)
-- `is_property = true` → Property schema (also a page)
-- `is_daily = true` → Daily journal page
-- `is_task = true` → Task item (synchronized with the `task` system class)
-- `is_template = true` → Template page
-- `is_system = true` → System-generated node (e.g., system classes)
+Everything is a **node**. Nodes are differentiated by `kind` and class assignments:
 
-Pages use `name` as their title; blocks use `name` as a UUID. `display_name` is the human-readable label.
+- `kind = 'page'` → Page (can contain blocks and child pages)
+- `kind = 'block'` → Block (content within a page)
+- `kind = 'class'` → Class node (defines a type/category)
+
+Class assignments are stored in `node.class_ids` and drive behavior, property schemas, and QueryAST filters. Classes themselves are nodes so they can be linked to, mentioned, and queried like any other concept.
+
+## Hierarchy
+
+- Tree structure is an adjacency list (`node.parent_id`).
+- Ordering is managed by a sequence CRDT and materialized in `node_child_order` (parent_id, child_id, position).
+- `node_child_order` is the source of truth for display order; `parent_id` is the structural parent.
+
+## Properties
+
+- **Property schemas** are created with `propertySchema.create` operations. They define `type` (text, number, date, relation, file, etc.) and optionally a `computed` strategy (formula, rollup, query).
+- **Property values** are stored in `property_value` (node_id, property_schema_id, value, idx, hlc, actor_id).
+- Multi-value properties use `idx`.
+- Tombstones track explicitly removed values for CRDT merge semantics.
+
+## References & Links
+
+- All references are **ID-based** (UUIDv7). Name-based `[[Page]]` links are not used because names are not unique.
+- The `edge` table stores parsed links (source → target) for backlinks and graph queries.
+- Backlinks are derived from edges, not stored separately.
+
+## Assets
+
+- Assets are nodes with a `file` property value.
+- The `node_asset` derived table stores content-addressed blob metadata (hash, mime, size, original_name).
+- Blob bytes live on disk under `data/workspaces/{workspace_uuid}/assets/` or in object storage.
+
+## Tasks
+
+- Task status, scheduled date, and deadline are property values.
+- Completion history lives in `task_completion`.
+- Recurrence rules live in `task_recurrence`.
 
 ## Identifier Strategy
 
 - Public resources use UUIDs in the HTTP API and UI.
-- The document model uses **UUIDv7** (`uuid_extensions.uuid7()` backend, `generateUUID()` frontend) for better index locality.
-- Internal DB joins and ephemeral state use auto-increment numeric IDs or UUIDv4 where a public identifier is not required.
-- Never expose internal numeric IDs in URL paths or public request/response bodies.
-
-## Block Content AST
-
-Block content is stored as a JSON AST (Abstract Syntax Tree). The domain module `app/domain/stringify_ast.py` handles parsing and serialization. The frontend uses `frontend/src/lib/stringifyAST.ts` and related utilities.
+- The document model uses **UUIDv7** (`uuid_extensions.uuid7()` backend, `uuidv7` frontend package) for index locality.
+- Internal numeric IDs are used only inside PostgreSQL metadata tables (`user`, `workspace`) and never appear in URL paths or public request/response bodies.
 
 ## Workspace Isolation
 
-All user data is scoped to a **workspace**. Each user gets a default workspace on enrollment. Workspaces have their own node trees, properties, classes, and assets. Assets are stored on disk under `data/workspaces/{workspace_uuid}/assets/`.
+- Every operation is tagged with a `workspace_id`.
+- Derived SQLite databases are per-workspace.
+- Cross-workspace references are not supported in the core model.
+
+## Sync
+
+- Client edits append operations to the local SQLite operation log.
+- Operations are encrypted with the workspace key and relayed through `/api/relay/*`.
+- Other clients pull operations and rebuild derived state.
+- The client maintains a sync watermark per workspace for pull and a separate push watermark to avoid re-sending old operations.
+
+## Snapshots and Compaction
+
+- Client-side snapshots serialize derived tables + CRDT state + sync watermark up to a given HLC.
+- Server-side snapshots and `compacted_operation_segment` rows bound replay cost and long-term log growth.
+- Compaction is a storage optimization; the operation log remains authoritative in principle.
 
 ## Request-Scoped Connections
 
 Never call `pool.acquire()` directly in routers or services. Use:
 - `app.db.connection.get_connection()` — for general DB access.
 - `app.db.connection.get_transaction()` — for transactions.
-- Repositories use `acquire_connection()` which transparently reuses the request-scoped connection when inside an HTTP request (set by middleware in `app/main.py`).
 
-## Middleware Behavior
+## Adding a New Operation Type
 
-`app/main.py` adds two critical `http` middlewares:
-1. **Request logging + DB connection wrapping**: API requests (`/api/*`) are wrapped in `request_connection()` so repos share one connection.
-2. **Static asset caching vs. no-cache**: Hashed assets under `/assets/` are cached immutably; API responses and `index.html` are never cached.
-
-## Adding a New API Endpoint
-
-1. Identify the owning feature under `app/features/<feature>/`.
-2. Define Pydantic schemas in `app/features/<feature>/models.py` (or `app/models.py` for truly shared schemas).
-3. Add domain logic to `app/features/<feature>/service.py`.
-4. If needed, extend the repository port in `app/features/<feature>/port.py` and implement it in `app/features/<feature>/repository.py`.
-5. Create/update `app/features/<feature>/router.py`.
-6. Include the router in `app/features/<feature>/__init__.py` and wire it in `app/main.py`.
-7. Add tests in `tests/`.
+1. Add the op type to `app/core/operation.py` and `frontend/src/core/types/operation.ts`.
+2. Add server-side derived applier(s) in `app/core/derived/`.
+3. Add client-side derived applier(s) in `frontend/src/core/derived/`.
+4. Add tests for both appliers and a convergence test in `tests/core/`.
