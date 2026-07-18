@@ -184,8 +184,9 @@ The E2E smoke suite is green, but the backend logs still show many 404s from the
 1. ✅ `listNodes` callers — `useNodeListQueries.ts`, `useQuickAdd.ts`, `PageHeader.tsx`, `useCommandPaletteSelection.ts` ported to the core store. Added `frontend/src/core/query/listPages.ts` helper and extended `queryNodes` to list pages/classes without a text query.
 2. ✅ Node read/write callers — `useNodeLinkQueries.ts`, `useNodeGraphQueries.ts`, `useNodeMiscQueries.ts`, `useBatchNodesByUuid.ts`, `useBatchedNode.ts`, and `useBatchedNodeByUuid.ts` ported to the core store. Added local-first query helpers under `frontend/src/core/query/` for backlinks, linked references, property backlinks, graph nodes/links/data, tasks, text links, suggestions, and breadcrumbs. Moved `GraphNode`, `GraphLink`, `GraphData`, `TextLink`, and `NodeVersion` types from `@/api/nodes` to `@/types/api` so core query code never imports the legacy API client.
 3. ✅ Mutation callers — `useTrash.ts`, `useArchiveNode.ts`, `useUnarchiveNode.ts`, `useArchivedPages.ts`, `useAddClass.ts`, `useRemoveClass.ts`, `useSetNodeProperty.ts`/`useSetNodePropertyAdapter.ts`, `useConvertNode.ts`, `useAddTagLink.ts`, `useRemoveTagLink.ts`, `useAddAlias.ts`, `useRemoveAlias.ts`, `useEmptyTrash.ts`, `CommandRegistrations.tsx`, `Layout.tsx`. Core store gained `active` flag support, archive/restore/permanent-delete/convert operations, and `includeArchived` query filtering. Snapshot commit `4d4efd8f`.
-4. ⏳ Importer/maintenance callers — `useLogseqImporter*.ts`, `FixRawLinksModal.tsx`, `RebuildLinksModal.tsx`.
-5. ⏳ `api/nodes.ts` itself can be deleted once all consumers are gone.
+4. ✅ Maintenance callers — `FixRawLinksModal.tsx` now scans local SQLite content and converts raw `[[uuid]]` text to `node_link` AST nodes via `store.updateContentAst`; `RebuildLinksModal.tsx` is now a no-op refresh because links are derived automatically from AST. Core store gained `updateContentAst`/`node.updateContent` full-AST replacement. Snapshot commit `7ddebc37`.
+5. ⏳ Importer callers — `useLogseqImporter*.ts`, `useLogseqFolderImporter*.ts`.
+6. ⏳ `api/nodes.ts` itself can be deleted once all consumers are gone.
 
 **Approach:** port to core store operations/mutations; do not add backward-compatibility shims. Remove dead code aggressively.
 
