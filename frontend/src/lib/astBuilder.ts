@@ -362,6 +362,95 @@ function parseMdInline(input: string): ASTInlineNode[] {
  */
 const MD_QUICK_CHECK = /[*~`=$]|\[.+\]\(/;
 
+const RAW_UUID_LINK = /\[\[([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\]\]/g;
+
+export interface FixRawUuidLinksResult {
+  document: ASTDocument;
+  changed: boolean;
+  linksConverted: number;
+}
+
+/**
+ * Walk an ASTDocument and convert raw `[[uuid]]` text into `node_link` nodes.
+ *
+ * The `resolve` callback is called for each UUID. It should return the
+ * reference type to use ('node' or 'class') if the target exists, or `null`
+ * if the UUID should be left as raw text.
+ *
+ * Returns a NEW document (no mutation) and a count of converted links.
+ */
+export function fixRawUuidLinksInAST(
+  ast: ASTDocument,
+  resolve: (uuid: string) => 'node' | 'class' | null
+): FixRawUuidLinksResult {
+  if (!ast || ast.length === 0) {
+    return { document: ast, changed: false, linksConverted: 0 };
+  }
+
+  let changed = false;
+  let linksConverted = 0;
+
+  const processInlineNodes = (nodes: readonly ASTInlineNode[]): ASTInlineNode[] => {
+    const result: ASTInlineNode[] = [];
+    for (const node of nodes) {
+      if (node.type === 'text') {
+        const textNode = node as ASTText;
+        const parts = textNode.text.split(RAW_UUID_LINK);
+        if (parts.length === 1) {
+          result.push(node);
+          continue;
+        }
+        changed = true;
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          if (i % 2 === 0) {
+            if (part !== '') {
+              result.push(text(part));
+            }
+          } else {
+            const uuid = part;
+            const refType = resolve(uuid);
+            if (refType) {
+              result.push(nodeLink(uuid, refType));
+              linksConverted++;
+            } else {
+              result.push(text(`[[${uuid}]]`));
+            }
+          }
+        }
+      } else if ('children' in node && Array.isArray((node as ASTStrong).children)) {
+        const markNode = node as ASTStrong;
+        const newChildren = processInlineNodes(markNode.children);
+        if (newChildren !== markNode.children) {
+          changed = true;
+          result.push({ ...node, children: newChildren } as ASTInlineNode);
+        } else {
+          result.push(node);
+        }
+      } else {
+        result.push(node);
+      }
+    }
+    return result;
+  };
+
+  const result = ast.map((block) => {
+    if (block.type !== 'paragraph' && block.type !== 'heading') return block;
+    const newChildren = processInlineNodes(block.children);
+    if (newChildren !== block.children) {
+      changed = true;
+      return { ...block, children: newChildren };
+    }
+    return block;
+  });
+
+  return {
+    document: changed ? result : ast,
+    changed,
+    linksConverted,
+  };
+}
+
 /**
  * Walk an ASTDocument and convert markdown syntax inside text nodes
  * to proper AST mark nodes.

@@ -1,8 +1,10 @@
 /**
- * RebuildLinksModal - Rebuild node_link table from AST
+ * RebuildLinksModal - Rebuild node_link records from AST
  *
- * Provides a confirmation dialog before running the rebuild operation,
- * then displays a phase-based results report using TaskReport.
+ * In the local-first architecture, text links and inline class links are
+ * derived from AST content on every update. There is no separate link table
+ * to rebuild, so this command now reports that consistency is maintained
+ * automatically.
  */
 import { useState, useCallback } from 'react';
 
@@ -10,7 +12,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { TaskReport, type TaskPhaseResult } from '@/components/ui/TaskReport';
-import { rebuildAllLinks, type RebuildLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/features/content';
 import './RebuildLinksModal.css';
@@ -21,21 +22,29 @@ interface RebuildLinksModalProps {
   onClose: () => void;
 }
 
-function buildPhases(result: RebuildLinksResponse): TaskPhaseResult[] {
+interface RebuildResult {
+  nodesProcessed: number;
+  linksCreated: number;
+  inlineClassesCreated: number;
+  totalErrors: number;
+  errors: string[];
+}
+
+function buildPhases(result: RebuildResult): TaskPhaseResult[] {
   const phases: TaskPhaseResult[] = [];
 
   const mainErrors = result.errors.slice(0, 10).map((msg) => ({ item: '', message: msg }));
   phases.push({
     label: 'Process nodes',
-    succeeded: result.links_created,
-    failed: result.total_errors,
+    succeeded: result.linksCreated,
+    failed: result.totalErrors,
     errors: mainErrors,
   });
 
-  if (result.inline_classes_created > 0) {
+  if (result.inlineClassesCreated > 0) {
     phases.push({
       label: 'Inline classes',
-      succeeded: result.inline_classes_created,
+      succeeded: result.inlineClassesCreated,
       failed: 0,
       errors: [],
     });
@@ -46,7 +55,7 @@ function buildPhases(result: RebuildLinksResponse): TaskPhaseResult[] {
 
 export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
   const [isRebuilding, setIsRebuilding] = useState(false);
-  const [result, setResult] = useState<RebuildLinksResponse | null>(null);
+  const [result, setResult] = useState<RebuildResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -54,13 +63,18 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
     setIsRebuilding(true);
     setError(null);
     try {
-      const response = await rebuildAllLinks();
-      setResult(response);
-      // Invalidate all node and view caches so links, breadcrumbs, etc. update
-      if (response.links_created > 0) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.all, refetchType: 'all' });
-        queryClient.invalidateQueries({ queryKey: nodeViewKeys.all, refetchType: 'all' });
-      }
+      // Links are derived automatically from AST in the local-first store.
+      // We still invalidate caches so any stale derived views refresh.
+      queryClient.invalidateQueries({ queryKey: nodeKeys.all, refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.all, refetchType: 'all' });
+
+      setResult({
+        nodesProcessed: 0,
+        linksCreated: 0,
+        inlineClassesCreated: 0,
+        totalErrors: 0,
+        errors: [],
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rebuild links');
     } finally {
@@ -90,8 +104,8 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
       >
         <TaskReport report={{
           phases: buildPhases(result),
-          totalSucceeded: result.links_created + result.inline_classes_created,
-          totalFailed: result.total_errors,
+          totalSucceeded: result.linksCreated + result.inlineClassesCreated,
+          totalFailed: result.totalErrors,
         }} />
       </Modal>
     );
@@ -131,7 +145,7 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
         {!error && (
           <>
             <p className="rebuild-links__description">
-              This command will rebuild all link records in the database by re-parsing the AST content of every node.
+              In the local-first store, link records are derived automatically from AST content, so an explicit rebuild is not required.
             </p>
 
             <div className="rebuild-links__warning">
@@ -139,16 +153,15 @@ export function RebuildLinksModal({ isOpen, onClose }: RebuildLinksModalProps) {
               <div>
                 <strong>What this does:</strong>
                 <ul>
-                  <li>Deletes all existing text links and inline class links</li>
-                  <li>Re-parses every node's AST content</li>
-                  <li>Recreates link records based on current content</li>
+                  <li>Invalidates cached link-derived views</li>
+                  <li>Forces a fresh derivation from current AST content</li>
                   <li>Preserves tag links and property links</li>
                 </ul>
               </div>
             </div>
 
             <p className="rebuild-links__note">
-              Use this command if link data has become inconsistent after a migration or bulk operation.
+              Use this command if link-derived views appear stale after a bulk import or migration.
               This operation is safe and can be run multiple times.
             </p>
 

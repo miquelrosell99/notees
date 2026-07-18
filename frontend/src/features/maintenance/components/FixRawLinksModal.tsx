@@ -7,10 +7,12 @@
 import { useState, useCallback } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
+import { useParams } from 'react-router-dom';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { TaskReport, type TaskPhaseResult } from '@/components/ui/TaskReport';
-import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
+import { useWorkspaceStore } from '@/core/hooks';
+import { fixRawUuidLinksInAST } from '@/lib/astBuilder';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/features/content';
 import './FixRawLinksModal.css';
@@ -21,30 +23,35 @@ interface FixRawLinksModalProps {
   onClose: () => void;
 }
 
-function buildPhases(result: FixRawUuidLinksResponse): TaskPhaseResult[] {
+interface FixResult {
+  nodesProcessed: number;
+  nodesFixed: number;
+  linksConverted: number;
+  totalErrors: number;
+  errors: string[];
+}
+
+function buildPhases(result: FixResult): TaskPhaseResult[] {
   const phases: TaskPhaseResult[] = [];
 
-  // Phase 1: Scan nodes
   phases.push({
     label: 'Scan nodes for raw [[uuid]] text',
-    succeeded: result.nodes_processed,
+    succeeded: result.nodesProcessed,
     failed: 0,
     errors: [],
   });
 
-  // Phase 2: Convert links
-  const convertErrors = result.errors.map(err => ({ item: 'Node', message: err }));
+  const convertErrors = result.errors.map((err) => ({ item: 'Node', message: err }));
   phases.push({
     label: 'Convert raw links to node_link AST',
-    succeeded: result.links_converted,
-    failed: result.total_errors,
+    succeeded: result.linksConverted,
+    failed: result.totalErrors,
     errors: convertErrors,
   });
 
-  // Phase 3: Update nodes
   phases.push({
     label: 'Update nodes with fixed content',
-    succeeded: result.nodes_fixed,
+    succeeded: result.nodesFixed,
     failed: 0,
     errors: [],
   });
@@ -54,19 +61,60 @@ function buildPhases(result: FixRawUuidLinksResponse): TaskPhaseResult[] {
 
 export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
   const [isFixing, setIsFixing] = useState(false);
-  const [result, setResult] = useState<FixRawUuidLinksResponse | null>(null);
+  const [result, setResult] = useState<FixResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
 
   const handleConfirm = useCallback(async () => {
     setIsFixing(true);
     setError(null);
     try {
-      const response = await fixRawUuidLinks();
-      setResult(response);
-      // Refetch all cached queries so the UI reflects updated node content and links
-      // without requiring a page reload
-      if (response.nodes_fixed > 0) {
+      if (!store) throw new Error('Workspace store is not ready');
+
+      const rows = store.getDb().exec(
+        'SELECT id, content FROM node WHERE content LIKE "%[[%" ESCAPE "\\"'
+      );
+      const candidates: { id: string; content: unknown[] }[] = [];
+      for (const row of rows) {
+        for (let i = 0; i < row.values.length; i++) {
+          const id = String(row.values[i][0]);
+          const content = JSON.parse(String(row.values[i][1])) as unknown[];
+          candidates.push({ id, content });
+        }
+      }
+
+      const fixResult: FixResult = {
+        nodesProcessed: candidates.length,
+        nodesFixed: 0,
+        linksConverted: 0,
+        totalErrors: 0,
+        errors: [],
+      };
+
+      for (const candidate of candidates) {
+        try {
+          const resolved = fixRawUuidLinksInAST(candidate.content as never, (uuid) => {
+            const target = store.getNode(uuid);
+            if (!target) return null;
+            return target.kind === 'class' ? 'class' : 'node';
+          });
+          if (resolved.changed) {
+            store.updateContentAst(candidate.id, resolved.document as unknown[]);
+            fixResult.nodesFixed++;
+            fixResult.linksConverted += resolved.linksConverted;
+          }
+        } catch (e) {
+          fixResult.totalErrors++;
+          fixResult.errors.push(
+            `${candidate.id}: ${e instanceof Error ? e.message : String(e)}`
+          );
+        }
+      }
+
+      setResult(fixResult);
+      if (fixResult.nodesFixed > 0) {
         queryClient.invalidateQueries({ queryKey: nodeKeys.all, refetchType: 'all' });
         queryClient.invalidateQueries({ queryKey: nodeViewKeys.all, refetchType: 'all' });
       }
@@ -75,7 +123,7 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
     } finally {
       setIsFixing(false);
     }
-  }, [queryClient]);
+  }, [queryClient, store]);
 
   const handleClose = useCallback(() => {
     setResult(null);
@@ -86,7 +134,7 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
   // Report view (after fix completes)
   if (result) {
     const phases = buildPhases(result);
-    const totalSucceeded = result.nodes_fixed + result.links_converted;
+    const totalSucceeded = result.nodesFixed + result.linksConverted;
 
     return (
       <Modal
@@ -104,7 +152,7 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
           report={{
             phases,
             totalSucceeded,
-            totalFailed: result.total_errors,
+            totalFailed: result.totalErrors,
           }}
           successMessage="Fix completed successfully"
           warningMessage="Fix completed with errors"
@@ -178,4 +226,3 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
     </Modal>
   );
 }
-
