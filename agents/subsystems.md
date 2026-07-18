@@ -225,9 +225,10 @@ NodeCollection / NodeView
 User types in CustomInlineEditor
   → internal InlineEditorState (ContentAST) → serializeContentAST()
   → onContentChange(blockId, content) → useContentSave (debounced)
-  → undoEngine.applyIntent({ type: 'update_content', blockId, contentAST })
-  → OperationRuntime projection updates immediately
-  → SyncManager persists via API (PATCH /api/nodes/{id} with JSON AST)
+  → WorkspaceStore.updateText(blockId, editor => editor.applyDelta(...))
+  → text CRDT state updated, node.updateContent operation appended
+  → derived node/search_index updated immediately
+  → SyncEngine encrypts and pushes via /api/relay/batch
 ```
 
 **Content AST Format:**
