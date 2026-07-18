@@ -10,14 +10,14 @@ Detailed guidance lives in focused reference documents under `agents/`; this fil
 
 ## Project Overview
 
-**Notees** is a self-hosted, privacy-first, local-first note-taking application. Since Phase 6 the authoritative data model is an immutable operation log (client-side SQLite derived state, end-to-end encrypted relay) rather than mutable PostgreSQL rows. The product still offers wiki-style linking, a block-based outliner, journals, custom types & properties, QueryAST collections, offline-first PWA support, multi-workspace knowledge bases, and Markdown/HTML/PDF export. Developed with AI assistance; licensed AGPL-3.0.
+**Notees** is a self-hosted, privacy-first, local-first note-taking application. The authoritative data model is an immutable operation log (client-side SQLite derived state, end-to-end encrypted relay). PostgreSQL persists users, workspace membership, share metadata, the encrypted operation log, and snapshots/compaction segments. The product offers wiki-style linking, a block-based outliner, journals, custom types & properties, QueryAST collections, offline-first PWA support, multi-workspace knowledge bases, and Markdown/HTML/PDF export. Developed with AI assistance; licensed AGPL-3.0.
 
 ---
 
 ## Agent Quick Reference
 
 - **Architecture**: Feature-first hexagonal backend. Domain services use repository port interfaces only — never FastAPI or asyncpg directly. See `agents/backend.md`.
-- **Data Model**: The operation log is the source of truth; everything is a `node` (pages, blocks, tags, properties, journals, tasks) differentiated by boolean flags kept in sync with system class assignments. Hierarchy is an adjacency list (`parent_id`) materialized in the client-side SQLite derived store. The legacy PostgreSQL tables remain as a compatibility view for tasks, assets, import, shares, activity, undo, and plugins. See `agents/data-model.md`.
+- **Data Model**: The operation log is the source of truth; everything is a `node` (pages, blocks, classes) with class assignments and relational property schemas. Hierarchy is an adjacency list (`parent_id`) materialized in the client-side SQLite derived store. See `agents/data-model.md`.
 - **Identifiers**: Public resources use UUIDs in the HTTP API and UI; the document model uses **UUIDv7** (`uuid_extensions.uuid7()` backend, `generateUUID()` frontend) for index locality; internal numeric IDs must never appear in URL paths or public request/response bodies.
 - **DB Connections**: Never call `pool.acquire()` directly. Use `app.db.connection.get_connection()` or `get_transaction()`.
 - **DI Factories**: `app/dependencies.py` and feature `dependencies.py` return port interfaces from the owning feature's `port.py` (or shared `app/domain/ports.py`), not concrete PostgreSQL implementations.
@@ -38,16 +38,14 @@ Detailed guidance lives in focused reference documents under `agents/`; this fil
 
 ---
 
-## Architecture Transition (Phase 6)
+## Architecture (Local-first Operation Log)
 
-The codebase is mid-transition from a server-authoritative, mutable PostgreSQL model to a local-first, operation-log model.
+- **Source of truth**: the immutable operation log (`app/core/operation.py`). PostgreSQL stores the encrypted relay log, snapshots/compaction segments, users, workspace membership, and share metadata; client-side SQLite is a derived view.
+- **Sync**: the encrypted operation relay (`app/relay/`) is the only sync path.
+- **Frontend runtime store**: `frontend/src/core/` (sql.js/IndexedDB SQLite + core hooks + sync engine) is the sole data path.
+- **Legacy removal**: `app/features/nodes/`, `app/features/properties/`, and `frontend/src/runtime/` have been removed.
 
-- **Source of truth**: the immutable operation log (`app/core/operation.py`). PostgreSQL rows and client-side SQLite are derived views.
-- **Sync**: the encrypted operation relay (`app/relay/`) replaces the legacy `/api/sync/*` endpoints and `frontend/src/features/sync/engine/localSyncEngine.ts`.
-- **Frontend runtime store**: `frontend/src/core/` (sql.js/OPFS SQLite + core hooks + sync engine) is now the default data path. The legacy `OperationRuntime` overlay remains only until the remaining feature islands are ported.
-- **Compatibility shim**: `app/features/nodes/` and `app/features/properties/` service/repository layers are still used by tasks, assets, import, shares, activity, undo, and plugins. Do not delete them in Phase 6.
-
-For the full transition plan see `agents/plans/notees-full-migration-plan.md` and `agents/plans/phase6-cleanup-deprecation.md`.
+For the migration plan see `agents/plans/notees-phase7-plus-plan.md`.
 
 ---
 
@@ -106,8 +104,7 @@ notees/
 │   │   ├── types/ utils/    # Shared TS types / utility functions
 │   │   ├── views/           # Top-level view components
 │   │   ├── workers/         # Web Workers
-│   │   ├── runtime/         # OperationRuntime overlay (legacy compatibility)
-│   │   ├── sync/            # Sync feature barrel (UI state, status indicator)
+│   │   ├── sync/            # Sync UI state and status indicator
 │   │   └── lib/             # Core libs (AST builder, query client, stringifyAST)
 │   └── vite.config.ts       # PWA plugin, proxy, path aliases
 ├── tests/                   # Backend test suite (pytest)
