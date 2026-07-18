@@ -158,13 +158,23 @@ Alternatives considered and rejected:
 
 **Goal:** Make QueryAST compile to SQLite SQL against the new derived tables.
 
-**Status:** In progress. Detailed plan: `agents/plans/phase3-queryast-sqlite.md`.
+**Status:** In progress (C1 complete, C2 complete, C3 pending). Detailed plan: `agents/plans/phase3-queryast-sqlite.md`.
 
-**Deliverables:**
-1. `app/core/query_ast/` — SQLite SQL compiler mirroring `app/domain/services/query_ast_sql.py`.
-2. Frontend QueryAST compiler `frontend/src/core/query/compileToSqlite.ts`.
-3. Add `class_hierarchy` derived table (backend replay + frontend schema/appliers) to support class inheritance queries.
-4. Test parity: run existing QueryAST test cases against the SQLite compiler.
+**Completed sub-tasks (C1):**
+- Created `app/core/query_ast/compiler.py` and `app/core/query_ast/__init__.py` with `QueryASTToSQLite`.
+- Extended `app/core/migration/replay.py` with the `class_hierarchy` table and eager transitive-closure appliers for `class.create`/`class.update`.
+- Added `tests/core/query_ast/test_compiler.py` and `tests/core/query_ast/test_executor_against_replay.py`.
+- Added `app.core.query_ast` to `pyproject.toml` packages.
+- Verification passed: `uv run pytest tests/core -m unit --no-cov` (121 passed), `uv run ruff check app/core/query_ast tests/core/query_ast app/core/migration/replay.py` clean, `uv run python scripts/validate_migration.py` reports 0 orphans / 0 duplicates.
+
+**Caveats:**
+- `tag` conditions and `regex`/`fts` content operators are out of scope (as documented in `phase3-queryast-sqlite.md`).
+- `StyleCondition` `is`/`is_not` operators are best-effort using SQLite JSON1.
+- Dynamic `nested_group` modes for path conditions are supported for simple cases but not exhaustively tested.
+
+**Remaining deliverables:**
+1. Frontend QueryAST compiler `frontend/src/core/query/compileToSqlite.ts` (C2 already complete per plan).
+2. Parity tests comparing PostgreSQL and SQLite compilers on shared fixtures (C3).
 
 **Files to create/modify:**
 - Create `app/core/query_ast/`.
@@ -179,7 +189,7 @@ Alternatives considered and rejected:
 - Existing QueryAST fixtures produce equivalent results against SQLite derived state.
 
 **Subagent breakdown:**
-- Subagent C1: Backend SQLite QueryAST compiler + `class_hierarchy` replay extension.
+- Subagent C1: Backend SQLite QueryAST compiler + `class_hierarchy` replay extension. ✅ Done
 - Subagent C2: Frontend SQLite QueryAST compiler + `class_hierarchy` schema/applier extension. ✅ Done
 - Subagent C3: Parity tests comparing PostgreSQL and SQLite compilers on shared fixtures.
 
