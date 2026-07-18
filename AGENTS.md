@@ -10,14 +10,14 @@ Detailed guidance lives in focused reference documents under `agents/`; this fil
 
 ## Project Overview
 
-**Notees** is a self-hosted, privacy-first note-taking application: wiki-style `[[Page Name]]` bidirectional linking with automatic backlink tracking, a block-based outliner editor where every block is a referenceable node, daily/monthly/yearly journals, custom types & properties, query-driven collections (a QueryAST system compiles structured queries into PostgreSQL SQL at runtime), offline-first PWA support, multi-workspace knowledge bases, and Markdown/HTML/PDF export. Developed with AI assistance; licensed AGPL-3.0.
+**Notees** is a self-hosted, privacy-first, local-first note-taking application. Since Phase 6 the authoritative data model is an immutable operation log (client-side SQLite derived state, end-to-end encrypted relay) rather than mutable PostgreSQL rows. The product still offers wiki-style linking, a block-based outliner, journals, custom types & properties, QueryAST collections, offline-first PWA support, multi-workspace knowledge bases, and Markdown/HTML/PDF export. Developed with AI assistance; licensed AGPL-3.0.
 
 ---
 
 ## Agent Quick Reference
 
 - **Architecture**: Feature-first hexagonal backend. Domain services use repository port interfaces only — never FastAPI or asyncpg directly. See `agents/backend.md`.
-- **Data Model**: Everything is a `node` (pages, blocks, tags, properties, journals, tasks) differentiated by boolean flags kept in sync with system class assignments. Hierarchy is an adjacency list (`parent_id`); ancestors, descendants, breadcrumbs, and soft-delete cascading use recursive CTEs over `parent_id` + `document_id` (the legacy `node_path` closure table is removed). See `agents/data-model.md`.
+- **Data Model**: The operation log is the source of truth; everything is a `node` (pages, blocks, tags, properties, journals, tasks) differentiated by boolean flags kept in sync with system class assignments. Hierarchy is an adjacency list (`parent_id`) materialized in the client-side SQLite derived store. The legacy PostgreSQL tables remain as a compatibility view for tasks, assets, import, shares, activity, undo, and plugins. See `agents/data-model.md`.
 - **Identifiers**: Public resources use UUIDs in the HTTP API and UI; the document model uses **UUIDv7** (`uuid_extensions.uuid7()` backend, `generateUUID()` frontend) for index locality; internal numeric IDs must never appear in URL paths or public request/response bodies.
 - **DB Connections**: Never call `pool.acquire()` directly. Use `app.db.connection.get_connection()` or `get_transaction()`.
 - **DI Factories**: `app/dependencies.py` and feature `dependencies.py` return port interfaces from the owning feature's `port.py` (or shared `app/domain/ports.py`), not concrete PostgreSQL implementations.
@@ -35,6 +35,19 @@ Detailed guidance lives in focused reference documents under `agents/`; this fil
 - **Engineering rules**: Take the technically best path, not the simpler one. Fix root causes instead of adding defensive workarounds. If a bug comes from bad data, fix the data and add a migration — never add "backward compatibility" code to tolerate bad data.
 
 > Generic engineering principles (code style, testing discipline, accessibility, performance, security, agent workflow) are covered by the skills listed under [Skill References](#skill-references).
+
+---
+
+## Architecture Transition (Phase 6)
+
+The codebase is mid-transition from a server-authoritative, mutable PostgreSQL model to a local-first, operation-log model.
+
+- **Source of truth**: the immutable operation log (`app/core/operation.py`). PostgreSQL rows and client-side SQLite are derived views.
+- **Sync**: the encrypted operation relay (`app/relay/`) replaces the legacy `/api/sync/*` endpoints and `frontend/src/features/sync/engine/localSyncEngine.ts`.
+- **Frontend runtime store**: `frontend/src/core/` (sql.js/OPFS SQLite + core hooks + sync engine) is now the default data path. The legacy `OperationRuntime` overlay remains only until the remaining feature islands are ported.
+- **Compatibility shim**: `app/features/nodes/` and `app/features/properties/` service/repository layers are still used by tasks, assets, import, shares, activity, undo, and plugins. Do not delete them in Phase 6.
+
+For the full transition plan see `agents/plans/notees-full-migration-plan.md` and `agents/plans/phase6-cleanup-deprecation.md`.
 
 ---
 
@@ -74,24 +87,27 @@ notees/
 │   ├── main.py              # App factory, lifespan, middleware, routers
 │   ├── config.py            # Pydantic-settings configuration
 │   ├── dependencies.py      # Cross-feature DI helpers
+│   ├── core/                # Local-first operation log, CRDT adapters, derived SQLite appliers
 │   ├── db/                  # Database layer (connections, pool, schema)
 │   ├── domain/              # Shared domain kernel
 │   ├── features/            # Feature modules (router + service + port + repository)
 │   ├── infrastructure/      # Infrastructure adapters
+│   ├── relay/               # Encrypted operation relay server
 │   ├── static/              # Static assets + built frontend output (dist/)
 │   └── utils/
 ├── frontend/                # React SPA
 │   ├── src/
 │   │   ├── api/             # Shared Axios client only
 │   │   ├── components/ui/   # Reusable UI atoms
+│   │   ├── core/            # Local-first SQLite store, sync client, derived-state hooks
 │   │   ├── features/        # Feature-first modules
 │   │   ├── hooks/           # Generic React hooks (+ queryKeys.ts factories)
 │   │   ├── stores/          # Cross-cutting Zustand stores
 │   │   ├── types/ utils/    # Shared TS types / utility functions
 │   │   ├── views/           # Top-level view components
 │   │   ├── workers/         # Web Workers
-│   │   ├── runtime/         # OperationRuntime + helpers
-│   │   ├── sync/            # SyncManager adapter
+│   │   ├── runtime/         # OperationRuntime overlay (legacy compatibility)
+│   │   ├── sync/            # Sync feature barrel (UI state, status indicator)
 │   │   └── lib/             # Core libs (AST builder, query client, stringifyAST)
 │   └── vite.config.ts       # PWA plugin, proxy, path aliases
 ├── tests/                   # Backend test suite (pytest)
