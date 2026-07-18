@@ -8,7 +8,7 @@
  * - ErrorBoundary: Graceful error recovery
  * - NotificationToast: Global notification display
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, workspaceAwarePersister, setPersistWorkspaceUuid } from './lib/queryClient';
@@ -35,7 +35,17 @@ import { useWorkspaces } from '@/features/workspace';
 import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOverlay';
 import { getLogger } from './utils/logger';
 import { pluginManager } from '@/plugins/core';
+import { WorkspaceStoreProvider } from '@/core/hooks/WorkspaceStoreProvider';
+import { deriveKey } from '@/core/crypto';
+import { createHttpTransport } from '@/core/transportHttp';
+import {
+  getOrCreateWorkspaceStore,
+  getWorkspaceSyncEngine,
+} from '@/core/adapters/workspaceStoreAdapter';
+import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
 import './App.css';
+
+const ENABLE_SQLITE_STORE = import.meta.env.VITE_ENABLE_SQLITE_STORE === 'true';
 
 const log = getLogger('App');
 
@@ -148,22 +158,27 @@ function App() {
         Skip to main content
       </a>
       <EncryptedPersistProvider>
-        <KeyboardShortcutsProvider>
-          <DndProvider>
-            <AuthSyncListener />
-            <GlobalKeyboardHandler />
-            <CommandRegistrations />
-            <SyncManagerV2 />
-            <LocalIndexManager />
-            <QueryLiveUpdater />
+        {ENABLE_SQLITE_STORE ? (
+          <WorkspaceStoreInitializer>
+            <AppProviders>
+              <BrowserRouter>
+                <ErrorBoundary context="App">
+                  <AppContent />
+                </ErrorBoundary>
+              </BrowserRouter>
+              <ConnectedNotificationToast />
+            </AppProviders>
+          </WorkspaceStoreInitializer>
+        ) : (
+          <AppProviders>
             <BrowserRouter>
               <ErrorBoundary context="App">
                 <AppContent />
               </ErrorBoundary>
             </BrowserRouter>
             <ConnectedNotificationToast />
-          </DndProvider>
-        </KeyboardShortcutsProvider>
+          </AppProviders>
+        )}
       </EncryptedPersistProvider>
       <BackendUnavailableOverlay />
     </>
@@ -255,6 +270,130 @@ function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
       <WorkspacePersisterSync />
       {children}
     </PersistQueryClientProvider>
+  );
+}
+
+/**
+ * Derive a workspace-specific AES key for the encrypted operation relay.
+ *
+ * TODO(D4): replace with real key management in Phase 5. This prototype derives
+ * a deterministic key from the workspace id and a dev secret so offline/online
+ * convergence can be tested end-to-end.
+ */
+function useWorkspaceCryptoKey(workspaceId: string | null): {
+  key: CryptoKey | undefined;
+  isLoading: boolean;
+} {
+  const [key, setKey] = useState<CryptoKey | undefined>();
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setKey(undefined);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    let cancelled = false;
+    const secret =
+      import.meta.env.VITE_WORKSPACE_KEY_SECRET ?? 'notees-dev-prototype-secret';
+    deriveKey(`${workspaceId}:${secret}`)
+      .then((derived) => {
+        if (!cancelled) setKey(derived);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          log.error(`Failed to derive workspace key for ${workspaceId}`, err);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  return { key, isLoading };
+}
+
+/**
+ * Initialize the local-first workspace store for the active workspace and
+ * provide it (plus the crypto key and transport) to the rest of the app.
+ *
+ * Only rendered when ENABLE_SQLITE_STORE is true.
+ */
+function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user);
+  const actorId = user?.uuid ?? 'anonymous';
+  const { data: workspacesData } = useWorkspaces({ enabled: true });
+  const activeWorkspace = useMemo(() => {
+    if (!workspacesData?.items) return null;
+    return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
+  }, [workspacesData]);
+  const workspaceId = activeWorkspace?.uuid ?? null;
+  const { key, isLoading } = useWorkspaceCryptoKey(workspaceId);
+  const [ctx, setCtx] = useState<
+    { actorId: string; cryptoKey: CryptoKey; transport: ReturnType<typeof createHttpTransport> } | undefined
+  >();
+  const unregisterVisibilityRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!workspaceId || !key) {
+      setCtx(undefined);
+      return;
+    }
+
+    let cancelled = false;
+    const transport = createHttpTransport(workspaceId, actorId, key);
+    getOrCreateWorkspaceStore(workspaceId, actorId, key, transport)
+      .then(() => {
+        if (cancelled) return;
+        setCtx({ actorId, cryptoKey: key, transport });
+        const syncEngine = getWorkspaceSyncEngine(workspaceId);
+        if (syncEngine) {
+          unregisterVisibilityRef.current = registerVisibilitySync(syncEngine);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          log.error(`Failed to initialize workspace store ${workspaceId}`, err);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      unregisterVisibilityRef.current?.();
+      unregisterVisibilityRef.current = null;
+    };
+  }, [workspaceId, actorId, key]);
+
+  if (!ctx || isLoading) {
+    return children;
+  }
+
+  return (
+    <WorkspaceStoreProvider actorId={ctx.actorId} cryptoKey={ctx.cryptoKey} transport={ctx.transport}>
+      {children}
+    </WorkspaceStoreProvider>
+  );
+}
+
+function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <KeyboardShortcutsProvider>
+      <DndProvider>
+        <AuthSyncListener />
+        <GlobalKeyboardHandler />
+        <CommandRegistrations />
+        <SyncManagerV2 />
+        <LocalIndexManager />
+        <QueryLiveUpdater />
+        {children}
+      </DndProvider>
+    </KeyboardShortcutsProvider>
   );
 }
 

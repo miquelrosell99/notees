@@ -28,10 +28,12 @@ class EncryptedEnvelope(OperationEnvelope):
 
     The envelope fields are inherited from :class:`app.core.operation.OperationEnvelope`
     so the server can validate ``op_type`` and HLC shape without decrypting the
-    payload.
+    payload. The encrypted payload is split into base64 ``ciphertext`` and ``iv``
+    to match the client-side AES-GCM wire format.
     """
 
-    encrypted_payload: bytes
+    ciphertext: str
+    iv: str
 
     @field_validator("hlc", mode="before")
     @classmethod

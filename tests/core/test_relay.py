@@ -21,7 +21,8 @@ def _envelope(
     hlc: Hlc,
     affected_node_ids: list[str] | None = None,
     op_type: str = "node.create",
-    payload: bytes = b"encrypted-stub",
+    ciphertext: str = "ZW5jcnlwdGVkLXN0dWI=",
+    iv: str = "c3R1Yml2",
 ) -> EncryptedEnvelope:
     return EncryptedEnvelope(
         id=envelope_id,
@@ -30,7 +31,8 @@ def _envelope(
         hlc=hlc,
         affected_node_ids=affected_node_ids or [],
         op_type=op_type,
-        encrypted_payload=payload,
+        ciphertext=ciphertext,
+        iv=iv,
     )
 
 
@@ -51,7 +53,8 @@ class TestSqliteRelayStorage:
         results = storage.get_catch_up(envelope.workspace_id, Hlc(physical=0, logical=0))
         assert len(results) == 1
         assert results[0].id == envelope.id
-        assert results[0].encrypted_payload == envelope.encrypted_payload
+        assert results[0].ciphertext == envelope.ciphertext
+        assert results[0].iv == envelope.iv
 
     def test_catch_up_only_returns_newer_envelopes(self) -> None:
         storage = SqliteRelayStorage()
@@ -122,14 +125,16 @@ class TestSqliteRelayStorage:
             workspace_id="ws-1",
             actor_id="actor-1",
             hlc=Hlc(physical=10, logical=0),
-            payload=b"first",
+            ciphertext="Zmlyc3Q=",
+            iv="aXYx",
         )
         duplicate = _envelope(
             envelope_id="env-1",
             workspace_id="ws-1",
             actor_id="actor-1",
             hlc=Hlc(physical=99, logical=99),
-            payload=b"second",
+            ciphertext="c2Vjb25k",
+            iv="aXYy",
         )
 
         storage.save_envelope(envelope)
@@ -137,7 +142,7 @@ class TestSqliteRelayStorage:
 
         results = storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))
         assert len(results) == 1
-        assert results[0].encrypted_payload == b"first"
+        assert results[0].ciphertext == "Zmlyc3Q="
 
 
 class TestRelayService:

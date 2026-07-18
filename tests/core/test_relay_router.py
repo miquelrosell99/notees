@@ -63,9 +63,37 @@ def _envelope(
         hlc=Hlc(physical=physical, logical=logical),
         affected_node_ids=["node-1"],
         op_type=op_type,
-        encrypted_payload=b"encrypted",
+        ciphertext="ZW5jcnlwdGVk",
+        iv="c3R1Yml2MTIz",
         timestamp="2026-07-17T00:00:00Z",
     )
+
+
+def test_relay_router_mounted_and_reachable(storage: RelayStorage, permissions: PermissionChecker) -> None:
+    """Verify the relay router is reachable via TestClient once mounted."""
+    application = FastAPI()
+
+    def _get_storage() -> RelayStorage:
+        return storage
+
+    def _get_permissions() -> PermissionChecker:
+        return permissions
+
+    application.include_router(router)
+    application.dependency_overrides[get_relay_storage] = _get_storage
+    application.dependency_overrides[get_permission_checker] = _get_permissions
+
+    with TestClient(application) as client:
+        envelope = _envelope("op-mounted")
+        response = client.post(
+            "/api/relay/batch",
+            json={"envelopes": [envelope.model_dump(by_alias=True, mode="json")]},
+            headers={"x-actor-id": "actor-1"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["saved_count"] == 1
+        assert data["saved_ids"] == ["op-mounted"]
 
 
 def test_receive_batch(client: TestClient) -> None:

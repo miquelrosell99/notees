@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import Depends, Request
 
+from app.config import settings
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
 from app.relay.service import RelayService
 from app.relay.storage import RelayStorage, SqliteRelayStorage
@@ -12,14 +15,37 @@ _storage_instance: RelayStorage | None = None
 _permission_checker_instance: PermissionChecker | None = None
 
 
+def _is_test_environment() -> bool:
+    """Return True when running under pytest or with ENVIRONMENT=test."""
+    return (
+        settings.environment.lower() == "test"
+        or os.environ.get("PYTEST_CURRENT_TEST") is not None
+        or "pytest" in os.environ.get("_", "")
+    )
+
+
+def _default_db_path() -> str:
+    """Return the default SQLite path for relay storage.
+
+    Uses an on-disk file in production/development and an in-memory database
+    during tests to avoid file-system side effects.
+    """
+    if _is_test_environment():
+        return ":memory:"
+    db_path = settings.database_dir / "relay" / "relay.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    return str(db_path)
+
+
 def get_relay_storage() -> RelayStorage:
     """Return the shared relay storage adapter.
 
-    Uses an in-memory SQLite store by default for Phase 1.
+    Uses a persistent SQLite file by default. Falls back to an in-memory store
+    in tests.
     """
     global _storage_instance
     if _storage_instance is None:
-        _storage_instance = SqliteRelayStorage()
+        _storage_instance = SqliteRelayStorage(_default_db_path())
     return _storage_instance
 
 
@@ -35,11 +61,15 @@ def get_permission_checker() -> PermissionChecker:
 
 
 def get_actor_id(request: Request) -> str:
-    """Extract the actor id from the ``X-Actor-Id`` header.
+    """Extract the actor id for the relay request.
 
-    Phase 1 uses a simple header; this will be replaced by JWT authentication
-    in Phase 5.
+    Prefers the authenticated user id, falls back to the ``X-Actor-Id`` header,
+    and finally defaults to ``anonymous``. This preserves the Phase 1 header
+    contract while integrating with the existing auth middleware.
     """
+    user_id = getattr(request.state, "user_id", None)
+    if user_id:
+        return str(user_id)
     return request.headers.get("x-actor-id", "anonymous")
 
 
