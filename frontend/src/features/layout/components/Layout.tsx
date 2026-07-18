@@ -14,17 +14,15 @@
  */
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 
-import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useIsMobile, useDocumentTitle } from '@/hooks';
-import { useCreateNode, useNode } from '@/features/content';
+import { useCreateNode, useNode, addRecent } from '@/features/content';
 import { RouteAdapter } from './RouteAdapter';
 import { NavigationUrlSync } from './NavigationUrlSync';
 import { useSettingsQuery } from '@/features/workspace';
-import { recentKeys } from '@/hooks/queryKeys';
-import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
+import { fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar, SidebarRail } from './Sidebar';
 import { MainContent } from './MainContent';
@@ -144,24 +142,13 @@ export function Layout() {
   const isResizingLeftRef = useRef(false);
   const isResizingRightRef = useRef(false);
 
-  const queryClient = useQueryClient();
-
-  // NOTE: loadFavorites() and loadRecents() are called in App.tsx when dbData?.active changes.
-  // Do NOT duplicate them here — it causes 3x duplicate requests competing for browser connections.
-
-  // Track page opens by calling the API and refreshing recents.
-  // Only call for actual pages; blocks return 400.
+  // Track page opens locally for the recents sidebar/command palette.
+  // Only record actual pages; blocks are skipped.
   useEffect(() => {
-    if (currentNodeUuid && mainViewType === 'node' && currentNode?.is_page && currentNode.uuid) {
-      markPageOpened(currentNode.uuid)
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: recentKeys.all });
-        })
-        .catch((error) => {
-          console.error('Failed to mark page as opened:', error);
-        });
+    if (currentNodeUuid && mainViewType === 'node' && currentNode?.is_page && currentNode?.uuid) {
+      addRecent(currentNode.uuid);
     }
-  }, [currentNodeUuid, mainViewType, currentNode?.is_page, queryClient]);
+  }, [currentNodeUuid, mainViewType, currentNode?.is_page, currentNode?.uuid]);
 
   // Register commands in the Command Registry
   useCommand(COMMAND_IDS.COMMAND_PALETTE, () => {

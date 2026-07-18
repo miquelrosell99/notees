@@ -1,31 +1,28 @@
 /**
- * Recent pages server state via TanStack Query.
+ * Recents local-first state backed by a persisted Zustand store.
  *
- * Provides a query hook for components and an imperative helper for
+ * Provides a query-shaped hook for components and an imperative helper for
  * non-component code that needs to drop a node from the cached list.
  */
-import { useQuery } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
-import { queryClient } from '@/lib/queryClient';
-import { recentKeys } from '@/hooks/queryKeys';
+import { useRecentsStore } from '@/stores/recentsStore';
+import type { RecentItem } from '@/stores/recentsStore';
 
-export interface RecentItem {
-  nodeUuid: string;
-  openDate: string;
-}
+export type { RecentItem };
 
 export function useRecents(limit = 10) {
-  return useQuery<RecentItem[], Error>({
-    queryKey: recentKeys.list(limit),
-    queryFn: async () => {
-      const pages = await nodesApi.getRecentPages(limit);
-      return pages.map((page) => ({ nodeUuid: page.uuid, openDate: page.open_date }));
-    },
-  });
+  const recents = useRecentsStore((state) => state.recents);
+  const data = recents.slice(0, limit);
+  return { data, isLoading: false, error: null };
+}
+
+export function addRecent(nodeUuid: string): void {
+  useRecentsStore.getState().addRecent(nodeUuid);
 }
 
 export function removeRecent(nodeUuid: string): void {
-  queryClient.setQueriesData<RecentItem[]>({ queryKey: recentKeys.all }, (prev) =>
-    prev?.filter((item) => item.nodeUuid !== nodeUuid)
-  );
+  useRecentsStore.getState().removeRecent(nodeUuid);
+}
+
+export function clearRecents(): void {
+  useRecentsStore.getState().clearRecents();
 }

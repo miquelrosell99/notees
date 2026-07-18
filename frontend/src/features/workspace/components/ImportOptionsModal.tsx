@@ -29,7 +29,7 @@ import { useWorkspaceImport, useWorkspaceNameCheck } from '@/features/workspace'
 import { useImportMarkdown } from '@/features/workspace';
 import { useWorkspaces } from '@/features/workspace';
 import type { MarkdownImportResult } from '@/features/workspace/api/import';
-import { useNavigationStore, useModalStore } from '@/stores';
+import { useNavigationStore, useModalStore, useFavoritesStore, useRecentsStore } from '@/stores';
 import type { LogseqExport } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
 import { useLogseqImporter, countBlocks } from '@/features/workspace/hooks/useLogseqImporter';
@@ -48,7 +48,7 @@ import {
   type LogseqFolderResult,
 } from '@/plugins/builtin/logseq_importer/utils/logseqMdParser';
 import { useLogseqFolderImporter } from '@/plugins/builtin/logseq_importer/hooks/useLogseqFolderImporter';
-import { favoriteKeys, recentKeys, workspaceKeys } from '@/hooks/queryKeys';
+import { workspaceKeys } from '@/hooks/queryKeys';
 import { useImporters, useRunImporter, type ImporterRunResult } from '@/plugins/core';
 import './ImportOptionsModal.css';
 import '@/plugins/builtin/logseq_importer/components/ImportLogseqFolderModal.css';
@@ -314,8 +314,8 @@ export function ImportOptionsModal({
           localGraphNodeUuid: null,
           mainViewType: 'node',
         });
-        queryClient.removeQueries({ queryKey: favoriteKeys.all });
-        queryClient.removeQueries({ queryKey: recentKeys.all });
+        useFavoritesStore.getState().clearFavorites();
+        useRecentsStore.getState().clearRecents();
         queryClient.clear();
         navigate(`/${workspace!.uuid}`, { replace: true });
         if (!cancelled) setPhase('importing');
