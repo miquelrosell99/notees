@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import os
 import sys
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -52,9 +53,18 @@ from app.core.migration.validation import (
 )
 from app.core.migration.writer import InMemoryOperationWriter
 from app.core.operation import create_operation
+from app.relay.models import EncryptedEnvelope
+from app.relay.storage import SqliteRelayStorage
 
-DEFAULT_RELAY_URL = "http://localhost:8000"
+DEFAULT_RELAY_URL = "http://localhost:8001"
 BATCH_SIZE = 100
+
+
+def _default_relay_storage_path() -> str:
+    """Return the on-disk path used by the running backend for relay storage."""
+    db_path = Path(settings.database_dir) / "relay" / "relay.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    return str(db_path)
 
 
 async def _workspace_int_id(conn: asyncpg.Connection, workspace_uuid: str) -> int | None:
@@ -75,7 +85,7 @@ async def _fetch_workspace_owner_uuid(conn: asyncpg.Connection, workspace_int_id
         """
         SELECT u.uuid::text AS uuid
         FROM workspace w
-        JOIN "user" u ON w.owner_id = u.id
+        JOIN "user" u ON w.create_uid = u.id
         WHERE w.id = $1
         """,
         workspace_int_id,
@@ -106,6 +116,8 @@ async def _seed_workspace(
     secret_key: str,
     relay_url: str,
     copy_files: bool,
+    direct: bool = False,
+    storage: SqliteRelayStorage | None = None,
 ) -> tuple[int, list]:
     workspace_int_id = await _workspace_int_id(conn, workspace_uuid)
     if workspace_int_id is None:
@@ -133,18 +145,25 @@ async def _seed_workspace(
         writer.close()
         return 0, []
 
-    posted = 0
-    async with httpx.AsyncClient(base_url=relay_url) as client:
-        for i in range(0, len(envelopes), BATCH_SIZE):
-            batch = envelopes[i : i + BATCH_SIZE]
-            response = await client.post(
-                "/api/relay/batch",
-                json={"envelopes": batch},
-                headers={"x-actor-id": actor_id},
-            )
-            response.raise_for_status()
-            data = response.json()
-            posted += data.get("saved_count", 0)
+    if direct:
+        if storage is None:
+            raise ValueError("direct=True requires a SqliteRelayStorage instance")
+        for envelope in envelopes:
+            storage.save_envelope(EncryptedEnvelope(**envelope))
+        posted = len(envelopes)
+    else:
+        posted = 0
+        async with httpx.AsyncClient(base_url=relay_url) as client:
+            for i in range(0, len(envelopes), BATCH_SIZE):
+                batch = envelopes[i : i + BATCH_SIZE]
+                response = await client.post(
+                    "/api/relay/batch",
+                    json={"envelopes": batch},
+                    headers={"x-actor-id": actor_id},
+                )
+                response.raise_for_status()
+                data = response.json()
+                posted += data.get("saved_count", 0)
 
     print(
         f"Seeded workspace {workspace_uuid}: {posted}/{len(envelopes)} operations saved"
@@ -154,12 +173,36 @@ async def _seed_workspace(
     return posted, operations
 
 
+def _envelope_to_dict(envelope: EncryptedEnvelope) -> dict:
+    """Serialize a stored envelope back into the dict format used by smoke tests."""
+    return {
+        "id": envelope.id,
+        "workspace_id": envelope.workspace_id,
+        "actor_id": envelope.actor_id,
+        "hlc": {"physical": envelope.hlc.physical, "logical": envelope.hlc.logical},
+        "affected_node_ids": envelope.affected_node_ids,
+        "op_type": envelope.op_type,
+        "ciphertext": envelope.ciphertext,
+        "iv": envelope.iv,
+    }
+
+
 async def _fetch_relay_operations(
-    client: httpx.AsyncClient,
+    client: httpx.AsyncClient | None,
     workspace_uuid: str,
     actor_id: str,
+    storage: SqliteRelayStorage | None = None,
 ) -> list[dict]:
-    """Page through /api/relay/catch-up until all operations are returned."""
+    """Page through relay catch-up, either via HTTP or directly from storage."""
+    if storage is not None:
+        return [
+            _envelope_to_dict(env)
+            for env in storage.get_catch_up(workspace_uuid, Hlc(physical=0, logical=0))
+        ]
+
+    if client is None:
+        raise ValueError("Either an httpx client or a SqliteRelayStorage instance is required")
+
     envelopes: list[dict] = []
     hlc: dict[str, int] = {"physical": 0, "logical": 0}
     after_id: str | None = None
@@ -233,6 +276,8 @@ async def _smoke_test_workspace(
     secret_key: str,
     relay_url: str,
     operations: list,
+    direct: bool = False,
+    storage: SqliteRelayStorage | None = None,
 ) -> bool:
     """Compare derived counts from relay replay against migration expectations."""
     workspace_int_id = await _workspace_int_id(conn, workspace_uuid)
@@ -245,8 +290,15 @@ async def _smoke_test_workspace(
 
     expected_report = build_reconciliation_report(operations)
 
-    async with httpx.AsyncClient(base_url=relay_url) as client:
-        relay_envelopes = await _fetch_relay_operations(client, workspace_uuid, actor_id)
+    if direct:
+        relay_envelopes = await _fetch_relay_operations(
+            None, workspace_uuid, actor_id, storage=storage
+        )
+    else:
+        async with httpx.AsyncClient(base_url=relay_url) as client:
+            relay_envelopes = await _fetch_relay_operations(
+                client, workspace_uuid, actor_id
+            )
 
     actual_counts = _derive_counts_from_relay(workspace_uuid, secret_key, relay_envelopes)
 
@@ -289,6 +341,10 @@ async def _run(args: argparse.Namespace) -> None:
     if not secret_key or len(secret_key) < 32:
         raise ValueError("SECRET_KEY must be set and at least 32 characters long")
 
+    storage: SqliteRelayStorage | None = None
+    if args.direct:
+        storage = SqliteRelayStorage(_default_relay_storage_path())
+
     conn = await connect_postgres()
     try:
         if args.workspace_id:
@@ -311,6 +367,8 @@ async def _run(args: argparse.Namespace) -> None:
                     secret_key,
                     args.relay_url,
                     copy_files=args.copy_files,
+                    direct=args.direct,
+                    storage=storage,
                 )
                 total += posted
                 if args.smoke_test and operations:
@@ -320,6 +378,8 @@ async def _run(args: argparse.Namespace) -> None:
                         secret_key,
                         args.relay_url,
                         operations,
+                        direct=args.direct,
+                        storage=storage,
                     )
                     if ok:
                         smoke_passed += 1
@@ -336,6 +396,8 @@ async def _run(args: argparse.Namespace) -> None:
                 raise SystemExit(1)
     finally:
         await conn.close()
+        if storage is not None:
+            storage.close()
 
 
 def main() -> None:
@@ -374,6 +436,14 @@ def main() -> None:
         "--smoke-test",
         action="store_true",
         help="After seeding, replay relay operations and compare derived counts to the migration output.",
+    )
+    parser.add_argument(
+        "--direct",
+        action="store_true",
+        help=(
+            "Write envelopes directly to the relay SQLite storage instead of using the HTTP endpoint. "
+            "Use this for one-time migrations or when workspaces lack an owner record."
+        ),
     )
     args = parser.parse_args()
     asyncio.run(_run(args))
