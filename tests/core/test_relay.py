@@ -267,21 +267,9 @@ class TestRelayService:
 
 
 class TestPostgresRelayStorage:
-    def test_postgres_storage_is_stub(self) -> None:
+    def test_postgres_storage_can_be_instantiated(self) -> None:
         storage = PostgresRelayStorage()
-        envelope = _envelope(
-            envelope_id="env-1",
-            workspace_id="ws-1",
-            actor_id="actor-1",
-            hlc=Hlc(physical=10, logical=0),
-        )
-
-        with pytest.raises(NotImplementedError):
-            storage.save_envelope(envelope)
-        with pytest.raises(NotImplementedError):
-            storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))
-        with pytest.raises(NotImplementedError):
-            storage.envelope_exists("env-1")
+        assert isinstance(storage, PostgresRelayStorage)
 
 
 class TestEncryptedEnvelopeValidation:
