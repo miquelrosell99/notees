@@ -144,7 +144,9 @@ What is missing:
 
 ---
 
-### E3 — Key management + encryption
+### E3 — Key management + encryption ✅ Done
+
+**Status:** Committed as `feat(relay): Phase 5 E3 workspace key management and frontend unwrap` (`25614d77`).
 
 **Goal:** Provide endpoints for workspace key retrieval, member invitation, and rotation.
 
@@ -173,6 +175,13 @@ What is missing:
 **Verification:**
 - `uv run pytest tests/core/test_relay_keys.py -m unit --no-cov` passes.
 - Frontend typecheck and core tests still pass.
+
+**Results:**
+- `uv run pytest tests/core/test_relay_keys.py tests/core/test_relay_permissions.py tests/core/test_relay.py tests/core/test_relay_router.py tests/core/test_relay_ws.py -m unit --no-cov` → 52 passed.
+- `uv run ruff check app/relay app/core/crypto.py` → clean.
+- `uv run python scripts/validate_migration.py` → 0 orphans, 0 duplicates.
+- `npm run test:run src/core` → 17 files, 56 tests passed.
+- `npx tsc -b --noEmit` and `npm run lint` → clean (only pre-existing warnings).
 
 ---
 
