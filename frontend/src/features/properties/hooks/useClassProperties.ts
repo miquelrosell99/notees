@@ -6,7 +6,15 @@ import { useQuery, useMutation, useQueries } from '@tanstack/react-query';
 import * as propertiesApi from '@/api/properties';
 import { propertyKeys } from '@/hooks/queryKeys';
 import { orderClassPropertyEdges } from '../utils/classPropertyEdges';
-export function useClassProperties(classId: string | null, includeInherited: boolean = false) {
+import {
+  useClassPropertiesAdapter,
+  useNodeClassPropertyEdgesAdapter,
+} from '@/core/adapters/useClassPropertiesAdapter';
+
+/**
+ * Legacy class-properties query. Imported by the SQLite adapter.
+ */
+export function useClassPropertiesLegacy(classId: string | null, includeInherited: boolean = false) {
   return useQuery({
     queryKey: includeInherited
       ? propertyKeys.forClassInherited(classId ?? '')
@@ -16,14 +24,14 @@ export function useClassProperties(classId: string | null, includeInherited: boo
   });
 }
 
+export function useClassProperties(classId: string | null, includeInherited: boolean = false) {
+  return useClassPropertiesAdapter(classId, includeInherited);
+}
+
 /**
- * Class-property edges for every class of a node (with inheritance), ordered
- * to match backend enforcement (see orderClassPropertyEdges). Fans out one
- * query per class — class lists are small and identical queries are deduped
- * by React Query, so there is no fixed class cap on the display side
- * (enforcement walks all classes too).
+ * Legacy node class-property edges query. Imported by the SQLite adapter.
  */
-export function useNodeClassPropertyEdges(classUuids: string[]) {
+export function useNodeClassPropertyEdgesLegacy(classUuids: string[]) {
   const results = useQueries({
     queries: classUuids.map((classId) => ({
       queryKey: propertyKeys.forClassInherited(classId),
@@ -36,6 +44,10 @@ export function useNodeClassPropertyEdges(classUuids: string[]) {
     () => orderClassPropertyEdges(classUuids, results.map((r) => r.data)),
     [classUuids, results],
   );
+}
+
+export function useNodeClassPropertyEdges(classUuids: string[]) {
+  return useNodeClassPropertyEdgesAdapter(classUuids);
 }
 
 export function useClassExtends(classId: string | null) {

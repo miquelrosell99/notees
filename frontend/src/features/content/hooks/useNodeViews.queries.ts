@@ -22,6 +22,10 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useWorkspaceRole } from '@/features/workspace';
 import { queryNodesLocal } from '@/features/sync/local/localQuery';
+import {
+  useExecuteQueryAdapter,
+  useQueryResultsAdapter,
+} from '@/core/adapters/useQueryAstAdapter';
 export { nodeViewKeys } from '@/hooks/queryKeys';
 
 // ==================== Query Hooks ====================
@@ -128,9 +132,10 @@ export function useDefaultNodeView(
 }
 
 /**
- * Execute a NodeView's query and return results
+ * Legacy NodeView query execution. Imported by the SQLite adapter so it can
+ * delegate when ENABLE_SQLITE_STORE is off without creating a circular call.
  */
-export function useNodeViewQuery(
+export function useNodeViewQueryLegacy(
   viewId: string | number,
   options?: {
     runtimeParams?: Record<string, unknown>;
@@ -185,10 +190,29 @@ export function useNodeViewQuery(
   });
 }
 
+export function useNodeViewQuery(
+  viewId: string | number,
+  options?: {
+    runtimeParams?: Record<string, unknown>;
+    limit?: number;
+    offset?: number;
+    orderBy?: string;
+    includeChildren?: boolean;
+    includeAllChildren?: boolean;
+    pagesOnly?: boolean;
+    includeProperties?: boolean;
+    enrich?: { children?: boolean; classes?: boolean; properties?: boolean };
+    enabled?: boolean;
+    ast?: QueryAST;
+  }
+) {
+  return useQueryResultsAdapter(viewId, options);
+}
+
 /**
- * Execute an ad-hoc query (not tied to a NodeView)
+ * Legacy ad-hoc query execution. Imported by the SQLite adapter.
  */
-export function useQuery_(
+export function useQuery_Legacy(
   request: QueryExecuteRequest,
   options?: {
     enabled?: boolean;
@@ -218,6 +242,16 @@ export function useQuery_(
     staleTime: 0,
     placeholderData: keepPreviousData,
   });
+}
+
+export function useQuery_(
+  request: QueryExecuteRequest,
+  options?: {
+    enabled?: boolean;
+    queryKey?: readonly unknown[];
+  }
+) {
+  return useExecuteQueryAdapter(request, options);
 }
 
 /**
