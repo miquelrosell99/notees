@@ -4,14 +4,17 @@
  */
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { createNode } from '@/api/nodes';
 import { useModalStore } from '@/stores';
 import { useNodeByUuid } from '@/features/content';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
 
 export function useShareReceiver() {
   const navigate = useNavigate();
   const location = useLocation();
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store } = useWorkspaceStore(workspaceUuid ?? '');
   const { data: scratchpadPage } = useNodeByUuid(
     SYSTEM_PAGE_UUIDS.scratchpad,
     { include_children: true }
@@ -20,7 +23,7 @@ export function useShareReceiver() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('shared') !== 'true') return;
-    if (!scratchpadPage) return;
+    if (!scratchpadPage || !store) return;
 
     const text = params.get('text') || '';
     const title = params.get('title') || '';
@@ -35,12 +38,14 @@ export function useShareReceiver() {
 
     if (content) {
       // Create a block in the Scratchpad with the shared content
-      createNode({ name: content, parent_uuid: scratchpadPage.uuid }).then(() => {
-        useModalStore.getState().setScratchpadOpen(true);
-      });
+      const nodeId = crypto.randomUUID();
+      store.createNode({ nodeId, kind: 'block', parentId: scratchpadPage.uuid });
+      store.updateText(nodeId, (t) => t.insert(0, content));
+      store.moveNode(nodeId, scratchpadPage.uuid);
+      useModalStore.getState().setScratchpadOpen(true);
     }
 
     // Clean up the URL without reloading
     navigate(location.pathname, { replace: true });
-  }, [scratchpadPage, location, navigate]);
+  }, [scratchpadPage, store, location, navigate]);
 }

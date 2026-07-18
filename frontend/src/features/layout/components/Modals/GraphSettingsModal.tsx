@@ -7,9 +7,8 @@
 import { useState } from 'react';
 import { useSettingsStore, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { DateFormat } from '@/stores';
-import { updateDateFormat } from '@/api/nodes';
 import { useGraphSettings } from '@/features/workspace';
-import { useQueryClient } from '@tanstack/react-query';
+
 import { useNotifications } from '@/stores/notificationStore';
 import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
 import type { ShortcutContext } from '@/stores/commandRegistry';
@@ -20,7 +19,6 @@ import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { TextField } from '@/components/ui/TextField';
 import { Tabs } from '@/components/ui/Tabs';
-import { nodeKeys } from '@/hooks/queryKeys';
 import './GraphSettingsModal.css';
 
 interface GraphSettingsModalProps {
@@ -55,6 +53,16 @@ const DEFAULT_RETENTION = {
   task_completion_retention_days: 365,
 };
 
+/**
+ * No-op replacement for the legacy batch date-format migration.
+ * In the local-first core, date page names are not centrally renamed;
+ * only the display preference is updated.
+ */
+async function updateDateFormat(_format: DateFormat): Promise<{ status: 'success'; errors: string[] }> {
+  console.warn('Date format migration is not supported in the local-first core; only the display preference will be updated');
+  return { status: 'success', errors: [] };
+}
+
 function parseRetentionValue(
   value: unknown,
   key: keyof typeof DEFAULT_RETENTION,
@@ -85,7 +93,6 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
   const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
   const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
   const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);
-  const queryClient = useQueryClient();
   const { success, error: notifyError, warning } = useNotifications();
 
   // Workspace settings for sidebar visibility toggles
@@ -120,9 +127,7 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
       const result = await updateDateFormat(pendingDateFormat);
       if (result.status === 'success') {
         setDateFormat(pendingDateFormat);
-        queryClient.invalidateQueries({ queryKey: nodeKeys.all });
-        queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
-        success('Date format updated', 'Daily and monthly notes now use the new format.');
+        success('Date format updated', 'Display preference updated.');
       }
       if (result.errors.length > 0) {
         warning('Some dates could not be updated', `${result.errors.length} item(s) failed to migrate.`);

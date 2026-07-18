@@ -16,7 +16,7 @@ import type {
   NotNode,
   PropertyOperator,
 } from '@/types/queryAST';
-import type { GraphNode as ApiGraphNode, GraphLink } from '@/api/nodes';
+import type { GraphNode as ApiGraphNode, GraphLink } from '@/types/api';
 import { nodeNameToText } from '@/features/queries';
 import type { Node } from '@/types';
 
