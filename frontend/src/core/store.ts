@@ -195,6 +195,25 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
+  /**
+   * Replace a node's content AST directly. Used by maintenance tools that need
+   * to perform structural AST transformations (e.g. converting raw [[uuid]]
+   * text into node_link nodes) without going through the text CRDT.
+   */
+  updateContentAst(nodeId: string, content: unknown[]): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.updateContent',
+      },
+      { nodeId, content }
+    );
+    this.apply(op);
+  }
+
   moveNode(nodeId: string, newParentId: string | null): void {
     const oldParentRow = queryOne<{ parent_id: string | null }>(
       this.db,
