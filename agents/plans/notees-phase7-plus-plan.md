@@ -132,17 +132,32 @@ Current gaps discovered at the start of Phase 9:
 
 **Commit:** `8c0cc41e` — `feat(relay): implement PostgreSQL relay storage, snapshots, compaction, and rate limiting`.
 
-### Phase 9B — Frontend persistence, snapshots, and storage quota
+### Phase 9B — Frontend persistence, snapshots, and storage quota (done)
 
-1. Wire `openWorkspaceDatabase` to load/save from IndexedDB via `frontend/src/core/persistence/indexedDb.ts`.
-2. Implement snapshot creation and restore in `WorkspaceStore` (`frontend/src/core/store.ts`):
-   - Serialize derived tables + CRDT state into `snapshot.data`.
-   - On startup: load latest snapshot, then replay operations newer than snapshot HLC.
-3. Implement client-side compaction:
-   - Delete local operations covered by a snapshot/compacted segment.
-   - Keep a configurable retention window for undo/audit.
-4. Fix `SyncEngine.push()` to only push operations newer than the last pushed HLC (push watermark).
-5. Add storage quota monitoring (`navigator.storage.estimate`) and UI warnings when approaching quota.
+1. Wired `openWorkspaceDatabase` to load/save from IndexedDB via `frontend/src/core/persistence/indexedDb.ts`.
+2. Implemented snapshot creation and restore in `WorkspaceStore` (`frontend/src/core/store.ts`):
+   - `createSnapshot()` serializes the current derived SQLite database into `snapshot.data`.
+   - `restoreLatestSnapshot()` loads the latest snapshot and replays operations newer than the snapshot HLC.
+3. Implemented client-side compaction in `WorkspaceStore.compactOperations()`:
+   - Removes local operations older than a configurable HLC window.
+   - Retains recent operations for undo/audit.
+4. Fixed `SyncEngine.push()` to use a push watermark from `sync_push_watermark` and only upload newer operations.
+5. Added `useStorageQuota` hook and wired a warning/critical quota alert into `SyncStatusIndicator`.
+
+**Files changed:**
+- `frontend/src/core/db/connection.ts` — IndexedDB load/save in real browsers.
+- `frontend/src/core/db/schema.ts` — added `sync_push_watermark` table.
+- `frontend/src/core/store.ts` — `onPersist`, `persistNow`, `export`, `createSnapshot`, `restoreLatestSnapshot`, `compactOperations`.
+- `frontend/src/core/sync.ts` — push watermark filtering.
+- `frontend/src/core/adapters/workspaceStoreAdapter.ts` — persistence wiring.
+- `frontend/src/core/hooks/useStorageQuota.ts` (new) and `frontend/src/core/hooks/index.ts`.
+- `frontend/src/features/sync/components/SyncStatusIndicator.tsx` + `.css` — quota warning UI.
+- `frontend/src/core/__tests__/workspaceStore.test.ts` and `frontend/src/core/__tests__/sync.test.ts` — persistence, snapshot, compaction, watermark tests.
+
+**Verification:**
+- `cd frontend && npx tsc -b --noEmit && npm run lint` → clean typecheck, lint 0 errors (4 pre-existing warnings).
+- `cd frontend && npm run test:run` → 81 test files / 532 tests passed.
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 341+ passed.
 
 ### Phase 9C — E2E smoke tests
 

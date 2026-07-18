@@ -1,6 +1,6 @@
 # Notees Changelog
 
-## 2.0.0 — Local-first architecture complete (Phases 6–8)
+## 2.0.0 — Local-first architecture complete (Phases 6–9)
 
 **Date:** 2026-07-18
 
@@ -11,6 +11,14 @@
 - The legacy v2 sync dispatcher (`SyncManagerV2`, `localSyncEngine`, `LocalIndexManager`, `QueryLiveUpdater`) and `frontend/src/runtime/` (`OperationRuntime`) have been removed.
 - `app/features/nodes/` and `app/features/properties/` have been deleted; all remaining feature islands (tasks, assets, import, shares, activity, undo, plugins, collab) operate on the operation-log core.
 - All operations carry unencrypted routing metadata (`affected_node_ids`, `op_type`, HLC) so the relay can enforce node-level shares without decrypting payloads.
+
+### Production Hardening (Phase 9)
+
+- **Backend relay adapter**: PostgreSQL-backed `PostgresRelayStorage` with envelope/snapshot/compaction tables, rate limiting, envelope validation, and admin endpoints.
+- **Frontend persistence**: `openWorkspaceDatabase` loads and saves the SQLite database from IndexedDB; `WorkspaceStore` supports explicit `persistNow`, snapshot export, and compaction.
+- **Snapshot replay**: startup loads the latest snapshot and replays only operations newer than the snapshot HLC, bounding cold-start cost.
+- **Push watermark**: `SyncEngine.push()` tracks the last-pushed HLC in `sync_push_watermark` and only uploads newer operations.
+- **Storage quota**: `useStorageQuota` monitors `navigator.storage.estimate()`; `SyncStatusIndicator` surfaces warning/critical quota alerts.
 
 ### Data & Migration
 
@@ -23,4 +31,4 @@
 ### Developer Notes
 
 - `frontend/src/core/` is the sole path for state, hooks, and sync.
-- `agents/plans/notees-phase7-plus-plan.md` tracks Phase 9 production hardening and Phase 10 release tasks.
+- `agents/plans/notees-phase7-plus-plan.md` tracks Phase 9C/E2E and Phase 10 release tasks.
