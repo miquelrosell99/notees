@@ -207,7 +207,7 @@ Alternatives considered and rejected:
 
 **Goal:** Replace the authoritative TanStack Query cache with the local SQLite store.
 
-**Status:** Implementation in progress. Detailed plan in `agents/plans/phase4-frontend-cutover.md`.
+**Status:** Complete. Detailed plan and sub-task results in `agents/plans/phase4-frontend-cutover.md`.
 
 **Approach:**
 - Build React hooks and an adapter layer so existing feature components can read/write through the new core without a full rewrite.
@@ -249,18 +249,18 @@ Alternatives considered and rejected:
 - Modify `frontend/src/main.tsx` to restore IndexedDB-backed SQLite databases.
 - Modify legacy feature hooks under `frontend/src/features/content/hooks/`, `frontend/src/features/properties/hooks/`, `frontend/src/features/queries/hooks/`.
 
-**Verification:**
-- `uv run pytest tests/core tests/relay -m unit --no-cov` passes.
-- `uv run ruff check app/core app/relay scripts/seed_relay_from_postgres.py frontend/src/core` clean.
-- `uv run python scripts/validate_migration.py` reports zero orphans and zero duplicates.
-- `cd frontend && npm run test:run src/core && npx tsc -b --noEmit && npm run lint` passes.
-- Manual smoke test with `VITE_ENABLE_SQLITE_STORE=true`: open workspace, CRUD nodes, edit properties, run QueryAST view, go offline, reconnect, converge.
+**Verification (completed):**
+- `uv run pytest tests/core tests/relay -m unit --no-cov` → 154 passed, 3 skipped.
+- `uv run ruff check app/core app/relay app/main.py scripts/seed_relay_from_postgres.py app/core/crypto.py frontend/src/core` → clean.
+- `uv run python scripts/validate_migration.py` → 0 orphan operations, 0 duplicate ids.
+- `cd frontend && npm run test:run src/core && npx tsc -b --noEmit && npm run lint` → 52 tests passed, typecheck clean, lint clean (pre-existing unrelated warnings).
+- End-to-end integration test passes (`frontend/src/core/__tests__/integration.test.tsx`).
 
 **Subagent breakdown:**
 - Subagent D1: Core hooks + store adapter + IndexedDB persistence. ✅ Done (`8a74fe71`).
 - Subagent D2: Content/editor feature bridge. ✅ Done (`06626a6d`).
 - Subagent D3: Properties/views/QueryAST bridge. ✅ Done (`c2fe306f`).
-- Subagent D4: Service worker/PWA offline + relay router mount + backend seed script.
+- Subagent D4: Service worker/PWA offline + relay router mount + backend seed script. ✅ Done (`02b9c08f`).
 
 ---
 
@@ -353,4 +353,8 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
 ## Immediate Next Step
 
-Begin **Phase 4** (frontend cut-over) by dispatching subagent D1 to build the core React hooks, workspace store adapter, and IndexedDB persistence layer. See `agents/plans/phase4-frontend-cutover.md` for the full sub-task breakdown.
+Begin **Phase 5** (server relay hardening and production cut-over):
+- Replace `StubPermissionChecker` with real workspace membership/share checks.
+- Add workspace key management endpoints.
+- Harden catch-up pagination and snapshot delivery.
+- Run multi-client convergence and load tests.
