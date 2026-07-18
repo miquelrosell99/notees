@@ -19,6 +19,8 @@ import {
   applyNodeIntent,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
+import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
+import { useDeleteNodeAdapter } from '@/core/adapters';
 
 import {
   removeNodeFromAllCaches,
@@ -26,7 +28,7 @@ import {
   removeNodeFromPropertyBacklinkCaches,
 } from '@/hooks/cacheUtils';
 
-export function useDeleteNode() {
+export function useDeleteNodeLegacy() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
@@ -160,4 +162,11 @@ export function useDeleteNode() {
       queryClient.invalidateQueries({ queryKey: nodeKeys.inlineQuery(), refetchType: 'active' });
     },
   });
+}
+
+export function useDeleteNode() {
+  const legacyResult = useDeleteNodeLegacy();
+  const sqliteResult = useDeleteNodeAdapter();
+
+  return ENABLE_SQLITE_STORE ? sqliteResult : legacyResult;
 }
