@@ -333,6 +333,195 @@ class WorkspaceStore:
             )
         )
 
+    async def update_content(
+        self,
+        node_id: str,
+        content: list[dict[str, Any]],
+    ) -> None:
+        """Emit a ``node.updateContent`` operation."""
+        await self.apply(
+            self._build_operation(
+                "node.updateContent",
+                {"nodeId": node_id, "content": content},
+                [node_id],
+            )
+        )
+
+    async def record_task_completion(
+        self,
+        completion_id: str,
+        node_id: str,
+        completed_at: str | None = None,
+        completed_by: str | None = None,
+    ) -> None:
+        """Emit a ``task.recordCompletion`` operation."""
+        payload: dict[str, Any] = {
+            "completionId": completion_id,
+            "nodeId": node_id,
+        }
+        if completed_at is not None:
+            payload["completedAt"] = completed_at
+        if completed_by is not None:
+            payload["completedBy"] = completed_by
+        await self.apply(
+            self._build_operation("task.recordCompletion", payload, [node_id])
+        )
+
+    async def delete_task_completion(
+        self,
+        completion_id: str,
+        node_id: str,
+    ) -> None:
+        """Emit a ``task.deleteCompletion`` operation."""
+        await self.apply(
+            self._build_operation(
+                "task.deleteCompletion",
+                {"completionId": completion_id, "nodeId": node_id},
+                [node_id],
+            )
+        )
+
+    async def set_task_recurrence(
+        self,
+        recurrence_id: str,
+        node_id: str,
+        rule: dict[str, Any],
+    ) -> None:
+        """Emit a ``task.setRecurrence`` operation."""
+        await self.apply(
+            self._build_operation(
+                "task.setRecurrence",
+                {"recurrenceId": recurrence_id, "nodeId": node_id, "rule": rule},
+                [node_id],
+            )
+        )
+
+    async def delete_task_recurrence(
+        self,
+        recurrence_id: str,
+        node_id: str,
+    ) -> None:
+        """Emit a ``task.deleteRecurrence`` operation."""
+        await self.apply(
+            self._build_operation(
+                "task.deleteRecurrence",
+                {"recurrenceId": recurrence_id, "nodeId": node_id},
+                [node_id],
+            )
+        )
+
+    async def upload_asset(
+        self,
+        asset_id: str,
+        node_id: str,
+        file_hash: str,
+        mime_type: str,
+        size: int,
+        original_name: str,
+    ) -> None:
+        """Emit an ``asset.upload`` operation."""
+        await self.apply(
+            self._build_operation(
+                "asset.upload",
+                {
+                    "assetId": asset_id,
+                    "nodeId": node_id,
+                    "fileHash": file_hash,
+                    "mimeType": mime_type,
+                    "size": size,
+                    "originalName": original_name,
+                },
+                [node_id],
+            )
+        )
+
+    async def delete_asset(self, asset_id: str, node_id: str) -> None:
+        """Emit an ``asset.delete`` operation."""
+        await self.apply(
+            self._build_operation(
+                "asset.delete",
+                {"assetId": asset_id, "nodeId": node_id},
+                [node_id],
+            )
+        )
+
+    async def create_public_share(
+        self,
+        share_id: str,
+        node_id: str,
+        slug: str,
+        access: str = "read",
+    ) -> None:
+        """Emit a ``share.public.create`` operation."""
+        await self.apply(
+            self._build_operation(
+                "share.public.create",
+                {
+                    "shareId": share_id,
+                    "nodeId": node_id,
+                    "slug": slug,
+                    "access": access,
+                },
+                [node_id],
+            )
+        )
+
+    async def revoke_public_share(self, share_id: str, node_id: str) -> None:
+        """Emit a ``share.public.revoke`` operation."""
+        await self.apply(
+            self._build_operation(
+                "share.public.revoke",
+                {"shareId": share_id, "nodeId": node_id},
+                [node_id],
+            )
+        )
+
+    async def grant_user_share(
+        self,
+        share_id: str,
+        node_id: str,
+        user_id: str,
+        permission: str,
+    ) -> None:
+        """Emit a ``share.user.grant`` operation."""
+        await self.apply(
+            self._build_operation(
+                "share.user.grant",
+                {
+                    "shareId": share_id,
+                    "nodeId": node_id,
+                    "userId": user_id,
+                    "permission": permission,
+                },
+                [node_id, user_id],
+            )
+        )
+
+    async def revoke_user_share(self, share_id: str, node_id: str, user_id: str) -> None:
+        """Emit a ``share.user.revoke`` operation."""
+        await self.apply(
+            self._build_operation(
+                "share.user.revoke",
+                {"shareId": share_id, "nodeId": node_id, "userId": user_id},
+                [node_id, user_id],
+            )
+        )
+
+    async def plugin_op(
+        self,
+        plugin_id: str,
+        op_type: str,
+        data: dict[str, Any],
+    ) -> None:
+        """Emit a ``plugin.op`` operation."""
+        await self.apply(
+            self._build_operation(
+                "plugin.op",
+                {"pluginId": plugin_id, "opType": op_type, "data": data},
+                [],
+            )
+        )
+
     async def query(
         self,
         sql: str,
