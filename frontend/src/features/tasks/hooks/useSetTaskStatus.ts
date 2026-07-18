@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 import { useSetNodeProperty, useProperties } from '@/features/properties';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import {
-  setRuntimeTaskStatus,
   resolveTaskStatusIds,
   invalidateTaskPopupQueries,
   optimisticTaskStatusUpdate,
@@ -12,10 +11,9 @@ import {
 
 /**
  * Set or clear the task status of any node by uuid.
- * Mirrors the change optimistically into the runtime (badge updates instantly)
- * and into the tasks popup section queries (the row switches sections
- * instantly), rolls the popup queries back on error, and invalidates them
- * once the mutation settles.
+ * Mirrors the change optimistically into the tasks popup section queries (the
+ * row switches sections instantly), rolls the popup queries back on error, and
+ * invalidates them once the mutation settles.
  */
 export function useSetTaskStatus() {
   // Ensure properties are cached so resolveTaskStatusIds works
@@ -37,7 +35,6 @@ export function useSetTaskStatus() {
             onSettled: invalidateTaskPopupQueries,
           },
         );
-        setRuntimeTaskStatus(nodeUuid, null);
         return;
       }
       const ids = resolveTaskStatusIds(status);
@@ -53,7 +50,6 @@ export function useSetTaskStatus() {
           onSettled: invalidateTaskPopupQueries,
         },
       );
-      setRuntimeTaskStatus(nodeUuid, status);
     },
     [setProperty],
   );

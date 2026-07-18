@@ -1,19 +1,13 @@
 /**
  * useSetTaskStatus tests — node-agnostic task status setter.
  *
- * Mirrors the mock pattern of useTaskActions.test.ts: fresh OperationRuntime
- * per test, event bus rebound to it, `@/features/properties` mocked, and the
- * task Status property seeded into the shared queryClient at
- * propertyKeys.lists().
+ * Keeps the popup optimistic-update/rollback/invalidation logic and issues the
+ * correct property mutation through useSetNodeProperty.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
-import { getOperationRuntime, setOperationRuntime, OperationRuntime } from '@/runtime';
-import type { CoreNode } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
-import { resetRuntimeEventBus } from '@/runtime/eventBus';
 import { queryClient } from '@/lib/queryClient';
 import { propertyKeys, taskKeys } from '@/hooks/queryKeys';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
@@ -40,30 +34,6 @@ const TASK_STATUS_PROPERTY = {
   ],
 };
 
-function loadRuntimeNode(taskStatus: string | null) {
-  getOperationRuntime().loadBaseNodes([
-    {
-      blockId: 'task-1',
-      parentId: null,
-      orderIndex: 0,
-      nodeType: 'block',
-      contentAST: [],
-      collapsed: false,
-      isDeleted: false,
-      isPage: false,
-      name: 'node',
-      icon: null,
-      color: null,
-      classIds: [],
-      tagIds: [],
-      taskStatus,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      version: 1,
-    } as CoreNode,
-  ]);
-}
-
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return createElement(QueryClientProvider, { client }, children);
@@ -72,28 +42,20 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useSetTaskStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    const runtime = new OperationRuntime();
-    setOperationRuntime(runtime);
-    // The event bus is a singleton: rebind it to the fresh runtime so the
-    // hook's optimistic upsertNodes() calls land in this test's runtime.
-    resetRuntimeEventBus(runtime);
     queryClient.setQueryData(propertyKeys.lists(), [TASK_STATUS_PROPERTY]);
-    loadRuntimeNode('Pending');
   });
 
   afterEach(() => {
     queryClient.clear();
-    setOperationRuntime(null);
   });
 
-  it('sets a task status via the resolved property/option ids and mirrors it to the runtime', () => {
+  it('sets a task status via the resolved property/option ids', () => {
     const { result } = renderHook(() => useSetTaskStatus(), { wrapper });
     act(() => result.current('task-1', 'Done'));
     expect(setPropertyMutate).toHaveBeenCalledWith(
       { nodeUuid: 'task-1', propertyId: TASK_STATUS_PROPERTY.uuid, value: 'opt-done-uuid' },
       expect.objectContaining({ onSettled: expect.any(Function) }),
     );
-    expect(getNode(getOperationRuntime(), 'task-1')?.taskStatus).toBe('Done');
   });
 
   it('clears a task status with value null', () => {
@@ -103,7 +65,6 @@ describe('useSetTaskStatus', () => {
       { nodeUuid: 'task-1', propertyId: SYSTEM_PROPERTY_UUIDS.task_status, value: null },
       expect.objectContaining({ onSettled: expect.any(Function) }),
     );
-    expect(getNode(getOperationRuntime(), 'task-1')?.taskStatus).toBeNull();
   });
 
   it('invalidates the tasks popup queries on settle', () => {

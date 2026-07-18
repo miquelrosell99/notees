@@ -17,7 +17,6 @@ import './index.css'
 import { App } from './App.tsx'
 import { useSettingsStore, applyTheme, applyAccentColor } from './stores'
 import { restoreOperations, saveOperations } from './lib/operationStorage'
-import { restoreUndoStacks } from './lib/undoStackStorage'
 import { useUIStateStore } from './features/sync'
 
 const ENABLE_SQLITE_STORE = import.meta.env.VITE_ENABLE_SQLITE_STORE === 'true';
@@ -32,7 +31,7 @@ try {
   console.error('[main] Failed to apply saved theme/accent, falling back to default:', e);
 }
 
-// Restore pending operations, undo stacks, and local UI state from previous session.
+// Restore pending operations and local UI state from previous session.
 // The legacy pending-operations store is only restored when the new SQLite workspace
 // store is disabled; otherwise the new store handles persistence via IndexedDB.
 if (!ENABLE_SQLITE_STORE) {
@@ -40,9 +39,6 @@ if (!ENABLE_SQLITE_STORE) {
     console.error('[main] Failed to restore pending operations:', e);
   });
 }
-restoreUndoStacks().catch((e) => {
-  console.error('[main] Failed to restore undo stacks:', e);
-});
 useUIStateStore.getState().load().catch((e) => {
   console.error('[main] Failed to restore UI state:', e);
 });

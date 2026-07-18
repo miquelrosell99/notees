@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { QueryAST } from '@/types';
 import type { Node } from '@/types/api';
-import { substituteRuntimeParams } from '@/features/sync/local/substituteRuntimeParams';
+import { substituteRuntimeParams } from '../query/substituteRuntimeParams';
 import { compileToSqlite } from '../query/compileToSqlite';
 import { queryAll } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';

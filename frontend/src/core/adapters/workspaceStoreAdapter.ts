@@ -4,6 +4,7 @@ import { loadWorkspaceDatabase, saveWorkspaceDatabase } from '../persistence/ind
 import { SyncEngine } from '../sync';
 import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
+import { UndoManager } from '../undo';
 
 interface RegistryEntry {
   store: WorkspaceStore;
@@ -61,6 +62,7 @@ export async function getOrCreateWorkspaceStore(
   const saved = await loadWorkspaceDatabase(workspaceId);
   const db = await createDatabase(saved);
   const store = new WorkspaceStore(db, workspaceId, actorId);
+  UndoManager.getOrCreateUndoManager(workspaceId, store);
   const syncEngine = new SyncEngine(store, key, transport);
   registry.set(workspaceId, { store, syncEngine, key });
 

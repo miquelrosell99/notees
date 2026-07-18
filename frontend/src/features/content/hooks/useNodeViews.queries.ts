@@ -21,7 +21,8 @@ import { nodeViewKeys } from '@/hooks/queryKeys';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useWorkspaceRole } from '@/features/workspace';
-import { queryNodesLocal } from '@/features/sync/local/localQuery';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { queryNodes } from '@/core/query/queryNodes';
 import {
   useExecuteQueryAdapter,
   useQueryResultsAdapter,
@@ -168,7 +169,9 @@ export function useNodeViewQueryLegacy(
     queryFn: async () => {
       if (!viewUuid) throw new Error(`Unable to resolve UUID for view ${viewId}`);
       if (offlineReady) {
-        return queryNodesLocal(workspaceUuid, { ast, runtimeParams });
+        const store = getWorkspaceStore(workspaceUuid);
+        if (!store) throw new Error('Workspace store is not ready');
+        return queryNodes(store, { ast, runtimeParams });
       }
       const response = await executeNodeViewQuery(viewUuid, {
         runtime_params: runtimeParams,
@@ -233,7 +236,9 @@ export function useQuery_Legacy(
     queryKey: queryKey ?? [...nodeViewKeys.queryResults(), 'adhoc', request],
     queryFn: async () => {
       if (offlineReady) {
-        return queryNodesLocal(workspaceUuid, { ast, runtimeParams: request.runtime_params });
+        const store = getWorkspaceStore(workspaceUuid);
+        if (!store) throw new Error('Workspace store is not ready');
+        return queryNodes(store, { ast, runtimeParams: request.runtime_params });
       }
       const response = await executeQuery(request);
       return response.nodes;

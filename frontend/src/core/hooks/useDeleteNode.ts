@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useWorkspaceStore } from './useWorkspaceStore';
+import { useUndoManager } from './useUndoManager';
 
 export interface UseDeleteNodeResult {
   mutate: (args: { nodeId: string }, options?: { onSuccess?: () => void; onError?: (error: Error) => void }) => void;
@@ -10,6 +11,7 @@ export interface UseDeleteNodeResult {
 
 export function useDeleteNode(workspaceId: string): UseDeleteNodeResult {
   const { store } = useWorkspaceStore(workspaceId);
+  const manager = useUndoManager(workspaceId);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -19,7 +21,11 @@ export function useDeleteNode(workspaceId: string): UseDeleteNodeResult {
       setIsPending(true);
       setError(null);
       try {
-        store.deleteNode(args.nodeId);
+        if (manager) {
+          manager.deleteNode(args.nodeId);
+        } else {
+          store.deleteNode(args.nodeId);
+        }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         setError(error);
@@ -28,7 +34,7 @@ export function useDeleteNode(workspaceId: string): UseDeleteNodeResult {
         setIsPending(false);
       }
     },
-    [store]
+    [store, manager]
   );
 
   const mutate = useCallback(

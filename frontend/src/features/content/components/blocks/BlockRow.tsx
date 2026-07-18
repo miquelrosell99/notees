@@ -21,10 +21,10 @@ import { liveSyncManager, useLivePresenceStore } from '@/features/collab';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { ConvertToPageModal } from '@/features/content/components/nodes/ConvertToPageModal';
-import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
+import { createBlockCopyData, copyToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useAuthStore } from '@/features/auth';
-import { pasteBlocksAfterBlock } from '@/features/editor';
+import { useCoreBlockMutations } from '@/features/content/hooks/useCoreBlockMutations';
 import { useShallow } from 'zustand/react/shallow';
 // Kept as a deep import to avoid a circular dependency: useTaskActions imports
 // the content barrel, and the content barrel exports BlockRow. Using the tasks
@@ -40,8 +40,7 @@ import { Button } from '@/components/ui/Button';
 import './BlockRow.css';
 import type { Node, Property } from '@/types/api';
 import type { JSX } from 'react';
-import { getOperationRuntime } from '@/runtime';
-import { getNode, getChildren } from '@/runtime/graphHelpers';
+import { useNode, useChildren } from '@/core/hooks';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -148,6 +147,11 @@ export const BlockRow = memo(
     const isActive = useEditorFocusStore((s) => s.activeBlockId === node.uuid);
     const isPendingFocus = useEditorFocusStore((s) => s.pendingFocusBlockId === node.uuid);
     const { workspaceId } = useParams<{ workspaceId?: string }>();
+    const mutations = useCoreBlockMutations(workspaceId);
+    const { node: coreNode } = useNode(workspaceId ?? '', node.uuid);
+    const parentId = coreNode?.parentId ?? node.parent_uuid ?? null;
+    const { node: parentNode } = useNode(workspaceId ?? '', parentId ?? undefined);
+    const { children: parentSiblingIds } = useChildren(workspaceId ?? '', parentNode?.parentId ?? undefined);
     const setCollapsed = useUIStateStore((s) => s.setCollapsed);
 
     // Check if another user holds the server-enforced lock for this block
@@ -256,23 +260,17 @@ export const BlockRow = memo(
 
     const handleThreadLineClick = useCallback((e?: React.MouseEvent | React.KeyboardEvent) => {
       e?.stopPropagation();
-      if (!workspaceId) return;
-      const runtime = getOperationRuntime();
-      const graphNode = getNode(runtime, node.uuid);
-      if (!graphNode?.parentId) return;
+      if (!workspaceId || parentSiblingIds.length === 0) return;
 
-      const siblings = getChildren(runtime, graphNode.parentId);
-      if (siblings.length === 0) return;
-
-      const anyExpanded = siblings.some(
-        (s) => !useUIStateStore.getState().getNodeUIState(workspaceId, s.blockId)?.collapsed,
+      const anyExpanded = parentSiblingIds.some(
+        (siblingId) => !useUIStateStore.getState().getNodeUIState(workspaceId, siblingId)?.collapsed,
       );
       const targetCollapsed = anyExpanded;
 
-      for (const sibling of siblings) {
-        setCollapsed(workspaceId, sibling.blockId, targetCollapsed);
+      for (const siblingId of parentSiblingIds) {
+        setCollapsed(workspaceId, siblingId, targetCollapsed);
       }
-    }, [node.uuid, workspaceId, setCollapsed]);
+    }, [workspaceId, parentSiblingIds, setCollapsed]);
 
     const handleBulletContextMenu = useCallback(
       (_nodeId: string | number, event: React.MouseEvent) => {
@@ -292,18 +290,18 @@ export const BlockRow = memo(
     }, []);
 
     const handleCopyBlocks = useCallback(() => {
-      const runtime = getOperationRuntime();
-      copyRuntimeBlocksToClipboard([node.uuid], runtime)
-        .then((data) => useClipboardStore.getState().setCopied(data))
+      const data = createBlockCopyData([node]);
+      copyToClipboard(JSON.stringify(data))
+        .then(() => useClipboardStore.getState().setCopied(data))
         .catch(console.error);
-    }, [node.uuid]);
+    }, [node]);
 
     const handlePasteBlocks = useCallback(async () => {
       const { copiedBlocks } = useClipboardStore.getState();
       if (copiedBlocks) {
-        await pasteBlocksAfterBlock(copiedBlocks, node.uuid);
+        await mutations.pasteBlocksAfter({ afterBlockId: node.uuid, blockData: copiedBlocks });
       }
-    }, [node.uuid]);
+    }, [node.uuid, mutations]);
 
     const handleRequestLock = useCallback(() => {
       if (!nodeUuid) return;
@@ -371,15 +369,8 @@ export const BlockRow = memo(
     const hasBacklinks = (node.backlink_count ?? 0) > 0;
 
     // Determine whether the parent is a card for class-pill filtering.
-    // Computed from the runtime so it works for newly-created blocks that are
-    // not yet persisted on the server. Read inline (no memo) so it stays
-    // current when the parent's classes change without a node uuid change.
-    const runtimeForParentCheck = getOperationRuntime();
-    const graphNodeForParentCheck = getNode(runtimeForParentCheck, node.uuid);
-    const parentGraphNode = graphNodeForParentCheck?.parentId
-      ? getNode(runtimeForParentCheck, graphNodeForParentCheck.parentId)
-      : undefined;
-    const parentIsCard = parentGraphNode?.classIds?.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
+    // Read from the local-first core store so it works for newly-created blocks.
+    const parentIsCard = parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
 
     // Query class detection for collapse arrow
     const { data: allClasses } = useClasses();

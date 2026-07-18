@@ -24,28 +24,21 @@ import {
 import { useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useUIStateStore } from '@/features/sync';
-import { useBlockTree, parseGhostParentUuid } from '@/features/content/hooks/useBlockTree';
+import { useBlockTree, parseGhostParentUuid, isValidServerNodeId } from '@/features/content/hooks/useBlockTree';
 import { BlockRow, type BlockRowHandle } from './BlockRow';
 import { BulletLineOverlay } from './BulletLineOverlay';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types/api';
 import { useBlockDragDrop } from '@/features/content/hooks/useBlockDragDrop';
+import type { DropAnchor } from '@/features/content/hooks/useBlockDragDrop.utils';
 import { useBlockSelection } from '@/features/content/hooks/useBlockSelection';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useTouchIndent } from '@/features/content/hooks/useTouchIndent';
 import { BlockFindReplacePlugin } from '@/features/editor';
 import { flushAllContentSaves } from '@/features/editor';
 import './BlockList.css';
-import { getOperationRuntime } from '@/runtime';
-import { getNode, getChildren, isValidServerNodeId } from '@/runtime/graphHelpers';
-import { getRuntimeEventBus } from '@/runtime/eventBus';
-import { getUndoEngine } from '@/stores/undoEngine';
-import type { MutationIntent } from '@/runtime/types';
-
-async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
-  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
-}
+import { useWorkspaceStore } from '@/core/hooks';
+import { useCoreBlockMutations } from '@/features/content/hooks/useCoreBlockMutations';
 
 interface BlockListProps {
   /** Tree of nodes (will be projected through useBlockTree). */
@@ -177,45 +170,81 @@ export function BlockList({
   const containerRef = useRef<HTMLDivElement>(null);
 
 
-  useBlockDragDrop({ containerRef, editorId: 'block-list', readOnly, excludedIds: ghostIds });
   useBlockSelection({ containerRef, blockIds, readOnly });
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const mutations = useCoreBlockMutations(workspaceId);
+  const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
+  const toggleCollapsed = useUIStateStore((s) => s.toggleCollapsed);
+
   useTouchIndent({
     containerRef,
     readOnly,
     onIndent: async (blockId) => {
-      await applyRuntimeIntent({ type: 'indent_block', blockId });
-      getRuntimeEventBus().flushEvents();
+      await mutations.indentBlock({ blockId });
     },
     onOutdent: async (blockId) => {
-      await applyRuntimeIntent({ type: 'outdent_block', blockId });
-      getRuntimeEventBus().flushEvents();
+      await mutations.outdentBlock({ blockId });
     },
   });
 
-  const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
-  const toggleCollapsed = useUIStateStore((s) => s.toggleCollapsed);
+  const handleBlockDrop = useCallback(
+    async (anchor: DropAnchor, draggedBlockIds: string[]) => {
+      if (!store) return;
+      let newParentId: string | null = null;
+      if (anchor.target.position === 'child') {
+        newParentId = anchor.target.blockId;
+      } else {
+        newParentId = store.getNode(anchor.target.blockId)?.parentId ?? nodeUuid ?? null;
+      }
+      if (!newParentId) return;
+
+      // Prevent dropping a block onto itself or its descendants.
+      const descendantIds = new Set<string>();
+      const stack = [newParentId];
+      while (stack.length > 0) {
+        const current = stack.pop()!;
+        for (const childId of store.getChildren(current)) {
+          descendantIds.add(childId);
+          stack.push(childId);
+        }
+      }
+
+      for (const blockId of draggedBlockIds) {
+        if (blockId === newParentId || descendantIds.has(blockId)) continue;
+        await mutations.moveBlock({ blockId, newParentId });
+      }
+    },
+    [store, nodeUuid, mutations],
+  );
+
+  useBlockDragDrop({
+    containerRef,
+    editorId: 'block-list',
+    readOnly,
+    excludedIds: ghostIds,
+    onDrop: handleBlockDrop,
+  });
 
   // Compute ancestor UUIDs of the active block so each row can know whether it
   // sits on the active editing path. This replaces the imperative DOM class
   // toggling that the old thread-line system used.
   const activeTrailIds = useMemo(() => {
-    if (!activeBlockId) return new Set<string>();
+    if (!activeBlockId || !store) return new Set<string>();
     // structureVersion is intentionally unused inside the callback; it acts as
-    // a signal that the runtime tree structure changed, so we must re-walk the
+    // a signal that the core tree structure changed, so we must re-walk the
     // active block's ancestors.
     void structureVersion;
-    const runtime = getOperationRuntime();
     const trail = new Set<string>();
-    let current = getNode(runtime, activeBlockId);
+    let current = store.getNode(activeBlockId);
     while (current?.parentId) {
-      const parent = getNode(runtime, current.parentId);
+      const parent = store.getNode(current.parentId);
       if (!parent) break;
-      trail.add(parent.blockId);
+      trail.add(parent.id);
       current = parent;
     }
     return trail;
-  }, [activeBlockId, structureVersion]);
+  }, [activeBlockId, structureVersion, store]);
 
   const focusPreviousBlock = useEditorFocusStore((s) => s.focusPreviousBlock);
   const focusNextBlock = useEditorFocusStore((s) => s.focusNextBlock);
@@ -231,19 +260,19 @@ export function BlockList({
 
   const canMergeInHierarchy = useCallback(
     (sourceBlockId: string, targetBlockId: string): boolean => {
-      const runtime = getOperationRuntime();
-      const source = getNode(runtime, sourceBlockId);
-      const target = getNode(runtime, targetBlockId);
+      if (!store) return false;
+      const source = store.getNode(sourceBlockId);
+      const target = store.getNode(targetBlockId);
       if (!source || !target) return false;
 
-      const sourceChildren = getChildren(runtime, sourceBlockId);
+      const sourceChildren = store.getChildren(sourceBlockId);
 
       if (source.parentId === target.parentId && sourceChildren.length === 0) {
         return true;
       }
 
       if (source.parentId === targetBlockId) {
-        const targetChildren = getChildren(runtime, targetBlockId);
+        const targetChildren = store.getChildren(targetBlockId);
         if (targetChildren.length === 1) {
           return true;
         }
@@ -251,74 +280,50 @@ export function BlockList({
 
       return false;
     },
-    [],
+    [store],
   );
 
   const handleEnter = useCallback(
     async (blockId: string) => {
       flushAllContentSaves();
-      const runtime = getOperationRuntime();
       const row = rowRefs.current.get(blockId);
       const cursor = row?.getCursorPosition() ?? 'empty';
 
       if (cursor === 'empty' || cursor === 'end') {
-        const newBlockId = generateUUID();
-        const currentRuntimeNode = getNode(runtime, blockId);
-        const hasChildren = getChildren(runtime, blockId).length > 0;
-        let parentId: string;
-        let afterBlockId: string | null;
+        const hasChildren = store ? store.getChildren(blockId).length > 0 : false;
+        let parentId: string | null = null;
         if (hasChildren) {
           // When a block already has children, create the new block as its first
           // child instead of a sibling after the entire subtree.
           parentId = blockId;
-          afterBlockId = null;
         } else {
-          parentId = currentRuntimeNode?.parentId ?? '';
+          const currentNode = store?.getNode(blockId);
+          parentId = currentNode?.parentId ?? null;
           if (!parentId && nodeUuid) {
             parentId = nodeUuid;
           }
-          afterBlockId = blockId;
         }
-        await applyRuntimeIntent({
-          type: 'create_block',
+        const newBlockId = await mutations.createBlock({
           parentId,
-          afterBlockId,
-          blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });
-        getRuntimeEventBus().flushEvents();
         setPendingFocus(newBlockId);
       } else if (cursor === 'start') {
-        const currentNode = getNode(runtime, blockId);
+        const currentNode = store?.getNode(blockId);
         if (!currentNode) return;
-        const parentId = currentNode.parentId ?? '';
-        const siblings = getChildren(runtime, parentId);
-        const currentIndex = siblings.findIndex((s) => s.blockId === blockId);
-        const afterBlockId = currentIndex > 0 ? siblings[currentIndex - 1].blockId : null;
-        const newBlockId = generateUUID();
-        await applyRuntimeIntent({
-          type: 'create_block',
+        const parentId = currentNode.parentId;
+        const newBlockId = await mutations.createBlock({
           parentId,
-          afterBlockId,
-          blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });
-        getRuntimeEventBus().flushEvents();
         setPendingFocus(newBlockId);
       } else {
         const offset = row?.getCursorOffset() ?? 0;
-        const newBlockId = generateUUID();
-        await applyRuntimeIntent({
-          type: 'split_block',
-          blockId,
-          atOffset: offset,
-          newBlockId,
-        });
-        getRuntimeEventBus().flushEvents();
+        const newBlockId = await mutations.splitBlock({ blockId, atOffset: offset });
         setPendingFocus(newBlockId);
       }
     },
-    [setPendingFocus, nodeUuid],
+    [setPendingFocus, nodeUuid, store, mutations],
   );
 
   const handleBackspaceAtStart = useCallback(
@@ -332,15 +337,13 @@ export function BlockList({
       }
 
       flushAllContentSaves();
-      await applyRuntimeIntent({
-        type: 'merge_blocks',
+      await mutations.mergeBlocks({
         sourceBlockId: blockId,
         targetBlockId: prevBlockId,
       });
-      getRuntimeEventBus().flushEvents();
       setPendingFocus(prevBlockId);
     },
-    [setPendingFocus, canMergeInHierarchy],
+    [setPendingFocus, canMergeInHierarchy, mutations],
   );
 
   const handleDeleteAtEnd = useCallback(
@@ -354,15 +357,13 @@ export function BlockList({
       }
 
       flushAllContentSaves();
-      await applyRuntimeIntent({
-        type: 'merge_blocks',
+      await mutations.mergeBlocks({
         sourceBlockId: nextBlockId,
         targetBlockId: blockId,
       });
-      getRuntimeEventBus().flushEvents();
       setPendingFocus(blockId);
     },
-    [setPendingFocus, canMergeInHierarchy],
+    [setPendingFocus, canMergeInHierarchy, mutations],
   );
 
   const handleEscape = useCallback((blockId: string) => {
@@ -415,31 +416,25 @@ export function BlockList({
     }
 
     flushAllContentSaves();
-    const runtime = getOperationRuntime();
-    const runtimeChildren = getChildren(runtime, parentUuid);
+    const runtimeChildren = store ? store.getChildren(parentUuid) : [];
     const lastRealChild = runtimeChildren.length > 0 ? runtimeChildren[runtimeChildren.length - 1] : null;
 
-    const newBlockId = generateUUID();
-    await applyRuntimeIntent({
-      type: 'create_block',
+    const newBlockId = await mutations.createBlock({
       parentId: parentUuid,
-      afterBlockId: lastRealChild?.blockId ?? null,
-      blockId: newBlockId,
+      afterBlockId: lastRealChild ?? null,
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
-    getRuntimeEventBus().flushEvents();
     setPendingFocus(newBlockId);
-  }, [setPendingFocus]);
+  }, [setPendingFocus, store, mutations]);
 
   const handleIndentOutdentSelected = useCallback(
     async (shiftKey: boolean) => {
       const selectedSet = useBlockSelectionStore.getState().selectedIds;
-      if (selectedSet.size === 0) return;
+      if (selectedSet.size === 0 || !store) return;
 
-      const runtime = getOperationRuntime();
       const orderedIds = blockIds.filter((id) => selectedSet.has(id));
       const topLevelIds = orderedIds.filter((id) => {
-        const n = getNode(runtime, id);
+        const n = store.getNode(id);
         return n && (!n.parentId || !selectedSet.has(n.parentId));
       });
       if (topLevelIds.length === 0) return;
@@ -447,17 +442,14 @@ export function BlockList({
       flushAllContentSaves();
 
       if (shiftKey) {
-        await applyRuntimeIntent({
-          type: 'batch',
-          intents: topLevelIds.map((blockId) => ({ type: 'outdent_block' as const, blockId })),
-        });
+        for (const blockId of topLevelIds) {
+          await mutations.outdentBlock({ blockId });
+        }
       } else {
-        const intents: MutationIntent[] = [];
-
-        for (const parentId of new Set(topLevelIds.map((id) => getNode(runtime, id)?.parentId ?? ''))) {
-          const siblings = parentId ? getChildren(runtime, parentId) : [];
-          const siblingIds = siblings.map((s) => s.blockId);
-          const runCandidates = topLevelIds.filter((id) => getNode(runtime, id)?.parentId === parentId);
+        for (const parentId of new Set(topLevelIds.map((id) => store.getNode(id)?.parentId ?? ''))) {
+          const siblings = parentId ? store.getChildren(parentId) : [];
+          const siblingIds = siblings;
+          const runCandidates = topLevelIds.filter((id) => store.getNode(id)?.parentId === parentId);
 
           let currentRun: string[] = [];
           let lastIndex = -2;
@@ -467,16 +459,8 @@ export function BlockList({
             const firstIndex = siblingIds.indexOf(currentRun[0]!);
             if (firstIndex > 0) {
               const targetParentId = siblingIds[firstIndex - 1]!;
-              const targetChildren = getChildren(runtime, targetParentId);
-              let afterBlockId: string | null = targetChildren[targetChildren.length - 1]?.blockId ?? null;
               for (const blockId of currentRun) {
-                intents.push({
-                  type: 'move_block',
-                  blockId,
-                  newParentId: targetParentId,
-                  afterBlockId,
-                });
-                afterBlockId = blockId;
+                void mutations.moveBlock({ blockId, newParentId: targetParentId });
               }
             }
             currentRun = [];
@@ -494,15 +478,9 @@ export function BlockList({
           }
           flushRun();
         }
-
-        if (intents.length > 0) {
-          await applyRuntimeIntent({ type: 'batch', intents });
-        }
       }
-
-      getRuntimeEventBus().flushEvents();
     },
-    [blockIds],
+    [blockIds, store, mutations],
   );
 
   const handleKeyDown = useCallback(
@@ -514,11 +492,11 @@ export function BlockList({
         if (focusInEditor) {
           e.preventDefault();
           flushAllContentSaves();
-          await applyRuntimeIntent({
-            type: e.shiftKey ? 'outdent_block' : 'indent_block',
-            blockId: activeBlockId,
-          });
-          getRuntimeEventBus().flushEvents();
+          if (e.shiftKey) {
+            await mutations.outdentBlock({ blockId: activeBlockId });
+          } else {
+            await mutations.indentBlock({ blockId: activeBlockId });
+          }
           return;
         }
 
@@ -547,7 +525,7 @@ export function BlockList({
         }
       }
     },
-    [activeBlockId, blockIds, focusPreviousBlock, focusNextBlock, handleIndentOutdentSelected],
+    [activeBlockId, blockIds, focusPreviousBlock, focusNextBlock, handleIndentOutdentSelected, mutations],
   );
 
   // ─── Virtualization ─────────────────────────────────────────────

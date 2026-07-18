@@ -6,20 +6,23 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
-import { getUndoEngine } from '@/stores/undoEngine';
-import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { useWorkspaceStore } from '@/core/hooks';
+import { useCoreBlockMutations } from '@/features/content/hooks/useCoreBlockMutations';
 import { useInputContext } from '@/stores/inputContext';
-import { copyRuntimeBlocksToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
+import { createBlockCopyData, copyToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
-import { pasteBlocksAfterBlock, flushAllContentSaves, isInsideEditorCompanion } from '@/features/editor';
-import { generateUUID } from '@/utils/uuid';
+import { flushAllContentSaves, isInsideEditorCompanion } from '@/features/editor';
 import { clearClasses, applyClasses, getSiblingIds, type UseBlockSelectionOptions } from './useBlockSelection.utils';
+import type { Node } from '@/types/api';
 
 export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlockSelectionOptions): void {
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const mutations = useCoreBlockMutations(workspaceId);
+
   const selectedIds = useBlockSelectionStore((s) => s.selectedIds);
   const anchorId = useBlockSelectionStore((s) => s.anchorId);
   const setDragging = useBlockSelectionStore((s) => s.setDragging);
@@ -197,15 +200,10 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         const anchor = anchorId || [...selectedIds][0];
         if (!anchor) return;
 
-        const newBlockId = generateUUID();
-        await getUndoEngine().applyIntent({
-          type: 'create_block',
+        const newBlockId = await mutations.createBlock({
           parentId: anchor,
-          afterBlockId: null,
-          blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });
-        getRuntimeEventBus().flushEvents();
         clearSelection();
         useEditorFocusStore.getState().setPendingFocus(newBlockId);
         return;
@@ -216,8 +214,8 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (isFocusProtected()) return;
         const activeBlockId = useEditorFocusStore.getState().activeBlockId;
         const anchor = anchorId || activeBlockId;
-        if (!anchor) return;
-        const siblings = getSiblingIds(anchor);
+        if (!anchor || !store) return;
+        const siblings = getSiblingIds(anchor, store);
         const currentFocus = useBlockSelectionStore.getState().focusId || anchor;
         const currentIdx = siblings.indexOf(currentFocus);
         if (currentIdx === -1) return;
@@ -261,39 +259,30 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         flushAllContentSaves();
         const ids = [...selectedIds];
         clearSelection();
-        await getUndoEngine().applyIntent({
-          type: 'batch',
-          intents: ids.map((blockId) => ({ type: 'delete_block' as const, blockId })),
-        });
-        getRuntimeEventBus().flushEvents();
+        for (const blockId of ids) {
+          await mutations.deleteBlock({ blockId });
+        }
         return;
       }
 
       // Alt+Shift+ArrowUp / Alt+Shift+ArrowDown: move selected blocks
+      // Prototype limitation: the core store appends moved nodes to the end of
+      // the target parent, so precise reordering is not implemented.
       if (e.altKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         if (isFocusProtected()) return;
-        if (selectedIds.size === 0) return;
+        if (selectedIds.size === 0 || !store) return;
         e.preventDefault();
-        const runtime = getOperationRuntime();
         const blockIdSet = new Set(selectedIds);
         const allSelectedIds = [...selectedIds];
         const topLevelIds = allSelectedIds.filter((id) => {
-          const n = getNode(runtime, id);
+          const n = store.getNode(id);
           return n && (!n.parentId || !blockIdSet.has(n.parentId));
         });
         flushAllContentSaves();
-        if (e.key === 'ArrowUp') {
-          await getUndoEngine().applyIntent({
-            type: 'batch',
-            intents: topLevelIds.map((blockId) => ({ type: 'move_up' as const, blockId })),
-          });
-        } else {
-          await getUndoEngine().applyIntent({
-            type: 'batch',
-            intents: topLevelIds.reverse().map((blockId) => ({ type: 'move_down' as const, blockId })),
-          });
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[useBlockSelection] move_up/move_down is not supported by the prototype core store; operation skipped.');
         }
-        getRuntimeEventBus().flushEvents();
+        void topLevelIds;
         return;
       }
 
@@ -304,22 +293,43 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (selectedIds.size === 0) return;
         if (isFocusProtected()) return;
         e.preventDefault();
-        const runtime = getOperationRuntime();
-        copyRuntimeBlocksToClipboard([...selectedIds], runtime)
-          .then((data) => useClipboardStore.getState().setCopied(data))
+        const selectedNodes = [...selectedIds]
+          .map((id) => store?.getNode(id))
+          .filter((n): n is NonNullable<typeof n> => n !== undefined)
+          .map((n) => ({
+            uuid: n.id,
+            name: n.content,
+            icon: null,
+            color: null,
+            classes_uuid: n.classIds,
+            tags_uuid: [],
+            properties_uuid: {},
+            parent_uuid: n.parentId,
+            page_uuid: null,
+            sequence: 0,
+            active: true,
+            is_page: n.kind === 'page',
+            is_deleted: false,
+            has_children: store ? store.getChildren(n.id).length > 0 : false,
+            children: [],
+            create_date: n.createdAt ?? new Date().toISOString(),
+            write_date: n.updatedAt ?? new Date().toISOString(),
+          } as Node));
+        const data = createBlockCopyData(selectedNodes);
+        copyToClipboard(JSON.stringify(data))
+          .then(() => useClipboardStore.getState().setCopied(data))
           .catch(console.error);
         return;
       }
 
       // Document-level Ctrl+V: paste after selected blocks when editor blurred
       if (isMod && e.key.toLowerCase() === 'v' && !e.shiftKey && !e.altKey) {
-        if (selectedIds.size === 0) return;
+        if (selectedIds.size === 0 || !store) return;
         if (isFocusProtected()) return;
 
-        const runtime = getOperationRuntime();
         const blockIdSet = new Set(selectedIds);
         const topLevelIds = [...selectedIds].filter((id) => {
-          const n = getNode(runtime, id);
+          const n = store.getNode(id);
           return n && (!n.parentId || !blockIdSet.has(n.parentId));
         });
         if (topLevelIds.length === 0) return;
@@ -328,7 +338,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         const { mode, copiedBlocks } = useClipboardStore.getState();
         if (mode === 'blocks' && copiedBlocks) {
           e.preventDefault();
-          await pasteBlocksAfterBlock(copiedBlocks, lastTopLevelId);
+          await mutations.pasteBlocksAfter({ afterBlockId: lastTopLevelId, blockData: copiedBlocks });
           return;
         }
 
@@ -338,7 +348,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
           .then(async (text) => {
             const blockData = tryParseInternalFormat(text);
             if (blockData) {
-              await pasteBlocksAfterBlock(blockData, lastTopLevelId);
+              await mutations.pasteBlocksAfter({ afterBlockId: lastTopLevelId, blockData });
             }
           })
           .catch(() => {
@@ -364,5 +374,5 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         dragRafId.current = null;
       }
     };
-  }, [containerRef, readOnly, selectedIds, anchorId, clearSelection, selectSingle, extendTo, setSelectedIds, setDragging, blockIds]);
+  }, [containerRef, readOnly, selectedIds, anchorId, clearSelection, selectSingle, extendTo, setSelectedIds, setDragging, blockIds, store, mutations]);
 }

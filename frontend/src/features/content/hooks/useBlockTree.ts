@@ -1,32 +1,24 @@
 /**
- * useBlockTree — Project a node tree through the runtime's ephemeral overlay.
+ * useBlockTree — Project a node tree from the local-first core store.
  *
  * This hook is the single source of truth for block tree projection.
  * It:
- * 1. Syncs prop nodes into the runtime (base state)
- * 2. Subscribes to runtime structural events
- * 3. Computes a flat list by merging prop data with runtime parent/child/order state
+ * 1. Resolves the core WorkspaceStore for the current workspace.
+ * 2. Subscribes to structural/content changes on all node IDs in the prop tree.
+ * 3. Computes a flat list by walking the store's node + child_order tables.
  *
- * Previously this logic was duplicated inside BlockList, making it hard to
- * reason about what BlockList actually rendered. Extracting it into a
- * dedicated hook makes the data flow explicit: props → runtime sync →
- * projection → flat list for the renderer.
+ * When the core store is not available, it falls back to the static prop tree
+ * so read-only / test / legacy callers keep working.
  */
 
-import { useState, useEffect, useMemo, useLayoutEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { getOperationRuntime } from '@/runtime';
-import type { OperationRuntime } from '@/runtime';
-import { getNode, getAllNodes, isValidServerNodeId } from '@/runtime/graphHelpers';
-import { upsertNodes } from '@/runtime/eventBus';
-
-import { getRuntimeEventBus } from '@/runtime/eventBus';
-import { apiNodesToGraphNodes } from './useRuntimeSync';
-import { overlayRuntimeContent } from './runtimeContentOverlay';
+import { useWorkspaceStore } from '@/core/hooks';
+import { projectNode } from '@/core/adapters/nodeProjection';
 import { useUIStateStore } from '@/features/sync';
-import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import type { Node } from '@/types/api';
 import type { NodeUIState } from '@/features/sync/stores/uiStateStore';
+import type { WorkspaceStore } from '@/core/store';
 
 const EMPTY_STATES: Record<string, NodeUIState> = {};
 
@@ -54,7 +46,53 @@ interface UseBlockTreeOptions {
   rootIsBlock?: boolean;
 }
 
-/** Flatten a node tree statically (no runtime overlay). */
+const GHOST_PREFIX = '__ghost-';
+
+export function isGhostId(uuid: string): boolean {
+  return uuid.startsWith(GHOST_PREFIX);
+}
+
+export function buildGhostId(parentUuid: string): string {
+  return `${GHOST_PREFIX}${parentUuid}`;
+}
+
+export function parseGhostParentUuid(ghostUuid: string): string | null {
+  if (!isGhostId(ghostUuid)) return null;
+  return ghostUuid.slice(GHOST_PREFIX.length);
+}
+
+export function isValidServerNodeId(uuid: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+}
+
+function createGhostFlatNode(parentUuid: string, depth: number): FlatNode {
+  return {
+    node: {
+      uuid: buildGhostId(parentUuid),
+      name: '',
+      icon: null,
+      color: null,
+      parent_uuid: null,
+      page_uuid: null,
+      sequence: Number.MAX_SAFE_INTEGER,
+      active: true,
+      is_page: false,
+      is_deleted: false,
+      has_children: false,
+      children: [],
+      create_date: '',
+      write_date: '',
+      classes_uuid: [],
+      tags_uuid: [],
+      properties_uuid: {},
+    },
+    depth,
+    effectiveCollapsed: false,
+    isGhost: true,
+  };
+}
+
+/** Flatten a node tree statically (no core store). */
 export function flattenNodes(
   nodes: Node[],
   maxDepth: number,
@@ -88,174 +126,62 @@ export function flattenNodes(
   return result;
 }
 
-/**
- * Flatten nodes using the runtime's current structure (parent/child/order).
- * The runtime projection is ephemeral. TanStack Query is the single persistent
- * source of truth. The runtime only overlays pending intents on top of the base
- * state received from the query cache.
- */
-const GHOST_PREFIX = '__ghost-';
-
-export function isGhostId(uuid: string): boolean {
-  return uuid.startsWith(GHOST_PREFIX);
-}
-
-export function buildGhostId(parentUuid: string): string {
-  return `${GHOST_PREFIX}${parentUuid}`;
-}
-
-export function parseGhostParentUuid(ghostUuid: string): string | null {
-  if (!isGhostId(ghostUuid)) return null;
-  return ghostUuid.slice(GHOST_PREFIX.length);
-}
-
-function createGhostFlatNode(parentUuid: string, depth: number): FlatNode {
-  return {
-    node: {
-      uuid: buildGhostId(parentUuid),
-      name: '',
-      icon: null,
-      color: null,
-      parent_uuid: null,
-      page_uuid: null,
-      sequence: Number.MAX_SAFE_INTEGER,
-      active: true,
-      is_page: false,
-      is_deleted: false,
-      has_children: false,
-      children: [],
-      create_date: '',
-      write_date: '',
-      classes_uuid: [],
-      tags_uuid: [],
-      properties_uuid: {},
-    },
-    depth,
-    effectiveCollapsed: false,
-    isGhost: true,
+function collectNodeIds(nodes: Node[]): string[] {
+  const ids: string[] = [];
+  const walk = (n: Node) => {
+    ids.push(n.uuid);
+    n.children?.forEach(walk);
   };
+  nodes.forEach(walk);
+  return ids;
 }
 
-export function flattenNodesFromRuntime(
+/** @internal Exported for unit testing. */
+export function buildFlatNodesFromStore(
+  store: WorkspaceStore,
   nodes: Node[],
-  maxDepth: number,
-  pagesOnly: boolean,
-  skipPages: boolean,
-  runtime: OperationRuntime,
+  options: UseBlockTreeOptions,
   collapsedLookup: (nodeUuid: string) => boolean | undefined,
-  expandAll = false,
-  readOnly = false,
-  showNewBlock = true,
-  rootUuid?: string,
-  rootIsBlock = false,
 ): FlatNode[] {
-  const nodeMap = new Map<string, Node>();
-  const collect = (n: Node) => {
-    nodeMap.set(n.uuid, n);
-    if (n.children) for (const c of n.children) collect(c);
-  };
-  for (const n of nodes) collect(n);
+  const {
+    maxDepth = -1,
+    pagesOnly = false,
+    skipPages = false,
+    expandAll = false,
+    nodeUuid,
+    readOnly = false,
+    showNewBlock = true,
+    rootIsBlock = false,
+  } = options;
 
-  function resolveParentId(node: Node): string {
-    const graphNode = getNode(runtime, node.uuid);
-    const propParentUuid = node.parent_uuid || '__root__';
-    const runtimeParentUuid = graphNode?.parentId;
-    return (runtimeParentUuid && nodeMap.has(runtimeParentUuid))
-      ? runtimeParentUuid
-      : propParentUuid;
-  }
-
-  const byParent = new Map<string, Node[]>();
-  for (const [, node] of nodeMap) {
-    const parentId = resolveParentId(node);
-    if (!byParent.has(parentId)) byParent.set(parentId, []);
-    byParent.get(parentId)!.push(node);
-  }
-
-  // Include runtime-only nodes whose parent is in the prop tree, or whose
-  // parent is the root page/rootBlockId (which is never part of the prop tree).
-  // This makes newly-created top-level blocks visible immediately instead of
-  // disappearing until the next server fetch.
-  for (const gn of getAllNodes(runtime)) {
-    if (nodeMap.has(gn.blockId)) continue;
-    if (gn.isDeleted) continue;
-    if (!gn.parentId || (!nodeMap.has(gn.parentId) && gn.parentId !== rootUuid)) continue;
-    const syntheticNode: Node = {
-      uuid: gn.blockId,
-      name: JSON.stringify(gn.contentAST),
-      icon: gn.icon ?? null,
-      color: gn.color ?? null,
-      // Keep the real parent UUID so resolveParentId can place runtime-only
-      // top-level nodes under the root correctly.
-      parent_uuid: gn.parentId,
-      page_uuid: null,
-      sequence: gn.orderIndex,
-      active: true,
-      is_page: false,
-      is_deleted: false,
-      has_children: false,
-      children: [],
-      create_date: gn.createdAt,
-      write_date: gn.updatedAt,
-      classes_uuid: gn.classIds,
-      tags_uuid: gn.tagIds,
-      properties_uuid: {},
-    };
-    nodeMap.set(gn.blockId, syntheticNode);
-    if (!byParent.has(gn.parentId)) byParent.set(gn.parentId, []);
-    byParent.get(gn.parentId)!.push(syntheticNode);
-  }
-
-  for (const [, children] of byParent) {
-    children.sort((a, b) => {
-      const ga = getNode(runtime, a.uuid);
-      const gb = getNode(runtime, b.uuid);
-      const orderA = ga?.orderIndex ?? a.sequence ?? 0;
-      const orderB = gb?.orderIndex ?? b.sequence ?? 0;
-      if (orderA !== orderB) return orderA - orderB;
-      const seqA = a.sequence ?? 0;
-      const seqB = b.sequence ?? 0;
-      return seqA - seqB;
-    });
-  }
-
+  const result: FlatNode[] = [];
   const visited = new Set<string>();
   const duplicateUuids: string[] = [];
 
-  const flatten = (nodeUuids: string[], depth: number): FlatNode[] => {
-    if (maxDepth >= 0 && depth > maxDepth) return [];
-    const result: FlatNode[] = [];
+  const flatten = (nodeUuids: string[], depth: number): void => {
+    if (maxDepth >= 0 && depth > maxDepth) return;
+
     for (const nodeUuid of nodeUuids) {
-      const node = nodeMap.get(nodeUuid);
+      if (visited.has(nodeUuid)) {
+        if (!duplicateUuids.includes(nodeUuid)) duplicateUuids.push(nodeUuid);
+        continue;
+      }
+      visited.add(nodeUuid);
+
+      const node = projectNode(store, nodeUuid, 0);
       if (!node) continue;
-      const projected = getNode(runtime, node.uuid);
-      if (projected?.isDeleted) continue;
+      if (node.is_deleted) continue;
       if (node.is_comment) continue;
       if (pagesOnly && !node.is_page) continue;
       if (skipPages && node.is_page) continue;
-      if (visited.has(node.uuid)) {
-        if (!duplicateUuids.includes(node.uuid)) duplicateUuids.push(node.uuid);
-        continue;
-      }
-      visited.add(node.uuid);
+
       const effectiveCollapsed = expandAll ? false : (collapsedLookup(nodeUuid) ?? false);
-      // Overlay the runtime's live content onto the prop node. The prop node
-      // carries the stale TanStack Query cache (e.g. empty after a fresh edit),
-      // while the runtime projection already holds the just-typed contentAST.
-      // Without this overlay, the read-only static view rendered empty/stale
-      // content after exiting edit mode until the next refetch (full reload).
-      // Mirrors how runtime-only nodes derive their `name` from contentAST above.
-      const displayNode = overlayRuntimeContent(runtime, node);
-      result.push({ node: displayNode, depth, effectiveCollapsed });
+      result.push({ node, depth, effectiveCollapsed });
 
       if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {
-        const children = byParent.get(nodeUuid) || [];
-        result.push(...flatten(children.map(c => c.uuid), depth + 1));
-        // Trailing pseudo-block for creating children of this parent.
-        // Skip nested ghosts when page filtering is active to avoid orphan rows.
-        // In focused block view the root node is the focused block itself; its
-        // child ghost is suppressed because the root ghost (at depth 1) already
-        // serves as the "new child of the focused block" placeholder.
+        const children = store.getChildren(nodeUuid);
+        flatten(children, depth + 1);
+
         const isRootLevel = depth === 0;
         if (
           !readOnly &&
@@ -269,47 +195,36 @@ export function flattenNodesFromRuntime(
         }
       }
     }
-    return result;
   };
 
-  const topLevel: string[] = [];
-  for (const [nodeUuid, node] of nodeMap) {
-    const parentId = resolveParentId(node);
-    // Treat the root page/rootBlockId as a top-level parent even though it is
-    // never included in the prop-node map.
-    if (!nodeMap.has(parentId) || parentId === rootUuid) {
-      topLevel.push(nodeUuid);
+  let rootUuids: string[];
+  if (nodeUuid) {
+    if (rootIsBlock && nodes.some((n) => n.uuid === nodeUuid)) {
+      rootUuids = [nodeUuid];
+    } else {
+      rootUuids = store.getChildren(nodeUuid);
     }
+  } else {
+    const nodeMap = new Map(nodes.map((n) => [n.uuid, n]));
+    rootUuids = nodes
+      .filter((n) => !n.parent_uuid || !nodeMap.has(n.parent_uuid))
+      .map((n) => n.uuid);
   }
 
-  topLevel.sort((a, b) => {
-    const ga = getNode(runtime, a);
-    const gb = getNode(runtime, b);
-    const na = nodeMap.get(a);
-    const nb = nodeMap.get(b);
-    const orderA = ga?.orderIndex ?? na?.sequence ?? 0;
-    const orderB = gb?.orderIndex ?? nb?.sequence ?? 0;
-    if (orderA !== orderB) return orderA - orderB;
-    const seqA = na?.sequence ?? 0;
-    const seqB = nb?.sequence ?? 0;
-    return seqA - seqB;
-  });
+  flatten(rootUuids, 0);
 
-  const result = flatten(topLevel, 0);
-  // Trailing pseudo-block for the root list.
-  if (!readOnly && showNewBlock && rootUuid && isValidServerNodeId(rootUuid)) {
-    // In focused block view the root is the focused block; new blocks created
-    // from the root ghost are children of that block, so indent one level deeper.
+  if (!readOnly && showNewBlock && nodeUuid && isValidServerNodeId(nodeUuid)) {
     const rootGhostDepth = rootIsBlock ? 1 : 0;
-    result.push(createGhostFlatNode(rootUuid, rootGhostDepth));
+    result.push(createGhostFlatNode(nodeUuid, rootGhostDepth));
   }
 
   if (duplicateUuids.length > 0 && process.env.NODE_ENV === 'development') {
     console.warn(
-      '[flattenNodesFromRuntime] Skipped duplicate node UUID(s) in runtime projection:',
+      '[useBlockTree] Skipped duplicate node UUID(s) in core projection:',
       duplicateUuids,
     );
   }
+
   return result;
 }
 
@@ -318,15 +233,17 @@ export function useBlockTree(
   options: UseBlockTreeOptions = {}
 ): { flatNodes: FlatNode[]; structureVersion: number } {
   const {
-          maxDepth = -1,
-          pagesOnly = false,
-          skipPages = false,
-          expandAll = false,
-          nodeUuid,
-          readOnly = false,
-          showNewBlock = true,
-          rootIsBlock = false } = options;
+    maxDepth = -1,
+    pagesOnly = false,
+    skipPages = false,
+    expandAll = false,
+    nodeUuid,
+    readOnly = false,
+    showNewBlock = true,
+    rootIsBlock = false,
+  } = options;
   const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store, isLoading } = useWorkspaceStore(workspaceId ?? '');
   const workspaceStates = useUIStateStore(
     useMemo(() => (s) => (workspaceId ? s.states[workspaceId] ?? EMPTY_STATES : EMPTY_STATES), [workspaceId])
   );
@@ -334,73 +251,42 @@ export function useBlockTree(
     (nodeUuid: string) => workspaceStates[nodeUuid]?.collapsed,
     [workspaceStates]
   );
-  const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
-
-  // Sync prop nodes into the runtime so structural ops have graph data.
-  useLayoutEffect(() => {
-    const allNodes: Node[] = [];
-    const collect = (n: Node) => {
-      allNodes.push(n);
-      if (n.children) for (const child of n.children) collect(child);
-    };
-    for (const n of nodes) collect(n);
-
-    if (allNodes.length > 0) {
-      const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeUuid);
-      upsertNodes(graphNodes);
-    }
-  }, [nodes, nodeUuid]);
-
-  // Subscribe to runtime structural changes, and to content changes on blocks
-  // that are NOT the active editor's block. Keystrokes from the active editor
-  // emit `nodes_changed` for the active block only; rebuilding for those would
-  // invalidate BlockRow memoization and re-render every visible row per
-  // keystroke, so they are skipped (the editor owns its rendering while
-  // mounted, and blur triggers a rebuild via the activeBlockId dep below).
-  //
-  // Content changes on non-active blocks — static-view pill edits, remote
-  // (collab) updates — must rebuild so `overlayRuntimeContent` picks up the
-  // new runtime content; otherwise the static view stays stale until the next
-  // focus change or a full reload.
-  const activeBlockIdRef = useRef(activeBlockId);
-  activeBlockIdRef.current = activeBlockId;
 
   const [structureVersion, setStructureVersion] = useState(0);
+  const nodeIds = useMemo(() => collectNodeIds(nodes), [nodes]);
+
   useEffect(() => {
-    const unsubscribe = getRuntimeEventBus().subscribe((event) => {
-      if (event.type === 'structure_changed') {
-        setStructureVersion((v) => v + 1);
-      } else if (
-        event.type === 'nodes_changed' &&
-        event.blockIds.some((id) => id !== activeBlockIdRef.current)
-      ) {
-        setStructureVersion((v) => v + 1);
+    if (!store) return;
+    const update = (): void => setStructureVersion((v) => v + 1);
+    const unsubscribes = nodeIds.map((id) => store.subscribe(id, update));
+    return () => {
+      for (const unsubscribe of unsubscribes) {
+        unsubscribe();
       }
-    });
-    return unsubscribe;
-  }, []);
+    };
+  }, [store, nodeIds]);
 
   const flatNodes = useMemo(() => {
-    const runtime = getOperationRuntime();
-    const hasRuntimeData = nodeUuid != null || nodes.some((n) => getNode(runtime, n.uuid) != null);
-    if (!hasRuntimeData) {
+    if (!store || isLoading) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, collapsedLookup, 0, expandAll);
     }
-    return flattenNodesFromRuntime(
-      nodes,
-      maxDepth,
-      pagesOnly,
-      skipPages,
-      runtime,
-      collapsedLookup,
-      expandAll,
-      readOnly,
-      showNewBlock,
-      nodeUuid,
-      rootIsBlock,
-    );
+    return buildFlatNodesFromStore(store, nodes, options, collapsedLookup);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, showNewBlock, nodeUuid, rootIsBlock, structureVersion, collapsedLookup, activeBlockId]);
+  }, [
+    store,
+    isLoading,
+    nodes,
+    maxDepth,
+    pagesOnly,
+    skipPages,
+    expandAll,
+    readOnly,
+    showNewBlock,
+    nodeUuid,
+    rootIsBlock,
+    structureVersion,
+    collapsedLookup,
+  ]);
 
   return { flatNodes, structureVersion };
 }

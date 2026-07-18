@@ -1,49 +1,26 @@
 import { useMemo, useCallback } from 'react';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
+import { useParams } from 'react-router-dom';
+import { useNode } from '@/core/hooks/useNode';
+import { useProperty } from '@/core/hooks/useProperty';
 import { useSetNodeProperty, useProperties } from '@/features/properties';
 import { useAddClass, useRemoveClass } from '@/features/content';
 import {
   SYSTEM_PROPERTY_UUIDS,
   SYSTEM_CLASS_UUIDS,
-  TASK_STATUSES,
   TASK_CLOSED_STATUSES,
 } from '@/constants/systemProperties';
-import { setRuntimeTaskStatus, resolveTaskStatusIds } from './taskStatusShared';
+import { resolveTaskStatusIds, resolveTaskStatusName } from './taskStatusShared';
 import type { TaskStatus } from './taskStatusShared';
 import type { Node } from '@/types/api';
 
 export type { TaskStatus } from './taskStatusShared';
 
 /**
- * Check if a node is a task by looking at the runtime graph node.
- */
-function isTaskNode(node: Node | undefined): boolean {
-  if (!node) return false;
-  const runtime = getOperationRuntime();
-  const gn = getNode(runtime, node.uuid);
-  if (!gn) return false;
-  return gn.taskStatus != null;
-}
-
-/**
- * Get the current task status for a node from the runtime.
- */
-function getTaskStatus(node: Node | undefined): TaskStatus | null {
-  if (!node) return null;
-  const runtime = getOperationRuntime();
-  const gn = getNode(runtime, node.uuid);
-  if (!gn) return null;
-  const status = gn.taskStatus;
-  if (!status) return null;
-  return TASK_STATUSES.includes(status as TaskStatus) ? (status as TaskStatus) : null;
-}
-
-/**
  * Hook providing task-related actions and state for a block row.
  *
- * Reads task status from the runtime projection and dispatches property and
- * class mutations to the backend via the canonical optimistic/runtime paths.
+ * Reads task membership and status from the local-first core store (SQLite
+ * derived view) and dispatches property and class mutations through the
+ * canonical core paths.
  *
  * `cycleTaskStatus` (bound to Ctrl/Cmd+Enter in `BlockRow`) implements a
  * Roam/Logseq-style three-state toggle:
@@ -56,8 +33,22 @@ function getTaskStatus(node: Node | undefined): TaskStatus | null {
  * status but no class, or a class but no status.
  */
 export function useTaskActions(node: Node) {
-  const isTask = useMemo(() => isTaskNode(node), [node]);
-  const taskStatus = useMemo(() => getTaskStatus(node), [node]);
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { node: nodeRow } = useNode(workspaceId ?? '', node.uuid);
+  const { value: statusOptionUuid } = useProperty({
+    nodeId: node.uuid,
+    schemaId: SYSTEM_PROPERTY_UUIDS.task_status,
+  });
+
+  const isTask = useMemo(
+    () => nodeRow?.classIds.includes(SYSTEM_CLASS_UUIDS.task) ?? false,
+    [nodeRow]
+  );
+
+  const taskStatus = useMemo(() => {
+    if (typeof statusOptionUuid !== 'string') return null;
+    return resolveTaskStatusName(statusOptionUuid);
+  }, [statusOptionUuid]);
 
   // Ensure properties are cached so resolveTaskStatusIds works
   useProperties();
@@ -82,7 +73,6 @@ export function useTaskActions(node: Node) {
         propertyId: ids.propertyId,
         value: ids.optionId,
       });
-      setRuntimeTaskStatus(node.uuid, status);
     },
     [node.uuid, setProperty]
   );
@@ -108,29 +98,20 @@ export function useTaskActions(node: Node) {
       propertyId: SYSTEM_PROPERTY_UUIDS.task_status,
       value: null,
     });
-    setRuntimeTaskStatus(node.uuid, null);
     removeClass.mutate({ nodeUuid: node.uuid, classId: SYSTEM_CLASS_UUIDS.task });
   }, [node.uuid, setProperty, removeClass]);
 
   const cycleTaskStatus = useCallback(() => {
-    // Read live runtime state at call time. The render-time `isTask`/`taskStatus`
-    // memos above only recompute when the `node` prop changes, and BlockRow does
-    // not subscribe to runtime updates — deciding on them would keep a mounted
-    // editor stuck re-running openTask() on every Ctrl+Enter press.
-    const runtime = getOperationRuntime();
-    const gn = node.uuid ? getNode(runtime, node.uuid) : undefined;
-    const status = gn?.taskStatus ?? null;
-    if (status == null) {
+    if (!isTask) {
       openTask();
       return;
     }
-    const closed = TASK_CLOSED_STATUSES.has(status);
-    if (closed) {
+    if (taskStatus != null && TASK_CLOSED_STATUSES.has(taskStatus)) {
       clearTask();
     } else {
       applyTaskStatus('Done');
     }
-  }, [node.uuid, openTask, clearTask, applyTaskStatus]);
+  }, [isTask, taskStatus, openTask, clearTask, applyTaskStatus]);
 
   // Public alias: both entry points share the same three-state toggle.
   const toggleTask = cycleTaskStatus;

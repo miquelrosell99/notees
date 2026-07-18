@@ -336,6 +336,65 @@ export class WorkspaceStore {
     );
   }
 
+  getProperties(nodeId: string): Array<{ propertyValueId: string; schemaId: string; index: number; value: unknown }> {
+    const rows = queryAll<{
+      id: string;
+      property_schema_id: string;
+      idx: number;
+      value: string;
+    }>(
+      this.db,
+      'SELECT id, property_schema_id, idx, value FROM property_value WHERE node_id = ? ORDER BY property_schema_id, idx',
+      [nodeId]
+    );
+    return rows.map((row) => ({
+      propertyValueId: row.id,
+      schemaId: row.property_schema_id,
+      index: row.idx,
+      value: JSON.parse(row.value) as unknown,
+    }));
+  }
+
+  getTextState(nodeId: string): Uint8Array {
+    return loadTextCrdt(this.db, nodeId).getState();
+  }
+
+  getTreeState(parentId: string): Uint8Array {
+    return loadTreeCrdt(this.db, parentId).getState();
+  }
+
+  assignClass(nodeId: string, classId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'class.assign',
+      },
+      { nodeId, classId }
+    );
+    this.apply(op);
+  }
+
+  unassignClass(nodeId: string, classId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'class.unassign',
+      },
+      { nodeId, classId }
+    );
+    this.apply(op);
+  }
+
+  getClock(): Clock {
+    return this.clock;
+  }
+
   getDb(): Database {
     return this.db;
   }

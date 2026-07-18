@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useWorkspaceStore } from './useWorkspaceStore';
+import { useUndoManager } from './useUndoManager';
 
 export interface CreateNodeArgs {
   nodeId: string;
@@ -17,6 +18,7 @@ export interface UseCreateNodeResult {
 
 export function useCreateNode(workspaceId: string): UseCreateNodeResult {
   const { store } = useWorkspaceStore(workspaceId);
+  const manager = useUndoManager(workspaceId);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -26,7 +28,11 @@ export function useCreateNode(workspaceId: string): UseCreateNodeResult {
       setIsPending(true);
       setError(null);
       try {
-        store.createNode(args);
+        if (manager) {
+          manager.createNode(args);
+        } else {
+          store.createNode(args);
+        }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         setError(error);
@@ -35,7 +41,7 @@ export function useCreateNode(workspaceId: string): UseCreateNodeResult {
         setIsPending(false);
       }
     },
-    [store]
+    [store, manager]
   );
 
   const mutate = useCallback(

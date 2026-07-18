@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { getOrCreateWorkspaceStore } from '../adapters/workspaceStoreAdapter';
 import { WorkspaceStoreContext } from './WorkspaceStoreContext';
 import { uuidv7 } from '../uuid';
+import { UndoManager } from '../undo';
 
 export interface SetPropertyArgs {
   nodeId: string;
@@ -30,7 +31,8 @@ export function useSetProperty(): UseMutationResult<void, Error, SetPropertyArgs
         ctx.cryptoKey,
         ctx.transport
       );
-      store.setProperty({
+      const manager = UndoManager.getOrCreateUndoManager(workspaceId, store);
+      manager.setProperty({
         propertyValueId: uuidv7(),
         nodeId: args.nodeId,
         schemaId: args.schemaId,

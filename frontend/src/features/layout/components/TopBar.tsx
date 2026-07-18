@@ -26,7 +26,6 @@ import { Scratchpad } from './Scratchpad';
 import { LiveSyncIndicator } from '@/features/collab';
 
 import './TopBar.css';
-import { getRuntimeEventBus } from '@/runtime/eventBus';
 
 
 function AutoExportIndicator() {
@@ -126,17 +125,10 @@ export function TopBar() {
   const [undoMenuOpen, setUndoMenuOpen] = useState(false);
   const [redoMenuOpen, setRedoMenuOpen] = useState(false);
 
-  // Refresh undo stack on mount and subscribe to runtime changes
-  const syncRuntimeState = useUndoStore(s => s.syncRuntimeState);
+  // Refresh undo stack on mount; the store subscribes to the core undo manager.
   useEffect(() => {
     refreshStack();
-    const unsubscribe = getRuntimeEventBus().subscribe((event) => {
-      if (event.type === 'undo_stack_changed') {
-        syncRuntimeState();
-      }
-    });
-    return unsubscribe;
-  }, [refreshStack, syncRuntimeState]);
+  }, [refreshStack]);
 
   // Build tooltip with description of next action
   const undoTitle = canUndo && undoEntries.length > 0

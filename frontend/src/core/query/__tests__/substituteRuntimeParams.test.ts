@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { substituteRuntimeParams } from './substituteRuntimeParams';
+import { substituteRuntimeParams } from '../substituteRuntimeParams';
 import { createEmptyQueryAST, createContentCondition, createClassCondition } from '@/types/queryAST';
 
 describe('substituteRuntimeParams', () => {

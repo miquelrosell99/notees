@@ -9,7 +9,8 @@ import { useAuthStore } from '@/stores';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useWorkspaces } from '@/features/workspace';
-import { queryNodesLocal } from '@/features/sync/local/localQuery';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { queryNodes } from '@/core/query/queryNodes';
 
 export function usePages(options?: { includeChildren?: boolean; rootOnly?: boolean }) {
   const { includeChildren = false, rootOnly = false } = options ?? {};
@@ -71,8 +72,10 @@ export function useSearch(query: string, filters?: {
     queryFn: async () => {
       if (isOffline) {
         if (!workspaceUuid) return [];
+        const store = getWorkspaceStore(workspaceUuid);
+        if (!store) return [];
         const classIds = filters?.classFilters ? filters.classFilters.split(',') : undefined;
-        return queryNodesLocal(workspaceUuid, {
+        return queryNodes(store, {
           query,
           isPage: filters?.isPage,
           isClass: filters?.isClass,

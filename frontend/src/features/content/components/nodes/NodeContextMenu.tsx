@@ -53,11 +53,6 @@ import {
 } from './NodeContextMenu/actions';
 import { composeMenuItems, type ComposableMenuItem } from './NodeContextMenu/composeMenuItems';
 import './NodeContextMenu.css';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
-import { getRuntimeEventBus } from '@/runtime/eventBus';
-import { getUndoEngine } from '@/stores/undoEngine';
-import type { MutationIntent } from '@/runtime/types';
 
 
 // ==================== Common Context Menu Items ====================
@@ -144,31 +139,22 @@ export function NodeContextMenu({
       setShowDeleteModal(true);
     } else {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      // Block deletion goes through the runtime undo engine (useDeleteNode →
-      // applyNodeIntent with pushUndo: true), so a genuine undo exists — offer
-      // it as a toast action instead of gating behind a confirmation modal.
-      const undoEngine = getUndoEngine();
-      const undoStackBefore = undoEngine.getUndoStack();
-      const undoTopBefore = undoStackBefore[undoStackBefore.length - 1] ?? null;
+      // Block deletion goes through the core undo manager, so a genuine undo
+      // exists — offer it as a toast action instead of gating behind a modal.
       deleteNode.mutate(node.uuid, {
         onSuccess: () => {
-          const stack = undoEngine.getUndoStack();
-          const undoTop = stack[stack.length - 1] ?? null;
-          const undoAvailable = undoTop !== null && undoTop !== undoTopBefore && undoTop.forward.type === 'delete_block';
           const notifications = useNotificationStore.getState();
           const toastId = notifications.addNotification({
             type: 'success',
             title: 'Block deleted',
             duration: 6000,
-            action: undoAvailable
-              ? {
-                  label: 'Undo',
-                  onClick: () => {
-                    useNotificationStore.getState().removeNotification(toastId);
-                    void useUndoStore.getState().performUndo(queryClient);
-                  },
-                }
-              : undefined,
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                useNotificationStore.getState().removeNotification(toastId);
+                void useUndoStore.getState().performUndo(queryClient);
+              },
+            },
           });
         },
       });
@@ -257,23 +243,9 @@ export function NodeContextMenu({
                   i === 0 ? { ...block, type: block.type === 'heading' ? 'paragraph' : 'heading' } : block
                 ) as unknown as ContentAST;
 
-                // Update runtime directly for immediate UI feedback.
-                // The runtime is the source of truth for contentAST;
-                // going only through the API would be blocked by
-                // upsertNodes preserving the old contentAST.
-                const runtime = getOperationRuntime();
-                const runtimeNode = getNode(runtime, node.uuid);
-                if (runtimeNode) {
-                  const intent: MutationIntent = {
-                    type: 'update_content',
-                    blockId: node.uuid,
-                    contentAST: newAst,
-                  };
-                  await getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
-                  getRuntimeEventBus().flushEvents();
-                }
-
-                // Also persist to backend
+                // Persist to backend (and core store). The legacy runtime
+                // immediate-update path has been retired; query invalidation
+                // refreshes the UI after the mutation lands.
                 updateNode.mutate({ nodeUuid: node.uuid, data: { name: JSON.stringify(newAst) } });
               } catch { /* ignore */ }
               onClose();
