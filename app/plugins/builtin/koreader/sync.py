@@ -21,6 +21,9 @@ class KOReaderSyncSource(SyncSource):
         result = SyncResult()
         plugin_ctx = context.plugin_context
 
+        workspace_uuid = context.workspace_uuid or str(context.workspace_id)
+        actor_uuid = context.actor_uuid or str(context.user_id)
+
         sync_url = await plugin_ctx.get_setting(
             context.workspace_id, context.user_id, "sync_url", ""
         )
@@ -35,26 +38,25 @@ class KOReaderSyncSource(SyncSource):
             result.messages.append(f"Failed to fetch KOReader highlights: {exc}")
             return result
 
-        source_class_id = await plugin_ctx.ensure_class(
-            context.workspace_id,
-            context.user_id,
+        source_class_uuid = await plugin_ctx.ensure_class(
+            workspace_uuid,
+            actor_uuid,
             "Source: KOReader",
             icon="book-open-variant",
         )
 
-        books: dict[str, int] = {}
+        books: dict[str, str] = {}
         for highlight in highlights:
             book_title = highlight.book_title or "Untitled book"
             if book_title not in books:
-                book_node = await plugin_ctx.create_page(
-                    context.workspace_id,
-                    context.user_id,
+                book_uuid = await plugin_ctx.create_page(
+                    workspace_uuid,
+                    actor_uuid,
                     book_title,
-                    additional_classes=[source_class_id],
+                    class_uuids=[source_class_uuid],
                 )
-                books[book_title] = book_node.id
+                books[book_title] = book_uuid
 
-            # TODO: create child blocks for each highlight once create_block helper exists.
-
+        result.created_node_ids.extend(books.values())
         result.messages.append(f"Synced {len(highlights)} highlights into {len(books)} books")
         return result

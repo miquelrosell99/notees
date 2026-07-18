@@ -1,4 +1,8 @@
-"""Tests for Yjs CRDT state persistence and endpoints."""
+"""Tests for the legacy Postgres Yjs CRDT repository.
+
+The HTTP endpoints have been ported to WorkspaceStore in Phase 7; their
+behavior is covered by ``tests/core/test_collab_router.py``.
+"""
 
 from __future__ import annotations
 
@@ -54,45 +58,3 @@ async def test_apply_update_merges_blob(yjs_repository, test_page):
 
     assert merged == first + second
     assert await yjs_repository.get_state(test_page) == first + second
-
-
-@pytest.mark.asyncio
-async def test_http_get_state_empty_for_new_node(authenticated_client, test_page):
-    """GET /nodes/{uuid}/yjs_state returns empty bytes when no state exists."""
-    response = await authenticated_client.get(f"/api/nodes/{test_page}/yjs_state")
-    assert response.status_code == 200
-    assert response.content == b""
-
-
-@pytest.mark.asyncio
-async def test_http_post_update_and_get_state(authenticated_client, test_page):
-    """POST applies an update and GET returns the merged blob."""
-    update = b"\xaa\xbb\xccyjs-update-via-http"
-
-    post_response = await authenticated_client.post(
-        f"/api/nodes/{test_page}/yjs_update",
-        content=update,
-    )
-    assert post_response.status_code == 200
-    assert post_response.json()["status"] == "ok"
-
-    get_response = await authenticated_client.get(f"/api/nodes/{test_page}/yjs_state")
-    assert get_response.status_code == 200
-    assert get_response.content == update
-
-
-@pytest.mark.asyncio
-async def test_http_post_multiple_updates_merge(authenticated_client, test_page):
-    """Multiple POSTs concatenate updates."""
-    first = b"\x01first-http"
-    second = b"\x02second-http"
-
-    await authenticated_client.post(
-        f"/api/nodes/{test_page}/yjs_update", content=first
-    )
-    await authenticated_client.post(
-        f"/api/nodes/{test_page}/yjs_update", content=second
-    )
-
-    response = await authenticated_client.get(f"/api/nodes/{test_page}/yjs_state")
-    assert response.content == first + second

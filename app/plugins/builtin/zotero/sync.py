@@ -21,6 +21,9 @@ class ZoteroSyncSource(SyncSource):
         result = SyncResult()
         plugin_ctx = context.plugin_context
 
+        workspace_uuid = context.workspace_uuid or str(context.workspace_id)
+        actor_uuid = context.actor_uuid or str(context.user_id)
+
         api_url = await plugin_ctx.get_setting(
             context.workspace_id, context.user_id, "api_url", "http://127.0.0.1:23119/"
         )
@@ -47,15 +50,15 @@ class ZoteroSyncSource(SyncSource):
             result.messages.append(f"Failed to fetch Zotero items: {exc}")
             return result
 
-        source_class_id = await plugin_ctx.ensure_class(
-            context.workspace_id,
-            context.user_id,
+        source_class_uuid = await plugin_ctx.ensure_class(
+            workspace_uuid,
+            actor_uuid,
             "Source",
             icon="book-open-variant",
         )
-        zotero_key_prop_id = await plugin_ctx.ensure_property(
-            context.workspace_id,
-            context.user_id,
+        zotero_key_schema_uuid = await plugin_ctx.ensure_property_schema(
+            workspace_uuid,
+            actor_uuid,
             "Zotero Key",
             icon="identifier",
         )
@@ -69,17 +72,17 @@ class ZoteroSyncSource(SyncSource):
                 continue
 
             name = f"@{citekey}"
-            node = await plugin_ctx.upsert_page_by_external_id(
-                context.workspace_id,
-                context.user_id,
+            node_uuid = await plugin_ctx.upsert_page_by_external_id(
+                workspace_uuid,
+                actor_uuid,
                 external_id=item.key,
-                external_id_property_id=zotero_key_prop_id,
+                external_id_schema_uuid=zotero_key_schema_uuid,
                 name=name,
-                class_ids=[source_class_id],
+                class_uuids=[source_class_uuid],
                 icon="bookshelf",
             )
-            if node.id is not None and node.id not in result.created_node_ids:
-                result.created_node_ids.append(node.id)
+            if node_uuid not in result.created_node_ids:
+                result.created_node_ids.append(node_uuid)
             synced += 1
 
         result.messages.append(f"Synced {synced} Zotero items")

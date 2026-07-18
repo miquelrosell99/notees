@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 class ImportResult:
     """Result returned by an importer adapter."""
 
-    created_node_ids: list[int] = field(default_factory=list)
-    updated_node_ids: list[int] = field(default_factory=list)
+    created_node_ids: list[str] = field(default_factory=list)
+    updated_node_ids: list[str] = field(default_factory=list)
     skipped_count: int = 0
     error_count: int = 0
     messages: list[str] = field(default_factory=list)
@@ -38,6 +38,8 @@ class ImportContext:
     plugin_context: PluginContext
     filename: str | None = None
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_uuid: str | None = None
+    actor_uuid: str | None = None
 
 
 class ImporterAdapter(ABC):
@@ -75,6 +77,8 @@ class ExportContext:
     user_id: int
     plugin_context: PluginContext
     options: dict[str, Any] = field(default_factory=dict)
+    workspace_uuid: str | None = None
+    actor_uuid: str | None = None
 
 
 class ExporterAdapter(ABC):
@@ -97,9 +101,9 @@ class ExporterAdapter(ABC):
 class SyncResult:
     """Result returned by a sync source."""
 
-    created_node_ids: list[int] = field(default_factory=list)
-    updated_node_ids: list[int] = field(default_factory=list)
-    deleted_node_ids: list[int] = field(default_factory=list)
+    created_node_ids: list[str] = field(default_factory=list)
+    updated_node_ids: list[str] = field(default_factory=list)
+    deleted_node_ids: list[str] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
 
 
@@ -111,6 +115,8 @@ class SyncContext:
     user_id: int
     plugin_context: PluginContext
     full_resync: bool = False
+    workspace_uuid: str | None = None
+    actor_uuid: str | None = None
 
 
 class SyncSource(ABC):

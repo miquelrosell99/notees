@@ -1,19 +1,14 @@
 """
-Asset Service - All filesystem mutations and domain orchestration for asset management.
+Asset Service - WorkspaceStore-backed file uploads and downloads.
 
-CRITICAL INVARIANTS (enforced by this service):
-1. One asset node points to one asset record via asset_id
-2. One asset record stores exactly one source file at a content-addressed path
-3. asset.hash is the SHA-256 of the file bytes and is unique per workspace
-4. asset.refs_count tracks how many asset nodes reference the file
-5. asset.mime_type is authoritative; the file extension is derived from it
-6. asset.original_name stores the uploaded filename for display/download
-7. Block name (node.name) is semantic only and NEVER affects disk state
-8. Asset blocks are atomic (cursor cannot enter)
+Files are stored content-addressed by SHA-256 hash. The operation log records
+asset metadata via ``asset.upload`` / ``asset.delete`` operations, and the
+derived ``node_asset`` table maps a node UUID to its file hash, MIME type, size,
+and original filename.
 
-The ``AssetFileService`` class is the ONLY layer that performs asset filesystem
-operations.  ``AssetService`` is the domain orchestrator that coordinates
-validation, filesystem writes, and node persistence through repository interfaces.
+This module no longer depends on the legacy ``NodeRepository`` or
+``AssetRepository``; it uses :class:`app.core.workspace_store.WorkspaceStore`
+for all operation-log writes and derived-state reads.
 """
 
 from __future__ import annotations
@@ -21,23 +16,23 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import sqlite3
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any
 
 from PIL import Image
 
-from app.domain.entities import generate_uuid
-from app.domain.errors import PermissionDeniedError
-from app.domain.stringify_ast import ParseMode, parse_ast, serialize_ast
-from app.features.assets.utils import ALLOWED_CONTENT_TYPES, get_asset_category, get_extension_from_content_type
+from app.core.workspace_store import WorkspaceStore
+from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
+from app.domain.stringify_ast import ParseMode, parse_ast
+from app.features.assets.utils import (
+    ALLOWED_CONTENT_TYPES,
+    get_asset_category,
+    get_extension_from_content_type,
+)
 from app.logging_config import get_logger
 from app.utils.paths import get_workspace_assets_dir
-
-if TYPE_CHECKING:
-    from app.domain.entities import Node
-    from app.features.assets.port import AssetRepository
-from app.features.nodes.port import NodeRepository
 
 logger = get_logger(__name__)
 
@@ -49,30 +44,26 @@ THUMBNAIL_QUALITY = 85
 # Image formats that support thumbnail generation
 THUMBNAIL_FORMATS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 
+ASSET_CLASS_UUID = SYSTEM_CLASS_UUIDS["asset"]
+
 
 class AssetError(Exception):
     """Base exception for asset operations."""
 
-    pass
-
 
 class AssetMissingError(AssetError):
-    """Asset folder or file does not exist."""
-
-    pass
+    """Asset node or file does not exist."""
 
 
 class AssetInvariantViolationError(AssetError):
-    """Asset folder violates core invariants."""
-
-    pass
+    """Asset storage invariant violated."""
 
 
-class AssetPermissionError(PermissionDeniedError):
+class AssetPermissionError(AssetError):
     """Permission denied for asset operation."""
 
     def __init__(self, message: str):
-        super().__init__(message=message)
+        super().__init__(message)
 
 
 def _validate_asset_uuid(asset_uuid: str) -> None:
@@ -91,72 +82,113 @@ def _validate_asset_uuid(asset_uuid: str) -> None:
 
 class AssetFileService:
     """
-    Infrastructure service for asset filesystem operations.
+    Infrastructure service for content-addressed asset filesystem operations.
 
-    Files are stored by content hash so duplicate uploads share the same bytes.
-    Asset nodes keep a foreign key to the shared ``asset`` row.
+    Files are stored at ``<workspace>/assets/<hash[:4]>/<hash>.<ext>``. A local
+    SQLite database in the workspace assets directory tracks reference counts so
+    duplicate uploads share the same bytes and unreferenced files are removed.
     """
 
-    def __init__(self, workspace_uuid: str, asset_repo: AssetRepository):
+    def __init__(self, workspace_uuid: str, assets_dir: Path | None = None):
         self.workspace_uuid = workspace_uuid
-        self.assets_dir = get_workspace_assets_dir(workspace_uuid)
+        self.assets_dir = assets_dir or get_workspace_assets_dir(workspace_uuid)
         self.assets_dir.mkdir(parents=True, exist_ok=True)
-        self._asset_repo = asset_repo
+        self._ref_db_path = self.assets_dir / ".asset_refs.db"
+        self._ensure_ref_schema()
 
-    @property
-    def _assets_dir_resolved(self) -> Path:
-        """Resolved assets directory, recomputed to support test overrides."""
-        return self.assets_dir.resolve()
+    def _ensure_ref_schema(self) -> None:
+        """Create the reference-count table if it does not exist."""
+        with sqlite3.connect(self._ref_db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS asset_ref (
+                    hash TEXT PRIMARY KEY,
+                    extension TEXT NOT NULL,
+                    refs_count INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn.commit()
 
     @staticmethod
     def _hash_content(file_bytes: bytes) -> str:
         """Return the SHA-256 hex digest for ``file_bytes``."""
         return hashlib.sha256(file_bytes).hexdigest()
 
-    def _storage_path(self, hash: str, extension: str) -> Path:
+    def _storage_path(self, file_hash: str, extension: str) -> Path:
         """Return the content-addressed filesystem path for a hash + extension."""
         ext = extension.lower()
         if not ext.startswith("."):
             ext = f".{ext}"
-        return self.assets_dir / hash[:4] / f"{hash}{ext}"
+        return self.assets_dir / file_hash[:4] / f"{file_hash}{ext}"
 
-    def _path_from_asset_row(self, row: dict) -> Path | None:
-        """Compute the filesystem path from an asset row using its mime_type."""
-        if not row:
-            return None
-        mime_type = row.get("mime_type")
-        extension = get_extension_from_content_type(mime_type) if mime_type else ""
-        return self._storage_path(row["hash"], extension)
+    def _get_ref(self, file_hash: str) -> tuple[str, int] | None:
+        """Return (extension, refs_count) for ``file_hash``, or None."""
+        with sqlite3.connect(self._ref_db_path) as conn:
+            row = conn.execute(
+                "SELECT extension, refs_count FROM asset_ref WHERE hash = ?",
+                (file_hash,),
+            ).fetchone()
+            return (row[0], row[1]) if row else None
 
-    def _extract_extension(self, filepath: Path) -> str:
-        """Extract and normalize file extension."""
-        return filepath.suffix.lower()
+    def _increment_ref(self, file_hash: str, extension: str) -> int:
+        """Increment the reference count for ``file_hash``.
 
-    async def create_asset(
-        self, file_bytes: bytes, original_filename: str, content_type: str
-    ) -> tuple[int, str, Path]:
+        Inserts the row with ``extension`` if it does not exist.
+        """
+        with sqlite3.connect(self._ref_db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO asset_ref (hash, extension, refs_count)
+                VALUES (?, ?, 1)
+                ON CONFLICT(hash) DO UPDATE SET
+                    refs_count = refs_count + 1
+                """,
+                (file_hash, extension),
+            )
+            conn.commit()
+            row = conn.execute("SELECT refs_count FROM asset_ref WHERE hash = ?", (file_hash,)).fetchone()
+            return row[0] if row else 1
+
+    def _decrement_ref(self, file_hash: str) -> int:
+        """Decrement the reference count and return the new value."""
+        with sqlite3.connect(self._ref_db_path) as conn:
+            row = conn.execute("SELECT refs_count FROM asset_ref WHERE hash = ?", (file_hash,)).fetchone()
+            if row is None:
+                return 0
+            new_count = max(0, row[0] - 1)
+            conn.execute(
+                "UPDATE asset_ref SET refs_count = ? WHERE hash = ?",
+                (new_count, file_hash),
+            )
+            conn.commit()
+            return new_count
+
+    def _delete_ref_row(self, file_hash: str) -> None:
+        """Remove the reference-count row for ``file_hash``."""
+        with sqlite3.connect(self._ref_db_path) as conn:
+            conn.execute("DELETE FROM asset_ref WHERE hash = ?", (file_hash,))
+            conn.commit()
+
+    async def create_asset(self, file_bytes: bytes, original_filename: str, content_type: str) -> tuple[str, str, Path]:
         """
         Create or reuse a content-addressed asset file.
 
-        Returns: (asset_id, extension, source_path)
+        Returns: (file_hash, extension, source_path)
 
-        The caller MUST create the asset node ONLY after this succeeds.
+        The caller MUST emit the operation-log entry only after this succeeds.
         If this fails, no filesystem state is left behind.
         """
         file_hash = self._hash_content(file_bytes)
         size = len(file_bytes)
 
-        existing = await self._asset_repo.find_asset_by_hash(file_hash)
+        existing = self._get_ref(file_hash)
         if existing is not None:
-            await self._asset_repo.increment_asset_ref_count(existing["id"])
-            source_path = self._path_from_asset_row(existing)
-            if source_path is None:
-                raise AssetError(f"Could not resolve storage path for asset {existing['id']}")
-            logger.info(
-                f"Reused asset {existing['id']} for hash {file_hash} "
-                f"(refs_count now {existing['refs_count'] + 1})"
-            )
-            return existing["id"], source_path.suffix, source_path
+            extension, _ = existing
+            refs = self._increment_ref(file_hash, extension)
+            source_path = self._storage_path(file_hash, extension)
+            logger.info(f"Reused asset file for hash {file_hash} (refs_count now {refs}, {size} bytes)")
+            return file_hash, extension, source_path
 
         extension = get_extension_from_content_type(content_type)
         if not extension:
@@ -167,23 +199,20 @@ class AssetFileService:
 
         try:
             with tempfile.NamedTemporaryFile(
-                mode="wb", dir=source_path.parent, delete=False, prefix=".tmp_", suffix=extension
+                mode="wb",
+                dir=source_path.parent,
+                delete=False,
+                prefix=".tmp_",
+                suffix=extension,
             ) as tmp_file:
                 tmp_file.write(file_bytes)
                 tmp_path = Path(tmp_file.name)
 
             tmp_path.rename(source_path)
+            self._increment_ref(file_hash, extension)
 
-            asset_id = await self._asset_repo.create_asset(
-                hash=file_hash,
-                size=size,
-                mime_type=content_type,
-                original_name=original_filename,
-                user_id=0,
-            )
-
-            logger.info(f"Created asset {asset_id} at {source_path} ({size} bytes)")
-            return asset_id, extension, source_path
+            logger.info(f"Created asset file {file_hash} at {source_path} ({size} bytes)")
+            return file_hash, extension, source_path
 
         except Exception as exc:
             if source_path.exists():
@@ -191,53 +220,47 @@ class AssetFileService:
                     source_path.unlink()
             raise AssetError(f"Failed to create asset file: {exc}") from exc
 
-    async def delete_asset(self, asset_id: int) -> bool:
+    async def delete_asset(self, file_hash: str) -> bool:
         """
         Drop one reference to a content-addressed asset file.
 
-        When the reference count reaches zero the file and the ``asset`` row
-        are removed. Returns True when a file was deleted.
+        When the reference count reaches zero the file and the reference row are
+        removed. Returns True when a file was deleted.
         """
-        file_row = await self._asset_repo.get_asset_by_id(asset_id)
-        if file_row is None:
-            logger.warning(f"asset {asset_id} not found for deletion")
+        ref = self._get_ref(file_hash)
+        if ref is None:
+            logger.warning(f"asset hash {file_hash} not found for deletion")
             return False
 
-        new_count = await self._asset_repo.decrement_asset_ref_count(asset_id)
+        extension, _ = ref
+        new_count = self._decrement_ref(file_hash)
 
         if new_count <= 0:
-            path = self._path_from_asset_row(file_row)
-            if path is not None:
+            source_path = self._storage_path(file_hash, extension)
+            if source_path.exists():
                 try:
-                    if path.exists():
-                        path.unlink()
-                    # Clean up empty parent directory
+                    source_path.unlink()
                     with contextlib.suppress(OSError):
-                        path.parent.rmdir()
+                        source_path.parent.rmdir()
                 except OSError as exc:
-                    logger.warning(f"Failed to delete asset file {path}: {exc}")
+                    logger.warning(f"Failed to delete asset file {source_path}: {exc}")
+            self._delete_ref_row(file_hash)
 
-        logger.info(
-            f"Decremented refs_count for asset {asset_id} (now {new_count})"
-        )
+        logger.info(f"Decremented refs_count for asset hash {file_hash} (now {new_count})")
         return new_count <= 0
 
-    def get_source_file(self, asset_id: int, extension: str) -> Path:
-        """Get the source file path for an asset record (uses stored path)."""
-        # Kept for interface compatibility; callers should prefer find_source_file.
-        return self._storage_path(str(asset_id), extension)
+    def find_source_file(self, file_hash: str) -> Path | None:
+        """Return the stored filesystem path for a file hash, if it exists."""
+        ref = self._get_ref(file_hash)
+        if ref is None:
+            return None
+        extension, _ = ref
+        path = self._storage_path(file_hash, extension)
+        return path if path.exists() else None
 
-    async def find_source_file(self, asset_id: int | None) -> Path | None:
-        """Return the stored filesystem path for an asset id."""
-        if asset_id is None:
-            return None
-        file_row = await self._asset_repo.get_asset_by_id(asset_id)
-        if file_row is None:
-            return None
-        path = self._path_from_asset_row(file_row)
-        if path is None or not path.exists():
-            return None
-        return path
+    def get_source_file(self, file_hash: str, extension: str) -> Path:
+        """Get the source file path for a hash + extension."""
+        return self._storage_path(file_hash, extension)
 
     def get_thumbnail_path(self, asset_uuid: str) -> Path:
         """Get the thumbnail path for an asset node."""
@@ -250,9 +273,7 @@ class AssetFileService:
     async def generate_thumbnail(self, asset_uuid: str, source_path: Path) -> None:
         """Generate a WebP thumbnail for an image asset."""
         thumbnail_path = self.get_thumbnail_path(asset_uuid)
-        await asyncio.get_event_loop().run_in_executor(
-            None, self._generate_thumbnail_sync, source_path, thumbnail_path
-        )
+        await asyncio.get_event_loop().run_in_executor(None, self._generate_thumbnail_sync, source_path, thumbnail_path)
 
     def _generate_thumbnail_sync(self, source_path: Path, thumbnail_path: Path) -> None:
         """Synchronous thumbnail generation (runs in thread pool)."""
@@ -262,12 +283,18 @@ class AssetFileService:
                     background = Image.new("RGB", img.size, (255, 255, 255))
                     if img.mode == "P":
                         img = img.convert("RGBA")
-                    background.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
+                    background.paste(
+                        img,
+                        mask=img.split()[-1] if img.mode == "RGBA" else None,
+                    )
                     img = background
                 elif img.mode != "RGB":
                     img = img.convert("RGB")
 
-                img.thumbnail((THUMBNAIL_MAX_WIDTH, THUMBNAIL_MAX_HEIGHT), Image.Resampling.LANCZOS)
+                img.thumbnail(
+                    (THUMBNAIL_MAX_WIDTH, THUMBNAIL_MAX_HEIGHT),
+                    Image.Resampling.LANCZOS,
+                )
                 img.save(thumbnail_path, "WEBP", quality=THUMBNAIL_QUALITY, method=6)
                 logger.info(f"Generated thumbnail: {thumbnail_path.name} ({img.size[0]}x{img.size[1]})")
         except Exception as exc:
@@ -276,30 +303,29 @@ class AssetFileService:
 
     def extract_extension(self, filepath: Path) -> str:
         """Extract and normalize file extension."""
-        return self._extract_extension(filepath)
+        return filepath.suffix.lower()
 
 
 class AssetService:
     """
-    Domain orchestrator for asset operations.
+    Domain orchestrator for asset operations on the operation-log core.
 
-    Coordinates filesystem writes (``AssetFileService``) with node persistence
-    (``NodeRepository`` / ``AssetRepository``).  Routers should delegate all
-    asset mutation and lookup logic to this service.
+    Coordinates content-addressed filesystem writes (``AssetFileService``) with
+    operation-log writes (``WorkspaceStore``). Routers delegate all asset
+    mutation and lookup logic to this service.
     """
 
     def __init__(
         self,
         workspace_uuid: str,
-        user_id: int,
-        node_repo: NodeRepository,
-        asset_repo: AssetRepository,
+        user_id: str,
+        store: WorkspaceStore,
+        assets_dir: Path | None = None,
     ):
         self.workspace_uuid = workspace_uuid
         self.user_id = user_id
-        self._node_repo = node_repo
-        self._asset_repo = asset_repo
-        self._file_service = AssetFileService(workspace_uuid, asset_repo)
+        self._store = store
+        self._file_service = AssetFileService(workspace_uuid, assets_dir)
 
     @property
     def file_service(self) -> AssetFileService:
@@ -314,82 +340,107 @@ class AssetService:
                 return ct
         return "application/octet-stream"
 
+    def _name_to_content(self, name: str) -> list[dict[str, Any]]:
+        """Convert a plain-text name into a node content AST."""
+        return parse_ast(name, ParseMode.PLAIN)
+
     def _build_asset_dict(
         self,
-        node: Node,
+        node_id: str,
         file_path: Path,
-        original_filename: str | None = None,
-    ) -> dict:
+        original_name: str,
+        content_type: str,
+    ) -> dict[str, Any]:
         """Build the standard asset metadata dict returned by this service."""
-        content_type = self._infer_content_type(file_path)
         return {
-            "uuid": node.uuid,
-            "node_uuid": node.uuid,
-            "filename": original_filename if original_filename is not None else node.name,
+            "uuid": node_id,
+            "node_uuid": node_id,
+            "filename": original_name,
             "content_type": content_type,
             "category": get_asset_category(content_type),
             "size_bytes": file_path.stat().st_size,
-            "url": f"/api/assets/{node.uuid}",
+            "url": f"/api/assets/{node_id}",
         }
+
+    async def _get_asset_row(self, asset_uuid: str) -> dict[str, Any] | None:
+        """Return the joined node + node_asset row for an asset UUID."""
+        rows = await self._store.query(
+            """
+            SELECT n.id AS node_id, n.kind, n.class_ids,
+                   a.asset_hash, a.mime_type, a.size_bytes, a.original_name
+            FROM node n
+            JOIN node_asset a ON a.node_id = n.id
+            WHERE n.id = ?
+            """,
+            (asset_uuid,),
+        )
+        return dict(rows[0]) if rows else None
+
+    async def _node_exists(self, node_uuid: str) -> bool:
+        """Return True if a node with ``node_uuid`` exists in derived state."""
+        rows = await self._store.query("SELECT 1 FROM node WHERE id = ?", (node_uuid,))
+        return bool(rows)
 
     async def upload_asset(
         self,
         file_bytes: bytes,
         filename: str,
         content_type: str,
-        parent_id: int | None = None,
-        existing_node_id: int | None = None,
+        parent_uuid: str | None = None,
+        existing_node_uuid: str | None = None,
         content: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Persist an uploaded file as an asset node.
 
-        Creates the content-addressed file first, then creates or converts the
-        node.  If ``existing_node_id`` is provided, that node is turned into an
-        asset; otherwise a new node is created under ``parent_id``.
+        Creates the content-addressed file first, then emits the operation-log
+        operations that create/annotate the asset node. If
+        ``existing_node_uuid`` is provided, that node is turned into an asset by
+        assigning the asset class and emitting an ``asset.upload`` operation;
+        otherwise a new block node is created under ``parent_uuid``.
         """
-        asset_id, extension, source_path = await self._file_service.create_asset(
+        if parent_uuid is not None and not await self._node_exists(parent_uuid):
+            raise AssetMissingError("Parent node not found")
+
+        file_hash, extension, source_path = await self._file_service.create_asset(
             file_bytes=file_bytes,
             original_filename=filename,
             content_type=content_type,
         )
 
-        page_class_id, asset_class_id = await self._asset_repo.get_page_and_asset_class_ids(self.user_id)
         filename_without_ext = Path(filename).stem
-        asset_uuid = generate_uuid()
-
-        from app.domain.entities import NodeCreateData
+        node_name = content if content is not None else filename_without_ext
 
         try:
-            if existing_node_id is not None:
-                node_name = content if content is not None else filename_without_ext
-                await self._asset_repo.convert_node_to_asset(
-                    node_id=existing_node_id,
-                    asset_uuid=asset_uuid,
-                    name=serialize_ast(parse_ast(node_name, ParseMode.PLAIN)),
-                    asset_class_id=asset_class_id,
-                    user_id=self.user_id,
-                    asset_id=asset_id,
-                )
-                node = await self._node_repo.get_by_id(existing_node_id)
-                if node is None:
-                    raise AssetError("Failed to update node to asset")
+            if existing_node_uuid is not None:
+                if not await self._node_exists(existing_node_uuid):
+                    raise AssetMissingError("Existing node not found")
+                asset_uuid = existing_node_uuid
+                await self._store.assign_class(asset_uuid, ASSET_CLASS_UUID)
             else:
-                data = NodeCreateData(
-                    uuid=asset_uuid,
-                    name=serialize_ast(parse_ast(filename_without_ext, ParseMode.PLAIN)),
-                    parent_id=parent_id,
-                    classes=[asset_class_id] if asset_class_id else [],
-                    asset_id=asset_id,
-                )
-                node = await self._node_repo.create(data, user_id=self.user_id)
-        except Exception:
-            await self._file_service.delete_asset(asset_id)
-            raise
+                from app.core.uuid import uuidv7
 
-        if node.id is None:
-            await self._file_service.delete_asset(asset_id)
-            raise AssetError("Failed to create asset node")
+                asset_uuid = uuidv7()
+                await self._store.create_node(
+                    asset_uuid,
+                    "block",
+                    parent_id=parent_uuid,
+                    initial_content=self._name_to_content(node_name),
+                    class_ids=[ASSET_CLASS_UUID],
+                )
+
+            await self._store.upload_asset(
+                asset_id=asset_uuid,
+                node_id=asset_uuid,
+                file_hash=file_hash,
+                mime_type=content_type,
+                size=len(file_bytes),
+                original_name=filename,
+            )
+            await self._store.sync()
+        except Exception:
+            await self._file_service.delete_asset(file_hash)
+            raise
 
         if extension in THUMBNAIL_FORMATS:
             try:
@@ -397,63 +448,110 @@ class AssetService:
             except Exception as exc:
                 logger.warning(f"Failed to generate thumbnail for {asset_uuid}: {exc}")
 
-        return self._build_asset_dict(node, source_path, original_filename=filename)
+        return self._build_asset_dict(asset_uuid, source_path, filename, content_type)
 
-    async def get_asset_info(self, asset_uuid: str) -> dict:
+    async def get_asset_info(self, asset_uuid: str) -> dict[str, Any]:
         """Return metadata for an asset node and its on-disk file."""
         _validate_asset_uuid(asset_uuid)
-        node = await self._node_repo.get_by_uuid(asset_uuid)
-        if node is None:
-            raise AssetMissingError("Asset node not found")
+        await self._store.sync()
+        row = await self._get_asset_row(asset_uuid)
+        if row is None:
+            raise AssetMissingError("Asset not found")
 
-        file_path = await self._file_service.find_source_file(node.asset_id)
+        file_path = self._file_service.find_source_file(row["asset_hash"])
         if file_path is None:
             raise AssetMissingError("Asset file not found")
 
-        return self._build_asset_dict(node, file_path)
+        return self._build_asset_dict(
+            asset_uuid,
+            file_path,
+            row["original_name"],
+            row["mime_type"],
+        )
 
-    async def delete_asset(self, asset_uuid: str) -> dict:
+    async def delete_asset(self, asset_uuid: str) -> dict[str, Any]:
         """Delete an asset node and drop its reference to the content file."""
         _validate_asset_uuid(asset_uuid)
-        node = await self._node_repo.get_by_uuid(asset_uuid)
-        if node is None:
-            raise AssetMissingError("Asset node not found")
+        await self._store.sync()
+        row = await self._get_asset_row(asset_uuid)
+        if row is None:
+            raise AssetMissingError("Asset not found")
 
-        if node.id is not None:
-            await self._node_repo.delete(node.id)
+        file_hash = row["asset_hash"]
 
-        if node.asset_id is not None:
-            await self._file_service.delete_asset(node.asset_id)
+        await self._store.delete_node(asset_uuid)
+        await self._store.delete_asset(asset_uuid, asset_uuid)
+        await self._store.sync()
+
+        await self._file_service.delete_asset(file_hash)
 
         return {"status": "deleted", "uuid": asset_uuid}
 
-    async def list_assets(self, page: int, page_size: int) -> dict:
+    async def list_assets(self, page: int, page_size: int) -> dict[str, Any]:
         """Return a paginated list of assets in the workspace."""
-        _, asset_class_id = await self._asset_repo.get_page_and_asset_class_ids(self.user_id)
-        if asset_class_id is None:
-            return {"assets": [], "total": 0}
-
+        await self._store.sync()
         offset = (page - 1) * page_size
-        nodes = await self._node_repo.get_typed_with(asset_class_id, limit=page_size, offset=offset)
-        total = await self._node_repo.count_nodes_with_classes([asset_class_id])
+
+        # Count nodes that have the asset class assigned.
+        count_rows = await self._store.query(
+            """
+            SELECT COUNT(*) AS total
+            FROM node
+            WHERE kind = 'block'
+              AND class_ids LIKE ?
+            """,
+            (f'%"{ASSET_CLASS_UUID}"%',),
+        )
+        total = count_rows[0]["total"]
+
+        rows = await self._store.query(
+            """
+            SELECT n.id AS node_id, a.asset_hash, a.mime_type, a.size_bytes, a.original_name
+            FROM node n
+            JOIN node_asset a ON a.node_id = n.id
+            WHERE n.kind = 'block'
+              AND n.class_ids LIKE ?
+            ORDER BY n.created_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (f'%"{ASSET_CLASS_UUID}"%', page_size, offset),
+        )
 
         assets = []
-        for node in nodes:
-            file_path = await self._file_service.find_source_file(node.asset_id)
-            if file_path is not None and node.id is not None:
-                assets.append(self._build_asset_dict(node, file_path))
+        for row in rows:
+            file_path = self._file_service.find_source_file(row["asset_hash"])
+            if file_path is not None:
+                assets.append(
+                    self._build_asset_dict(
+                        row["node_id"],
+                        file_path,
+                        row["original_name"],
+                        row["mime_type"],
+                    )
+                )
 
         return {"assets": assets, "total": total}
 
     async def asset_exists(self, asset_uuid: str) -> bool:
         """Return True if an asset node with the given UUID exists."""
         _validate_asset_uuid(asset_uuid)
-        return await self._asset_repo.asset_exists_by_uuid(asset_uuid)
+        await self._store.sync()
+        rows = await self._store.query(
+            """
+            SELECT 1 FROM node_asset WHERE node_id = ?
+            """,
+            (asset_uuid,),
+        )
+        return bool(rows)
 
     async def get_asset_file_path(self, asset_uuid: str) -> Path | None:
         """Return the source file path for an asset, or None if missing."""
         _validate_asset_uuid(asset_uuid)
-        node = await self._node_repo.get_by_uuid(asset_uuid)
-        if node is None:
+        await self._store.sync()
+        rows = await self._store.query(
+            "SELECT asset_hash FROM node_asset WHERE node_id = ?",
+            (asset_uuid,),
+        )
+        if not rows:
             return None
-        return await self._file_service.find_source_file(node.asset_id)
+        return self._file_service.find_source_file(rows[0]["asset_hash"])

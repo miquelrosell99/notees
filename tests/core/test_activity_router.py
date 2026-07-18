@@ -11,7 +11,6 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from app.core.workspace_store import WorkspaceStore
-from app.dependencies import require_read_or_write_scope, require_write_scope
 from app.dependencies import (
     get_current_user,
     require_read_or_write_scope,
