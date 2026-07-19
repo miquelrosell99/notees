@@ -226,6 +226,17 @@ export function createSchema(db: Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_node_alias_canonical
     ON node_alias (canonical_node_id);
+
+    CREATE TABLE IF NOT EXISTS node_version (
+      id TEXT PRIMARY KEY,
+      node_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      actor_id TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_node_version_node
+    ON node_version (node_id, created_at DESC);
   `);
 
   migrateSchema(db);
