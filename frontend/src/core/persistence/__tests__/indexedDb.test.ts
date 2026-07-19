@@ -3,6 +3,7 @@ import {
   deleteWorkspaceDatabase,
   loadWorkspaceDatabase,
   saveWorkspaceDatabase,
+  validateIndexedDb,
 } from '../indexedDb';
 
 describe('indexedDb persistence', () => {
@@ -36,5 +37,9 @@ describe('indexedDb persistence', () => {
     await saveWorkspaceDatabase('ws-test', new Uint8Array([2, 2, 2]));
     const loaded = await loadWorkspaceDatabase('ws-test');
     expect(Array.from(loaded!)).toEqual([2, 2, 2]);
+  });
+
+  it('validates that IndexedDB can be opened', async () => {
+    await expect(validateIndexedDb()).resolves.toBe(true);
   });
 });

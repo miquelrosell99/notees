@@ -34,6 +34,8 @@ import { getLogger } from './utils/logger';
 import { pluginManager } from '@/plugins/core';
 import { WorkspaceStoreProvider } from '@/core/hooks/WorkspaceStoreProvider';
 import { deriveUserWrappingKey, unwrapWorkspaceKey } from '@/core/crypto';
+import { ensureSqlInitialized, getSqlInitError } from '@/core/db/connection';
+import { requestPersistentStorage } from '@/core/persistence/storagePersistence';
 import { createHttpTransport } from '@/core/transportHttp';
 import api from '@/api/client';
 import {
@@ -139,6 +141,32 @@ function App() {
     log.info('Notees application initialized', {
       version: import.meta.env.VITE_APP_VERSION || 'dev',
       mode: import.meta.env.MODE,
+    });
+
+    // Request persistent storage so IndexedDB is less likely to be evicted
+    // under storage pressure. Failure is non-fatal, but we warn the user.
+    requestPersistentStorage()
+      .then((granted) => {
+        log.info('Persistent storage request result', { granted });
+        if (!granted) {
+          useNotificationStore.getState().warning(
+            'Storage may be cleared automatically',
+            'Your browser denied persistent storage. Notees data could be evicted if disk space runs low. Consider allowing storage persistence in your browser settings.'
+          );
+        }
+      })
+      .catch((err) => {
+        log.warn('Failed to request persistent storage', err);
+      });
+
+    // Eagerly initialize sql.js so wasm/persistence failures surface early.
+    ensureSqlInitialized().catch((err) => {
+      const sqlError = getSqlInitError();
+      log.error('sql.js initialization failed', err);
+      useNotificationStore.getState().error(
+        'Database engine failed to load',
+        sqlError?.message ?? 'SQLite could not start. Some offline features may not work until you refresh the page.'
+      );
     });
 
     // Load frontend plugins. Built-in plugins are bundled; user plugins are
