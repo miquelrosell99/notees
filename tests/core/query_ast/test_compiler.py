@@ -17,6 +17,7 @@ from app.domain.entities.query_ast import (
     AggregationNode,
     ClassCondition,
     ContentCondition,
+    ContentOperator,
     FlagCondition,
     GroupNode,
     LogicType,
@@ -158,6 +159,28 @@ class TestCompilerExecution:
         conn = replay_operations(ops)
         ast = QueryAST(
             root_group=GroupNode(children=[ContentCondition(value="hello", operator="contains")])
+        )
+        assert _execute(ast, conn) == ["page-1"]
+        conn.close()
+
+    def test_content_condition_fts_matches_prefix(self) -> None:
+        ops = [
+            _op("node.create", {"nodeId": "page-1", "kind": "page", "index": "0"}),
+            _op(
+                "node.updateContent",
+                {"nodeId": "page-1", "crdtUpdate": [{"type": "text", "text": "Project planning"}]},
+            ),
+            _op("node.create", {"nodeId": "page-2", "kind": "page", "index": "0"}),
+            _op(
+                "node.updateContent",
+                {"nodeId": "page-2", "crdtUpdate": [{"type": "text", "text": "Goodbye moon"}]},
+            ),
+        ]
+        conn = replay_operations(ops)
+        ast = QueryAST(
+            root_group=GroupNode(
+                children=[ContentCondition(value="proj", operator=ContentOperator.FTS)]
+            )
         )
         assert _execute(ast, conn) == ["page-1"]
         conn.close()

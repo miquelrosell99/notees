@@ -46,6 +46,16 @@ function buildMatchExpression(terms: string[]): string {
 }
 
 /**
+ * Convert a user-typed search string into an FTS4 MATCH expression.
+ * Returns null if the query contains no searchable tokens.
+ */
+export function toFtsMatchExpression(query: string): string | null {
+  const terms = tokenise(query);
+  const expr = buildMatchExpression(terms);
+  return expr.length > 0 ? expr : null;
+}
+
+/**
  * Compute a TF-IDF-style score from an FTS4 matchinfo('pcx') blob.
  *
  * The blob layout is:
@@ -98,13 +108,10 @@ export function searchNodes(
 ): SearchResult[] {
   const db = store.getDb();
   const workspaceId = store.getWorkspaceId();
-  const terms = tokenise(query);
-
-  if (terms.length === 0) {
+  const matchExpr = toFtsMatchExpression(query);
+  if (!matchExpr) {
     return [];
   }
-
-  const matchExpr = buildMatchExpression(terms);
   const where: string[] = ['n.workspace_id = ?', 'si.content MATCH ?'];
   const params: (string | number)[] = [workspaceId, matchExpr];
 

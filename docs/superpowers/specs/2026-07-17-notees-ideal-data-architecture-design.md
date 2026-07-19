@@ -192,11 +192,13 @@ edge (
   created_at TIMESTAMPTZ
 );
 
--- Search
-CREATE VIRTUAL TABLE search_index USING fts5(
-  node_id UNINDEXED,
+-- Search (FTS4 is used because the sql.js build ships with it; FTS5 would
+-- require a custom WASM compilation. The two are interchangeable for callers.)
+CREATE VIRTUAL TABLE search_index USING fts4(
+  node_id,
   content,
-  tokenize='porter unicode61'
+  notindexed=node_id,
+  tokenize=unicode61
 );
 ```
 
@@ -412,8 +414,9 @@ Snapshots are an optimization, not a source of truth. The operation log remains 
 
 ### 9.2 Search
 
-- Full-text search via SQLite FTS5.
-- Indexed: node names, block inline text, property text values, class/property schema names.
+- Full-text search via SQLite FTS4 (sql.js ships with FTS4; a custom WASM build would be needed for FTS5).
+- Indexed: node names and block inline text. Property text values and class/property schema names can be added later.
+- QueryAST `content` conditions support the `fts` operator, compiled to `search_index MATCH ...`.
 - Vector/semantic search is out of scope for the core; can be added as a plugin.
 
 ---

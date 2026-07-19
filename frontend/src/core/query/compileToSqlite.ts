@@ -20,6 +20,7 @@ import type {
   ScopeNode,
   StyleCondition,
 } from '../../types/queryAST';
+import { toFtsMatchExpression } from './search';
 
 export interface CompiledSql {
   sql: string;
@@ -78,7 +79,7 @@ function placeholders(count: number): string {
  *   custom property UUIDs.
  *
  * Out of scope (documented by returning `undefined` clauses or ignoring operators):
- * - `regex` and `fts` content operators.
+ * - `regex` content operator (SQLite REGEXP requires a custom extension).
  * - Tag conditions (tags are not migrated to the new derived schema).
  * - `is_private` / `is_favorite` / `active` flags.
  * - Builtin numeric measures such as `sequence` or `id` (the derived schema has no
@@ -413,9 +414,16 @@ class Compiler {
     const textExpr = this.nameTextExpr(this.alias);
     const op = condition.operator ?? 'contains';
 
-    if (op === 'regex' || op === 'fts') {
-      // Regex/FTS are out of scope for the SQLite target.
+    if (op === 'regex') {
+      // SQLite REGEXP requires a custom extension; not available in sql.js.
       return undefined;
+    }
+
+    if (op === 'fts') {
+      const matchExpr = toFtsMatchExpression(String(condition.value));
+      if (!matchExpr) return undefined;
+      const param = this.pushParam(matchExpr);
+      return `EXISTS (SELECT 1 FROM search_index si WHERE si.node_id = ${this.alias}.id AND si.content MATCH ${param})`;
     }
 
     this.pushParam(condition.value);

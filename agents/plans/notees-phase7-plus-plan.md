@@ -285,7 +285,7 @@ This section tracks functional and architectural gaps between the migrated local
 | **Properties** | Set/remove/batch values via API | `property.set`/`unset` operations | ✅ None |
 | **Classes** | Add/remove/list/search classes | Class assignment + `queryNodes` filters | ✅ None |
 | **Tags** | Explicit tag-link API endpoints | Tags mapped to class assignments | ⚠️ Semantic change — tag links no longer have their own relation table. |
-| **Search** | Backend FTS + filtered search | SQLite LIKE-based search | ⚠️ Functional parity for name search; no true FTS5 yet. |
+| **Search** | Backend FTS + filtered search | SQLite FTS4 search with prefix matching and ranking | ✅ None (FTS4 replaces both LIKE and FTS5 for current needs). |
 | **Backlinks / linked references** | Server-computed link tables | Derived `edge` table from AST | ✅ None |
 | **Tasks** | Status/deadline/recurrence/completion | Same via task operations | ✅ None |
 | **Trash / archive** | Soft-delete + restore + permanent delete | Same via `node.archive`/`restore`/`permanentDelete` | ✅ None |
@@ -323,7 +323,7 @@ This section tracks functional and architectural gaps between the migrated local
 1. **Aliases and version restore** have no model in the new core. They are the biggest user-visible regressions.
 2. **Merge pages** lost backlink redirection, so merged pages leave dangling links.
 3. **Logseq import** is gone; users must re-import via Markdown or plugins.
-4. **Full-text search** is emulated with `LIKE` until sql.js is built with FTS5.
+4. ~~Full-text search is emulated with `LIKE` until sql.js is built with FTS5.~~ Resolved: FTS4 search with ranking and QueryAST `fts` operator is implemented.
 5. **Whiteboard / flashcards** have not been smoke-tested end-to-end after the migration.
 6. **Operational/debugging complexity** increased: diagnosing sync issues requires understanding HLCs, CRDTs, and encrypted envelopes.
 7. **README and user docs** still describe the old `/api/nodes/*` REST API and need rewriting.
