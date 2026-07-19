@@ -1,10 +1,10 @@
 # Notees
 
-A self-hosted, privacy-first note-taking application with bidirectional linking and offline support.
+A self-hosted, privacy-first, local-first note-taking application with bidirectional linking and offline support.
 
 ![Python](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![React](https://img.shields.io/badge/react-19-61dafb.svg)
-![TypeScript](https://img.shields.io/badge/typescript-6-3178c6.svg)
+![TypeScript](https://img.shields.io/badge/typescript-6-3176c6.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 
 ## AI-Assisted Development
@@ -13,15 +13,16 @@ This project was developed with the assistance of AI tools. AI was used througho
 
 ## Features
 
-- **Bidirectional Linking** — Create connections between notes with `[[wiki-style]]` links. Backlinks are tracked automatically.
+- **Local-First / Offline-First** — Your workspace data lives in a client-side SQLite database. Edits happen instantly and sync when you're back online.
+- **End-to-End Encryption** — Workspace-private operation payloads are encrypted before reaching the server.
+- **Bidirectional Linking** — Create connections between notes with `[[wiki-style]]` links and `node_link` pills. Backlinks are tracked automatically.
 - **Block-Based Editor** — Outliner-style editing where every block can be referenced, embedded, or moved.
 - **Daily Journal** — Built-in daily, monthly, and yearly journal pages with calendar navigation.
-- **Types & Properties** — Organize notes with types and custom properties for powerful filtering.
+- **Types & Properties** — Organize notes with classes and custom properties for powerful filtering.
 - **Tasks** — Track todos inline or as dedicated task pages with status, priority, and due dates. A top-bar Tasks popup shows overdue, today, upcoming, and unscheduled tasks.
 - **Queries & Collections** — Build structured queries with the visual query builder and view results as lists, tables, kanban boards, calendars, and more. Run temporary ad-hoc queries or save them as views.
 - **Graph View & Whiteboard** — Explore your knowledge graph interactively, or sketch on an infinite canvas.
 - **Flashcards** — Create and study cloze-deletion flashcards.
-- **Offline-First** — Works without internet. Changes sync when you're back online.
 - **Self-Hosted** — Your data stays on your server. No cloud dependencies.
 - **Multi-Workspace** — Create separate knowledge bases for different projects or contexts.
 - **Plugin System** — Extend Notees with built-in or user-installed plugins (importers, export formats, commands).
@@ -113,22 +114,25 @@ docker compose up -d
 ```
 notees/
 ├── app/                    # Backend (FastAPI)
-│   ├── features/           # Feature modules (router + service + port + repository)
+│   ├── core/               # Local-first operation log, CRDTs, derived SQLite appliers
+│   ├── db/                 # Database layer (asyncpg, PostgreSQL)
 │   ├── domain/             # Shared domain kernel (entities, services, ports)
+│   ├── features/           # Feature modules (router + service + port + repository)
 │   ├── infrastructure/     # Infrastructure adapters
 │   ├── plugins/            # Runtime plugin system
-│   ├── db/                 # Database layer (asyncpg, PostgreSQL)
-│   ├── routers/            # API router aggregation (re-exports feature routers)
+│   ├── relay/              # Encrypted operation relay server
+│   ├── routers/            # API router aggregation
 │   └── static/dist/        # Built frontend
-├── frontend/               # Frontend (React 19 + TypeScript + Vite)
+├── frontend/               # React 19 + TypeScript + Vite
 │   ├── src/
-│   │   ├── features/       # Feature-first modules (tasks, queries, editor, …)
+│   │   ├── api/            # Shared Axios client only
 │   │   ├── components/ui/  # Reusable UI atoms
+│   │   ├── core/           # Local-first SQLite store, sync client, derived-state hooks
+│   │   ├── features/       # Feature-first modules (tasks, queries, editor, …)
 │   │   ├── hooks/          # Generic React hooks (+ query key factories)
 │   │   ├── stores/         # Zustand state management
-│   │   ├── runtime/ sync/  # Offline-first operation runtime and sync
 │   │   ├── views/ lib/     # Top-level views / core libraries
-│   │   └── types/ utils/   # Shared TypeScript types / utilities
+│   │   └── types/ utils/   # Shared TypeScript types / utility functions
 │   └── vite.config.ts
 ├── tests/                  # Backend test suite (pytest)
 ├── agents/                 # Developer/agent reference docs
@@ -136,6 +140,58 @@ notees/
 ├── scripts/                # Utility scripts
 └── data/                   # User data (gitignored)
 ```
+
+## Architecture
+
+Notees is a **local-first** application:
+
+1. **Client edits** append operations to a local SQLite database.
+2. **Operations** are end-to-end encrypted and relayed through `app/relay/`.
+3. **Other clients** pull operations and rebuild their derived SQLite state.
+4. **PostgreSQL** persists users, workspace membership, share metadata, and the encrypted operation log.
+
+The backend still follows hexagonal principles where useful, but the data authority has moved from server-side PostgreSQL rows to the client-side operation log.
+
+### Source of Truth
+
+- **Immutable operation log** (`app/core/operation.py`, `frontend/src/core/types/operation.ts`) is the source of truth.
+- **Client-side SQLite** is a derived view rebuilt by applying operations.
+- **HLC (Hybrid Logical Clock)** ordering and CRDTs handle concurrent edits and offline reconnect.
+
+### The Node Model
+
+The core concept is the **Node** — everything (pages, blocks, tags, properties, journals, tasks) is a row in a single `node` table, differentiated by `kind` and system class assignments. Hierarchy is an adjacency list (`parent_id`). Built-in classes include:
+
+| Class | Description |
+|-------|-------------|
+| `page` | A document/note that can contain blocks |
+| `class` | A type that categorizes other nodes |
+| `day` / `month` / `year` | Journal pages |
+| `task` | Todo item (page or block) with status, priority, and dates |
+| `comment` | A comment attached to a node |
+| `template` | A reusable page/block template |
+| `asset` | An uploaded file or image |
+| `quote` | A quotation block |
+| `query` | A saved query block rendering a live collection |
+| `code` | A syntax-highlighted code block |
+| `whiteboard` | An infinite-canvas drawing |
+| `card` / `cloze` | Flashcards for spaced repetition |
+
+Users can define their own classes and properties on top of these.
+
+## API
+
+The REST API is available at `/api/*` (also mirrored under `/api/v1/*`):
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/auth/login` | Authenticate user |
+| `POST /api/relay/batch` | Push encrypted operations to the relay |
+| `GET /api/relay/catch-up` | Pull encrypted operations from the relay |
+| `POST /api/daily` | Get or create the daily page for a date |
+| `POST /api/nodes/views/execute` | Run an ad-hoc QueryAST (no saved view needed) |
+
+Legacy `/api/nodes/*` and `/api/properties/*` mutable-row endpoints have been removed; the frontend now reads and writes through the local SQLite store and syncs via `/api/relay/*`.
 
 ## Development
 
@@ -205,52 +261,6 @@ cd frontend && npm run dev
 ```
 
 For local development you also need the PostgreSQL 17 client (`pg_dump`) installed on your host.
-
-## Architecture
-
-Notees follows a **hexagonal architecture** (ports & adapters) pattern:
-
-- **Domain Layer** — Pure business logic with no external dependencies
-- **Application Layer** — Use cases that orchestrate domain operations
-- **Infrastructure Layer** — Database and external service implementations
-- **API Layer** — FastAPI routers that expose HTTP endpoints
-
-### The Node Model
-
-The core concept is the **Node** — everything (pages, blocks, tags, properties, journals, tasks) is a row in a single `node` table, differentiated by boolean flags kept in sync with **system class** assignments. Hierarchy is an adjacency list (`parent_id`). Built-in classes include:
-
-| Class | Description |
-|-------|-------------|
-| `page` | A document/note that can contain blocks |
-| `class` | A type that categorizes other nodes |
-| `day` / `month` / `year` | Journal pages |
-| `task` | Todo item (page or block) with status, priority, and dates |
-| `comment` | A comment attached to a node |
-| `template` | A reusable page/block template |
-| `asset` | An uploaded file or image |
-| `quote` | A quotation block |
-| `query` | A saved query block rendering a live collection |
-| `code` | A syntax-highlighted code block |
-| `whiteboard` | An infinite-canvas drawing |
-| `card` / `cloze` | Flashcards for spaced repetition |
-
-Users can define their own classes and properties on top of these.
-
-## API
-
-The REST API is available at `/api/*` (also mirrored under `/api/v1/*`):
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/auth/login` | Authenticate user |
-| `GET /api/nodes` | List nodes |
-| `POST /api/nodes` | Create node |
-| `GET /api/nodes/{uuid}` | Get node by UUID |
-| `PUT /api/nodes/{uuid}` | Update node |
-| `DELETE /api/nodes/{uuid}` | Delete node |
-| `GET /api/search` | Search nodes |
-| `POST /api/daily` | Get or create the daily page for a date |
-| `POST /api/nodes/views/execute` | Run an ad-hoc QueryAST (no saved view needed) |
 
 ## Configuration
 
