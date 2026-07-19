@@ -1774,22 +1774,22 @@ Existing client databases created with the legacy plain `search_index` table are
 - `frontend/src/core/derived/search.ts` — uses `INSERT OR REPLACE` with `docid` for FTS4-compatible updates.
 - `frontend/src/core/query/search.ts` — uses `MATCH` with `matchinfo()` ranking instead of `LIKE`; exports `toFtsMatchExpression`.
 - `frontend/src/core/query/__tests__/search.test.ts` — added ranking, Unicode, and multi-term tests.
-- `frontend/src/core/query/compileToSqlite.ts` — QueryAST `content` condition now supports `operator: 'fts'`.
-- `frontend/src/core/query/__tests__/compileToSqlite.test.ts` — added FTS operator test.
+- `frontend/src/core/query/compileToSqlite.ts` — QueryAST `content` condition now supports `operator: 'fts'`; QueryAST `tag` condition compiles to class-assignment filter.
+- `frontend/src/core/query/__tests__/compileToSqlite.test.ts` — added FTS and tag operator tests.
 - `app/core/derived/schema.py` — backend derived schema uses FTS4 virtual table.
 - `app/core/derived/search.py` — backend reindex uses `INSERT OR REPLACE` with `docid`.
-- `app/core/query_ast/compiler.py` — backend QueryAST compiler supports `ContentOperator.FTS`.
-- `tests/core/query_ast/test_compiler.py` — added backend FTS operator test.
+- `app/core/query_ast/compiler.py` — backend QueryAST compiler supports `ContentOperator.FTS` and `TagCondition`.
+- `tests/core/query_ast/test_compiler.py` — added backend FTS and tag operator tests.
 - `docs/superpowers/specs/2026-07-17-notees-ideal-data-architecture-design.md` — design spec updated from FTS5 to FTS4.
 
 ### 16.7 Verification
 
 - `cd frontend && npm run test:run src/core/query/__tests__/search.test.ts` → 9 passed.
-- `cd frontend && npm run test:run src/core/query/__tests__/compileToSqlite.test.ts` → 11 passed.
-- `cd frontend && npm run test:run` → 543 passed.
+- `cd frontend && npm run test:run src/core/query/__tests__/compileToSqlite.test.ts` → 12 passed.
+- `cd frontend && npm run test:run` → 544 passed.
 - `cd frontend && npm run lint` → 0 errors (5 pre-existing warnings).
 - `cd frontend && npx tsc -b --noEmit` → clean.
-- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 342 passed, 3 skipped.
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 343 passed, 3 skipped.
 - `uv run ruff check app/core tests/core` → clean.
 
 ### 16.8 Future Path to FTS5

@@ -411,6 +411,7 @@ Snapshots are an optimization, not a source of truth. The operation log remains 
 - Primary query language: QueryAST.
 - QueryAST compiles to SQLite SQL against derived tables.
 - Live query blocks embed QueryAST results in pages and update automatically.
+- QueryAST `tag` conditions filter by class assignments, because tags are represented as classes in the new model.
 
 ### 9.2 Search
 

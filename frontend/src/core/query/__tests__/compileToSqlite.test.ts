@@ -19,7 +19,17 @@ import type {
   ChildPathCondition,
   PageCondition,
   AggregationNode,
+  TagCondition,
 } from '../../../types/queryAST';
+
+function tagCondition(tagUuid: string, operator: TagCondition['operator'] = 'is'): TagCondition {
+  return {
+    type: 'condition',
+    condition_type: 'tag',
+    tag_uuid: tagUuid,
+    operator,
+  };
+}
 
 function ftsContentCondition(value: string): ContentCondition {
   return {
@@ -230,6 +240,38 @@ describe('compileToSqlite', () => {
 
     const rows = execute(db, query(scope('entire_workspace'), andGroup([extendsCondition('class-a')])), workspaceId);
     expect([...rows.map((r) => r.id)].sort()).toEqual(['class-b', 'class-c']);
+  });
+
+  it('filters by tag condition as class assignment', async () => {
+    const { db, workspaceId, store } = await makeStore();
+    applyClassCreate(store, 'tag-a', 'Tag A');
+    store.createNode({ nodeId: 'node-tagged', kind: 'block', parentId: null });
+    applyClassAssign(store, 'node-tagged', 'tag-a');
+    store.createNode({ nodeId: 'node-untagged', kind: 'block', parentId: null });
+
+    const rows = execute(db, query(scope('entire_workspace'), andGroup([tagCondition('tag-a')])), workspaceId);
+    expect(rows.map((r) => r.id)).toEqual(['node-tagged']);
+
+    const notRows = execute(
+      db,
+      query(scope('entire_workspace'), andGroup([tagCondition('tag-a', 'is_not')])),
+      workspaceId
+    );
+    expect([...notRows.map((r) => r.id)].sort()).toEqual(['node-untagged', 'tag-a']);
+
+    const anyRows = execute(
+      db,
+      query(scope('entire_workspace'), andGroup([tagCondition('tag-a', 'has_any_tag')])),
+      workspaceId
+    );
+    expect(anyRows.map((r) => r.id)).toEqual(['node-tagged']);
+
+    const noRows = execute(
+      db,
+      query(scope('entire_workspace'), andGroup([tagCondition('tag-a', 'has_no_tag')])),
+      workspaceId
+    );
+    expect([...noRows.map((r) => r.id)].sort()).toEqual(['node-untagged', 'tag-a']);
   });
 
   it('filters by builtin name property and content text', async () => {

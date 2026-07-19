@@ -19,6 +19,7 @@ import type {
   ReferencePathCondition,
   ScopeNode,
   StyleCondition,
+  TagCondition,
 } from '../../types/queryAST';
 import { toFtsMatchExpression } from './search';
 
@@ -80,7 +81,6 @@ function placeholders(count: number): string {
  *
  * Out of scope (documented by returning `undefined` clauses or ignoring operators):
  * - `regex` content operator (SQLite REGEXP requires a custom extension).
- * - Tag conditions (tags are not migrated to the new derived schema).
  * - `is_private` / `is_favorite` / `active` flags.
  * - Builtin numeric measures such as `sequence` or `id` (the derived schema has no
  *   such columns).
@@ -209,8 +209,7 @@ class Compiler {
       case 'page':
         return this.generatePageCondition(condition);
       case 'tag':
-        // Tags are not migrated to the new derived schema.
-        return undefined;
+        return this.generateTagCondition(condition);
       default:
         return undefined;
     }
@@ -691,6 +690,33 @@ class Compiler {
     const inSql = `${pageId} IN (${subquery})`;
     this.params = [...this.params, ...nested.params];
     return op === 'is_not_page' ? `(${pageId} IS NULL OR NOT ${inSql})` : inSql;
+  }
+
+  private generateTagCondition(condition: TagCondition): string | undefined {
+    const op = condition.operator ?? 'is';
+
+    if (op === 'has_any_tag') {
+      return `json_array_length(${this.alias}.class_ids) > 0`;
+    }
+    if (op === 'has_no_tag') {
+      return `json_array_length(${this.alias}.class_ids) = 0`;
+    }
+
+    const uuids = validUuids(
+      condition.tag_uuids && condition.tag_uuids.length > 0
+        ? condition.tag_uuids
+        : condition.tag_uuid
+          ? [condition.tag_uuid]
+          : undefined,
+      this.currentNodeUuid,
+    );
+    if (uuids.length === 0) return undefined;
+
+    const list = placeholders(uuids.length);
+    uuids.forEach((u: string) => this.pushParam(u));
+    const membership = `EXISTS (SELECT 1 FROM json_each(${this.alias}.class_ids) WHERE value IN (${list}))`;
+
+    return op === 'is_not' ? `NOT ${membership}` : membership;
   }
 }
 
