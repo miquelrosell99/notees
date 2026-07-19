@@ -20,6 +20,15 @@ import type {
   PageCondition,
   AggregationNode,
 } from '../../../types/queryAST';
+
+function ftsContentCondition(value: string): ContentCondition {
+  return {
+    type: 'condition',
+    condition_type: 'content',
+    operator: 'fts',
+    value,
+  };
+}
 import { queryAll } from '../../db/sqlite';
 
 describe('compileToSqlite', () => {
@@ -299,6 +308,24 @@ describe('compileToSqlite', () => {
 
     const rows = execute(db, query(scope('entire_workspace'), andGroup([pageCondition('page-1')])), workspaceId);
     expect([...rows.map((r) => r.id)].sort()).toEqual(['block-1', 'page-1']);
+  });
+
+  it('filters by fts content operator', async () => {
+    const { db, workspaceId, store } = await makeStore();
+    store.createNode({ nodeId: 'page-1', kind: 'page', parentId: null });
+    store.updateText('page-1', (text) => text.insert(0, 'Project planning'));
+    store.createNode({ nodeId: 'page-2', kind: 'page', parentId: null });
+    store.updateText('page-2', (text) => text.insert(0, 'Goodbye moon'));
+
+    const rows = execute(db, query(scope('pages'), andGroup([ftsContentCondition('proj')])), workspaceId);
+    expect(rows.map((r) => r.id)).toEqual(['page-1']);
+
+    const multiRows = execute(
+      db,
+      query(scope('pages'), andGroup([ftsContentCondition('project planning')])),
+      workspaceId
+    );
+    expect(multiRows.map((r) => r.id)).toEqual(['page-1']);
   });
 
   it('supports current_page scope', async () => {

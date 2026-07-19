@@ -78,9 +78,11 @@ CREATE TABLE IF NOT EXISTS edge (
 CREATE INDEX IF NOT EXISTS idx_edge_source ON edge (source_id);
 CREATE INDEX IF NOT EXISTS idx_edge_target ON edge (target_id);
 
-CREATE TABLE IF NOT EXISTS search_index (
-    node_id TEXT PRIMARY KEY,
-    content TEXT
+CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts4(
+    node_id,
+    content,
+    notindexed=node_id,
+    tokenize=unicode61
 );
 
 CREATE TABLE IF NOT EXISTS crdt_state (
