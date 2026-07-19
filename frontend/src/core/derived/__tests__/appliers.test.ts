@@ -523,6 +523,48 @@ describe('version applier', () => {
   });
 });
 
+describe('merge pages', () => {
+  it('moves children and archives source', async () => {
+    const { store } = await createStore();
+    const sourceId = uuidv7();
+    const targetId = uuidv7();
+    const childId = uuidv7();
+
+    store.createNode({ nodeId: sourceId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: targetId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: childId, kind: 'block', parentId: null });
+    store.moveNode(childId, sourceId);
+
+    store.mergePages(sourceId, targetId);
+
+    expect(store.getChildren(targetId)).toContain(childId);
+    expect(store.getChildren(sourceId)).toHaveLength(0);
+    const source = store.getNode(sourceId);
+    expect(source?.active).toBe(false);
+  });
+
+  it('rewrites backlinks from source to target', async () => {
+    const { store } = await createStore();
+    const sourceId = uuidv7();
+    const targetId = uuidv7();
+    const referrerId = uuidv7();
+
+    store.createNode({ nodeId: sourceId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: targetId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: referrerId, kind: 'page', parentId: null });
+    store.updateContentAst(referrerId, [
+      { type: 'text', text: 'See ' },
+      { type: 'ref', targetId: sourceId },
+    ]);
+
+    store.mergePages(sourceId, targetId);
+
+    const referrer = store.getNode(referrerId);
+    expect(referrer?.content).toContain(targetId);
+    expect(referrer?.content).not.toContain(sourceId);
+  });
+});
+
 describe('alias applier', () => {
   it('records an alias relationship', async () => {
     const { store } = await createStore();
