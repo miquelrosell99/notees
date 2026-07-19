@@ -20,8 +20,14 @@ export function reindexNode(db: Database, nodeId: string): void {
   const content = JSON.parse(row.content) as unknown[];
   const plaintext = extractPlaintext(content);
 
-  db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
-  if (plaintext.length > 0) {
-    db.run('INSERT INTO search_index (node_id, content) VALUES (?, ?)', [nodeId, plaintext]);
+  if (plaintext.length === 0) {
+    db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
+    return;
   }
+
+  db.run(
+    `INSERT OR REPLACE INTO search_index(docid, node_id, content)
+     VALUES ((SELECT docid FROM search_index WHERE node_id = ?), ?, ?)`,
+    [nodeId, nodeId, plaintext],
+  );
 }

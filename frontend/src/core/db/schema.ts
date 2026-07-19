@@ -99,9 +99,9 @@ export function createSchema(db: Database): void {
       tree_state BLOB
     );
 
-    -- sql.js is compiled without the FTS5 extension, so we use a plain table
-    -- here. A production build that links a full SQLite can switch this back to
-    -- a CREATE VIRTUAL TABLE ... USING fts5 statement without changing callers.
+    -- sql.js ships with the FTS4 extension, which is sufficient for ranked
+    -- full-text search. If we ever switch to a custom SQLite build with FTS5,
+    -- only this schema statement and the ranking formula need to change.
     CREATE TABLE IF NOT EXISTS class_hierarchy (
       class_id TEXT NOT NULL,
       ancestor_id TEXT NOT NULL,
@@ -111,9 +111,11 @@ export function createSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor
     ON class_hierarchy (ancestor_id);
 
-    CREATE TABLE IF NOT EXISTS search_index (
-      node_id TEXT PRIMARY KEY,
-      content TEXT
+    CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts4(
+      node_id,
+      content,
+      notindexed=node_id,
+      tokenize=unicode61
     );
 
     CREATE TABLE IF NOT EXISTS sync_watermark (
@@ -260,5 +262,48 @@ function migrateSchema(db: Database): void {
       // Column may already exist in some states; ignore and continue.
     }
     db.exec('PRAGMA user_version = 1');
+  }
+
+  if (version < 2) {
+    // Migrate the legacy plain search_index table to an FTS4 virtual table.
+    const master = db.exec(
+      "SELECT sql FROM sqlite_master WHERE name = 'search_index' AND type = 'table'",
+    );
+    const sql = master[0]?.values[0]?.[0] as string | undefined;
+    if (sql && !sql.toUpperCase().startsWith('CREATE VIRTUAL TABLE')) {
+      db.exec('DROP TABLE search_index');
+      db.exec(
+        'CREATE VIRTUAL TABLE search_index USING fts4(node_id, content, notindexed=node_id, tokenize=unicode61)',
+      );
+      const rows = db.exec('SELECT id, content FROM node WHERE active = 1');
+      if (rows[0]?.values) {
+        for (const row of rows[0].values) {
+          const [nodeId, contentJson] = row as [string, string];
+          const plaintext = extractSearchPlaintext(contentJson);
+          if (plaintext.length > 0) {
+            db.run('INSERT INTO search_index (node_id, content) VALUES (?, ?)', [
+              nodeId,
+              plaintext,
+            ]);
+          }
+        }
+      }
+    }
+    db.exec('PRAGMA user_version = 2');
+  }
+}
+
+function extractSearchPlaintext(contentJson: string): string {
+  try {
+    const content = JSON.parse(contentJson) as unknown[];
+    return content
+      .map((child: unknown) => {
+        const c = child as { type?: string; text?: string };
+        return c.type === 'text' && typeof c.text === 'string' ? c.text : '';
+      })
+      .join(' ')
+      .trim();
+  } catch {
+    return '';
   }
 }
