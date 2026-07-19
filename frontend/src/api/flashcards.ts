@@ -5,7 +5,6 @@ const FLASHCARDS_BASE = '/plugins/notees.flashcards/flashcards';
 export interface Flashcard {
   nodeUuid: string;
   uuid: string;
-  node_id: number;
   front_text: string;
   back_text: string;
   ease_factor: number;
@@ -44,7 +43,7 @@ export async function getFlashcardByNodeId(nodeUuid: string): Promise<Flashcard>
 
 export async function createFlashcard(nodeUuid: string, frontText: string, backText: string): Promise<Flashcard> {
   const response = await api.post<Flashcard>(`${FLASHCARDS_BASE}/`, {
-    node_id: nodeUuid,
+    node_uuid: nodeUuid,
     front_text: frontText,
     back_text: backText,
   });
@@ -52,7 +51,7 @@ export async function createFlashcard(nodeUuid: string, frontText: string, backT
 }
 
 export async function updateFlashcard(nodeUuid: string, frontText: string, backText: string): Promise<Flashcard> {
-  // The backend create endpoint upserts on node_id, so updates reuse the same route.
+  // The backend create endpoint upserts on node_uuid, so updates reuse the same route.
   return createFlashcard(nodeUuid, frontText, backText);
 }
 
