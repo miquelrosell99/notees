@@ -175,3 +175,84 @@ class TestWorkspaceStore:
         assert len(rows) == 2
 
         await store.close()
+
+    async def test_create_snapshot_persists_derived_state(self) -> None:
+        relay = SqliteRelayStorage(":memory:")
+        writer = await _make_store(relay_storage=relay)
+        await writer.create_node("node-1", "page")
+        await writer.create_node("node-2", "block")
+        await writer.set_property("pv-1", "node-1", "schema-1", {"text": "hello"})
+
+        snapshot_id = await writer.create_snapshot()
+        latest = relay.get_latest_snapshot("ws-1")
+
+        assert latest is not None
+        assert latest["id"] == snapshot_id
+        assert len(latest["data"]) > 0
+
+        reader = await _make_store(relay_storage=relay)
+        await reader.sync()
+
+        node_rows = await reader.query(
+            "SELECT id, kind FROM node WHERE id IN (?, ?) ORDER BY id",
+            ("node-1", "node-2"),
+        )
+        assert len(node_rows) == 2
+        assert node_rows[0]["kind"] == "page"
+        assert node_rows[1]["kind"] == "block"
+
+        property_rows = await reader.query(
+            "SELECT value FROM property_value WHERE node_id = ?", ("node-1",)
+        )
+        assert len(property_rows) == 1
+        assert json.loads(property_rows[0]["value"]) == {"text": "hello"}
+
+        await writer.close()
+        await reader.close()
+
+    async def test_sync_uses_snapshot_to_skip_old_operations(self) -> None:
+        relay = SqliteRelayStorage(":memory:")
+        writer = await _make_store(relay_storage=relay)
+
+        for i in range(5):
+            await writer.create_node(f"old-node-{i}", "page")
+
+        await writer.create_snapshot()
+        await writer.close()
+
+        # Add more operations after the snapshot using a separate store instance
+        # so the original writer's in-memory derived DB is not reused. Sync first
+        # so the appender's HLC is initialized from the relay's maximum HLC.
+        appender = await _make_store(relay_storage=relay)
+        await appender.sync()
+        for i in range(3):
+            await appender.create_node(f"new-node-{i}", "block")
+        await appender.close()
+
+        reader = await _make_store(relay_storage=relay)
+        await reader.sync()
+
+        # The 5 old operations are covered by the snapshot (reflected in the
+        # restored applied_operation_id table), and the 3 new operations are
+        # fetched and applied during catch-up.
+        applied_rows = await reader.query(
+            "SELECT COUNT(*) FROM applied_operation_id"
+        )
+        assert applied_rows[0][0] == 8
+
+        snapshot = relay.get_latest_snapshot("ws-1")
+        assert snapshot is not None
+        newer_envelopes = relay.get_catch_up("ws-1", snapshot["hlc"])
+        assert len(newer_envelopes) == 3
+
+        old_rows = await reader.query(
+            "SELECT COUNT(*) FROM node WHERE id LIKE 'old-node-%'"
+        )
+        assert old_rows[0][0] == 5
+
+        new_rows = await reader.query(
+            "SELECT COUNT(*) FROM node WHERE id LIKE 'new-node-%'"
+        )
+        assert new_rows[0][0] == 3
+
+        await reader.close()
