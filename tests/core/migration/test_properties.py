@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ import pytest
 from app.core.migration.nodes import MigrationContext
 from app.core.migration.properties import migrate_properties_for_workspace
 from app.core.operation import Operation
+from app.domain.entities.constants import generate_day_uuid
 
 
 class _FakeRecord:
@@ -417,8 +419,8 @@ async def test_property_value_generation() -> None:
 
 
 @pytest.mark.unit
-async def test_date_range_value_is_parsed() -> None:
-    """date_range scalar values stored as JSON strings are parsed into objects."""
+async def test_date_range_value_is_normalized_to_canonical_shape() -> None:
+    """date_range scalar values are parsed and normalized to canonical JSON."""
     workspace_uuid = str(uuid4())
     node_uuid = str(uuid4())
     prop_uuid = str(uuid4())
@@ -449,6 +451,8 @@ async def test_date_range_value_is_parsed() -> None:
         "start": "2025-01-01",
         "end": "2025-01-31",
         "granularity": "day",
+        "start_uuid": generate_day_uuid(date(2025, 1, 1)),
+        "end_uuid": generate_day_uuid(date(2025, 1, 31)),
     }
 
 
