@@ -350,6 +350,67 @@ class PluginContext:
         finally:
             await store.close()
 
+    async def create_node(
+        self,
+        workspace_uuid: str,
+        actor_uuid: str,
+        node_id: str,
+        kind: str,
+        parent_id: str | None = None,
+        index: int = 0,
+        initial_content: list[dict[str, Any]] | None = None,
+        class_uuids: list[str] | None = None,
+    ) -> str:
+        """Create an arbitrary node.
+
+        Returns the supplied ``node_id`` for convenience.
+        """
+        self._require("write_nodes")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            await store.create_node(
+                node_id=node_id,
+                kind=kind,
+                parent_id=parent_id,
+                index=index,
+                initial_content=initial_content,
+                class_ids=class_uuids or [],
+            )
+            return node_id
+        finally:
+            await store.close()
+
+    async def update_content(
+        self,
+        workspace_uuid: str,
+        actor_uuid: str,
+        node_id: str,
+        content: list[dict[str, Any]],
+    ) -> None:
+        """Update a node's content AST."""
+        self._require("write_nodes")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            await store.update_content(node_id, content)
+        finally:
+            await store.close()
+
+    async def move_node(
+        self,
+        workspace_uuid: str,
+        actor_uuid: str,
+        node_id: str,
+        new_parent_id: str | None = None,
+        new_index: int = 0,
+    ) -> None:
+        """Move a node to a new parent and/or index."""
+        self._require("write_nodes")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            await store.move_node(node_id, new_parent_id, new_index)
+        finally:
+            await store.close()
+
     async def _find_page_by_name_and_classes(
         self, store: WorkspaceStore, name: str, class_uuids: set[str]
     ) -> str | None:
