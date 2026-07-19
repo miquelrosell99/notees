@@ -135,3 +135,43 @@ class TestWorkspaceStore:
         assert rows[0]["count"] == 1
 
         await reader.close()
+
+    async def test_apply_many_creates_nodes_in_single_transaction(self) -> None:
+        store = await _make_store()
+        operations = [
+            store._build_operation("node.create", {"nodeId": "batch-1", "kind": "page"}, ["batch-1"]),
+            store._build_operation("node.create", {"nodeId": "batch-2", "kind": "page"}, ["batch-2"]),
+            store._build_operation("node.create", {"nodeId": "batch-3", "kind": "block"}, ["batch-3"]),
+        ]
+
+        results = await store.apply_many(operations)
+
+        assert len(results) == 3
+        assert all(result is not None for result in results)
+        assert all(result.id == op.id for result, op in zip(results, operations, strict=True))
+
+        rows = await store.query("SELECT id, kind FROM node WHERE id IN (?, ?, ?) ORDER BY id", ("batch-1", "batch-2", "batch-3"))
+        assert len(rows) == 3
+        kinds = {row["id"]: row["kind"] for row in rows}
+        assert kinds == {"batch-1": "page", "batch-2": "page", "batch-3": "block"}
+
+        await store.close()
+
+    async def test_apply_many_is_idempotent_on_reapplication(self) -> None:
+        store = await _make_store()
+        operations = [
+            store._build_operation("node.create", {"nodeId": "idempotent-1", "kind": "page"}, ["idempotent-1"]),
+            store._build_operation("node.create", {"nodeId": "idempotent-2", "kind": "page"}, ["idempotent-2"]),
+        ]
+
+        first_results = await store.apply_many(operations)
+        assert len(first_results) == 2
+        assert all(result is not None for result in first_results)
+
+        second_results = await store.apply_many(operations)
+        assert second_results == [None, None]
+
+        rows = await store.query("SELECT id FROM node WHERE id IN (?, ?) ORDER BY id", ("idempotent-1", "idempotent-2"))
+        assert len(rows) == 2
+
+        await store.close()

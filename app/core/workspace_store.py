@@ -128,6 +128,56 @@ class WorkspaceStore:
             The encrypted envelope that was saved, or ``None`` when the
             operation was already present and was skipped.
         """
+        envelope = await self._persist_operation(operation)
+        if envelope is None:
+            return None
+
+        conn = await self._ensure_connection()
+        self._apply_to_derived(conn, operation)
+        conn.commit()
+        return envelope
+
+    async def apply_many(
+        self, operations: list[Operation]
+    ) -> list[EncryptedEnvelope | None]:
+        """Encrypt, persist, and apply multiple operations.
+
+        Operations whose ids already exist in relay storage are skipped. The
+        remaining operations are persisted to the relay and applied to the
+        derived SQLite database in a single transaction, with their ids
+        recorded in ``applied_operation_id`` atomically.
+
+        Returns:
+            A list parallel to ``operations``: the encrypted envelope for each
+            persisted operation, or ``None`` for operations that were skipped.
+        """
+        results: list[EncryptedEnvelope | None] = []
+        to_apply: list[Operation] = []
+
+        for operation in operations:
+            envelope = await self._persist_operation(operation)
+            results.append(envelope)
+            if envelope is not None:
+                to_apply.append(operation)
+
+        if not to_apply:
+            return results
+
+        conn = await self._ensure_connection()
+        for operation in to_apply:
+            self._apply_to_derived(conn, operation)
+        conn.commit()
+        return results
+
+    async def _persist_operation(
+        self, operation: Operation
+    ) -> EncryptedEnvelope | None:
+        """Encrypt and persist an operation to relay storage.
+
+        Returns:
+            The encrypted envelope that was saved, or ``None`` when an envelope
+            with the same id was already present.
+        """
         if self._relay_storage.envelope_exists(operation.id):
             return None
 
@@ -145,15 +195,17 @@ class WorkspaceStore:
             timestamp=operation.envelope.timestamp,
         )
         self._relay_storage.save_envelope(envelope)
+        return envelope
 
-        conn = await self._ensure_connection()
+    def _apply_to_derived(
+        self, conn: sqlite3.Connection, operation: Operation
+    ) -> None:
+        """Apply an operation to the derived database and record its id."""
         apply_operation(conn, operation)
         conn.execute(
             "INSERT OR IGNORE INTO applied_operation_id (id) VALUES (?)",
             (operation.id,),
         )
-        conn.commit()
-        return envelope
 
     async def sync(self) -> None:
         """Fetch all operations from the relay and apply them idempotently.
