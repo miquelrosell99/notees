@@ -1,10 +1,11 @@
 /**
  * SQLite-backed full-text search over the derived search_index table.
  *
- * Note: sql.js is compiled without the FTS5 extension, so this module emulates
- * full-text search by tokenising the query and joining the search_index table
- * with LIKE conditions. A production build that links a full SQLite with FTS5
- * can replace the LIKE logic with a VIRTUAL TABLE query without changing callers.
+ * sql.js ships with the FTS4 extension, so we use a real FTS4 virtual table
+ * (see frontend/src/core/db/schema.ts). This gives tokenisation, prefix
+ * matching, and ranked results without recompiling the WASM build. If we ever
+ * switch to a custom SQLite build with FTS5, only the ranking formula below
+ * needs to change; callers stay the same.
  */
 
 import { queryAll } from '../db/sqlite';
@@ -32,13 +33,63 @@ function tokenise(query: string): string[] {
     .filter((t) => t.length > 0);
 }
 
+function buildMatchExpression(terms: string[]): string {
+  // Build an FTS4 MATCH expression with implicit AND and prefix wildcards.
+  // We strip characters that the unicode61 tokenizer treats as token
+  // separators (quotes, parentheses, etc.) so user input cannot accidentally
+  // trigger FTS4 query syntax such as OR / NEAR / NOT.
+  return terms
+    .map((term) => term.replace(/[^\p{L}\p{N}_']/gu, ''))
+    .filter((term) => term.length > 0)
+    .map((term) => `${term}*`)
+    .join(' ');
+}
+
 /**
- * Search node plaintext in the derived search_index table.
+ * Compute a TF-IDF-style score from an FTS4 matchinfo('pcx') blob.
  *
- * - Empty or whitespace-only queries return no results (same behaviour as the
- *   previous MiniSearch implementation).
- * - Results are ranked by the number of matched terms; this is a coarse
- *   substitute for FTS5 ranking.
+ * The blob layout is:
+ *   [p, c, x0, x1, ..., x(p*c*3 - 1)]
+ * where:
+ *   p = number of phrases in the query
+ *   c = number of columns in the FTS table
+ *   x[i*3 + 0] = hits in this row/column for phrase i
+ *   x[i*3 + 1] = hits across all rows/columns for phrase i
+ *   x[i*3 + 2] = rows with hits for phrase i
+ *
+ * Values are 32-bit unsigned integers in little-endian byte order.
+ */
+function scoreFromMatchinfo(mi: Uint8Array, totalDocs: number): number {
+  const view = new DataView(mi.buffer, mi.byteOffset, mi.byteLength);
+  const ints: number[] = [];
+  for (let i = 0; i < mi.byteLength / 4; i++) {
+    ints.push(view.getUint32(i * 4, true));
+  }
+
+  const phraseCount = ints[0];
+  const columnCount = ints[1];
+  let score = 0;
+
+  for (let phrase = 0; phrase < phraseCount; phrase++) {
+    for (let col = 0; col < columnCount; col++) {
+      const idx = 2 + (phrase * columnCount + col) * 3;
+      const thisDocHits = ints[idx];
+      const docsWithHits = ints[idx + 2];
+      if (thisDocHits === 0) continue;
+      const idf = Math.log((totalDocs + 1) / (docsWithHits + 1)) + 1;
+      score += thisDocHits * idf;
+    }
+  }
+
+  return score;
+}
+
+/**
+ * Search node plaintext using the FTS4 search_index virtual table.
+ *
+ * - Empty or whitespace-only queries return no results.
+ * - Terms are prefix-matched by default ("proj" matches "project").
+ * - Results are ranked by a TF-IDF score derived from matchinfo().
  */
 export function searchNodes(
   store: WorkspaceStore,
@@ -53,14 +104,9 @@ export function searchNodes(
     return [];
   }
 
-  const where: string[] = ['n.workspace_id = ?'];
-  const params: (string | number)[] = [workspaceId];
-
-  // Text match: every term must appear somewhere in the indexed content.
-  for (let i = 0; i < terms.length; i++) {
-    where.push(`LOWER(si.content) LIKE ?`);
-    params.push(`%${terms[i]}%`);
-  }
+  const matchExpr = buildMatchExpression(terms);
+  const where: string[] = ['n.workspace_id = ?', 'si.content MATCH ?'];
+  const params: (string | number)[] = [workspaceId, matchExpr];
 
   if (filters.isPage !== undefined) {
     where.push('n.kind = ?');
@@ -71,7 +117,6 @@ export function searchNodes(
     where.push(filters.isClass ? "n.kind = 'class'" : "n.kind != 'class'");
   }
 
-  // classUuids filter uses the class_ids JSON array.
   if (filters.classUuids && filters.classUuids.length > 0) {
     const clauses: string[] = [];
     for (const classUuid of filters.classUuids) {
@@ -85,22 +130,23 @@ export function searchNodes(
   // schema yet (tags are not migrated per compileToSqlite docs). They are
   // intentionally ignored here so callers do not get empty result sets.
 
+  const totalDocsRow = db.exec('SELECT COUNT(*) FROM search_index')[0];
+  const totalDocs = (totalDocsRow?.values[0]?.[0] as number | undefined) ?? 0;
+
   const sql = `
-    SELECT n.id, si.content
-    FROM node n
-    JOIN search_index si ON si.node_id = n.id
+    SELECT n.id, matchinfo(search_index, 'pcx') AS mi
+    FROM search_index si
+    JOIN node n ON n.id = si.node_id
     WHERE ${where.join(' AND ')}
-    ORDER BY n.id
   `;
 
-  const rows = queryAll<{ id: string; content: string }>(db, sql, params);
+  const rows = queryAll<{ id: string; mi: Uint8Array }>(db, sql, params);
 
-  return rows.map((row) => {
-    const content = row.content.toLowerCase();
-    let matches = 0;
-    for (const term of terms) {
-      if (content.includes(term)) matches++;
-    }
-    return { id: row.id, score: matches };
-  });
+  const results: SearchResult[] = rows.map((row) => ({
+    id: row.id,
+    score: scoreFromMatchinfo(row.mi, totalDocs),
+  }));
+
+  results.sort((a, b) => b.score - a.score);
+  return results;
 }

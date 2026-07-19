@@ -113,7 +113,7 @@ The ideal spec uses **operation-based CRDTs** (Yjs/YATA/RGA for sequences, LWW r
 | Current | Ideal |
 |---|---|
 | IndexedDB-based `localNodeStore` mirrors server nodes for offline fallback. `frontend/src/features/sync/local/localNodeStore.ts:1-131` | SQLite per workspace is the primary store, not a fallback. Spec §4.1 |
-| `MiniSearch` index persisted to IndexedDB for offline search. `frontend/src/features/sync/local/searchIndex.ts:1-381` | SQLite FTS5 virtual table. Spec §4.1, §9.2 |
+| `MiniSearch` index persisted to IndexedDB for offline search. `frontend/src/features/sync/local/searchIndex.ts:1-381` | SQLite FTS4 virtual table. Spec §4.1, §9.2 (FTS4 is used because the sql.js build ships with it; FTS5 would require a custom WASM compilation). |
 | Outbox persisted in IndexedDB via `operationStorage.ts`. `frontend/src/lib/operationStorage.ts:1-174` | Outbox lives in SQLite `operation` table. Spec §4.1 |
 | `sql.js` is only used for Logseq import parsing. `frontend/src/utils/logseqSqliteParser.ts` | sql.js/OPFS becomes the primary local database engine. Spec §4.1, §14.2 |
 

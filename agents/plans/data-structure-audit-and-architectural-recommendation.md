@@ -245,7 +245,7 @@ This powers backlinks, graph view, class queries, and filtered collections. Beca
 | `edges` | Derived link/property graph |
 | `properties` | Property schemas and values |
 | `classes` | Type/class definitions |
-| `search_index` | FTS5 index over derived block text |
+| `search_index` | FTS4 index over derived node text (FTS4 is shipped with sql.js; avoids a custom WASM build) |
 | `blobs` | Content-addressed attachments |
 
 **Server role: sync + backup, not primary storage**
@@ -1142,17 +1142,25 @@ Rationale: Datalog is powerful but adds a second query language to document, sec
 
 ### 11.7 Search Strategy
 
-Full-text search uses SQLite FTS5:
+Full-text search uses SQLite **FTS4** rather than FTS5:
 
 ```sql
-CREATE VIRTUAL TABLE search_index USING fts5(
-  node_id UNINDEXED,
+CREATE VIRTUAL TABLE search_index USING fts4(
+  node_id,
   content,
-  tokenize='porter unicode61'
+  notindexed=node_id,
+  tokenize=unicode61
 );
 ```
 
-Indexed content includes node display names, block inline text, property text values, and class/property schema names.
+**Why FTS4 instead of FTS5?**
+
+- The sql.js build that ships with the frontend includes **FTS4 by default**.
+- FTS5 would require recompiling sql.js with Emscripten, adding a heavy build-time dependency and custom WASM artifact.
+- FTS4 provides tokenisation, prefix matching (`term*`), and ranked `matchinfo()` scoring — enough for a high-quality local-first search experience.
+- If a future custom SQLite/WASM build is justified, the schema can be upgraded to FTS5; callers remain unchanged.
+
+Indexed content includes node display names and block inline text. Property text values and class/property schema names can be added to the index later.
 
 Vector/semantic search is out of scope for the ideal core. It can be added later as an optional plugin or index.
 
@@ -1621,7 +1629,7 @@ Everything else — task, journal, image, person, project — is a user-defined 
 - `node_child_order` — normalized CRDT sequence positions for children ordering
 - `property_value` — derived property values
 - `edge` — derived reference/property graph
-- `search_index` — FTS5 search index
+- `search_index` — FTS4 search index
 - `blob` directory — content-addressed files
 
 ### Server Storage (PostgreSQL)
@@ -1644,7 +1652,7 @@ Everything else — task, journal, image, person, project — is a user-defined 
 
 - QueryAST compiles to SQLite SQL.
 - Live query blocks embed dynamic QueryAST results in pages.
-- FTS5 for full-text search.
+- FTS4 for full-text search (because sql.js ships with FTS4; FTS5 would require a custom WASM build).
 
 ### Collaboration
 
@@ -1705,3 +1713,79 @@ To move from the current Notees architecture to this ideal design, the following
 ---
 
 This concludes the ideal design phase. The full working document is ready to be distilled into a formal design spec.
+
+---
+
+## Part 16 — Search Implementation Decision
+
+### 16.1 FTS5 vs FTS4 vs MiniSearch
+
+The ideal design originally specified **FTS5** for client-side full-text search. During implementation we evaluated three options against the actual sql.js build used by the frontend:
+
+| Option | Verdict | Reason |
+|---|---|---|
+| **FTS5** | Rejected | sql.js is compiled without FTS5. Enabling it requires rebuilding sql.js with Emscripten and maintaining a custom WASM artifact. |
+| **MiniSearch** | Rejected | Already a dependency, but it would create a second index that must be kept in sync with SQLite derived state. Adds state and complexity for no clear gain. |
+| **FTS4** | **Chosen** | Ships with sql.js. Provides tokenisation, prefix matching, and ranked scoring via `matchinfo()`. No extra dependencies or sync logic. |
+
+### 16.2 Schema
+
+```sql
+CREATE VIRTUAL TABLE search_index USING fts4(
+  node_id,
+  content,
+  notindexed=node_id,
+  tokenize=unicode61
+);
+```
+
+- `node_id` is stored but not tokenised, so it is searchable only as a row key.
+- `content` holds derived plaintext from node inline AST.
+- `unicode61` gives case-insensitive, diacritic-folded, Unicode-aware tokenisation.
+
+### 16.3 Update Strategy
+
+`reindexNode` uses `INSERT OR REPLACE INTO search_index(docid, node_id, content) ...` so existing rows are updated in place without dropping and recreating the whole index.
+
+### 16.4 Query Strategy
+
+User queries are tokenised, stripped of FTS4 separator characters, and each term gets a prefix wildcard:
+
+- Input: `Project planning`
+- MATCH expression: `project* planning*`
+
+Ranking uses `matchinfo(search_index, 'pcx')` to compute a TF-IDF-style score in JavaScript. Results are ordered by score descending.
+
+### 16.5 Migration Path
+
+Existing client databases created with the legacy plain `search_index` table are migrated automatically:
+
+1. `migrateSchema` detects a non-virtual `search_index` table.
+2. Drops the old table and creates the FTS4 virtual table.
+3. Re-indexes all active nodes from the `node.content` column.
+
+`PRAGMA user_version` tracks the migration; new databases get the FTS4 table directly from `createSchema`.
+
+### 16.6 Files Changed
+
+- `frontend/src/core/db/schema.ts` — `search_index` is now an FTS4 virtual table; migration from legacy plain table added.
+- `frontend/src/core/derived/search.ts` — uses `INSERT OR REPLACE` with `docid` for FTS4-compatible updates.
+- `frontend/src/core/query/search.ts` — uses `MATCH` with `matchinfo()` ranking instead of `LIKE`.
+- `frontend/src/core/query/__tests__/search.test.ts` — added ranking, Unicode, and multi-term tests.
+
+### 16.7 Verification
+
+- `cd frontend && npm run test:run src/core/query/__tests__/search.test.ts` → 9 passed.
+- `cd frontend && npm run test:run` → 542 passed.
+- `cd frontend && npm run lint` → 0 errors (5 pre-existing warnings).
+- `cd frontend && npx tsc -b --noEmit` → clean.
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 341 passed, 3 skipped.
+
+### 16.8 Future Path to FTS5
+
+If a custom sql.js build with FTS5 ever becomes worthwhile, the change is confined to:
+
+1. Replacing the `CREATE VIRTUAL TABLE` statement.
+2. Replacing the `matchinfo()` ranking formula with FTS5's built-in `rank`.
+
+Callers and the reindexing strategy remain unchanged.

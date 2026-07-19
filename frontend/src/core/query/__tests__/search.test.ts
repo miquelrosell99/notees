@@ -78,6 +78,37 @@ describe('searchNodes', () => {
     expect(results.map((r) => r.id)).toContain('n2');
   });
 
+  it('ranks documents with more hits higher', async () => {
+    const store = await makeStore();
+    createPage(store, 'n1', 'project');
+    createPage(store, 'n2', 'project project project');
+
+    const results = searchNodes(store, 'project');
+    expect(results.map((r) => r.id)).toEqual(['n2', 'n1']);
+    expect(results[0].score).toBeGreaterThan(results[1].score);
+  });
+
+  it('supports unicode tokenisation with diacritic folding', async () => {
+    const store = await makeStore();
+    createPage(store, 'n1', 'Café naïve');
+    createPage(store, 'n2', 'Regular cafe');
+
+    const results = searchNodes(store, 'café');
+    expect(results.map((r) => r.id)).toContain('n1');
+    // unicode61 folds diacritics, so café also matches cafe.
+    expect(results.map((r) => r.id)).toContain('n2');
+  });
+
+  it('requires all query terms to match', async () => {
+    const store = await makeStore();
+    createPage(store, 'n1', 'project planning');
+    createPage(store, 'n2', 'project management');
+
+    const results = searchNodes(store, 'project planning');
+    expect(results.map((r) => r.id)).toContain('n1');
+    expect(results.map((r) => r.id)).not.toContain('n2');
+  });
+
   it('returns empty results for an empty query', async () => {
     const store = await makeStore();
     createPage(store, 'n1', 'Hello');
