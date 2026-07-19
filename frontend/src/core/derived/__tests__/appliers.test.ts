@@ -476,3 +476,77 @@ describe('plugin applier', () => {
     expect(row?.count).toBe(1);
   });
 });
+
+describe('alias applier', () => {
+  it('records an alias relationship', async () => {
+    const { store } = await createStore();
+    const canonicalId = uuidv7();
+    const aliasId = uuidv7();
+    store.createNode({ nodeId: canonicalId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: aliasId, kind: 'page', parentId: null });
+
+    store.addAlias(canonicalId, aliasId);
+
+    const row = queryOne<{ canonical_node_id: string }>(
+      store.getDb(),
+      'SELECT canonical_node_id FROM node_alias WHERE alias_node_id = ?',
+      [aliasId]
+    );
+    expect(row?.canonical_node_id).toBe(canonicalId);
+  });
+
+  it('removes an alias relationship', async () => {
+    const { store } = await createStore();
+    const canonicalId = uuidv7();
+    const aliasId = uuidv7();
+    store.createNode({ nodeId: canonicalId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: aliasId, kind: 'page', parentId: null });
+    store.addAlias(canonicalId, aliasId);
+
+    store.removeAlias(canonicalId, aliasId);
+
+    const row = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM node_alias WHERE alias_node_id = ?',
+      [aliasId]
+    );
+    expect(row?.count).toBe(0);
+  });
+
+  it('cleans up alias rows when the alias node is deleted', async () => {
+    const { store } = await createStore();
+    const canonicalId = uuidv7();
+    const aliasId = uuidv7();
+    store.createNode({ nodeId: canonicalId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: aliasId, kind: 'page', parentId: null });
+    store.addAlias(canonicalId, aliasId);
+
+    store.deleteNode(aliasId);
+
+    const row = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?',
+      [aliasId, aliasId]
+    );
+    expect(row?.count).toBe(0);
+  });
+
+  it('cleans up alias rows when the canonical node is deleted', async () => {
+    const { store } = await createStore();
+    const canonicalId = uuidv7();
+    const aliasId = uuidv7();
+    store.createNode({ nodeId: canonicalId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: aliasId, kind: 'page', parentId: null });
+    store.addAlias(canonicalId, aliasId);
+
+    store.deleteNode(canonicalId);
+
+    const row = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?',
+      [canonicalId, canonicalId]
+    );
+    expect(row?.count).toBe(0);
+  });
+
+});
