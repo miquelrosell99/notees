@@ -24,8 +24,6 @@ from app.domain.entities import (
     PropertyValueRelation,
     PropertyValueScalar,
     PropertyValueSelection,
-    TaskCompletion,
-    TaskRecurrence,
     User,
     generate_uuid,
 )
@@ -33,7 +31,6 @@ from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
 from app.domain.entities.share import PublicShare
 from app.domain.node_flags import compute_node_flags
 from app.domain.ports import EmailSender, InviteEmailResult
-from app.features.tasks.port import TaskCompletionRepository, TaskRecurrenceRepository
 from app.utils import utc_now_iso
 
 
@@ -721,57 +718,6 @@ class FakeNodeRepository:
 
     async def count_active_day_descendants(self, node_id: int) -> int:
         return 0
-
-
-class FakeTaskRecurrenceRepository(TaskRecurrenceRepository):
-    """In-memory recurrence rule store for domain-level tests."""
-
-    def __init__(self) -> None:
-        self._rules: dict[int, TaskRecurrence] = {}
-
-    async def get_by_task(self, task_node_id: int) -> TaskRecurrence | None:
-        return self._rules.get(task_node_id)
-
-    async def upsert(self, data: TaskRecurrence) -> TaskRecurrence:
-        self._rules[data.task_node_id] = data
-        return data
-
-    async def delete(self, task_node_id: int) -> bool:
-        return self._rules.pop(task_node_id, None) is not None
-
-
-class FakeTaskCompletionRepository(TaskCompletionRepository):
-    """In-memory completion history store for domain-level tests."""
-
-    def __init__(self) -> None:
-        self._records: list[TaskCompletion] = []
-
-    async def list_by_task(
-        self, task_node_id: int, limit: int = 50, offset: int = 0
-    ) -> list[TaskCompletion]:
-        matching = [c for c in self._records if c.task_node_id == task_node_id]
-        matching.sort(key=lambda c: c.completed_at, reverse=True)
-        return matching[offset : offset + limit]
-
-    async def create(self, completion: TaskCompletion) -> TaskCompletion:
-        completion.id = len(self._records) + 1
-        self._records.append(completion)
-        return completion
-
-    async def count_by_task(self, task_node_id: int) -> int:
-        return sum(1 for c in self._records if c.task_node_id == task_node_id)
-
-    async def get_by_uuid(self, completion_uuid: str) -> TaskCompletion | None:
-        """Get a completion record by its public UUID."""
-        for record in self._records:
-            if record.uuid == completion_uuid:
-                return record
-        return None
-
-    async def delete(self, completion_id: int) -> bool:
-        before = len(self._records)
-        self._records = [c for c in self._records if c.id != completion_id]
-        return len(self._records) < before
 
 
 class FakePropertyRepository:
