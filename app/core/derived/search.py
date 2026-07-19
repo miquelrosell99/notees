@@ -27,9 +27,11 @@ def reindex_node(conn: sqlite3.Connection, node_id: str) -> None:
         return
     content = json.loads(row[0])
     plaintext = extract_plaintext(content)
-    conn.execute("DELETE FROM search_index WHERE node_id = ?", (node_id,))
-    if plaintext:
-        conn.execute(
-            "INSERT INTO search_index (node_id, content) VALUES (?, ?)",
-            (node_id, plaintext),
-        )
+    if not plaintext:
+        conn.execute("DELETE FROM search_index WHERE node_id = ?", (node_id,))
+        return
+    conn.execute(
+        """INSERT OR REPLACE INTO search_index(docid, node_id, content)
+           VALUES ((SELECT docid FROM search_index WHERE node_id = ?), ?, ?)""",
+        (node_id, node_id, plaintext),
+    )
