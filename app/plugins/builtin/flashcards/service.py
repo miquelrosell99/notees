@@ -32,13 +32,13 @@ class FlashcardService:
 
     async def create_flashcard(
         self,
-        node_id: int,
+        node_uuid: str,
         front_text: str,
         back_text: str,
     ) -> FlashcardData:
         """Create a flashcard record for the given card node."""
         card = await self._repo.create(
-            node_id=node_id,
+            node_uuid=node_uuid,
             workspace_id=self._workspace_id,
             user_id=self._user_id,
             front_text=front_text,
@@ -46,15 +46,15 @@ class FlashcardService:
         )
         return card
 
-    async def get_by_node_id(self, node_id: int) -> FlashcardData | None:
+    async def get_by_node_uuid(self, node_uuid: str) -> FlashcardData | None:
         """Return the flashcard for a node."""
-        return await self._repo.get_by_node_id(node_id)
+        return await self._repo.get_by_node_uuid(node_uuid)
 
     async def get_due_cards(self, limit: int = 100) -> list[FlashcardData]:
         """Return cards due for review."""
         return await self._repo.get_due_cards(self._workspace_id, self._user_id, limit)
 
-    async def review_card(self, node_id: int, grade: int) -> FlashcardData:
+    async def review_card(self, node_uuid: str, grade: int) -> FlashcardData:
         """Grade a card and update its SM-2 schedule.
 
         Grade mapping (0-5):
@@ -65,9 +65,9 @@ class FlashcardService:
         4 = correct with hesitation
         5 = perfect response
         """
-        card = await self._repo.get_by_node_id(node_id)
+        card = await self._repo.get_by_node_uuid(node_uuid)
         if not card:
-            raise ValueError(f"Flashcard not found for node {node_id}")
+            raise ValueError(f"Flashcard not found for node {node_uuid}")
 
         now = datetime.now(UTC)
         ease_factor = card.ease_factor
@@ -95,7 +95,7 @@ class FlashcardService:
 
         due_date = now + timedelta(days=interval_days)
         await self._repo.update_srs(
-            node_id=node_id,
+            node_uuid=node_uuid,
             ease_factor=ease_factor,
             interval_days=interval_days,
             repetitions=repetitions,
@@ -103,7 +103,7 @@ class FlashcardService:
             due_date=due_date,
             last_reviewed_at=now,
         )
-        updated = await self._repo.get_by_node_id(node_id)
+        updated = await self._repo.get_by_node_uuid(node_uuid)
         if not updated:
             raise RuntimeError("Flashcard disappeared after review")
         return updated

@@ -10,8 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class FlashcardCreateRequest(BaseModel):
     """Create a flashcard from an existing card-class node."""
 
-    node_id: int | None = Field(None, ge=1)
-    node_uuid: str | None = None
+    node_uuid: str
     front_text: str = Field(..., min_length=0)
     back_text: str = Field(..., min_length=0)
 
@@ -29,7 +28,6 @@ class FlashcardResponse(BaseModel):
 
     id: int
     uuid: str
-    node_id: int
     node_uuid: str
     front_text: str
     back_text: str

@@ -14,7 +14,7 @@ class FlashcardData:
 
     id: int
     uuid: str
-    node_id: int
+    node_uuid: str
     workspace_id: int
     user_id: int
     front_text: str
@@ -36,7 +36,7 @@ class FlashcardRepository(ABC):
     @abstractmethod
     async def create(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         user_id: int,
         front_text: str,
@@ -46,8 +46,8 @@ class FlashcardRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_by_node_id(self, node_id: int) -> FlashcardData | None:
-        """Fetch flashcard by node ID."""
+    async def get_by_node_uuid(self, node_uuid: str) -> FlashcardData | None:
+        """Fetch flashcard by node UUID."""
         pass
 
     @abstractmethod
@@ -63,7 +63,7 @@ class FlashcardRepository(ABC):
     @abstractmethod
     async def update_srs(
         self,
-        node_id: int,
+        node_uuid: str,
         ease_factor: float,
         interval_days: int,
         repetitions: int,
@@ -75,7 +75,7 @@ class FlashcardRepository(ABC):
         pass
 
     @abstractmethod
-    async def delete(self, node_id: int) -> None:
+    async def delete(self, node_uuid: str) -> None:
         """Delete flashcard for node."""
         pass
 
