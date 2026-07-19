@@ -442,11 +442,82 @@ A focused pass over four remaining feature islands that were still partially tie
 
 ```bash
 uv run pytest tests/core tests/unit -m unit --no-cov -q
-# 361 passed, 3 skipped, 6 deselected, 1 warning
+# 367 passed, 3 skipped, 6 deselected, 1 warning
 
 cd frontend && npm run test:run
-# 82 files, 547 tests passed
+# 83 files, 552 tests passed
 ```
+
+---
+
+## Phase 7 Port Remaining Islands (Completed)
+
+A second pass ported or cleaned up the larger feature islands that still had legacy PostgreSQL artifacts.
+
+### G5 — Tasks
+
+- Confirmed the tasks router/service already operate on `WorkspaceStore` (recurrence rules and completion history are operation-log operations).
+- Removed dead legacy code:
+  - `app/features/tasks/port.py`
+  - `app/features/tasks/repository.py`
+  - `app/features/tasks/repository_completion.py`
+  - Unused dependency factories in `app/features/tasks/dependencies.py`
+  - Dead fake task repositories in `tests/fakes.py`
+
+**Verification:** `uv run pytest tests/core/test_tasks_router.py -m unit --no-cov -v` → 11 passed.
+
+### G6 — Assets
+
+- Confirmed the assets router/service already operate on `WorkspaceStore` (asset metadata is an operation-log operation; files are content-addressed on disk).
+- Removed dead legacy code:
+  - `app/features/assets/port.py`
+  - `app/features/assets/repository.py`
+  - Exports in `app/features/assets/__init__.py`
+
+**Verification:** `uv run pytest tests/core/test_assets_router.py -m unit --no-cov -v` → 9 passed.
+
+### G7 — Shares, Activity, Undo
+
+- **Shares**: public share links and node-level user shares remain in PostgreSQL because they are server-side authorization metadata used by the relay permission checker. No code changes; the architecture decision is now documented.
+- **Activity**: router already reads/writes via `WorkspaceStore`; removed unused `ActivityRepository` port and PostgreSQL implementation.
+- **Undo**: server-side undo is deprecated (router returns 410 Gone); removed unused `UndoRepository`, `PostgresUndoRepository`, `UndoService`, and undo dependency factories.
+
+**Verification:** `uv run pytest tests/core/test_undo_router.py tests/core/test_shares_router.py -m unit --no-cov -v` → 14 passed.
+
+### G8 — Frontend Runtime Overlay
+
+- Verified `frontend/src/runtime/` and `frontend/src/features/sync/local/` no longer exist.
+- Verified `useContentSave` is the new core WorkspaceStore bridge, not legacy runtime code.
+- No further cleanup needed.
+
+---
+
+## Phase 8 — Relay Snapshots and Compaction (Completed)
+
+Implemented real snapshot-based catch-up so long-lived workspaces do not need to replay the entire operation log on startup.
+
+- Added `get_max_hlc` and `get_latest_snapshot` to `RelayStorage` port and both SQLite/PostgreSQL implementations.
+- Updated `create_snapshot` to store serialized derived SQLite state in `relay_snapshot.data`.
+- Added `WorkspaceStore.create_snapshot()` that serializes the derived DB and persists it.
+- Modified `WorkspaceStore.sync()` to restore from the latest snapshot and replay only operations newer than the snapshot HLC.
+- Updated the local HLC clock from the maximum seen HLC after catch-up.
+- Added `tests/core/test_relay_storage.py` and extended `tests/core/test_workspace_store.py`.
+
+**Verification:** `uv run pytest tests/core/test_workspace_store.py tests/core/test_relay_router.py tests/core/test_relay_storage.py tests/core/test_relay_postgres_storage.py -m unit --no-cov -v` → 29 passed.
+
+---
+
+## Phase 9 — OPFS/sql.js Validation and Offline Hardening (Completed)
+
+Hardened the frontend local-first storage layer against eviction and initialization failures.
+
+- Added `frontend/src/core/persistence/storagePersistence.ts` with `requestPersistentStorage()` and `isPersisted()` wrapping `navigator.storage.persist()` / `persisted()`.
+- Wrapped sql.js initialization in `frontend/src/core/db/connection.ts` with clear error messages and `getSqlInitError()` diagnostics.
+- Added `StorageError`, `validateIndexedDb()`, and explicit error handling in `frontend/src/core/persistence/indexedDb.ts`.
+- `frontend/src/App.tsx` now requests persistent storage on init, warns if denied, and surfaces sql.js wasm failures via toast notifications.
+- Added `frontend/src/core/persistence/__tests__/storagePersistence.test.ts`.
+
+**Verification:** `cd frontend && npm run test:run src/core/persistence` → 12 passed.
 
 ---
 
@@ -466,26 +537,30 @@ This section tracks what has been replaced, what is now better, and what still d
 | Date ranges | Legacy format in PostgreSQL, no normalization | Canonical normalized shape in migration | **Fixed** |
 | Batch mutations | Per-request API calls | `WorkspaceStore.apply_many()` + local-first loops | **Better** |
 | Comments | Legacy comment service | Comment-class blocks in local SQLite store, reply UI | **Better** |
-| Tasks | `app/features/tasks/` still uses PostgreSQL node rows | **Not yet ported** | Gap |
-| Assets | `app/features/assets/` still uses PostgreSQL node rows | **Not yet ported** | Gap |
-| Shares/activity/undo | Legacy services | **Not yet ported** | Gap |
-| Frontend runtime overlay | `frontend/src/runtime/` still used by some editor paths | **Partially removed** | Gap |
+| Tasks | Legacy recurrence/completion repositories | Operation-log operations via `WorkspaceStore` | **Fixed** |
+| Assets | Legacy `AssetRepository` in PostgreSQL | Operation-log + content-addressed filesystem | **Fixed** |
+| Activity | Legacy `ActivityRepository` | Operation-log derived `activity_log` table | **Fixed** |
+| Undo | Server-side undo stack | Client-side inverse operations (router returns 410) | **Fixed** |
+| Shares | Mixed | Public links + node shares stay in PostgreSQL by design (authorization metadata) | **By design** |
+| Frontend runtime overlay | `frontend/src/runtime/` overlay | Removed; `useContentSave` is core bridge | **Fixed** |
+| Snapshots/compaction | Not implemented | Snapshot-based catch-up + compaction endpoints implemented | **Fixed** |
+| Offline hardening | Basic IndexedDB | Persistent storage request, sql.js error handling, validation | **Fixed** |
 | Legacy code deletion | `app/features/nodes/`, `app/features/properties/` still exist | **Kept as compatibility shim** | Phase 8 work |
 
 ### Remaining Architectural Gaps
 
-1. **Tasks, assets, shares, activity, undo** still read/write through the legacy `node` table. They need to be retargeted to the operation-log core or removed if superseded.
-2. **Frontend runtime overlay** (`frontend/src/runtime/`) and local query helpers (`frontend/src/features/sync/local/`) are still imported in places. Complete cut-over to `frontend/src/core/` is Phase 8.
-3. **Snapshots/compaction** for the relay operation log are designed but not implemented; long-lived workspaces will need this for startup performance.
-4. **OPFS/sql.js browser validation** and PWA offline hardening remain Phase 9 work.
-5. **Cross-workspace references** are forbidden by policy but not yet enforced in code.
+1. **Legacy code deletion**: `app/features/nodes/`, `app/features/properties/`, and the PostgreSQL `node` table still exist as a compatibility shim for any remaining unported code paths. They can be removed once a full audit confirms no consumers remain.
+2. **Cross-workspace references** are forbidden by policy but not yet enforced in code.
+3. **E2E smoke tests** against the Docker Compose stack are not yet automated.
+4. **Production hardening**: relay rate limits, key rotation UX, and member removal workflows are implemented but could benefit from dedicated load/security testing.
 
 ---
 
 ## Immediate Next Step
 
-Continue **Phase 7** (port remaining feature islands):
-- Port tasks and assets to the operation-log core using `PluginContext` helpers.
-- Retarget shares, activity, and undo to the relay/derived state.
-- Remove remaining frontend runtime dependencies.
-- Update `agents/plans/notees-phase7-plus-plan.md` as subphases complete.
+Phase 7–9 are complete. The next milestone is **Phase 10 — Final Cleanup and Release**:
+- Audit remaining consumers of `app/features/nodes/` and `app/features/properties/`.
+- Delete the legacy compatibility shim if no consumers remain.
+- Run E2E smoke tests against the Docker Compose dev stack.
+- Update user-facing docs and changelog.
+- Create the release milestone commit.
