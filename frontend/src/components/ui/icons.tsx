@@ -138,6 +138,10 @@ export const CommentIcon = ({ size = 'md', className, color, title }: IconProps)
   <Icon path="mdi-comment-text-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
+export const ReplyIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path="mdi-reply" size={getSize(size)} className={className} color={color} title={title} />
+);
+
 export const FlashcardIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-cards-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
