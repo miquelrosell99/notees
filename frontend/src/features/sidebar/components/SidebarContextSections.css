@@ -35,7 +35,50 @@
 
 /* Comments list — pull blocks flush with section edge */
 .sidebar-comments-list {
+  display: flex;
+  flex-direction: column;
   padding: var(--spacing-1) 0;
+}
+
+/* Individual comment row with reply affordance */
+.sidebar-comment-item {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-micro) var(--spacing-2);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.sidebar-comment-item:last-child {
+  border-bottom: none;
+}
+
+.sidebar-comment-item__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.sidebar-comment-item__name {
+  flex: 1;
+  min-width: 0;
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.sidebar-comment-item__name:hover {
+  color: var(--color-primary);
+}
+
+.sidebar-comment-item__reply {
+  padding-top: var(--spacing-1);
 }
 
 /* Header actions */

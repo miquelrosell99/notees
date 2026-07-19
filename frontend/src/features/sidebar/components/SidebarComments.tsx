@@ -1,25 +1,63 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { NodeViewSection } from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { TextField } from '@/components/ui/TextField';
-import { NodeCollection } from '@/features/content';
-import { CommentIcon, AddIcon } from '@/components/ui/icons';
+import { CommentIcon, AddIcon, ReplyIcon } from '@/components/ui/icons';
 import { useCreateComment } from '@/features/content';
 import type { Node } from '@/types/api';
 
+interface CommentItemProps {
+  comment: Node;
+  nodeUuid: string;
+  isReplying: boolean;
+  onReplyToggle: (commentUuid: string | null) => void;
+}
+
+function CommentItem({ comment, nodeUuid, isReplying, onReplyToggle }: CommentItemProps) {
+  const openNode = useNavigationStore((s) => s.openNode);
+
+  return (
+    <div className="sidebar-comment-item">
+      <div className="sidebar-comment-item__row">
+        <button
+          type="button"
+          className="sidebar-comment-item__name"
+          onClick={() => openNode(comment.uuid)}
+        >
+          {comment.name}
+        </button>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => onReplyToggle(isReplying ? null : comment.uuid)}
+          title={isReplying ? 'Cancel reply' : 'Reply'}
+        >
+          <ReplyIcon size="xs" />
+        </Button>
+      </div>
+      {isReplying && (
+        <div className="sidebar-comment-item__reply">
+          <QuickAddComment
+            nodeUuid={nodeUuid}
+            parentCommentUuid={comment.uuid}
+            placeholder="Reply..."
+            onClose={() => onReplyToggle(null)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface CommentsListProps {
+  nodeUuid: string;
   comments: Node[];
 }
 
-function CommentsList({ comments }: CommentsListProps) {
-  const openNode = useNavigationStore(s => s.openNode);
-
-  const collapsedComments = useMemo(
-    () => comments.map(c => ({ ...c, collapsed: !!(c.children && c.children.length > 0) })),
-    [comments]
-  );
+function CommentsList({ nodeUuid, comments }: CommentsListProps) {
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   if (comments.length === 0) {
     return (
@@ -31,27 +69,27 @@ function CommentsList({ comments }: CommentsListProps) {
 
   return (
     <div className="sidebar-comments-list">
-      <NodeCollection
-        nodes={collapsedComments}
-        viewMode="list"
-        groupBy="none"
-        editable={false}
-        sortable={false}
-        hideToolbar
-        showEmpty={false}
-        size="sm"
-        onNodeClick={(node) => openNode(node.uuid)}
-      />
+      {comments.map((comment) => (
+        <CommentItem
+          key={comment.uuid}
+          comment={comment}
+          nodeUuid={nodeUuid}
+          isReplying={replyingTo === comment.uuid}
+          onReplyToggle={setReplyingTo}
+        />
+      ))}
     </div>
   );
 }
 
 interface QuickAddCommentProps {
   nodeUuid: string;
+  parentCommentUuid?: string;
+  placeholder?: string;
   onClose: () => void;
 }
 
-function QuickAddComment({ nodeUuid, onClose }: QuickAddCommentProps) {
+function QuickAddComment({ nodeUuid, parentCommentUuid, placeholder, onClose }: QuickAddCommentProps) {
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const createComment = useCreateComment();
@@ -63,7 +101,7 @@ function QuickAddComment({ nodeUuid, onClose }: QuickAddCommentProps) {
   const handleSubmit = () => {
     if (!text.trim()) return;
     createComment.mutate(
-      { nodeUuid: nodeUuid, name: text.trim() },
+      { nodeUuid: nodeUuid, name: text.trim(), parentCommentUuid },
       { onSuccess: () => { setText(''); onClose(); } }
     );
   };
@@ -86,7 +124,7 @@ function QuickAddComment({ nodeUuid, onClose }: QuickAddCommentProps) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Add a comment..."
+        placeholder={placeholder ?? 'Add a comment...'}
         ref={inputRef}
         onBlur={() => { if (!text.trim()) onClose(); }}
         icon={
@@ -131,7 +169,7 @@ export function SidebarComments({ nodeUuid, comments, count, loading }: SidebarC
           <Button
             variant="ghost"
             size="xs"
-            onClick={() => setQuickAddOpen(v => !v)}
+            onClick={() => setQuickAddOpen((v) => !v)}
             title="Add comment"
           >
             <AddIcon size="xs" />
@@ -143,7 +181,7 @@ export function SidebarComments({ nodeUuid, comments, count, loading }: SidebarC
       {loading ? (
         <div className="sidebar-section-loading"><Spinner size="sm" centered /></div>
       ) : (
-        <CommentsList comments={comments} />
+        <CommentsList nodeUuid={nodeUuid} comments={comments} />
       )}
     </NodeViewSection>
   );
