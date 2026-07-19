@@ -13,6 +13,7 @@ import { applyLinkOperation } from './derived/link';
 import { applyShareOperation } from './derived/share';
 import { applyPluginOperation } from './derived/plugin';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
+import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from './derived/crdtState';
 import { createOperation, type Operation } from './types/operation';
 import { uuidv7 } from './uuid';
@@ -550,6 +551,27 @@ export class WorkspaceStore {
         opType: 'node.removeAlias',
       },
       { canonicalNodeId, aliasNodeId }
+    );
+    this.apply(op);
+  }
+
+  getNodeVersions(nodeId: string, limit?: number): ReturnType<typeof getNodeVersions> {
+    return getNodeVersions(this, nodeId, limit);
+  }
+
+  restoreNodeVersion(nodeId: string, versionId: string): void {
+    const content = getNodeVersionContent(this, nodeId, versionId);
+    if (!content) throw new Error(`Version ${versionId} not found for node ${nodeId}`);
+
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.updateContent',
+      },
+      { nodeId, content }
     );
     this.apply(op);
   }

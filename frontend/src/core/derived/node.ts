@@ -4,6 +4,20 @@ import { loadTextCrdt, saveTextCrdt } from './crdtState';
 import { reindexNode } from './search';
 import { queryAll, queryOne } from '../db/sqlite';
 
+function recordNodeVersion(
+  db: Database,
+  opId: string,
+  nodeId: string,
+  contentJson: string,
+  actorId: string,
+  createdAt: string
+): void {
+  db.run(
+    'INSERT OR REPLACE INTO node_version (id, node_id, content, actor_id, created_at) VALUES (?, ?, ?, ?, ?)',
+    [opId, nodeId, contentJson, actorId, createdAt]
+  );
+}
+
 function recomputeClassHierarchy(
   db: Database,
   classId: string,
@@ -78,6 +92,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
+    db.run('DELETE FROM node_version WHERE node_id = ?', [nodeId]);
   } else if (opType === 'node.delete') {
     const nodeId = payload.nodeId as string;
     db.run('DELETE FROM node WHERE id = ?', [nodeId]);
@@ -89,6 +104,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
+    db.run('DELETE FROM node_version WHERE node_id = ?', [nodeId]);
   } else if (opType === 'class.create') {
     const classId = payload.classId as string;
     db.run(
@@ -175,20 +191,24 @@ export function applyNodeOperation(db: Database, op: Operation): void {
       text.applyUpdate(textUpdate);
       saveTextCrdt(db, payload.nodeId as string, text);
       const ast = [{ type: 'text', text: text.toPlaintext() }];
+      const contentJson = JSON.stringify(ast);
       db.run('UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
-        JSON.stringify(ast),
+        contentJson,
         new Date().toISOString(),
         op.envelope.actorId,
         payload.nodeId as string,
       ]);
+      recordNodeVersion(db, op.envelope.id, payload.nodeId as string, contentJson, op.envelope.actorId, new Date().toISOString());
       reindexNode(db, payload.nodeId as string);
     } else if (payload.content) {
+      const contentJson = JSON.stringify(payload.content);
       db.run('UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
-        JSON.stringify(payload.content),
+        contentJson,
         new Date().toISOString(),
         op.envelope.actorId,
         payload.nodeId as string,
       ]);
+      recordNodeVersion(db, op.envelope.id, payload.nodeId as string, contentJson, op.envelope.actorId, new Date().toISOString());
       reindexNode(db, payload.nodeId as string);
     }
   }

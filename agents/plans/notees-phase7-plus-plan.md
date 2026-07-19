@@ -296,7 +296,7 @@ This section tracks functional and architectural gaps between the migrated local
 | **Graph view** | Server-computed graph nodes/links | Derived from SQLite `edge` + `node` tables | ✅ None |
 | **Comments** | Dedicated comment endpoints with threading | Reimplemented as child blocks with `comment` class | ⚠️ Threading/parent-comment hierarchy not yet modeled. |
 | **Aliases** | Get/add/remove page aliases | Implemented via `node.addAlias`/`removeAlias` operations and `node_alias` derived table | ✅ None |
-| **Version history** | List versions + restore previous version | Empty list; restore is no-op | ❌ **Not implemented.** Operation log could serve this in the future. |
+| **Version history** | List versions + restore previous version | Derived `node_version` table populated on `node.updateContent`; restore applies historical content as a new update | ✅ None |
 | **Templates** | List templates, extract variables, instantiate with variable substitution | Class-based templates; local variable parsing; simplified instantiation | ⚠️ Instantiation may not perfectly copy nested block structure. |
 | **Merge pages** | Move blocks, redirect backlinks, delete source | Moves children and archives source | ⚠️ **Backlink redirection missing.** |
 | **Date-format migration** | Batch rename day/month/year nodes | No-op | ❌ **Not implemented.** |
