@@ -338,8 +338,7 @@ ORDER BY {order_by_sql}"""
         if isinstance(condition, FlagCondition):
             return self._generate_flag_condition(condition)
         if isinstance(condition, TagCondition):
-            logger.warning("TagCondition is out of scope for the SQLite derived schema")
-            return None
+            return self._generate_tag_condition(condition)
         return None
 
     def _generate_class_condition(self, condition: ClassCondition) -> str | None:
@@ -363,6 +362,30 @@ ORDER BY {order_by_sql}"""
             f"WHERE value IN ({match_sql}))"
         )
         if operator == "does_not_contain":
+            return f"NOT ({exists})"
+        return exists
+
+    def _generate_tag_condition(self, condition: TagCondition) -> str | None:
+        """Tag conditions are class assignments in the ideal architecture."""
+        operator = condition.operator or "is"
+
+        if operator == "has_any_tag":
+            return "(json_array_length(n.class_ids) > 0)"
+        if operator == "has_no_tag":
+            return "(json_array_length(n.class_ids) = 0)"
+
+        uuids = condition.tag_uuids or []
+        if condition.tag_uuid:
+            uuids = [condition.tag_uuid]
+        if not uuids:
+            return None
+
+        placeholders = [self._add_param(u) for u in uuids]
+        exists = (
+            f"EXISTS (SELECT 1 FROM json_each(n.class_ids) "
+            f"WHERE value IN ({', '.join(placeholders)}))"
+        )
+        if operator == "is_not":
             return f"NOT ({exists})"
         return exists
 
