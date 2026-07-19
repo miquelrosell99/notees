@@ -14,6 +14,7 @@ import { applyShareOperation } from './derived/share';
 import { applyPluginOperation } from './derived/plugin';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
+import { rewriteLinksToTarget } from './query/mergePages';
 import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from './derived/crdtState';
 import { createOperation, type Operation } from './types/operation';
 import { uuidv7 } from './uuid';
@@ -574,6 +575,22 @@ export class WorkspaceStore {
       { nodeId, content }
     );
     this.apply(op);
+  }
+
+  mergePages(sourceId: string, targetId: string): void {
+    if (sourceId === targetId) throw new Error('Cannot merge a page into itself');
+
+    // Move all children from source to target.
+    const children = this.getChildren(sourceId);
+    for (const childId of children) {
+      this.moveNode(childId, targetId);
+    }
+
+    // Rewrite backlinks so references to source point to target.
+    rewriteLinksToTarget(this, sourceId, targetId);
+
+    // Archive the source page.
+    this.archiveNode(sourceId);
   }
 
   getClock(): Clock {
