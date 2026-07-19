@@ -39,7 +39,13 @@
 ### Phase 10 — Final documentation and release milestone
 
 - `AGENTS.md` and agent reference docs updated to reflect the completed migration.
-- This changelog entry finalized.
+- Added an idempotent schema migration for pre-existing flashcard tables: legacy `flashcard.node_id` is migrated to `flashcard.node_uuid`, ensuring fresh starts and upgraded dev databases both initialize cleanly.
+- Full verification run completed:
+  - `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 367 passed, 3 skipped.
+  - `cd frontend && npx tsc -b --noEmit && npm run lint` → clean (5 pre-existing warnings).
+  - `cd frontend && npm run test:run` → 83 test files / 552 tests passed.
+  - `npm run test:e2e` → 4/4 smoke tests passed.
+- Final milestone commit: `feat(core,relay,frontend): Notees 2.0 local-first migration complete`.
 
 ### Developer Notes
 

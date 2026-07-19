@@ -1,8 +1,8 @@
 # Notees Phase 7+ Plan: Port Remaining Islands and Finish the Migration
 
-**Date:** 2026-07-18  
+**Date:** 2026-07-19  
 **Branch:** `main`  
-**Status:** Phase 10 complete — migration finished  
+**Status:** Phase 10 complete — migration finished and verified  
 
 ## Goal
 
@@ -188,23 +188,29 @@ The E2E smoke suite is green, but the backend logs still show many 404s from the
 5. ✅ Importer callers — Removed the Logseq importer feature (`useLogseqImporter*.ts`, `useLogseqFolderImporter*.ts`, `ImportLogseqModal`, `ImportLogseqFolderModal`, plugin setup, and command registrations). `ImportOptionsModal.tsx` now offers JSON, Markdown, Markdown file, and plugin importers only. Parser utilities without `@/api/nodes` dependencies were kept for future re-implementation. Snapshot commit `735f71ee`.
 6. ✅ Basic node query hooks (`useNodeBasicQueries.ts`, `useNodeListQueries.ts`, `useNodeQueries.ts`, `useNodes.ts`, `useNodeAdapter.ts`, `useNodesAdapter.ts`, `useNodeChildrenAdapter.ts`) ported to the core store. Removed `useNodeMetadata`/`usePageContent` exports and the obsolete `ENABLE_SQLITE_STORE=false` legacy-delegation test in `nodeAdapter.test.tsx`. Committed `8267ee86`.
 7. ✅ Remaining `@/api/nodes` callers ported and `frontend/src/api/nodes.ts` deleted. Search/selectors/commands/routes/modals, views/graph/calendar/gantt, content island (comments, aliases, templates), share receiver, version sidebar, merge modal, and trash context menu all now use the core SQLite store. Committed `c92d3fd1`.
-8. ⏳ Final verification, documentation update, and milestone commit.
+8. ✅ Final verification, documentation update, and milestone commit completed in Phase 10.
 
 **Approach:** port to core store operations/mutations; do not add backward-compatibility shims. Remove dead code aggressively.
 
 **Verification:** after each group, run `npx tsc -b --noEmit`, `npm run lint`, `npm run test:run`, and `npm run test:e2e`.
 
-## Phase 10: Final Documentation and Release (in progress)
+## Phase 10: Final Documentation and Release (done)
 
 1. Update `AGENTS.md` to remove all legacy references — done.
-2. Update `docs/CHANGELOG.md` with Phase 7–10 notes — Phase 6–8 done; Phase 9/10 notes pending.
-3. Update agent reference docs — in progress:
+2. Update `docs/CHANGELOG.md` with Phase 7–10 notes — done. Added flashcard migration note and full verification results.
+3. Update agent reference docs — done:
    - `agents/data-model.md` — rewritten for operation-log architecture.
    - `agents/frontend.md` — updated data-flow and path aliases.
    - `agents/backend.md` — updated for core/relay and Phase 8 removal.
    - `agents/subsystems.md` — updated block-editor mutation flow.
-4. Update `compose.yaml` / `compose.dev.yaml` if any service dependencies changed.
-5. Final milestone commit: `feat(core,relay,frontend): Notees 2.0 local-first migration complete`.
+4. Update `compose.yaml` / `compose.dev.yaml` if any service dependencies changed — no changes required.
+5. Added idempotent schema migration in `app/db/schema/sql.py` to migrate legacy `flashcard.node_id` to `flashcard.node_uuid` for pre-existing databases.
+6. Final verification run:
+   - `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 367 passed, 3 skipped.
+   - `cd frontend && npx tsc -b --noEmit && npm run lint` → clean (5 pre-existing warnings).
+   - `cd frontend && npm run test:run` → 83 test files / 552 tests passed.
+   - `npm run test:e2e` → 4/4 smoke tests passed.
+7. Final milestone commit: `feat(core,relay,frontend): Notees 2.0 local-first migration complete`.
 
 ## Detailed Island Mapping (from Phase 7 audits)
 
