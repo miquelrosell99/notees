@@ -334,7 +334,7 @@ This section tracks functional and architectural gaps between the migrated local
 2. **Version history / restore** — expose the operation log as version points; restore by replaying to a selected HLC or applying an inverse content operation.
 3. **Merge pages backlink redirection** — add a bulk `node.updateContent` pass that rewrites `node_link` targets from source to target.
 4. **FTS5** — rebuild sql.js with FTS5 or use a custom WASM build for real full-text search.
-5. **README refresh** — rewrite `README.md` for the local-first architecture and remove stale `/api/nodes/*` references.
+5. ✅ **README refresh** — `README.md` rewritten for the local-first architecture; stale `/api/nodes/*` references removed.
 
 ## Verification Checklist
 
