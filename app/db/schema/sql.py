@@ -695,7 +695,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS flashcard (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
-    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    node_uuid UUID NOT NULL,
     workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     front_text TEXT NOT NULL DEFAULT '',
@@ -709,11 +709,11 @@ CREATE TABLE IF NOT EXISTS flashcard (
     active BOOLEAN NOT NULL DEFAULT TRUE,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (node_id)
+    UNIQUE (node_uuid)
 );
 
 CREATE INDEX IF NOT EXISTS idx_flashcard_workspace_due ON flashcard(workspace_id, user_id, due_date) WHERE active = TRUE;
-CREATE INDEX IF NOT EXISTS idx_flashcard_node ON flashcard(node_id);
+CREATE INDEX IF NOT EXISTS idx_flashcard_node ON flashcard(node_uuid);
 
 -- ============================================================
 -- NODE MENTIONS (UNLINKED MENTION CANDIDATES)

@@ -31,11 +31,26 @@ export function useUpdateNodeAdapter(): UseMutationResult<
       );
 
       if (data.name !== undefined && data.name !== null) {
-        store.updateText(nodeUuid, (text) => {
-          const current = text.toPlaintext();
-          text.delete(0, current.length);
-          text.insert(0, data.name as string);
-        });
+        const nameValue = data.name as string;
+        let parsedAst: unknown[] | null = null;
+        try {
+          const parsed = JSON.parse(nameValue);
+          if (Array.isArray(parsed)) {
+            parsedAst = parsed;
+          }
+        } catch {
+          // Not JSON; treat as plain text below.
+        }
+
+        if (parsedAst) {
+          store.updateContentAst(nodeUuid, parsedAst);
+        } else {
+          store.updateText(nodeUuid, (text) => {
+            const current = text.toPlaintext();
+            text.delete(0, current.length);
+            text.insert(0, nameValue);
+          });
+        }
       }
 
       if (data.is_page !== undefined) {
