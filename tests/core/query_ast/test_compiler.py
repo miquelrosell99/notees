@@ -30,6 +30,7 @@ from app.domain.entities.query_ast import (
     QueryAST,
     ReferenceCondition,
     ScopeNode,
+    TagCondition,
 )
 
 pytestmark = pytest.mark.unit
@@ -129,6 +130,20 @@ class TestCompilerExecution:
         conn = replay_operations(ops)
         ast = QueryAST(
             root_group=GroupNode(children=[ClassCondition(class_uuid="class-1")])
+        )
+        assert _execute(ast, conn) == ["page-1"]
+        conn.close()
+
+    def test_tag_condition_matches_class_assignment(self) -> None:
+        ops = [
+            _op("class.create", {"classId": "tag-1", "name": "Tag 1", "extends": []}),
+            _op("node.create", {"nodeId": "page-1", "kind": "page", "index": "0"}),
+            _op("class.assign", {"nodeId": "page-1", "classId": "tag-1"}),
+            _op("node.create", {"nodeId": "page-2", "kind": "page", "index": "0"}),
+        ]
+        conn = replay_operations(ops)
+        ast = QueryAST(
+            root_group=GroupNode(children=[TagCondition(tag_uuid="tag-1")])
         )
         assert _execute(ast, conn) == ["page-1"]
         conn.close()

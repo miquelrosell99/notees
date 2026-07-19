@@ -292,7 +292,7 @@ This section tracks functional and architectural gaps between the migrated local
 | **Assets** | Uploaded files via asset endpoints | Asset class + file property + content-addressed blobs | ✅ None |
 | **Import** | Markdown, JSON, Logseq folder | Markdown, JSON, Markdown file, plugin importers | ❌ **Logseq importer removed.** |
 | **Export** | Markdown, HTML, PDF | Preserved via plugin exporters | ✅ None |
-| **Queries / collections** | QueryAST → PostgreSQL | QueryAST → SQLite | ⚠️ `tag`, `regex`, `fts` operators not yet implemented. |
+| **Queries / collections** | QueryAST → PostgreSQL | QueryAST → SQLite | ⚠️ `regex` operator not yet implemented; `tag` and `fts` are now implemented. |
 | **Graph view** | Server-computed graph nodes/links | Derived from SQLite `edge` + `node` tables | ✅ None |
 | **Comments** | Dedicated comment endpoints with threading | Reimplemented as child blocks with `comment` class | ⚠️ Threading/parent-comment hierarchy not yet modeled. |
 | **Aliases** | Get/add/remove page aliases | Implemented via `node.addAlias`/`removeAlias` operations and `node_alias` derived table | ✅ None |
@@ -320,18 +320,21 @@ This section tracks functional and architectural gaps between the migrated local
 
 ### What is worse or still missing
 
-1. **Aliases and version restore** have no model in the new core. They are the biggest user-visible regressions.
-2. **Merge pages** lost backlink redirection, so merged pages leave dangling links.
+1. ~~Aliases and version restore have no model in the new core.~~ Resolved: aliases use `node_alias` derived table; version history uses `node_version` derived table with restore.
+2. ~~Merge pages lost backlink redirection.~~ Resolved: `WorkspaceStore.mergePages` rewrites backlinks via `core/query/mergePages`.
 3. **Logseq import** is gone; users must re-import via Markdown or plugins.
 4. ~~Full-text search is emulated with `LIKE` until sql.js is built with FTS5.~~ Resolved: FTS4 search with ranking and QueryAST `fts` operator is implemented.
-5. **Whiteboard / flashcards** have not been smoke-tested end-to-end after the migration.
-6. **Operational/debugging complexity** increased: diagnosing sync issues requires understanding HLCs, CRDTs, and encrypted envelopes.
-7. **README and user docs** still describe the old `/api/nodes/*` REST API and need rewriting.
+5. ~~Tags no longer have a QueryAST operator.~~ Resolved: `TagCondition` compiles to a class-assignment filter.
+6. **Whiteboard / flashcards** have not been smoke-tested end-to-end after the migration.
+7. **Operational/debugging complexity** increased: diagnosing sync issues requires understanding HLCs, CRDTs, and encrypted envelopes.
+8. ~~README and user docs still describe the old `/api/nodes/*` REST API.~~ Resolved: README rewritten for the local-first architecture.
 
 ### Recommended next priorities
 
-1. **Aliases** — decide whether aliases are a relation property, a class, or a separate `node_alias` derived table, then implement the operation/applier.
-2. **Version history / restore** — expose the operation log as version points; restore by replaying to a selected HLC or applying an inverse content operation.
+1. **Whiteboard / flashcards** — run end-to-end smoke tests and fix any regressions.
+2. **Logseq import** — decide whether to re-implement as a plugin or leave it out.
+3. **Date-format migration / batch operations** — re-implement if still needed, or document removal.
+4. **Comments threading** — model parent-comment hierarchy if the simplified child-block model is insufficient.
 3. **Merge pages backlink redirection** — add a bulk `node.updateContent` pass that rewrites `node_link` targets from source to target.
 4. **FTS5** — rebuild sql.js with FTS5 or use a custom WASM build for real full-text search.
 5. ✅ **README refresh** — `README.md` rewritten for the local-first architecture; stale `/api/nodes/*` references removed.
