@@ -258,6 +258,84 @@ A pre-commit Phase 8 backup was also created before the final legacy-removal com
 
 - `data/backups/phase8/` (workspace files, relay SQLite, plugins, user data, app db snapshot)
 
+## Gap Analysis: Current Implementation vs. Original Notees
+
+This section tracks functional and architectural gaps between the migrated local-first app and the original PostgreSQL-row Notees. It is intended as a living reference for prioritization, not a bug list.
+
+### Architectural comparison
+
+| Aspect | Original Notees | Current Notees (2.0) | Assessment |
+|---|---|---|---|
+| Source of truth | PostgreSQL mutable rows (`node`, `node_property`, `node_link`, etc.) | Immutable operation log in client SQLite + encrypted relay | **Better** — enables offline, audit, convergence, and future migration. |
+| Authority | Server authoritative; frontend caches via TanStack Query | Client authoritative; server is relay + permission enforcer | **Better** for offline and privacy; requires careful conflict handling (handled by CRDTs/HLC). |
+| Collaboration | Yjs rooms over WebSocket + server-side saves | Encrypted operation relay + CRDT merge | **Better** — convergence is built into the data model. |
+| Encryption | Workspace data in plaintext PostgreSQL | Workspace payloads end-to-end encrypted | **Better** for self-hosted privacy. |
+| Query engine | PostgreSQL QueryAST compiler | SQLite QueryAST compiler on derived state | Equivalent for core cases; some operators still missing. |
+| Sync | Custom offline mirror + MiniSearch + runtime overlay | SQLite operation log + derived search index | **Better** — single source of truth, no mirror drift. |
+| Storage limits | Server disk bound | Browser storage bound (IndexedDB/OPFS) | **Trade-off** — now monitored by `useStorageQuota`, but quotas are smaller than server disk. |
+| Operational complexity | Single PostgreSQL database | PostgreSQL + relay + client SQLite + CRDTs | **Worse** — more moving parts, harder to debug, stronger test coverage required. |
+
+### Feature-by-feature gap table
+
+| Feature | Original capability | Current status | Gap severity |
+|---|---|---|---|
+| **Node CRUD** | Full create/read/update/delete/archive/restore via `/api/nodes/*` | Full via `WorkspaceStore` operations | ✅ None |
+| **Hierarchy / move** | Parent/child rows with sequence | `node.move` + tree CRDT child order | ✅ None |
+| **Block editor / content** | Server-applied AST + Yjs state | Text/tree CRDTs + derived AST | ✅ None |
+| **Properties** | Set/remove/batch values via API | `property.set`/`unset` operations | ✅ None |
+| **Classes** | Add/remove/list/search classes | Class assignment + `queryNodes` filters | ✅ None |
+| **Tags** | Explicit tag-link API endpoints | Tags mapped to class assignments | ⚠️ Semantic change — tag links no longer have their own relation table. |
+| **Search** | Backend FTS + filtered search | SQLite LIKE-based search | ⚠️ Functional parity for name search; no true FTS5 yet. |
+| **Backlinks / linked references** | Server-computed link tables | Derived `edge` table from AST | ✅ None |
+| **Tasks** | Status/deadline/recurrence/completion | Same via task operations | ✅ None |
+| **Trash / archive** | Soft-delete + restore + permanent delete | Same via `node.archive`/`restore`/`permanentDelete` | ✅ None |
+| **Assets** | Uploaded files via asset endpoints | Asset class + file property + content-addressed blobs | ✅ None |
+| **Import** | Markdown, JSON, Logseq folder | Markdown, JSON, Markdown file, plugin importers | ❌ **Logseq importer removed.** |
+| **Export** | Markdown, HTML, PDF | Preserved via plugin exporters | ✅ None |
+| **Queries / collections** | QueryAST → PostgreSQL | QueryAST → SQLite | ⚠️ `tag`, `regex`, `fts` operators not yet implemented. |
+| **Graph view** | Server-computed graph nodes/links | Derived from SQLite `edge` + `node` tables | ✅ None |
+| **Comments** | Dedicated comment endpoints with threading | Reimplemented as child blocks with `comment` class | ⚠️ Threading/parent-comment hierarchy not yet modeled. |
+| **Aliases** | Get/add/remove page aliases | Returns empty array; no alias relation in core | ❌ **Not implemented.** |
+| **Version history** | List versions + restore previous version | Empty list; restore is no-op | ❌ **Not implemented.** Operation log could serve this in the future. |
+| **Templates** | List templates, extract variables, instantiate with variable substitution | Class-based templates; local variable parsing; simplified instantiation | ⚠️ Instantiation may not perfectly copy nested block structure. |
+| **Merge pages** | Move blocks, redirect backlinks, delete source | Moves children and archives source | ⚠️ **Backlink redirection missing.** |
+| **Date-format migration** | Batch rename day/month/year nodes | No-op | ❌ **Not implemented.** |
+| **Rebuild links / fix raw UUIDs** | Server-side batch link rebuild | Fix raw UUIDs ported; rebuild is no-op (links are derived) | ✅ None for normal use; maintenance batch operations removed. |
+| **Batch create/update/delete** | Batch endpoints for imports | Removed with legacy importer | ❌ **Not implemented.** |
+| **Random / recent / suggestions** | Server endpoints | Derived from SQLite | ✅ None |
+| **Share receiver (PWA)** | Creates scratchpad block via API | Creates block via core store | ✅ None |
+| **Plugin system** | Server-side plugin context with legacy services | Plugin context uses `WorkspaceStore` + relay transport | ✅ None |
+| **Whiteboard** | Whiteboard class + `_whiteboard_data` property | Property preserved; rendering/sync behavior not validated | ⚠️ Needs runtime validation. |
+| **Flashcards / cloze** | `cloze` class + study workflow | Class preserved; study workflow not validated | ⚠️ Needs runtime validation. |
+
+### What is definitively better
+
+1. **Offline-first is real.** The app works without network because the database lives in the browser.
+2. **Concurrent editing converges.** CRDTs and HLC ordering handle conflicts without server locks.
+3. **Privacy.** Workspace-private payloads are encrypted before reaching the server.
+4. **Auditability.** Every edit is an immutable operation; the entire history can be replayed.
+5. **Rename safety.** ID-based references eliminate the backlink breakage that name-based `[[links]]` caused.
+6. **Performance.** Derived SQLite queries are local and instant; no network round-trips for views.
+7. **Simpler mental model.** One `node` table + operation log replaces the previous maze of mutable rows and sync overlays.
+
+### What is worse or still missing
+
+1. **Aliases and version restore** have no model in the new core. They are the biggest user-visible regressions.
+2. **Merge pages** lost backlink redirection, so merged pages leave dangling links.
+3. **Logseq import** is gone; users must re-import via Markdown or plugins.
+4. **Full-text search** is emulated with `LIKE` until sql.js is built with FTS5.
+5. **Whiteboard / flashcards** have not been smoke-tested end-to-end after the migration.
+6. **Operational/debugging complexity** increased: diagnosing sync issues requires understanding HLCs, CRDTs, and encrypted envelopes.
+7. **README and user docs** still describe the old `/api/nodes/*` REST API and need rewriting.
+
+### Recommended next priorities
+
+1. **Aliases** — decide whether aliases are a relation property, a class, or a separate `node_alias` derived table, then implement the operation/applier.
+2. **Version history / restore** — expose the operation log as version points; restore by replaying to a selected HLC or applying an inverse content operation.
+3. **Merge pages backlink redirection** — add a bulk `node.updateContent` pass that rewrites `node_link` targets from source to target.
+4. **FTS5** — rebuild sql.js with FTS5 or use a custom WASM build for real full-text search.
+5. **README refresh** — rewrite `README.md` for the local-first architecture and remove stale `/api/nodes/*` references.
+
 ## Verification Checklist
 
 - [x] Core operation types/appliers extended and tested.
