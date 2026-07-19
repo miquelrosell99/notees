@@ -3,6 +3,7 @@ import { createSchema } from './schema';
 import { loadWorkspaceDatabase, saveWorkspaceDatabase } from '../persistence/indexedDb';
 
 let sqlModule: Awaited<ReturnType<typeof initSqlJs>> | null = null;
+let sqlInitError: Error | null = null;
 
 function isRealBrowser(): boolean {
   if (typeof window === 'undefined') return false;
@@ -13,12 +14,40 @@ function isRealBrowser(): boolean {
 }
 
 async function getSqlModule(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
+  if (sqlInitError) {
+    throw sqlInitError;
+  }
+
   if (!sqlModule) {
-    sqlModule = await initSqlJs(
-      isRealBrowser() ? { locateFile: () => `/sql-wasm.wasm` } : undefined
-    );
+    try {
+      sqlModule = await initSqlJs(
+        isRealBrowser() ? { locateFile: () => `/sql-wasm.wasm` } : undefined
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      sqlInitError = new Error(
+        `Failed to load sql.js (SQLite wasm): ${message}. ` +
+          'Your workspace database cannot be opened. Try refreshing the page.`'
+      );
+      throw sqlInitError;
+    }
   }
   return sqlModule;
+}
+
+/** Returns the last sql.js initialization error, if any. */
+export function getSqlInitError(): Error | null {
+  return sqlInitError;
+}
+
+/** Clears the cached sql.js initialization error. Used by tests. */
+export function clearSqlInitError(): void {
+  sqlInitError = null;
+}
+
+/** Eagerly initializes sql.js so that failures can be detected early. */
+export async function ensureSqlInitialized(): Promise<void> {
+  await getSqlModule();
 }
 
 export async function createDatabase(data?: ArrayBuffer | Uint8Array): Promise<Database> {
