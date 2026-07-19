@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings
-from app.core.clock import Clock, Hlc
+from app.core.clock import Clock, Hlc, compare_hlc
 from app.core.crypto import (
     decrypt_operation_payload,
     encrypt_operation_payload,
@@ -88,6 +88,31 @@ class WorkspaceStore:
             """
         )
         self._conn.commit()
+
+    def _restore_from_snapshot(self, data: bytes) -> sqlite3.Connection:
+        """Replace the derived database with a serialized snapshot.
+
+        The snapshot bytes are produced by ``sqlite3.Connection.serialize`` and
+        include both the derived schema and the ``applied_operation_id`` table,
+        so operations covered by the snapshot are already considered applied.
+        """
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
+        if self._db_path == ":memory:":
+            self._conn = sqlite3.connect(":memory:", check_same_thread=False)
+        else:
+            Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
+            if Path(self._db_path).exists():
+                Path(self._db_path).unlink()
+            self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+
+        self._conn.row_factory = sqlite3.Row
+        self._conn.deserialize(data)
+        self._ensure_applied_table()
+        self._conn.commit()
+        return self._conn
 
     async def _get_master_key(self) -> bytes:
         """Return the workspace master key, fetching it once per instance."""
@@ -208,15 +233,27 @@ class WorkspaceStore:
         )
 
     async def sync(self) -> None:
-        """Fetch all operations from the relay and apply them idempotently.
+        """Fetch operations from the relay and apply them idempotently.
+
+        If a snapshot exists for the workspace, the derived SQLite database is
+        restored from it and only operations newer than the snapshot's HLC are
+        replayed. Otherwise all operations are replayed from HLC zero.
 
         Decrypts each payload with the workspace master key and skips operations
         already recorded in the ``applied_operation_id`` table. This is important
         for increment-only appliers such as ``link.click``.
         """
         master_key = await self._get_master_key()
-        envelopes = self._relay_storage.get_catch_up(self.workspace_id, Hlc(physical=0, logical=0))
-        conn = await self._ensure_connection()
+        snapshot = self._relay_storage.get_latest_snapshot(self.workspace_id)
+        if snapshot is not None:
+            conn = self._restore_from_snapshot(snapshot["data"])
+            catch_up_hlc = snapshot["hlc"]
+        else:
+            conn = await self._ensure_connection()
+            catch_up_hlc = Hlc(physical=0, logical=0)
+
+        envelopes = self._relay_storage.get_catch_up(self.workspace_id, catch_up_hlc)
+        max_seen_hlc = catch_up_hlc
 
         for envelope in envelopes:
             if self._is_applied(conn, envelope.id):
@@ -240,12 +277,34 @@ class WorkspaceStore:
                 "INSERT OR IGNORE INTO applied_operation_id (id) VALUES (?)",
                 (operation.id,),
             )
+            if compare_hlc(envelope.hlc, max_seen_hlc) > 0:
+                max_seen_hlc = envelope.hlc
 
+        self._clock.update(max_seen_hlc, int(datetime.now(UTC).timestamp() * 1000))
         conn.commit()
 
     def _is_applied(self, conn: sqlite3.Connection, operation_id: str) -> bool:
         row = conn.execute("SELECT 1 FROM applied_operation_id WHERE id = ?", (operation_id,)).fetchone()
         return row is not None
+
+    async def create_snapshot(self, up_to_hlc: Hlc | None = None) -> str:
+        """Serialize the derived database and persist it as a relay snapshot.
+
+        The store is synchronized first so the snapshot covers all operations
+        currently in the relay. The snapshot's ``up_to_hlc`` defaults to the
+        highest relay envelope HLC for the workspace.
+
+        Returns:
+            The new snapshot id.
+        """
+        await self.sync()
+        conn = await self._ensure_connection()
+        db_bytes = conn.serialize(name="main")
+        if up_to_hlc is None:
+            up_to_hlc = self._relay_storage.get_max_hlc(self.workspace_id)
+        return self._relay_storage.create_snapshot(
+            self.workspace_id, up_to_hlc, data=db_bytes
+        )
 
     async def create_node(
         self,

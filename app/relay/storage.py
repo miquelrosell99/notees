@@ -71,8 +71,31 @@ class RelayStorage(ABC):
         """Return the total byte size of encrypted payloads for ``workspace_id``."""
 
     @abstractmethod
-    def create_snapshot(self, workspace_id: str, up_to_hlc: Hlc) -> str:
+    def get_max_hlc(self, workspace_id: str) -> Hlc:
+        """Return the highest envelope HLC for ``workspace_id``.
+
+        Returns:
+            The maximum HLC, or ``Hlc(0, 0)`` when no envelopes exist.
+        """
+
+    @abstractmethod
+    def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
+        """Return the newest snapshot for ``workspace_id``.
+
+        Returns:
+            A dict with ``id``, ``hlc``, and ``data`` keys, or ``None`` when no
+            snapshot exists.
+        """
+
+    @abstractmethod
+    def create_snapshot(
+        self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
+    ) -> str:
         """Create a snapshot covering all envelopes up to ``up_to_hlc``.
+
+        Args:
+            data: Optional serialized derived-state payload to store with the
+                snapshot.
 
         Returns:
             The new snapshot id.
@@ -111,6 +134,10 @@ class RelayStorage(ABC):
 
 def _hlc_to_dict(hlc: Hlc) -> dict[str, int]:
     return {"physical": hlc.physical, "logical": hlc.logical}
+
+
+def _dict_to_hlc(d: dict[str, int]) -> Hlc:
+    return Hlc(physical=d["physical"], logical=d["logical"])
 
 
 class SqliteRelayStorage(RelayStorage):
@@ -334,11 +361,54 @@ class SqliteRelayStorage(RelayStorage):
         row = cursor.fetchone()
         return row[0] if row else 0
 
-    def create_snapshot(self, workspace_id: str, up_to_hlc: Hlc) -> str:
+    def get_max_hlc(self, workspace_id: str) -> Hlc:
+        cursor = self._connection.execute(
+            """
+            SELECT physical, logical FROM relay_envelope
+            WHERE workspace_id = ?
+            ORDER BY physical DESC, logical DESC
+            LIMIT 1
+            """,
+            (workspace_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return Hlc(physical=0, logical=0)
+        return Hlc(physical=row["physical"], logical=row["logical"])
+
+    def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
+        cursor = self._connection.execute(
+            """
+            SELECT id, hlc, data FROM relay_snapshot
+            WHERE workspace_id = ?
+              AND data IS NOT NULL
+              AND LENGTH(data) > 0
+            """,
+            (workspace_id,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+
+        def _hlc_key(row: sqlite3.Row) -> tuple[int, int]:
+            hlc_dict = json.loads(row["hlc"])
+            return hlc_dict["physical"], hlc_dict["logical"]
+
+        latest = max(rows, key=_hlc_key)
+        hlc_dict = json.loads(latest["hlc"])
+        return {
+            "id": latest["id"],
+            "hlc": _dict_to_hlc(hlc_dict),
+            "data": latest["data"] or b"",
+        }
+
+    def create_snapshot(
+        self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
+    ) -> str:
         snapshot_id = str(uuid.uuid4())
         hlc_json = json.dumps(_hlc_to_dict(up_to_hlc))
         state_hash = hashlib.sha256(
-            f"{workspace_id}:{hlc_json}".encode()
+            f"{workspace_id}:{hlc_json}:".encode() + data
         ).hexdigest()
         self._connection.execute(
             """
@@ -351,7 +421,7 @@ class SqliteRelayStorage(RelayStorage):
                 workspace_id,
                 hlc_json,
                 state_hash,
-                b"",
+                data,
                 datetime.now(UTC).isoformat(),
             ),
         )
@@ -590,11 +660,50 @@ class PostgresRelayStorage(RelayStorage):
         )
         return row[0] if row else 0
 
-    async def create_snapshot(self, workspace_id: str, up_to_hlc: Hlc) -> str:
+    async def get_max_hlc(self, workspace_id: str) -> Hlc:
+        pool = await self._get_pool()
+        row = await pool.fetchrow(
+            """
+            SELECT physical, logical FROM relay_envelope
+            WHERE workspace_id = $1
+            ORDER BY physical DESC, logical DESC
+            LIMIT 1
+            """,
+            workspace_id,
+        )
+        if row is None:
+            return Hlc(physical=0, logical=0)
+        return Hlc(physical=row["physical"], logical=row["logical"])
+
+    async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
+        pool = await self._get_pool()
+        row = await pool.fetchrow(
+            """
+            SELECT id, hlc, data FROM relay_snapshot
+            WHERE workspace_id = $1
+              AND data IS NOT NULL
+              AND OCTET_LENGTH(data) > 0
+            ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC
+            LIMIT 1
+            """,
+            workspace_id,
+        )
+        if row is None:
+            return None
+        hlc_dict = row["hlc"]
+        return {
+            "id": str(row["id"]),
+            "hlc": _dict_to_hlc(hlc_dict),
+            "data": row["data"] or b"",
+        }
+
+    async def create_snapshot(
+        self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
+    ) -> str:
         pool = await self._get_pool()
         hlc_dict = _hlc_to_dict(up_to_hlc)
         state_hash = hashlib.sha256(
-            f"{workspace_id}:{json.dumps(hlc_dict)}".encode()
+            f"{workspace_id}:{json.dumps(hlc_dict)}:".encode() + data
         ).hexdigest()
         row = await pool.fetchrow(
             """
@@ -605,7 +714,7 @@ class PostgresRelayStorage(RelayStorage):
             workspace_id,
             hlc_dict,
             state_hash,
-            b"",
+            data,
         )
         return str(row["id"])
 
