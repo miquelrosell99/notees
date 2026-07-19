@@ -477,6 +477,52 @@ describe('plugin applier', () => {
   });
 });
 
+describe('version applier', () => {
+  it('records a version snapshot on node.updateContent', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.updateText(nodeId, (text) => text.insert(0, 'First draft'));
+    store.updateText(nodeId, (text) => text.insert(0, 'Second draft - '));
+
+    const versions = store.getNodeVersions(nodeId);
+    expect(versions.length).toBeGreaterThanOrEqual(2);
+    expect(versions[0].name).toContain('Second draft');
+    expect(versions[1].name).toContain('First draft');
+  });
+
+  it('restores a previous version', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.updateText(nodeId, (text) => text.insert(0, 'Original'));
+    store.updateText(nodeId, (text) => text.insert(0, 'Updated - '));
+
+    const versions = store.getNodeVersions(nodeId);
+    const originalVersion = versions[versions.length - 1];
+    store.restoreNodeVersion(nodeId, originalVersion.uuid);
+
+    const node = store.getNode(nodeId);
+    expect(node?.content).toContain('Original');
+  });
+
+  it('cleans up version rows on node.delete', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.updateText(nodeId, (text) => text.insert(0, 'Content'));
+
+    store.deleteNode(nodeId);
+
+    const row = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM node_version WHERE node_id = ?',
+      [nodeId]
+    );
+    expect(row?.count).toBe(0);
+  });
+});
+
 describe('alias applier', () => {
   it('records an alias relationship', async () => {
     const { store } = await createStore();
