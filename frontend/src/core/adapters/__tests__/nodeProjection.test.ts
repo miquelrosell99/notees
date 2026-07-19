@@ -75,4 +75,23 @@ describe('projectNode', () => {
     expect(node!.name).toHaveLength(200);
     expect(node!.name).toBe('a'.repeat(200));
   });
+
+  it('projects aliases_uuid and aliased_uuid from node_alias rows', async () => {
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, uuidv7(), uuidv7());
+    const canonicalId = uuidv7();
+    const aliasId = uuidv7();
+
+    store.createNode({ nodeId: canonicalId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: aliasId, kind: 'page', parentId: null });
+    store.addAlias(canonicalId, aliasId);
+
+    const canonical = projectNode(store, canonicalId);
+    const alias = projectNode(store, aliasId);
+
+    expect(canonical!.aliases_uuid).toEqual([aliasId]);
+    expect(canonical!.aliased_uuid).toBeNull();
+    expect(alias!.aliased_uuid).toBe(canonicalId);
+    expect(alias!.aliases_uuid).toEqual([]);
+  });
 });

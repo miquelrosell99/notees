@@ -526,6 +526,34 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
+  addAlias(canonicalNodeId: string, aliasNodeId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [canonicalNodeId, aliasNodeId],
+        opType: 'node.addAlias',
+      },
+      { canonicalNodeId, aliasNodeId }
+    );
+    this.apply(op);
+  }
+
+  removeAlias(canonicalNodeId: string, aliasNodeId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [canonicalNodeId, aliasNodeId],
+        opType: 'node.removeAlias',
+      },
+      { canonicalNodeId, aliasNodeId }
+    );
+    this.apply(op);
+  }
+
   getClock(): Clock {
     return this.clock;
   }
