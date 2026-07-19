@@ -64,16 +64,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     setIsMerging(true);
     setError(null);
     try {
-      // Move all children from source to target.
-      const children = store.getChildren(sourceNode.uuid);
-      for (const childId of children) {
-        store.moveNode(childId, targetNode.uuid);
-      }
-
-      // Archive the source page. Backlink redirection is not yet implemented
-      // in the local-first core; the operation log is the source of truth and
-      // future work can add a bulk link-rewrite operation.
-      store.archiveNode(sourceNode.uuid);
+      store.mergePages(sourceNode.uuid, targetNode.uuid);
 
       // Switch to the target page before invalidating so the old view
       // unmounts and doesn't try to refetch the deleted source.

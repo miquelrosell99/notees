@@ -298,7 +298,7 @@ This section tracks functional and architectural gaps between the migrated local
 | **Aliases** | Get/add/remove page aliases | Implemented via `node.addAlias`/`removeAlias` operations and `node_alias` derived table | ✅ None |
 | **Version history** | List versions + restore previous version | Derived `node_version` table populated on `node.updateContent`; restore applies historical content as a new update | ✅ None |
 | **Templates** | List templates, extract variables, instantiate with variable substitution | Class-based templates; local variable parsing; simplified instantiation | ⚠️ Instantiation may not perfectly copy nested block structure. |
-| **Merge pages** | Move blocks, redirect backlinks, delete source | Moves children and archives source | ⚠️ **Backlink redirection missing.** |
+| **Merge pages** | Move blocks, redirect backlinks, delete source | `WorkspaceStore.mergePages` moves children, rewrites backlinks via `core/query/mergePages`, and archives source | ✅ None |
 | **Date-format migration** | Batch rename day/month/year nodes | No-op | ❌ **Not implemented.** |
 | **Rebuild links / fix raw UUIDs** | Server-side batch link rebuild | Fix raw UUIDs ported; rebuild is no-op (links are derived) | ✅ None for normal use; maintenance batch operations removed. |
 | **Batch create/update/delete** | Batch endpoints for imports | Removed with legacy importer | ❌ **Not implemented.** |
