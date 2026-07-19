@@ -7,6 +7,7 @@ Uses positional ``?`` placeholders.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from app.domain.entities.query_ast import (
@@ -43,6 +44,24 @@ from app.domain.entities.query_ast import (
 from app.domain.errors import DomainError
 
 logger = logging.getLogger(__name__)
+
+
+def _to_fts_match_expression(query: str) -> str | None:
+    """Convert a user search string into an FTS4 MATCH expression.
+
+    Mirrors the frontend helper in frontend/src/core/query/search.ts.
+    Terms are lower-cased, stripped of FTS4 separator characters, and joined
+    with implicit AND plus a prefix wildcard.
+    """
+    terms = []
+    for raw in query.lower().split():
+        cleaned = re.sub(r"[^\w']+", "", raw, flags=re.UNICODE).strip("'")
+        if cleaned:
+            terms.append(cleaned)
+    if not terms:
+        return None
+    return " ".join(f"{term}*" for term in terms)
+
 
 # Built-in node columns that map directly to the derived ``node`` table.
 BUILTIN_COLUMNS = {
@@ -467,11 +486,18 @@ ORDER BY {order_by_sql}"""
         if not condition.value:
             return None
 
-        value_ph = self._add_param(condition.value)
         text_expr = "COALESCE((SELECT content FROM search_index si WHERE si.node_id = n.id), '')"
-
         operator = condition.operator or ContentOperator.CONTAINS
         case_sensitive = condition.case_sensitive or False
+
+        if operator == ContentOperator.FTS:
+            match_expr = _to_fts_match_expression(str(condition.value))
+            if not match_expr:
+                return None
+            value_ph = self._add_param(match_expr)
+            return f"EXISTS (SELECT 1 FROM search_index si WHERE si.node_id = n.id AND si.content MATCH {value_ph})"
+
+        value_ph = self._add_param(condition.value)
 
         if operator == ContentOperator.CONTAINS:
             return self._text_comparison(text_expr, PropertyOperator.CONTAINS, value_ph, case_sensitive=case_sensitive)
