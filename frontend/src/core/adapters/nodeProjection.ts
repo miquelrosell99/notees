@@ -1,5 +1,5 @@
 import type { Node } from '@/types/api';
-import { queryAll } from '../db/sqlite';
+import { queryAll, queryOne } from '../db/sqlite';
 import type { WorkspaceStore } from '../store';
 
 const MAX_NAME_LENGTH = 200;
@@ -135,6 +135,20 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
     }
   }
 
+  const aliasRow = queryOne<{ canonical_node_id: string }>(
+    store.getDb(),
+    'SELECT canonical_node_id FROM node_alias WHERE alias_node_id = ?',
+    [nodeId]
+  );
+  const aliasedUuid = aliasRow?.canonical_node_id ?? null;
+
+  const aliasRows = queryAll<{ alias_node_id: string }>(
+    store.getDb(),
+    'SELECT alias_node_id FROM node_alias WHERE canonical_node_id = ?',
+    [nodeId]
+  );
+  const aliasesUuid = aliasRows.map((row) => row.alias_node_id);
+
   return {
     uuid: node.id,
     name,
@@ -160,8 +174,8 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
     linked_references: [],
     backlink_count: 0,
     comment_count: 0,
-    aliases_uuid: [],
-    aliased_uuid: null,
+    aliases_uuid: aliasesUuid,
+    aliased_uuid: aliasedUuid,
     extends_uuid: [],
     is_private: false,
     parent_locked: false,

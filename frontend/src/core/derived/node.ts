@@ -77,6 +77,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM crdt_state WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
+    db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
   } else if (opType === 'node.delete') {
     const nodeId = payload.nodeId as string;
     db.run('DELETE FROM node WHERE id = ?', [nodeId]);
@@ -87,6 +88,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM crdt_state WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
+    db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
   } else if (opType === 'class.create') {
     const classId = payload.classId as string;
     db.run(
@@ -109,6 +111,16 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     recomputeClassHierarchy(db, classId, payload.extends as unknown[] | undefined);
   } else if (opType === 'class.update') {
     recomputeClassHierarchy(db, payload.classId as string, payload.extends as unknown[] | undefined);
+  } else if (opType === 'node.addAlias') {
+    db.run('INSERT OR REPLACE INTO node_alias (alias_node_id, canonical_node_id) VALUES (?, ?)', [
+      payload.aliasNodeId as string,
+      payload.canonicalNodeId as string,
+    ]);
+  } else if (opType === 'node.removeAlias') {
+    db.run('DELETE FROM node_alias WHERE alias_node_id = ? AND canonical_node_id = ?', [
+      payload.aliasNodeId as string,
+      payload.canonicalNodeId as string,
+    ]);
   } else if (opType === 'node.move') {
     db.run('UPDATE node SET parent_id = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
       (payload.newParentId as string | null) ?? null,

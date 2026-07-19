@@ -1,19 +1,26 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { nodeKeys } from '@/hooks/queryKeys';
-
 /**
  * Hook to add an alias to a node.
  *
- * Aliases are not modeled in the local-first core store yet, so this mutation
- * is a no-op that invalidates the relevant query keys to keep the UI consistent.
+ * In the local-first core, an alias is a directed link from an alias page to
+ * its canonical page, stored in the derived `node_alias` table via the
+ * `node.addAlias` operation.
  */
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { nodeKeys } from '@/hooks/queryKeys';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+
 export function useAddAlias() {
   const queryClient = useQueryClient();
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store } = useWorkspaceStore(workspaceUuid ?? '');
 
   return useMutation<void, Error, { nodeUuid: string; aliasNodeUuid: string }>({
     mutationFn: async ({ nodeUuid, aliasNodeUuid }) => {
       if (!nodeUuid || !aliasNodeUuid) throw new Error('Node UUID not found');
-      // No-op: aliases are pending core-store modeling.
+      if (!store) throw new Error('Workspace store is not ready');
+      if (nodeUuid === aliasNodeUuid) throw new Error('A node cannot be an alias of itself');
+      store.addAlias(nodeUuid, aliasNodeUuid);
     },
     onSuccess: (_, { nodeUuid, aliasNodeUuid }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });
@@ -22,6 +29,7 @@ export function useAddAlias() {
       queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(nodeUuid) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.aliases(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.aliases(aliasNodeUuid) });
     },
   });
 }
