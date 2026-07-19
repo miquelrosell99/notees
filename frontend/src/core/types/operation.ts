@@ -20,6 +20,8 @@ const OP_TYPES = new Set([
   'node.delete',
   'node.move',
   'node.updateContent',
+  'node.addAlias',
+  'node.removeAlias',
   'class.assign',
   'class.unassign',
   'property.set',

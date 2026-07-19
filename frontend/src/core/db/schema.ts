@@ -218,6 +218,14 @@ export function createSchema(db: Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_plugin_op_log_plugin
     ON plugin_op_log (plugin_id);
+
+    CREATE TABLE IF NOT EXISTS node_alias (
+      alias_node_id TEXT PRIMARY KEY,
+      canonical_node_id TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_node_alias_canonical
+    ON node_alias (canonical_node_id);
   `);
 
   migrateSchema(db);
