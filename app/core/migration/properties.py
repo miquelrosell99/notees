@@ -19,6 +19,7 @@ import asyncpg
 from app.core.migration.nodes import MigrationContext
 from app.core.operation import Operation, create_operation
 from app.core.uuid import uuidv7
+from app.utils.date_range import normalize_date_range_value
 
 # Legacy property.type -> ideal propertySchema.type.
 PROPERTY_TYPE_MAP: dict[str, str] = {
@@ -321,9 +322,16 @@ def _extract_scalar_value(row: asyncpg.Record, prop_type: str) -> Any:
         if text is None:
             return None
         try:
-            return json.loads(text)
+            parsed = json.loads(text)
         except json.JSONDecodeError:
             return text
+        if not isinstance(parsed, dict):
+            return text
+        try:
+            normalized = normalize_date_range_value(parsed)
+        except ValueError:
+            return text
+        return json.loads(normalized)
 
     return row.get("value_text")
 
