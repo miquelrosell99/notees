@@ -1,5 +1,5 @@
-"""Undo feature module."""
+"""Undo feature module.
 
-from app.features.undo.port import UndoRepository
-
-__all__ = ["UndoRepository"]
+Server-side undo has been removed. The undo router now returns 410 Gone for
+all endpoints; client-side inverse operations handle undo/redo.
+"""
