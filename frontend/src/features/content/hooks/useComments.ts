@@ -5,9 +5,12 @@
  * target node that carry the system `comment` class.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useContext } from 'react';
 import { commentKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
+import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { projectNode } from '@/core/adapters/nodeProjection';
 import { uuidv7 } from '@/core/uuid';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
@@ -111,7 +114,7 @@ export function useCommentCount(nodeUuid: string | null) {
 export function useCreateComment() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const ctx = useContext(WorkspaceStoreContext);
 
   return useMutation<
     Node,
@@ -119,7 +122,15 @@ export function useCreateComment() {
     { nodeUuid: string; name: string; parentCommentUuid?: string }
   >({
     mutationFn: async ({ nodeUuid, name, parentCommentUuid }) => {
-      if (!nodeUuid || !store) throw new Error('Node UUID or workspace store not found');
+      if (!nodeUuid || !ctx || !workspaceUuid) {
+        throw new Error('Node UUID or workspace store not found');
+      }
+      const store = await getOrCreateWorkspaceStore(
+        workspaceUuid,
+        ctx.actorId,
+        ctx.cryptoKey,
+        ctx.transport,
+      );
 
       const parentId = parentCommentUuid ?? nodeUuid;
       const commentId = uuidv7();
@@ -155,11 +166,19 @@ export function useCreateComment() {
 export function useDeleteComment() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const ctx = useContext(WorkspaceStoreContext);
 
   return useMutation<void, Error, { nodeUuid: string; commentUuid: string }>({
     mutationFn: async ({ nodeUuid, commentUuid }) => {
-      if (!nodeUuid || !store) throw new Error('Node UUID or workspace store not found');
+      if (!nodeUuid || !ctx || !workspaceUuid) {
+        throw new Error('Node UUID or workspace store not found');
+      }
+      const store = await getOrCreateWorkspaceStore(
+        workspaceUuid,
+        ctx.actorId,
+        ctx.cryptoKey,
+        ctx.transport,
+      );
       const resolvedCommentUuid = findCommentUuid(queryClient, nodeUuid, commentUuid);
       if (!resolvedCommentUuid) throw new Error('Comment UUID not found');
       store.deleteNode(resolvedCommentUuid);
