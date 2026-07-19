@@ -151,9 +151,21 @@ class RelayService:
             node_id=node_id,
         )
 
-    async def create_snapshot(self, workspace_id: str, up_to_hlc: Hlc) -> str:
+    async def get_max_hlc(self, workspace_id: str) -> Hlc:
+        """Return the highest envelope HLC for ``workspace_id``."""
+        return await self._maybe_await(self._storage.get_max_hlc(workspace_id))
+
+    async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
+        """Return the newest snapshot for ``workspace_id``."""
+        return await self._maybe_await(self._storage.get_latest_snapshot(workspace_id))
+
+    async def create_snapshot(
+        self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
+    ) -> str:
         """Create a snapshot covering all envelopes up to ``up_to_hlc``."""
-        return await self._maybe_await(self._storage.create_snapshot(workspace_id, up_to_hlc))
+        return await self._maybe_await(
+            self._storage.create_snapshot(workspace_id, up_to_hlc, data=data)
+        )
 
     async def create_compaction_segment(
         self,
