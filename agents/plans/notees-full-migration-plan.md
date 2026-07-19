@@ -389,10 +389,103 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 
 
 ---
 
+## Phase 7 Smoke-Test Sprint (Completed)
+
+A focused pass over four remaining feature islands that were still partially tied to legacy PostgreSQL IDs or unfinished stubs. Each item produced a snapshot commit and passing tests.
+
+### G1 — Whiteboard and Flashcards
+
+**Whiteboard**
+- Fixed `frontend/src/features/whiteboard/hooks/useWhiteboard.save.ts` to call `useUpdateNodeAdapter` with the correct `{ nodeUuid, data: { name: serialized } }` shape.
+- Updated `frontend/src/core/adapters/useUpdateNodeAdapter.ts` to detect JSON-array `name` payloads and route them to `store.updateContentAst()` instead of treating them as plain text. This fixes whiteboard, query blocks, and any other component that persists a full AST through the adapter.
+
+**Flashcards**
+- Migrated the flashcards plugin from legacy integer `node_id` to UUID `node_uuid` end-to-end:
+  - Schema: `app/db/schema/sql.py` now defines `flashcard.node_uuid UUID NOT NULL` with no foreign key to the legacy `node` table.
+  - Migration: `app/db/migrations/migrate_flashcards_to_node_uuid.sql` backfills existing rows and drops `node_id`.
+  - Backend port/service/repository/router updated; UUID→int resolution helpers removed.
+  - Frontend `frontend/src/api/flashcards.ts` now sends `node_uuid` in create requests.
+  - Added `tests/unit/plugins/builtin/test_flashcards.py` (7 tests).
+
+**Verification:** `uv run pytest tests/unit/plugins/builtin/test_flashcards.py -m unit --no-cov -v` → 7 passed. Full backend suite → 350 passed; frontend → 544 passed.
+
+### G2 — Logseq Import as a Plugin
+
+- Implemented the backend Logseq markdown importer (`app/plugins/builtin/logseq_importer/parser.py` and `importer.py`).
+- Parser supports pages, journals, nested blocks, page/block properties, wiki-links, and asset references.
+- Importer creates pages/blocks via `PluginContext` operation-log helpers, creates stub pages for unresolved wiki-links, and tags imported roots with a `Source: Logseq` class.
+- Extended `/preview` to return parsed counts.
+- Added missing `create_node`, `update_content`, and `move_node` helpers to `PluginContext` (`app/plugins/core/context.py`).
+- Added `tests/unit/plugins/builtin/test_logseq_importer.py` (9 tests).
+
+**Verification:** `uv run pytest tests/unit/plugins/builtin/test_logseq_importer.py -m unit --no-cov -v` → 9 passed.
+
+### G3 — Date-Format Migration and Batch Operations
+
+- Normalized migrated `date_range` property values to the canonical shape `{start, end, granularity, start_uuid, end_uuid}` via `app.utils.date_range.normalize_date_range_value` (`app/core/migration/properties.py`).
+- Added `WorkspaceStore.apply_many()` for atomic multi-operation persistence (`app/core/workspace_store.py`), refactored from the existing `apply()` logic.
+- Added/updated tests in `tests/core/migration/test_properties.py` and `tests/core/test_workspace_store.py`.
+
+**Verification:** `uv run pytest tests/core/test_workspace_store.py tests/core/migration -m unit --no-cov -v` → 60 passed.
+
+### G4 — Comments Threading
+
+- Hardened existing comment threading:
+  - Fixed `useCreateComment` and `useDeleteComment` to fetch the workspace store inside `mutationFn` (matches the `useCreateNodeAdapter` pattern), eliminating a race when the store is still initializing.
+  - Added `frontend/src/features/content/hooks/__tests__/useComments.test.tsx` covering top-level comments, nested replies, and filtering of deleted/non-comment children.
+  - Added a reply button to each comment in `SidebarComments` so threaded conversations are exposed in the UI.
+  - Added `ReplyIcon` to the icon set.
+
+**Verification:** Frontend full suite → 547 passed.
+
+### Current Test Status
+
+```bash
+uv run pytest tests/core tests/unit -m unit --no-cov -q
+# 361 passed, 3 skipped, 6 deselected, 1 warning
+
+cd frontend && npm run test:run
+# 82 files, 547 tests passed
+```
+
+---
+
+## Gap vs. Original Notees (Pre-Migration)
+
+This section tracks what has been replaced, what is now better, and what still depends on legacy PostgreSQL rows.
+
+| Area | Original Notees | Current State | Assessment |
+|---|---|---|---|
+| Source of truth | Mutable PostgreSQL `node`/`block` rows | Immutable operation log + SQLite derived state | **Better**: offline-first, replayable, convergent. |
+| Node IDs | Internal integers exposed as `id`, public `uuid` only in some places | UUIDv7 everywhere, no integer IDs in new core | **Better**: consistent public identifiers, index locality. |
+| Sync | Custom v1/v2 sync over HTTP/WebSocket | Encrypted relay with catch-up + live WebSocket | **Better**: server is a relay, clients are authoritative. |
+| QueryAST | Compiled to PostgreSQL SQL | Compiled to SQLite against derived tables | **Better**: runs client-side instantly; parity tests pass. |
+| Whiteboard | Saved through legacy adapter with wrong shape | AST routed through `updateContentAst` | **Fixed** |
+| Flashcards | Stored `node_id INTEGER REFERENCES node(id)` | Stores `node_uuid UUID` with no legacy FK | **Fixed** |
+| Logseq import | Stub importer (only counted files) | Full parser + operation-log creator | **Fixed** |
+| Date ranges | Legacy format in PostgreSQL, no normalization | Canonical normalized shape in migration | **Fixed** |
+| Batch mutations | Per-request API calls | `WorkspaceStore.apply_many()` + local-first loops | **Better** |
+| Comments | Legacy comment service | Comment-class blocks in local SQLite store, reply UI | **Better** |
+| Tasks | `app/features/tasks/` still uses PostgreSQL node rows | **Not yet ported** | Gap |
+| Assets | `app/features/assets/` still uses PostgreSQL node rows | **Not yet ported** | Gap |
+| Shares/activity/undo | Legacy services | **Not yet ported** | Gap |
+| Frontend runtime overlay | `frontend/src/runtime/` still used by some editor paths | **Partially removed** | Gap |
+| Legacy code deletion | `app/features/nodes/`, `app/features/properties/` still exist | **Kept as compatibility shim** | Phase 8 work |
+
+### Remaining Architectural Gaps
+
+1. **Tasks, assets, shares, activity, undo** still read/write through the legacy `node` table. They need to be retargeted to the operation-log core or removed if superseded.
+2. **Frontend runtime overlay** (`frontend/src/runtime/`) and local query helpers (`frontend/src/features/sync/local/`) are still imported in places. Complete cut-over to `frontend/src/core/` is Phase 8.
+3. **Snapshots/compaction** for the relay operation log are designed but not implemented; long-lived workspaces will need this for startup performance.
+4. **OPFS/sql.js browser validation** and PWA offline hardening remain Phase 9 work.
+5. **Cross-workspace references** are forbidden by policy but not yet enforced in code.
+
+---
+
 ## Immediate Next Step
 
-Begin **Phase 7** (port remaining feature islands):
-- Extend core operation types and derived appliers for assets, tasks, shares, activity, undo, plugins, and collab/Yjs.
-- Port backend feature islands off the legacy nodes/properties services.
-- Replace the frontend OperationRuntime overlay and local query helpers with the core SQLite store.
+Continue **Phase 7** (port remaining feature islands):
+- Port tasks and assets to the operation-log core using `PluginContext` helpers.
+- Retarget shares, activity, and undo to the relay/derived state.
+- Remove remaining frontend runtime dependencies.
 - Update `agents/plans/notees-phase7-plus-plan.md` as subphases complete.
