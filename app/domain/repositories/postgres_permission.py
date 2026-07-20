@@ -16,9 +16,7 @@ if TYPE_CHECKING:
     pass
 
 
-class PostgresPermissionRepository(
-    BasePostgresRepository, PermissionRepository
-):
+class PostgresPermissionRepository(BasePostgresRepository, PermissionRepository):
     """PostgreSQL permission queries."""
 
     async def get_workspace_owner(self, workspace_id: int) -> int | None:
@@ -33,9 +31,7 @@ class PostgresPermissionRepository(
             )
             return row["create_uid"] if row else None
 
-    async def get_workspace_share(
-        self, workspace_id: int, user_id: int
-    ) -> Permissions | None:
+    async def get_workspace_share(self, workspace_id: int, user_id: int) -> Permissions | None:
         """Return workspace-level share permissions for a user, or None."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
@@ -57,41 +53,37 @@ class PostgresPermissionRepository(
                 can_comment=row["can_comment"],
             )
 
-    async def get_node_info(
-        self, node_id: int, active_only: bool
-    ) -> dict[str, Any] | None:
+    async def get_node_info(self, node_uuid: str, active_only: bool) -> dict[str, Any] | None:
         """Return node workspace_id, create_uid, is_private (and is_shared) row."""
         async with acquire_connection(self._pool) as conn:
             if active_only:
                 row = await conn.fetchrow(
                     """
                     SELECT workspace_id, create_uid, is_shared, is_private FROM node
-                    WHERE id = $1 AND active = TRUE
+                    WHERE uuid = $1 AND active = TRUE
                     """,
-                    node_id,
+                    node_uuid,
                 )
             else:
                 row = await conn.fetchrow(
                     """
                     SELECT workspace_id, create_uid, is_shared, is_private FROM node
-                    WHERE id = $1
+                    WHERE uuid = $1
                     """,
-                    node_id,
+                    node_uuid,
                 )
             return dict(row) if row else None
 
-    async def get_node_share(
-        self, node_id: int, user_id: int
-    ) -> Permissions | None:
+    async def get_node_share(self, node_uuid: str, user_id: int) -> Permissions | None:
         """Return explicit node_share permissions for a user, or None."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
                 SELECT can_read, can_write, can_create, can_delete, can_comment
                 FROM node_share
-                WHERE node_id = $1 AND user_id = $2 AND active = TRUE
+                WHERE node_uuid = $1 AND user_id = $2 AND active = TRUE
                 """,
-                node_id,
+                node_uuid,
                 user_id,
             )
             if not row:
@@ -104,9 +96,7 @@ class PostgresPermissionRepository(
                 can_comment=row["can_comment"],
             )
 
-    async def get_ancestor_node_share(
-        self, node_id: int, user_id: int
-    ) -> Permissions | None:
+    async def get_ancestor_node_share(self, node_uuid: str, user_id: int) -> Permissions | None:
         """Return inherited share permissions from the closest ancestor page."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
@@ -114,7 +104,7 @@ class PostgresPermissionRepository(
                 WITH RECURSIVE ancestors AS (
                     SELECT id, parent_id, 0 AS depth
                     FROM node
-                    WHERE id = $1
+                    WHERE uuid = $1
                     UNION ALL
                     SELECT n.id, n.parent_id, a.depth + 1
                     FROM node n
@@ -123,7 +113,7 @@ class PostgresPermissionRepository(
                 SELECT ns.can_read, ns.can_write, ns.can_create, ns.can_delete, ns.can_comment
                 FROM ancestors a
                 JOIN node n ON n.id = a.id
-                JOIN node_share ns ON ns.node_id = n.id
+                JOIN node_share ns ON ns.node_uuid = n.uuid
                 WHERE a.depth > 0
                   AND n.is_page = TRUE
                   AND ns.user_id = $2
@@ -131,7 +121,7 @@ class PostgresPermissionRepository(
                 ORDER BY a.depth ASC
                 LIMIT 1
                 """,
-                node_id,
+                node_uuid,
                 user_id,
             )
             if not row:
