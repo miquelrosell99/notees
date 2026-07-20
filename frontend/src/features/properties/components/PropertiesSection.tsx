@@ -19,7 +19,6 @@ import { PropertiesIcon, FlashcardIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { getPropertyValueRenderer } from '../utils/propertyValueRegistry';
 import '../utils/registerPropertyRenderers';
-import { addSelectionOption } from '@/api/properties';
 import { getApiErrorMessage } from '@/utils/apiError';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './PropertyList';
@@ -324,16 +323,7 @@ export function PropertiesSection({
     const scope = data.scope ?? 'global';
     const node_uuid = scope === 'node' && !data.node_uuid ? nodeUuid : data.node_uuid;
     createPropertyMutation.mutate({ ...data, scope, node_uuid } as PropertyCreate, {
-      onSuccess: async (newProperty) => {
-        // Create any selection options that were specified at property-creation time
-        if (data.selection_options && data.selection_options.length > 0) {
-          await Promise.all(
-            data.selection_options.map((opt, idx) =>
-              addSelectionOption(newProperty.uuid, opt.name, opt.icon ?? null, idx)
-            )
-          );
-        }
-
+      onSuccess: (newProperty) => {
         // Add the property to this node with appropriate default value
         const defaultValue = newProperty.type === 'boolean' ? 'false' : '';
         setPropertyMutation.mutate({ nodeUuid, propertyId: newProperty.uuid, value: defaultValue });
