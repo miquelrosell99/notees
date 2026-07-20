@@ -22,7 +22,7 @@ import { listWorkspaces, switchWorkspace } from '@/features/workspace';
 import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { getNodeByUuid } from '@/core/query/nodeByUuid';
-import { getPropertyByUuid } from '@/api/properties';
+import { getPropertySchemaByUuid } from '@/core/query/propertySchema';
 import { SPECIAL_VIEWS } from './url';
 import { isUuid } from '@/utils/uuid';
 import { workspaceKeys } from '@/hooks/queryKeys';
@@ -184,15 +184,12 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         if (!isLatestGeneration()) return;
 
         if (!isDateUuid) {
-          try {
-            const property = await getPropertyByUuid(uuid);
-            if (!isLatestGeneration()) return;
+          const property = getPropertySchemaByUuid(store, uuid);
+          if (!isLatestGeneration()) return;
+          if (property) {
             log.debug('UUID resolved to property', { uuid, id: property.uuid });
             openPropertyView(property.uuid);
             return;
-          } catch {
-            if (!isLatestGeneration()) return;
-            /* not a property either */
           }
         }
 
