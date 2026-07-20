@@ -107,6 +107,7 @@ services:
       VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-localhost}
       VITE_WORKSPACE_KEY_SECRET: ${SECRET_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      HTTPS: ${HTTPS:-false}
     volumes:
       - ./frontend:/app
       - /app/node_modules
