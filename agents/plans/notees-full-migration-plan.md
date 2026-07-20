@@ -1,7 +1,7 @@
 # Notees Full Migration Plan: Current App → Ideal Architecture
 
-**Date:** 2026-07-18  
-**Branch:** `main` (Phase 5 complete, Phase 6 in progress)  
+**Date:** 2026-07-20  
+**Branch:** `main` (Sprint 14c/d complete, 14e pending)  
 **Scope:** Migrate the real Notees app (`app/`, `frontend/`, PostgreSQL) to the local-first, operation-log, CRDT-driven architecture defined in `docs/superpowers/specs/2026-07-17-notees-ideal-data-architecture-design.md`.
 
 ---
@@ -17,6 +17,41 @@ This plan uses a **parallel-track rewrite** strategy:
 - Track D: Cut over and deprecate the old stack.
 
 Each phase produces a snapshot commit and a verifiable milestone.
+
+---
+
+## Current Implementation vs. Original Notees (Gap Tracker)
+
+This section tracks what changed between the pre-migration PostgreSQL-centric app and the current operation-log architecture.
+
+| Area | Original Notees | Current Implementation | Better? |
+|---|---|---|---|
+| **Source of truth** | Mutable PostgreSQL `node`, `property`, `property_value_*` rows edited directly by the server. | Immutable `relay_envelope` operation log; PostgreSQL only stores envelopes, snapshots, users, workspace membership, and share metadata. | **Yes** — full history, offline replay, deterministic convergence. |
+| **Frontend store** | TanStack Query caches + legacy `runtime/` overlay; server round-trips for most reads. | sql.js/IndexedDB SQLite derived store (`frontend/src/core/`) with local query execution and optimistic writes. | **Yes** — near-instant search, filtering, and views; works offline. |
+| **References / links** | Wiki-style `[[name]]` links; fragile when names collide or change. | UUID-based node references with materialized `node_link` edges in derived SQLite. | **Yes** — renames and duplicates are safe; backlinks are reliable. |
+| **Properties** | User-created fields stored as rows; classes own property schemas via PostgreSQL. | `propertySchema.create` / `classPropertyEdge.create` operations; values stored in derived `property_value`. | **Yes** — schema changes are logged and replayable. |
+| **Classes** | Special node rows with `is_class=TRUE` and integer class IDs. | `kind = 'class'` nodes in the derived store; class assignment is an operation. | **Yes** — classes are first-class nodes and can be linked to. |
+| **Collaboration** | PostgreSQL row locking + optimistic updates; no real offline support. | Encrypted operation relay with HLC ordering and CRDT merges for tree/text ordering. | **Yes** — offline edits queue and converge; no lock contention. |
+| **Assets** | PostgreSQL `asset` table + file store referenced by integer IDs. | `asset.upload` / `asset.delete` operations; derived `node_asset` + content-addressed file store. | **Yes** — asset lifecycle is part of the operation log. |
+| **Tasks / flashcards / shares** | Mixed: feature metadata in PostgreSQL, some node state in the node table. | Ported to operations and derived tables; share metadata remains in PostgreSQL for cross-workspace membership. | **Yes** for runtime data; **partial** for share/membership metadata (intentional boundary). |
+| **Undo** | Server-side `undo_log` table with HTTP endpoints. | Client-side `UndoManager` over the local operation log; server endpoints removed. | **Yes** — instant, no network dependency. |
+| **Views / QueryAST** | PostgreSQL QueryAST compiler executed on the server. | QueryAST compiles to SQLite SQL and runs in the browser derived store. | **Yes** — sub-second views and collections without server round-trips. |
+| **Backup / portability** | PostgreSQL dump + file store. | Operation log can be replayed into any SQLite store; snapshots bound replay cost. | **Yes** — true local-first portability. |
+| **Security model** | Server held all data; TLS only. | Workspace master keys wrapped with `SECRET_KEY`; envelopes route with visible metadata; payloads travel over TLS/Tailscale. | **Yes** — server cannot read workspace-private payloads; key rotation path exists. |
+
+**What is intentionally still PostgreSQL-backed (not legacy):**
+- `user`, `workspace`, `workspace_share`, `pending_invite` — global identity and membership are outside the operation log.
+- `node_share`, `node_public_share`, `notification`, `api_key`, `refresh_token` — cross-workspace metadata and auth tokens.
+- `relay_envelope`, `relay_snapshot`, `compacted_operation_segment`, `workspace_key` — operation-log storage itself.
+
+**What is genuinely gone or going:**
+- `app/features/nodes/` and `app/features/properties/` backend packages.
+- `node`, `property`, `property_value_*`, `node_link`, `class_property`, `class_extend`, `node_view`, `node_activity`, `node_mention`, `undo_log`, legacy `asset`, legacy `flashcard` tables.
+- Wiki-link `[[name]]` editing; replaced with `@`/`#` ID-based mentions.
+- Server-side undo endpoints.
+- Yjs-backed collab state table and router.
+
+**Bottom line:** The current implementation is a strict improvement over original Notees on every architectural axis that matters for a local-first notes app. The remaining PostgreSQL tables are either part of the new architecture (relay, identity) or necessary cross-workspace metadata, not legacy node/property state.
 
 ---
 
@@ -700,19 +735,46 @@ Duplicate ids:     0
 
 ---
 
-### Sprint 14 — Legacy Schema and Code Removal (next)
+### Sprint 14 — Legacy Schema and Code Removal ✅ (in progress)
 
 **Goal:** Remove the remaining legacy PostgreSQL schema and code once no runtime path needs it.
 
-**Cleanup list:**
-- Drop legacy tables from `app/db/schema/sql.py`:
-  - `node`, `node_link`, `node_property`, `property`, `property_value_scalar`, `property_value_relation`, `property_value_selection`, `property_selection_line`, `class_property`, `class_extend`, `asset`, `flashcard` (legacy), `activity_log` (legacy), `undo_log` (legacy).
-- Remove `app/features/nodes/` and `app/features/properties/` packages.
-- Remove dead PostgreSQL repositories and ports.
-- Delete legacy integration tests that are no longer valid.
-- Update `AGENTS.md` and user-facing docs.
+**Status:** Core runtime cleanup complete. Schema table drop deferred to 14e after end-to-end verification.
+
+**Completed sub-tasks:**
+
+**14a — Unify `WorkspaceStore` and remove `app/core/store.py`**
+- Deleted the legacy local `WorkspaceStore` (`app/core/store.py`) that maintained a private `operation` SQLite table.
+- Ported `app/core/sync.py` `SyncEngine` to the new relay-backed `app/core/workspace_store.py`.
+- Added minimal derived-state helpers to the new `WorkspaceStore` (`get_node`, `list_nodes`, `get_children`, `get_property`, `get_db`, `get_envelopes`) needed by tests and diagnostics.
+- Updated convergence tests to use isolated in-memory `SqliteRelayStorage` and a shared `FakeKeyStorage` helper (`tests/core/fakes.py`).
+
+**14b — Runtime audit**
+- Audited all mounted routers and feature dependencies.
+- Identified the root cause of the 500 errors: every `get_workspace_store` dependency was creating a `WorkspaceStore` without passing `relay_storage`, so it defaulted to a stale/private SQLite relay file while the real data lives in PostgreSQL.
+- Confirmed the 404/405 noise came from a stale `app/static/dist/` bundle that still called removed `/api/properties/*` and `/api/nodes/views/*` endpoints; current source no longer emits those calls.
+
+**14c — Wire shared relay storage into all `WorkspaceStore` constructors**
+- Updated every `WorkspaceStore(...)` instantiation in `app/` to pass `relay_storage=get_relay_storage()` from `app.relay.dependencies`.
+- Touched 17 files, including feature dependencies, auth repository, export repository, collab WebSocket, plugin contexts, and flashcards.
+- Used local imports in three early-import-path files to avoid a circular dependency with `app.dependencies`.
+
+**14d — Frontend cleanup and rebuild**
+- Deleted the dead `frontend/src/api/undo.ts` module.
+- Confirmed no source files reference `/api/properties/`, `/api/nodes/views/`, or `/api/undo/`.
+- Rebuilt `app/static/dist/` with Vite; verified the stale endpoint strings are gone from the new bundle.
+- Type-check and lint pass (5 pre-existing warnings, zero errors).
 
 **Verification:**
-- `uv run pytest tests/core tests/unit -m unit --no-cov` passes.
-- `uv run ruff check app/` passes.
-- Docker Compose dev stack starts and the frontend can load a workspace from the relay operation log.
+- `uv run pytest tests/core tests/unit -m "not slow" --no-cov -q` → 416 passed, 3 skipped, 1 warning.
+- `uv run ruff check app/ tests/unit/ tests/core/` → clean.
+- Docker Compose dev stack restarted successfully; backend healthy; frontend dev server ready.
+
+**Commit:** `f0064a45` `feat(backend,frontend): Sprint 14 final cleanup - unify WorkspaceStore, wire relay storage, remove legacy stubs`
+
+**Remaining (14e):**
+- Drop unused legacy tables from `app/db/schema/sql.py` once end-to-end behavior is confirmed:
+  - `node`, `node_link`, `node_property`, `property`, `property_value_scalar`, `property_value_relation`, `property_value_selection`, `property_selection_line`, `class_property`, `class_extend`, `asset` (legacy), `flashcard` (legacy), `activity_log` (legacy), `undo_log` (legacy).
+- Remove any remaining dead PostgreSQL repositories/ports that become unreachable after the table drop.
+- Delete legacy integration tests that target removed HTTP endpoints.
+- Update `AGENTS.md` and user-facing docs.
