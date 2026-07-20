@@ -66,6 +66,7 @@ describe('local-first integration', () => {
     const payload = { nodeId, kind: 'page', parentId: null, classIds: [] };
     const encrypted = await encryptEnvelope(payload, key, {
       id: uuidv7(),
+      workspaceId,
       actorId,
       affectedNodeIds: [nodeId],
       opType: 'node.create',
