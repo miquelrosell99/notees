@@ -28,6 +28,11 @@ const OP_TYPES = new Set([
   'property.unset',
   'propertySchema.create',
   'propertySchema.update',
+  'propertySchema.delete',
+  'classPropertyEdge.create',
+  'classPropertyEdge.update',
+  'classPropertyEdge.delete',
+  'classPropertyEdge.reorder',
   'class.create',
   'class.update',
   'task.recordCompletion',
@@ -116,6 +121,80 @@ export interface PluginOpPayload {
   pluginId: string;
   opType: string;
   data: Record<string, unknown>;
+}
+
+export interface PropertySchemaCreatePayload {
+  schemaId: string;
+  name: string;
+  icon?: string | null;
+  type?: string;
+  multi?: boolean;
+  scope?: 'global' | 'class' | 'node';
+  nodeId?: string | null;
+  iconVisibility?: string;
+  validationRules?: Record<string, unknown> | null;
+  required?: boolean;
+  readonly?: boolean;
+  hideWhenEmpty?: boolean;
+  defaultValue?: unknown | null;
+  classFilterUuids?: string[];
+  options?: Array<{ uuid: string; name: string; icon?: string | null; color?: string | null; sequence?: number }>;
+  computed?: { kind: string; expression: string } | null;
+}
+
+export interface PropertySchemaUpdatePayload {
+  schemaId: string;
+  name?: string | null;
+  icon?: string | null;
+  type?: string | null;
+  multi?: boolean | null;
+  scope?: 'global' | 'class' | 'node' | null;
+  nodeId?: string | null;
+  iconVisibility?: string | null;
+  validationRules?: Record<string, unknown> | null;
+  required?: boolean | null;
+  readonly?: boolean | null;
+  hideWhenEmpty?: boolean | null;
+  defaultValue?: unknown | null;
+  classFilterUuids?: string[] | null;
+  options?: Array<{ uuid: string; name: string; icon?: string | null; color?: string | null; sequence?: number }> | null;
+  computed?: { kind: string; expression: string } | null | null;
+}
+
+export interface PropertySchemaDeletePayload {
+  schemaId: string;
+}
+
+export interface ClassPropertyEdgeCreatePayload {
+  classId: string;
+  propertySchemaId: string;
+  sequence?: number;
+  defaultValue?: unknown | null;
+  hidden?: boolean;
+  required?: boolean | null;
+  readonly?: boolean | null;
+  hideWhenEmpty?: boolean | null;
+}
+
+export interface ClassPropertyEdgeUpdatePayload {
+  classId: string;
+  propertySchemaId: string;
+  sequence?: number;
+  defaultValue?: unknown | null;
+  hidden?: boolean;
+  required?: boolean | null;
+  readonly?: boolean | null;
+  hideWhenEmpty?: boolean | null;
+}
+
+export interface ClassPropertyEdgeDeletePayload {
+  classId: string;
+  propertySchemaId: string;
+}
+
+export interface ClassPropertyEdgeReorderPayload {
+  classId: string;
+  orderedPropertySchemaIds: string[];
 }
 
 export function createOperation(

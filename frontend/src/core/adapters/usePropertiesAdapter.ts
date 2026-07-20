@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Property, BatchPropertiesResult } from '@/types/api';
@@ -30,7 +31,7 @@ function toQueryResult<TData>(
 }
 
 /**
- * Adapter for listing property schemas. Derives schemas from property_value rows.
+ * Adapter for listing property schemas. Derives schemas from the property_schema table.
  */
 export function usePropertiesAdapter(): UseQueryResult<Property[], Error> {
   const { schemas, isLoading, error } = usePropertySchemas();
@@ -40,16 +41,42 @@ export function usePropertiesAdapter(): UseQueryResult<Property[], Error> {
 /**
  * Adapter for listing properties available in a given context.
  *
- * TODO(D3): context filtering (node/class scope) is not yet derived from SQLite.
+ * Returns global properties plus:
+ * - node-scoped properties bound to contextNodeId
+ * - class-scoped properties bound to any of contextClassIds
  */
 export function useAvailablePropertiesAdapter(opts: {
   contextNodeId?: string;
   contextClassIds?: string[];
 } = {}): UseQueryResult<Property[], Error> {
   const { schemas, isLoading, error } = usePropertySchemas();
-  // TODO(D3): filter by contextNodeId / contextClassIds once schema metadata exists.
-  void opts;
-  return toQueryResult(schemas, isLoading, error);
+
+  const available = useMemoizedAvailableProperties(schemas, opts.contextNodeId, opts.contextClassIds);
+  return toQueryResult(available, isLoading, error);
+}
+
+function useMemoizedAvailableProperties(
+  schemas: Property[],
+  contextNodeId: string | undefined,
+  contextClassIds: string[] | undefined
+): Property[] {
+  return useMemo(() => {
+    const classIds = new Set(contextClassIds ?? []);
+    return schemas.filter((schema) => {
+      if (schema.scope === 'global') return true;
+      if (schema.scope === 'node' && schema.node_uuid === contextNodeId) return true;
+      if (schema.scope === 'class' && schema.node_uuid && classIds.has(schema.node_uuid)) return true;
+      return false;
+    });
+  }, [schemas, contextNodeId, contextClassIds]);
+}
+
+function parseValue(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
 }
 
 /**
@@ -59,14 +86,6 @@ export function usePropertyAdapter(id: string | null): UseQueryResult<Property, 
   const { schemas, isLoading, error } = usePropertySchemas();
   const schema = id ? schemas.find((s) => s.uuid === id) : undefined;
   return toQueryResult(schema, isLoading, error);
-}
-
-function parseValue(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
 }
 
 /**

@@ -87,6 +87,8 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM node_child_order WHERE parent_id = ? OR child_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM property_value WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM property_value_tombstone WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM property_schema WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM class_property_edge WHERE class_id = ?', [nodeId]);
     db.run('DELETE FROM edge WHERE source_id = ? OR target_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM crdt_state WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
@@ -99,6 +101,8 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM node_child_order WHERE parent_id = ? OR child_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM property_value WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM property_value_tombstone WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM property_schema WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM class_property_edge WHERE class_id = ?', [nodeId]);
     db.run('DELETE FROM edge WHERE source_id = ? OR target_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM crdt_state WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);

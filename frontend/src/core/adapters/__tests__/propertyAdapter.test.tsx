@@ -55,10 +55,9 @@ describe('propertyAdapter', () => {
     vi.clearAllMocks();
   });
 
-  it('usePropertiesAdapter derives schemas from property_value rows', async () => {
+  it('usePropertiesAdapter derives schemas from property_schema rows', async () => {
     const props = createProviderProps();
     const Wrapper = sqliteWrapper(props);
-    const nodeId = uuidv7();
     const schemaId = uuidv7();
 
     const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
@@ -68,13 +67,7 @@ describe('propertyAdapter', () => {
     const store = storeResult.current.store!;
 
     act(() => {
-      store.createNode({ nodeId, kind: 'page', parentId: null });
-      store.setProperty({
-        propertyValueId: uuidv7(),
-        nodeId,
-        schemaId,
-        value: 'sqlite value',
-      });
+      store.createPropertySchema({ schemaId, name: 'Test Property', type: 'text' });
     });
 
     const { result } = renderHook(() => usePropertiesAdapter(), { wrapper: Wrapper });
@@ -86,7 +79,6 @@ describe('propertyAdapter', () => {
   it('usePropertyAdapter returns a derived schema by UUID', async () => {
     const props = createProviderProps();
     const Wrapper = sqliteWrapper(props);
-    const nodeId = uuidv7();
     const schemaId = uuidv7();
 
     const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
@@ -96,13 +88,7 @@ describe('propertyAdapter', () => {
     const store = storeResult.current.store!;
 
     act(() => {
-      store.createNode({ nodeId, kind: 'page', parentId: null });
-      store.setProperty({
-        propertyValueId: uuidv7(),
-        nodeId,
-        schemaId,
-        value: 'x',
-      });
+      store.createPropertySchema({ schemaId, name: 'Named Property', type: 'text' });
     });
 
     const { result } = renderHook(() => usePropertyAdapter(schemaId), { wrapper: Wrapper });
