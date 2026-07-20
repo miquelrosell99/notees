@@ -34,6 +34,7 @@ import { CommandPalette } from './CommandPalette';
 import { BrokenLinkFixContext } from '@/features/content';
 const ImportDataModal = React.lazy(() => import('@/features/workspace/components/ImportDataModal').then(m => ({ default: m.ImportDataModal })));
 const ImportMarkdownModal = React.lazy(() => import('@/features/workspace/components/ImportMarkdownModal').then(m => ({ default: m.ImportMarkdownModal })));
+const ImportLogseqFolderModal = React.lazy(() => import('@/features/workspace/components/ImportLogseqFolderModal').then(m => ({ default: m.ImportLogseqFolderModal })));
 const ExportPageModal = React.lazy(() => import('@/features/workspace/components/ExportPageModal').then(m => ({ default: m.ExportPageModal })));
 const ShareModal = React.lazy(() => import('@/features/content/components/nodes/ShareModal').then(m => ({ default: m.ShareModal })));
 const RebuildLinksModal = React.lazy(() => import('@/features/maintenance/components/RebuildLinksModal').then(m => ({ default: m.RebuildLinksModal })));
@@ -68,6 +69,8 @@ export function Layout() {
   const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const isImportMarkdownModalOpen = useModalStore(s => s.isImportMarkdownModalOpen);
   const setImportMarkdownModalOpen = useModalStore(s => s.setImportMarkdownModalOpen);
+  const isImportLogseqFolderModalOpen = useModalStore(s => s.isImportLogseqFolderModalOpen);
+  const setImportLogseqFolderModalOpen = useModalStore(s => s.setImportLogseqFolderModalOpen);
   const isExportPageModalOpen = useModalStore(s => s.isExportPageModalOpen);
   const setExportPageModalOpen = useModalStore(s => s.setExportPageModalOpen);
   const isRebuildLinksModalOpen = useModalStore(s => s.isRebuildLinksModalOpen);
@@ -389,6 +392,14 @@ export function Layout() {
           <ImportMarkdownModal
             isOpen={isImportMarkdownModalOpen}
             onClose={() => setImportMarkdownModalOpen(false)}
+          />
+        </Suspense>
+
+        {/* Import Logseq Folder Modal */}
+        <Suspense fallback={null}>
+          <ImportLogseqFolderModal
+            isOpen={isImportLogseqFolderModalOpen}
+            onClose={() => setImportLogseqFolderModalOpen(false)}
           />
         </Suspense>
 
