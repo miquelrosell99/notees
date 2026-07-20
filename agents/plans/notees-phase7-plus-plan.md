@@ -506,3 +506,20 @@ Current state: snapshot/compaction infrastructure exists but has not been stress
   - [x] Benchmark report (`agents/plans/phase12-scale-benchmark.md`).
 - [x] Dev HTTPS support added for non-localhost access (Tailscale).
 - [x] Full verification suite passes.
+
+## Phase 12 Follow-up: Collab permission repository migrated to `node_uuid`
+
+After Phase 12 closed, one leftover was identified: `app/domain/repositories/postgres_permission.py` still queried `node_share.node_id`, but the share metadata tables were migrated to `node_uuid` in Phase 12. This follow-up completes that migration.
+
+Changes:
+- `PermissionRepository` interface now accepts node UUIDs for node-level lookups (`get_node_info`, `get_node_share`, `get_ancestor_node_share`).
+- `PostgresPermissionRepository` SQL updated to join/filter by `node.uuid` and `node_share.node_uuid`.
+- `PermissionChecker` node-level methods (`can_read_node`, `can_write_node`, etc.) now take UUID strings and cache by UUID.
+- `app/features/collab/yjs_service.py` performs permission checks directly against the node UUID before resolving the internal numeric ID for Yjs state storage.
+- `tests/test_visibility_and_shares.py::TestPermissionCheckerPrivacy` rewritten to use raw DB inserts instead of the missing `node_service` fixture.
+
+Verification:
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 402 passed, 3 skipped.
+- `uv run pytest tests/test_visibility_and_shares.py::TestPermissionCheckerPrivacy -q --no-cov` → 3 passed.
+- `cd frontend && npm run lint` → 0 errors.
+- `cd frontend && npm run test:run` → 91 files / 582 passed.
