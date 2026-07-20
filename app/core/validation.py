@@ -30,6 +30,22 @@ REQUIRED_PAYLOAD_FIELDS: dict[str, frozenset[str]] = {
 }
 
 
+def _validate_node_update_content(payload: dict[str, Any]) -> str | None:
+    """``node.updateContent`` accepts one of several update payloads."""
+    if "nodeId" not in payload:
+        return "Missing required payload field(s) for node.updateContent: nodeId"
+    if payload["nodeId"] is None:
+        return "Required payload field 'nodeId' for node.updateContent cannot be null."
+
+    if not any(key in payload for key in ("crdtUpdate", "textUpdate", "content", "treeUpdate")):
+        return (
+            "node.updateContent payload must include one of: "
+            "crdtUpdate, textUpdate, content, treeUpdate"
+        )
+
+    return None
+
+
 def validate_payload(op_type: str, payload: dict[str, Any]) -> str | None:
     """Validate payload structure for ``op_type``.
 
@@ -42,6 +58,9 @@ def validate_payload(op_type: str, payload: dict[str, Any]) -> str | None:
 
     if not isinstance(payload, dict):
         return "Payload must be an object/dictionary."
+
+    if op_type == "node.updateContent":
+        return _validate_node_update_content(payload)
 
     required = REQUIRED_PAYLOAD_FIELDS.get(op_type, frozenset())
     missing = sorted(required - payload.keys())
