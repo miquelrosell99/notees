@@ -47,7 +47,10 @@ from app.features.export import auto_export_router
 from app.features.export.router import router as export_router
 from app.features.import_ import router as import_router
 from app.features.shares import public_router
-from app.features.shares.router import workspace_shares_router as shares_router
+from app.features.shares.router import (
+    node_shares_router,
+    workspace_shares_router as shares_router,
+)
 
 from .backup import get_backup_scheduler
 from .cleanup import get_cleanup_scheduler
@@ -563,6 +566,11 @@ routers = [
 for r in routers:
     api_router.include_router(r)
     v1_router.include_router(r)
+
+# Node-scoped share endpoints remain under /nodes/{uuid}/shares and
+# /nodes/{uuid}/user-shares to match the frontend share API.
+api_router.include_router(node_shares_router, prefix="/nodes")
+v1_router.include_router(node_shares_router, prefix="/nodes")
 
 app.include_router(api_router)
 app.include_router(v1_router)
