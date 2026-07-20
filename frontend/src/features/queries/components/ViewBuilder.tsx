@@ -15,7 +15,7 @@
 import { useCallback, useState } from 'react';
 import { assertValidAST } from '@/lib/astValidator';
 import { QueryBlockList } from './QueryBlockList';
-import { parseQueryLanguage } from '@/api/nodeViews';
+import { parseQueryLanguage } from '@/lib/parseQueryLanguage';
 import { Button } from '@/components/ui/Button';
 import type { QueryAST, GroupNode, ConditionNode, NotNode } from '@/types/queryAST';
 import './ViewBuilder.css';

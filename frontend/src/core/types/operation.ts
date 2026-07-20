@@ -35,6 +35,10 @@ const OP_TYPES = new Set([
   'classPropertyEdge.reorder',
   'class.create',
   'class.update',
+  'nodeView.create',
+  'nodeView.update',
+  'nodeView.delete',
+  'nodeView.reorder',
   'task.recordCompletion',
   'task.deleteCompletion',
   'task.setRecurrence',
@@ -195,6 +199,44 @@ export interface ClassPropertyEdgeDeletePayload {
 export interface ClassPropertyEdgeReorderPayload {
   classId: string;
   orderedPropertySchemaIds: string[];
+}
+
+export interface NodeViewCreatePayload {
+  viewId: string;
+  nodeId: string;
+  name: string;
+  viewType: string;
+  orderIndex?: number;
+  isDefault?: boolean;
+  shownProperties?: Array<{ uuid: string; sequence: number }>;
+  groupBy?: unknown | null;
+  viewMode?: string | null;
+  sortEntries?: unknown[];
+  settings?: Record<string, unknown>;
+  queryAst?: unknown;
+}
+
+export interface NodeViewUpdatePayload {
+  viewId: string;
+  name?: string | null;
+  orderIndex?: number | null;
+  isDefault?: boolean | null;
+  shownProperties?: Array<{ uuid: string; sequence: number }> | null;
+  groupBy?: unknown | null;
+  viewMode?: string | null;
+  sortEntries?: unknown[] | null;
+  settings?: Record<string, unknown> | null;
+  queryAst?: unknown | null;
+}
+
+export interface NodeViewDeletePayload {
+  viewId: string;
+}
+
+export interface NodeViewReorderPayload {
+  nodeId: string;
+  viewType: string;
+  orderedViewIds: string[];
 }
 
 export function createOperation(

@@ -10,8 +10,12 @@ import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useNavigationStore } from '@/stores';
 import { useNotifyActions } from '@/features/layout';
 import { queryClient } from '@/lib/queryClient';
-import { resetNodeViews } from '@/api/nodeViews';
-import { usePageClass, useClasses, useCreateNode } from '@/features/content';
+import {
+  usePageClass,
+  useClasses,
+  useCreateNode,
+  useResetNodeViews,
+} from '@/features/content';
 import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 
@@ -22,6 +26,7 @@ export function CommandRegistrations() {
   const currentNodeUuid = useNavigationStore((s) => s.currentNodeUuid);
   const { notifyError, notifyWarning, notifySuccess } = useNotifyActions();
   const createNodeMutation = useCreateNode();
+  const resetNodeViewsMutation = useResetNodeViews();
 
   // Toggle page privacy — not modeled in the core store yet, so this is a no-op.
   useCommand(
@@ -37,22 +42,23 @@ export function CommandRegistrations() {
     }
   );
 
-  // Reset views for current node — needs queryClient
+  // Reset views for current node
   useCommand(
     COMMAND_IDS.RESET_VIEWS,
     () => {
       if (!currentNodeUuid) return;
-      resetNodeViews(currentNodeUuid)
-        .then(() => {
+      resetNodeViewsMutation.mutate(currentNodeUuid, {
+        onSuccess: () => {
           queryClient.removeQueries({ queryKey: nodeViewKeys.details() });
           queryClient.removeQueries({ queryKey: nodeViewKeys.queryResults() });
           queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(currentNodeUuid) });
           queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(currentNodeUuid) });
           notifySuccess('Views reset', 'All views for this node have been reset to defaults.');
-        })
-        .catch(() => {
+        },
+        onError: () => {
           notifyError('Failed to reset views', 'Please try again.');
-        });
+        },
+      });
     },
     {
       label: 'Reset views to defaults (current node)',
