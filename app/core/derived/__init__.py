@@ -26,7 +26,12 @@ from .node import (
 )
 from .plugin import apply_plugin_op
 from .property import (
+    apply_class_property_edge_create,
+    apply_class_property_edge_delete,
+    apply_class_property_edge_reorder,
+    apply_class_property_edge_update,
     apply_property_schema_create,
+    apply_property_schema_delete,
     apply_property_schema_update,
     apply_property_set,
     apply_property_unset,
@@ -76,6 +81,16 @@ def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:
         apply_property_schema_create(conn, op)
     elif op_type == "propertySchema.update":
         apply_property_schema_update(conn, op)
+    elif op_type == "propertySchema.delete":
+        apply_property_schema_delete(conn, op)
+    elif op_type == "classPropertyEdge.create":
+        apply_class_property_edge_create(conn, op)
+    elif op_type == "classPropertyEdge.update":
+        apply_class_property_edge_update(conn, op)
+    elif op_type == "classPropertyEdge.delete":
+        apply_class_property_edge_delete(conn, op)
+    elif op_type == "classPropertyEdge.reorder":
+        apply_class_property_edge_reorder(conn, op)
     elif op_type == "class.create":
         apply_class_create(conn, op)
     elif op_type == "class.update":

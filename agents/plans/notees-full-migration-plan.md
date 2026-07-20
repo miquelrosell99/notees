@@ -556,11 +556,49 @@ This section tracks what has been replaced, what is now better, and what still d
 
 ---
 
+## Post-Implementation Gap Reassessment (2026-07-20)
+
+A focused audit of the running frontend against the mounted backend routers revealed that several Phase 4 "bridge" layers were still stubs or pointed to unmounted legacy endpoints. These are not optional cleanup items; they are required for the app to function with the operation-log core.
+
+### Verified Gaps
+
+| # | Area | Symptom | Root Cause | Required Fix |
+|---|---|---|---|---|
+| 1 | **Class properties / property schemas** | `GET /api/properties/classes/{uuid}/properties` returns `404`; property panels show no schemas; `useCreateProperty` throws in SQLite mode. | `frontend/src/api/properties.ts` endpoints (`/properties/*`) are no longer mounted. `property_schema` and `class_property_edge` tables do not exist in the derived schema; adapters return empty lists or throw. | Add schema + edge tables, new operation types/appliers, and derive reads from SQLite instead of HTTP. |
+| 2 | **Node views** | `POST /api/nodes/views/execute` returns `405`; default views cannot be ensured; collection views stay empty. | `frontend/src/api/nodeViews.ts` endpoints (`/nodes/views/*`) are no longer mounted. No derived `node_view` table or operation-log applier exists. | Add `node_view` derived table + CRUD operation types/appliers; replace `nodeViewsApi` calls with core store operations. |
+| 3 | **Flashcards plugin** | Built-in flashcard routes are not reachable from the frontend. | Plugin router mounting is incomplete or uses a path the frontend does not call. | Verify/fix plugin route registration for built-in plugins. |
+
+### Decisions
+
+- **No legacy stubs**: every bridge must be a real operation-log implementation. Empty-list adapters and "not yet implemented" mutation errors are not acceptable.
+- **Sequential implementation**: class properties first, then node views, then flashcards. This avoids schema/operation-type merge conflicts in `schema.ts` and `operation.ts`.
+- **Verification before each commit**: backend unit tests, frontend unit tests, lint, and TypeScript must pass after each island.
+
+---
+
 ## Immediate Next Step
 
-Phase 7–9 are complete. The next milestone is **Phase 10 — Final Cleanup and Release**:
-- Audit remaining consumers of `app/features/nodes/` and `app/features/properties/`.
-- Delete the legacy compatibility shim if no consumers remain.
-- Run E2E smoke tests against the Docker Compose dev stack.
-- Update user-facing docs and changelog.
+**Phase 10 is split into three concrete implementation sprints before final cleanup:**
+
+1. **Sprint 10.1 — Class properties in the operation-log core** (in progress):
+   - Add `property_schema` and `class_property_edge` derived tables.
+   - Add operation types `propertySchema.create/update/delete`, `classPropertyEdge.create/update/delete/reorder`.
+   - Add frontend and backend appliers.
+   - Replace `usePropertySchemas`, `useClassPropertiesAdapter`, and property/class-property mutation hooks with core store reads/writes.
+   - Add tests; commit.
+
+2. **Sprint 10.2 — Node views in the operation-log core**:
+   - Add `node_view` derived table and view-definition operation types/appliers.
+   - Replace `nodeViewsApi` calls with core store operations.
+   - Wire default-view creation and QueryAST view execution through the local SQLite compiler.
+   - Add tests; commit.
+
+3. **Sprint 10.3 — Flashcards plugin route mounting**:
+   - Fix built-in plugin router registration so the frontend flashcards feature works end-to-end.
+   - Add tests; commit.
+
+4. **Sprint 10.4 — Final cleanup and release**:
+   - Delete remaining legacy `app/features/nodes/` and `app/features/properties/` code once the above sprints prove no consumers remain.
+   - Run E2E smoke tests against the Docker Compose dev stack.
+   - Update user-facing docs and changelog.
 - Create the release milestone commit.

@@ -72,6 +72,8 @@ def apply_node_delete(conn: sqlite3.Connection, op: Operation) -> None:
     delete_child_order_by_node(conn, node_id)
     conn.execute("DELETE FROM property_value WHERE node_id = ?", (node_id,))
     conn.execute("DELETE FROM property_value_tombstone WHERE node_id = ?", (node_id,))
+    conn.execute("DELETE FROM property_schema WHERE node_id = ?", (node_id,))
+    conn.execute("DELETE FROM class_property_edge WHERE class_id = ?", (node_id,))
     conn.execute(
         "DELETE FROM edge WHERE source_id = ? OR target_id = ?",
         (node_id, node_id),

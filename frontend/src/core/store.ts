@@ -16,7 +16,17 @@ import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { rewriteLinksToTarget } from './query/mergePages';
 import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from './derived/crdtState';
-import { createOperation, type Operation } from './types/operation';
+import {
+  createOperation,
+  type ClassPropertyEdgeCreatePayload,
+  type ClassPropertyEdgeDeletePayload,
+  type ClassPropertyEdgeReorderPayload,
+  type ClassPropertyEdgeUpdatePayload,
+  type Operation,
+  type PropertySchemaCreatePayload,
+  type PropertySchemaDeletePayload,
+  type PropertySchemaUpdatePayload,
+} from './types/operation';
 import { uuidv7 } from './uuid';
 import { createDatabase } from './db/connection';
 
@@ -415,6 +425,108 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
+  createPropertySchema(
+    args: Omit<PropertySchemaCreatePayload, 'schemaId'> & { schemaId?: string }
+  ): string {
+    const schemaId = args.schemaId ?? uuidv7();
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [schemaId],
+        opType: 'propertySchema.create',
+      },
+      { ...args, schemaId }
+    );
+    this.apply(op);
+    return schemaId;
+  }
+
+  updatePropertySchema(args: PropertySchemaUpdatePayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.schemaId],
+        opType: 'propertySchema.update',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
+  deletePropertySchema(schemaId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [schemaId],
+        opType: 'propertySchema.delete',
+      },
+      { schemaId } satisfies PropertySchemaDeletePayload
+    );
+    this.apply(op);
+  }
+
+  addPropertyToClass(args: ClassPropertyEdgeCreatePayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId, args.propertySchemaId],
+        opType: 'classPropertyEdge.create',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
+  updateClassProperty(args: ClassPropertyEdgeUpdatePayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId, args.propertySchemaId],
+        opType: 'classPropertyEdge.update',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
+  removePropertyFromClass(args: ClassPropertyEdgeDeletePayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId, args.propertySchemaId],
+        opType: 'classPropertyEdge.delete',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
+  reorderClassProperties(args: ClassPropertyEdgeReorderPayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId, ...args.orderedPropertySchemaIds],
+        opType: 'classPropertyEdge.reorder',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
   getOrCreateNode(id: string, defaults: Partial<Omit<NodeRow, 'id'>> & { kind: NodeRow['kind'] }): NodeRow {
     const existing = this.getNode(id);
     if (existing) return existing;
@@ -544,6 +656,20 @@ export class WorkspaceStore {
         opType: 'class.unassign',
       },
       { nodeId, classId }
+    );
+    this.apply(op);
+  }
+
+  updateClass(classId: string, extendsIds: string[]): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [classId, ...extendsIds],
+        opType: 'class.update',
+      },
+      { classId, extends: extendsIds }
     );
     this.apply(op);
   }
