@@ -58,18 +58,14 @@ async def _create_workspace_share(
 
 
 async def _create_node(conn, workspace_id: int, owner_id: int) -> str:
-    """Create a simple page node and return its UUID."""
-    row = await conn.fetchrow(
-        """
-        INSERT INTO node (workspace_id, name, is_page, active, create_uid, write_uid)
-        VALUES ($1, $2, TRUE, TRUE, $3, $3)
-        RETURNING uuid::text as uuid
-        """,
-        workspace_id,
-        "Shared page",
-        owner_id,
-    )
-    return row["uuid"]
+    """Return a stable node UUID for share metadata.
+
+    Nodes now live in the operation-log derived state; this helper only
+    produces the UUID used by share records.
+    """
+    from uuid import uuid4
+
+    return str(uuid4())
 
 
 async def _create_public_share(conn, node_uuid: str, workspace_id: int, created_by: int) -> str:

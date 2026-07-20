@@ -27,9 +27,7 @@ from .connection import (
 )
 from .schema import (
     SCHEMA_VERSION,
-    SYSTEM_CLASS_UUIDS,
     SYSTEM_CLASSES,
-    SYSTEM_PROPERTY_UUIDS,
     create_workspace_for_user,
     generate_day_uuid,
     generate_month_uuid,
@@ -37,7 +35,6 @@ from .schema import (
     get_or_create_user_workspace,
     init_database,
     parse_date_uuid,
-    seed_workspace,
 )
 
 __all__ = [
@@ -56,7 +53,6 @@ __all__ = [
     "DATA_DIR",
     # Schema - new workspace terminology
     "init_database",
-    "seed_workspace",
     "create_workspace_for_user",
     "get_or_create_user_workspace",
     # Utilities
@@ -65,7 +61,5 @@ __all__ = [
     "generate_year_uuid",
     "parse_date_uuid",
     "SYSTEM_CLASSES",
-    "SYSTEM_CLASS_UUIDS",
-    "SYSTEM_PROPERTY_UUIDS",
     "SCHEMA_VERSION",
 ]

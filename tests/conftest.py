@@ -337,7 +337,7 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
     # Create user via auth module
     user = await auth.create_user(email, "testpassword123")
 
-    # Create workspace for user and seed system types
+    # Create workspace for user and seed it through the relay
     async with db_pool.acquire() as conn:
         workspace_id = await schema.create_workspace_for_user(conn, int(user["id"]))
         # Get workspace UUID for cleanup
@@ -346,12 +346,6 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
             workspace_id,
         )
         workspace_uuid = ws_row["uuid"] if ws_row else None
-        # Get page class ID
-        page_row = await conn.fetchrow(
-            "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2",
-            workspace_id, schema.SYSTEM_CLASS_UUIDS["page"]
-        )
-        page_class_id = page_row["id"] if page_row else None
 
     # Generate auth token
     token = auth.create_token(user["id"], user["email"], user["role"])
@@ -362,7 +356,7 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
         "email": user["email"],
         "workspace_id": workspace_id,
         "workspace_uuid": workspace_uuid,
-        "page_class_id": page_class_id,
+        "page_class_id": None,
         "token": token,
         "auth_header": {"Authorization": f"Bearer {token}"},
     }

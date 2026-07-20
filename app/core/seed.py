@@ -4,11 +4,6 @@ This module replaces the legacy PostgreSQL-only workspace seeding for the data
 that the local-first frontend needs. It writes the canonical system classes and
 default pages as encrypted operations through the shared relay storage adapter,
 so every client that catches up the workspace will derive the same state.
-
-PostgreSQL node rows are still created by the legacy ``seed_workspace`` routine
-for the few backend repositories (shares, export) that have not yet migrated off
-the ``node`` table. Once those repositories read from the operation-log derived
-state instead, the legacy node inserts can be removed.
 """
 
 from __future__ import annotations
