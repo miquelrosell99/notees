@@ -1,33 +1,35 @@
-"""Tests for the legacy Postgres Yjs CRDT repository.
-
-The HTTP endpoints have been ported to WorkspaceStore in Phase 7; their
-behavior is covered by ``tests/core/test_collab_router.py``.
-"""
+"""Tests for the Postgres Yjs CRDT repository."""
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
-from app.domain.entities import NodeCreateData
 from app.features.collab.yjs_repository import PostgresYjsRepository
 
 
 @pytest.fixture
 def yjs_repository(db_pool, test_user) -> PostgresYjsRepository:
     """Create a Yjs repository for the test user's workspace."""
-    return PostgresYjsRepository(
-        db_pool, test_user["workspace_id"], int(test_user["id"])
-    )
+    return PostgresYjsRepository(db_pool, test_user["workspace_id"], int(test_user["id"]))
 
 
 @pytest.fixture
-async def test_page(node_repository, test_user):
-    """Create a simple page node and return its UUID."""
-    node = await node_repository.create(
-        NodeCreateData(name="Yjs test page", is_page=True),
-        user_id=int(test_user["id"]),
-    )
-    return node.uuid
+async def test_page(db_pool, test_user):
+    """Create a simple page node directly in the DB and return its UUID."""
+    page_uuid = str(uuid.uuid4())
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO node (uuid, workspace_id, name, is_page, active)
+            VALUES ($1, $2, $3, TRUE, TRUE)
+            """,
+            page_uuid,
+            test_user["workspace_id"],
+            "Yjs test page",
+        )
+    return page_uuid
 
 
 @pytest.mark.asyncio

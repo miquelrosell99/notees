@@ -45,7 +45,7 @@ async def list_notifications(
                 type=r["type"],
                 actor_user_id=str(r["actor_user_id"]) if r["actor_user_id"] else None,
                 actor_name=r["actor_name"],
-                node_id=str(r["node_id"]) if r["node_id"] else None,
+                node_uuid=str(r["node_uuid"]) if r["node_uuid"] else None,
                 node_name=r["node_name"],
                 message=r["message"],
                 is_read=r["is_read"],
@@ -85,7 +85,7 @@ async def create_notification(
     user_id: int,
     type: str,
     actor_user_id: int | None,
-    node_id: int | None,
+    node_uuid: str | None,
     message: str | None,
     repo: NotificationRepository,
 ) -> None:
@@ -97,4 +97,4 @@ async def create_notification(
         Use ``NotificationService.create_notification`` for new callers so that
         push delivery can be triggered.
     """
-    await repo.create_notification(user_id, type, actor_user_id, node_id, message)
+    await repo.create_notification(user_id, type, actor_user_id, node_uuid, message)

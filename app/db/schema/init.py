@@ -55,9 +55,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # the extensions schema, including ad-hoc connections that do not run
     # through our pool init hook.
     db_name = await conn.fetchval("SELECT current_database()")
-    await conn.execute(
-        f'ALTER DATABASE "{db_name}" SET search_path = public, extensions'
-    )
+    await conn.execute(f'ALTER DATABASE "{db_name}" SET search_path = public, extensions')
 
     # Execute the schema DDL inside an explicit transaction.  Wrapping the
     # script guarantees it is committed atomically and avoids the subtle
@@ -115,6 +113,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Run idempotent data migrations once per database
     await _run_migration("repair_page_ids", conn, _repair_page_ids)
     from app.db.migrations.ensure_task_recurrence_property import run as _run_ensure_task_recurrence_property
+
     await _run_migration("ensure_task_recurrence_property", conn, _run_ensure_task_recurrence_property)
     await _run_migration("ensure_inbox_system_uuid", conn, _ensure_inbox_system_uuid)
     await _run_migration("migrate_visibility_to_is_private", conn, _migrate_visibility_to_is_private)
@@ -127,18 +126,24 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("seed_system_settings", conn, _seed_system_settings)
     await _run_migration("renumber_sequences", conn, _renumber_sequences)
     from app.db.migrations.convert_raw_uuid_to_broken_link import run as _run_convert_raw_uuid
+
     await _run_migration("convert_raw_uuid_to_broken_link", conn, _run_convert_raw_uuid)
     from app.db.migrations.consolidate_class_path import run as _run_consolidate_class_path
+
     await _run_migration("consolidate_class_path", conn, _run_consolidate_class_path)
     from app.db.migrations.normalize_inline_class_links import run as _run_normalize_inline_class_links
+
     await _run_migration("normalize_inline_class_links", conn, _run_normalize_inline_class_links)
     from app.db.migrations.add_node_mention import run as _run_add_node_mention
+
     await _run_migration("add_node_mention", conn, _run_add_node_mention)
     await _run_migration("remove_tags_system_property", conn, _remove_tags_system_property)
     await _run_migration("materialize_search_text", conn, _materialize_search_text)
     from app.db.migrations.migrate_task_recurrence_to_table import run as _run_migrate_task_recurrence
+
     await _run_migration("migrate_task_recurrence_to_table", conn, _run_migrate_task_recurrence)
     from app.db.migrations.normalize_settings_jsonb import run as _run_normalize_settings_jsonb
+
     await _run_migration("normalize_settings_jsonb", conn, _run_normalize_settings_jsonb)
     await _run_migration("add_user_device_token", conn, _add_user_device_token)
     await _run_migration("add_uuid_columns_to_remaining_tables", conn, _add_uuid_columns_to_remaining_tables)
@@ -259,8 +264,7 @@ async def _migrate_assets_m6(conn: asyncpg.Connection) -> None:
             continue
 
         source_files = [
-            f for f in asset_folder.iterdir()
-            if f.is_file() and f.stem == "main" and f.name != "thumbnail.webp"
+            f for f in asset_folder.iterdir() if f.is_file() and f.stem == "main" and f.name != "thumbnail.webp"
         ]
         if len(source_files) != 1:
             continue
@@ -440,9 +444,6 @@ async def _migrate_assets_m6(conn: asyncpg.Connection) -> None:
         await conn.execute("CREATE INDEX idx_asset_workspace_hash ON asset(workspace_id, hash)")
 
 
-
-
-
 async def _run_migration(
     name: str,
     conn: asyncpg.Connection,
@@ -544,9 +545,7 @@ async def _cleanup_self_referencing_aliases(conn: asyncpg.Connection) -> None:
 
     logger = get_logger(__name__)
 
-    result = await conn.execute(
-        "UPDATE node SET aliased_id = NULL WHERE aliased_id = id"
-    )
+    result = await conn.execute("UPDATE node SET aliased_id = NULL WHERE aliased_id = id")
     count = int(result.split()[-1]) if result else 0
     if count > 0:
         logger.warning(f"Cleaned up {count} self-referencing alias(es)")
@@ -701,16 +700,12 @@ async def _migrate_visibility_to_is_private(conn: asyncpg.Connection) -> None:
     )
 
     if not new_col_exists:
-        await conn.execute(
-            "ALTER TABLE node ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT FALSE"
-        )
+        await conn.execute("ALTER TABLE node ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT FALSE")
         logger.info("Added is_private column to node table")
 
     if old_col_exists and new_col_exists:
         # Migrate data: private -> TRUE, everything else -> FALSE
-        await conn.execute(
-            "UPDATE node SET is_private = TRUE WHERE visibility = 'private'"
-        )
+        await conn.execute("UPDATE node SET is_private = TRUE WHERE visibility = 'private'")
         logger.info("Migrated visibility data to is_private")
 
         # Drop old column (cascade to index)
@@ -787,9 +782,7 @@ async def _add_totp_2fa(conn: asyncpg.Connection) -> None:
         "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_user_backup_code_user')"
     )
     if not idx_exists:
-        await conn.execute(
-            "CREATE INDEX idx_user_backup_code_user ON user_backup_code(user_id)"
-        )
+        await conn.execute("CREATE INDEX idx_user_backup_code_user ON user_backup_code(user_id)")
         logger.info("Created idx_user_backup_code_user index")
 
 
@@ -877,8 +870,7 @@ async def _migrate_non_system_task_statuses(conn: asyncpg.Connection) -> None:
 
     if total_removed > 0:
         logger.info(
-            f"Migration complete: removed {total_removed} non-system task status(es), "
-            f"migrated {total_migrated} node(s)"
+            f"Migration complete: removed {total_removed} non-system task status(es), migrated {total_migrated} node(s)"
         )
 
 
@@ -1042,7 +1034,9 @@ async def _migrate_collaboration_schema(conn: asyncpg.Connection) -> None:
         "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user' AND column_name = 'user_page_node_id')"
     )
     if not has_col:
-        await conn.execute('ALTER TABLE "user" ADD COLUMN user_page_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL')
+        await conn.execute(
+            'ALTER TABLE "user" ADD COLUMN user_page_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL'
+        )
         changes += 1
 
     # workspace_share.can_comment
@@ -1105,15 +1099,36 @@ async def _migrate_collaboration_schema(conn: asyncpg.Connection) -> None:
                 user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
                 type VARCHAR(50) NOT NULL,
                 actor_user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
-                node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+                node_uuid UUID,
                 message TEXT,
                 is_read BOOLEAN DEFAULT FALSE,
                 create_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
-        await conn.execute("CREATE INDEX idx_notification_user_unread ON notification(user_id, is_read) WHERE is_read = FALSE")
+        await conn.execute(
+            "CREATE INDEX idx_notification_user_unread ON notification(user_id, is_read) WHERE is_read = FALSE"
+        )
         await conn.execute("CREATE INDEX idx_notification_user_date ON notification(user_id, create_date DESC)")
         changes += 1
+
+    # One-way migration for legacy integer notification.node_id column.
+    notification_node_id_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notification' AND column_name = 'node_id')"
+    )
+    if notification_node_id_exists:
+        notification_node_uuid_exists = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notification' AND column_name = 'node_uuid')"
+        )
+        if not notification_node_uuid_exists:
+            await conn.execute("ALTER TABLE notification ADD COLUMN node_uuid UUID")
+        await conn.execute("""
+            UPDATE notification ntf
+            SET node_uuid = n.uuid
+            FROM node n
+            WHERE n.id = ntf.node_id
+        """)
+        await conn.execute("ALTER TABLE notification DROP COLUMN node_id CASCADE")
+        logger.info("Migrated notification.node_id to node_uuid")
 
     if changes:
         logger.info(f"Collaboration schema migration applied ({changes} change sets)")
@@ -1633,12 +1648,8 @@ async def create_workspace_for_user(conn: asyncpg.Connection, user_id: int, name
     await seed_workspace(conn, workspace_id, user_id)
 
     # Seed the canonical operation-log state for the local-first frontend.
-    ws_row = await conn.fetchrow(
-        "SELECT uuid::text as uuid FROM workspace WHERE id = $1", workspace_id
-    )
-    user_row = await conn.fetchrow(
-        'SELECT uuid::text as uuid, name, email FROM "user" WHERE id = $1', user_id
-    )
+    ws_row = await conn.fetchrow("SELECT uuid::text as uuid FROM workspace WHERE id = $1", workspace_id)
+    user_row = await conn.fetchrow('SELECT uuid::text as uuid, name, email FROM "user" WHERE id = $1', user_id)
     if ws_row and user_row:
         from app.core.seed import seed_workspace_relay
 
@@ -1813,9 +1824,7 @@ async def _materialize_search_text(conn: asyncpg.Connection) -> None:
 
     logger = get_logger(__name__)
 
-    await conn.execute(
-        "ALTER TABLE node ADD COLUMN IF NOT EXISTS search_text TEXT"
-    )
+    await conn.execute("ALTER TABLE node ADD COLUMN IF NOT EXISTS search_text TEXT")
 
     # Recreate functions/triggers idempotently in case an older schema left
     # them in a partial state.
@@ -2143,7 +2152,7 @@ async def _add_node_yjs_state(conn: asyncpg.Connection) -> None:
     if not table_exists:
         await conn.execute("""
             CREATE TABLE node_yjs_state (
-                node_id INTEGER PRIMARY KEY REFERENCES node(id) ON DELETE CASCADE,
+                node_uuid UUID PRIMARY KEY,
                 update_blob BYTEA NOT NULL,
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
                 workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE
@@ -2151,8 +2160,37 @@ async def _add_node_yjs_state(conn: asyncpg.Connection) -> None:
         """)
         logger.info("Created node_yjs_state table")
 
+    # One-way migration for legacy integer node_id column.
+    node_id_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node_yjs_state' AND column_name = 'node_id')"
+    )
+    if node_id_exists:
+        node_uuid_exists = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node_yjs_state' AND column_name = 'node_uuid')"
+        )
+        if not node_uuid_exists:
+            await conn.execute("ALTER TABLE node_yjs_state ADD COLUMN node_uuid UUID")
+        await conn.execute("""
+            UPDATE node_yjs_state s
+            SET node_uuid = n.uuid
+            FROM node n
+            WHERE n.id = s.node_id
+        """)
+        unmapped = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM node_yjs_state WHERE node_uuid IS NULL)")
+        if unmapped:
+            raise RuntimeError("node_yjs_state rows exist with unmapped node_id values")
+        await conn.execute("""
+            ALTER TABLE node_yjs_state
+            ALTER COLUMN node_uuid SET NOT NULL,
+            DROP COLUMN node_id CASCADE
+        """)
+        logger.info("Migrated node_yjs_state from node_id to node_uuid")
+
     for index_name, ddl in (
-        ("idx_node_yjs_state_workspace_id", "CREATE INDEX idx_node_yjs_state_workspace_id ON node_yjs_state(workspace_id)"),
+        (
+            "idx_node_yjs_state_workspace_id",
+            "CREATE INDEX idx_node_yjs_state_workspace_id ON node_yjs_state(workspace_id)",
+        ),
         ("idx_node_yjs_state_updated_at", "CREATE INDEX idx_node_yjs_state_updated_at ON node_yjs_state(updated_at)"),
     ):
         idx_exists = await conn.fetchval(
