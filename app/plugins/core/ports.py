@@ -8,7 +8,7 @@ PostgreSQL implementations directly.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -154,14 +154,19 @@ class RouterRegistration:
 
 @dataclass
 class ClassSideEffectContext:
-    """Context passed to a class side-effect handler."""
+    """Context passed to a class side-effect handler.
 
-    node_id: int
-    workspace_id: int
-    user_id: int
+    Identifiers use the operation-log core's public UUIDs so handlers can
+    locate nodes in the derived SQLite state or in PostgreSQL metadata.
+    """
+
+    node_uuid: str
+    class_uuid: str
+    workspace_uuid: str
+    actor_uuid: str
     plugin_context: PluginContext
     added: bool = False
     removed: bool = False
 
 
-ClassSideEffectHandler = Callable[[ClassSideEffectContext], Any]
+ClassSideEffectHandler = Callable[[ClassSideEffectContext], Awaitable[Any] | Any]

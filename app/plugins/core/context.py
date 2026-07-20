@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
@@ -15,6 +16,7 @@ from app.utils.datetime_utils import utc_now
 
 from .exceptions import PluginPermissionError
 from .ports import (
+    ClassSideEffectContext,
     ClassSideEffectHandler,
     ExporterAdapter,
     ImporterAdapter,
@@ -174,6 +176,32 @@ class PluginContext:
         self._require("write_nodes")
         handler._plugin_id = self.plugin_id  # type: ignore[attr-defined]
         self.registry.add_class_side_effect(class_uuid, handler)
+
+        from app.core.derived.class_side_effects import register as register_core_side_effect
+
+        async def _wrapper(
+            node_uuid: str,
+            class_uuid_: str,
+            workspace_uuid: str,
+            actor_uuid: str,
+            added: bool,
+        ) -> None:
+            result = handler(
+                ClassSideEffectContext(
+                    node_uuid=node_uuid,
+                    class_uuid=class_uuid_,
+                    workspace_uuid=workspace_uuid,
+                    actor_uuid=actor_uuid,
+                    plugin_context=self,
+                    added=added,
+                    removed=not added,
+                )
+            )
+            if result is not None and asyncio.iscoroutine(result):
+                await result
+
+        _wrapper._plugin_id = self.plugin_id  # type: ignore[attr-defined]
+        register_core_side_effect(class_uuid, _wrapper)
 
     def _settings_key(self, key: str) -> str:
         """Namespace a plugin setting under its plugin id."""
