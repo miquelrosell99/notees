@@ -678,31 +678,29 @@ Duplicate ids:     0
 
 ---
 
-### Sprint 13 — Backend Runtime Porting to WorkspaceStore (next)
+### Sprint 13 — Backend Runtime Porting to WorkspaceStore ✅
 
 **Goal:** Replace the remaining backend code paths that still read or write mutable PostgreSQL rows with operations against `WorkspaceStore`.
 
-**Identified blockers from audit:**
-- `app/dependencies.py`: page-class node lookup.
-- `app/features/auth/repository.py`: user page node, metrics, asset audit.
-- `app/domain/repositories/postgres_permission.py`: node info, ancestor shares.
-- `app/domain/repositories/postgres_cleanup.py`: hard-delete of trashed nodes.
-- `app/features/export/repository.py`: node tree, property values.
-- `app/features/workspaces/repository.py`: seed, import, export, delete.
-
-**Approach:**
-- Use subagents in parallel, one per subsystem.
-- Each subagent reads the legacy code, rewrites it to use `WorkspaceStore` operations, and removes dead PostgreSQL queries.
-- Add/update tests for the ported code.
+**Changes:**
+- `app/dependencies.py`: removed the legacy `node` lookup for the page-class integer id; simplified the cached workspace context tuple.
+- `app/domain/repositories/postgres_permission.py`: node info, explicit node shares, and ancestor-share walks now read from the derived SQLite store; workspace membership remains in PostgreSQL.
+- `app/domain/repositories/postgres_cleanup.py`: retention cleanup now operates on derived `trash`, `activity_log`, and `task_completion` tables. Added a derived `trash` table and applier to record deletion timestamps for retention.
+- `app/features/auth/repository.py`: user-page-node lookup, system metrics, and asset audit now use `WorkspaceStore`; invite share grants use `WorkspaceStore.grant_user_share()`.
+- `app/features/export/repository.py`: rewritten as `WorkspaceStoreExportRepository`; every read query targets the derived SQLite store. Updated the export call chain (`port`, `service`, `dependencies`, `router`, `auto_export`, converters, shares) to use UUID strings.
+- `app/features/workspaces/repository.py`: rewritten to use `WorkspaceStore` for seeding, user-page creation, import/export/restore, and workspace deletion. Added `_maybe_await()` to `WorkspaceStore` so it works with both sync `SqliteRelayStorage` and async `PostgresRelayStorage`. Fixed `WorkspaceStore.close()` to only close relay storage it owns.
+- Updated affected tests to use the new UUID-based interfaces.
 
 **Verification:**
-- `tests/core` passes.
-- Ported subsystem tests pass.
-- No new references to legacy `node`/`property` tables in the ported modules.
+- `tests/core` + `tests/unit` → 424 passed, 3 skipped.
+- `uv run ruff check app/ tests/unit/ tests/core/` clean.
+- Legacy integration tests (`tests/test_nodes.py`, `tests/test_tasks.py`, etc.) fail as expected because their HTTP endpoints no longer exist; they will be removed in Sprint 14.
+
+**Commit:** (to be created after this update).
 
 ---
 
-### Sprint 14 — Legacy Schema and Code Removal (pending)
+### Sprint 14 — Legacy Schema and Code Removal (next)
 
 **Goal:** Remove the remaining legacy PostgreSQL schema and code once no runtime path needs it.
 

@@ -60,19 +60,29 @@ async def _get_share_service(user: User) -> ShareService:
     pool = await get_pool()
     user_id = int(user.id)
     workspace_id = await get_workspace_id(user)
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if workspace_uuid is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
     share_repo = _make_share_repository(pool, workspace_id, user_id)
-    export_repo = await _make_export_repository(workspace_id)
+    export_repo = _make_export_repository(user.uuid)
     export_service = ExportService(export_repo, _get_export_renderer())
-    return ShareService(share_repo, export_service, workspace_id, user_id)
+    return ShareService(
+        share_repo, export_service, workspace_id, user_id, workspace_uuid=workspace_uuid
+    )
 
 
 async def _get_public_share_service(workspace_id: int) -> ShareService:
     """Return a ShareService for anonymous public share access."""
     pool = await get_pool()
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if workspace_uuid is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
     share_repo = _make_share_repository(pool, workspace_id, 0)
-    export_repo = await _make_export_repository(workspace_id)
+    export_repo = _make_export_repository("anonymous")
     export_service = ExportService(export_repo, _get_export_renderer())
-    return ShareService(share_repo, export_service, workspace_id, 0)
+    return ShareService(
+        share_repo, export_service, workspace_id, 0, workspace_uuid=workspace_uuid
+    )
 
 
 async def get_share_service(

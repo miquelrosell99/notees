@@ -73,6 +73,11 @@ class PermissionRepository(ABC):
         """Return all workspace IDs the user can read (owned + shared)."""
         pass
 
+    @abstractmethod
+    async def close(self) -> None:
+        """Release any resources held by the repository."""
+        pass
+
 
 class SettingsRepository(ABC):
     """Repository interface for user and workspace settings."""

@@ -274,6 +274,20 @@ CREATE INDEX IF NOT EXISTS idx_node_view_node_type
 
 CREATE INDEX IF NOT EXISTS idx_node_view_node_order
     ON node_view (node_id, view_type, order_index);
+
+-- Trash retention tracking. The operation log hard-deletes nodes immediately,
+-- so the derived node table has no soft-delete concept. This table records the
+-- deletion timestamp (and asset metadata needed for file cleanup) so the
+-- retention scheduler can purge old deletions and their associated files.
+CREATE TABLE IF NOT EXISTS trash (
+    node_id TEXT PRIMARY KEY,
+    deleted_at TEXT NOT NULL,
+    is_asset INTEGER NOT NULL DEFAULT 0,
+    asset_hash TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_trash_deleted_at
+    ON trash (deleted_at);
 """
 
 

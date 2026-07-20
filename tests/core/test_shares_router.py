@@ -197,6 +197,7 @@ def _make_share_service(share_repo: FakeShareRepository) -> ShareService:
         workspace_id=1,
         user_id=1,
         email_sender=None,
+        workspace_uuid="ws-uuid-1",
     )
 
 
