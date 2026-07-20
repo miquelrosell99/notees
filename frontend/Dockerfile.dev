@@ -32,7 +32,6 @@ RUN apk add --no-cache \
   dbus-libs \
   eudev \
   curl \
-  nginx \
   openssl
 
 # Copy package files and install dependencies at build time
@@ -42,8 +41,7 @@ RUN npm ci
 # Install Playwright Chromium browser for E2E tests inside the container.
 RUN npx playwright install chromium
 
-# Source code is mounted as a volume at runtime
-COPY scripts/start-dev.sh /usr/local/bin/start-dev.sh
-RUN chmod +x /usr/local/bin/start-dev.sh
+# Development server script: TLS-terminating TCP proxy for HTTP + HTTPS.
+COPY scripts/dev-server.cjs /usr/local/bin/dev-server.cjs
 
-CMD ["/usr/local/bin/start-dev.sh"]
+CMD ["node", "/usr/local/bin/dev-server.cjs"]
