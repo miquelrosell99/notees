@@ -269,7 +269,7 @@ CREATE INDEX IF NOT EXISTS idx_asset_workspace_hash ON asset(workspace_id, hash)
 
 -- Yjs CRDT state per node (M4 text integration)
 CREATE TABLE IF NOT EXISTS node_yjs_state (
-    node_id INTEGER PRIMARY KEY REFERENCES node(id) ON DELETE CASCADE,
+    node_uuid UUID PRIMARY KEY,
     update_blob BYTEA NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE
@@ -277,6 +277,40 @@ CREATE TABLE IF NOT EXISTS node_yjs_state (
 
 CREATE INDEX IF NOT EXISTS idx_node_yjs_state_workspace_id ON node_yjs_state(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_node_yjs_state_updated_at ON node_yjs_state(updated_at);
+
+-- ============================================================
+-- MIGRATION: node_yjs_state FROM INTEGER node_id TO node_uuid
+-- ============================================================
+
+-- One-way migration for pre-existing databases that still use the legacy
+-- integer node_id column. New databases skip this block because node_id does
+-- not exist on the new table.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_yjs_state' AND column_name = 'node_id'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'node_yjs_state' AND column_name = 'node_uuid'
+        ) THEN
+            ALTER TABLE node_yjs_state ADD COLUMN node_uuid UUID;
+        END IF;
+
+        UPDATE node_yjs_state s
+        SET node_uuid = n.uuid
+        FROM node n
+        WHERE n.id = s.node_id;
+
+        IF EXISTS (SELECT 1 FROM node_yjs_state WHERE node_uuid IS NULL) THEN
+            RAISE EXCEPTION 'node_yjs_state rows exist with unmapped node_id values';
+        END IF;
+
+        ALTER TABLE node_yjs_state ALTER COLUMN node_uuid SET NOT NULL;
+        ALTER TABLE node_yjs_state DROP COLUMN node_id CASCADE;
+    END IF;
+END $$;
 
 DO $$
 BEGIN
@@ -500,13 +534,42 @@ CREATE TABLE IF NOT EXISTS notification (
     user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     type VARCHAR(50) NOT NULL,
     actor_user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
-    node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+    node_uuid UUID,
     message TEXT,
     is_read BOOLEAN DEFAULT FALSE,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_notification_user_unread ON notification(user_id, is_read) WHERE is_read = FALSE;
 CREATE INDEX IF NOT EXISTS idx_notification_user_date ON notification(user_id, create_date DESC);
+
+-- ============================================================
+-- MIGRATION: notification FROM INTEGER node_id TO node_uuid
+-- ============================================================
+
+-- One-way migration for pre-existing databases that still use the legacy
+-- integer node_id column. New databases skip this block because node_id does
+-- not exist on the new table.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'notification' AND column_name = 'node_id'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'notification' AND column_name = 'node_uuid'
+        ) THEN
+            ALTER TABLE notification ADD COLUMN node_uuid UUID;
+        END IF;
+
+        UPDATE notification ntf
+        SET node_uuid = n.uuid
+        FROM node n
+        WHERE n.id = ntf.node_id;
+
+        ALTER TABLE notification DROP COLUMN node_id CASCADE;
+    END IF;
+END $$;
 
 -- ============================================================
 -- PROPERTIES
@@ -2338,4 +2401,3 @@ END $$;
 
 # Append the relay storage schema maintained in a dedicated SQL file.
 SCHEMA_SQL += (Path(__file__).parent / "relay.sql").read_text()
-
