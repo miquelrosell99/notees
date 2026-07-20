@@ -22,6 +22,8 @@
 export interface Node {
   uuid: string;
   name: string;
+  /** Raw stored content (AST JSON or plain text) from the operation-log derived store. */
+  content?: string;
   icon: string | null;
   color: string | null;
   parent_uuid: string | null;

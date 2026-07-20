@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic.alias_generators import to_camel
 
 from app.core.clock import Hlc
 from app.core.operation import OperationEnvelope
@@ -33,7 +34,12 @@ class EncryptedEnvelope(OperationEnvelope):
     so the server can validate ``op_type`` and HLC shape without decrypting the
     payload. The encrypted payload is split into base64 ``ciphertext`` and ``iv``
     to match the client-side AES-GCM wire format.
+
+    The wire format uses camelCase keys to match the TypeScript client; the
+    snake_case names remain valid for server-side callers and tests.
     """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     ciphertext: str
     iv: str
