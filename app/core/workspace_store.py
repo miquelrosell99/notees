@@ -160,6 +160,7 @@ class WorkspaceStore:
         conn = await self._ensure_connection()
         self._apply_to_derived(conn, operation)
         conn.commit()
+        await self._invoke_class_side_effects(operation)
         return envelope
 
     async def apply_many(
@@ -192,6 +193,8 @@ class WorkspaceStore:
         for operation in to_apply:
             self._apply_to_derived(conn, operation)
         conn.commit()
+        for operation in to_apply:
+            await self._invoke_class_side_effects(operation)
         return results
 
     async def _persist_operation(
@@ -231,6 +234,29 @@ class WorkspaceStore:
             "INSERT OR IGNORE INTO applied_operation_id (id) VALUES (?)",
             (operation.id,),
         )
+
+    async def _invoke_class_side_effects(self, operation: Operation) -> None:
+        """Notify registered plugins after ``class.assign`` / ``class.unassign``."""
+        op_type = operation.envelope.op_type
+        if op_type not in ("class.assign", "class.unassign"):
+            return
+
+        class_id = operation.payload.get("classId")
+        node_id = operation.payload.get("nodeId")
+        if not class_id or not node_id:
+            return
+
+        from app.core.derived.class_side_effects import get as get_class_side_effects
+
+        added = op_type == "class.assign"
+        for handler in get_class_side_effects(class_id):
+            await handler(
+                node_id,
+                class_id,
+                operation.envelope.workspace_id,
+                operation.envelope.actor_id,
+                added,
+            )
 
     async def sync(self) -> None:
         """Fetch operations from the relay and apply them idempotently.

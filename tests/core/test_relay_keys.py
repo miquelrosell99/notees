@@ -6,6 +6,7 @@ import secrets
 
 import pytest
 
+from app.config import settings
 from app.core.crypto import (
     derive_user_wrapping_key,
     derive_workspace_key,
@@ -66,8 +67,8 @@ class TestWorkspaceKeyStorage:
         storage = WorkspaceKeyStorage(db_pool)
         workspace_uuid = test_user["workspace_uuid"]
 
-        key1 = await storage.get_or_create_master_key(workspace_uuid, "test-secret-key-for-unit-tests")
-        key2 = await storage.get_or_create_master_key(workspace_uuid, "test-secret-key-for-unit-tests")
+        key1 = await storage.get_or_create_master_key(workspace_uuid, settings.secret_key)
+        key2 = await storage.get_or_create_master_key(workspace_uuid, settings.secret_key)
 
         assert len(key1) == 32
         assert key1 == key2
@@ -76,7 +77,7 @@ class TestWorkspaceKeyStorage:
         """The persisted master key can be decrypted with the workspace-derived key."""
         storage = WorkspaceKeyStorage(db_pool)
         workspace_uuid = test_user["workspace_uuid"]
-        secret = "test-secret-key-for-unit-tests"
+        secret = settings.secret_key
 
         master_key = await storage.get_or_create_master_key(workspace_uuid, secret)
 
@@ -99,7 +100,7 @@ class TestWorkspaceKeyStorage:
         storage = WorkspaceKeyStorage(db_pool)
         workspace_uuid = test_user["workspace_uuid"]
         user_uuid = test_user["uuid"]
-        secret = "test-secret-key-for-unit-tests"
+        secret = settings.secret_key
 
         wrapped = await storage.get_wrapped_key_for_user(workspace_uuid, user_uuid, secret)
 
@@ -119,7 +120,7 @@ class TestWorkspaceKeyStorage:
         storage = WorkspaceKeyStorage(db_pool)
         workspace_uuid = test_user["workspace_uuid"]
         user_uuid = test_user["uuid"]
-        secret = "test-secret-key-for-unit-tests"
+        secret = settings.secret_key
 
         old_wrapped = await storage.get_wrapped_key_for_user(workspace_uuid, user_uuid, secret)
         old_master = unwrap_key(old_wrapped, derive_user_wrapping_key(user_uuid, secret))
