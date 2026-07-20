@@ -4,6 +4,7 @@ export interface EncryptedEnvelope {
   id: string;
   ciphertext: string; // base64
   iv: string; // base64
+  workspaceId: string;
   actorId: string;
   affectedNodeIds: string[];
   opType: string;
@@ -68,7 +69,14 @@ export async function unwrapWorkspaceKey(
 export async function encryptEnvelope(
   payload: unknown,
   key: CryptoKey,
-  metadata: { id: string; actorId: string; affectedNodeIds: string[]; opType: string; hlc: Hlc }
+  metadata: {
+    id: string;
+    workspaceId: string;
+    actorId: string;
+    affectedNodeIds: string[];
+    opType: string;
+    hlc: Hlc;
+  }
 ): Promise<EncryptedEnvelope> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const plaintext = ENCODER.encode(JSON.stringify(payload));
@@ -77,6 +85,7 @@ export async function encryptEnvelope(
     id: metadata.id,
     ciphertext: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
     iv: btoa(String.fromCharCode(...iv)),
+    workspaceId: metadata.workspaceId,
     actorId: metadata.actorId,
     affectedNodeIds: metadata.affectedNodeIds,
     opType: metadata.opType,
