@@ -11,7 +11,7 @@ class ExportRepository(ABC):
 
     @abstractmethod
     async def get_export_node_tree(
-        self, workspace_id: int, node_uuid: str, include_children: bool, include_child_pages: bool = False
+        self, workspace_uuid: str, node_uuid: str, include_children: bool, include_child_pages: bool = False
     ) -> list[Any]:
         """Fetch a node and optionally all its descendants.
 
@@ -23,70 +23,78 @@ class ExportRepository(ABC):
         pass
 
     @abstractmethod
-    async def filter_text_property_node_ids(self, node_ids: list[int]) -> set[int]:
-        """Return IDs of nodes that are text-property relation targets."""
+    async def filter_text_property_node_ids(
+        self, workspace_uuid: str, node_uuids: list[str]
+    ) -> set[str]:
+        """Return UUIDs of nodes that are text-property relation targets."""
         pass
 
     @abstractmethod
-    async def get_system_class_map(self, workspace_id: int, uuids: list[str]) -> dict[int, str]:
-        """Fetch system class IDs/names for the given class UUIDs."""
+    async def get_system_class_map(
+        self, workspace_uuid: str, uuids: list[str]
+    ) -> dict[str, str]:
+        """Fetch system class UUIDs/names for the given class UUIDs."""
         pass
 
     @abstractmethod
     async def resolve_link_targets(
-        self, workspace_id: int, uuids: list[str]
+        self, workspace_uuid: str, uuids: list[str]
     ) -> list[Any]:
         """Fetch node rows for link target UUIDs."""
         pass
 
     @abstractmethod
-    async def get_node_properties_data(self, node_ids: list[int]) -> list[Any]:
-        """Fetch all property rows for the given node IDs."""
+    async def get_node_properties_data(
+        self, workspace_uuid: str, node_uuids: list[str]
+    ) -> list[Any]:
+        """Fetch all property rows for the given node UUIDs."""
         pass
 
     @abstractmethod
-    async def get_relation_target_names(self, target_ids: list[int]) -> dict[int, str]:
-        """Fetch plain-text names for relation target IDs."""
+    async def get_relation_target_names(
+        self, workspace_uuid: str, target_uuids: list[str]
+    ) -> dict[str, str]:
+        """Fetch plain-text names for relation target UUIDs."""
         pass
 
     @abstractmethod
     async def get_node_class_and_tag_names(
-        self, page_node_ids: list[int], workspace_id: int
+        self, page_node_uuids: list[str], workspace_uuid: str
     ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
         """Return (class_names_by_node_uuid, tag_labels_by_node_uuid)."""
         pass
 
     @abstractmethod
     async def get_text_property_subtrees(
-        self, target_ids: list[int]
-    ) -> dict[int, list[dict[str, Any]]]:
-        """Fetch descendant blocks for text-property target IDs."""
+        self, workspace_uuid: str, target_uuids: list[str]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Fetch descendant blocks for text-property target UUIDs."""
         pass
 
     @abstractmethod
     async def get_page_metadata(
-        self, workspace_id: int, node_uuid: str, include_properties: bool = True
+        self, workspace_uuid: str, node_uuid: str, include_properties: bool = True
     ) -> dict[str, Any]:
         """Fetch full metadata for a page's YAML frontmatter."""
         pass
 
     @abstractmethod
     async def get_auto_export_metadata(
-        self, workspace_id: int, node_uuid: str
+        self, workspace_uuid: str, node_uuid: str
     ) -> dict[str, Any]:
         """Fetch node metadata for auto-export YAML frontmatter."""
         pass
 
     @abstractmethod
     async def list_exportable_pages(
-        self, workspace_id: int
+        self, workspace_uuid: str
     ) -> list[dict[str, Any]]:
         """List active non-deleted page UUIDs and names for batch export."""
         pass
 
     @abstractmethod
     async def resolve_node_ids(
-        self, workspace_id: int, node_uuids: list[str]
-    ) -> list[int]:
-        """Return integer node IDs for the given UUIDs in the workspace."""
+        self, workspace_uuid: str, node_uuids: list[str]
+    ) -> list[str]:
+        """Return node UUIDs for the given UUIDs in the workspace."""
         pass

@@ -6,11 +6,11 @@ from collections.abc import AsyncGenerator
 
 from fastapi import Depends
 
-from app.db.connection import get_pool
+from app.db.connection import get_workspace_uuid
 from app.dependencies import get_current_user, get_workspace_id
 from app.domain.ports import NodeExportRenderer
 from app.features.export.port import ExportRepository
-from app.features.export.repository import PostgresExportRepository
+from app.features.export.repository import WorkspaceStoreExportRepository
 from app.features.export.service import ExportService
 from app.infrastructure.export.renderer import HtmlPdfExportRenderer
 from app.models import User
@@ -31,10 +31,14 @@ async def get_export_renderer() -> AsyncGenerator[NodeExportRenderer, None]:
     yield _get_export_renderer()
 
 
-async def _make_export_repository(workspace_id: int) -> ExportRepository:
-    """Build a concrete ExportRepository for the given workspace."""
-    pool = await get_pool()
-    return PostgresExportRepository(pool, workspace_id)
+def _make_export_repository(actor_id: str) -> ExportRepository:
+    """Build a concrete ExportRepository for the given actor."""
+    return WorkspaceStoreExportRepository(actor_id)
+
+
+async def _make_export_repository_for_user(user: User) -> ExportRepository:
+    """Build a concrete ExportRepository scoped to the user's actor id."""
+    return _make_export_repository(user.uuid)
 
 
 async def get_export_repository(
@@ -42,7 +46,12 @@ async def get_export_repository(
     workspace_id: int = Depends(get_workspace_id),
 ) -> AsyncGenerator[ExportRepository, None]:
     """Get an ExportRepository for the current user's workspace."""
-    yield await _make_export_repository(workspace_id)
+    # workspace_id is validated/authorized; the repository reads from the
+    # workspace UUID resolved below.
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if workspace_uuid is None:
+        raise RuntimeError("Workspace not found")
+    yield _make_export_repository(user.uuid)
 
 
 async def get_export_service(
@@ -50,5 +59,8 @@ async def get_export_service(
     workspace_id: int = Depends(get_workspace_id),
 ) -> AsyncGenerator[ExportService, None]:
     """Get an ExportService for the current user's workspace."""
-    export_repo = await _make_export_repository(workspace_id)
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if workspace_uuid is None:
+        raise RuntimeError("Workspace not found")
+    export_repo = _make_export_repository(user.uuid)
     yield ExportService(export_repo, _get_export_renderer())

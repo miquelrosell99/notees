@@ -284,15 +284,15 @@ def _build_cover_html(metadata: dict[str, Any] | None, html_mod) -> str:
     return "\n".join(parts)
 
 
-def node_is_code(node: dict, code_class_id: int | None) -> bool:
+def node_is_code(node: dict, code_class_id: str | None) -> bool:
     return code_class_id is not None and code_class_id in (node.get("class_ids") or [])
 
 
-def node_is_quote(node: dict, quote_class_id: int | None) -> bool:
+def node_is_quote(node: dict, quote_class_id: str | None) -> bool:
     return quote_class_id is not None and quote_class_id in (node.get("class_ids") or [])
 
 
-def _node_callout_type(node: dict, callout_class_map: dict[int, str]) -> str | None:
+def _node_callout_type(node: dict, callout_class_map: dict[str, str]) -> str | None:
     class_ids = node.get("class_ids") or []
     for cid in class_ids:
         if cid in callout_class_map:
@@ -307,9 +307,9 @@ def export_to_markdown(
     formatting: bool = True,
     properties_data: dict[str, list] | None = None,
     strip_link_syntax: bool = False,
-    code_class_id: int | None = None,
-    quote_class_id: int | None = None,
-    callout_class_map: dict[int, str] | None = None,
+    code_class_id: str | None = None,
+    quote_class_id: str | None = None,
+    callout_class_map: dict[str, str] | None = None,
 ) -> str:
     """Convert nodes to Markdown format."""
     if not nodes:
@@ -435,9 +435,9 @@ def export_to_html(
     doctype: str = "none",
     section_break: bool = False,
     strip_link_syntax: bool = False,
-    code_class_id: int | None = None,
-    quote_class_id: int | None = None,
-    callout_class_map: dict[int, str] | None = None,
+    code_class_id: str | None = None,
+    quote_class_id: str | None = None,
+    callout_class_map: dict[str, str] | None = None,
     theme_mode: str = "light",
     cover_page: bool = False,
     page_size: str = "a4",

@@ -13,9 +13,19 @@ from app.features.auth.repository import PostgresUserRepository
 from app.features.workspaces.port import WorkspaceRepository
 from app.features.workspaces.repository import PostgresWorkspaceRepository
 
-from .interfaces import CleanupRepository, SystemSettingsRepository
+from .interfaces import CleanupRepository, PermissionRepository, SystemSettingsRepository
 from .postgres_cleanup import PostgresCleanupRepository
+from .postgres_permission import PostgresPermissionRepository
 from .postgres_system_settings import PostgresSystemSettingsRepository
+
+
+def make_permission_repository(
+    pool: asyncpg.Pool,
+    workspace_id: int,
+    user_id: int | None = None,
+) -> PermissionRepository:
+    """Create a concrete PermissionRepository backed by PostgreSQL + derived SQLite."""
+    return PostgresPermissionRepository(pool, workspace_id, user_id)
 
 
 def make_user_repository(pool: asyncpg.Pool) -> UserRepository:

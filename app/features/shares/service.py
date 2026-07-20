@@ -30,10 +30,12 @@ class ShareService:
         workspace_id: int,
         user_id: int,
         email_sender: EmailSender | None = None,
+        workspace_uuid: str | None = None,
     ):
         self._share_repo = share_repository
         self._node_export_service = node_export_service
         self._workspace_id = workspace_id
+        self._workspace_uuid = workspace_uuid
         self._user_id = user_id
         self._email_sender = email_sender
 
@@ -131,8 +133,10 @@ class ShareService:
 
     async def write_share_html(self, share_uuid: str, node_uuid: str) -> Path:
         """Generate and write static share HTML for a node."""
+        if self._workspace_uuid is None:
+            raise RuntimeError("Workspace UUID is required to render share HTML")
         return await self._node_export_service.write_share_html(
-            share_uuid, self._workspace_id, node_uuid
+            share_uuid, self._workspace_uuid, node_uuid
         )
 
     async def regenerate_share_html_for_node(self, node_uuid: str) -> None:

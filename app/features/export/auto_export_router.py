@@ -130,13 +130,12 @@ async def auto_export_batch(
 
     # Start the batch export in the background. The export repository is
     # reconstructed inside the task after clearing the request connection.
-    asyncio.create_task(_run_batch_export(workspace_id, workspace_uuid, status_key))
+    asyncio.create_task(_run_batch_export(workspace_uuid, status_key))
 
     return {"status": "started"}
 
 
 async def _run_batch_export(
-    workspace_id: int,
     workspace_uuid: str,
     status_key: str,
 ):
@@ -146,10 +145,12 @@ async def _run_batch_export(
     # race with the middleware releasing the connection back to the pool.
     clear_request_conn()
     try:
-        export_repo = await _make_export_repository(workspace_id)
-        service = _build_auto_export_service(workspace_id, workspace_uuid, export_repo)
+        export_repo = _make_export_repository("system")
+        # The repository is workspace-agnostic; AutoExportService needs the
+        # numeric workspace id only for bookkeeping, so pass 0 here.
+        service = _build_auto_export_service(0, workspace_uuid, export_repo)
 
-        rows = await export_repo.list_exportable_pages(workspace_id)
+        rows = await export_repo.list_exportable_pages(workspace_uuid)
 
         page_uuids = [r["uuid"] for r in rows]
         total = len(page_uuids)
