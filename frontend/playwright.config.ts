@@ -21,7 +21,8 @@ export default defineConfig({
   reporter: 'html',
   globalSetup: './e2e/global-setup.ts',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: process.env.HTTPS === 'true' ? 'https://localhost:5173' : 'http://localhost:5173',
+    ignoreHTTPSErrors: true,
     trace: 'on-first-retry',
     storageState: './e2e/.auth/user.json',
     launchOptions: {
