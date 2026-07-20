@@ -4,7 +4,7 @@
  * Fullscreen view for managing workspaces. Shown when user has no workspaces
  * or accessed through settings. Allows creating, importing, and managing workspaces.
  */
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Spinner } from '@/components/ui/Spinner';
 import { DataStateView } from '@/components/ui/DataStateView';
@@ -38,6 +38,7 @@ export function WorkspaceManagementView({
 }: WorkspaceManagementViewProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(false);
+  const closeImportOptions = useCallback(() => setIsImportOptionsOpen(false), []);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null); // stores uuid
   const [renameModalState, setRenameModalState] = useState<{
     isOpen: boolean;
@@ -398,7 +399,7 @@ export function WorkspaceManagementView({
       {/* Import Workspace Modal (unified) */}
       <ImportOptionsModal
         isOpen={isImportOptionsOpen}
-        onClose={() => setIsImportOptionsOpen(false)}
+        onClose={closeImportOptions}
         onSuccess={handleImportSuccess}
         onFinish={onWorkspaceSelected}
       />
