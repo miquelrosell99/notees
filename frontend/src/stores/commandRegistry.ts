@@ -151,6 +151,9 @@ export const COMMAND_IDS = {
   TOGGLE_SIDEBAR: 'sidebar.toggle',
   IMPORT_DATA: 'data.import',
 
+  // Global import-export
+  IMPORT_LOGSEQ_FOLDER: 'data.importLogseqFolder',
+
   // Editor
   BOLD: 'editor.bold',
   ITALIC: 'editor.italic',
