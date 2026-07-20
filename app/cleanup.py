@@ -206,9 +206,9 @@ class CleanupScheduler:
                     break
 
                 for row in rows:
-                    if row["is_asset"] and row.get("asset_id"):
+                    if row["is_asset"] and row.get("asset_hash"):
                         try:
-                            await file_service.delete_asset(int(row["asset_id"]))
+                            await file_service.delete_asset(row["asset_hash"])
                         except Exception as e:
                             logger.error(
                                 f"[TRASH_CLEANUP] Failed to delete asset file "

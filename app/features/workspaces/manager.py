@@ -73,7 +73,7 @@ async def _get_numeric_user_id(user_id: str) -> int | None:
     return await service._get_numeric_user_id(user_id)
 
 
-async def _ensure_user_page(conn, user_id: int, workspace_id: int) -> int | None:
+async def _ensure_user_page(conn, user_id: int, workspace_id: int) -> str | None:
     """Backward-compatible wrapper; connection argument is ignored.
 
     Repository uses acquire_connection() which reuses the request-scoped

@@ -63,7 +63,7 @@ class AutoExportService:
         Returns the filename written.
         """
         content_bytes, _filename, _mime = await self._node_export_service.export_nodes(
-            workspace_id=self._workspace_id,
+            workspace_uuid=self._workspace_uuid,
             node_uuids=[node_uuid],
             format="markdown",
             include_children=True,
@@ -75,7 +75,7 @@ class AutoExportService:
         body = content_bytes.decode("utf-8")
 
         metadata = await self._node_export_service.get_auto_export_metadata(
-            self._workspace_id, node_uuid
+            self._workspace_uuid, node_uuid
         )
         frontmatter = self._renderer.build_yaml_frontmatter(metadata)
         full_content = frontmatter + body

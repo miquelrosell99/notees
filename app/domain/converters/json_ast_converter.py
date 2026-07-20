@@ -19,9 +19,9 @@ class JsonAstConverter:
         formatting: bool = True,
         properties_data: dict[str, list] | None = None,
         strip_link_syntax: bool = False,
-        code_class_id: int | None = None,
-        quote_class_id: int | None = None,
-        callout_class_map: dict[int, str] | None = None,
+        code_class_id: str | None = None,
+        quote_class_id: str | None = None,
+        callout_class_map: dict[str, str] | None = None,
     ) -> str:
         """Convert nodes to a JSON representation with AST and metadata.
 

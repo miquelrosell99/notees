@@ -7,6 +7,7 @@ import sqlite3
 
 from app.core.clock import Hlc
 from app.core.operation import Operation
+from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
 
 from .child_order import (
     delete_child_order_by_node,
@@ -67,8 +68,44 @@ def apply_node_create(conn: sqlite3.Connection, op: Operation) -> None:
 
 
 def apply_node_delete(conn: sqlite3.Connection, op: Operation) -> None:
-    """Apply a ``node.delete`` operation."""
+    """Apply a ``node.delete`` operation.
+
+    The operation log hard-deletes nodes; there is no soft-delete/trash concept
+    in the derived ``node`` table. Before removing the row we record the deletion
+    in ``trash`` with the timestamp and asset metadata needed by the retention
+    cleanup scheduler. The ``node_asset`` row is authoritative for ``is_asset``
+    and ``asset_hash``; we fall back to the asset class assignment for nodes that
+    were created as assets without a file upload.
+    """
     node_id = op.payload["nodeId"]
+    ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else ""
+
+    is_asset = 0
+    asset_hash: str | None = None
+
+    node_row = conn.execute(
+        "SELECT class_ids FROM node WHERE id = ?", (node_id,)
+    ).fetchone()
+    asset_row = conn.execute(
+        "SELECT asset_hash FROM node_asset WHERE node_id = ?", (node_id,)
+    ).fetchone()
+
+    if asset_row is not None:
+        is_asset = 1
+        asset_hash = asset_row["asset_hash"]
+    elif node_row is not None:
+        class_ids = set(json.loads(node_row["class_ids"]))
+        if SYSTEM_CLASS_UUIDS["asset"] in class_ids:
+            is_asset = 1
+
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO trash (node_id, deleted_at, is_asset, asset_hash)
+        VALUES (?, ?, ?, ?)
+        """,
+        (node_id, ts, is_asset, asset_hash),
+    )
+
     conn.execute("DELETE FROM node WHERE id = ?", (node_id,))
     delete_child_order_by_node(conn, node_id)
     conn.execute("DELETE FROM property_value WHERE node_id = ?", (node_id,))

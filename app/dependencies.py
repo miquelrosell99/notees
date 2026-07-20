@@ -28,11 +28,12 @@ from app.features.workspaces.port import WorkspaceIORepository, WorkspaceReposit
 
 from .config import settings
 from .db.connection import acquire_connection, get_pool
-from .db.schema import SYSTEM_CLASS_UUIDS, get_or_create_user_workspace
+from .db.schema import get_or_create_user_workspace
 from .domain.permissions import PermissionChecker
 from .domain.ports import EmailSender, PushNotificationSender
-from .domain.repositories import PostgresPermissionRepository, PostgresSettingsRepository
-from .domain.repositories.interfaces import PermissionRepository, SettingsRepository
+from .domain.repositories import PostgresSettingsRepository
+from .domain.repositories.factories import make_permission_repository
+from .domain.repositories.interfaces import SettingsRepository
 from .features.notifications.port import NotificationRepository, PushDeviceRepository
 from .features.notifications.repository import (
     PostgresNotificationRepository,
@@ -52,8 +53,8 @@ from .models import User
 logger = get_logger(__name__)
 
 # In-memory cache for workspace context to avoid per-request pool acquisition
-# Maps user_id (int) -> (workspace_id, page_class_id, cached_at)
-_workspace_context_cache: dict[int, tuple[int, int, float]] = {}
+# Maps user_id (int) -> (workspace_id, cached_at)
+_workspace_context_cache: dict[int, tuple[int, float]] = {}
 _WORKSPACE_CONTEXT_TTL = 300  # 5 minutes
 
 
@@ -176,8 +177,8 @@ require_admin_scope = RequireScope("admin")
 require_read_or_write_scope = require_read_scope
 
 
-async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tuple[int, int]:
-    """Get workspace_id and page_class_id for a user, with in-memory caching.
+async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tuple[int, None]:
+    """Get workspace_id for a user, with in-memory caching.
 
     Respects the user's active workspace selection from switch_workspace().
     This avoids acquiring a pool connection on every request just to
@@ -190,9 +191,9 @@ async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tup
 
     cached = _workspace_context_cache.get(user_id)
     if cached is not None:
-        workspace_id, page_class_id, cached_at = cached
+        workspace_id, cached_at = cached
         if now - cached_at < _WORKSPACE_CONTEXT_TTL:
-            return workspace_id, page_class_id
+            return workspace_id, None
 
     async with acquire_connection(pool) as conn:
         conn = cast(asyncpg.Connection, conn)
@@ -200,17 +201,9 @@ async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tup
             workspace_id = await get_or_create_user_workspace(conn, user_id, workspace_uuid=active_uuid)
         except ValueError:
             raise HTTPException(status_code=404, detail="No workspace found. Please create a workspace first.") from None
-        # Resolve the internal numeric id of the page class node; callers that
-        # still pass page_class_id around receive a sensible default.
-        page_class_row = await conn.fetchrow(
-            "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2",
-            workspace_id,
-            SYSTEM_CLASS_UUIDS["page"],
-        )
-        page_class_id = page_class_row["id"] if page_class_row else 1
 
-    _workspace_context_cache[user_id] = (workspace_id, page_class_id, now)
-    return workspace_id, page_class_id
+    _workspace_context_cache[user_id] = (workspace_id, now)
+    return workspace_id, None
 
 
 @asynccontextmanager
@@ -272,14 +265,6 @@ async def get_push_sender() -> AsyncGenerator[PushNotificationSender, None]:
 # ------------------------------------------------------------------------------
 
 
-def _make_permission_repository(
-    pool: asyncpg.Pool,
-    workspace_id: int,
-    user_id: int,
-) -> PermissionRepository:
-    return PostgresPermissionRepository(pool, workspace_id, user_id)
-
-
 def _make_settings_repository(pool: asyncpg.Pool) -> SettingsRepository:
     return PostgresSettingsRepository(pool)
 
@@ -321,8 +306,12 @@ async def get_permission_checker(
     """Get a PermissionChecker for the current user's workspace."""
     pool = await get_pool()
     user_id = int(user.id)
-    permission_repo = _make_permission_repository(pool, workspace_id, user_id)
-    yield PermissionChecker(user_id, permission_repo)
+    permission_repo = make_permission_repository(pool, workspace_id, user_id)
+    checker = PermissionChecker(user_id, permission_repo)
+    try:
+        yield checker
+    finally:
+        await checker.close()
 
 
 async def get_notification_repository() -> AsyncGenerator[NotificationRepository, None]:

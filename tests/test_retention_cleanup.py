@@ -1,11 +1,13 @@
 """Tests for data retention cleanup policies.
 
 Covers automatic cleanup of trashed nodes, activity logs, and task completion
-history based on workspace settings.
+history based on workspace settings. These tests use the local-first
+WorkspaceStore rather than the legacy PostgreSQL content tables.
 """
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -13,8 +15,9 @@ import pytest
 import pytest_asyncio
 
 from app.cleanup import CleanupScheduler
+from app.core.workspace_store import WorkspaceStore
 from app.db.connection import get_workspace_assets_dir
-from app.db.schema import SYSTEM_CLASS_UUIDS
+from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
 
 pytestmark = pytest.mark.asyncio
 
@@ -40,69 +43,97 @@ async def _set_workspace_setting(db_pool, workspace_id: int, key: str, value):
         assert row is not None, f"Setting {key} was not stored"
 
 
-async def _get_class_id(db_pool, workspace_id: int, class_key: str) -> int | None:
-    """Get the node ID for a system class in a workspace."""
-    async with db_pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2",
-            workspace_id,
-            SYSTEM_CLASS_UUIDS[class_key],
-        )
-        return row["id"] if row else None
+def _make_store(test_user: dict) -> WorkspaceStore:
+    """Create a WorkspaceStore for the test user's workspace."""
+    return WorkspaceStore(
+        workspace_id=test_user["workspace_uuid"],
+        actor_id=str(test_user["uuid"]),
+    )
 
 
-async def _insert_node(
-    db_pool,
-    workspace_id: int,
-    user_id: int,
+async def _create_node(
+    store: WorkspaceStore,
+    node_id: str,
     *,
-    name: str,
-    is_page: bool = False,
-    is_task: bool = False,
-    is_asset: bool = False,
-    class_ids: list[int] | None = None,
-):
-    """Insert a node directly and return its generated id and uuid."""
-    async with db_pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO node (
-                workspace_id, name, uuid, is_page, is_task, is_asset,
-                class_ids, active, create_uid, write_uid
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $8)
-            RETURNING id, uuid
-            """,
-            workspace_id,
-            name,
-            str(uuid4()),
-            is_page,
-            is_task,
-            is_asset,
-            class_ids or [],
-            int(user_id),
-        )
-        return row["id"], str(row["uuid"])
+    kind: str = "page",
+    class_ids: list[str] | None = None,
+) -> None:
+    """Create a node through the operation log."""
+    await store.create_node(node_id, kind=kind, class_ids=class_ids)
 
 
-async def _soft_delete_node(db_pool, node_id: int, deleted_at: datetime):
-    """Mark a node as soft-deleted with a specific timestamp."""
-    async with db_pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE node SET is_deleted = TRUE, deleted_at = $1 WHERE id = $2",
-            deleted_at,
-            node_id,
-        )
+async def _delete_node(store: WorkspaceStore, node_id: str) -> None:
+    """Delete a node through the operation log (records it in trash)."""
+    await store.delete_node(node_id)
 
 
-async def _node_exists(db_pool, workspace_id: int, node_id: int) -> bool:
-    async with db_pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT 1 FROM node WHERE workspace_id = $1 AND id = $2",
-            workspace_id,
-            node_id,
-        )
-        return row is not None
+async def _set_trash_deleted_at(
+    store: WorkspaceStore, node_id: str, deleted_at: datetime
+) -> None:
+    """Backdate a trash entry to simulate an old deletion."""
+    await store.execute(
+        "UPDATE trash SET deleted_at = ? WHERE node_id = ?",
+        (deleted_at.isoformat(), node_id),
+    )
+
+
+async def _record_activity(
+    store: WorkspaceStore,
+    activity_id: str,
+    node_id: str,
+    action: str,
+    details: dict | None = None,
+) -> None:
+    """Record an activity log entry through the operation log."""
+    await store.record_activity(
+        activity_id,
+        node_id,
+        action,
+        details=details,
+    )
+
+
+async def _set_activity_timestamp(
+    store: WorkspaceStore, activity_id: str, timestamp: datetime
+) -> None:
+    """Backdate an activity log entry to simulate an old record."""
+    await store.execute(
+        "UPDATE activity_log SET timestamp = ? WHERE id = ?",
+        (timestamp.isoformat(), activity_id),
+    )
+
+
+async def _node_exists(store: WorkspaceStore, node_id: str) -> bool:
+    rows = await store.query("SELECT 1 FROM node WHERE id = ?", (node_id,))
+    return bool(rows)
+
+
+async def _trash_exists(store: WorkspaceStore, node_id: str) -> bool:
+    rows = await store.query("SELECT 1 FROM trash WHERE node_id = ?", (node_id,))
+    return bool(rows)
+
+
+async def _activity_details(store: WorkspaceStore) -> set[str]:
+    rows = await store.query("SELECT details FROM activity_log")
+    result: set[str] = set()
+    for row in rows:
+        details = row["details"]
+        if not details:
+            continue
+        try:
+            parsed = json.loads(details)
+            if isinstance(parsed, dict):
+                result.add(str(parsed.get("detail", "")))
+            else:
+                result.add(str(parsed))
+        except json.JSONDecodeError:
+            result.add(str(details))
+    return result
+
+
+async def _task_completion_count(store: WorkspaceStore) -> int:
+    rows = await store.query("SELECT 1 FROM task_completion")
+    return len(rows)
 
 
 @pytest_asyncio.fixture
@@ -113,249 +144,210 @@ async def scheduler():
 
 async def test_trash_retention_deletes_old_nodes(db_pool, test_user, scheduler):
     """Trashed nodes older than the retention period are hard-deleted."""
-    workspace_id = test_user["workspace_id"]
-    user_id = int(test_user["id"])
+    store = _make_store(test_user)
+    try:
+        node_id = str(uuid4())
+        await _create_node(store, node_id)
+        await _delete_node(store, node_id)
+        old_date = datetime.now(UTC) - timedelta(days=31)
+        await _set_trash_deleted_at(store, node_id, old_date)
 
-    node_id, _ = await _insert_node(db_pool, workspace_id, user_id, name="Old trash page", is_page=True)
-    old_date = datetime.now(UTC) - timedelta(days=31)
-    await _soft_delete_node(db_pool, node_id, old_date)
+        await scheduler._cleanup_trash()
 
-    await scheduler._cleanup_trash()
-
-    assert not await _node_exists(db_pool, workspace_id, node_id)
+        assert not await _node_exists(store, node_id)
+        assert not await _trash_exists(store, node_id)
+    finally:
+        await store.close()
 
 
 async def test_trash_retention_keeps_recent_nodes(db_pool, test_user, scheduler):
     """Trashed nodes newer than the retention period are kept."""
-    workspace_id = test_user["workspace_id"]
-    user_id = int(test_user["id"])
+    store = _make_store(test_user)
+    try:
+        node_id = str(uuid4())
+        await _create_node(store, node_id)
+        await _delete_node(store, node_id)
+        recent_date = datetime.now(UTC) - timedelta(days=29)
+        await _set_trash_deleted_at(store, node_id, recent_date)
 
-    node_id, _ = await _insert_node(db_pool, workspace_id, user_id, name="Recent trash page", is_page=True)
-    recent_date = datetime.now(UTC) - timedelta(days=29)
-    await _soft_delete_node(db_pool, node_id, recent_date)
+        await scheduler._cleanup_trash()
 
-    await scheduler._cleanup_trash()
-
-    assert await _node_exists(db_pool, workspace_id, node_id)
+        # The trash entry is recent, so the node row is still gone (delete is
+        # immediate) but the trash record remains.
+        assert not await _node_exists(store, node_id)
+        assert await _trash_exists(store, node_id)
+    finally:
+        await store.close()
 
 
 async def test_trash_retention_zero_disables_cleanup(db_pool, test_user, scheduler):
     """Setting trash_retention_days to 0 disables automatic trash cleanup."""
     workspace_id = test_user["workspace_id"]
-    user_id = int(test_user["id"])
     await _set_workspace_setting(db_pool, workspace_id, "trash_retention_days", 0)
 
-    node_id, _ = await _insert_node(db_pool, workspace_id, user_id, name="Never delete page", is_page=True)
-    old_date = datetime.now(UTC) - timedelta(days=365)
-    await _soft_delete_node(db_pool, node_id, old_date)
+    store = _make_store(test_user)
+    try:
+        node_id = str(uuid4())
+        await _create_node(store, node_id)
+        await _delete_node(store, node_id)
+        old_date = datetime.now(UTC) - timedelta(days=365)
+        await _set_trash_deleted_at(store, node_id, old_date)
 
-    await scheduler._cleanup_trash()
+        await scheduler._cleanup_trash()
 
-    assert await _node_exists(db_pool, workspace_id, node_id)
+        assert not await _node_exists(store, node_id)
+        assert await _trash_exists(store, node_id)
+    finally:
+        await store.close()
 
 
-async def test_trash_retention_deletes_asset_folder(db_pool, test_user, scheduler, temp_data_dir):
+async def test_trash_retention_deletes_asset_folder(
+    db_pool, test_user, scheduler, temp_data_dir
+):
     """Asset folders for auto-deleted trashed assets are removed from disk."""
-    workspace_id = test_user["workspace_id"]
-    workspace_uuid = test_user["workspace_uuid"]
-    user_id = int(test_user["id"])
+    store = _make_store(test_user)
+    try:
+        asset_uuid = str(uuid4())
+        await _create_node(
+            store,
+            asset_uuid,
+            kind="block",
+            class_ids=[SYSTEM_CLASS_UUIDS["asset"]],
+        )
+        await _delete_node(store, asset_uuid)
+        old_date = datetime.now(UTC) - timedelta(days=31)
+        await _set_trash_deleted_at(store, asset_uuid, old_date)
 
-    asset_class_id = await _get_class_id(db_pool, workspace_id, "asset")
-    assert asset_class_id is not None
+        # Create a fake asset folder on disk (legacy layout by node UUID)
+        workspace_uuid = test_user["workspace_uuid"]
+        assets_dir = get_workspace_assets_dir(workspace_uuid)
+        asset_folder = assets_dir / asset_uuid
+        asset_folder.mkdir(parents=True, exist_ok=True)
+        (asset_folder / "dummy.bin").write_text("data")
 
-    node_id, asset_uuid = await _insert_node(
-        db_pool,
-        workspace_id,
-        user_id,
-        name="old-asset.png",
-        is_asset=True,
-        class_ids=[asset_class_id],
-    )
-    old_date = datetime.now(UTC) - timedelta(days=31)
-    await _soft_delete_node(db_pool, node_id, old_date)
+        await scheduler._cleanup_trash()
 
-    # Create a fake asset folder on disk
-    assets_dir = get_workspace_assets_dir(workspace_uuid)
-    asset_folder = assets_dir / asset_uuid
-    asset_folder.mkdir(parents=True, exist_ok=True)
-    (asset_folder / "dummy.bin").write_text("data")
-
-    await scheduler._cleanup_trash()
-
-    assert not await _node_exists(db_pool, workspace_id, node_id)
-    assert not asset_folder.exists()
+        assert not await _trash_exists(store, asset_uuid)
+        assert not asset_folder.exists()
+    finally:
+        await store.close()
 
 
 async def test_activity_log_retention_deletes_old_rows(db_pool, test_user, scheduler):
     """Old activity log rows are deleted when retention is enabled."""
-    workspace_id = test_user["workspace_id"]
-    user_id = int(test_user["id"])
+    store = _make_store(test_user)
+    try:
+        node_id = str(uuid4())
+        await _create_node(store, node_id)
 
-    node_id, _ = await _insert_node(db_pool, workspace_id, user_id, name="Activity page", is_page=True)
-
-    async with db_pool.acquire() as conn:
-        # Insert old activity row
+        old_activity_id = str(uuid4())
+        await _record_activity(store, old_activity_id, node_id, "created", {"detail": "Old entry"})
         old_date = datetime.now(UTC) - timedelta(days=91)
-        await conn.execute(
-            """
-            INSERT INTO node_activity (node_id, action, details, create_date)
-            VALUES ($1, 'created', 'Old entry', $2)
-            """,
-            node_id,
-            old_date,
-        )
-        # Insert recent activity row
-        recent_date = datetime.now(UTC) - timedelta(days=1)
-        await conn.execute(
-            """
-            INSERT INTO node_activity (node_id, action, details, create_date)
-            VALUES ($1, 'edited', 'Recent entry', $2)
-            """,
-            node_id,
-            recent_date,
+        await _set_activity_timestamp(store, old_activity_id, old_date)
+
+        recent_activity_id = str(uuid4())
+        await _record_activity(
+            store, recent_activity_id, node_id, "edited", {"detail": "Recent entry"}
         )
 
-    await scheduler._cleanup_activity_logs()
+        await scheduler._cleanup_activity_logs()
 
-    async with db_pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT na.details
-            FROM node_activity na
-            JOIN node n ON na.node_id = n.id
-            WHERE n.workspace_id = $1
-            """,
-            workspace_id,
-        )
-
-    details = {r["details"] for r in rows}
-    assert "Old entry" not in details
-    assert "Recent entry" in details
+        details = await _activity_details(store)
+        assert "Old entry" not in details
+        assert "Recent entry" in details
+    finally:
+        await store.close()
 
 
-async def test_activity_log_retention_disabled_keeps_rows(db_pool, test_user, scheduler):
+async def test_activity_log_retention_disabled_keeps_rows(
+    db_pool, test_user, scheduler
+):
     """Activity log rows are kept when retention is disabled."""
     workspace_id = test_user["workspace_id"]
-    user_id = int(test_user["id"])
-    await _set_workspace_setting(db_pool, workspace_id, "activity_log_retention_enabled", False)
-
-    node_id, _ = await _insert_node(db_pool, workspace_id, user_id, name="Activity page 2", is_page=True)
-
-    async with db_pool.acquire() as conn:
-        old_date = datetime.now(UTC) - timedelta(days=365)
-        await conn.execute(
-            """
-            INSERT INTO node_activity (node_id, action, details, create_date)
-            VALUES ($1, 'created', 'Very old entry', $2)
-            """,
-            node_id,
-            old_date,
-        )
-
-    await scheduler._cleanup_activity_logs()
-
-    async with db_pool.acquire() as conn:
-        count = await conn.fetchval(
-            """
-            SELECT COUNT(*)
-            FROM node_activity na
-            JOIN node n ON na.node_id = n.id
-            WHERE n.workspace_id = $1
-            """,
-            workspace_id,
-        )
-
-    assert count == 1
-
-
-async def test_task_completion_retention_deletes_old_rows(db_pool, test_user, scheduler):
-    """Old task completion rows are deleted when retention is enabled."""
-    workspace_id = test_user["workspace_id"]
-    user_id = int(test_user["id"])
-    task_class_id = await _get_class_id(db_pool, workspace_id, "task")
-    assert task_class_id is not None
-
-    node_id, _ = await _insert_node(
-        db_pool,
-        workspace_id,
-        user_id,
-        name="Task",
-        is_task=True,
-        class_ids=[task_class_id],
+    await _set_workspace_setting(
+        db_pool, workspace_id, "activity_log_retention_enabled", False
     )
 
-    async with db_pool.acquire() as conn:
-        # Insert old completion
+    store = _make_store(test_user)
+    try:
+        node_id = str(uuid4())
+        await _create_node(store, node_id)
+
+        activity_id = str(uuid4())
+        await _record_activity(store, activity_id, node_id, "created", {"detail": "Very old entry"})
+        old_date = datetime.now(UTC) - timedelta(days=365)
+        await _set_activity_timestamp(store, activity_id, old_date)
+
+        await scheduler._cleanup_activity_logs()
+
+        details = await _activity_details(store)
+        assert "Very old entry" in details
+    finally:
+        await store.close()
+
+
+async def test_task_completion_retention_deletes_old_rows(
+    db_pool, test_user, scheduler
+):
+    """Old task completion rows are deleted when retention is enabled."""
+    store = _make_store(test_user)
+    try:
+        node_id = str(uuid4())
+        await _create_node(
+            store,
+            node_id,
+            kind="block",
+            class_ids=[SYSTEM_CLASS_UUIDS["task"]],
+        )
+
         old_date = datetime.now(UTC) - timedelta(days=366)
-        await conn.execute(
-            """
-            INSERT INTO task_completion (task_node_id, workspace_id, status, completed_at)
-            VALUES ($1, $2, 'completed', $3)
-            """,
+        await store.record_task_completion(
+            str(uuid4()),
             node_id,
-            workspace_id,
-            old_date,
+            completed_at=old_date.isoformat(),
         )
-        # Insert recent completion
         recent_date = datetime.now(UTC) - timedelta(days=1)
-        await conn.execute(
-            """
-            INSERT INTO task_completion (task_node_id, workspace_id, status, completed_at)
-            VALUES ($1, $2, 'completed', $3)
-            """,
+        await store.record_task_completion(
+            str(uuid4()),
             node_id,
-            workspace_id,
-            recent_date,
+            completed_at=recent_date.isoformat(),
         )
 
-    await scheduler._cleanup_task_completions()
+        await scheduler._cleanup_task_completions()
 
-    async with db_pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT completed_at FROM task_completion WHERE workspace_id = $1",
-            workspace_id,
-        )
-
-    completion_dates = [r["completed_at"] for r in rows]
-    assert len(completion_dates) == 1
-    assert (completion_dates[0] - (datetime.now(UTC) - timedelta(days=1))).days < 1
+        assert await _task_completion_count(store) == 1
+    finally:
+        await store.close()
 
 
-async def test_task_completion_retention_disabled_keeps_rows(db_pool, test_user, scheduler):
+async def test_task_completion_retention_disabled_keeps_rows(
+    db_pool, test_user, scheduler
+):
     """Task completion rows are kept when retention is disabled."""
     workspace_id = test_user["workspace_id"]
-    user_id = int(test_user["id"])
-    task_class_id = await _get_class_id(db_pool, workspace_id, "task")
-    assert task_class_id is not None
-    await _set_workspace_setting(db_pool, workspace_id, "task_completion_retention_enabled", False)
-
-    node_id, _ = await _insert_node(
-        db_pool,
-        workspace_id,
-        user_id,
-        name="Task 2",
-        is_task=True,
-        class_ids=[task_class_id],
+    await _set_workspace_setting(
+        db_pool, workspace_id, "task_completion_retention_enabled", False
     )
 
-    async with db_pool.acquire() as conn:
-        old_date = datetime.now(UTC) - timedelta(days=1000)
-        await conn.execute(
-            """
-            INSERT INTO task_completion (task_node_id, workspace_id, status, completed_at)
-            VALUES ($1, $2, 'completed', $3)
-            """,
+    store = _make_store(test_user)
+    try:
+        node_id = str(uuid4())
+        await _create_node(
+            store,
             node_id,
-            workspace_id,
-            old_date,
+            kind="block",
+            class_ids=[SYSTEM_CLASS_UUIDS["task"]],
         )
 
-    await scheduler._cleanup_task_completions()
-
-    async with db_pool.acquire() as conn:
-        count = await conn.fetchval(
-            "SELECT COUNT(*) FROM task_completion WHERE workspace_id = $1",
-            workspace_id,
+        old_date = datetime.now(UTC) - timedelta(days=1000)
+        await store.record_task_completion(
+            str(uuid4()),
+            node_id,
+            completed_at=old_date.isoformat(),
         )
 
-    assert count == 1
+        await scheduler._cleanup_task_completions()
+
+        assert await _task_completion_count(store) == 1
+    finally:
+        await store.close()

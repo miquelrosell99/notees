@@ -29,11 +29,11 @@ class ExportService:
         self._renderer = renderer
 
     async def get_export_node_tree(
-        self, workspace_id: int, node_uuid: str, include_children: bool, include_child_pages: bool = False
+        self, workspace_uuid: str, node_uuid: str, include_children: bool, include_child_pages: bool = False
     ) -> list[dict[str, Any]]:
         """Fetch a node tree ready for export rendering."""
         rows = await self._export_repo.get_export_node_tree(
-            workspace_id, node_uuid, include_children, include_child_pages
+            workspace_uuid, node_uuid, include_children, include_child_pages
         )
         nodes_data: list[dict[str, Any]] = []
         for row in rows:
@@ -52,13 +52,15 @@ class ExportService:
         return nodes_data
 
     async def filter_text_property_nodes(
-        self, nodes_data: list[dict[str, Any]]
+        self, workspace_uuid: str, nodes_data: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """Remove text-property subtrees from the export node list."""
         if len(nodes_data) <= 1:
             return nodes_data
         all_tree_ids = [nd["id"] for nd in nodes_data]
-        text_prop_ids = await self._export_repo.filter_text_property_node_ids(all_tree_ids)
+        text_prop_ids = await self._export_repo.filter_text_property_node_ids(
+            workspace_uuid, all_tree_ids
+        )
         if not text_prop_ids:
             return nodes_data
 
@@ -76,8 +78,8 @@ class ExportService:
         return filtered
 
     async def get_system_class_maps(
-        self, workspace_id: int
-    ) -> tuple[int | None, int | None, dict[int, str]]:
+        self, workspace_uuid: str
+    ) -> tuple[str | None, str | None, dict[str, str]]:
         """Resolve code/quote/callout class IDs for rendering."""
         system_uuids = [
             "00000000-0000-0000-0001-000000000008",
@@ -90,11 +92,11 @@ class ExportService:
             "00000000-0000-0000-0001-000000000021",
         ]
         system_class_map = await self._export_repo.get_system_class_map(
-            workspace_id, system_uuids
+            workspace_uuid, system_uuids
         )
-        code_class_id: int | None = None
-        quote_class_id: int | None = None
-        callout_class_map: dict[int, str] = {}
+        code_class_id: str | None = None
+        quote_class_id: str | None = None
+        callout_class_map: dict[str, str] = {}
         for cid, cname in system_class_map.items():
             if cname == "code":
                 code_class_id = cid
@@ -105,7 +107,7 @@ class ExportService:
         return code_class_id, quote_class_id, callout_class_map
 
     async def resolve_link_targets(
-        self, workspace_id: int, target_uuids: set[str]
+        self, workspace_uuid: str, target_uuids: set[str]
     ) -> tuple[dict[str, list], dict[str, bool], dict[str, bool]]:
         """Resolve AST + flags for a set of link target UUIDs."""
         from app.domain.stringify_ast import parse_ast
@@ -115,7 +117,7 @@ class ExportService:
         link_is_asset_map: dict[str, bool] = {}
         if target_uuids:
             rows = await self._export_repo.resolve_link_targets(
-                workspace_id, list(target_uuids)
+                workspace_uuid, list(target_uuids)
             )
             for tr in rows:
                 link_target_map[str(tr["uuid"])] = parse_ast(tr["name"])
@@ -124,7 +126,7 @@ class ExportService:
         return link_target_map, link_is_page_map, link_is_asset_map
 
     async def get_properties_data(
-        self, property_target_nodes: list[dict[str, Any]], workspace_id: int
+        self, property_target_nodes: list[dict[str, Any]], workspace_uuid: str
     ) -> tuple[dict[str, list], set[str]]:
         """Build the properties_data map for the given target nodes."""
 
@@ -137,10 +139,12 @@ class ExportService:
         if not page_node_ids:
             return properties_data
 
-        prop_rows = await self._export_repo.get_node_properties_data(page_node_ids)
+        prop_rows = await self._export_repo.get_node_properties_data(
+            workspace_uuid, page_node_ids
+        )
         relation_target_ids = {row["relation_target_id"] for row in prop_rows if row["relation_target_id"]}
         relation_target_names = await self._export_repo.get_relation_target_names(
-            list(relation_target_ids)
+            workspace_uuid, list(relation_target_ids)
         )
 
         agg: dict[str, dict[str, dict]] = {}
@@ -182,7 +186,7 @@ class ExportService:
                 entry["values"].append(value_str)
 
         class_names, tag_labels = await self._export_repo.get_node_class_and_tag_names(
-            page_node_ids, workspace_id
+            page_node_ids, workspace_uuid
         )
         for node_uuid_key, names in class_names.items():
             if names:
@@ -218,7 +222,7 @@ class ExportService:
             for tid in pe["target_ids"]
         ]
         text_subtrees = await self._export_repo.get_text_property_subtrees(
-            all_text_target_ids
+            workspace_uuid, all_text_target_ids
         )
         for props in agg.values():
             for pe in props.values():
@@ -260,24 +264,24 @@ class ExportService:
                 ExportService._collect_link_target_uuids(children, out)
 
     async def get_page_metadata(
-        self, workspace_id: int, node_uuid: str, include_properties: bool = True
+        self, workspace_uuid: str, node_uuid: str, include_properties: bool = True
     ) -> dict[str, Any]:
         """Fetch full page metadata for YAML frontmatter."""
         return await self._export_repo.get_page_metadata(
-            workspace_id, node_uuid, include_properties=include_properties
+            workspace_uuid, node_uuid, include_properties=include_properties
         )
 
     async def get_auto_export_metadata(
-        self, workspace_id: int, node_uuid: str
+        self, workspace_uuid: str, node_uuid: str
     ) -> dict[str, Any]:
         """Fetch node metadata for auto-export YAML frontmatter."""
         return await self._export_repo.get_auto_export_metadata(
-            workspace_id, node_uuid
+            workspace_uuid, node_uuid
         )
 
     async def export_nodes(
         self,
-        workspace_id: int,
+        workspace_uuid: str,
         node_uuids: list[str],
         format: Any,
         user_id: int | None = None,
@@ -305,7 +309,7 @@ class ExportService:
         """Export nodes to Markdown, HTML, PDF, Text, JSON, or a plugin format.
 
         Args:
-            workspace_id: Workspace ID to export from.
+            workspace_uuid: Workspace ID to export from.
             node_uuids: List of node UUIDs to export.
             format: Export format (markdown, html, pdf, text, json).
             asset_path_map: Optional dict mapping asset node UUIDs to relative
@@ -321,7 +325,7 @@ class ExportService:
         seen_uuids: set[str] = set()
         for node_uuid in node_uuids:
             fetched = await self.get_export_node_tree(
-                workspace_id, node_uuid, include_children, include_child_pages
+                workspace_uuid, node_uuid, include_children, include_child_pages
             )
             for nd in fetched:
                 row_uuid = nd["uuid"]
@@ -348,7 +352,7 @@ class ExportService:
         exporter_reg = plugin_manager.get_exporter_registration(fmt_str)
         if exporter_reg is not None:
             plugin_id, adapter = exporter_reg
-            resolved_ids = await self._export_repo.resolve_node_ids(workspace_id, node_uuids)
+            resolved_ids = await self._export_repo.resolve_node_ids(workspace_uuid, node_uuids)
             if not resolved_ids:
                 raise ValueError("No nodes found to export")
 
@@ -383,7 +387,7 @@ class ExportService:
             result = await adapter.export_nodes(
                 ExportContext(
                     node_ids=resolved_ids,
-                    workspace_id=workspace_id,
+                    workspace_uuid=workspace_uuid,
                     user_id=user_id or 0,
                     plugin_context=plugin_context,
                     options=options,
@@ -402,10 +406,10 @@ class ExportService:
 
         # Filter out text property value blocks (post-query safety net)
         if include_children and len(nodes_data) > 1:
-            nodes_data = await self.filter_text_property_nodes(nodes_data)
+            nodes_data = await self.filter_text_property_nodes(workspace_uuid, nodes_data)
 
         # Look up system class IDs for code / quote / callout rendering
-        code_class_id, quote_class_id, callout_class_map = await self.get_system_class_maps(workspace_id)
+        code_class_id, quote_class_id, callout_class_map = await self.get_system_class_maps(workspace_uuid)
 
         # Resolve node links in all ASTs
         target_uuids: set[str] = set()
@@ -415,7 +419,7 @@ class ExportService:
             self._collect_link_target_uuids(ast, target_uuids)
 
         link_target_map, link_is_page_map, link_is_asset_map = await self.resolve_link_targets(
-            workspace_id, target_uuids
+            workspace_uuid, target_uuids
         )
 
         def resolve_node_link(link_id: str):
@@ -437,11 +441,11 @@ class ExportService:
         properties_data: dict[str, list] = {}
         if property_target_nodes:
             properties_data, subtree_link_uuids = await self.get_properties_data(
-                property_target_nodes, workspace_id
+                property_target_nodes, workspace_uuid
             )
             if subtree_link_uuids:
                 extra_map, extra_is_page, _ = await self.resolve_link_targets(
-                    workspace_id, subtree_link_uuids
+                    workspace_uuid, subtree_link_uuids
                 )
                 link_target_map.update(extra_map)
                 link_is_page_map.update(extra_is_page)
@@ -461,7 +465,7 @@ class ExportService:
         cover_metadata = None
         if cover_page and node_uuids and fmt_str in {"html", "pdf"}:
             cover_metadata = await self.get_page_metadata(
-                workspace_id, node_uuids[0], include_properties=False
+                workspace_uuid, node_uuids[0], include_properties=False
             )
 
         if fmt_str == "markdown":
@@ -481,7 +485,7 @@ class ExportService:
             if frontmatter and node_uuids:
                 root_uuid = node_uuids[0]
                 metadata = await self.get_page_metadata(
-                    workspace_id, root_uuid, include_properties=properties != "none"
+                    workspace_uuid, root_uuid, include_properties=properties != "none"
                 )
                 content = self._renderer.build_yaml_frontmatter(metadata) + content
             filename = "export.md"
@@ -571,10 +575,10 @@ class ExportService:
 
         return content.encode("utf-8"), filename, mime_type
 
-    async def generate_share_html(self, workspace_id: int, node_uuid: str) -> str:
+    async def generate_share_html(self, workspace_uuid: str, node_uuid: str) -> str:
         """Generate a static HTML export for a shared node."""
         content_bytes, _filename, _mime = await self.export_nodes(
-            workspace_id=workspace_id,
+            workspace_uuid=workspace_uuid,
             node_uuids=[node_uuid],
             format="html",
             include_children=True,
@@ -593,10 +597,10 @@ class ExportService:
         return content_bytes.decode("utf-8")
 
     async def write_share_html(
-        self, share_uuid: str, workspace_id: int, node_uuid: str
+        self, share_uuid: str, workspace_uuid: str, node_uuid: str
     ) -> Path:
         """Generate and write static share HTML to disk."""
-        html = await self.generate_share_html(workspace_id, node_uuid)
+        html = await self.generate_share_html(workspace_uuid, node_uuid)
         path = self._renderer.static_share_path(share_uuid)
         path.write_text(html, encoding="utf-8")
         return path

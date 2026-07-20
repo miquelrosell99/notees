@@ -16,8 +16,10 @@ from typing import Any
 
 import asyncpg
 
+from app.core.workspace_store import WorkspaceStore
 from app.db.connection import acquire_connection, get_data_dir
 from app.domain.entities import User, UserCreateData, generate_uuid
+from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
 from app.domain.repositories.base import BasePostgresRepository, normalize_timestamp
 from app.features.auth.port import InviteRepository, UserRepository
 from app.logging_config import get_logger
@@ -114,33 +116,93 @@ class PostgresUserRepository(UserRepository):
             row = await conn.fetchrow('SELECT * FROM "user" WHERE email = $1', email)
             return self._row_to_user(row) if row else None
 
+    async def _primary_workspace_uuid_for_user(
+        self, conn: asyncpg.Connection, user_id: int
+    ) -> str | None:
+        """Return the UUID of the user's primary workspace, or None."""
+        row = await conn.fetchrow(
+            """
+            SELECT w.uuid::text AS workspace_uuid
+            FROM workspace w
+            WHERE w.create_uid = $1 AND w.active = TRUE
+            ORDER BY w.create_date ASC
+            LIMIT 1
+            """,
+            user_id,
+        )
+        if row:
+            return row["workspace_uuid"]
+        row = await conn.fetchrow(
+            """
+            SELECT w.uuid::text AS workspace_uuid
+            FROM workspace w
+            JOIN workspace_share ws ON w.id = ws.workspace_id
+            WHERE ws.user_id = $1 AND ws.active = TRUE AND ws.can_read = TRUE AND w.active = TRUE
+            ORDER BY w.create_date ASC
+            LIMIT 1
+            """,
+            user_id,
+        )
+        return row["workspace_uuid"] if row else None
+
     async def get_user_id_by_page_node_uuid(self, node_uuid: str) -> int | None:
-        """Get user ID whose user page node has the given UUID."""
+        """Get user ID whose user page node has the given UUID.
+
+        Without a ``user_page_node_uuid`` column on the ``user`` table, we sync
+        each user's primary workspace store and check whether the node exists in
+        the derived state.
+        """
         async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                'SELECT id FROM "user" WHERE user_page_node_id = (SELECT id FROM node WHERE uuid::text = $1)',
-                node_uuid,
-            )
-            return row["id"] if row else None
+            users = await conn.fetch('SELECT id, uuid FROM "user" WHERE active = TRUE')
+            for user_row in users:
+                workspace_uuid = await self._primary_workspace_uuid_for_user(conn, user_row["id"])
+                if not workspace_uuid:
+                    continue
+                store = WorkspaceStore(
+                    workspace_id=workspace_uuid,
+                    actor_id=str(user_row["uuid"]),
+                )
+                try:
+                    await store.sync()
+                    rows = await store.query(
+                        "SELECT 1 FROM node WHERE id = ?",
+                        (node_uuid,),
+                    )
+                    if rows:
+                        return user_row["id"]
+                finally:
+                    await store.close()
+            return None
 
     async def get_user_ids_by_page_node_uuids(self, node_uuids: list[str]) -> dict[str, int | None]:
         """Get user IDs for multiple page-node UUIDs in one query."""
         if not node_uuids:
             return {}
 
+        result: dict[str, int | None] = dict.fromkeys(node_uuids, None)
         async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(
-                """
-                SELECT u.id, n.uuid
-                FROM "user" u
-                JOIN node n ON n.id = u.user_page_node_id
-                WHERE n.uuid = ANY($1)
-                """,
-                node_uuids,
-            )
-            result: dict[str, int | None] = dict.fromkeys(node_uuids, None)
-            for row in rows:
-                result[str(row["uuid"])] = row["id"]
+            users = await conn.fetch('SELECT id, uuid FROM "user" WHERE active = TRUE')
+            for user_row in users:
+                workspace_uuid = await self._primary_workspace_uuid_for_user(conn, user_row["id"])
+                if not workspace_uuid:
+                    continue
+                store = WorkspaceStore(
+                    workspace_id=workspace_uuid,
+                    actor_id=str(user_row["uuid"]),
+                )
+                try:
+                    await store.sync()
+                    placeholders = ",".join("?" for _ in node_uuids)
+                    rows = await store.query(
+                        f"SELECT id FROM node WHERE id IN ({placeholders})",
+                        tuple(node_uuids),
+                    )
+                    for row in rows:
+                        node_id = row["id"]
+                        if node_id in result and result[node_id] is None:
+                            result[node_id] = user_row["id"]
+                finally:
+                    await store.close()
             return result
 
     async def update_profile(
@@ -671,21 +733,49 @@ class PostgresUserRepository(UserRepository):
             return result.split()[-1] != "0"
 
     async def get_system_metrics(self) -> dict[str, Any]:
-        """Get system-wide counts."""
+        """Get system-wide counts.
+
+        Node counts are derived from each workspace's operation-log store;
+        workspace, user, and share counts still come from PostgreSQL.
+        """
+        node_count = 0
+        page_count = 0
+        block_count = 0
+        daily_count = 0
+        day_class_uuid = SYSTEM_CLASS_UUIDS["day"]
+
         async with acquire_connection(self._pool) as conn:
-            node_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE")
-            page_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_page = TRUE")
-            block_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_page = FALSE")
-            daily_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_day = TRUE")
             user_count = await conn.fetchval('SELECT COUNT(*) FROM "user"')
             workspace_count = await conn.fetchval("SELECT COUNT(*) FROM workspace WHERE active = TRUE")
             public_share_count = await conn.fetchval("SELECT COUNT(*) FROM node_public_share WHERE active = TRUE")
             user_share_count = await conn.fetchval("SELECT COUNT(*) FROM node_share WHERE active = TRUE")
 
+            workspace_rows = await conn.fetch(
+                "SELECT uuid::text AS uuid FROM workspace WHERE active = TRUE"
+            )
+
+        for ws_row in workspace_rows:
+            store = WorkspaceStore(workspace_id=ws_row["uuid"], actor_id="system")
+            try:
+                await store.sync()
+                node_count += (await store.query("SELECT COUNT(*) FROM node"))[0][0]
+                page_count += (
+                    await store.query("SELECT COUNT(*) FROM node WHERE kind = 'page'")
+                )[0][0]
+                block_count += (
+                    await store.query("SELECT COUNT(*) FROM node WHERE kind = 'block'")
+                )[0][0]
+                daily_count += (
+                    await store.query(
+                        "SELECT COUNT(*) FROM node WHERE kind = 'page' AND class_ids LIKE ?",
+                        (f"%{day_class_uuid}%",),
+                    )
+                )[0][0]
+            finally:
+                await store.close()
+
         data_dir = get_data_dir()
-        storage_used = 0
-        if data_dir.exists():
-            storage_used = shutil.disk_usage(data_dir).used
+        storage_used = shutil.disk_usage(data_dir).used if data_dir.exists() else 0
 
         return {
             "nodes": {
@@ -704,7 +794,11 @@ class PostgresUserRepository(UserRepository):
         }
 
     async def audit_assets(self, dry_run: bool) -> dict[str, Any]:
-        """Audit asset files on disk vs active asset nodes."""
+        """Audit asset files on disk vs active asset nodes.
+
+        Asset-node membership is read from each workspace's operation-log derived
+        state instead of the legacy ``node`` table.
+        """
         data_dir = get_data_dir()
         workspaces_dir = data_dir / "workspaces"
         orphans: list[dict] = []
@@ -712,31 +806,30 @@ class PostgresUserRepository(UserRepository):
 
         async with acquire_connection(self._pool) as conn:
             workspaces = await conn.fetch(
-                "SELECT id, uuid FROM workspace WHERE active = TRUE"
+                "SELECT id, uuid::text AS uuid FROM workspace WHERE active = TRUE"
             )
 
-            for ws_row in workspaces:
-                ws_uuid = str(ws_row["uuid"])
-                ws_id = ws_row["id"]
-                assets_dir = workspaces_dir / ws_uuid / "assets"
-                if not assets_dir.exists():
-                    continue
+        for ws_row in workspaces:
+            ws_uuid = ws_row["uuid"]
+            ws_id = ws_row["id"]
+            assets_dir = workspaces_dir / ws_uuid / "assets"
+            if not assets_dir.exists():
+                continue
+
+            store = WorkspaceStore(workspace_id=ws_uuid, actor_id="system")
+            try:
+                await store.sync()
+                asset_rows = await store.query(
+                    "SELECT a.node_id, a.asset_hash FROM node_asset a JOIN node n ON n.id = a.node_id"
+                )
+                active_assets = {row["node_id"]: row["asset_hash"] for row in asset_rows}
 
                 for asset_folder in assets_dir.iterdir():
                     if not asset_folder.is_dir():
                         continue
                     asset_uuid = asset_folder.name
 
-                    node = await conn.fetchrow(
-                        """
-                        SELECT id, is_deleted, active FROM node
-                        WHERE uuid = $1 AND workspace_id = $2 AND is_asset = TRUE
-                        """,
-                        asset_uuid,
-                        ws_id,
-                    )
-
-                    if not node:
+                    if asset_uuid not in active_assets:
                         orphans.append({
                             "workspace_id": ws_id,
                             "workspace_uuid": ws_uuid,
@@ -747,25 +840,8 @@ class PostgresUserRepository(UserRepository):
                         if not dry_run:
                             shutil.rmtree(asset_folder, ignore_errors=True)
                             logger.info(f"[ASSET_AUDIT] Removed orphan folder: {asset_folder}")
-                    elif node["is_deleted"] or not node["active"]:
-                        orphans.append({
-                            "workspace_id": ws_id,
-                            "workspace_uuid": ws_uuid,
-                            "asset_uuid": asset_uuid,
-                            "path": str(asset_folder),
-                            "reason": "node_deleted_or_inactive",
-                            "node_id": node["id"],
-                        })
 
-                missing_rows = await conn.fetch(
-                    """
-                    SELECT uuid FROM node
-                    WHERE workspace_id = $1 AND is_asset = TRUE AND active = TRUE AND is_deleted = FALSE
-                    """,
-                    ws_id,
-                )
-                for row in missing_rows:
-                    asset_uuid = str(row["uuid"])
+                for asset_uuid in active_assets:
                     asset_folder = assets_dir / asset_uuid
                     if not asset_folder.exists():
                         missing_files.append({
@@ -774,6 +850,8 @@ class PostgresUserRepository(UserRepository):
                             "asset_uuid": asset_uuid,
                             "reason": "folder_missing",
                         })
+            finally:
+                await store.close()
 
         return {
             "dry_run": dry_run,
@@ -795,7 +873,7 @@ class PostgresInviteRepository(BasePostgresRepository, InviteRepository):
         async with acquire_connection(self._pool) as conn:
             return await conn.fetchrow(
                 """
-                SELECT id, email, workspace_id, node_id, role, invited_by, expires_at
+                SELECT id, email, workspace_id, node_uuid, role, invited_by, expires_at
                 FROM pending_invite
                 WHERE uuid::text = $1 AND active = TRUE
                 """,
@@ -815,7 +893,11 @@ class PostgresInviteRepository(BasePostgresRepository, InviteRepository):
         invite: Any,
         user_id: int,
     ) -> None:
-        """Create workspace/node shares from an invite in a single transaction."""
+        """Create workspace/node shares from an invite in a single transaction.
+
+        Workspace membership stays in PostgreSQL; node-level sharing is emitted
+        as an operation-log ``share.user.grant`` via ``WorkspaceStore``.
+        """
         async with acquire_connection(self._pool) as conn, conn.transaction():
             if invite["workspace_id"]:
                 perms = {
@@ -849,25 +931,38 @@ class PostgresInviteRepository(BasePostgresRepository, InviteRepository):
                     invite["workspace_id"],
                 )
 
-            if invite["node_id"]:
-                can_write = invite["role"] == "write"
-                await conn.execute(
-                    """
-                    INSERT INTO node_share (node_id, user_id, can_read, can_write, can_create, can_delete, can_comment, active, create_uid, write_uid)
-                    VALUES ($1, $2, TRUE, $3, FALSE, FALSE, FALSE, TRUE, $4, $4)
-                    ON CONFLICT (node_id, user_id)
-                    DO UPDATE SET can_read = TRUE, can_write = EXCLUDED.can_write, active = TRUE,
-                                  write_uid = EXCLUDED.write_uid, write_date = NOW()
-                    """,
-                    invite["node_id"],
+            node_uuid = invite.get("node_uuid")
+            if node_uuid:
+                ws_uuid_row = await conn.fetchrow(
+                    "SELECT uuid::text FROM workspace WHERE id = $1",
+                    invite["workspace_id"],
+                )
+                if ws_uuid_row is None:
+                    raise ValueError(f"Workspace {invite['workspace_id']} not found")
+                ws_uuid = ws_uuid_row["uuid"]
+
+                user_uuid_row = await conn.fetchrow(
+                    'SELECT uuid::text FROM "user" WHERE id = $1',
                     user_id,
-                    can_write,
-                    invite["invited_by"],
                 )
-                await conn.execute(
-                    "UPDATE node SET is_shared = TRUE WHERE id = $1",
-                    invite["node_id"],
-                )
+                if user_uuid_row is None:
+                    raise ValueError(f"User {user_id} not found")
+                user_uuid = user_uuid_row["uuid"]
+
+                role = (invite.get("role") or "viewer").lower()
+                permission = "write" if role in ("editor", "admin", "write") else "read"
+                share_id = generate_uuid()
+
+                store = WorkspaceStore(workspace_id=ws_uuid, actor_id=user_uuid)
+                try:
+                    await store.grant_user_share(
+                        share_id=share_id,
+                        node_uuid=str(node_uuid),
+                        user_id=user_uuid,
+                        permission=permission,
+                    )
+                finally:
+                    await store.close()
 
             await conn.execute(
                 "UPDATE pending_invite SET active = FALSE WHERE id = $1",

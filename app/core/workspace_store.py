@@ -9,6 +9,7 @@ as clients.
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,10 +49,12 @@ class WorkspaceStore:
 
         if relay_storage is not None:
             self._relay_storage = relay_storage
+            self._owns_relay_storage = False
         else:
             relay_db = settings.database_dir / "relay" / "relay.db"
             relay_db.parent.mkdir(parents=True, exist_ok=True)
             self._relay_storage = SqliteRelayStorage(relay_db)
+            self._owns_relay_storage = True
 
         if db_path is not None:
             self._db_path = db_path
@@ -119,6 +122,18 @@ class WorkspaceStore:
     def _advance_clock(self) -> Hlc:
         """Generate the next HLC for a local operation."""
         return self._clock.advance(int(datetime.now(UTC).timestamp() * 1000))
+
+    async def _maybe_await(self, value: Any) -> Any:
+        """Await coroutine results from async storage adapters transparently.
+
+        ``PostgresRelayStorage`` returns coroutines from its port methods, while
+        ``SqliteRelayStorage`` returns plain values. This helper lets the store
+        work with either adapter without forcing every caller to know which one
+        is configured.
+        """
+        if asyncio.iscoroutine(value):
+            return await value
+        return value
 
     def _build_operation(
         self,
@@ -202,7 +217,10 @@ class WorkspaceStore:
             The envelope that was saved, or ``None`` when an envelope with the
             same id was already present.
         """
-        if self._relay_storage.envelope_exists(operation.id):
+        exists = await self._maybe_await(
+            self._relay_storage.envelope_exists(operation.id)
+        )
+        if exists:
             return None
 
         envelope = EncryptedEnvelope(
@@ -215,7 +233,7 @@ class WorkspaceStore:
             payload=operation.payload,
             timestamp=operation.envelope.timestamp,
         )
-        self._relay_storage.save_envelope(envelope)
+        await self._maybe_await(self._relay_storage.save_envelope(envelope))
         return envelope
 
     def _apply_to_derived(
@@ -261,7 +279,9 @@ class WorkspaceStore:
         Skips operations already recorded in the ``applied_operation_id`` table.
         This is important for increment-only appliers such as ``link.click``.
         """
-        snapshot = self._relay_storage.get_latest_snapshot(self.workspace_id)
+        snapshot = await self._maybe_await(
+            self._relay_storage.get_latest_snapshot(self.workspace_id)
+        )
         if snapshot is not None:
             conn = self._restore_from_snapshot(snapshot["data"])
             catch_up_hlc = snapshot["hlc"]
@@ -269,7 +289,9 @@ class WorkspaceStore:
             conn = await self._ensure_connection()
             catch_up_hlc = Hlc(physical=0, logical=0)
 
-        envelopes = self._relay_storage.get_catch_up(self.workspace_id, catch_up_hlc)
+        envelopes = await self._maybe_await(
+            self._relay_storage.get_catch_up(self.workspace_id, catch_up_hlc)
+        )
         max_seen_hlc = catch_up_hlc
 
         for envelope in envelopes:
@@ -317,9 +339,13 @@ class WorkspaceStore:
         conn = await self._ensure_connection()
         db_bytes = conn.serialize(name="main")
         if up_to_hlc is None:
-            up_to_hlc = self._relay_storage.get_max_hlc(self.workspace_id)
-        return self._relay_storage.create_snapshot(
-            self.workspace_id, up_to_hlc, data=db_bytes
+            up_to_hlc = await self._maybe_await(
+                self._relay_storage.get_max_hlc(self.workspace_id)
+            )
+        return await self._maybe_await(
+            self._relay_storage.create_snapshot(
+                self.workspace_id, up_to_hlc, data=db_bytes
+            )
         )
 
     async def create_node(
@@ -737,14 +763,26 @@ class WorkspaceStore:
         self,
         sql: str,
         parameters: tuple[Any, ...] | None = None,
-    ) -> None:
-        """Execute a write statement against the derived SQLite database."""
+    ) -> int:
+        """Execute a write statement against the derived SQLite database.
+
+        Returns:
+            The number of rows affected by the statement.
+        """
         conn = await self._ensure_connection()
-        conn.execute(sql, parameters or ())
+        cursor = conn.execute(sql, parameters or ())
         conn.commit()
+        return cursor.rowcount
 
     async def close(self) -> None:
-        """Close the derived SQLite connection."""
+        """Close the derived SQLite connection and owned relay storage adapter.
+
+        Relay storage passed in by callers is not closed so it can be reused
+        across multiple WorkspaceStore instances (e.g. writer/reader pairs in
+        tests and snapshots).
+        """
         if self._conn is not None:
             self._conn.close()
             self._conn = None
+        if self._owns_relay_storage:
+            await self._maybe_await(self._relay_storage.close())

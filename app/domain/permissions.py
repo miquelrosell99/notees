@@ -97,6 +97,11 @@ class PermissionChecker:
         self._workspace_cache.clear()
         self._node_cache.clear()
 
+    async def close(self) -> None:
+        """Release repository resources if the underlying port supports it."""
+        if hasattr(self._repo, "close"):
+            await self._repo.close()
+
     async def get_workspace_permissions(self, workspace_id: int) -> Permissions:
         """Get permissions for a workspace.
 

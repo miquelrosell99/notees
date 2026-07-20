@@ -11,44 +11,55 @@ class _FakeExportRepo:
     """Minimal in-memory stand-in for ExportRepository."""
 
     def __init__(self, node_ids=None):
-        self._node_ids = node_ids or {"uuid-1": 1}
+        self._node_ids = node_ids or {"uuid-1": "id-1"}
 
-    async def get_export_node_tree(self, workspace_id, node_uuid, include_children, include_child_pages=False):
+    async def get_export_node_tree(
+        self, workspace_uuid, node_uuid, include_children, include_child_pages=False
+    ):
         if node_uuid in self._node_ids:
-            return [{"uuid": node_uuid, "id": self._node_ids[node_uuid], "is_page": True, "name": "Hello"}]
+            return [
+                {
+                    "uuid": node_uuid,
+                    "id": self._node_ids[node_uuid],
+                    "is_page": True,
+                    "name": "Hello",
+                }
+            ]
         return []
 
-    async def resolve_node_ids(self, workspace_id, node_uuids):
+    async def resolve_node_ids(self, workspace_uuid, node_uuids):
         return [self._node_ids[uuid] for uuid in node_uuids if uuid in self._node_ids]
 
-    async def filter_text_property_node_ids(self, node_ids):
+    async def filter_text_property_node_ids(self, workspace_uuid, node_uuids):
         return set()
 
-    async def get_system_class_map(self, workspace_id, uuids):
+    async def get_system_class_map(self, workspace_uuid, uuids):
         return {}
 
-    async def resolve_link_targets(self, workspace_id, uuids):
+    async def resolve_link_targets(self, workspace_uuid, uuids):
         return []
 
-    async def get_node_properties_data(self, node_ids):
+    async def get_node_properties_data(self, workspace_uuid, node_uuids):
         return []
 
-    async def get_relation_target_names(self, target_ids):
+    async def get_relation_target_names(self, workspace_uuid, target_uuids):
         return {}
 
-    async def get_node_class_and_tag_names(self, page_node_ids, workspace_id):
+    async def get_node_class_and_tag_names(self, page_node_uuids, workspace_uuid):
         return {}, {}
 
-    async def get_text_property_subtrees(self, target_ids):
+    async def get_text_property_subtrees(self, workspace_uuid, target_uuids):
         return {}
 
-    async def get_page_metadata(self, workspace_id, node_uuid, include_properties=True):
+    async def get_page_metadata(
+        self, workspace_uuid, node_uuid, include_properties=True
+    ):
         return {}
 
-    async def get_auto_export_metadata(self, workspace_id, node_uuid):
+    async def get_auto_export_metadata(self, workspace_uuid, node_uuid):
         return {}
 
-    async def list_exportable_pages(self, workspace_id):
+    async def list_exportable_pages(self, workspace_uuid):
         return []
 
 
@@ -92,7 +103,7 @@ def plugin_manager(monkeypatch):
 async def test_export_nodes_delegates_to_plugin_exporter(plugin_manager):
     service = ExportService(_FakeExportRepo(), _FakeRenderer())
     content, filename, mime_type = await service.export_nodes(
-        workspace_id=1,
+        workspace_uuid="00000000-0000-0000-0000-000000000001",
         node_uuids=["uuid-1"],
         format="hello",
         user_id=42,

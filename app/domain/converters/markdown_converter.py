@@ -38,15 +38,15 @@ def _stringify_node(
     return stringify_ast(ast, opts)
 
 
-def _node_is_code(node: dict[str, Any], code_class_id: int | None) -> bool:
+def _node_is_code(node: dict[str, Any], code_class_id: str | None) -> bool:
     return code_class_id is not None and code_class_id in (node.get("class_ids") or [])
 
 
-def _node_is_quote(node: dict[str, Any], quote_class_id: int | None) -> bool:
+def _node_is_quote(node: dict[str, Any], quote_class_id: str | None) -> bool:
     return quote_class_id is not None and quote_class_id in (node.get("class_ids") or [])
 
 
-def _node_callout_type(node: dict[str, Any], callout_class_map: dict[int, str]) -> str | None:
+def _node_callout_type(node: dict[str, Any], callout_class_map: dict[str, str]) -> str | None:
     class_ids = node.get("class_ids") or []
     for cid in class_ids:
         if cid in callout_class_map:
@@ -65,9 +65,9 @@ class MarkdownConverter:
         formatting: bool = True,
         properties_data: dict[str, list] | None = None,
         strip_link_syntax: bool = False,
-        code_class_id: int | None = None,
-        quote_class_id: int | None = None,
-        callout_class_map: dict[int, str] | None = None,
+        code_class_id: str | None = None,
+        quote_class_id: str | None = None,
+        callout_class_map: dict[str, str] | None = None,
         highlight_syntax: bool = True,
         link_target_brackets: bool = True,
     ) -> str:

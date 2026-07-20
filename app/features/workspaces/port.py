@@ -64,7 +64,7 @@ class WorkspaceRepository(ABC):
         pass
 
     @abstractmethod
-    async def ensure_user_page(self, workspace_id: int, user_id: int) -> int | None:
+    async def ensure_user_page(self, workspace_id: int, user_id: int) -> str | None:
         """Create a system user page node if the user doesn't have one yet."""
         pass
 

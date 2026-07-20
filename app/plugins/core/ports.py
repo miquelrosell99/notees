@@ -72,12 +72,11 @@ class ExportResult:
 class ExportContext:
     """Context passed to an exporter adapter during execution."""
 
-    node_ids: list[int]
-    workspace_id: int
+    node_ids: list[str]
+    workspace_uuid: str
     user_id: int
     plugin_context: PluginContext
     options: dict[str, Any] = field(default_factory=dict)
-    workspace_uuid: str | None = None
     actor_uuid: str | None = None
     nodes_data: list[dict[str, Any]] = field(default_factory=list)
 

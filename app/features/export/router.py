@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 
-from app.db.connection import clear_request_conn, get_data_dir
+from app.db.connection import clear_request_conn, get_data_dir, get_workspace_uuid
 from app.dependencies import (
     get_current_user,
     get_workspace_id,
@@ -84,7 +84,7 @@ async def _run_node_export_job(job_uuid: str, user_id: str, export_args: dict) -
     """Background task that performs the actual node export.
 
     Runs outside the request lifecycle and therefore must not capture any
-    request-scoped dependencies. The workspace_id is passed explicitly and a
+    request-scoped dependencies. The workspace UUID is passed explicitly and a
     fresh ExportRepository is built inside the task after clearing the request
     connection context.
     """
@@ -93,13 +93,14 @@ async def _run_node_export_job(job_uuid: str, user_id: str, export_args: dict) -
     try:
         update_job(job_uuid, status="running", status_text="Exporting nodes…")
 
-        workspace_id = export_args.pop("workspace_id")
+        export_args.pop("workspace_id")
+        workspace_uuid = export_args.pop("workspace_uuid")
         user_id = export_args.pop("user_id")
-        export_repo = await _make_export_repository(workspace_id)
+        export_repo = _make_export_repository(str(user_id))
         renderer = _get_export_renderer()
         service = ExportService(export_repo, renderer)
         content, filename, _mime_type = await service.export_nodes(
-            workspace_id=workspace_id, user_id=user_id, **export_args
+            workspace_uuid=workspace_uuid, user_id=user_id, **export_args
         )
 
         exports_dir = get_data_dir() / "exports"
@@ -129,6 +130,9 @@ async def export_nodes(
     workspace_id: int = Depends(get_workspace_id),
 ):
     """Start an async job to export nodes to Markdown, HTML, PDF, Text, or JSON."""
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if workspace_uuid is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
     export_args = {
         "node_uuids": request.node_uuids,
         "format": request.format,
@@ -149,6 +153,7 @@ async def export_nodes(
         "page_size": request.page_size,
         "include_child_pages": request.include_child_pages,
         "workspace_id": workspace_id,
+        "workspace_uuid": workspace_uuid,
         "user_id": int(user.id),
     }
 
@@ -224,6 +229,9 @@ async def export_single_node(
     workspace_id: int = Depends(get_workspace_id),
 ):
     """Start an async job to export a single node by UUID."""
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if workspace_uuid is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
     export_format = format
     _validate_single_node_params(
         export_format,
@@ -259,6 +267,7 @@ async def export_single_node(
         "include_child_pages": include_child_pages,
         "frontmatter": format.lower() == "markdown",
         "workspace_id": workspace_id,
+        "workspace_uuid": workspace_uuid,
         "user_id": int(user.id),
     }
 

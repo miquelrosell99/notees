@@ -36,11 +36,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.workspace_store import WorkspaceStore
 from app.db.connection import clear_request_conn, get_pool
-from app.dependencies import (
-    _make_permission_repository,
-    _make_workspace_repository,
-)
+from app.dependencies import _make_workspace_repository
 from app.domain.permissions import PermissionChecker
+from app.domain.repositories.factories import make_permission_repository
 from app.features.auth import authenticate_api_key, decode_token, get_user_by_id
 from app.infrastructure.redis_pubsub import collab_pubsub
 from app.logging_config import get_logger
@@ -232,7 +230,7 @@ async def _authorize_v2_room(
     ws = await workspace_repo.get_by_uuid_for_user(workspace_uuid, user_id)
     if not ws:
         return None
-    permission_repo = _make_permission_repository(pool, ws["id"], user_id)
+    permission_repo = make_permission_repository(pool, ws["id"], user_id)
     checker = PermissionChecker(user_id, permission_repo)
     if not await checker.can_read_workspace(ws["id"]):
         return None
