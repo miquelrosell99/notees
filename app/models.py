@@ -376,7 +376,7 @@ class NotificationResponse(BaseModel):
     type: str
     actor_user_id: str | None = None
     actor_name: str | None = None
-    node_id: str | None = None
+    node_uuid: str | None = None
     node_name: str | None = None
     message: str | None = None
     is_read: bool

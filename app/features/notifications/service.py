@@ -32,7 +32,7 @@ class NotificationService:
         user_id: int,
         type: str,
         actor_user_id: int | None,
-        node_id: int | None,
+        node_uuid: str | None,
         message: str | None,
         push_title: str | None = None,
         push_body: str | None = None,
@@ -43,7 +43,7 @@ class NotificationService:
         Push delivery is best-effort: failures are swallowed so that a
         misconfigured FCM server key never breaks the in-app notification flow.
         """
-        await self._repo.create_notification(user_id, type, actor_user_id, node_id, message)
+        await self._repo.create_notification(user_id, type, actor_user_id, node_uuid, message)
 
         if not self._push_sender or not self._push_sender.is_configured():
             return

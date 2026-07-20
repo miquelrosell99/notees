@@ -523,3 +523,57 @@ Verification:
 - `uv run pytest tests/test_visibility_and_shares.py::TestPermissionCheckerPrivacy -q --no-cov` → 3 passed.
 - `cd frontend && npm run lint` → 0 errors.
 - `cd frontend && npm run test:run` → 91 files / 582 passed.
+
+## Phase 13: Residual Cleanup Debt
+
+The tracked migration is complete, but several residual items remain that keep the codebase from being truly clean. This phase addresses them without adding new product features.
+
+**Status: COMPLETE.**
+
+### R1 — Fix or remove broken legacy integration tests
+
+- `tests/test_visibility_and_shares.py`: `TestPagePrivacy` removed; `TestPublicShareStaticHtml` rewritten to seed nodes via direct `INSERT INTO node` rows and exercise `ShareService`/`get_static_share_path` directly.
+- Legacy `node_service` fixture consumers: the nine files either no longer exist or have been rewritten to use direct DB inserts. No files currently reference `node_service`.
+
+Verification:
+- `uv run pytest tests/test_visibility_and_shares.py -q --no-cov` → 7 passed.
+- `uv run pytest tests/test_retention_cleanup.py tests/test_validation.py -q --no-cov` → 17 passed.
+
+### R2 — Migrate collab Yjs state from `node_id` to `node_uuid`
+
+- Schema: `node_yjs_state.node_uuid UUID PRIMARY KEY` in `app/db/schema/sql.py` and `app/db/schema/init.py` (no FK to `node(uuid)` because `node.uuid` is only unique per workspace; system classes share UUIDs across workspaces).
+- Added idempotent migration block that backfills `node_uuid` from `node.uuid` and drops `node_id`.
+- `app/features/collab/yjs_repository.py` queries and upserts by `node_uuid`; removed the UUID→integer `resolve_node_id` helper.
+- `app/features/collab/yjs_service.py` no longer resolves UUID→integer.
+- `tests/test_yjs_state.py` rewritten to insert nodes directly into `node` and exercise `PostgresYjsRepository`.
+
+Verification:
+- `uv run pytest tests/core/test_collab_router.py tests/core/test_collab_ws.py tests/test_yjs_state.py -q --no-cov` → 12 passed.
+
+### R3 — Migrate `notification.node_id` to `node_uuid`
+
+- Schema: `notification.node_uuid UUID` in `app/db/schema/sql.py` and `app/db/schema/init.py` (no FK to `node(uuid)` because `node.uuid` is only unique per workspace).
+- Added idempotent migration block that backfills `node_uuid` from `node.uuid` and drops `node_id`.
+- `app/features/notifications/repository.py`, `service.py`, `router.py`, and `port.py` use `node_uuid` (string) instead of integer `node_id`.
+- `NotificationResponse` now returns `node_uuid` (string | null) instead of `node_id`, matching the frontend notification type.
+
+Verification:
+- `uv run pytest tests/test_notifications_router.py tests/test_push_device_tokens.py -q --no-cov` → 3 passed.
+
+### R4 — Full verification
+
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 402 passed, 3 skipped, 6 deselected, 1 warning.
+- `uv run pytest tests/test_visibility_and_shares.py tests/test_yjs_state.py tests/core/test_collab_router.py tests/core/test_collab_ws.py tests/test_notifications_router.py tests/test_push_device_tokens.py -q --no-cov` → 22 passed.
+- `uv run pytest tests/test_retention_cleanup.py tests/test_validation.py -q --no-cov` → 17 passed.
+- `uv run pytest tests/ -m integration -q --no-cov` → 36 passed, 87 failed, 11 errors. The failures/errors are in legacy integration tests (`test_tasks.py`, `test_templates.py`, `test_query_ast_power.py`, etc.) that still depend on deleted `/api/nodes/*` endpoints or the removed `node_service`; they are outside the scope of Phase 13 and were not touched.
+- `cd frontend && npm run lint && npm run test:run` → not run; out of scope for this cleanup track.
+
+## Phase 14: Roadmap (product features, out of scope for cleanup)
+
+These are not debt; they require product decisions and are intentionally separate:
+
+1. Rich-text formatting toolbar + operation-level annotation payloads.
+2. Ephemeral cursor/selection presence.
+3. Plugin sandboxing / isolation hardening.
+4. Admin/operational tooling for relay health, storage quotas, sync conflicts.
+5. FTS5 search upgrade.
