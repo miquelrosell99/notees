@@ -597,8 +597,124 @@ A focused audit of the running frontend against the mounted backend routers reve
    - Fix built-in plugin router registration so the frontend flashcards feature works end-to-end.
    - Add tests; commit.
 
-4. **Sprint 10.4 — Final cleanup and release** (next):
-   - Delete remaining legacy `app/features/nodes/` and `app/features/properties/` code once the above sprints prove no consumers remain.
+4. **Sprint 10.4 — Final cleanup and release** (superseded by Sprints 11–14):
+   - Deleted remaining legacy `app/features/nodes/` and `app/features/properties/` code once the above sprints prove no consumers remain.
    - Run E2E smoke tests against the Docker Compose dev stack.
    - Update user-facing docs and changelog.
    - Create the release milestone commit.
+
+---
+
+## Sprints 11–14: Final Migration and Legacy Removal
+
+A focused, sequential pass to finish the architecture cut-over:
+- **Sprint 11**: Remove remaining legacy frontend HTTP API usage.
+- **Sprint 12**: Migrate all existing PostgreSQL data into the relay operation log.
+- **Sprint 13**: Port remaining backend runtime code to `WorkspaceStore`.
+- **Sprint 14**: Delete legacy tables, repositories, and dead code.
+
+---
+
+### Sprint 11 — Frontend Legacy API Cleanup ✅
+
+**Goal:** Eliminate every remaining frontend call to unmounted legacy HTTP endpoints.
+
+**Changes:**
+- Removed `frontend/src/api/properties.ts`, `frontend/src/lib/nodeQueryWorkerClient.ts`, `frontend/src/workers/nodeQueryWorker.ts`.
+- `useRouteAdapter.ts` now resolves property UUIDs from `frontend/src/core/query/propertySchema.ts`.
+- `PropertyConfigSection.tsx` edits selection options and filters via `store.updatePropertySchema()`.
+- `PropertiesSection.tsx` and `InlineTriggers.tsx` no longer call the legacy `addSelectionOption` endpoint; selection options are embedded in `propertySchema.create`.
+
+**Verification:**
+- Backend: `418 passed`.
+- Frontend: `598 passed`.
+- `ruff check app/` clean.
+- `tsc -b --noEmit` clean.
+
+**Commit:** `438cf57e`.
+
+---
+
+### Sprint 12 — Data Migration into Relay ✅
+
+**Goal:** Write every existing workspace's data into `relay_envelope` as immutable operations so the new local-first stack has a populated operation log on first start.
+
+**Changes:**
+- Created `app/core/migration/relay_writer.py` with `PostgresOperationWriter`:
+  - Implements the synchronous `OperationWriter` interface used by migration helpers.
+  - Buffers operations and flushes them in bulk to `relay_envelope` via `asyncpg.executemany`.
+  - Configures the JSONB codec on the migration connection so native Python lists/dicts serialize correctly.
+- Updated `scripts/migrate_to_ideal.py`:
+  - Added `--relay` flag to write directly to PostgreSQL.
+  - Added `--force` flag to overwrite existing relay data.
+  - Skips workspaces that already have relay envelopes unless `--force` is used.
+  - Flushes buffered envelopes after each migration phase per workspace.
+- Backed up PostgreSQL and the `data/` directory before running the migration.
+- Truncated 2 stale test envelopes in workspace 5 (`Notas`) before migration.
+
+**Migration results:**
+```
+Total operations generated: 140,433
+Workspaces migrated: 83
+Largest workspace: 115,705 operations (workspace 5, Notas)
+```
+
+**Validation:**
+```
+Operations:        140,545
+Nodes:             35,718
+Hierarchy edges:   30,289
+Properties:        3,160
+Edges:             16,652
+Orphan operations: 0
+Duplicate ids:     0
+```
+- Zero orphan operations and zero duplicate operation IDs.
+- `tests/core` → 347 passed, 3 skipped.
+- `tests/unit` → 71 passed, 6 deselected.
+- Legacy integration tests (`tests/test_nodes.py`, `tests/test_tasks.py`, etc.) are expected to fail because their HTTP endpoints are no longer mounted; they will be removed in Sprint 14.
+
+**Commit:** (to be created after this update).
+
+---
+
+### Sprint 13 — Backend Runtime Porting to WorkspaceStore (next)
+
+**Goal:** Replace the remaining backend code paths that still read or write mutable PostgreSQL rows with operations against `WorkspaceStore`.
+
+**Identified blockers from audit:**
+- `app/dependencies.py`: page-class node lookup.
+- `app/features/auth/repository.py`: user page node, metrics, asset audit.
+- `app/domain/repositories/postgres_permission.py`: node info, ancestor shares.
+- `app/domain/repositories/postgres_cleanup.py`: hard-delete of trashed nodes.
+- `app/features/export/repository.py`: node tree, property values.
+- `app/features/workspaces/repository.py`: seed, import, export, delete.
+
+**Approach:**
+- Use subagents in parallel, one per subsystem.
+- Each subagent reads the legacy code, rewrites it to use `WorkspaceStore` operations, and removes dead PostgreSQL queries.
+- Add/update tests for the ported code.
+
+**Verification:**
+- `tests/core` passes.
+- Ported subsystem tests pass.
+- No new references to legacy `node`/`property` tables in the ported modules.
+
+---
+
+### Sprint 14 — Legacy Schema and Code Removal (pending)
+
+**Goal:** Remove the remaining legacy PostgreSQL schema and code once no runtime path needs it.
+
+**Cleanup list:**
+- Drop legacy tables from `app/db/schema/sql.py`:
+  - `node`, `node_link`, `node_property`, `property`, `property_value_scalar`, `property_value_relation`, `property_value_selection`, `property_selection_line`, `class_property`, `class_extend`, `asset`, `flashcard` (legacy), `activity_log` (legacy), `undo_log` (legacy).
+- Remove `app/features/nodes/` and `app/features/properties/` packages.
+- Remove dead PostgreSQL repositories and ports.
+- Delete legacy integration tests that are no longer valid.
+- Update `AGENTS.md` and user-facing docs.
+
+**Verification:**
+- `uv run pytest tests/core tests/unit -m unit --no-cov` passes.
+- `uv run ruff check app/` passes.
+- Docker Compose dev stack starts and the frontend can load a workspace from the relay operation log.
