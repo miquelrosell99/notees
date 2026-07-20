@@ -9,6 +9,7 @@ export {
   ExportPageModal,
   ImportDataModal,
   ImportMarkdownModal,
+  ImportLogseqFolderModal,
   ImportOptionsModal,
   AutoExportProgressModal,
   WorkspaceExportModal,
