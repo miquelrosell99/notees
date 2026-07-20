@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 
 from app.core.clock import Hlc
@@ -15,7 +16,7 @@ MAX_ENVELOPE_SIZE_BYTES = 1024 * 1024  # 1 MB
 
 
 class RelayService:
-    """Accept encrypted operation batches and serve catch-up operations."""
+    """Accept operation batches and serve catch-up operations."""
 
     def __init__(
         self,
@@ -37,8 +38,8 @@ class RelayService:
         """Validate size and HLC constraints for a single envelope."""
         if envelope.hlc.physical < 0 or envelope.hlc.logical < 0:
             raise ValueError("HLC components must be non-negative")
-        if len(envelope.ciphertext) > MAX_ENVELOPE_SIZE_BYTES:
-            raise ValueError("Envelope ciphertext exceeds maximum size of 1 MB")
+        if len(json.dumps(envelope.payload)) > MAX_ENVELOPE_SIZE_BYTES:
+            raise ValueError("Envelope payload exceeds maximum size of 1 MB")
 
     async def receive_batch(
         self,
@@ -48,7 +49,7 @@ class RelayService:
         """Validate, permission-check, dedupe, and persist a batch of envelopes.
 
         Args:
-            batch: The encrypted batch submitted by the client.
+            batch: The batch submitted by the client.
             actor_id: The authenticated actor making the request.
 
         Returns:

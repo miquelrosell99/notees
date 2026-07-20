@@ -3,19 +3,17 @@ import { WorkspaceStoreContext, type WorkspaceStoreContextValue } from './Worksp
 
 export interface WorkspaceStoreProviderProps {
   actorId: string;
-  cryptoKey: CryptoKey;
   transport: WorkspaceStoreContextValue['transport'];
   children: ReactNode;
 }
 
 export function WorkspaceStoreProvider({
   actorId,
-  cryptoKey,
   transport,
   children,
 }: WorkspaceStoreProviderProps): React.ReactElement {
   return (
-    <WorkspaceStoreContext.Provider value={{ actorId, cryptoKey, transport }}>
+    <WorkspaceStoreContext.Provider value={{ actorId, transport }}>
       {children}
     </WorkspaceStoreContext.Provider>
   );

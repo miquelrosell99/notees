@@ -1,24 +1,21 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { webcrypto } from 'node:crypto';
 import { WorkspaceStoreProvider } from '../WorkspaceStoreProvider';
 import { useWorkspaceStore } from '../useWorkspaceStore';
 import { MemoryRelay, MemoryTransport } from '../../transport';
-import { deriveKey } from '../../crypto';
 import { uuidv7 } from '../../uuid';
 
-async function createProviderProps() {
+function createProviderProps() {
   const actorId = uuidv7();
-  const key = await deriveKey('test-password');
   const relay = new MemoryRelay();
   const transport = new MemoryTransport(relay, 'ws-test');
-  return { actorId, key, transport };
+  return { actorId, transport };
 }
 
-function wrapper(props: { actorId: string; key: CryptoKey; transport: MemoryTransport }) {
+function wrapper(props: { actorId: string; transport: MemoryTransport }) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return (
-      <WorkspaceStoreProvider actorId={props.actorId} cryptoKey={props.key} transport={props.transport}>
+      <WorkspaceStoreProvider actorId={props.actorId} transport={props.transport}>
         {children}
       </WorkspaceStoreProvider>
     );
@@ -26,14 +23,8 @@ function wrapper(props: { actorId: string; key: CryptoKey; transport: MemoryTran
 }
 
 describe('useWorkspaceStore', () => {
-  beforeAll(() => {
-    if (!globalThis.crypto?.subtle) {
-      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
-    }
-  });
-
   it('opens a store and repeated calls return the same instance', async () => {
-    const props = await createProviderProps();
+    const props = createProviderProps();
     const Wrapper = wrapper(props);
 
     const { result: resultA } = renderHook(() => useWorkspaceStore('ws-test'), {

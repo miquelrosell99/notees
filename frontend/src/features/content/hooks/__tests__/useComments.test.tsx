@@ -1,12 +1,10 @@
-import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
-import { webcrypto } from 'node:crypto';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { WorkspaceStoreProvider } from '../../../../core/hooks/WorkspaceStoreProvider';
 import { useWorkspaceStore } from '../../../../core/hooks/useWorkspaceStore';
-import { deriveKey } from '../../../../core/crypto';
 import { MemoryRelay, MemoryTransport } from '../../../../core/transport';
 import { uuidv7 } from '../../../../core/uuid';
 import { useComments, useCreateComment } from '../useComments';
@@ -23,18 +21,16 @@ vi.mock('@/core/utils/featureFlags', () => ({
   },
 }));
 
-async function createProviderProps(workspaceId: string) {
+function createProviderProps(workspaceId: string) {
   const actorId = uuidv7();
-  const key = await deriveKey('test-password');
   const relay = new MemoryRelay();
   const transport = new MemoryTransport(relay, workspaceId);
-  return { actorId, key, transport };
+  return { actorId, transport };
 }
 
 function sqliteWrapper(props: {
   workspaceId: string;
   actorId: string;
-  key: CryptoKey;
   transport: MemoryTransport;
 }) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -48,7 +44,6 @@ function sqliteWrapper(props: {
               element={
                 <WorkspaceStoreProvider
                   actorId={props.actorId}
-                  cryptoKey={props.key}
                   transport={props.transport}
                 >
                   {children}
@@ -63,7 +58,7 @@ function sqliteWrapper(props: {
 }
 
 async function setupStore(workspaceId: string) {
-  const props = await createProviderProps(workspaceId);
+  const props = createProviderProps(workspaceId);
   const Wrapper = sqliteWrapper({ ...props, workspaceId });
 
   const { result } = renderHook(() => useWorkspaceStore(workspaceId), {
@@ -96,12 +91,6 @@ function createCommentNode(
 }
 
 describe('useComments', () => {
-  beforeAll(() => {
-    if (!globalThis.crypto?.subtle) {
-      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
-    }
-  });
-
   afterEach(() => {
     vi.clearAllMocks();
     mockEnableSqliteStore = false;

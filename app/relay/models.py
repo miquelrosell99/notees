@@ -1,7 +1,8 @@
-"""Pydantic request/response models for the encrypted operation relay."""
+"""Pydantic request/response models for the operation relay."""
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -28,12 +29,12 @@ def _parse_hlc(value: Any) -> Hlc:
 
 
 class EncryptedEnvelope(OperationEnvelope):
-    """Routing metadata plus an encrypted operation payload.
+    """Routing metadata plus a plaintext operation payload.
 
     The envelope fields are inherited from :class:`app.core.operation.OperationEnvelope`
-    so the server can validate ``op_type`` and HLC shape without decrypting the
-    payload. The encrypted payload is split into base64 ``ciphertext`` and ``iv``
-    to match the client-side AES-GCM wire format.
+    so the server can route operations, enforce permissions, and serve catch-up
+    queries without inspecting payload contents. The payload is stored as a JSON
+    object; transport-layer encryption (TLS/Tailscale) provides confidentiality.
 
     The wire format uses camelCase keys to match the TypeScript client; the
     snake_case names remain valid for server-side callers and tests.
@@ -41,8 +42,7 @@ class EncryptedEnvelope(OperationEnvelope):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-    ciphertext: str
-    iv: str
+    payload: dict[str, Any]
 
     @field_validator("hlc", mode="before")
     @classmethod
@@ -54,7 +54,7 @@ class EncryptedEnvelope(OperationEnvelope):
 
 
 class BatchRequest(BaseModel):
-    """A batch of encrypted operation envelopes submitted by a client."""
+    """A batch of operation envelopes submitted by a client."""
 
     envelopes: list[EncryptedEnvelope]
 
@@ -66,9 +66,9 @@ class BatchRequest(BaseModel):
         if len(envelopes) > MAX_BATCH_SIZE:
             raise ValueError(f"Batch exceeds maximum of {MAX_BATCH_SIZE} envelopes")
         for index, envelope in enumerate(envelopes):
-            if len(envelope.ciphertext) > MAX_ENVELOPE_SIZE_BYTES:
+            if len(json.dumps(envelope.payload)) > MAX_ENVELOPE_SIZE_BYTES:
                 raise ValueError(
-                    f"Envelope at index {index} exceeds maximum ciphertext size of {MAX_ENVELOPE_SIZE_BYTES} bytes"
+                    f"Envelope at index {index} exceeds maximum payload size of {MAX_ENVELOPE_SIZE_BYTES} bytes"
                 )
         return envelopes
 
@@ -91,13 +91,13 @@ class CatchUpRequest(BaseModel):
 
 
 class CatchUpResponse(BaseModel):
-    """A list of encrypted operation envelopes for catch-up sync."""
+    """A list of operation envelopes for catch-up sync."""
 
     envelopes: list[EncryptedEnvelope]
 
 
 class CatchUpPaginatedResponse(BaseModel):
-    """A paginated page of encrypted operation envelopes for catch-up sync."""
+    """A paginated page of operation envelopes for catch-up sync."""
 
     envelopes: list[EncryptedEnvelope]
     next_after_id: str | None = None

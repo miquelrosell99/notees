@@ -1,18 +1,18 @@
 import { compareHlc } from './clock';
-import type { EncryptedEnvelope } from './crypto';
+import type { OperationEnvelope } from './crypto';
 import type { Hlc } from './clock';
 
 export interface Transport {
-  send(envelope: EncryptedEnvelope): Promise<void> | void;
-  catchUp(afterHlc: Hlc): EncryptedEnvelope[] | Promise<EncryptedEnvelope[]>;
-  subscribe(callback: (envelope: EncryptedEnvelope) => void): void;
+  send(envelope: OperationEnvelope): Promise<void> | void;
+  catchUp(afterHlc: Hlc): OperationEnvelope[] | Promise<OperationEnvelope[]>;
+  subscribe(callback: (envelope: OperationEnvelope) => void): void;
 }
 
 export class MemoryRelay {
-  private envelopes = new Map<string, EncryptedEnvelope[]>();
-  private subscribers = new Map<string, ((envelope: EncryptedEnvelope) => void)[]>();
+  private envelopes = new Map<string, OperationEnvelope[]>();
+  private subscribers = new Map<string, ((envelope: OperationEnvelope) => void)[]>();
 
-  send(workspaceId: string, envelope: EncryptedEnvelope): void {
+  send(workspaceId: string, envelope: OperationEnvelope): void {
     const list = this.envelopes.get(workspaceId) ?? [];
     list.push(envelope);
     this.envelopes.set(workspaceId, list);
@@ -20,13 +20,13 @@ export class MemoryRelay {
     for (const cb of workspaceSubs) cb(envelope);
   }
 
-  subscribe(workspaceId: string, callback: (envelope: EncryptedEnvelope) => void): void {
+  subscribe(workspaceId: string, callback: (envelope: OperationEnvelope) => void): void {
     const list = this.subscribers.get(workspaceId) ?? [];
     list.push(callback);
     this.subscribers.set(workspaceId, list);
   }
 
-  catchUp(workspaceId: string, afterHlc: { physical: number; logical: number }): EncryptedEnvelope[] {
+  catchUp(workspaceId: string, afterHlc: { physical: number; logical: number }): OperationEnvelope[] {
     const list = this.envelopes.get(workspaceId) ?? [];
     return list.filter((env) => compareHlc(env.hlc, afterHlc) > 0);
   }
@@ -41,15 +41,15 @@ export class MemoryTransport implements Transport {
     this.workspaceId = workspaceId;
   }
 
-  send(envelope: EncryptedEnvelope): void {
+  send(envelope: OperationEnvelope): void {
     this.relay.send(this.workspaceId, envelope);
   }
 
-  catchUp(afterHlc: Hlc): EncryptedEnvelope[] {
+  catchUp(afterHlc: Hlc): OperationEnvelope[] {
     return this.relay.catchUp(this.workspaceId, afterHlc);
   }
 
-  subscribe(callback: (envelope: EncryptedEnvelope) => void): void {
+  subscribe(callback: (envelope: OperationEnvelope) => void): void {
     this.relay.subscribe(this.workspaceId, callback);
   }
 }

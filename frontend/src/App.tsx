@@ -33,11 +33,9 @@ import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOve
 import { getLogger } from './utils/logger';
 import { pluginManager } from '@/plugins/core';
 import { WorkspaceStoreProvider } from '@/core/hooks/WorkspaceStoreProvider';
-import { deriveUserWrappingKey, unwrapWorkspaceKey } from '@/core/crypto';
 import { ensureSqlInitialized, getSqlInitError } from '@/core/db/connection';
 import { requestPersistentStorage } from '@/core/persistence/storagePersistence';
 import { createHttpTransport } from '@/core/transportHttp';
-import api from '@/api/client';
 import {
   getOrCreateWorkspaceStore,
   getWorkspaceSyncEngine,
@@ -286,128 +284,9 @@ function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-interface WrappedWorkspaceKey {
-  workspace_id: string;
-  user_id: string;
-  ciphertext: string;
-  iv: string;
-  key_version: number;
-}
-
-/**
- * Fetch the caller's wrapped workspace key from the key-management endpoint.
- *
- * TODO(D6): Phase 6 should move to true client-side key generation. In that
- * scheme the client creates the master key and only uploads wrapped copies,
- * so this fetch will be replaced by local key creation plus member public keys.
- */
-function useWorkspaceWrappedKey(
-  workspaceId: string | null,
-  actorId: string
-): {
-  wrappedKey: WrappedWorkspaceKey | undefined;
-  isLoading: boolean;
-  error: Error | undefined;
-} {
-  const [wrappedKey, setWrappedKey] = useState<WrappedWorkspaceKey | undefined>();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | undefined>();
-
-  useEffect(() => {
-    if (!workspaceId || actorId === 'anonymous') {
-      setWrappedKey(undefined);
-      setIsLoading(false);
-      setError(undefined);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(undefined);
-    let cancelled = false;
-
-    api
-      .get<WrappedWorkspaceKey>(`/relay/keys/${workspaceId}`)
-      .then((resp) => {
-        if (!cancelled) setWrappedKey(resp.data);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          const normalized = err instanceof Error ? err : new Error(String(err));
-          setError(normalized);
-          log.error(`Failed to fetch workspace key for ${workspaceId}`, normalized);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId, actorId]);
-
-  return { wrappedKey, isLoading, error };
-}
-
-/**
- * Unwrap a wrapped workspace key into a usable AES-GCM CryptoKey.
- *
- * TODO(D6): Phase 6 should move to true client-side key generation. This
- * prototype unwraps a server-wrapped key using a user-derived wrapping key.
- */
-function useUnwrappedWorkspaceKey(
-  wrappedKey: WrappedWorkspaceKey | undefined,
-  actorId: string
-): {
-  key: CryptoKey | undefined;
-  isLoading: boolean;
-  error: Error | undefined;
-} {
-  const [key, setKey] = useState<CryptoKey | undefined>();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | undefined>();
-
-  useEffect(() => {
-    if (!wrappedKey) {
-      setKey(undefined);
-      setIsLoading(false);
-      setError(undefined);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(undefined);
-    let cancelled = false;
-    const secret =
-      import.meta.env.VITE_WORKSPACE_KEY_SECRET ?? 'notees-dev-prototype-secret';
-
-    deriveUserWrappingKey(actorId, secret)
-      .then((wrappingKey) => unwrapWorkspaceKey(wrappedKey, wrappingKey))
-      .then((unwrapped) => {
-        if (!cancelled) setKey(unwrapped);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          const normalized = err instanceof Error ? err : new Error(String(err));
-          setError(normalized);
-          log.error(`Failed to unwrap workspace key for ${wrappedKey.workspace_id}`, normalized);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [wrappedKey, actorId]);
-
-  return { key, isLoading, error };
-}
-
 /**
  * Initialize the local-first workspace store for the active workspace and
- * provide it (plus the crypto key and transport) to the rest of the app.
+ * provide it (plus the transport) to the rest of the app.
  */
 function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -418,14 +297,8 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
     return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
   }, [workspacesData]);
   const workspaceId = activeWorkspace?.uuid ?? null;
-  const { wrappedKey, isLoading: isWrappedKeyLoading, error: wrappedKeyError } =
-    useWorkspaceWrappedKey(workspaceId, actorId);
-  const { key, isLoading: isUnwrapping, error: unwrappedKeyError } = useUnwrappedWorkspaceKey(
-    wrappedKey,
-    actorId
-  );
   const [ctx, setCtx] = useState<
-    { actorId: string; cryptoKey: CryptoKey; transport: ReturnType<typeof createHttpTransport> } | undefined
+    { actorId: string; transport: ReturnType<typeof createHttpTransport> } | undefined
   >();
   const unregisterVisibilityRef = useRef<(() => void) | null>(null);
 
@@ -434,17 +307,17 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId || !key) {
+    if (!workspaceId) {
       setCtx(undefined);
       return;
     }
 
     let cancelled = false;
-    const transport = createHttpTransport(workspaceId, actorId, key);
-    getOrCreateWorkspaceStore(workspaceId, actorId, key, transport)
+    const transport = createHttpTransport(workspaceId, actorId);
+    getOrCreateWorkspaceStore(workspaceId, actorId, transport)
       .then(() => {
         if (cancelled) return;
-        setCtx({ actorId, cryptoKey: key, transport });
+        setCtx({ actorId, transport });
         const syncEngine = getWorkspaceSyncEngine(workspaceId);
         if (syncEngine) {
           unregisterVisibilityRef.current = registerVisibilitySync(syncEngine);
@@ -461,23 +334,14 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       unregisterVisibilityRef.current?.();
       unregisterVisibilityRef.current = null;
     };
-  }, [workspaceId, actorId, key]);
+  }, [workspaceId, actorId]);
 
-  const error = wrappedKeyError ?? unwrappedKeyError;
-  const isLoading = isWrappedKeyLoading || isUnwrapping;
-
-  if (error) {
-    // Surface key errors through the console; the rest of the app continues to
-    // render so the user is not hard-locked out of non-SQLite features.
-    console.error('Workspace key initialization failed:', error);
-  }
-
-  if (!ctx || isLoading) {
+  if (!ctx) {
     return children;
   }
 
   return (
-    <WorkspaceStoreProvider actorId={ctx.actorId} cryptoKey={ctx.cryptoKey} transport={ctx.transport}>
+    <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>
       {children}
     </WorkspaceStoreProvider>
   );

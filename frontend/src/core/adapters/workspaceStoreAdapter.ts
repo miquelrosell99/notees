@@ -1,5 +1,4 @@
 import { openWorkspaceDatabase } from '../db/connection';
-import { deriveUserWrappingKey, unwrapWorkspaceKey } from '../crypto';
 import { saveWorkspaceDatabase } from '../persistence/indexedDb';
 import { SyncEngine } from '../sync';
 import { WorkspaceStore } from '../store';
@@ -9,23 +8,6 @@ import { UndoManager } from '../undo';
 interface RegistryEntry {
   store: WorkspaceStore;
   syncEngine: SyncEngine;
-  key: CryptoKey;
-}
-
-interface WrappedKeySpec {
-  wrappedKey: { ciphertext: string; iv: string };
-  userId: string;
-  secret: string;
-}
-
-function isWrappedKeySpec(value: CryptoKey | WrappedKeySpec): value is WrappedKeySpec {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'wrappedKey' in value &&
-    'userId' in value &&
-    'secret' in value
-  );
 }
 
 const registry = new Map<string, RegistryEntry>();
@@ -33,31 +15,10 @@ const registry = new Map<string, RegistryEntry>();
 export async function getOrCreateWorkspaceStore(
   workspaceId: string,
   actorId: string,
-  key: CryptoKey,
-  transport: Transport
-): Promise<WorkspaceStore>;
-export async function getOrCreateWorkspaceStore(
-  workspaceId: string,
-  actorId: string,
-  spec: WrappedKeySpec,
-  transport: Transport
-): Promise<WorkspaceStore>;
-export async function getOrCreateWorkspaceStore(
-  workspaceId: string,
-  actorId: string,
-  keyOrSpec: CryptoKey | WrappedKeySpec,
   transport: Transport
 ): Promise<WorkspaceStore> {
   const existing = registry.get(workspaceId);
   if (existing) return existing.store;
-
-  let key: CryptoKey;
-  if (isWrappedKeySpec(keyOrSpec)) {
-    const wrappingKey = await deriveUserWrappingKey(keyOrSpec.userId, keyOrSpec.secret);
-    key = await unwrapWorkspaceKey(keyOrSpec.wrappedKey, wrappingKey);
-  } else {
-    key = keyOrSpec;
-  }
 
   const db = await openWorkspaceDatabase(workspaceId);
   const store = new WorkspaceStore(db, workspaceId, actorId, {
@@ -66,8 +27,8 @@ export async function getOrCreateWorkspaceStore(
     },
   });
   UndoManager.getOrCreateUndoManager(workspaceId, store);
-  const syncEngine = new SyncEngine(store, key, transport);
-  registry.set(workspaceId, { store, syncEngine, key });
+  const syncEngine = new SyncEngine(store, transport);
+  registry.set(workspaceId, { store, syncEngine });
 
   // Kick off an initial sync in the background; opening a workspace should not
   // fail just because the network is unavailable.

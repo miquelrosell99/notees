@@ -1,10 +1,8 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { webcrypto } from 'node:crypto';
 import { WorkspaceStore } from '../store';
 import { SyncEngine } from '../sync';
 import { MemoryRelay, MemoryTransport } from '../transport';
-import { deriveKey } from '../crypto';
 import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
 import { WorkspaceStoreProvider } from '../hooks/WorkspaceStoreProvider';
@@ -13,10 +11,8 @@ import { useNode } from '../hooks/useNode';
 const WORKSPACE_ID = 'ws-convergence-test';
 const ACTOR_A = 'actor-convergence-a';
 const ACTOR_B = 'actor-convergence-b';
-const PASSWORD = 'convergence-test-password';
 
 async function setupPair() {
-  const key = await deriveKey(PASSWORD);
   const relay = new MemoryRelay();
 
   const dbA = await createTestDatabase();
@@ -24,19 +20,13 @@ async function setupPair() {
   const storeA = new WorkspaceStore(dbA, WORKSPACE_ID, ACTOR_A);
   const storeB = new WorkspaceStore(dbB, WORKSPACE_ID, ACTOR_B);
 
-  const syncA = new SyncEngine(storeA, key, new MemoryTransport(relay, WORKSPACE_ID));
-  const syncB = new SyncEngine(storeB, key, new MemoryTransport(relay, WORKSPACE_ID));
+  const syncA = new SyncEngine(storeA, new MemoryTransport(relay, WORKSPACE_ID));
+  const syncB = new SyncEngine(storeB, new MemoryTransport(relay, WORKSPACE_ID));
 
-  return { key, relay, storeA, storeB, syncA, syncB };
+  return { relay, storeA, storeB, syncA, syncB };
 }
 
 describe('multi-client convergence', () => {
-  beforeAll(() => {
-    if (!globalThis.crypto?.subtle) {
-      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
-    }
-  });
-
   it('creates a node in store A and store B sees it after sync', async () => {
     const { storeA, storeB, syncA, syncB } = await setupPair();
 
@@ -52,7 +42,7 @@ describe('multi-client convergence', () => {
   });
 
   it('reflects a remote node in useNode after sync', async () => {
-    const { key, relay, storeA, syncA } = await setupPair();
+    const { relay, storeA, syncA } = await setupPair();
 
     const nodeId = uuidv7();
     storeA.createNode({ nodeId, kind: 'block', parentId: null });
@@ -60,7 +50,7 @@ describe('multi-client convergence', () => {
 
     function Wrapper({ children }: { children: React.ReactNode }) {
       return (
-        <WorkspaceStoreProvider actorId={ACTOR_B} cryptoKey={key} transport={new MemoryTransport(relay, WORKSPACE_ID)}>
+        <WorkspaceStoreProvider actorId={ACTOR_B} transport={new MemoryTransport(relay, WORKSPACE_ID)}>
           {children}
         </WorkspaceStoreProvider>
       );

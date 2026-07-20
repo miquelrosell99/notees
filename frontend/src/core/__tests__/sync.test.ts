@@ -1,29 +1,20 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { webcrypto } from 'node:crypto';
+import { describe, it, expect } from 'vitest';
 import { WorkspaceStore } from '../store';
 import { SyncEngine } from '../sync';
 import { MemoryRelay, MemoryTransport } from '../transport';
-import { deriveKey } from '../crypto';
 import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
 
 describe('SyncEngine', () => {
-  beforeAll(() => {
-    if (!globalThis.crypto?.subtle) {
-      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
-    }
-  });
-
   it('only pushes operations newer than the last push watermark', async () => {
     const workspaceId = uuidv7();
     const actorA = uuidv7();
-    const key = await deriveKey('test-password');
     const relay = new MemoryRelay();
     const transport = new MemoryTransport(relay, workspaceId);
 
     const dbA = await createTestDatabase();
     const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
-    const syncA = new SyncEngine(storeA, key, transport);
+    const syncA = new SyncEngine(storeA, transport);
 
     const nodeId = uuidv7();
     storeA.createNode({ nodeId, kind: 'page', parentId: null });
@@ -45,15 +36,14 @@ describe('SyncEngine', () => {
     const workspaceId = uuidv7();
     const actorA = uuidv7();
     const actorB = uuidv7();
-    const key = await deriveKey('test-password');
     const relay = new MemoryRelay();
 
     const dbA = await createTestDatabase();
     const dbB = await createTestDatabase();
     const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
     const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
-    const syncA = new SyncEngine(storeA, key, new MemoryTransport(relay, workspaceId));
-    const syncB = new SyncEngine(storeB, key, new MemoryTransport(relay, workspaceId));
+    const syncA = new SyncEngine(storeA, new MemoryTransport(relay, workspaceId));
+    const syncB = new SyncEngine(storeB, new MemoryTransport(relay, workspaceId));
 
     const nodeId = uuidv7();
     storeA.createNode({ nodeId, kind: 'page', parentId: null });

@@ -568,55 +568,58 @@ Verification:
 - `uv run pytest tests/ -m integration -q --no-cov` → 36 passed, 87 failed, 11 errors. The failures/errors are in legacy integration tests (`test_tasks.py`, `test_templates.py`, `test_query_ast_power.py`, etc.) that still depend on deleted `/api/nodes/*` endpoints or the removed `node_service`; they are outside the scope of Phase 13 and were not touched.
 - `cd frontend && npm run lint && npm run test:run` → not run; out of scope for this cleanup track.
 
-## Phase 13 Follow-up: Dev server HTTP+HTTPS dual-stack
+## Phase 13 Follow-up: Remove operation-log encryption; dev server plain HTTP
 
-The initial Phase 12 dev HTTPS support used `@vitejs/plugin-basic-ssl` plus `HTTPS=true`, which exposed only TLS on port 5173. That broke the existing `http://atlas:5173` Tailscale workflow and still left plain-HTTP access unavailable. A first follow-up replaced the Vite-native TLS setup with an nginx reverse proxy inside the frontend dev container. After review, nginx was replaced with a lightweight Node.js TLS-terminating TCP proxy so the dev stack uses only Node + openssl, matching the rest of the self-hosted toolchain.
+The initial Phase 12 dev HTTPS support used `@vitejs/plugin-basic-ssl` plus `HTTPS=true`, which exposed only TLS on port 5173. That broke the existing `http://atlas:5173` Tailscale workflow. Follow-ups added an nginx reverse proxy and then a Node.js TCP proxy to expose both HTTP and HTTPS simultaneously. After review, the team decided to align Notees with the Home Assistant/Jellyfin self-hosted model: the app exposes plain HTTP by default, and users who want HTTPS terminate TLS externally. To make that possible, browser-side operation-log encryption was removed; the relay now stores and transports plaintext operation payloads.
 
-### Changes
+### Security model change
 
-1. **Node.js dev proxy** (`frontend/scripts/dev-server.cjs`):
-   - Starts Vite on an internal plain-HTTP port (`5174`).
-   - Generates a self-signed certificate with `openssl` on first start (SANs: `localhost`, `atlas`, `atlas.ts.net`, `127.0.0.1`) and stores it in `/tmp/notees-dev.crt/key`.
-   - Creates an HTTPS server on `5173` that terminates TLS and forwards the raw TCP stream to Vite.
-   - Creates an HTTP server on `5172` that forwards the raw TCP stream to Vite.
-   - Because forwarding happens at the TCP layer, WebSocket HMR and the original `Host` header are preserved without any HTTP-level proxy logic.
-   - Uses only Node.js built-in modules (`net`, `tls`, `fs`, `child_process`) plus `openssl`; no extra npm dependency.
+- Operation payloads on the relay are now **plaintext JSON**.
+- Confidentiality is provided by **transport-layer encryption** (TLS in production, Tailscale/WireGuard in dev) and host security.
+- Per-workspace encryption-at-rest (`frontend/src/stores/encryptionStore.ts`, `app/features/auth/encryption.py`) remains an opt-in feature for sensitive local data; it was not touched.
+- True end-to-end encryption with client-generated keys is a future roadmap item, not the current prototype scheme (which was encryption-at-rest with a server-known secret anyway).
 
-2. **Vite config** (`frontend/vite.config.ts`):
-   - Removed `@vitejs/plugin-basic-ssl` import and plugin usage.
-   - Changed dev server port from `5173` to `5174` (internal only).
-   - Vite remains plain HTTP; TLS termination is handled by the Node proxy.
+### Backend changes
 
-3. **Frontend dev Dockerfile** (`frontend/Dockerfile.dev`):
-   - Removed `nginx` from the Alpine package list; kept `openssl` for certificate generation.
-   - Copies `frontend/scripts/dev-server.cjs` to `/usr/local/bin/dev-server.cjs`.
-   - Uses `node /usr/local/bin/dev-server.cjs` as the container `CMD`.
+- `app/relay/models.py`: `EncryptedEnvelope` now carries `payload: dict[str, Any]` instead of `ciphertext`/`iv`. Batch size validation checks serialized payload length.
+- `app/relay/storage.py`: `relay_envelope` schema changed from `ciphertext`/`iv` columns to a single `payload JSONB NOT NULL` column. SQLite and Postgres adapters updated.
+- `app/db/schema/relay.sql`: drops old encrypted relay tables and recreates with `payload JSONB`.
+- `app/core/crypto.py`: `encrypt_operation_payload` and `decrypt_operation_payload` are pass-throughs (key accepted but ignored) for legacy callers.
+- `app/core/workspace_store.py`, `app/core/seed.py`, `app/core/sync.py`: persist and read plaintext payloads.
+- `scripts/seed_relay_from_postgres.py`: seeds plaintext envelopes.
 
-4. **Compose dev services** (`compose.dev.yaml`):
-   - Maps host `5173:5173` (HTTPS) and `5172:5172` (HTTP).
-   - Removed the `HTTPS` environment variable from the frontend service; it is no longer needed.
+### Frontend changes
 
-5. **Environment files** (`.env`, `.env.example`):
-   - `.env` set to `HTTPS=false`.
-   - `.env.example` comments explain the new two-port setup and that `HTTPS=true` is no longer required because the Node proxy handles TLS.
+- `frontend/src/core/crypto.ts`: `OperationEnvelope` replaces `EncryptedEnvelope`; `encryptEnvelope`/`decryptEnvelope` are pass-throughs. No `crypto.subtle` usage.
+- `frontend/src/core/sync.ts`, `frontend/src/core/transport.ts`, `frontend/src/core/transportHttp.ts`: removed `CryptoKey` from `SyncEngine` and transport constructors.
+- `frontend/src/App.tsx`: removed workspace key unwrap logic and secure-context blocking. App initializes over plain HTTP.
+- `frontend/src/core/hooks/WorkspaceStoreProvider.tsx`, `WorkspaceStoreContext.ts`, `useWorkspaceStore.ts`, and all adapters: removed `cryptoKey` propagation.
+- Tests updated across `frontend/src/core/__tests__`, hooks, and adapters.
+
+### Dev server changes
+
+- Deleted `frontend/scripts/dev-server.cjs`.
+- `frontend/Dockerfile.dev`: removed `openssl` and proxy script; CMD is now `npm run dev -- --host 0.0.0.0 --port 5173`.
+- `frontend/vite.config.ts`: dev server port restored to `5173`.
+- `compose.dev.yaml`: frontend exposes only `"5173:5173"`; removed `5172` mapping and `VITE_WORKSPACE_KEY_SECRET`.
+- `.env.example`: removed HTTPS/proxy comments; plain HTTP 5173 is the documented dev default.
 
 ### Removed files
 
 - `frontend/nginx.dev.conf`
 - `frontend/scripts/start-dev.sh`
+- `frontend/scripts/dev-server.cjs`
 
 ### Host access
 
-- `https://localhost:5173` — secure context; `crypto.subtle` works.
-- `http://localhost:5172` — plain HTTP; `crypto.subtle` is unavailable in modern browsers from a non-secure context.
-- Over Tailscale: use `https://atlas:5173` for full app functionality (including workspace key unwrap), or `http://atlas:5172` if you only need plain-HTTP access.
+- `http://localhost:5173` — dev frontend, plain HTTP.
+- Over Tailscale: `http://atlas:5173` now works without `crypto.subtle` errors.
+- For HTTPS, put a reverse proxy (Caddy, Traefik, Nginx Proxy Manager, Tailscale Serve/Funnel) in front of port 5173.
 
 ### Verification
 
-- `docker compose -f compose.dev.yaml build frontend && docker compose -f compose.dev.yaml up -d --force-recreate frontend` succeeded.
-- `curl -k https://localhost:5173` → `200`.
-- `curl http://localhost:5172` → `200`.
-- `docker compose -f compose.dev.yaml exec frontend npm run lint && npx tsc -b --noEmit` → 0 errors (5 pre-existing warnings).
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 402 passed, 3 skipped, 6 deselected, 1 warning.
+- `cd frontend && npm run lint && npx tsc -b --noEmit && npm run test:run` → 0 errors, 5 pre-existing warnings, 91 test files / 580 tests passed.
 
 **Status:** complete.
 

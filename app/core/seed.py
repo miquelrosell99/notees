@@ -17,9 +17,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from app.config import settings
-from app.core.clock import Clock, Hlc
-from app.core.crypto import encrypt_operation_payload
+from app.core.clock import Clock
 from app.core.operation import Operation, OperationEnvelope
 from app.core.uuid import uuidv7
 from app.domain.entities.constants import (
@@ -169,13 +167,8 @@ async def seed_workspace_relay(
     # app.features.workspaces.service -> app.core.seed -> app.relay.dependencies
     # -> app.dependencies -> app.features.workspaces.service.
     from app.relay.dependencies import get_relay_storage
-    from app.relay.key_storage import WorkspaceKeyStorage
 
     storage = get_relay_storage()
-    key_storage = WorkspaceKeyStorage()
-    master_key = await key_storage.get_or_create_master_key(
-        workspace_id, settings.secret_key
-    )
 
     clock = Clock(device_id=actor_id)
     operations = _class_operations(clock, workspace_id, actor_id)
@@ -183,7 +176,6 @@ async def seed_workspace_relay(
 
     envelopes: list[EncryptedEnvelope] = []
     for operation in operations:
-        encrypted = encrypt_operation_payload(operation.payload, master_key)
         envelopes.append(
             EncryptedEnvelope(
                 id=operation.id,
@@ -192,8 +184,7 @@ async def seed_workspace_relay(
                 hlc=operation.envelope.hlc,
                 affected_node_ids=operation.envelope.affected_node_ids,
                 op_type=operation.envelope.op_type,
-                ciphertext=encrypted["ciphertext"],
-                iv=encrypted["iv"],
+                payload=operation.payload,
                 timestamp=operation.envelope.timestamp,
             )
         )

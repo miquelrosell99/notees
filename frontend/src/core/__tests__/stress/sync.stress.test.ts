@@ -1,9 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { webcrypto } from 'node:crypto';
+import { describe, it, expect } from 'vitest';
 import { WorkspaceStore } from '../../store';
 import { SyncEngine } from '../../sync';
 import { MemoryRelay, MemoryTransport } from '../../transport';
-import { deriveKey } from '../../crypto';
 import { uuidv7 } from '../../uuid';
 import { createTestDatabase } from '../helpers';
 
@@ -11,12 +9,6 @@ import { createTestDatabase } from '../helpers';
  * Stress tests for SyncEngine catch-up and multi-client convergence.
  */
 describe('SyncEngine stress', () => {
-  beforeAll(() => {
-    if (!globalThis.crypto?.subtle) {
-      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
-    }
-  });
-
   const opCount = () => {
     const env = process.env.NOTEES_STRESS_OPS;
     return env ? parseInt(env, 10) : 2_000;
@@ -38,12 +30,11 @@ describe('SyncEngine stress', () => {
     const workspaceId = uuidv7();
     const actorA = uuidv7();
     const actorB = uuidv7();
-    const key = await deriveKey('test-password');
     const relay = new MemoryRelay();
 
     const dbA = await createTestDatabase();
     const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
-    const syncA = new SyncEngine(storeA, key, new MemoryTransport(relay, workspaceId));
+    const syncA = new SyncEngine(storeA, new MemoryTransport(relay, workspaceId));
 
     const count = opCount();
     for (let i = 0; i < count; i++) {
@@ -53,7 +44,7 @@ describe('SyncEngine stress', () => {
 
     const dbB = await createTestDatabase();
     const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
-    const syncB = new SyncEngine(storeB, key, new MemoryTransport(relay, workspaceId));
+    const syncB = new SyncEngine(storeB, new MemoryTransport(relay, workspaceId));
 
     const start = performance.now();
     await syncB.pull();
@@ -67,7 +58,6 @@ describe('SyncEngine stress', () => {
 
   it('converges multiple clients after a burst of operations', async () => {
     const workspaceId = uuidv7();
-    const key = await deriveKey('test-password');
     const relay = new MemoryRelay();
 
     const clients: WorkspaceStore[] = [];
@@ -80,7 +70,7 @@ describe('SyncEngine stress', () => {
       const actorId = uuidv7();
       const store = new WorkspaceStore(db, workspaceId, actorId);
       clients.push(store);
-      syncs.push(new SyncEngine(store, key, new MemoryTransport(relay, workspaceId)));
+      syncs.push(new SyncEngine(store, new MemoryTransport(relay, workspaceId)));
     }
 
     const start = performance.now();

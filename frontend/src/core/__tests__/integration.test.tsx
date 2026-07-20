@@ -1,45 +1,37 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { webcrypto } from 'node:crypto';
+import { describe, it, expect } from 'vitest';
 import { WorkspaceStore } from '../store';
 import { SyncEngine } from '../sync';
-import { deriveKey, encryptEnvelope, type EncryptedEnvelope } from '../crypto';
+import { type OperationEnvelope } from '../crypto';
 import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
 import type { Transport } from '../transport';
 import type { Hlc } from '../clock';
 
 class MockHttpTransport implements Transport {
-  sent: EncryptedEnvelope[] = [];
-  catchUpEnvelopes: EncryptedEnvelope[] = [];
+  sent: OperationEnvelope[] = [];
+  catchUpEnvelopes: OperationEnvelope[] = [];
 
-  async send(envelope: EncryptedEnvelope): Promise<void> {
+  async send(envelope: OperationEnvelope): Promise<void> {
     this.sent.push(envelope);
   }
 
-  async catchUp(_afterHlc: Hlc): Promise<EncryptedEnvelope[]> {
+  async catchUp(_afterHlc: Hlc): Promise<OperationEnvelope[]> {
     return this.catchUpEnvelopes;
   }
 
-  subscribe(_callback: (envelope: EncryptedEnvelope) => void): void {
+  subscribe(_callback: (envelope: OperationEnvelope) => void): void {
     // No real-time push in this mock.
   }
 }
 
 describe('local-first integration', () => {
-  beforeAll(() => {
-    if (!globalThis.crypto?.subtle) {
-      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
-    }
-  });
-
-  it('creates a node and sends the encrypted operation', async () => {
+  it('creates a node and sends the operation envelope', async () => {
     const workspaceId = uuidv7();
     const actorId = uuidv7();
-    const key = await deriveKey('integration-test-secret');
     const db = await createTestDatabase();
     const store = new WorkspaceStore(db, workspaceId, actorId);
     const transport = new MockHttpTransport();
-    const sync = new SyncEngine(store, key, transport);
+    const sync = new SyncEngine(store, transport);
 
     const nodeId = uuidv7();
     store.createNode({ nodeId, kind: 'page', parentId: null });
@@ -51,29 +43,30 @@ describe('local-first integration', () => {
     expect(envelope.actorId).toBe(actorId);
     expect(envelope.opType).toBe('node.create');
     expect(envelope.affectedNodeIds).toContain(nodeId);
+    expect(envelope.payload).toBeDefined();
   });
 
   it('applies a catch-up operation so the node appears locally', async () => {
     const workspaceId = uuidv7();
     const actorId = uuidv7();
-    const key = await deriveKey('integration-test-secret');
     const db = await createTestDatabase();
     const store = new WorkspaceStore(db, workspaceId, actorId);
     const transport = new MockHttpTransport();
-    const sync = new SyncEngine(store, key, transport);
+    const sync = new SyncEngine(store, transport);
 
     const nodeId = uuidv7();
     const payload = { nodeId, kind: 'page', parentId: null, classIds: [] };
-    const encrypted = await encryptEnvelope(payload, key, {
+    const envelope: OperationEnvelope = {
       id: uuidv7(),
       workspaceId,
       actorId,
       affectedNodeIds: [nodeId],
       opType: 'node.create',
       hlc: { physical: 1000, logical: 0 },
-    });
+      payload,
+    };
 
-    transport.catchUpEnvelopes = [encrypted];
+    transport.catchUpEnvelopes = [envelope];
 
     await sync.pull();
 

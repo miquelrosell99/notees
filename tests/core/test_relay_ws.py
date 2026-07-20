@@ -70,8 +70,7 @@ def _envelope(
         hlc=Hlc(physical=physical, logical=logical),
         affected_node_ids=["node-1"],
         op_type=op_type,
-        ciphertext="ZW5jcnlwdGVk",
-        iv="c3R1Yml2MTIz",
+        payload={"nodeId": envelope_id},
         timestamp="2026-07-17T00:00:00Z",
     )
 

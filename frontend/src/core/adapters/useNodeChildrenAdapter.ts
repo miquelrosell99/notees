@@ -30,7 +30,7 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
     setIsLoading(true);
     setError(null);
 
-    getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.cryptoKey, ctx.transport)
+    getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.transport)
       .then((store) => {
         if (cancelled) return;
 

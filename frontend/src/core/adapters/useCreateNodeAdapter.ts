@@ -23,7 +23,6 @@ export function useCreateNodeAdapter(): UseMutationResult<Node, Error, NodeCreat
       const store = await getOrCreateWorkspaceStore(
         workspaceId,
         ctx.actorId,
-        ctx.cryptoKey,
         ctx.transport
       );
 

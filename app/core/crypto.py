@@ -9,7 +9,6 @@ with a real key-management system.
 from __future__ import annotations
 
 import base64
-import json
 import os
 from typing import Any
 
@@ -113,47 +112,26 @@ def unwrap_key(wrapped: dict[str, str], wrapping_key: bytes) -> bytes:
         raise ValueError("Failed to unwrap key") from exc
 
 
-def encrypt_operation_payload(payload: dict[str, Any], key: bytes) -> dict[str, Any]:
-    """Encrypt a JSON operation payload with AES-GCM.
+def encrypt_operation_payload(
+    payload: dict[str, Any], key: bytes | None = None
+) -> dict[str, Any]:
+    """Pass-through for legacy compatibility.
 
-    Returns a dictionary with ``ciphertext`` and ``iv`` as base64 strings,
-    matching the wire format expected by the relay and the frontend
-    ``EncryptedEnvelope`` type.
+    Operation payloads are now transported as plaintext JSON inside the
+    envelope; transport-layer encryption provides confidentiality. The ``key``
+    argument is accepted but ignored so existing callers do not all have to
+    change.
     """
-    aes = AESGCM(key)
-    iv = os.urandom(12)
-    plaintext = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    ciphertext = aes.encrypt(iv, plaintext, None)
-    return {
-        "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
-        "iv": base64.b64encode(iv).decode("ascii"),
-    }
+    return payload
 
 
-def decrypt_operation_payload(ciphertext_b64: str, iv_b64: str, key: bytes) -> dict[str, Any]:
-    """Decrypt an AES-GCM operation payload produced by :func:`encrypt_operation_payload`.
+def decrypt_operation_payload(
+    envelope: dict[str, Any], key: bytes | None = None
+) -> dict[str, Any]:
+    """Return the plaintext payload from an envelope.
 
-    Args:
-        ciphertext_b64: Base64-encoded ciphertext.
-        iv_b64: Base64-encoded 12-byte IV.
-        key: 32-byte AES key.
-
-    Returns:
-        The decrypted JSON payload as a Python dictionary.
-
-    Raises:
-        ValueError: If the ciphertext or IV is malformed or authentication fails.
+    Operation payloads are no longer encrypted per-envelope; this helper is kept
+    as a pass-through for legacy callers. The ``key`` argument is accepted but
+    ignored.
     """
-    try:
-        ciphertext = base64.b64decode(ciphertext_b64)
-        iv = base64.b64decode(iv_b64)
-    except (KeyError, ValueError) as exc:
-        raise ValueError("Invalid envelope encoding") from exc
-
-    aes = AESGCM(key)
-    try:
-        plaintext = aes.decrypt(iv, ciphertext, None)
-    except Exception as exc:
-        raise ValueError("Failed to decrypt operation payload") from exc
-
-    return json.loads(plaintext.decode("utf-8"))
+    return envelope["payload"]

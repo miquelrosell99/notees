@@ -1,12 +1,10 @@
-import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { webcrypto } from 'node:crypto';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { WorkspaceStoreProvider } from '../../hooks/WorkspaceStoreProvider';
 import { useWorkspaceStore } from '../../hooks/useWorkspaceStore';
-import { deriveKey } from '../../crypto';
 import { MemoryRelay, MemoryTransport } from '../../transport';
 import { uuidv7 } from '../../uuid';
 
@@ -26,15 +24,14 @@ vi.mock('@/core/utils/featureFlags', () => ({
   },
 }));
 
-async function createProviderProps() {
+function createProviderProps() {
   const actorId = uuidv7();
-  const key = await deriveKey('test-password');
   const relay = new MemoryRelay();
   const transport = new MemoryTransport(relay, 'ws-test');
-  return { actorId, key, transport };
+  return { actorId, transport };
 }
 
-function sqliteWrapper(props: { actorId: string; key: CryptoKey; transport: MemoryTransport }) {
+function sqliteWrapper(props: { actorId: string; transport: MemoryTransport }) {
   return function Wrapper({ children }: { children: ReactNode }) {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return (
@@ -44,7 +41,7 @@ function sqliteWrapper(props: { actorId: string; key: CryptoKey; transport: Memo
             <Route
               path="/:workspaceId/*"
               element={
-                <WorkspaceStoreProvider actorId={props.actorId} cryptoKey={props.key} transport={props.transport}>
+                <WorkspaceStoreProvider actorId={props.actorId} transport={props.transport}>
                   {children}
                 </WorkspaceStoreProvider>
               }
@@ -57,12 +54,6 @@ function sqliteWrapper(props: { actorId: string; key: CryptoKey; transport: Memo
 }
 
 describe('nodeAdapter', () => {
-  beforeAll(() => {
-    if (!globalThis.crypto?.subtle) {
-      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
-    }
-  });
-
   afterEach(() => {
     vi.clearAllMocks();
     mockEnableSqliteStore = false;
@@ -74,7 +65,7 @@ describe('nodeAdapter', () => {
     });
 
     it('useNodeAdapter returns projected node data', async () => {
-      const props = await createProviderProps();
+      const props = createProviderProps();
       const Wrapper = sqliteWrapper(props);
       const nodeId = uuidv7();
 
@@ -97,7 +88,7 @@ describe('nodeAdapter', () => {
     });
 
     it('useNodesAdapter returns projected pages', async () => {
-      const props = await createProviderProps();
+      const props = createProviderProps();
       const Wrapper = sqliteWrapper(props);
 
       const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
@@ -117,7 +108,7 @@ describe('nodeAdapter', () => {
     });
 
     it('useCreateNodeAdapter creates a node that useNodeAdapter can read', async () => {
-      const props = await createProviderProps();
+      const props = createProviderProps();
       const Wrapper = sqliteWrapper(props);
 
       const { result: createResult } = renderHook(() => useCreateNodeAdapter(), { wrapper: Wrapper });
@@ -137,7 +128,7 @@ describe('nodeAdapter', () => {
     });
 
     it('useMoveNodeAdapter updates children lists', async () => {
-      const props = await createProviderProps();
+      const props = createProviderProps();
       const Wrapper = sqliteWrapper(props);
 
       const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {

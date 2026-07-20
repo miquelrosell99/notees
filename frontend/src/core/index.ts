@@ -13,8 +13,8 @@ export { SyncEngine } from './sync';
 export type { SyncEngineCallbacks, SyncStatus } from './sync';
 export { MemoryRelay, MemoryTransport } from './transport';
 export type { Transport } from './transport';
-export { deriveKey, encryptEnvelope, decryptEnvelope } from './crypto';
-export type { EncryptedEnvelope } from './crypto';
+export { encryptEnvelope, decryptEnvelope } from './crypto';
+export type { OperationEnvelope as RelayEnvelope } from './crypto';
 
 // Phase 4 D1 local-first hooks, adapter, and persistence
 export {

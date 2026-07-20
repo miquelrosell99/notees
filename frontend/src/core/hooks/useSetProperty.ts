@@ -28,7 +28,6 @@ export function useSetProperty(): UseMutationResult<void, Error, SetPropertyArgs
       const store = await getOrCreateWorkspaceStore(
         workspaceId,
         ctx.actorId,
-        ctx.cryptoKey,
         ctx.transport
       );
       const manager = UndoManager.getOrCreateUndoManager(workspaceId, store);

@@ -1,6 +1,19 @@
 -- ============================================================
--- RELAY STORAGE (encrypted operation log)
+-- RELAY STORAGE (operation log)
 -- ============================================================
+
+-- Migration: the relay previously stored encrypted payloads as ciphertext+iv.
+-- Since the operation log can be re-seeded and there are no active users,
+-- drop the old table and recreate it with a plaintext JSONB payload column.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'relay_envelope' AND column_name = 'ciphertext'
+    ) THEN
+        DROP TABLE relay_envelope CASCADE;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS relay_envelope (
     id TEXT PRIMARY KEY,
@@ -10,8 +23,7 @@ CREATE TABLE IF NOT EXISTS relay_envelope (
     logical BIGINT NOT NULL,
     affected_node_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     op_type TEXT NOT NULL,
-    ciphertext TEXT NOT NULL,
-    iv TEXT NOT NULL,
+    payload JSONB NOT NULL,
     timestamp TIMESTAMPTZ
 );
 

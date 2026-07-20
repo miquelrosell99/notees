@@ -22,7 +22,6 @@ export function useDeleteNodeAdapter(): UseMutationResult<void, Error, string> {
       const store = await getOrCreateWorkspaceStore(
         workspaceId,
         ctx.actorId,
-        ctx.cryptoKey,
         ctx.transport
       );
 

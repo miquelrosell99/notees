@@ -1,7 +1,6 @@
 import { compareHlc, maxHlc, type Hlc } from './clock';
-import { decryptEnvelope, encryptEnvelope } from './crypto';
 import { queryAll, queryOne } from './db/sqlite';
-import { createOperation, type Operation } from './types/operation';
+import { createOperation } from './types/operation';
 import type { WorkspaceStore } from './store';
 import type { Transport } from './transport';
 
@@ -29,7 +28,6 @@ export class SyncEngine {
   private lastReceivedHlc: Hlc;
   private lastPushedHlc: Hlc;
   private store: WorkspaceStore;
-  private key: CryptoKey;
   private transport: Transport;
   private callbacks: SyncEngineCallbacks;
   private status: SyncStatus = 'idle';
@@ -37,9 +35,8 @@ export class SyncEngine {
   private autoSyncTimer: ReturnType<typeof setInterval> | null = null;
   private statusListeners = new Set<(status: SyncStatus, error: Error | null) => void>();
 
-  constructor(store: WorkspaceStore, key: CryptoKey, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
+  constructor(store: WorkspaceStore, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
     this.store = store;
-    this.key = key;
     this.transport = transport;
     this.callbacks = callbacks;
     this.lastReceivedHlc = this.loadWatermark('received');
@@ -116,27 +113,17 @@ export class SyncEngine {
     );
     let pushedMaxHlc = this.lastPushedHlc;
     for (const row of rows) {
-      const op: Operation = {
-        envelope: {
-          id: row.id,
-          workspaceId: row.workspace_id,
-          actorId: row.actor_id,
-          hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
-          affectedNodeIds: JSON.parse(row.affected_node_ids),
-          opType: row.op_type,
-        },
+      const envelope = {
+        id: row.id,
+        workspaceId: this.store.getWorkspaceId(),
+        actorId: row.actor_id,
+        hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
+        affectedNodeIds: JSON.parse(row.affected_node_ids),
+        opType: row.op_type,
         payload: JSON.parse(row.payload),
       };
-      const encrypted = await encryptEnvelope(op.payload, this.key, {
-        id: op.envelope.id,
-        workspaceId: this.store.getWorkspaceId(),
-        actorId: op.envelope.actorId,
-        affectedNodeIds: op.envelope.affectedNodeIds,
-        opType: op.envelope.opType,
-        hlc: op.envelope.hlc,
-      });
-      await this.transport.send(encrypted);
-      pushedMaxHlc = maxHlc(pushedMaxHlc, op.envelope.hlc);
+      await this.transport.send(envelope);
+      pushedMaxHlc = maxHlc(pushedMaxHlc, envelope.hlc);
     }
     this.lastPushedHlc = pushedMaxHlc;
     this.saveWatermark(this.lastPushedHlc, 'pushed');
@@ -151,7 +138,6 @@ export class SyncEngine {
       return a.id.localeCompare(b.id);
     });
     for (const env of envelopes) {
-      const payload = await decryptEnvelope(env, this.key);
       const op = createOperation(
         {
           id: env.id,
@@ -161,7 +147,7 @@ export class SyncEngine {
           affectedNodeIds: env.affectedNodeIds,
           opType: env.opType,
         },
-        payload
+        env.payload
       );
       this.store.apply(op);
       this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, env.hlc);
