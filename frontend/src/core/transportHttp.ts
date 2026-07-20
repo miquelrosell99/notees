@@ -1,11 +1,10 @@
 import type { Hlc } from './clock';
-import type { EncryptedEnvelope } from './crypto';
+import type { OperationEnvelope } from './crypto';
 import type { Transport } from './transport';
 
 export interface HttpTransportOptions {
   workspaceId: string;
   actorId: string;
-  key: CryptoKey;
   baseUrl?: string;
 }
 
@@ -14,13 +13,13 @@ export class HttpTransport implements Transport {
   private actorId: string;
   private baseUrl: string;
 
-  constructor({ workspaceId, actorId, key: _key, baseUrl = '' }: HttpTransportOptions) {
+  constructor({ workspaceId, actorId, baseUrl = '' }: HttpTransportOptions) {
     this.workspaceId = workspaceId;
     this.actorId = actorId;
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
-  async send(envelope: EncryptedEnvelope): Promise<void> {
+  async send(envelope: OperationEnvelope): Promise<void> {
     const response = await fetch(`${this.baseUrl}/api/relay/batch`, {
       method: 'POST',
       headers: {
@@ -43,7 +42,7 @@ export class HttpTransport implements Transport {
     }
   }
 
-  async catchUp(afterHlc: Hlc): Promise<EncryptedEnvelope[]> {
+  async catchUp(afterHlc: Hlc): Promise<OperationEnvelope[]> {
     const response = await fetch(`${this.baseUrl}/api/relay/catch-up`, {
       method: 'POST',
       headers: {
@@ -68,11 +67,11 @@ export class HttpTransport implements Transport {
       throw new Error(`Relay catch-up failed (${response.status}): ${text}`);
     }
 
-    const data = (await response.json()) as { envelopes: EncryptedEnvelope[] };
+    const data = (await response.json()) as { envelopes: OperationEnvelope[] };
     return data.envelopes ?? [];
   }
 
-  subscribe(_callback: (envelope: EncryptedEnvelope) => void): void {
+  subscribe(_callback: (envelope: OperationEnvelope) => void): void {
     // HTTP transport is poll-only; real-time push is handled separately.
   }
 }
@@ -80,8 +79,7 @@ export class HttpTransport implements Transport {
 export function createHttpTransport(
   workspaceId: string,
   actorId: string,
-  key: CryptoKey,
   baseUrl?: string
 ): HttpTransport {
-  return new HttpTransport({ workspaceId, actorId, key, baseUrl });
+  return new HttpTransport({ workspaceId, actorId, baseUrl });
 }

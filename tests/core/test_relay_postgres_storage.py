@@ -19,8 +19,7 @@ def _envelope(
     hlc: Hlc,
     affected_node_ids: list[str] | None = None,
     op_type: str = "node.create",
-    ciphertext: str = "ZW5jcnlwdGVkLXN0dWI=",
-    iv: str = "c3R1Yml2",
+    payload: dict | None = None,
 ) -> EncryptedEnvelope:
     return EncryptedEnvelope(
         id=envelope_id,
@@ -29,8 +28,7 @@ def _envelope(
         hlc=hlc,
         affected_node_ids=affected_node_ids or [],
         op_type=op_type,
-        ciphertext=ciphertext,
-        iv=iv,
+        payload=payload or {"nodeId": envelope_id, "kind": "page"},
     )
 
 
@@ -56,8 +54,7 @@ class TestPostgresRelayStorage:
         results = await storage.get_catch_up(envelope.workspace_id, Hlc(physical=0, logical=0))
         assert len(results) == 1
         assert results[0].id == envelope.id
-        assert results[0].ciphertext == envelope.ciphertext
-        assert results[0].iv == envelope.iv
+        assert results[0].payload == envelope.payload
 
     @pytest.mark.asyncio
     async def test_save_envelopes_bulk(self, storage: PostgresRelayStorage) -> None:
@@ -140,16 +137,14 @@ class TestPostgresRelayStorage:
             workspace_id="ws-pg-dup",
             actor_id="actor-1",
             hlc=Hlc(physical=10, logical=0),
-            ciphertext="Zmlyc3Q=",
-            iv="aXYx",
+            payload={"nodeId": "env-1", "kind": "page"},
         )
         duplicate = _envelope(
             envelope_id="env-1",
             workspace_id="ws-pg-dup",
             actor_id="actor-1",
             hlc=Hlc(physical=99, logical=99),
-            ciphertext="c2Vjb25k",
-            iv="aXYy",
+            payload={"nodeId": "env-1", "kind": "block"},
         )
 
         await storage.save_envelope(envelope)
@@ -157,7 +152,7 @@ class TestPostgresRelayStorage:
 
         results = await storage.get_catch_up("ws-pg-dup", Hlc(physical=0, logical=0))
         assert len(results) == 1
-        assert results[0].ciphertext == "Zmlyc3Q="
+        assert results[0].payload == envelope.payload
 
     @pytest.mark.asyncio
     async def test_get_catch_up_paginated(self, storage: PostgresRelayStorage) -> None:
@@ -200,8 +195,7 @@ class TestPostgresRelayStorage:
                 workspace_id=workspace_id,
                 actor_id="actor-1",
                 hlc=Hlc(physical=i, logical=0),
-                ciphertext="YQ==",
-                iv="Yg==",
+                payload={"nodeId": f"env-m-{i}", "data": "x"},
             )
             for i in range(3)
         ]
@@ -211,7 +205,9 @@ class TestPostgresRelayStorage:
         assert await storage.count_operations("ws-missing") == 0
         size = await storage.get_operation_size_estimate(workspace_id)
         assert size > 0
-        expected = sum(len(env.ciphertext) + len(env.iv) for env in envelopes)
+        import json
+
+        expected = sum(len(json.dumps(env.payload)) for env in envelopes)
         assert size == expected
 
     @pytest.mark.asyncio

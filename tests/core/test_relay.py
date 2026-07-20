@@ -21,8 +21,7 @@ def _envelope(
     hlc: Hlc,
     affected_node_ids: list[str] | None = None,
     op_type: str = "node.create",
-    ciphertext: str = "ZW5jcnlwdGVkLXN0dWI=",
-    iv: str = "c3R1Yml2",
+    payload: dict | None = None,
 ) -> EncryptedEnvelope:
     return EncryptedEnvelope(
         id=envelope_id,
@@ -31,8 +30,7 @@ def _envelope(
         hlc=hlc,
         affected_node_ids=affected_node_ids or [],
         op_type=op_type,
-        ciphertext=ciphertext,
-        iv=iv,
+        payload=payload or {"nodeId": envelope_id, "kind": "page"},
     )
 
 
@@ -53,8 +51,7 @@ class TestSqliteRelayStorage:
         results = storage.get_catch_up(envelope.workspace_id, Hlc(physical=0, logical=0))
         assert len(results) == 1
         assert results[0].id == envelope.id
-        assert results[0].ciphertext == envelope.ciphertext
-        assert results[0].iv == envelope.iv
+        assert results[0].payload == envelope.payload
 
     def test_catch_up_only_returns_newer_envelopes(self) -> None:
         storage = SqliteRelayStorage()
@@ -125,16 +122,14 @@ class TestSqliteRelayStorage:
             workspace_id="ws-1",
             actor_id="actor-1",
             hlc=Hlc(physical=10, logical=0),
-            ciphertext="Zmlyc3Q=",
-            iv="aXYx",
+            payload={"nodeId": "env-1", "kind": "page"},
         )
         duplicate = _envelope(
             envelope_id="env-1",
             workspace_id="ws-1",
             actor_id="actor-1",
             hlc=Hlc(physical=99, logical=99),
-            ciphertext="c2Vjb25k",
-            iv="aXYy",
+            payload={"nodeId": "env-1", "kind": "block"},
         )
 
         storage.save_envelope(envelope)
@@ -142,7 +137,7 @@ class TestSqliteRelayStorage:
 
         results = storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))
         assert len(results) == 1
-        assert results[0].ciphertext == "Zmlyc3Q="
+        assert results[0].payload == envelope.payload
 
 
 class TestRelayService:
@@ -291,5 +286,5 @@ class TestEncryptedEnvelopeValidation:
                 actor_id="actor-1",
                 hlc={"physical": -1, "logical": 0},
                 op_type="node.create",
-                encrypted_payload=b"x",
+                payload={"nodeId": "env-1"},
             )
