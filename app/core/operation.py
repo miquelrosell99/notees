@@ -29,6 +29,11 @@ KNOWN_OP_TYPES: frozenset[str] = frozenset(
         # Schema
         "propertySchema.create",
         "propertySchema.update",
+        "propertySchema.delete",
+        "classPropertyEdge.create",
+        "classPropertyEdge.update",
+        "classPropertyEdge.delete",
+        "classPropertyEdge.reorder",
         "class.create",
         "class.update",
         # Tasks

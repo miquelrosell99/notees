@@ -642,6 +642,202 @@ describe('alias applier', () => {
 });
 
 
+describe('property schema applier', () => {
+  it('creates a property schema', async () => {
+    const { store } = await createStore();
+    store.apply(
+      makeOp('propertySchema.create', {
+        schemaId: 's-1',
+        name: 'Status',
+        type: 'selection',
+        scope: 'global',
+        options: [{ uuid: 'opt-1', name: 'Done', sequence: 0 }],
+      })
+    );
+
+    const row = queryOne<{ name: string; type: string; options: string }>(
+      store.getDb(),
+      'SELECT name, type, options FROM property_schema WHERE id = ?',
+      ['s-1']
+    );
+    expect(row?.name).toBe('Status');
+    expect(row?.type).toBe('selection');
+    expect(JSON.parse(row?.options ?? '[]')).toEqual([{ uuid: 'opt-1', name: 'Done', sequence: 0 }]);
+  });
+
+  it('updates a property schema', async () => {
+    const { store } = await createStore();
+    store.apply(makeOp('propertySchema.create', { schemaId: 's-1', name: 'Old' }));
+    store.apply(makeOp('propertySchema.update', { schemaId: 's-1', name: 'New', required: true }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+
+    const row = queryOne<{ name: string; required: number }>(
+      store.getDb(),
+      'SELECT name, required FROM property_schema WHERE id = ?',
+      ['s-1']
+    );
+    expect(row?.name).toBe('New');
+    expect(row?.required).toBe(1);
+  });
+
+  it('soft-deletes a property schema', async () => {
+    const { store } = await createStore();
+    store.apply(makeOp('propertySchema.create', { schemaId: 's-1', name: 'ToDelete' }));
+    store.apply(makeOp('propertySchema.delete', { schemaId: 's-1' }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+
+    const row = queryOne<{ active: number }>(
+      store.getDb(),
+      'SELECT active FROM property_schema WHERE id = ?',
+      ['s-1']
+    );
+    expect(row?.active).toBe(0);
+  });
+
+  it('is idempotent by operation id', async () => {
+    const { store } = await createStore();
+    const op = makeOp('propertySchema.create', { schemaId: 's-1', name: 'One' });
+    store.apply(op);
+    store.apply(op);
+
+    const row = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM property_schema WHERE id = ?',
+      ['s-1']
+    );
+    expect(row?.count).toBe(1);
+  });
+});
+
+describe('class property edge applier', () => {
+  it('creates an edge', async () => {
+    const { store } = await createStore();
+    store.apply(makeOp('classPropertyEdge.create', { classId: 'c-1', propertySchemaId: 's-1', sequence: 0, required: true }));
+
+    const row = queryOne<{ sequence: number; required: number | null }>(
+      store.getDb(),
+      'SELECT sequence, required FROM class_property_edge WHERE class_id = ? AND property_schema_id = ?',
+      ['c-1', 's-1']
+    );
+    expect(row?.sequence).toBe(0);
+    expect(row?.required).toBe(1);
+  });
+
+  it('updates an edge', async () => {
+    const { store } = await createStore();
+    store.apply(makeOp('classPropertyEdge.create', { classId: 'c-1', propertySchemaId: 's-1' }));
+    store.apply(
+      makeOp(
+        'classPropertyEdge.update',
+        { classId: 'c-1', propertySchemaId: 's-1', sequence: 3, required: false },
+        { hlc: { physical: Date.now() + 1, logical: 0 } }
+      )
+    );
+
+    const row = queryOne<{ sequence: number; required: number | null }>(
+      store.getDb(),
+      'SELECT sequence, required FROM class_property_edge WHERE class_id = ? AND property_schema_id = ?',
+      ['c-1', 's-1']
+    );
+    expect(row?.sequence).toBe(3);
+    expect(row?.required).toBe(0);
+  });
+
+  it('deletes an edge', async () => {
+    const { store } = await createStore();
+    store.apply(makeOp('classPropertyEdge.create', { classId: 'c-1', propertySchemaId: 's-1' }));
+    store.apply(makeOp('classPropertyEdge.delete', { classId: 'c-1', propertySchemaId: 's-1' }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+
+    const row = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM class_property_edge WHERE class_id = ? AND property_schema_id = ?',
+      ['c-1', 's-1']
+    );
+    expect(row?.count).toBe(0);
+  });
+
+  it('reorders edges', async () => {
+    const { store } = await createStore();
+    store.apply(makeOp('classPropertyEdge.create', { classId: 'c-1', propertySchemaId: 's-1', sequence: 0 }));
+    store.apply(makeOp('classPropertyEdge.create', { classId: 'c-1', propertySchemaId: 's-2', sequence: 1 }));
+    store.apply(
+      makeOp(
+        'classPropertyEdge.reorder',
+        { classId: 'c-1', orderedPropertySchemaIds: ['s-2', 's-1'] },
+        { hlc: { physical: Date.now() + 1, logical: 0 } }
+      )
+    );
+
+    const rows = queryAll<{ property_schema_id: string; sequence: number }>(
+      store.getDb(),
+      'SELECT property_schema_id, sequence FROM class_property_edge WHERE class_id = ? ORDER BY sequence',
+      ['c-1']
+    );
+    expect(rows.map((r) => [r.property_schema_id, r.sequence])).toEqual([
+      ['s-2', 0],
+      ['s-1', 1],
+    ]);
+  });
+
+  it('inherits properties through class hierarchy', async () => {
+    const { store } = await createStore();
+    // Parent class has property s-1.
+    store.apply(makeOp('class.create', { classId: 'parent', extends: [] }));
+    store.apply(makeOp('propertySchema.create', { schemaId: 's-1', name: 'Inherited' }));
+    store.apply(makeOp('classPropertyEdge.create', { classId: 'parent', propertySchemaId: 's-1', sequence: 0 }));
+
+    // Child class extends parent.
+    store.apply(makeOp('class.create', { classId: 'child', extends: ['parent'] }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+
+    const rows = queryAll<{ ancestor_id: string }>(
+      store.getDb(),
+      'SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?',
+      ['child']
+    );
+    expect(rows.map((r) => r.ancestor_id)).toContain('parent');
+
+    const directEdges = queryAll<{ property_schema_id: string }>(
+      store.getDb(),
+      'SELECT property_schema_id FROM class_property_edge WHERE class_id = ?',
+      ['child']
+    );
+    expect(directEdges).toHaveLength(0);
+
+    const inheritedEdges = queryAll<{ class_id: string; property_schema_id: string }>(
+      store.getDb(),
+      `SELECT e.class_id, e.property_schema_id
+       FROM class_hierarchy h
+       JOIN class_property_edge e ON e.class_id = h.ancestor_id
+       WHERE h.class_id = ? AND h.ancestor_id != ?`,
+      ['child', 'child']
+    );
+    expect(inheritedEdges).toHaveLength(1);
+    expect(inheritedEdges[0].property_schema_id).toBe('s-1');
+  });
+});
+
+describe('property schema cleanup on node permanent delete', () => {
+  it('deletes schema rows bound to the node and edge rows owned by the node', async () => {
+    const { store } = await createStore();
+    store.createNode({ nodeId: 'n-1', kind: 'class', parentId: null });
+    store.apply(makeOp('propertySchema.create', { schemaId: 's-1', name: 'Local', nodeId: 'n-1' }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+    store.apply(makeOp('classPropertyEdge.create', { classId: 'n-1', propertySchemaId: 's-1' }, { hlc: { physical: Date.now() + 2, logical: 0 } }));
+
+    store.permanentDeleteNode('n-1');
+
+    const schemaCount = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM property_schema WHERE node_id = ?',
+      ['n-1']
+    );
+    const edgeCount = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM class_property_edge WHERE class_id = ?',
+      ['n-1']
+    );
+    expect(schemaCount?.count).toBe(0);
+    expect(edgeCount?.count).toBe(0);
+  });
+});
+
 describe('text CRDT formatting', () => {
   it('persists formatting attributes in crdt_state through node.updateContent', async () => {
     const { store } = await createStore();
