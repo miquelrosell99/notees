@@ -17,6 +17,7 @@ from app.core.migration.nodes import (
     migrate_nodes_for_workspace,
 )
 from app.core.migration.properties import migrate_properties_for_workspace
+from app.core.migration.relay_writer import PostgresOperationWriter
 from app.core.migration.replay import replay_operations
 from app.core.migration.validation import (
     DerivedCounts,
@@ -55,5 +56,6 @@ __all__ = [
     "get_derived_counts",
     "InMemoryOperationWriter",
     "OperationWriter",
+    "PostgresOperationWriter",
     "SqliteOperationWriter",
 ]
