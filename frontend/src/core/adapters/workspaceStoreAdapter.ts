@@ -43,6 +43,15 @@ export function getWorkspaceStore(workspaceId: string): WorkspaceStore | undefin
   return registry.get(workspaceId)?.store;
 }
 
+/**
+ * Return the first open workspace store. This is used by code paths that do not
+ * have access to the route params (e.g. imperative batch helpers); in normal
+ * operation only one workspace is open at a time.
+ */
+export function getActiveWorkspaceStore(): WorkspaceStore | undefined {
+  return registry.values().next().value?.store;
+}
+
 export function getWorkspaceSyncEngine(workspaceId: string): SyncEngine | undefined {
   return registry.get(workspaceId)?.syncEngine;
 }

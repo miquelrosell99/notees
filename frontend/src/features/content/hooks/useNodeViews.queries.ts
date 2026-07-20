@@ -1,40 +1,75 @@
 /**
  * NodeView Query Hooks
+ *
+ * Reads view definitions from the local-first core SQLite store. Query
+ * execution itself is delegated to the SQLite QueryAST adapters.
  */
 
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import {
-  listNodeViews,
-  getNodeView,
-  getDefaultNodeView,
-  executeNodeViewQuery,
-  executeQuery,
-  countQueryResults,
-} from '@/api/nodeViews';
-import type {
-  NodeView,
-  QueryExecuteRequest,
-} from '@/types/nodeView';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import type { UseQueryResult } from '@tanstack/react-query';
+import type { NodeView, QueryExecuteRequest } from '@/types/nodeView';
 import type { QueryAST } from '@/types';
-import { resolveNodeUuid, resolveNodeViewUuid } from '@/utils/resolveNodeUuid';
-import { nodeViewKeys } from '@/hooks/queryKeys';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { useConnectionStore } from '@/stores/connectionStore';
-import { useWorkspaceRole } from '@/features/workspace';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import { queryNodes } from '@/core/query/queryNodes';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { queryAll, queryOne } from '@/core/db/sqlite';
+import { compileToSqlite } from '@/core/query/compileToSqlite';
+import { substituteRuntimeParams } from '@/core/query/substituteRuntimeParams';
 import {
   useExecuteQueryAdapter,
   useQueryResultsAdapter,
 } from '@/core/adapters/useQueryAstAdapter';
 export { nodeViewKeys } from '@/hooks/queryKeys';
 
+function parseJson<T>(raw: string | null | undefined, fallback: T): T {
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function rowToNodeView(row: {
+  id: string;
+  node_id: string;
+  name: string;
+  view_type: string;
+  order_index: number;
+  is_default: number;
+  active: number;
+  shown_properties: string;
+  group_by: string | null;
+  view_mode: string | null;
+  sort_entries: string;
+  settings: string;
+  query_ast: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}): NodeView {
+  return {
+    uuid: row.id,
+    node_uuid: row.node_id,
+    name: row.name,
+    view_type: row.view_type,
+    order_index: row.order_index,
+    is_default: row.is_default !== 0,
+    active: row.active !== 0,
+    shown_properties: parseJson<Array<{ uuid: string; sequence: number }>>(row.shown_properties, []),
+    group_by: parseJson<NodeView['group_by']>(row.group_by, null),
+    view_mode: row.view_mode as NodeView['view_mode'],
+    sort_entries: parseJson<NodeView['sort_entries']>(row.sort_entries, []),
+    settings: parseJson<NodeView['settings']>(row.settings, {}),
+    query_ast: parseJson<QueryAST | undefined>(row.query_ast, undefined),
+    create_date: row.created_at ?? new Date().toISOString(),
+    write_date: row.updated_at ?? new Date().toISOString(),
+  };
+}
+
 // ==================== Query Hooks ====================
 
 /**
- * Fetch NodeViews for a node
+ * Fetch NodeViews for a node from the core store.
  */
-
 export function useNodeViews(
   nodeUuid: string,
   options?: {
@@ -44,21 +79,64 @@ export function useNodeViews(
   }
 ) {
   const { viewType, enabled = true, includeQueryAST = true } = options ?? {};
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(enabled && workspaceId ? workspaceId : '');
+  const [data, setData] = useState<NodeView[]>([]);
+  const [tick, setTick] = useState(0);
+  const refetch = useCallback(() => setTick((t) => t + 1), []);
 
-  return useQuery({
-    queryKey: nodeViewKeys.list(nodeUuid, viewType),
-    queryFn: () =>
-      listNodeViews(resolveNodeUuid(nodeUuid), {
-        view_type: viewType,
-        include_query_ast: includeQueryAST,
-      }),
-    enabled: enabled && !!nodeUuid,
-    placeholderData: keepPreviousData,
-  });
+  useEffect(() => {
+    if (!store || !nodeUuid) {
+      setData([]);
+      return;
+    }
+
+    const update = (): void => {
+      const sql = viewType
+        ? `SELECT * FROM node_view WHERE node_id = ? AND view_type = ? AND active = 1 ORDER BY order_index`
+        : `SELECT * FROM node_view WHERE node_id = ? AND active = 1 ORDER BY order_index`;
+      const params = viewType ? [nodeUuid, viewType] : [nodeUuid];
+      const rows = queryAll<{
+        id: string;
+        node_id: string;
+        name: string;
+        view_type: string;
+        order_index: number;
+        is_default: number;
+        active: number;
+        shown_properties: string;
+        group_by: string | null;
+        view_mode: string | null;
+        sort_entries: string;
+        settings: string;
+        query_ast: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+      }>(store.getDb(), sql, params);
+
+      const views = rows.map(rowToNodeView);
+      if (!includeQueryAST) {
+        setData(views.map((v) => ({ ...v, query_ast: undefined })));
+      } else {
+        setData(views);
+      }
+    };
+
+    update();
+    return store.subscribeAll(update);
+  }, [store, nodeUuid, viewType, includeQueryAST, tick]);
+
+  return {
+    data,
+    isLoading: storeLoading,
+    isError: storeError !== null,
+    error: storeError,
+    refetch,
+  };
 }
 
 /**
- * Fetch NodeViews grouped by view_type
+ * Fetch NodeViews grouped by view_type from the core store.
  */
 export function useNodeViewsByType(
   nodeUuid: string,
@@ -67,32 +145,67 @@ export function useNodeViewsByType(
   }
 ) {
   const { enabled = true } = options ?? {};
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(enabled && workspaceId ? workspaceId : '');
+  const [data, setData] = useState<Record<string, NodeView[]>>({});
 
-  return useQuery({
-    queryKey: nodeViewKeys.byType(nodeUuid),
-    queryFn: async () => {
-      const views = await listNodeViews(resolveNodeUuid(nodeUuid), { include_query_ast: true });
+  useEffect(() => {
+    if (!store || !nodeUuid) {
+      setData({});
+      return;
+    }
+
+    const update = (): void => {
+      const rows = queryAll<{
+        id: string;
+        node_id: string;
+        name: string;
+        view_type: string;
+        order_index: number;
+        is_default: number;
+        active: number;
+        shown_properties: string;
+        group_by: string | null;
+        view_mode: string | null;
+        sort_entries: string;
+        settings: string;
+        query_ast: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+      }>(
+        store.getDb(),
+        `SELECT * FROM node_view WHERE node_id = ? AND active = 1 ORDER BY order_index`,
+        [nodeUuid]
+      );
 
       const grouped: Record<string, NodeView[]> = {};
-      for (const view of views) {
+      for (const row of rows) {
+        const view = rowToNodeView(row);
         if (!grouped[view.view_type]) {
           grouped[view.view_type] = [];
         }
         grouped[view.view_type].push(view);
       }
-
       for (const viewType of Object.keys(grouped)) {
         grouped[viewType].sort((a, b) => a.order_index - b.order_index);
       }
+      setData(grouped);
+    };
 
-      return grouped;
-    },
-    enabled: enabled && !!nodeUuid,
-  });
+    update();
+    return store.subscribeAll(update);
+  }, [store, nodeUuid]);
+
+  return {
+    data,
+    isLoading: storeLoading,
+    isError: storeError !== null,
+    error: storeError,
+  };
 }
 
 /**
- * Fetch a single NodeView by ID
+ * Fetch a single NodeView by ID from the core store.
  */
 export function useNodeView(
   viewId: string | number,
@@ -101,20 +214,52 @@ export function useNodeView(
   }
 ) {
   const { enabled = true } = options ?? {};
-  const viewUuid = typeof viewId === 'string' ? viewId : resolveNodeViewUuid(viewId);
+  const viewUuid = typeof viewId === 'string' ? viewId : null;
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(enabled && workspaceId ? workspaceId : '');
+  const [data, setData] = useState<NodeView | undefined>(undefined);
 
-  return useQuery({
-    queryKey: nodeViewKeys.detail(viewUuid ?? ''),
-    queryFn: () => {
-      if (!viewUuid) throw new Error(`Unable to resolve UUID for view ${viewId}`);
-      return getNodeView(viewUuid);
-    },
-    enabled: enabled && !!viewUuid,
-  });
+  useEffect(() => {
+    if (!store || !viewUuid) {
+      setData(undefined);
+      return;
+    }
+
+    const update = (): void => {
+      const row = queryOne<{
+        id: string;
+        node_id: string;
+        name: string;
+        view_type: string;
+        order_index: number;
+        is_default: number;
+        active: number;
+        shown_properties: string;
+        group_by: string | null;
+        view_mode: string | null;
+        sort_entries: string;
+        settings: string;
+        query_ast: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+      }>(store.getDb(), `SELECT * FROM node_view WHERE id = ?`, [viewUuid]);
+      setData(row ? rowToNodeView(row) : undefined);
+    };
+
+    update();
+    return store.subscribeAll(update);
+  }, [store, viewUuid]);
+
+  return {
+    data,
+    isLoading: storeLoading,
+    isError: storeError !== null,
+    error: storeError,
+  };
 }
 
 /**
- * Fetch the default NodeView for a view_type
+ * Fetch the default NodeView for a view_type from the core store.
  */
 export function useDefaultNodeView(
   nodeUuid: string,
@@ -124,75 +269,56 @@ export function useDefaultNodeView(
   }
 ) {
   const { enabled = true } = options ?? {};
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(enabled && workspaceId ? workspaceId : '');
+  const [data, setData] = useState<NodeView | undefined>(undefined);
 
-  return useQuery({
-    queryKey: nodeViewKeys.default(nodeUuid, viewType),
-    queryFn: () => getDefaultNodeView(resolveNodeUuid(nodeUuid), viewType),
-    enabled: enabled && !!nodeUuid && viewType.length > 0,
-  });
+  useEffect(() => {
+    if (!store || !nodeUuid || !viewType) {
+      setData(undefined);
+      return;
+    }
+
+    const update = (): void => {
+      const row = queryOne<{
+        id: string;
+        node_id: string;
+        name: string;
+        view_type: string;
+        order_index: number;
+        is_default: number;
+        active: number;
+        shown_properties: string;
+        group_by: string | null;
+        view_mode: string | null;
+        sort_entries: string;
+        settings: string;
+        query_ast: string | null;
+        created_at: string | null;
+        updated_at: string | null;
+      }>(
+        store.getDb(),
+        `SELECT * FROM node_view WHERE node_id = ? AND view_type = ? AND is_default = 1 AND active = 1`,
+        [nodeUuid, viewType]
+      );
+      setData(row ? rowToNodeView(row) : undefined);
+    };
+
+    update();
+    return store.subscribeAll(update);
+  }, [store, nodeUuid, viewType]);
+
+  return {
+    data,
+    isLoading: storeLoading,
+    isError: storeError !== null,
+    error: storeError,
+  };
 }
 
 /**
- * Legacy NodeView query execution. Imported by the SQLite adapter so it can
- * delegate when ENABLE_SQLITE_STORE is off without creating a circular call.
+ * Execute a saved NodeView query using the local-first QueryAST adapter.
  */
-export function useNodeViewQueryLegacy(
-  viewId: string | number,
-  options?: {
-    runtimeParams?: Record<string, unknown>;
-    limit?: number;
-    offset?: number;
-    orderBy?: string;
-    includeChildren?: boolean;
-    includeAllChildren?: boolean;
-    pagesOnly?: boolean;
-    includeProperties?: boolean;
-    enrich?: { children?: boolean; classes?: boolean; properties?: boolean };
-    enabled?: boolean;
-    /** QueryAST for offline evaluation. When provided and the device is offline, the hook evaluates the AST locally instead of calling the server. */
-    ast?: QueryAST;
-  }
-) {
-  const { runtimeParams, limit, offset, orderBy, includeChildren, includeAllChildren, pagesOnly, includeProperties, enrich, enabled = true, ast } = options ?? {};
-
-  const isOnline = useOnlineStatus();
-  const backendHealthy = useConnectionStore((s) => s.healthy);
-  const isOffline = !isOnline || backendHealthy === false;
-  const { activeWorkspace } = useWorkspaceRole();
-  const workspaceUuid = activeWorkspace?.uuid ?? null;
-
-  const viewUuid = typeof viewId === 'string' ? viewId : resolveNodeViewUuid(viewId);
-  const offlineReady = isOffline && !!workspaceUuid && !!ast;
-
-  return useQuery({
-    queryKey: nodeViewKeys.queryResult(viewUuid ?? '', { runtimeParams, limit, offset, orderBy, includeChildren, includeAllChildren, pagesOnly, includeProperties, enrich }),
-    queryFn: async () => {
-      if (!viewUuid) throw new Error(`Unable to resolve UUID for view ${viewId}`);
-      if (offlineReady) {
-        const store = getWorkspaceStore(workspaceUuid);
-        if (!store) throw new Error('Workspace store is not ready');
-        return queryNodes(store, { ast, runtimeParams });
-      }
-      const response = await executeNodeViewQuery(viewUuid, {
-        runtime_params: runtimeParams,
-        limit,
-        offset,
-        order_by: orderBy,
-        include_children: includeChildren,
-        include_all_children: includeAllChildren,
-        pages_only: pagesOnly,
-        include_properties: includeProperties,
-        enrich,
-      });
-      // Return nodes for backward compatibility, but store full response
-      return response.nodes;
-    },
-    enabled: enabled && !!viewUuid && (!isOffline || offlineReady),
-    staleTime: isOffline ? 0 : 30_000,  // 30s stale time for view queries
-    placeholderData: keepPreviousData,
-  });
-}
-
 export function useNodeViewQuery(
   viewId: string | number,
   options?: {
@@ -213,42 +339,8 @@ export function useNodeViewQuery(
 }
 
 /**
- * Legacy ad-hoc query execution. Imported by the SQLite adapter.
+ * Execute an ad-hoc query using the local-first QueryAST adapter.
  */
-export function useQuery_Legacy(
-  request: QueryExecuteRequest,
-  options?: {
-    enabled?: boolean;
-    queryKey?: readonly unknown[];
-  }
-) {
-  const { enabled = true, queryKey } = options ?? {};
-
-  const isOnline = useOnlineStatus();
-  const backendHealthy = useConnectionStore((s) => s.healthy);
-  const isOffline = !isOnline || backendHealthy === false;
-  const { activeWorkspace } = useWorkspaceRole();
-  const workspaceUuid = activeWorkspace?.uuid ?? null;
-  const ast = request.query_ast;
-  const offlineReady = isOffline && !!workspaceUuid && !!ast;
-
-  return useQuery({
-    queryKey: queryKey ?? [...nodeViewKeys.queryResults(), 'adhoc', request],
-    queryFn: async () => {
-      if (offlineReady) {
-        const store = getWorkspaceStore(workspaceUuid);
-        if (!store) throw new Error('Workspace store is not ready');
-        return queryNodes(store, { ast, runtimeParams: request.runtime_params });
-      }
-      const response = await executeQuery(request);
-      return response.nodes;
-    },
-    enabled: enabled && (!isOffline || offlineReady),
-    staleTime: 0,
-    placeholderData: keepPreviousData,
-  });
-}
-
 export function useQuery_(
   request: QueryExecuteRequest,
   options?: {
@@ -260,19 +352,84 @@ export function useQuery_(
 }
 
 /**
- * Count query results without fetching data
+ * Count query results locally by compiling the AST and running SELECT COUNT(*).
  */
 export function useQueryCount(
   request: QueryExecuteRequest,
   options?: {
     enabled?: boolean;
   }
-) {
+): UseQueryResult<number, Error> {
   const { enabled = true } = options ?? {};
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(enabled && workspaceId ? workspaceId : '');
+  const [data, setData] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const runtimeParamsKey = JSON.stringify(request.runtime_params);
 
-  return useQuery({
-    queryKey: nodeViewKeys.count(null, request),
-    queryFn: () => countQueryResults(request),
-    enabled,
-  });
+  useEffect(() => {
+    if (!enabled || !store || !workspaceId || !request.query_ast) {
+      setData(0);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const ast = substituteRuntimeParams(request.query_ast as QueryAST, request.runtime_params ?? {});
+      const compiled = compileToSqlite(ast, workspaceId);
+      const row = queryOne<{ count: number }>(
+        store.getDb(),
+        `SELECT COUNT(*) AS count FROM (${compiled.sql})`,
+        compiled.params as (string | number | null | Uint8Array)[]
+      );
+      setData(row?.count ?? 0);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setIsLoading(false);
+    }
+
+    return store.subscribeAll(() => {
+      try {
+        const ast = substituteRuntimeParams(request.query_ast as QueryAST, request.runtime_params ?? {});
+        const compiled = compileToSqlite(ast, workspaceId);
+        const row = queryOne<{ count: number }>(
+          store.getDb(),
+          `SELECT COUNT(*) AS count FROM (${compiled.sql})`,
+          compiled.params as (string | number | null | Uint8Array)[]
+        );
+        setData(row?.count ?? 0);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
+    // runtimeParamsKey is the stable JSON representation of request.runtime_params.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, store, workspaceId, request.query_ast, runtimeParamsKey]);
+
+  const isPending = storeLoading || isLoading;
+  const resolvedError = error ?? storeError;
+  const isErrorState = resolvedError !== null;
+  const status: UseQueryResult<number, Error>['status'] = isPending
+    ? 'pending'
+    : isErrorState
+      ? 'error'
+      : 'success';
+
+  return {
+    data,
+    isLoading: isPending,
+    isError: isErrorState,
+    error: resolvedError,
+    isPending,
+    isSuccess: !isPending && !isErrorState,
+    status,
+    fetchStatus: 'idle',
+  } as unknown as UseQueryResult<number, Error>;
 }

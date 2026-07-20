@@ -1,118 +1,139 @@
 /**
  * NodeView Mutation Hooks
+ *
+ * Writes view definitions through the local-first core workspace store.
  */
 
+import { useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryClient as sharedQueryClient } from '@/lib/queryClient';
-import {
-  createNodeView,
-  updateNodeView,
-  updateQueryAST,
-  deleteNodeView,
-  duplicateNodeView,
-  reorderNodeViews,
-  resetNodeViews,
-  ensureDefaultViews,
-} from '@/api/nodeViews';
-import type {
-  NodeView,
-  NodeViewCreate,
-  NodeViewUpdate,
-} from '@/types/nodeView';
+import type { NodeView, NodeViewCreate, NodeViewUpdate } from '@/types/nodeView';
+import type { QueryAST } from '@/types';
 import { resolveNodeUuid, resolveNodeViewUuid } from '@/utils/resolveNodeUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { getActiveWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { queryAll, queryOne } from '@/core/db/sqlite';
+import { uuidv7 } from '@/core/uuid';
 import { nodeViewKeys } from './useNodeViews.queries';
 
 function requireViewUuid(viewId: string | number): string {
-  const uuid = resolveNodeViewUuid(viewId);
+  const uuid = typeof viewId === 'string' ? viewId : resolveNodeViewUuid(viewId);
   if (!uuid) {
     throw new Error(`Unable to resolve UUID for view id ${viewId}`);
   }
   return uuid;
 }
 
+function useStore() {
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  return useWorkspaceStore(workspaceId ?? '');
+}
+
+function parseJson<T>(raw: string | null | undefined, fallback: T): T {
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function readNodeView(store: NonNullable<ReturnType<typeof useStore>['store']>, viewId: string): NodeView | undefined {
+  const row = queryOne<{
+    id: string;
+    node_id: string;
+    name: string;
+    view_type: string;
+    order_index: number;
+    is_default: number;
+    active: number;
+    shown_properties: string;
+    group_by: string | null;
+    view_mode: string | null;
+    sort_entries: string;
+    settings: string;
+    query_ast: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+  }>(store.getDb(), 'SELECT * FROM node_view WHERE id = ?', [viewId]);
+  if (!row) return undefined;
+
+  return {
+    uuid: row.id,
+    node_uuid: row.node_id,
+    name: row.name,
+    view_type: row.view_type,
+    order_index: row.order_index,
+    is_default: row.is_default !== 0,
+    active: row.active !== 0,
+    shown_properties: parseJson<Array<{ uuid: string; sequence: number }>>(row.shown_properties, []),
+    group_by: parseJson<NodeView['group_by']>(row.group_by, null),
+    view_mode: row.view_mode as NodeView['view_mode'],
+    sort_entries: parseJson<NodeView['sort_entries']>(row.sort_entries, []),
+    settings: parseJson<NodeView['settings']>(row.settings, {}),
+    query_ast: parseJson<QueryAST | undefined>(row.query_ast, undefined),
+    create_date: row.created_at ?? new Date().toISOString(),
+    write_date: row.updated_at ?? new Date().toISOString(),
+  };
+}
+
 export function useCreateNodeView() {
   const queryClient = useQueryClient();
+  const { store } = useStore();
 
   return useMutation({
-    mutationFn: (data: NodeViewCreate) => createNodeView(data),
+    mutationFn: (data: NodeViewCreate) => {
+      if (!store) throw new Error('Workspace store is not ready');
+      const viewId = store.createNodeView({
+        viewId: uuidv7(),
+        nodeId: data.node_uuid,
+        name: data.name,
+        viewType: data.view_type,
+        orderIndex: data.order_index,
+        isDefault: data.is_default,
+        queryAst: data.query_ast,
+      });
+      const view = readNodeView(store, viewId);
+      if (!view) throw new Error(`Created view ${viewId} not found`);
+      return Promise.resolve(view);
+    },
     onSuccess: (newView) => {
-      // Invalidate ALL list queries for this node (any viewType)
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.lists(),
-        predicate: (query) => {
-          const key = query.queryKey;
-          // Match ['nodeViews', 'list', nodeId, ...]
-          return key[0] === 'nodeViews' && key[1] === 'list' && key[2] === newView.node_uuid;
-        },
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(newView.node_uuid),
-      });
+      queryClient.setQueryData(nodeViewKeys.detail(newView.uuid), newView);
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(newView.node_uuid) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(newView.node_uuid) });
     },
   });
 }
 
 /**
  * Update a NodeView
- *
- * Applies an optimistic patch to the list caches so presentation switches
- * (view mode, sort, group-by, settings) feel instant; rolls back on error.
  */
 export function useUpdateNodeView() {
   const queryClient = useQueryClient();
+  const { store } = useStore();
 
   return useMutation({
-    mutationFn: ({ viewId, data }: { viewId: string | number; data: NodeViewUpdate }) =>
-      updateNodeView(requireViewUuid(viewId), data),
-    onMutate: async ({ viewId, data }) => {
+    mutationFn: ({ viewId, data }: { viewId: string | number; data: NodeViewUpdate }) => {
+      if (!store) throw new Error('Workspace store is not ready');
       const uuid = requireViewUuid(viewId);
-      await queryClient.cancelQueries({ queryKey: nodeViewKeys.lists() });
-      await queryClient.cancelQueries({ queryKey: nodeViewKeys.detail(uuid) });
-
-      const previousLists = queryClient.getQueriesData<NodeView[]>({
-        queryKey: nodeViewKeys.lists(),
-      });
-      const previousDetail = queryClient.getQueryData<NodeView>(nodeViewKeys.detail(uuid));
-
-      const patchList = (old: NodeView[] | undefined): NodeView[] | undefined => {
-        if (!old) return old;
-        const targetType = old.find((v) => v.uuid === uuid)?.view_type;
-        return old.map((view) => {
-          if (view.uuid === uuid) return { ...view, ...data };
-          // Setting a new default unsets the previous one in the same section
-          if (data.is_default === true && view.is_default && view.view_type === targetType) {
-            return { ...view, is_default: false };
-          }
-          return view;
-        });
-      };
-
-      queryClient.setQueriesData<NodeView[]>({ queryKey: nodeViewKeys.lists() }, patchList);
-      if (previousDetail) {
-        queryClient.setQueryData(nodeViewKeys.detail(uuid), { ...previousDetail, ...data });
-      }
-
-      return { previousLists, previousDetail, uuid };
-    },
-    onError: (_err, _vars, context) => {
-      if (!context) return;
-      for (const [key, value] of context.previousLists) {
-        queryClient.setQueryData(key, value);
-      }
-      if (context.previousDetail) {
-        queryClient.setQueryData(nodeViewKeys.detail(context.uuid), context.previousDetail);
-      }
+      const payload: Parameters<typeof store.updateNodeView>[0] = { viewId: uuid };
+      if ('name' in data) payload.name = data.name ?? null;
+      if ('order_index' in data) payload.orderIndex = data.order_index ?? null;
+      if ('is_default' in data) payload.isDefault = data.is_default ?? null;
+      if ('shown_properties' in data) payload.shownProperties = data.shown_properties ?? null;
+      if ('group_by' in data) payload.groupBy = data.group_by ?? null;
+      if ('view_mode' in data) payload.viewMode = data.view_mode ?? null;
+      if ('sort_entries' in data) payload.sortEntries = data.sort_entries ?? null;
+      if ('settings' in data) payload.settings = (data.settings as Record<string, unknown> | null) ?? null;
+      if ('query_ast' in data) payload.queryAst = data.query_ast ?? null;
+      store.updateNodeView(payload);
+      const view = readNodeView(store, uuid);
+      if (!view) throw new Error(`Updated view ${uuid} not found`);
+      return Promise.resolve(view);
     },
     onSuccess: (updatedView) => {
-      // Update the cache for this view
       queryClient.setQueryData(nodeViewKeys.detail(updatedView.uuid), updatedView);
-      // Invalidate list queries
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.list(updatedView.node_uuid),
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(updatedView.node_uuid),
-      });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
     },
   });
 }
@@ -122,21 +143,48 @@ export function useUpdateNodeView() {
  */
 export function useDuplicateNodeView() {
   const queryClient = useQueryClient();
+  const { store } = useStore();
 
   return useMutation({
-    mutationFn: (viewId: string) => duplicateNodeView(requireViewUuid(viewId)),
-    onSuccess: (newView) => {
+    mutationFn: (viewId: string) => {
+      if (!store) throw new Error('Workspace store is not ready');
+      const uuid = requireViewUuid(viewId);
+      const row = queryOne<{
+        node_id: string;
+        name: string;
+        view_type: string;
+        order_index: number;
+        shown_properties: string;
+        group_by: string | null;
+        view_mode: string | null;
+        sort_entries: string;
+        settings: string;
+        query_ast: string | null;
+      }>(store.getDb(), 'SELECT * FROM node_view WHERE id = ?', [uuid]);
+      if (!row) throw new Error(`View ${uuid} not found`);
+
+      const newViewId = uuidv7();
+      store.createNodeView({
+        viewId: newViewId,
+        nodeId: row.node_id,
+        name: `${row.name} (Copy)`,
+        viewType: row.view_type,
+        orderIndex: row.order_index + 1,
+        isDefault: false,
+        shownProperties: parseJson<Array<{ uuid: string; sequence: number }>>(row.shown_properties, []),
+        groupBy: parseJson<unknown | null>(row.group_by, null),
+        viewMode: row.view_mode,
+        sortEntries: parseJson<unknown[]>(row.sort_entries, []),
+        settings: parseJson<Record<string, unknown>>(row.settings, {}),
+        queryAst: parseJson<unknown>(row.query_ast, undefined),
+      });
+      const view = readNodeView(store, newViewId);
+      if (!view) throw new Error(`Duplicated view ${newViewId} not found`);
+      return Promise.resolve(view);
+    },
+    onSuccess: (newView, _viewId) => {
       queryClient.setQueryData(nodeViewKeys.detail(newView.uuid), newView);
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.lists(),
-        predicate: (query) => {
-          const key = query.queryKey;
-          return key[0] === 'nodeViews' && key[1] === 'list' && key[2] === newView.node_uuid;
-        },
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(newView.node_uuid),
-      });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.lists() });
     },
   });
 }
@@ -146,26 +194,20 @@ export function useDuplicateNodeView() {
  */
 export function useUpdateQueryAST() {
   const queryClient = useQueryClient();
+  const { store } = useStore();
 
   return useMutation({
-    mutationFn: ({ viewId, queryAST }: { viewId: string; queryAST: Record<string, any> }) =>
-      updateQueryAST(requireViewUuid(viewId), queryAST),
+    mutationFn: ({ viewId, queryAST }: { viewId: string; queryAST: QueryAST }) => {
+      if (!store) throw new Error('Workspace store is not ready');
+      store.updateNodeView({ viewId, queryAst: queryAST });
+      const view = readNodeView(store, viewId);
+      if (!view) throw new Error(`Updated view ${viewId} not found`);
+      return Promise.resolve(view);
+    },
     onSuccess: (updatedView) => {
-      // Update the cache for this view
       queryClient.setQueryData(nodeViewKeys.detail(updatedView.uuid), updatedView);
-      // Invalidate ALL query results for this view (regardless of parameters)
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.queryResults(),
-        predicate: (query) => {
-          const key = query.queryKey;
-          // Match ['nodeViews', 'queryResults', viewId, ...]
-          return key[0] === 'nodeViews' && key[1] === 'queryResults' && key[2] === updatedView.uuid;
-        },
-      });
-      // Also invalidate the list queries since the view was updated
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.list(updatedView.node_uuid),
-      });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.lists() });
     },
   });
 }
@@ -175,18 +217,18 @@ export function useUpdateQueryAST() {
  */
 export function useDeleteNodeView() {
   const queryClient = useQueryClient();
+  const { store } = useStore();
 
   return useMutation({
-    mutationFn: (viewId: string) => deleteNodeView(requireViewUuid(viewId)),
-    onSuccess: (_, viewId) => {
-      // Remove from cache
-      queryClient.removeQueries({
-        queryKey: nodeViewKeys.detail(viewId),
-      });
-      // Invalidate all list queries (we don't know the nodeId here)
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.lists(),
-      });
+    mutationFn: (viewId: string) => {
+      if (!store) throw new Error('Workspace store is not ready');
+      store.deleteNodeView(requireViewUuid(viewId));
+      return Promise.resolve();
+    },
+    onSuccess: (_data, viewId) => {
+      queryClient.removeQueries({ queryKey: nodeViewKeys.detail(viewId) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
     },
   });
 }
@@ -196,51 +238,38 @@ export function useDeleteNodeView() {
  */
 export function useResetNodeViews() {
   const queryClient = useQueryClient();
+  const { store } = useStore();
 
   return useMutation({
-    mutationFn: (nodeUuid: string) => resetNodeViews(resolveNodeUuid(nodeUuid)),
-    onSuccess: async (newViews, nodeUuid) => {
-      // First, remove all old view details and query results to prevent stale queries
-      queryClient.removeQueries({
-        queryKey: nodeViewKeys.details(),
-      });
-      queryClient.removeQueries({
-        queryKey: nodeViewKeys.queryResults(),
-      });
-      
-      // Set the new views in cache for individual view queries
-      newViews.forEach((view) => {
-        queryClient.setQueryData(nodeViewKeys.detail(view.uuid), view);
-      });
-      
-      // Group views by view_type and set list queries to prevent duplicate creation
-      const viewsByType = new Map<string, typeof newViews>();
-      newViews.forEach((view) => {
-        if (!viewsByType.has(view.view_type)) {
-          viewsByType.set(view.view_type, []);
-        }
-        viewsByType.get(view.view_type)!.push(view);
-      });
-      
-      // Set list query cache for each view type
-      viewsByType.forEach((views, viewType) => {
-        queryClient.setQueryData(
-          nodeViewKeys.list(nodeUuid, viewType),
-          views
-        );
-      });
-      
-      // Also set the full list (all view types)
-      queryClient.setQueryData(
-        nodeViewKeys.list(nodeUuid),
-        newViews
+    mutationFn: (nodeUuid: string) => {
+      if (!store) throw new Error('Workspace store is not ready');
+      const nodeId = resolveNodeUuid(nodeUuid);
+      const node = store.getNode(nodeId);
+      const isClass = node?.kind === 'class';
+
+      const activeViews = queryAll<{ id: string }>(
+        store.getDb(),
+        'SELECT id FROM node_view WHERE node_id = ? AND active = 1',
+        [nodeId]
       );
-      
-      // Invalidate byType queries
-      await queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(nodeUuid),
-        refetchType: 'none', // Don't refetch, we just set the data
-      });
+      for (const { id: viewId } of activeViews) {
+        store.deleteNodeView(viewId);
+      }
+
+      const viewTypes = isClass
+        ? ['child_pages', 'linked_references', 'unlinked_references', 'classed_nodes', 'extended_by']
+        : ['child_pages', 'linked_references', 'unlinked_references'];
+      const created = store.ensureDefaultNodeViews(nodeId, viewTypes);
+      return Promise.resolve(created);
+    },
+    onSuccess: (newViewIds, nodeUuid) => {
+      queryClient.removeQueries({ queryKey: nodeViewKeys.details() });
+      queryClient.removeQueries({ queryKey: nodeViewKeys.queryResults() });
+      for (const viewId of newViewIds) {
+        queryClient.invalidateQueries({ queryKey: nodeViewKeys.detail(viewId) });
+      }
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeUuid) });
     },
   });
 }
@@ -250,40 +279,34 @@ export function useResetNodeViews() {
  */
 export function useReorderNodeViews() {
   const queryClient = useQueryClient();
+  const { store } = useStore();
 
   return useMutation({
     mutationFn: ({
-              nodeUuid,
-              viewType,
-              viewIds }: {
+      nodeUuid,
+      viewType,
+      viewIds,
+    }: {
       nodeUuid: string;
       viewType: string;
       viewIds: string[];
-    }) => reorderNodeViews(
-      resolveNodeUuid(nodeUuid),
-      viewType,
-      viewIds.map(requireViewUuid)
-    ),
-    onSuccess: (updatedViews, { nodeUuid }) => {
-      // Update list cache
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.list(nodeUuid),
+    }) => {
+      if (!store) throw new Error('Workspace store is not ready');
+      store.reorderNodeViews({
+        nodeId: resolveNodeUuid(nodeUuid),
+        viewType,
+        orderedViewIds: viewIds.map(requireViewUuid),
       });
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(nodeUuid),
-      });
-      // Update individual view caches
-      for (const view of updatedViews) {
-        queryClient.setQueryData(nodeViewKeys.detail(view.uuid), view);
-      }
+      return Promise.resolve();
+    },
+    onSuccess: (_data, { nodeUuid }) => {
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeUuid) });
     },
   });
 }
 
 // ---- Batched ensure-defaults ----
-// Collects all ensure-defaults requests that arrive in the same tick and
-// fires ONE API call per unique nodeId.  This reduces the ~40 POSTs that
-// fire on the journal view (4 view-types × 10 day-nodes) down to ~10.
 
 /** Nodes already ensured this browser session (cleared on full-page reload). */
 const _ensuredNodes = new Set<string>();
@@ -295,53 +318,44 @@ const _pendingBatch = new Map<
 >();
 let _flushScheduled = false;
 
-function _flushBatch() {
+function flushBatch() {
   _flushScheduled = false;
   const batch = new Map(_pendingBatch);
   _pendingBatch.clear();
 
-  batch.forEach(({ viewTypes, resolvers }, nodeId) => {
+  const store = getActiveWorkspaceStore();
+
+  batch.forEach(({ viewTypes, resolvers }, nodeUuid) => {
+    const nodeId = resolveNodeUuid(nodeUuid);
     if (_ensuredNodes.has(nodeId)) {
-      // Already ensured — resolve immediately, no network call
       resolvers.forEach((r) => r());
       return;
     }
 
-    const viewTypesArr = [...viewTypes];
-    ensureDefaultViews(resolveNodeUuid(nodeId), viewTypesArr)
-      .then((views) => {
-        _ensuredNodes.add(nodeId);
-        // Only invalidate if new views were actually created
-        if (views.length > 0) {
-          sharedQueryClient.invalidateQueries({
-            queryKey: nodeViewKeys.list(nodeId),
-          });
-          sharedQueryClient.invalidateQueries({
-            queryKey: nodeViewKeys.byType(nodeId),
-          });
-        }
-      })
-      .catch((err) => {
-        console.error(`ensureDefaultViews failed for node ${nodeId}:`, err);
-      })
-      .finally(() => {
-        resolvers.forEach((r) => r());
-      });
+    if (!store) {
+      // Store is not open yet; defer to the next ensure call.
+      resolvers.forEach((r) => r());
+      return;
+    }
+
+    try {
+      store.ensureDefaultNodeViews(nodeId, [...viewTypes]);
+      _ensuredNodes.add(nodeId);
+    } catch (err) {
+      console.error(`ensureDefaultNodeViews failed for node ${nodeId}:`, err);
+    } finally {
+      resolvers.forEach((r) => r());
+    }
   });
 }
 
 /**
- * Queue an ensure-defaults request.  All requests that arrive in the same
- * micro-task are batched into a single API call per nodeId.
- *
- * Returns a Promise that resolves once the API call completes (or is skipped).
+ * Queue an ensure-defaults request. All requests that arrive in the same
+ * micro-task are batched into a single store write per node.
  */
-export function batchEnsureDefaults(
-  nodeUuid: string,
-  viewType: string
-): Promise<void> {
-  // Fast path: already ensured this session
-  if (_ensuredNodes.has(nodeUuid)) return Promise.resolve();
+export function batchEnsureDefaults(nodeUuid: string, viewType: string): Promise<void> {
+  const nodeId = resolveNodeUuid(nodeUuid);
+  if (_ensuredNodes.has(nodeId)) return Promise.resolve();
 
   return new Promise<void>((resolve) => {
     let entry = _pendingBatch.get(nodeUuid);
@@ -354,38 +368,32 @@ export function batchEnsureDefaults(
 
     if (!_flushScheduled) {
       _flushScheduled = true;
-      // Use queueMicrotask so all synchronous mounts in the same render
-      // are collected before firing.
-      queueMicrotask(_flushBatch);
+      queueMicrotask(flushBatch);
     }
   });
 }
 
 /**
  * Ensure default views exist for a node (lazy initialization).
- *
- * Uses the batching system above.  Each QuerySection calls this with its
- * own viewType; the batcher merges them into one API call per nodeId.
  */
 export function useEnsureDefaultViews() {
   const queryClient = useQueryClient();
+  const { store } = useStore();
 
   return useMutation({
     mutationFn: async ({ nodeUuid, viewTypes }: { nodeUuid: string; viewTypes?: string[] }) => {
-      if (_ensuredNodes.has(nodeUuid)) return [];
-      const views = await ensureDefaultViews(resolveNodeUuid(nodeUuid), viewTypes);
-      _ensuredNodes.add(nodeUuid);
-      return views;
+      if (!store) throw new Error('Workspace store is not ready');
+      const nodeId = resolveNodeUuid(nodeUuid);
+      if (_ensuredNodes.has(nodeId)) return [];
+      const types = viewTypes ?? ['child_pages', 'linked_references', 'unlinked_references'];
+      const created = store.ensureDefaultNodeViews(nodeId, types);
+      _ensuredNodes.add(nodeId);
+      return created;
     },
-    onSuccess: (views) => {
-      if (views.length > 0) {
-        const nodeUuid = views[0].node_uuid;
-        queryClient.invalidateQueries({
-          queryKey: nodeViewKeys.list(nodeUuid),
-        });
-        queryClient.invalidateQueries({
-          queryKey: nodeViewKeys.byType(nodeUuid),
-        });
+    onSuccess: (created, { nodeUuid }) => {
+      if (created.length > 0) {
+        queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeUuid) });
+        queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeUuid) });
       }
     },
   });

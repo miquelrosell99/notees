@@ -1,16 +1,116 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { getPopupQueryForSection, getTaskDateUuid, useTasksPopupData } from './useTasksPopupData';
-import { executeQuery } from '@/api/nodeViews';
-
-vi.mock('@/api/nodeViews', () => ({ executeQuery: vi.fn() }));
-const executeQueryMock = vi.mocked(executeQuery);
+import { WorkspaceStoreProvider } from '@/core/hooks/WorkspaceStoreProvider';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { MemoryRelay, MemoryTransport } from '@/core/transport';
+import { uuidv7 } from '@/core/uuid';
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
+import { dateToDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
 
 function wrapper({ children }: { children: ReactNode }) {
+  const actorId = uuidv7();
+  const relay = new MemoryRelay();
+  const transport = new MemoryTransport(relay, 'ws-test');
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return createElement(QueryClientProvider, { client: qc }, children);
+  return createElement(
+    QueryClientProvider,
+    { client: qc },
+    createElement(
+      MemoryRouter,
+      { initialEntries: ['/ws-test'] },
+      createElement(
+        Routes,
+        null,
+        createElement(
+          Route,
+          {
+            path: '/:workspaceId/*',
+            element: createElement(
+              WorkspaceStoreProvider,
+              { actorId, transport, children }
+            ),
+          }
+        )
+      )
+    )
+  );
+}
+
+function seedTaskData(store: NonNullable<ReturnType<typeof useWorkspaceStore>['store']>) {
+
+  // Seed class hierarchy for the task class.
+  store.getDb().run(
+    'INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)',
+    [SYSTEM_CLASS_UUIDS.task, SYSTEM_CLASS_UUIDS.task]
+  );
+
+  const todayUuid = getTodayDayUuid();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayUuid = dateToDayUuid(yesterday);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowUuid = dateToDayUuid(tomorrow);
+
+  function createTask(nodeId: string, status: string, extras: { scheduled?: string; deadline?: string; closed?: string; writeDate?: string } = {}) {
+    store.createNode({ nodeId, kind: 'block', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.task] });
+    store.setProperty({
+      propertyValueId: uuidv7(),
+      nodeId,
+      schemaId: SYSTEM_PROPERTY_UUIDS.task_status,
+      value: status,
+    });
+    if (extras.scheduled) {
+      store.setProperty({
+        propertyValueId: uuidv7(),
+        nodeId,
+        schemaId: SYSTEM_PROPERTY_UUIDS.task_scheduled,
+        value: extras.scheduled,
+      });
+    }
+    if (extras.deadline) {
+      store.setProperty({
+        propertyValueId: uuidv7(),
+        nodeId,
+        schemaId: SYSTEM_PROPERTY_UUIDS.task_deadline,
+        value: extras.deadline,
+      });
+    }
+    if (extras.closed) {
+      store.setProperty({
+        propertyValueId: uuidv7(),
+        nodeId,
+        schemaId: SYSTEM_PROPERTY_UUIDS.task_closed_date,
+        value: extras.closed,
+      });
+    }
+    if (extras.writeDate) {
+      store.getDb().run('UPDATE node SET updated_at = ? WHERE id = ?', [extras.writeDate, nodeId]);
+    }
+  }
+
+  // Pending tasks for popup sections.
+  createTask('overdue-1', 'Pending', { scheduled: yesterdayUuid });
+  createTask('overdue-2', 'Doing', { deadline: yesterdayUuid });
+  createTask('today-1', 'Pending', { scheduled: todayUuid });
+  createTask('today-2', 'Doing', { deadline: todayUuid });
+  createTask('upcoming-1', 'Pending', { scheduled: tomorrowUuid });
+  createTask('unscheduled-1', 'Pending', { writeDate: '2026-07-14T12:00:00Z' });
+  createTask('unscheduled-2', 'Pending', { writeDate: '2026-07-10T08:00:00Z' });
+
+  // Completed today.
+  createTask('completed-1', 'Done', { closed: todayUuid });
+  createTask('completed-2', 'Done', { closed: todayUuid });
+
+  // Hidden statuses (Backlog/Reviewing) should not appear in popup counts.
+  createTask('hidden-backlog', 'Backlog', { scheduled: todayUuid });
+  createTask('hidden-reviewing', 'Reviewing', { deadline: todayUuid });
+
+  return { todayUuid, yesterdayUuid, tomorrowUuid };
 }
 
 describe('getPopupQueryForSection', () => {
@@ -34,81 +134,45 @@ describe('getTaskDateUuid', () => {
   it('prefers scheduled over deadline and ignores non-day-uuid values', () => {
     const node = {
       properties_uuid: {
-        '00000000-0000-0000-0003-000000000003': '00000000-0000-0000-00dd-202607200000',
-        '00000000-0000-0000-0003-000000000002': '00000000-0000-0000-00dd-202607180000',
+        [SYSTEM_PROPERTY_UUIDS.task_scheduled]: '00000000-0000-0000-00dd-202607200000',
+        [SYSTEM_PROPERTY_UUIDS.task_deadline]: '00000000-0000-0000-00dd-202607180000',
       },
     } as never;
     expect(getTaskDateUuid(node)).toBe('00000000-0000-0000-00dd-202607200000');
-    expect(getTaskDateUuid({ properties_uuid: { '00000000-0000-0000-0003-000000000003': 42 } } as never)).toBeNull();
+    expect(getTaskDateUuid({ properties_uuid: { [SYSTEM_PROPERTY_UUIDS.task_scheduled]: 42 } } as never)).toBeNull();
     expect(getTaskDateUuid({ properties_uuid: undefined } as never)).toBeNull();
   });
 });
 
 describe('useTasksPopupData', () => {
-  beforeEach(() => {
-    executeQueryMock.mockReset();
-    executeQueryMock.mockImplementation(async (req) => {
-      const ast = JSON.stringify(req.query_ast);
-      if (ast.includes('task_closed_date')) return { nodes: [], total_count: 2 } as never;
-      if (ast.includes('is_empty')) return { nodes: [{ uuid: 'n1' }], total_count: 1116 } as never;
-      if (ast.includes('less_than') && !ast.includes('greater_than')) return { nodes: [{ uuid: 'o1' }], total_count: 5 } as never;
-      if (ast.includes('greater_than')) return { nodes: [{ uuid: 'u1' }], total_count: 7 } as never;
-      return { nodes: [{ uuid: 't1' }], total_count: 3 } as never; // today: equals only
-    });
-  });
+  async function getStore() {
+    const { result } = renderHook(() => useWorkspaceStore('ws-test'), { wrapper });
+    await waitFor(() => expect(result.current.store).toBeDefined());
+    return result.current.store!;
+  }
 
   it('derives the due count from overdue + today totals', async () => {
+    const store = await getStore();
+    seedTaskData(store);
+
     const { result } = renderHook(() => useTasksPopupData(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.dueCount).toBe(8); // 5 overdue + 3 today
-    expect(result.current.sections.upcoming.totalCount).toBe(7);
+    await waitFor(() => expect(result.current.dueCount).toBe(4));
+
+    expect(result.current.sections.upcoming.totalCount).toBe(1);
     expect(result.current.sections.completed.totalCount).toBe(2);
-    // Unscheduled tasks exist but stay out of the badge count.
-    expect(result.current.sections.unscheduled.totalCount).toBe(1116);
-    expect(executeQueryMock).toHaveBeenCalledTimes(5);
+    expect(result.current.sections.unscheduled.totalCount).toBe(2);
   });
 
   it('sorts unscheduled tasks by recently updated first', async () => {
-    executeQueryMock.mockImplementation(async (req) => {
-      const ast = JSON.stringify(req.query_ast);
-      if (ast.includes('is_empty')) {
-        return {
-          nodes: [
-            { uuid: 'old', write_date: '2026-07-10T08:00:00Z' },
-            { uuid: 'new', write_date: '2026-07-14T12:00:00Z' },
-          ],
-          total_count: 2,
-        } as never;
-      }
-      return { nodes: [], total_count: 0 } as never;
-    });
-    const { result } = renderHook(() => useTasksPopupData(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.sections.unscheduled.nodes.map((n) => n.uuid)).toEqual(['new', 'old']);
-  });
+    const store = await getStore();
+    seedTaskData(store);
 
-  it('falls back to row counts when the backend omits total_count (unlimited queries)', async () => {
-    // The backend only computes total_count when limit/offset is set
-    // (postgres_query.py) — the overdue/today requests are unlimited, so
-    // their responses carry no total_count at all.
-    executeQueryMock.mockImplementation(async (req) => {
-      const ast = JSON.stringify(req.query_ast);
-      if (ast.includes('task_closed_date')) return { nodes: [], total_count: 2 } as never;
-      if (ast.includes('is_empty')) return { nodes: [{ uuid: 'n1' }], total_count: 1116 } as never;
-      if (ast.includes('less_than') && !ast.includes('greater_than')) {
-        return { nodes: [{ uuid: 'o1' }, { uuid: 'o2' }, { uuid: 'o3' }] } as never; // overdue: no total_count
-      }
-      if (ast.includes('greater_than')) return { nodes: [{ uuid: 'u1' }], total_count: 7 } as never;
-      return { nodes: [{ uuid: 't1' }, { uuid: 't2' }] } as never; // today: no total_count
-    });
     const { result } = renderHook(() => useTasksPopupData(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.dueCount).toBe(5); // 3 overdue rows + 2 today rows
-    expect(result.current.sections.overdue.totalCount).toBe(3);
-    expect(result.current.sections.today.totalCount).toBe(2);
-    // Limited queries still prefer the authoritative total_count over row count.
-    expect(result.current.sections.upcoming.totalCount).toBe(7);
-    expect(result.current.sections.completed.totalCount).toBe(2);
-    expect(result.current.sections.unscheduled.totalCount).toBe(1116);
+    await waitFor(() =>
+      expect(result.current.sections.unscheduled.nodes.map((n) => n.uuid)).toEqual([
+        'unscheduled-1',
+        'unscheduled-2',
+      ])
+    );
   });
 });
