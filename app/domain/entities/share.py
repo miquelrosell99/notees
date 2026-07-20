@@ -14,7 +14,7 @@ class PublicShare:
 
     id: int | None = None
     uuid: str = ""
-    node_id: int = 0
+    node_uuid: str = ""
     workspace_id: int = 0
     created_by: int = 0
     created_at: str = field(default_factory=utc_now_iso)

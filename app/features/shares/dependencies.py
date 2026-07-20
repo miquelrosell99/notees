@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator
 
 import asyncpg
 from fastapi import Depends, HTTPException
 
 from app.core.workspace_store import WorkspaceStore
-from app.db.connection import acquire_connection, get_pool, get_workspace_uuid
+from app.db.connection import get_pool, get_workspace_uuid
 from app.dependencies import _get_workspace_context_cached, get_current_user, get_workspace_id
 from app.features.export.dependencies import _make_export_repository
 from app.features.export.service import ExportService
@@ -53,28 +53,6 @@ async def get_share_repository_for_public() -> AsyncGenerator[ShareRepository, N
     """Get a ShareRepository for anonymous public access (no workspace filter)."""
     pool = await get_pool()
     yield _make_share_repository(pool, 0, None)
-
-
-NodeIdResolver = Callable[[int, str], Awaitable[int]]
-
-
-async def _resolve_node_uuid_to_id(workspace_id: int, node_uuid: str) -> int:
-    """Resolve a public node UUID to its internal numeric id in PostgreSQL."""
-    pool = await get_pool()
-    async with acquire_connection(pool) as conn:
-        row = await conn.fetchrow(
-            "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2",
-            workspace_id,
-            node_uuid,
-        )
-    if row is None:
-        raise HTTPException(status_code=404, detail="Node not found")
-    return row["id"]
-
-
-async def get_node_id_resolver() -> AsyncGenerator[NodeIdResolver, None]:
-    """Yield the default node UUID -> internal id resolver."""
-    yield _resolve_node_uuid_to_id
 
 
 async def _get_share_service(user: User) -> ShareService:
