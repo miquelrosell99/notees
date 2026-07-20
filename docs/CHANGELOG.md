@@ -52,6 +52,42 @@
 - `frontend/src/core/` is the sole path for state, hooks, and sync.
 - `agents/plans/notees-phase7-plus-plan.md` is marked complete.
 
+## Phase 12 — Cleanup and roadmap
+
+**Date:** 2026-07-20
+
+### Cleanup debt
+
+- **Shares UUID migration**: share metadata tables (`node_public_share`, `node_share`, `pending_invite`) now use `node_uuid` instead of the legacy numeric `node_id`. The frontend `/nodes/{uuid}/shares` and `/nodes/{uuid}/user-shares` endpoints no longer depend on the legacy `node` table.
+- **Node-scoped share router**: `node_shares_router` is mounted under `/api/nodes` and `/api/v1/nodes`.
+
+### Rich-text CRDT polish
+
+- Added `TextCrdt.format()` and `TextCrdt.toDelta()` in `frontend/src/core/crdt/text.ts`.
+- Added tests proving formatting attributes survive CRDT state reload and concurrent merge.
+
+### Plugin ecosystem expansion
+
+- Added built-in `notees.opml_exporter` plugin that exports node trees to OPML 2.0.
+- Extended `ExportContext` with `nodes_data` so plugin exporters can consume the already-fetched tree.
+
+### Scale testing and stress tests
+
+- Added backend stress suite (`tests/core/stress/`): replay, catch-up, storage overhead, multi-client convergence.
+- Added frontend stress suite (`frontend/src/core/__tests__/stress/`): apply latency, snapshot restore, catch-up, convergence burst.
+- Added benchmark report at `agents/plans/phase12-scale-benchmark.md`.
+
+### Dev environment
+
+- Added optional HTTPS support for the Vite dev server via `@vitejs/plugin-basic-ssl`. Set `HTTPS=true` and add your Tailscale host to `VITE_ALLOWED_HOSTS` to access `https://atlas:5173` without the `crypto.subtle` secure-context error.
+
+### Verification
+
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 402 passed, 3 skipped, 6 deselected, 1 warning.
+- `cd frontend && npx tsc -b --noEmit && npm run lint` → clean (0 errors, 5 pre-existing warnings).
+- `cd frontend && npm run test:run` → 91 files / 582 passed.
+- `npm run test:e2e` → 5/5 passed.
+
 ## Phase 11 — Close remaining product gaps
 
 **Date:** 2026-07-20

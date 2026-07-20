@@ -422,3 +422,87 @@ Update the gap table to reflect this.
 - `npm run test:e2e` → 5/5 passed (smoke tests plus whiteboard save/reload).
 - Gap analysis table updated to mark resolved gaps.
 - Focused snapshot commits created; final gap-closure milestone commit created.
+
+## Phase 12: Cleanup and Roadmap
+
+Phase 11 closed the tracked product gaps. Phase 12 is split into two tracks:
+1. **Cleanup debt** — remove the remaining legacy 404 callers and any other migration leftovers.
+2. **Roadmap work** — begin the next-generation capabilities identified in the Phase 11 recommended priorities: rich-text CRDT polish, plugin ecosystem expansion, and scale/stress testing.
+
+### Track A — Cleanup debt
+
+#### A1 — Restore node-scoped share endpoints and migrate share metadata to node UUIDs
+
+The frontend share API calls `/nodes/{uuid}/shares` and `/nodes/{uuid}/user-shares`. The backend router (`node_shares_router`) is mounted under `/api/nodes` and `/api/v1/nodes` in `app/main.py`.
+
+Share metadata previously resolved the public `node_uuid` to a legacy internal `node_id` via `NodeIdResolver`, which queried the legacy `node` table. New operation-log nodes are not in that table, so listing user shares for new nodes returned 404. The share metadata tables (`node_public_share`, `node_share`, `pending_invite`) now store `node_uuid` directly and no longer depend on the legacy `node` table.
+
+**Completed:**
+1. Added an idempotent PostgreSQL migration in `app/db/schema/sql.py` that converts `node_public_share`, `node_share`, and `pending_invite` from integer `node_id` to UUID `node_uuid`, backfills from `node.uuid`, and recreates constraints/indexes.
+2. Updated `app/domain/entities/share.py`, `app/features/shares/port.py`, `app/features/shares/repository.py`, `app/features/shares/service.py`, and `app/features/shares/router.py` to use `node_uuid` throughout.
+3. Removed the `NodeIdResolver` dependency and `_resolve_node_uuid_to_id` from `app/features/shares/dependencies.py`; node existence/ownership are now checked against the `WorkspaceStore` derived state.
+4. Updated `app/relay/permissions_postgres.py` to authorize public shares using `node_public_share.node_uuid` without joining the legacy `node` table.
+5. Updated `tests/core/test_shares_router.py`, `tests/core/test_relay_permissions.py`, and `tests/fakes.py` to match the UUID-based interface.
+
+**Status:** complete.
+
+**Verification:** `uv run pytest tests/core/test_shares_router.py tests/core/test_relay_permissions.py -q --no-cov` → 20 passed. Full unit/core suite: `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 402 passed, 3 skipped, 6 deselected.
+
+### Track B — Roadmap
+
+#### B1 — Rich-text CRDT polish
+
+Current state: inline text edits use a text CRDT (`Yjs/Y.Text`). Per-node CRDT state is already persisted in `crdt_state.text_state` / `crdt_state.tree_state` on both the client-side SQLite derived store and the backend replay-derived database, so concurrent text and structural edits round-trip through the encrypted relay.
+
+Implemented in this pass:
+1. ✅ Persist per-node CRDT state (`text_state`, `tree_state`) — already in place via `frontend/src/core/derived/crdtState.ts`, `frontend/src/core/db/schema.ts`, `app/core/derived/schema.py`, and `app/core/derived/node.py`.
+2. ✅ Native Yjs formatting-attribute support in the text CRDT wrapper — added `TextCrdt.format()` and `TextCrdt.toDelta()` in `frontend/src/core/crdt/text.ts`, with unit tests covering state reload and concurrent formatting merge.
+3. ✅ Derived-state round-trip test — `frontend/src/core/derived/__tests__/appliers.test.ts` now verifies that bold/italic formatting survives `node.updateContent` application and store export/reload.
+
+Remaining / optional:
+- Operation-level annotation payloads and editor toolbar wiring are deferred; the editor currently serializes annotated inline AST as JSON inside the Yjs text, which already survives reload via the persisted CRDT state.
+- Ephemeral cursor/selection presence operations are deferred; block-level focus/typing presence already flows through the existing WebSocket live-sync channel.
+
+#### B2 — Plugin ecosystem expansion
+
+Current state: `PluginContext` exposes `WorkspaceStore` and relay transport; built-in importers/exporters exist. The plugin port surface and lifecycle are documented in `agents/plugin-system.md`.
+
+Goals:
+1. ✅ Document the plugin port surface and lifecycle — `agents/plugin-system.md` is current.
+2. ✅ Add one new built-in exporter as a reference plugin — `notees.opml_exporter` exports node trees to OPML 2.0. Backend adapter in `app/plugins/builtin/opml_exporter/`, frontend registration in `frontend/src/plugins/builtin/opml_exporter/setup.ts`, unit tests in `tests/unit/plugins/builtin/test_opml_exporter.py`. `ExportContext` was extended with `nodes_data` so exporters can consume the already-fetched node tree without re-querying PostgreSQL or the relay.
+3. Harden plugin sandboxing / isolation boundaries.
+
+#### B3 — Scale testing and stress tests ✅
+
+Current state: snapshot/compaction infrastructure exists but has not been stress-tested with large operation logs or high-concurrency catch-up.
+
+**Completed:**
+1. Added backend stress suite under `tests/core/stress/`:
+   - `test_workspace_store_replay.py` — replay time from empty / with snapshot, idempotent sync at scale, compaction pruning.
+   - `test_relay_catch_up_stress.py` — relay catch-up from HLC zero, delta catch-up, WorkspaceStore catch-up via `MemoryTransport`.
+   - `test_storage_overhead.py` — SQLite relay size per op, `get_operation_size_estimate` sanity, derived-state overhead per node.
+   - `test_multi_client_convergence_burst.py` — multi-client burst then converge.
+2. Added frontend stress suite under `frontend/src/core/__tests__/stress/`:
+   - `workspaceStore.stress.test.ts` — apply latency, snapshot restore, export size, compaction.
+   - `sync.stress.test.ts` — catch-up latency, multi-client convergence burst.
+3. Tests are deterministic, CI-friendly (default 2k ops / 4×200 burst), and support larger counts via `NOTEES_STRESS_OPS`, `NOTEES_STRESS_BURST_OPS`, `NOTEES_STRESS_CLIENTS`.
+4. Added benchmark report at `agents/plans/phase12-scale-benchmark.md` with measured numbers and bounds.
+5. Registered the `stress` pytest marker in `pytest.ini`.
+
+**Verification:**
+- `uv run pytest tests/core/stress -q --no-cov --confcutdir=tests/core` → 11 passed.
+- `cd frontend && npm run test:run -- src/core/__tests__/stress/` → 6 passed.
+- `cd frontend && npm run test:run` → 91 files / 582 tests passed.
+- `uv run pytest tests/unit -m unit --no-cov -q` → 71 passed.
+
+## Phase 12 Verification Checklist
+
+- [x] Track A1 — share metadata migrated to `node_uuid`; `/nodes/{uuid}/shares` and `/nodes/{uuid}/user-shares` endpoints restored.
+- [x] Track B1 — rich-text CRDT polish: `TextCrdt.format()` / `toDelta()` added; formatting survival tests added.
+- [x] Track B2 — plugin ecosystem expansion: `notees.opml_exporter` built-in exporter added.
+- [x] Track B3 — scale/stress tests added and passing.
+  - [x] Backend stress suite (`tests/core/stress/`).
+  - [x] Frontend stress suite (`frontend/src/core/__tests__/stress/`).
+  - [x] Benchmark report (`agents/plans/phase12-scale-benchmark.md`).
+- [x] Dev HTTPS support added for non-localhost access (Tailscale).
+- [x] Full verification suite passes.
