@@ -150,6 +150,17 @@ class SqliteRelayStorage(RelayStorage):
         self._init_schema()
 
     def _init_schema(self) -> None:
+        cursor = self._connection.execute(
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table' AND name = 'relay_envelope'
+            AND sql LIKE '%ciphertext%'
+            """
+        )
+        needs_migration = cursor.fetchone() is not None
+        if needs_migration:
+            self._connection.execute("DROP TABLE relay_envelope")
+
         self._connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS relay_envelope (
