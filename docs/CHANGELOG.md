@@ -51,3 +51,40 @@
 
 - `frontend/src/core/` is the sole path for state, hooks, and sync.
 - `agents/plans/notees-phase7-plus-plan.md` is marked complete.
+
+## Phase 11 — Close remaining product gaps
+
+**Date:** 2026-07-20
+
+### Core payload alignment
+
+- `node.updateContent` now accepts `content` (direct AST payload) and `treeUpdate` (tree CRDT state) in addition to `crdtUpdate`/`textUpdate`.
+- Derived-state applier stores `treeUpdate` in `crdt_state.tree_state` without overwriting `node.content`.
+
+### Workspace operation-log seeding
+
+- New workspaces are now seeded into the encrypted operation-log relay via `app/core/seed.py`.
+- System classes (`page`, `whiteboard`, `query`, `task`, `comment`, `card`, `cloze`, `asset`, `template`, `class`) and the default page are created as operations, so fresh accounts have the same derived state as migrated ones.
+- Fixed encrypted-envelope wire-format mismatch: `workspaceId`/`actorId`/`affectedNodeIds`/`opType` are now camelCase on the wire and accepted by name.
+- `useClasses` is now reactive to all `WorkspaceStore` changes.
+
+### Re-implemented importers
+
+- **Logseq Markdown-folder importer** restored as a client-side core-store importer plugin (`useLogseqMarkdownImporter.ts`, `ImportLogseqFolderModal.tsx`).
+
+### Whiteboard and flashcards
+
+- **Whiteboard**: save/reload now round-trips through the operation-log relay; added Playwright E2E test (`frontend/e2e/whiteboard.spec.ts`).
+- **Flashcards**: auto-create flashcard rows on `card` class assignment, rehydrate front/back text from node name and cloze children, added router/service/component tests.
+
+### Comments threading
+
+- `SidebarComments` now renders nested replies recursively with indentation and reply affordances.
+
+### Verification
+
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 384 passed, 3 skipped, 6 deselected, 1 warning.
+- `cd frontend && npx tsc -b --noEmit && npm run lint` → clean (0 errors, 5 pre-existing warnings).
+- `cd frontend && npm run test:run` → 88 files / 571 passed.
+- `npm run test:e2e` → 5/5 passed.
+- Final gap-closure commit: `feat(core,frontend): Phase 11 remaining gaps closed`.
