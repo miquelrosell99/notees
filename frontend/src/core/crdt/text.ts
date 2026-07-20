@@ -20,8 +20,20 @@ export class TextCrdt {
     this.text.delete(index, length);
   }
 
+  format(
+    index: number,
+    length: number,
+    attributes: Record<string, unknown>
+  ): void {
+    this.text.format(index, length, attributes);
+  }
+
   toPlaintext(): string {
     return this.text.toString();
+  }
+
+  toDelta(): Array<{ insert?: string | object; attributes?: Record<string, unknown> }> {
+    return this.text.toDelta();
   }
 
   getState(): Uint8Array {
