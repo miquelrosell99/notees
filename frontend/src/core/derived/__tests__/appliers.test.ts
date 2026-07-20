@@ -12,6 +12,8 @@ import { WorkspaceStore } from '../../store';
 import { uuidv7 } from '../../uuid';
 import { createTestDatabase } from '../../__tests__/helpers';
 import { queryAll, queryOne } from '../../db/sqlite';
+import { TextCrdt } from '../../crdt/text';
+import { createDatabase } from '../../db/connection';
 
 function makeOp(
   opType: string,
@@ -637,4 +639,63 @@ describe('alias applier', () => {
     expect(row?.count).toBe(0);
   });
 
+});
+
+
+describe('text CRDT formatting', () => {
+  it('persists formatting attributes in crdt_state through node.updateContent', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'block', parentId: null });
+
+    store.updateText(nodeId, (text) => {
+      text.insert(0, 'Hello world');
+      text.format(0, 5, { bold: true });
+    });
+
+    const savedState = store.getTextState(nodeId);
+    const reloaded = new TextCrdt(savedState);
+
+    expect(reloaded.toPlaintext()).toBe('Hello world');
+    const deltas = reloaded.toDelta();
+    const boldDelta = deltas.find(
+      (d) => (d.attributes as Record<string, unknown> | undefined)?.bold === true
+    );
+    expect(boldDelta).toBeDefined();
+    expect(boldDelta?.insert).toBe('Hello');
+  });
+
+  it('keeps crdt_state and node content in sync across reload', async () => {
+    const { store, actorId } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'block', parentId: null });
+
+    store.updateText(nodeId, (text) => {
+      text.insert(0, 'Persisted text');
+      text.format(0, 9, { italic: true });
+    });
+
+    const contentBefore = store.getNode(nodeId)?.content;
+
+    // Simulate store reload from exported bytes.
+    const bytes = store.export();
+    const freshDb = await createDatabase(bytes);
+    const freshStore = new WorkspaceStore(
+      freshDb,
+      store.getWorkspaceId(),
+      actorId
+    );
+
+    const stateAfter = freshStore.getTextState(nodeId);
+    const contentAfter = freshStore.getNode(nodeId)?.content;
+
+    expect(contentAfter).toBe(contentBefore);
+    const reloaded = new TextCrdt(stateAfter);
+    expect(reloaded.toPlaintext()).toBe('Persisted text');
+    const deltas = reloaded.toDelta();
+    const italicDelta = deltas.find(
+      (d) => (d.attributes as Record<string, unknown> | undefined)?.italic === true
+    );
+    expect(italicDelta?.insert).toBe('Persisted');
+  });
 });
