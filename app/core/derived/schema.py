@@ -100,6 +100,54 @@ CREATE TABLE IF NOT EXISTS class_hierarchy (
 CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor
     ON class_hierarchy (ancestor_id);
 
+CREATE TABLE IF NOT EXISTS property_schema (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    icon TEXT,
+    type TEXT NOT NULL,
+    multi INTEGER NOT NULL DEFAULT 0,
+    is_system INTEGER NOT NULL DEFAULT 0,
+    scope TEXT NOT NULL DEFAULT 'global',
+    node_id TEXT,
+    icon_visibility TEXT,
+    validation_rules TEXT,
+    required INTEGER NOT NULL DEFAULT 0,
+    readonly INTEGER NOT NULL DEFAULT 0,
+    hide_when_empty INTEGER NOT NULL DEFAULT 0,
+    default_value TEXT,
+    class_filter_uuids TEXT NOT NULL DEFAULT '[]',
+    options TEXT NOT NULL DEFAULT '[]',
+    computed TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT,
+    updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
+    ON property_schema (workspace_id);
+
+CREATE INDEX IF NOT EXISTS idx_property_schema_node
+    ON property_schema (node_id);
+
+CREATE TABLE IF NOT EXISTS class_property_edge (
+    class_id TEXT NOT NULL,
+    property_schema_id TEXT NOT NULL,
+    sequence INTEGER NOT NULL DEFAULT 0,
+    default_value TEXT,
+    hidden INTEGER NOT NULL DEFAULT 0,
+    required INTEGER,
+    readonly INTEGER,
+    hide_when_empty INTEGER,
+    PRIMARY KEY (class_id, property_schema_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_class_property_edge_class
+    ON class_property_edge (class_id);
+
+CREATE INDEX IF NOT EXISTS idx_class_property_edge_property
+    ON class_property_edge (property_schema_id);
+
 -- Feature-island derived tables
 
 CREATE TABLE IF NOT EXISTS node_asset (
