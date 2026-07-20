@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Seed the encrypted operation relay from existing PostgreSQL workspaces.
+"""Seed the operation relay from existing PostgreSQL workspaces.
 
 Reads every workspace (or a single one via ``--workspace-id``), replays the
-Phase 2 migration to generate ideal operations, encrypts each operation with a
-workspace-specific key derived from ``workspace_id + SECRET_KEY``, and posts
-batches to the local relay endpoint ``/api/relay/batch``.
+Phase 2 migration to generate ideal operations, and posts batches to the local
+relay endpoint ``/api/relay/batch``.
 
 The relay deduplicates by envelope id, so the script is safe to run multiple
 times for the same workspace.
@@ -32,11 +31,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.config import settings
 from app.core.clock import Hlc
-from app.core.crypto import (
-    decrypt_operation_payload,
-    derive_workspace_key,
-    encrypt_operation_payload,
-)
 from app.core.migration import (
     connect_postgres,
     create_migration_context,
@@ -93,8 +87,7 @@ async def _fetch_workspace_owner_uuid(conn: asyncpg.Connection, workspace_int_id
     return row["uuid"] if row else None
 
 
-def _build_envelope(operation: Any, key: bytes) -> dict[str, Any]:
-    encrypted = encrypt_operation_payload(operation.payload, key)
+def _build_envelope(operation: Any) -> dict[str, Any]:
     return {
         "id": operation.envelope.id,
         "workspace_id": operation.envelope.workspace_id,
@@ -105,8 +98,7 @@ def _build_envelope(operation: Any, key: bytes) -> dict[str, Any]:
         },
         "affected_node_ids": operation.envelope.affected_node_ids,
         "op_type": operation.envelope.op_type,
-        "ciphertext": encrypted["ciphertext"],
-        "iv": encrypted["iv"],
+        "payload": operation.payload,
     }
 
 
@@ -137,8 +129,7 @@ async def _seed_workspace(
         conn, workspace_int_id, ctx, writer, copy_files=copy_files
     )
 
-    key = derive_workspace_key(workspace_uuid, secret_key)
-    envelopes = [_build_envelope(op, key) for op in writer.operations]
+    envelopes = [_build_envelope(op) for op in writer.operations]
 
     if not envelopes:
         print(f"No operations generated for workspace {workspace_uuid}")
@@ -181,8 +172,7 @@ def _envelope_to_dict(envelope: EncryptedEnvelope) -> dict:
         "hlc": {"physical": envelope.hlc.physical, "logical": envelope.hlc.logical},
         "affected_node_ids": envelope.affected_node_ids,
         "op_type": envelope.op_type,
-        "ciphertext": envelope.ciphertext,
-        "iv": envelope.iv,
+        "payload": envelope.payload,
     }
 
 
@@ -236,15 +226,9 @@ def _derive_counts_from_relay(
     secret_key: str,
     relay_envelopes: list[dict],
 ) -> DerivedCounts:
-    """Decrypt relay envelopes and replay them into a fresh SQLite database."""
-    key = derive_workspace_key(workspace_uuid, secret_key)
+    """Replay relay envelopes into a fresh SQLite database."""
     operations = []
     for envelope in relay_envelopes:
-        payload = decrypt_operation_payload(
-            envelope["ciphertext"],
-            envelope["iv"],
-            key,
-        )
         operations.append(
             create_operation(
                 {
@@ -258,7 +242,7 @@ def _derive_counts_from_relay(
                     "affected_node_ids": envelope["affected_node_ids"],
                     "op_type": envelope["op_type"],
                 },
-                payload,
+                envelope["payload"],
             )
         )
     operations.sort(key=lambda op: (op.envelope.hlc.physical, op.envelope.hlc.logical, op.envelope.id))

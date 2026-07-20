@@ -80,10 +80,13 @@
 
 ### Dev environment
 
-- Replaced the Vite-native `@vitejs/plugin-basic-ssl` setup with a Node.js TLS-terminating TCP proxy (`frontend/scripts/dev-server.cjs`) inside the frontend dev container that exposes both HTTPS (`5173`) and HTTP (`5172`) simultaneously.
-- Vite now runs on internal port `5174` plain HTTP; the Node proxy terminates TLS with a self-signed certificate and forwards raw TCP for both protocols, so WebSocket HMR and the original `Host` header are preserved.
-- Removed `nginx` from the dev container and dropped `@vitejs/plugin-basic-ssl` from `frontend/package.json`.
-- Host access: `https://localhost:5173` and `http://localhost:5172`; over Tailscale use `https://atlas:5173` for a secure context (required for `crypto.subtle`) or `http://atlas:5172` for plain HTTP.
+- Removed operation-log payload encryption from the relay. Operation payloads are now plaintext JSON; confidentiality is provided by transport-layer encryption (TLS in production, Tailscale/WireGuard in dev).
+- Simplified the dev server to plain HTTP on port `5173`, matching the Home Assistant/Jellyfin self-hosted model. No bundled reverse proxy, no HTTPS inside the container.
+- Deleted `frontend/scripts/dev-server.cjs`, `frontend/scripts/start-dev.sh`, and `frontend/nginx.dev.conf`.
+- `frontend/Dockerfile.dev` now runs `npm run dev` directly on port `5173`; `openssl` removed.
+- `compose.dev.yaml` exposes only `"5173:5173"`; removed `VITE_WORKSPACE_KEY_SECRET` and port `5172`.
+- `frontend/vite.config.ts` restored to `server.port: 5173`.
+- Host access: `http://localhost:5173`; over Tailscale `http://atlas:5173` now works without `crypto.subtle` errors. Add your own reverse proxy for HTTPS if desired.
 
 ### Verification
 

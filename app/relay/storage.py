@@ -160,8 +160,7 @@ class SqliteRelayStorage(RelayStorage):
                 logical INTEGER NOT NULL,
                 affected_node_ids TEXT NOT NULL DEFAULT '[]',
                 op_type TEXT NOT NULL,
-                ciphertext TEXT NOT NULL,
-                iv TEXT NOT NULL,
+                payload TEXT NOT NULL,
                 timestamp TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_hlc
@@ -202,8 +201,7 @@ class SqliteRelayStorage(RelayStorage):
             hlc={"physical": row["physical"], "logical": row["logical"]},
             affected_node_ids=json.loads(row["affected_node_ids"]),
             op_type=row["op_type"],
-            ciphertext=row["ciphertext"],
-            iv=row["iv"],
+            payload=json.loads(row["payload"]),
             timestamp=timestamp,
         )
 
@@ -212,8 +210,8 @@ class SqliteRelayStorage(RelayStorage):
             """
             INSERT OR IGNORE INTO relay_envelope (
                 id, workspace_id, actor_id, physical, logical,
-                affected_node_ids, op_type, ciphertext, iv, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                affected_node_ids, op_type, payload, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 envelope.id,
@@ -223,8 +221,7 @@ class SqliteRelayStorage(RelayStorage):
                 envelope.hlc.logical,
                 json.dumps(envelope.affected_node_ids),
                 envelope.op_type,
-                envelope.ciphertext,
-                envelope.iv,
+                json.dumps(envelope.payload),
                 envelope.timestamp.isoformat() if envelope.timestamp else None,
             ),
         )
@@ -246,8 +243,7 @@ class SqliteRelayStorage(RelayStorage):
                 envelope.hlc.logical,
                 json.dumps(envelope.affected_node_ids),
                 envelope.op_type,
-                envelope.ciphertext,
-                envelope.iv,
+                json.dumps(envelope.payload),
                 envelope.timestamp.isoformat() if envelope.timestamp else None,
             )
             for envelope in envelopes
@@ -256,8 +252,8 @@ class SqliteRelayStorage(RelayStorage):
             """
             INSERT OR IGNORE INTO relay_envelope (
                 id, workspace_id, actor_id, physical, logical,
-                affected_node_ids, op_type, ciphertext, iv, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                affected_node_ids, op_type, payload, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -352,7 +348,7 @@ class SqliteRelayStorage(RelayStorage):
     def get_operation_size_estimate(self, workspace_id: str) -> int:
         cursor = self._connection.execute(
             """
-            SELECT COALESCE(SUM(LENGTH(ciphertext) + LENGTH(iv)), 0)
+            SELECT COALESCE(SUM(LENGTH(payload)), 0)
             FROM relay_envelope
             WHERE workspace_id = ?
             """,
@@ -520,8 +516,7 @@ class PostgresRelayStorage(RelayStorage):
             hlc={"physical": row["physical"], "logical": row["logical"]},
             affected_node_ids=row["affected_node_ids"],
             op_type=row["op_type"],
-            ciphertext=row["ciphertext"],
-            iv=row["iv"],
+            payload=row["payload"],
             timestamp=row["timestamp"],
         )
 
@@ -531,8 +526,8 @@ class PostgresRelayStorage(RelayStorage):
             """
             INSERT INTO relay_envelope (
                 id, workspace_id, actor_id, physical, logical,
-                affected_node_ids, op_type, ciphertext, iv, timestamp
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                affected_node_ids, op_type, payload, timestamp
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (id) DO NOTHING
             """,
             envelope.id,
@@ -542,8 +537,7 @@ class PostgresRelayStorage(RelayStorage):
             envelope.hlc.logical,
             envelope.affected_node_ids,
             envelope.op_type,
-            envelope.ciphertext,
-            envelope.iv,
+            envelope.payload,
             envelope.timestamp,
         )
 
@@ -558,8 +552,7 @@ class PostgresRelayStorage(RelayStorage):
                 envelope.hlc.logical,
                 envelope.affected_node_ids,
                 envelope.op_type,
-                envelope.ciphertext,
-                envelope.iv,
+                envelope.payload,
                 envelope.timestamp,
             )
             for envelope in envelopes
@@ -569,8 +562,8 @@ class PostgresRelayStorage(RelayStorage):
                 """
                 INSERT INTO relay_envelope (
                     id, workspace_id, actor_id, physical, logical,
-                    affected_node_ids, op_type, ciphertext, iv, timestamp
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    affected_node_ids, op_type, payload, timestamp
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (id) DO NOTHING
                 """,
                 rows,
@@ -652,7 +645,7 @@ class PostgresRelayStorage(RelayStorage):
         pool = await self._get_pool()
         row = await pool.fetchrow(
             """
-            SELECT COALESCE(SUM(LENGTH(ciphertext) + LENGTH(iv)), 0)
+            SELECT COALESCE(SUM(LENGTH(payload::text)), 0)
             FROM relay_envelope
             WHERE workspace_id = $1
             """,

@@ -18,7 +18,7 @@ def _envelope(
     op_type: str = "node.create",
     physical: int = 1000,
     logical: int = 0,
-    ciphertext: str = "ZW5jcnlwdGVk",
+    payload: dict | None = None,
 ) -> EncryptedEnvelope:
     return EncryptedEnvelope(
         id=envelope_id,
@@ -27,8 +27,7 @@ def _envelope(
         hlc=Hlc(physical=physical, logical=logical),
         affected_node_ids=["node-1"],
         op_type=op_type,
-        ciphertext=ciphertext,
-        iv="c3R1Yml2MTIz",
+        payload=payload or {"nodeId": envelope_id},
         timestamp="2026-07-17T00:00:00Z",
     )
 
@@ -91,7 +90,7 @@ async def test_batch_rejects_oversized_envelope(
         envelope_id="op-big",
         workspace_id=test_user["workspace_uuid"],
         actor_id=test_user["uuid"],
-        ciphertext="a" * (MAX_ENVELOPE_SIZE_BYTES + 1),
+        payload={"data": "a" * (MAX_ENVELOPE_SIZE_BYTES + 1)},
     )
     response = await auth_client.post(
         "/api/relay/batch",

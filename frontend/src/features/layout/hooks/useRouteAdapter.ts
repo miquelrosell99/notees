@@ -143,7 +143,6 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
       const store = await getOrCreateWorkspaceStore(
         workspaceId,
         ctx.actorId,
-        ctx.cryptoKey,
         ctx.transport,
       );
       if (!isLatestGeneration()) return;

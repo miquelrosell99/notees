@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 
 from app.core.clock import Hlc, max_hlc
-from app.core.crypto import decrypt_operation_payload, encrypt_operation_payload
 from app.core.operation import create_operation
 from app.core.store import WorkspaceStore
 from app.core.transport import Transport
@@ -32,7 +31,7 @@ class SyncEngine:
         self._last_received_hlc = store.get_watermark()
 
     async def push(self) -> int:
-        """Encrypt and send all operations in the local operation log."""
+        """Send all operations in the local operation log."""
         rows = self._store.get_db().execute(
             """
             SELECT
@@ -53,7 +52,6 @@ class SyncEngine:
 
         for row in rows:
             payload = json.loads(row[7])
-            encrypted = encrypt_operation_payload(payload, self._key)
             envelope = EncryptedEnvelope(
                 id=row[0],
                 workspace_id=row[1],
@@ -61,8 +59,7 @@ class SyncEngine:
                 hlc=Hlc(physical=row[3], logical=row[4]),
                 affected_node_ids=json.loads(row[5]),
                 op_type=row[6],
-                ciphertext=encrypted["ciphertext"],
-                iv=encrypted["iv"],
+                payload=payload,
             )
             await self._transport.send(envelope)
 
@@ -73,11 +70,6 @@ class SyncEngine:
         envelopes = await self._transport.catch_up(self._last_received_hlc)
         envelopes.sort(key=lambda env: (env.hlc.physical, env.hlc.logical, env.id))
         for envelope in envelopes:
-            payload = decrypt_operation_payload(
-                envelope.ciphertext,
-                envelope.iv,
-                self._key,
-            )
             op = create_operation(
                 {
                     "id": envelope.id,
@@ -87,7 +79,7 @@ class SyncEngine:
                     "affected_node_ids": envelope.affected_node_ids,
                     "op_type": envelope.op_type,
                 },
-                payload,
+                envelope.payload,
             )
             self._store.apply(op)
             self._last_received_hlc = max_hlc(self._last_received_hlc, envelope.hlc)

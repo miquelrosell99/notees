@@ -16,10 +16,6 @@ from typing import Any
 
 from app.config import settings
 from app.core.clock import Clock, Hlc, compare_hlc
-from app.core.crypto import (
-    decrypt_operation_payload,
-    encrypt_operation_payload,
-)
 from app.core.derived import apply_operation, create_derived_schema
 from app.core.operation import Operation, OperationEnvelope
 from app.core.uuid import uuidv7
@@ -200,17 +196,15 @@ class WorkspaceStore:
     async def _persist_operation(
         self, operation: Operation
     ) -> EncryptedEnvelope | None:
-        """Encrypt and persist an operation to relay storage.
+        """Persist an operation to relay storage.
 
         Returns:
-            The encrypted envelope that was saved, or ``None`` when an envelope
-            with the same id was already present.
+            The envelope that was saved, or ``None`` when an envelope with the
+            same id was already present.
         """
         if self._relay_storage.envelope_exists(operation.id):
             return None
 
-        master_key = await self._get_master_key()
-        encrypted = encrypt_operation_payload(operation.payload, master_key)
         envelope = EncryptedEnvelope(
             id=operation.id,
             workspace_id=operation.envelope.workspace_id,
@@ -218,8 +212,7 @@ class WorkspaceStore:
             hlc=operation.envelope.hlc,
             affected_node_ids=operation.envelope.affected_node_ids,
             op_type=operation.envelope.op_type,
-            ciphertext=encrypted["ciphertext"],
-            iv=encrypted["iv"],
+            payload=operation.payload,
             timestamp=operation.envelope.timestamp,
         )
         self._relay_storage.save_envelope(envelope)
@@ -265,11 +258,9 @@ class WorkspaceStore:
         restored from it and only operations newer than the snapshot's HLC are
         replayed. Otherwise all operations are replayed from HLC zero.
 
-        Decrypts each payload with the workspace master key and skips operations
-        already recorded in the ``applied_operation_id`` table. This is important
-        for increment-only appliers such as ``link.click``.
+        Skips operations already recorded in the ``applied_operation_id`` table.
+        This is important for increment-only appliers such as ``link.click``.
         """
-        master_key = await self._get_master_key()
         snapshot = self._relay_storage.get_latest_snapshot(self.workspace_id)
         if snapshot is not None:
             conn = self._restore_from_snapshot(snapshot["data"])
@@ -285,7 +276,6 @@ class WorkspaceStore:
             if self._is_applied(conn, envelope.id):
                 continue
 
-            payload = decrypt_operation_payload(envelope.ciphertext, envelope.iv, master_key)
             operation = Operation(
                 envelope=OperationEnvelope(
                     id=envelope.id,
@@ -296,7 +286,7 @@ class WorkspaceStore:
                     op_type=envelope.op_type,
                     timestamp=envelope.timestamp,
                 ),
-                payload=payload,
+                payload=envelope.payload,
             )
             apply_operation(conn, operation)
             conn.execute(

@@ -1,4 +1,4 @@
-"""Load and catch-up performance tests for the encrypted operation relay.
+"""Load and catch-up performance tests for the operation relay.
 
 These tests seed a large number of deterministic envelopes into
 ``SqliteRelayStorage`` and measure the latency of ``RelayService.catch_up``
@@ -46,8 +46,7 @@ def _generate_envelopes(
                 hlc=Hlc(physical=physical, logical=logical),
                 affected_node_ids=[f"node-{i:08d}"],
                 op_type="node.create",
-                ciphertext="a" * (rng.randint(64, 256) * 4 // 3),  # base64-ish size
-                iv="b" * 16,
+                payload={"nodeId": f"node-{i:08d}", "data": "a" * rng.randint(64, 256)},
             )
         )
     return envelopes
@@ -74,9 +73,11 @@ class TestRelayMetrics:
 
         size = storage.get_operation_size_estimate("ws-metric-size")
         assert size > 0
-        # Each envelope has a non-empty ciphertext and iv; total should reflect
-        # the sum of their lengths.
-        expected = sum(len(env.ciphertext) + len(env.iv) for env in envelopes)
+        # Each envelope has a non-empty JSON payload; total should reflect the
+        # sum of serialized payload lengths.
+        import json
+
+        expected = sum(len(json.dumps(env.payload)) for env in envelopes)
         assert size == expected
 
 

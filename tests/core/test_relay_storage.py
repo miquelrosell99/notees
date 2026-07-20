@@ -18,8 +18,7 @@ def _envelope(
     actor_id: str = "actor-1",
     hlc: Hlc,
     op_type: str = "node.create",
-    ciphertext: str = "ZW5jcnlwdGVkLXN0dWI=",
-    iv: str = "c3R1Yml2",
+    payload: dict | None = None,
 ) -> EncryptedEnvelope:
     return EncryptedEnvelope(
         id=envelope_id,
@@ -28,8 +27,7 @@ def _envelope(
         hlc=hlc,
         affected_node_ids=[],
         op_type=op_type,
-        ciphertext=ciphertext,
-        iv=iv,
+        payload=payload or {"nodeId": envelope_id, "kind": "page"},
     )
 
 
