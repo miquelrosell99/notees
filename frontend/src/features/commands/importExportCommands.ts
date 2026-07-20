@@ -14,6 +14,15 @@ registerCommand({
 });
 
 registerCommand({
+  id: COMMAND_IDS.IMPORT_LOGSEQ_FOLDER,
+  label: 'Import Logseq folder',
+  icon: 'mdi mdi-folder-open',
+  context: 'global',
+  palette: { category: 'import-export' },
+  execute: () => useModalStore.getState().setImportLogseqFolderModalOpen(true),
+});
+
+registerCommand({
   id: COMMAND_IDS.REBUILD_LINKS,
   label: 'Rebuild links from AST',
   icon: 'mdi mdi-refresh',

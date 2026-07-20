@@ -21,6 +21,7 @@ import { type WorkspaceInfo } from '@/features/workspace/api/workspaces';
 import { useWorkspaceImport, useWorkspaceNameCheck, useWorkspaces } from '@/features/workspace';
 import { useImportMarkdown } from '@/features/workspace';
 import type { MarkdownImportResult } from '@/features/workspace/api/import';
+import { useModalStore } from '@/stores';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
@@ -68,6 +69,12 @@ const BUILTIN_SOURCE_OPTIONS: RadioOption[] = [
     label: 'Markdown file',
     description: 'Import a single Markdown file into the current workspace',
     badge: 'file',
+  },
+  {
+    value: 'logseq-folder',
+    label: 'Logseq folder',
+    description: 'Import a Logseq Markdown folder into the current workspace',
+    badge: 'folder',
   },
 ];
 
@@ -192,6 +199,7 @@ export function ImportOptionsModal({
     if (isPending) return false;
     if (isBuiltInImportType(selectedType)) {
       if (selectedType === 'markdown-file') return singleImportFile !== null && !!workspaceUuid;
+      if (selectedType === 'logseq-folder') return !!workspaceUuid;
       if (!nameIsValid || isCheckingName) return false;
       if (selectedType === 'json') return jsonFile !== null;
       if (selectedType === 'markdown') return true;
@@ -221,6 +229,13 @@ export function ImportOptionsModal({
       } finally {
         setDirectImportLoading(false);
       }
+      return;
+    }
+
+    if (selectedType === 'logseq-folder') {
+      if (!workspaceUuid) return;
+      useModalStore.getState().setImportLogseqFolderModalOpen(true);
+      onClose();
       return;
     }
 
@@ -263,7 +278,7 @@ export function ImportOptionsModal({
         },
       });
     }
-  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, pluginFile, workspaceUuid, runPluginImporter, onSuccess, singleImportFile, currentWorkspace, importMarkdownMutation]);
+  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, pluginFile, workspaceUuid, runPluginImporter, onSuccess, onClose, singleImportFile, currentWorkspace, importMarkdownMutation]);
 
   // Enter anywhere inside the modal = submit (capture phase)
   useEffect(() => {
@@ -404,7 +419,7 @@ export function ImportOptionsModal({
       className="import-unified"
       footer={
         <div className="import-unified__footer">
-          {isBuiltInImportType(selectedType) && selectedType !== 'markdown-file' && (
+          {isBuiltInImportType(selectedType) && selectedType !== 'markdown-file' && selectedType !== 'logseq-folder' && (
             <div className="import-unified__footer-name">
             <TextField
               ref={nameInputRef}
@@ -487,6 +502,21 @@ export function ImportOptionsModal({
               A workspace will be created and an import panel will open where you
               can select your Markdown files.
             </p>
+          </div>
+        )}
+
+        {selectedType === 'logseq-folder' && (
+          <div className="import-unified__field-group">
+            <p className="import-unified__hint">
+              Opens a folder picker for the Logseq graph containing pages/, journals/,
+              and assets/. Import runs directly into the current workspace.
+            </p>
+            {!workspaceUuid && (
+              <div className="import-unified__error">
+                <AlertIcon size="sm" />
+                Open a workspace before importing a Logseq folder.
+              </div>
+            )}
           </div>
         )}
 
