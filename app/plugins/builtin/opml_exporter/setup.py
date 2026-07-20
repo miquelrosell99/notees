@@ -7,5 +7,5 @@ from app.plugins.core.context import PluginContext
 from .exporter import OpmlExporter
 
 
-async def setup(context: PluginContext) -> None:
+def setup(context: PluginContext) -> None:
     context.register_exporter(OpmlExporter())
