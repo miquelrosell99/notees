@@ -14,5 +14,5 @@ async def greet():
     return {"message": "Hello from the Notees plugin system!"}
 
 
-async def setup(context: PluginContext) -> None:
+def setup(context: PluginContext) -> None:
     context.register_router(router, prefix="hello")

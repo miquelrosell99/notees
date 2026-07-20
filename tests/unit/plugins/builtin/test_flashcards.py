@@ -348,7 +348,7 @@ async def test_auto_create_flashcard_on_class_assign(db_pool, test_user):
         registry=registry,
         port_factories={},
     )
-    await flashcards_setup(context)
+    flashcards_setup(context)
 
     workspace_uuid = test_user["workspace_uuid"]
     actor_uuid = test_user["uuid"]

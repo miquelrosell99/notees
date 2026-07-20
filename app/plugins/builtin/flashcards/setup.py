@@ -50,7 +50,7 @@ async def _on_card_class_changed(ctx: ClassSideEffectContext) -> None:
     )
 
 
-async def setup(context: PluginContext) -> None:
+def setup(context: PluginContext) -> None:
     # The inner flashcards_router already carries the `/flashcards` prefix; the
     # plugin mount point is just `/api/plugins/notees.flashcards`.
     context.register_router(router, prefix="")

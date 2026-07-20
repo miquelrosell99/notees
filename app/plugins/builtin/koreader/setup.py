@@ -13,6 +13,6 @@ router = APIRouter()
 router.include_router(koreader_router)
 
 
-async def setup(context: PluginContext) -> None:
+def setup(context: PluginContext) -> None:
     context.register_router(router, prefix="koreader")
     context.register_sync_source(KOReaderSyncSource())

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import sys
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -22,9 +22,9 @@ logger = get_logger(__name__)
 class PluginManager:
     """Singleton-ish manager for the plugin system.
 
-    The manager is instantiated once and used during FastAPI lifespan to load
-    plugins. It also exposes helper methods for mounting routers and executing
-    extension points.
+    Routers are registered synchronously during application import so they are
+    present before the ASGI server finalises routing. Runtime unload/reload is
+    also synchronous; route mutations are protected by a threading lock.
     """
 
     def __init__(self) -> None:
@@ -36,7 +36,7 @@ class PluginManager:
         self.port_factories: dict[str, PortFactory] = {}
         self._loaded = False
         self._app: FastAPI | None = None
-        self._route_lock = asyncio.Lock()
+        self._route_lock = threading.Lock()
 
     def bind_app(self, app: FastAPI) -> None:
         """Store the FastAPI app so routers can be mounted at runtime."""
@@ -46,7 +46,7 @@ class PluginManager:
         """Register a core domain-service factory available to plugins."""
         self.port_factories[name] = factory
 
-    async def load_plugins(self) -> None:
+    def load_plugins(self) -> None:
         """Discover and load all backend plugins."""
         if self._loaded:
             return
@@ -76,11 +76,11 @@ class PluginManager:
                 registry=self.registry,
                 port_factories=self.port_factories,
             )
-            await self.loader.setup_plugin(plugin_dir, manifest, context, plugin)
+            self.loader.setup_plugin(plugin_dir, manifest, context, plugin)
 
         self._loaded = True
 
-    async def load_plugin_dir(self, plugin_dir: Path, enabled: bool = True) -> LoadedPlugin:
+    def load_plugin_dir(self, plugin_dir: Path, enabled: bool = True) -> LoadedPlugin:
         """Load a single plugin directory at runtime and mount its router if enabled."""
         manifest = self.loader.load_manifest(plugin_dir)
 
@@ -102,12 +102,12 @@ class PluginManager:
                 registry=self.registry,
                 port_factories=self.port_factories,
             )
-            await self.loader.setup_plugin(plugin_dir, manifest, context, plugin)
-            await self._mount_plugin_router(manifest.id)
+            self.loader.setup_plugin(plugin_dir, manifest, context, plugin)
+            self._mount_plugin_router(manifest.id)
 
         return plugin
 
-    async def unload_plugin(self, plugin_id: str) -> bool:
+    def unload_plugin(self, plugin_id: str) -> bool:
         """Disable a plugin, unregister its contributions, and unmount its routes."""
         plugin = self.registry.get_plugin(plugin_id)
         if plugin is None:
@@ -126,12 +126,12 @@ class PluginManager:
         self.registry.remove_sync_sources(plugin_id)
         self.registry.remove_settings(plugin_id)
         self.registry.remove_class_side_effects(plugin_id)
-        await self._unmount_plugin_router(plugin_id)
+        self._unmount_plugin_router(plugin_id)
 
         plugin.enabled = False
         return True
 
-    async def reload_plugin(self, plugin_id: str) -> LoadedPlugin:
+    def reload_plugin(self, plugin_id: str) -> LoadedPlugin:
         """Unload and re-load a single plugin directory."""
         plugin = self.registry.get_plugin(plugin_id)
         if plugin is None:
@@ -139,11 +139,11 @@ class PluginManager:
 
         plugin_path = Path(plugin.path)
         was_enabled = plugin.enabled
-        await self.unload_plugin(plugin_id)
+        self.unload_plugin(plugin_id)
         self.registry.remove_plugin(plugin_id)
-        return await self.load_plugin_dir(plugin_path, enabled=was_enabled)
+        return self.load_plugin_dir(plugin_path, enabled=was_enabled)
 
-    async def _mount_plugin_router(self, plugin_id: str) -> None:
+    def _mount_plugin_router(self, plugin_id: str) -> None:
         """Mount a plugin's router on the bound FastAPI app."""
         if self._app is None:
             return
@@ -153,10 +153,10 @@ class PluginManager:
         prefix = f"/api/plugins/{reg.plugin_id}"
         if reg.prefix:
             prefix = f"{prefix}/{reg.prefix}"
-        async with self._route_lock:
+        with self._route_lock:
             self._app.include_router(reg.router, prefix=prefix, tags=[reg.plugin_id])
 
-    async def _unmount_plugin_router(self, plugin_id: str) -> None:
+    def _unmount_plugin_router(self, plugin_id: str) -> None:
         """Remove a plugin's routes from the bound FastAPI app."""
         if self._app is None:
             return
@@ -165,7 +165,7 @@ class PluginManager:
             return
 
         route_ids = {id(r) for r in reg.router.routes}
-        async with self._route_lock:
+        with self._route_lock:
             self._app.routes[:] = [
                 r for r in self._app.routes if id(r) not in route_ids
             ]

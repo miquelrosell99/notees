@@ -7,5 +7,5 @@ from app.plugins.core.context import PluginContext
 from .importer import BibTeXImporter
 
 
-async def setup(context: PluginContext) -> None:
+def setup(context: PluginContext) -> None:
     context.register_importer(BibTeXImporter())

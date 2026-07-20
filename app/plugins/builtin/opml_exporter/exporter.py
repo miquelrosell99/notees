@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 from app.domain.stringify_ast import StringifyMode, StringifyOptions, parse_ast, stringify_ast
-from app.plugins.core.ports import ExportContext, ExportResult, ExporterAdapter
+from app.plugins.core.ports import ExportContext, ExporterAdapter, ExportResult
 
 
 def _node_title(name: str | None) -> str:
