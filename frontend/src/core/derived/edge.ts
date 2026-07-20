@@ -1,6 +1,7 @@
 import { type Database } from 'sql.js';
 import { uuidv7 } from '../uuid';
 import { queryAll, queryOne } from '../db/sqlite';
+import { parseLinkId } from '@/lib/astBuilder';
 
 const REF_MARK_RE = /\[\[([^\]]+)\]\]/g;
 
@@ -12,11 +13,27 @@ interface RefTarget {
 function extractRefTargets(content: unknown[]): RefTarget[] {
   const targets = new Map<string, string | null>();
 
-  for (const child of content) {
-    const c = child as { type?: string; targetId?: string; label?: string; text?: string };
+  function walk(node: unknown) {
+    const c = node as {
+      type?: string;
+      targetId?: string;
+      label?: string;
+      text?: string;
+      link_id?: string;
+      children?: unknown[];
+    };
     if (c.type === 'ref' && c.targetId) {
       targets.set(c.targetId, c.label ?? null);
-    } else if (c.type === 'text' && typeof c.text === 'string') {
+      return;
+    }
+    if (c.type === 'node_link' && c.link_id) {
+      const { nodeUuid } = parseLinkId(c.link_id);
+      if (nodeUuid) {
+        targets.set(nodeUuid, c.label ?? null);
+      }
+      return;
+    }
+    if (c.type === 'text' && typeof c.text === 'string') {
       let match: RegExpExecArray | null;
       REF_MARK_RE.lastIndex = 0;
       while ((match = REF_MARK_RE.exec(c.text)) !== null) {
@@ -24,9 +41,14 @@ function extractRefTargets(content: unknown[]): RefTarget[] {
           targets.set(match[1], null);
         }
       }
+      return;
+    }
+    if (Array.isArray(c.children)) {
+      for (const child of c.children) walk(child);
     }
   }
 
+  for (const child of content) walk(child);
   return Array.from(targets.entries()).map(([targetId, label]) => ({ targetId, label }));
 }
 
