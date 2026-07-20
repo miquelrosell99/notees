@@ -1632,6 +1632,22 @@ async def create_workspace_for_user(conn: asyncpg.Connection, user_id: int, name
     # Seed workspace with system data
     await seed_workspace(conn, workspace_id, user_id)
 
+    # Seed the canonical operation-log state for the local-first frontend.
+    ws_row = await conn.fetchrow(
+        "SELECT uuid::text as uuid FROM workspace WHERE id = $1", workspace_id
+    )
+    user_row = await conn.fetchrow(
+        'SELECT uuid::text as uuid, name, email FROM "user" WHERE id = $1', user_id
+    )
+    if ws_row and user_row:
+        from app.core.seed import seed_workspace_relay
+
+        await seed_workspace_relay(
+            ws_row["uuid"],
+            actor_id=user_row["uuid"],
+            user_display_name=user_row["name"] or user_row["email"],
+        )
+
     return workspace_id
 
 
