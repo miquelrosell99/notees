@@ -387,6 +387,7 @@ class ExportService:
                     user_id=user_id or 0,
                     plugin_context=plugin_context,
                     options=options,
+                    nodes_data=nodes_data,
                 )
             )
             return result.content, result.filename, result.mime_type

@@ -79,6 +79,7 @@ class ExportContext:
     options: dict[str, Any] = field(default_factory=dict)
     workspace_uuid: str | None = None
     actor_uuid: str | None = None
+    nodes_data: list[dict[str, Any]] = field(default_factory=list)
 
 
 class ExporterAdapter(ABC):
