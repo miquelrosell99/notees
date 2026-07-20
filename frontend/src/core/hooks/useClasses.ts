@@ -4,7 +4,7 @@
  * Replaces the legacy `/api/nodes/classes` TanStack Query hook. Classes are
  * nodes with the `isClass` flag derived from the operation log.
  */
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStore } from './useWorkspaceStore';
 import { queryNodes } from '../query/queryNodes';
@@ -23,9 +23,18 @@ export function useClasses(options?: { enabled?: boolean }): UseClassesResult {
     enabled && workspaceUuid ? workspaceUuid : '',
   );
 
-  const data = useMemo<Node[] | undefined>(() => {
-    if (!store) return undefined;
-    return queryNodes(store, { isClass: true });
+  const [data, setData] = useState<Node[] | undefined>(undefined);
+
+  useEffect(() => {
+    if (!store) {
+      setData(undefined);
+      return;
+    }
+    const update = (): void => {
+      setData(queryNodes(store, { isClass: true }));
+    };
+    update();
+    return store.subscribeAll(update);
   }, [store]);
 
   return {
