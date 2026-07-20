@@ -103,15 +103,15 @@ Permissions are declared in the manifest and validated when a plugin registers a
 
 ## Backend plugins
 
-A backend plugin is a Python package with a `setup(context: PluginContext)` function exposed by `backend.entrypoint`.
+A backend plugin is a Python package with a `setup(context: PluginContext)` function exposed by `backend.entrypoint`. Setup is synchronous and must only register routers, adapters, side-effect handlers and settings schemas. Any asynchronous work or I/O must happen at runtime through the registered callbacks, because plugin routers are mounted during application import so they are available before the ASGI server finalises routing.
 
 ### `PluginContext` API
 
 ```python
 from app.plugins.core.context import PluginContext
 
-async def setup(context: PluginContext) -> None:
-    # Register a FastAPI router
+def setup(context: PluginContext) -> None:
+    # Register a FastAPI router (setup is synchronous; do I/O at runtime)
     context.register_router(router, prefix="zotero")
 
     # Register an importer

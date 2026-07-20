@@ -87,14 +87,19 @@ class PluginLoader:
             manifest.enabled_by_default = True
         return manifest
 
-    async def setup_plugin(
+    def setup_plugin(
         self,
         plugin_dir: Path,
         manifest: PluginManifest,
         context: PluginContext,
         plugin: LoadedPlugin,
     ) -> None:
-        """Run the backend setup entrypoint for a plugin."""
+        """Run the backend setup entrypoint for a plugin.
+
+        Setup is synchronous: plugins register routers, importers, exporters and
+        side-effect handlers here. Any async work must happen at runtime via the
+        registered callbacks.
+        """
         entrypoint = manifest.backend.entrypoint
         if not entrypoint:
             return
@@ -111,7 +116,13 @@ class PluginLoader:
             module_name, attr_name = _resolve_entrypoint(entrypoint)
             module = importlib.import_module(module_name)
             setup_fn = getattr(module, attr_name)
-            await setup_fn(context)
+            result = setup_fn(context)
+            if result is not None:
+                logger.warning(
+                    "Plugin %s setup returned a value; synchronous setup should not "
+                    "return a coroutine.",
+                    manifest.id,
+                )
         except Exception as exc:  # noqa: BLE001
             plugin.backend_setup_failed = True
             plugin.backend_error = f"{type(exc).__name__}: {exc}"

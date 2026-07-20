@@ -562,11 +562,11 @@ A focused audit of the running frontend against the mounted backend routers reve
 
 ### Verified Gaps
 
-| # | Area | Symptom | Root Cause | Required Fix |
-|---|---|---|---|---|
-| 1 | **Class properties / property schemas** | `GET /api/properties/classes/{uuid}/properties` returns `404`; property panels show no schemas; `useCreateProperty` throws in SQLite mode. | `frontend/src/api/properties.ts` endpoints (`/properties/*`) are no longer mounted. `property_schema` and `class_property_edge` tables do not exist in the derived schema; adapters return empty lists or throw. | Add schema + edge tables, new operation types/appliers, and derive reads from SQLite instead of HTTP. |
-| 2 | **Node views** | `POST /api/nodes/views/execute` returns `405`; default views cannot be ensured; collection views stay empty. | `frontend/src/api/nodeViews.ts` endpoints (`/nodes/views/*`) are no longer mounted. No derived `node_view` table or operation-log applier exists. | Add `node_view` derived table + CRUD operation types/appliers; replace `nodeViewsApi` calls with core store operations. |
-| 3 | **Flashcards plugin** | Built-in flashcard routes are not reachable from the frontend. | Plugin router mounting is incomplete or uses a path the frontend does not call. | Verify/fix plugin route registration for built-in plugins. |
+| # | Area | Symptom | Root Cause | Required Fix | Status |
+|---|---|---|---|---|---|
+| 1 | **Class properties / property schemas** | `GET /api/properties/classes/{uuid}/properties` returns `404`; property panels show no schemas; `useCreateProperty` throws in SQLite mode. | `frontend/src/api/properties.ts` endpoints (`/properties/*`) are no longer mounted. `property_schema` and `class_property_edge` tables do not exist in the derived schema; adapters return empty lists or throw. | Add schema + edge tables, new operation types/appliers, and derive reads from SQLite instead of HTTP. | **Fixed** in commit `2ec9361c`. |
+| 2 | **Node views** | `POST /api/nodes/views/execute` returns `405`; default views cannot be ensured; collection views stay empty. | `frontend/src/api/nodeViews.ts` endpoints (`/nodes/views/*`) are no longer mounted. No derived `node_view` table or operation-log applier exists. | Add `node_view` derived table + CRUD operation types/appliers; replace `nodeViewsApi` calls with core store operations. | **Fixed** in commit `e6b9fe29`. |
+| 3 | **Flashcards plugin** | Built-in flashcard routes are not reachable from the frontend. | Plugin routers were registered in lifespan, so they were appended after the SPA catch-all route and never matched. | Load plugins and mount their routers synchronously during application import, before the catch-all is defined. | **Fixed** in this sprint. |
 
 ### Decisions
 
@@ -578,27 +578,27 @@ A focused audit of the running frontend against the mounted backend routers reve
 
 ## Immediate Next Step
 
-**Phase 10 is split into three concrete implementation sprints before final cleanup:**
+**Phase 10 sprints 10.1–10.3 are complete. Sprint 10.4 is next:**
 
-1. **Sprint 10.1 — Class properties in the operation-log core** (in progress):
+1. **Sprint 10.1 — Class properties in the operation-log core** ✅:
    - Add `property_schema` and `class_property_edge` derived tables.
    - Add operation types `propertySchema.create/update/delete`, `classPropertyEdge.create/update/delete/reorder`.
    - Add frontend and backend appliers.
    - Replace `usePropertySchemas`, `useClassPropertiesAdapter`, and property/class-property mutation hooks with core store reads/writes.
    - Add tests; commit.
 
-2. **Sprint 10.2 — Node views in the operation-log core**:
+2. **Sprint 10.2 — Node views in the operation-log core** ✅:
    - Add `node_view` derived table and view-definition operation types/appliers.
    - Replace `nodeViewsApi` calls with core store operations.
    - Wire default-view creation and QueryAST view execution through the local SQLite compiler.
    - Add tests; commit.
 
-3. **Sprint 10.3 — Flashcards plugin route mounting**:
+3. **Sprint 10.3 — Flashcards plugin route mounting** ✅:
    - Fix built-in plugin router registration so the frontend flashcards feature works end-to-end.
    - Add tests; commit.
 
-4. **Sprint 10.4 — Final cleanup and release**:
+4. **Sprint 10.4 — Final cleanup and release** (next):
    - Delete remaining legacy `app/features/nodes/` and `app/features/properties/` code once the above sprints prove no consumers remain.
    - Run E2E smoke tests against the Docker Compose dev stack.
    - Update user-facing docs and changelog.
-- Create the release milestone commit.
+   - Create the release milestone commit.

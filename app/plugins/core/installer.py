@@ -160,7 +160,7 @@ async def run_install_job(job_id: str, git_url: str) -> None:
             from .manager import plugin_manager
 
             if plugin_manager._app is not None:
-                await plugin_manager.load_plugin_dir(final_dir)
+                plugin_manager.load_plugin_dir(final_dir)
                 restart_required = False
             else:
                 restart_required = True

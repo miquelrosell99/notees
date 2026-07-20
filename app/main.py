@@ -21,6 +21,7 @@ Provides REST API for:
 - Automatic backups
 """
 
+import asyncio
 import mimetypes
 import os
 import sys
@@ -49,6 +50,8 @@ from app.features.import_ import router as import_router
 from app.features.shares import public_router
 from app.features.shares.router import (
     node_shares_router,
+)
+from app.features.shares.router import (
     workspace_shares_router as shares_router,
 )
 
@@ -143,10 +146,11 @@ async def lifespan(app: FastAPI):
     # Ensure required directories exist
     ensure_directories()
 
-    # Load plugins and mount their routers
+    # Load plugins and mount their routers (module-level load is the source of
+    # truth; this is a no-op when already loaded).
     if not _in_test:
         register_core_ports()
-        await plugin_manager.load_plugins()
+        plugin_manager.load_plugins()
 
     # Skip background schedulers during tests (lifespan may be triggered by ASGI transports)
     if not _in_test:
@@ -173,8 +177,6 @@ async def lifespan(app: FastAPI):
     # Close relay storage. SQLite returns synchronously; the PostgreSQL adapter
     # returns a coroutine, so we await it when necessary.
     try:
-        import asyncio
-
         close_result = get_relay_storage().close()
         if asyncio.iscoroutine(close_result):
             await close_result
@@ -203,6 +205,16 @@ app = FastAPI(
     redoc_url=_redoc_url,
 )
 plugin_manager.bind_app(app)
+
+# Load plugins and mount their routers before the SPA catch-all and before the
+# ASGI server finalises routing. Plugin setup is synchronous and only registers
+# routers/importers/exporters here; any I/O must happen at runtime via the
+# registered callbacks.
+_in_main_test = "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST") is not None
+if not _in_main_test:
+    register_core_ports()
+    plugin_manager.load_plugins()
+    plugin_manager.mount_routers(app)
 
 # Compress responses ≥ 1 KB with gzip
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -575,8 +587,7 @@ v1_router.include_router(node_shares_router, prefix="/nodes")
 app.include_router(api_router)
 app.include_router(v1_router)
 
-# Mount plugin routers after core routers so plugin routes are available.
-plugin_manager.mount_routers(app)
+# Plugin routers are mounted in lifespan after plugins are loaded.
 
 # Mount WebSocket router separately — it cannot inherit HTTP-only dependencies
 # like RateLimiter because WebSocket scopes lack an HTTP Request object.
