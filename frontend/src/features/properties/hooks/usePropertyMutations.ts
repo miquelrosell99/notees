@@ -61,9 +61,14 @@ export function useCreateProperty() {
   return useMutation<Property, Error, PropertyCreate & { selection_options?: { name: string; icon?: string }[] }>({
     mutationFn: async (data) => {
       if (!store) throw new Error('Workspace store not available');
-      const schemaId = store.createPropertySchema(propertyCreateToPayload(data));
+      const payload = propertyCreateToPayload(data);
+      store.createPropertySchema(payload);
       // Optimistically return a minimal Property so callers can link it immediately.
-      return { uuid: schemaId, ...data } as unknown as Property;
+      return {
+        uuid: payload.schemaId,
+        ...data,
+        options: payload.options ?? [],
+      } as unknown as Property;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.lists() });

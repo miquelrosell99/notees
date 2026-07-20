@@ -26,7 +26,6 @@ import {
 } from '@/features/properties';
 import { DatePickerPopup, useCreateComment } from '@/features/content';
 import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
-import { addSelectionOption } from '@/api/properties';
 import { generateUUID } from '@/utils/uuid';
 import type { DateRangeValue } from '@/utils/dateRange';
 import { useParams } from 'react-router-dom';
@@ -491,14 +490,7 @@ export function InlineTriggers({
       const scope = data.scope ?? 'global';
       const node_uuid = scope === 'node' && !data.node_uuid ? blockServerId : data.node_uuid;
       createPropertyMutation.mutate({ ...data, scope, node_uuid } as PropertyCreate, {
-        onSuccess: async (newProperty) => {
-          if (data.selection_options?.length) {
-            await Promise.all(
-              data.selection_options.map((opt, idx) =>
-                addSelectionOption(newProperty.uuid, opt.name, opt.icon ?? null, idx),
-              ),
-            );
-          }
+        onSuccess: (newProperty) => {
           const defaultValue = newProperty.type === 'boolean' ? 'false' : '';
           setPropertyMutation.mutate({ nodeUuid: blockServerId, propertyId: newProperty.uuid, value: defaultValue });
         },
