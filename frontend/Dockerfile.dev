@@ -31,7 +31,9 @@ RUN apk add --no-cache \
   at-spi2-core \
   dbus-libs \
   eudev \
-  curl
+  curl \
+  nginx \
+  openssl
 
 # Copy package files and install dependencies at build time
 COPY package.json package-lock.json* ./
@@ -41,4 +43,7 @@ RUN npm ci
 RUN npx playwright install chromium
 
 # Source code is mounted as a volume at runtime
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+COPY scripts/start-dev.sh /usr/local/bin/start-dev.sh
+RUN chmod +x /usr/local/bin/start-dev.sh
+
+CMD ["/usr/local/bin/start-dev.sh"]

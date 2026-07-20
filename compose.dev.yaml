@@ -102,12 +102,12 @@ services:
     restart: unless-stopped
     ports:
       - "5173:5173"
+      - "5172:5172"
     environment:
       VITE_API_PROXY_TARGET: http://backend:8000
       VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-localhost}
       VITE_WORKSPACE_KEY_SECRET: ${SECRET_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      HTTPS: ${HTTPS:-false}
     volumes:
       - ./frontend:/app
       - /app/node_modules

@@ -1,16 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import basicSsl from '@vitejs/plugin-basic-ssl'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 // https://vite.dev/config/
-const useHttps = process.env.HTTPS === 'true'
-
 export default defineConfig({
   plugins: [
     react(),
-    ...(useHttps ? [basicSsl()] : []),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['notees-icon.svg', 'apple-touch-icon.png'],
@@ -112,7 +108,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5174,
     host: '0.0.0.0',
     // Restrict to known local dev hosts. To expose the dev server to a remote
     // host (e.g., for LAN testing), set the VITE_ALLOWED_HOSTS env variable to
