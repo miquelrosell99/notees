@@ -504,7 +504,7 @@ Current state: snapshot/compaction infrastructure exists but has not been stress
   - [x] Backend stress suite (`tests/core/stress/`).
   - [x] Frontend stress suite (`frontend/src/core/__tests__/stress/`).
   - [x] Benchmark report (`agents/plans/phase12-scale-benchmark.md`).
-- [x] Dev HTTPS support added for non-localhost access (Tailscale).
+- [x] Dev HTTPS support added for non-localhost access (Tailscale) — **superseded by Phase 13 Follow-up dual-stack nginx proxy**.
 - [x] Full verification suite passes.
 
 ## Phase 12 Follow-up: Collab permission repository migrated to `node_uuid`
@@ -567,6 +567,57 @@ Verification:
 - `uv run pytest tests/test_retention_cleanup.py tests/test_validation.py -q --no-cov` → 17 passed.
 - `uv run pytest tests/ -m integration -q --no-cov` → 36 passed, 87 failed, 11 errors. The failures/errors are in legacy integration tests (`test_tasks.py`, `test_templates.py`, `test_query_ast_power.py`, etc.) that still depend on deleted `/api/nodes/*` endpoints or the removed `node_service`; they are outside the scope of Phase 13 and were not touched.
 - `cd frontend && npm run lint && npm run test:run` → not run; out of scope for this cleanup track.
+
+## Phase 13 Follow-up: Dev server HTTP+HTTPS dual-stack
+
+The initial Phase 12 dev HTTPS support used `@vitejs/plugin-basic-ssl` plus `HTTPS=true`, which exposed only TLS on port 5173. That broke the existing `http://atlas:5173` Tailscale workflow and still left plain-HTTP access unavailable. This follow-up replaces the Vite-native TLS setup with an nginx reverse proxy inside the frontend dev container that exposes both protocols simultaneously.
+
+### Changes
+
+1. **Nginx reverse proxy** (`frontend/nginx.dev.conf`):
+   - A self-contained nginx config with `http` block, two `server` blocks, and one `upstream vite`.
+   - Listens on `5173` with a self-signed TLS certificate (`/tmp/notees-dev.crt/key`).
+   - Listens on `5172` plain HTTP.
+   - Both servers proxy to Vite running on internal port `5174`.
+   - WebSocket HMR is forwarded via the `Upgrade`/`Connection` headers and the `map $http_upgrade $connection_upgrade` helper.
+
+2. **Frontend dev startup script** (`frontend/scripts/start-dev.sh`):
+   - Generates a self-signed certificate with `openssl` on first start (SANs: `localhost`, `atlas`, `atlas.ts.net`, `127.0.0.1`).
+   - Starts nginx with `nginx -c /app/nginx.dev.conf`.
+   - Execs Vite on `--host 0.0.0.0 --port 5174`.
+
+3. **Vite config** (`frontend/vite.config.ts`):
+   - Removed `@vitejs/plugin-basic-ssl` import and plugin usage.
+   - Changed dev server port from `5173` to `5174` (internal only).
+   - Vite remains plain HTTP; TLS termination is handled by nginx.
+
+4. **Frontend dev Dockerfile** (`frontend/Dockerfile.dev`):
+   - Installs `nginx` and `openssl` alongside existing Alpine packages.
+   - Copies `frontend/scripts/start-dev.sh` to `/usr/local/bin/start-dev.sh` and marks it executable.
+   - Uses `start-dev.sh` as the container `CMD`.
+
+5. **Compose dev services** (`compose.dev.yaml`):
+   - Maps host `5173:5173` (HTTPS) and `5172:5172` (HTTP).
+   - Removed the `HTTPS` environment variable from the frontend service; it is no longer needed.
+
+6. **Environment files** (`.env`, `.env.example`):
+   - `.env` set to `HTTPS=false`.
+   - `.env.example` comments explain the new two-port setup and that `HTTPS=true` is no longer required because nginx handles TLS.
+
+### Host access
+
+- `https://localhost:5173` — secure context; `crypto.subtle` works.
+- `http://localhost:5172` — plain HTTP; `crypto.subtle` is unavailable in modern browsers from a non-secure context.
+- Over Tailscale: use `https://atlas:5173` for full app functionality (including workspace key unwrap), or `http://atlas:5172` if you only need plain-HTTP access.
+
+### Verification
+
+- `docker compose -f compose.dev.yaml build frontend && docker compose -f compose.dev.yaml up -d --force-recreate frontend` succeeded.
+- `curl -k https://localhost:5173` → `200`.
+- `curl http://localhost:5172` → `200`.
+- `docker compose -f compose.dev.yaml exec frontend npm run lint && npx tsc -b --noEmit` → 0 errors (5 pre-existing warnings).
+
+**Status:** complete.
 
 ## Phase 14: Roadmap (product features, out of scope for cleanup)
 

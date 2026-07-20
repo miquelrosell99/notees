@@ -33,12 +33,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency metadata and install all dependencies (including dev)
+# Copy dependency metadata and application code, then install dependencies.
+# app/ is needed for the editable package build during uv sync.
+# At runtime the app/ volume mount overrides this copy.
 COPY uv.lock pyproject.toml ./
-RUN uv sync --all-groups
-
-# Copy application code (will be overridden by volume mount in dev)
 COPY app/ ./app/
+RUN uv sync --all-groups
 
 # Create data and logs directories
 RUN mkdir -p /app/data /app/logs
