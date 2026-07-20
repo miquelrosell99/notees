@@ -291,7 +291,7 @@ This section tracks functional and architectural gaps between the migrated local
 | **Properties** | Set/remove/batch values via API | `property.set`/`unset` operations | ✅ None |
 | **Classes** | Add/remove/list/search classes | Class assignment + `queryNodes` filters | ✅ None |
 | **Tags** | Explicit tag-link API endpoints | Tags mapped to class assignments | ⚠️ Semantic change — tag links no longer have their own relation table. |
-| **Search** | Backend FTS + filtered search | SQLite FTS4 search with prefix matching and ranking | ✅ None (FTS4 replaces both LIKE and FTS5 for current needs). |
+| **Search** | Backend FTS + filtered search | SQLite FTS4 search with prefix matching and ranking; FTS5 upgrade path documented in `docs/SEARCH.md` | ✅ None (FTS4 is the current production choice). |
 | **Backlinks / linked references** | Server-computed link tables | Derived `edge` table from AST | ✅ None |
 | **Tasks** | Status/deadline/recurrence/completion | Same via task operations | ✅ None |
 | **Trash / archive** | Soft-delete + restore + permanent delete | Same via `node.archive`/`restore`/`permanentDelete` | ✅ None |
@@ -305,7 +305,7 @@ This section tracks functional and architectural gaps between the migrated local
 | **Version history** | List versions + restore previous version | Derived `node_version` table populated on `node.updateContent`; restore applies historical content as a new update | ✅ None |
 | **Templates** | List templates, extract variables, instantiate with variable substitution | Class-based templates; local variable parsing; simplified instantiation | ⚠️ Instantiation may not perfectly copy nested block structure. |
 | **Merge pages** | Move blocks, redirect backlinks, delete source | `WorkspaceStore.mergePages` moves children, rewrites backlinks via `core/query/mergePages`, and archives source | ✅ None |
-| **Date-format migration** | Batch rename day/month/year nodes | No-op | ❌ **Not implemented.** |
+| **Date-format migration** | Batch rename day/month/year nodes | Removed; date pages use stable deterministic UUIDs and ISO names; the date-format setting is display-only | ✅ **Intentionally removed** |
 | **Rebuild links / fix raw UUIDs** | Server-side batch link rebuild | Fix raw UUIDs ported; rebuild is no-op (links are derived) | ✅ None for normal use; maintenance batch operations removed. |
 | **Batch create/update/delete** | Batch endpoints for imports | Removed with legacy importer | ❌ **Not implemented.** |
 | **Random / recent / suggestions** | Server endpoints | Derived from SQLite | ✅ None |
@@ -337,13 +337,12 @@ This section tracks functional and architectural gaps between the migrated local
 
 ### Recommended next priorities
 
-1. **Whiteboard / flashcards** — run end-to-end smoke tests and fix any regressions.
-2. **Logseq import** — decide whether to re-implement as a plugin or leave it out.
-3. **Date-format migration / batch operations** — re-implement if still needed, or document removal.
-4. **Comments threading** — model parent-comment hierarchy if the simplified child-block model is insufficient.
-3. **Merge pages backlink redirection** — add a bulk `node.updateContent` pass that rewrites `node_link` targets from source to target.
-4. **FTS5** — rebuild sql.js with FTS5 or use a custom WASM build for real full-text search.
-5. ✅ **README refresh** — `README.md` rewritten for the local-first architecture; stale `/api/nodes/*` references removed.
+1. **Whiteboard / flashcards** — run end-to-end smoke tests and fix any regressions (in progress via subagents).
+2. **Logseq import** — re-implement as a client-side core-store importer (in progress via subagent).
+3. **Comments threading** — make `SidebarComments` render nested replies recursively (in progress via subagent).
+4. **Merge pages backlink redirection** — add a bulk `node.updateContent` pass that rewrites `node_link` targets from source to target.
+5. ✅ **Date-format migration / FTS5** — date-format migration removed; FTS4 documented with FTS5 upgrade path in `docs/SEARCH.md`.
+6. ✅ **README refresh** — `README.md` rewritten for the local-first architecture; stale `/api/nodes/*` references removed.
 
 ## Verification Checklist
 
@@ -374,7 +373,7 @@ The local-first core emits `node.updateContent` operations with `textUpdate`, `c
 ### G1 — Re-implement removed/missing importers and batch operations
 
 1. **Logseq importer** — restore Logseq Markdown-folder import as a client-side core-store importer. Parsers (`logseqMdParser.ts`) and backend plugin code survived; the UI/hooks were removed. Reuse existing parsers, create pages/blocks via `WorkspaceStore`, resolve `[[Page]]` links, upload assets, and add the source back to `ImportOptionsModal`.
-2. **Date-format migration** — the original batch rename is obsolete: date pages now use stable deterministic UUIDs and ISO names; the date-format setting is display-only. Remove the no-op placeholder from `GraphSettingsModal` and update the gap table.
+2. **Date-format migration** ✅ — the original batch rename is obsolete: date pages now use stable deterministic UUIDs and ISO names; the date-format setting is display-only. Removed the no-op placeholder from `GraphSettingsModal` and updated the gap table.
 3. **Batch create/update/delete** — covered by the Logseq importer re-implementation (it performs batch node creation). No separate batch API is needed for the local-first core.
 
 ### G2 — Validate and harden whiteboard and flashcards
@@ -386,9 +385,9 @@ The local-first core emits `node.updateContent` operations with `textUpdate`, `c
 
 Threading is already supported by the operation-log core via generic `parent_id` + the `comment` class. The gap is UI-only: `SidebarComments` renders only direct children. Make the comment list recursive so replies appear under their parent comment. Add a test for nested reply rendering.
 
-### G4 — Full-text search (FTS5)
+### G4 — Full-text search (FTS5) ✅
 
-Rebuilding sql.js with FTS5 requires a custom Emscripten build. The current FTS4 implementation is functional, tested, and integrated with QueryAST. Close this gap by documenting FTS4 as the current search backend and noting the FTS5 upgrade path. Do not change the WASM build in this pass.
+Rebuilding sql.js with FTS5 requires a custom Emscripten build. The current FTS4 implementation is functional, tested, and integrated with QueryAST. Closed this gap by documenting FTS4 as the current search backend and noting the FTS5 upgrade path in `docs/SEARCH.md`. The WASM build was not changed in this pass.
 
 ### G5 — Maintenance tools
 

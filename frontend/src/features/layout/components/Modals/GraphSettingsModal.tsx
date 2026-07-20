@@ -9,12 +9,9 @@ import { useSettingsStore, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { DateFormat } from '@/stores';
 import { useGraphSettings } from '@/features/workspace';
 
-import { useNotifications } from '@/stores/notificationStore';
 import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
 import type { ShortcutContext } from '@/stores/commandRegistry';
-import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { Modal } from '@/components/ui/Modal';
-import { Spinner } from '@/components/ui/Spinner';
 import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { TextField } from '@/components/ui/TextField';
@@ -53,16 +50,6 @@ const DEFAULT_RETENTION = {
   task_completion_retention_days: 365,
 };
 
-/**
- * No-op replacement for the legacy batch date-format migration.
- * In the local-first core, date page names are not centrally renamed;
- * only the display preference is updated.
- */
-async function updateDateFormat(_format: DateFormat): Promise<{ status: 'success'; errors: string[] }> {
-  console.warn('Date format migration is not supported in the local-first core; only the display preference will be updated');
-  return { status: 'success', errors: [] };
-}
-
 function parseRetentionValue(
   value: unknown,
   key: keyof typeof DEFAULT_RETENTION,
@@ -90,10 +77,6 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const dateFormat = useSettingsStore((s) => s.dateFormat);
   const setDateFormat = useSettingsStore((s) => s.setDateFormat);
-  const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
-  const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
-  const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);
-  const { success, error: notifyError, warning } = useNotifications();
 
   // Workspace settings for sidebar visibility toggles
   const { settings: workspaceSettings, updateSetting: updateSettingMutation } = useGraphSettings();
@@ -111,38 +94,10 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
 
   if (!isOpen) return null;
 
-  const handleDateFormatChange = async (newFormat: DateFormat) => {
-    if (newFormat === dateFormat) return;
-    setPendingDateFormat(newFormat);
-    setShowDateFormatConfirm(true);
-  };
-
-  const handleDateFormatConfirm = async () => {
-    if (!pendingDateFormat) return;
-    
-    setShowDateFormatConfirm(false);
-    setIsUpdatingDateFormat(true);
-    
-    try {
-      const result = await updateDateFormat(pendingDateFormat);
-      if (result.status === 'success') {
-        setDateFormat(pendingDateFormat);
-        success('Date format updated', 'Display preference updated.');
-      }
-      if (result.errors.length > 0) {
-        warning('Some dates could not be updated', `${result.errors.length} item(s) failed to migrate.`);
-      }
-    } catch {
-      notifyError('Failed to update date format', 'Please try again.');
-    } finally {
-      setIsUpdatingDateFormat(false);
-      setPendingDateFormat(null);
+  const handleDateFormatChange = (newFormat: DateFormat) => {
+    if (newFormat !== dateFormat) {
+      setDateFormat(newFormat);
     }
-  };
-
-  const handleDateFormatCancel = () => {
-    setShowDateFormatConfirm(false);
-    setPendingDateFormat(null);
   };
 
   const tabs: { id: SettingsTab; label: string; }[] = [
@@ -223,7 +178,6 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                     className="settings-item__select"
                     value={dateFormat}
                     onChange={(e) => handleDateFormatChange(e.target.value as DateFormat)}
-                    disabled={isUpdatingDateFormat}
                   >
                     {DATE_FORMAT_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -231,9 +185,6 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                       </option>
                     ))}
                   </select>
-                  {isUpdatingDateFormat && (
-                    <span className="settings-item__loading"><Spinner size="sm" label="Updating..." /></span>
-                  )}
                 </div>
 
                 <h3 className="settings-section__title settings-section__title--spaced">Sidebar Visibility</h3>
@@ -327,16 +278,6 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
           </div>
         </div>
       </Modal>
-      <ConfirmationModal
-        isOpen={showDateFormatConfirm}
-        title="Change Date Format"
-        message={`This will rename all date and month pages to the new format (${pendingDateFormat}).\n\nThis action cannot be undone. Continue?`}
-        confirmLabel="Aceptar"
-        cancelLabel="Cancelar"
-        variant="primary"
-        onConfirm={handleDateFormatConfirm}
-        onCancel={handleDateFormatCancel}
-      />
     </>
   );
 }
