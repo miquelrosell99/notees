@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.core.workspace_store import WorkspaceStore
 from app.db.connection import get_connection
 from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
 from app.plugins.core.context import PluginContext
 from app.plugins.core.ports import ClassSideEffectContext
+from app.relay.dependencies import get_relay_storage
 
-from .repository import PostgresFlashcardRepository
+from .repository import WorkspaceStoreFlashcardRepository
 from .router import router as flashcards_router
 
 router = APIRouter()
@@ -19,8 +21,8 @@ router.include_router(flashcards_router)
 async def _on_card_class_changed(ctx: ClassSideEffectContext) -> None:
     """Create a flashcard row when the ``card`` class is assigned.
 
-    The row is created with empty front/back text; the service hydrates live
-    node content on every read, so the stored values never go stale.
+    The scheduling row is created with empty front/back text; the service
+    hydrates live node content on every read, so stored values never go stale.
     """
     if not ctx.added:
         return
@@ -40,14 +42,20 @@ async def _on_card_class_changed(ctx: ClassSideEffectContext) -> None:
             return
         user_id = user_row["id"]
 
-    repo = PostgresFlashcardRepository(workspace_id)
-    await repo.create(
-        node_uuid=ctx.node_uuid,
-        workspace_id=workspace_id,
-        user_id=user_id,
-        front_text="",
-        back_text="",
+    store = WorkspaceStore(
+        workspace_id=ctx.workspace_uuid,
+        actor_id=ctx.actor_uuid,
+        relay_storage=get_relay_storage(),
     )
+    try:
+        repo = WorkspaceStoreFlashcardRepository(store, workspace_id, user_id)
+        await repo.create(
+            node_uuid=ctx.node_uuid,
+            front_text="",
+            back_text="",
+        )
+    finally:
+        await store.close()
 
 
 def setup(context: PluginContext) -> None:

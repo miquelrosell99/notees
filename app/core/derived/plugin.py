@@ -1,7 +1,8 @@
 """Plugin-operation derived-state applier.
 
-Unknown plugin operations are preserved in a log table so future plugin hosts
-(or a client-side plugin runtime) can apply them.
+Known plugin operations are projected into feature-specific derived tables;
+unknown operations are preserved in a log table so future plugin hosts (or a
+client-side plugin runtime) can apply them.
 """
 
 from __future__ import annotations
@@ -10,6 +11,15 @@ import json
 import sqlite3
 
 from app.core.operation import Operation
+
+from .flashcard import (
+    PLUGIN_ID as FLASHCARDS_PLUGIN_ID,
+)
+from .flashcard import (
+    apply_flashcard_create,
+    apply_flashcard_delete,
+    apply_flashcard_review,
+)
 
 
 def apply_plugin_op(conn: sqlite3.Connection, op: Operation) -> None:
@@ -26,6 +36,17 @@ def apply_plugin_op(conn: sqlite3.Connection, op: Operation) -> None:
     op_type = payload["opType"]
     node_id = payload.get("nodeId")
     data = payload.get("data", {})
+
+    if plugin_id == FLASHCARDS_PLUGIN_ID:
+        if op_type == "flashcard.create":
+            apply_flashcard_create(conn, op)
+            return
+        if op_type == "flashcard.review":
+            apply_flashcard_review(conn, op)
+            return
+        if op_type == "flashcard.delete":
+            apply_flashcard_delete(conn, op)
+            return
 
     conn.execute(
         """

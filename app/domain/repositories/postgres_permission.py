@@ -68,9 +68,12 @@ class PostgresPermissionRepository(BasePostgresRepository, PermissionRepository)
 
         user_uuid = await self._ensure_user_uuid()
         actor_id = user_uuid or (str(self._user_id) if self._user_id is not None else "system")
+        from ...relay.dependencies import get_relay_storage
+
         self._workspace_store = WorkspaceStore(
             workspace_id=workspace_uuid,
             actor_id=actor_id,
+            relay_storage=get_relay_storage(),
         )
         await self._workspace_store.sync()
         return self._workspace_store

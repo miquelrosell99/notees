@@ -37,7 +37,13 @@ class PostgresCleanupRepository(CleanupRepository):
 
     @staticmethod
     def _make_store(workspace_uuid: str, actor_id: str = "system") -> WorkspaceStore:
-        return WorkspaceStore(workspace_id=workspace_uuid, actor_id=actor_id)
+        from app.relay.dependencies import get_relay_storage
+
+        return WorkspaceStore(
+            workspace_id=workspace_uuid,
+            actor_id=actor_id,
+            relay_storage=get_relay_storage(),
+        )
 
     async def list_active_workspaces(self) -> list[dict[str, Any]]:
         async with acquire_connection(self._pool) as conn:

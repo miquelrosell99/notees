@@ -43,7 +43,6 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.features.collab import live_sync_ws_router
 from app.features.collab import router as events_router
-from app.features.collab.yjs_router import router as yjs_router
 from app.features.export import auto_export_router
 from app.features.export.router import router as export_router
 from app.features.import_ import router as import_router
@@ -566,7 +565,6 @@ routers = [
     assets_router,
     activity_router,
     events_router,
-    yjs_router,
     undo_router,
     shares_router,
     notifications_router,

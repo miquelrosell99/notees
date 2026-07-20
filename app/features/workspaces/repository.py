@@ -202,10 +202,10 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
         self._relay_storage: Any | None = None
 
     def _relay(self):
-        from app.relay.storage import PostgresRelayStorage
+        from app.relay.dependencies import get_relay_storage
 
         if self._relay_storage is None:
-            self._relay_storage = PostgresRelayStorage(self._pool)
+            self._relay_storage = get_relay_storage()
         return self._relay_storage
 
     async def _workspace_uuid(self, workspace_id: int) -> str | None:
@@ -227,8 +227,8 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
         from app.core.workspace_store import WorkspaceStore
 
         return WorkspaceStore(
-            workspace_uuid,
-            actor_id,
+            workspace_id=workspace_uuid,
+            actor_id=actor_id,
             relay_storage=self._relay(),
         )
 
@@ -708,10 +708,10 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
         self._relay_storage: Any | None = None
 
     def _relay(self):
-        from app.relay.storage import PostgresRelayStorage
+        from app.relay.dependencies import get_relay_storage
 
         if self._relay_storage is None:
-            self._relay_storage = PostgresRelayStorage(self._pool)
+            self._relay_storage = get_relay_storage()
         return self._relay_storage
 
     async def _workspace_uuid(self, workspace_id: int) -> str | None:
@@ -734,8 +734,8 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
         from app.core.workspace_store import WorkspaceStore
 
         return WorkspaceStore(
-            workspace_uuid,
-            actor_id,
+            workspace_id=workspace_uuid,
+            actor_id=actor_id,
             relay_storage=self._relay(),
         )
 

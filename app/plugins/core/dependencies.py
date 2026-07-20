@@ -15,6 +15,7 @@ from app.core.workspace_store import WorkspaceStore
 from app.db.connection import get_pool, get_workspace_uuid
 from app.dependencies import _get_workspace_context_cached, get_current_user
 from app.models import User
+from app.relay.dependencies import get_relay_storage
 
 
 async def get_workspace_store(
@@ -30,6 +31,7 @@ async def get_workspace_store(
     store = WorkspaceStore(
         workspace_id=workspace_uuid,
         actor_id=user.uuid,
+        relay_storage=get_relay_storage(),
     )
     try:
         yield store
