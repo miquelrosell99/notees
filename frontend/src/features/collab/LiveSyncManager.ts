@@ -25,8 +25,7 @@ export type LiveSyncMessage =
   | { type: 'lock_expired'; block_uuid: string; user_id: string }
   | { type: 'block_updated'; block_uuid: string; block_id: string; name: string; user_id: string }
   | { type: 'users_list'; users: Array<LiveSyncUser & { block_uuid: string }> }
-  | { type: 'ops_applied'; ops: Array<Record<string, unknown>> }
-  | { type: 'yjs_update'; node_uuid: string; update_blob: string };
+  | { type: 'ops_applied'; ops: Array<Record<string, unknown>> };
 
 type MessageListener = (msg: LiveSyncMessage) => void;
 type StatusListener = (status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' | 'unauthorized') => void;
@@ -61,17 +60,6 @@ export class LiveSyncManager {
   /** Send a raw message object over the WebSocket (queues if not connected). */
   sendMessage(payload: object): void {
     this._send(payload);
-  }
-
-  /** Subscribe to incoming `yjs_update` CRDT messages. */
-  onYjsUpdate(
-    handler: (msg: Extract<LiveSyncMessage, { type: 'yjs_update' }>) => void,
-  ): () => void {
-    return this.onMessage((msg) => {
-      if (msg.type === 'yjs_update') {
-        handler(msg);
-      }
-    });
   }
 
   private _setStatus(newStatus: typeof this.status): void {

@@ -247,6 +247,33 @@ CREATE TABLE IF NOT EXISTS plugin_op_log (
 CREATE INDEX IF NOT EXISTS idx_plugin_op_log_plugin
     ON plugin_op_log (plugin_id);
 
+CREATE TABLE IF NOT EXISTS flashcard (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid TEXT NOT NULL UNIQUE,
+    node_id TEXT NOT NULL UNIQUE,
+    workspace_id TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    front_text TEXT NOT NULL DEFAULT '',
+    back_text TEXT NOT NULL DEFAULT '',
+    ease_factor REAL NOT NULL DEFAULT 2.5,
+    interval_days INTEGER NOT NULL DEFAULT 0,
+    repetitions INTEGER NOT NULL DEFAULT 0,
+    lapses INTEGER NOT NULL DEFAULT 0,
+    due_date TEXT,
+    last_reviewed_at TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT,
+    updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_flashcard_workspace_actor
+    ON flashcard (workspace_id, actor_id);
+CREATE INDEX IF NOT EXISTS idx_flashcard_due
+    ON flashcard (workspace_id, actor_id, due_date)
+    WHERE active = 1;
+CREATE INDEX IF NOT EXISTS idx_flashcard_node
+    ON flashcard (node_id);
+
 CREATE TABLE IF NOT EXISTS node_view (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,

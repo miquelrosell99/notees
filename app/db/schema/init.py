@@ -152,7 +152,6 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("set_sync_protocol_version_v2_default", conn, _set_sync_protocol_version_v2_default)
     await _run_migration("remove_collapsed_column", conn, _remove_collapsed_column)
     await _run_migration("migrate_assets_m6", conn, _migrate_assets_m6)
-    await _run_migration("add_node_yjs_state", conn, _add_node_yjs_state)
     await _run_migration("add_totp_2fa", conn, _add_totp_2fa)
 
 
@@ -2140,63 +2139,3 @@ async def _remove_collapsed_column(conn: asyncpg.Connection) -> None:
     logger.info("Dropped collapsed column and rebuilt idx_node_page_content")
 
 
-async def _add_node_yjs_state(conn: asyncpg.Connection) -> None:
-    """Add the node_yjs_state table for M4 CRDT text integration."""
-    from ...logging_config import get_logger
-
-    logger = get_logger(__name__)
-
-    table_exists = await conn.fetchval(
-        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'node_yjs_state')"
-    )
-    if not table_exists:
-        await conn.execute("""
-            CREATE TABLE node_yjs_state (
-                node_uuid UUID PRIMARY KEY,
-                update_blob BYTEA NOT NULL,
-                updated_at TIMESTAMPTZ DEFAULT NOW(),
-                workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE
-            )
-        """)
-        logger.info("Created node_yjs_state table")
-
-    # One-way migration for legacy integer node_id column.
-    node_id_exists = await conn.fetchval(
-        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node_yjs_state' AND column_name = 'node_id')"
-    )
-    if node_id_exists:
-        node_uuid_exists = await conn.fetchval(
-            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node_yjs_state' AND column_name = 'node_uuid')"
-        )
-        if not node_uuid_exists:
-            await conn.execute("ALTER TABLE node_yjs_state ADD COLUMN node_uuid UUID")
-        await conn.execute("""
-            UPDATE node_yjs_state s
-            SET node_uuid = n.uuid
-            FROM node n
-            WHERE n.id = s.node_id
-        """)
-        unmapped = await conn.fetchval("SELECT EXISTS (SELECT 1 FROM node_yjs_state WHERE node_uuid IS NULL)")
-        if unmapped:
-            raise RuntimeError("node_yjs_state rows exist with unmapped node_id values")
-        await conn.execute("""
-            ALTER TABLE node_yjs_state
-            ALTER COLUMN node_uuid SET NOT NULL,
-            DROP COLUMN node_id CASCADE
-        """)
-        logger.info("Migrated node_yjs_state from node_id to node_uuid")
-
-    for index_name, ddl in (
-        (
-            "idx_node_yjs_state_workspace_id",
-            "CREATE INDEX idx_node_yjs_state_workspace_id ON node_yjs_state(workspace_id)",
-        ),
-        ("idx_node_yjs_state_updated_at", "CREATE INDEX idx_node_yjs_state_updated_at ON node_yjs_state(updated_at)"),
-    ):
-        idx_exists = await conn.fetchval(
-            "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)",
-            index_name,
-        )
-        if not idx_exists:
-            await conn.execute(ddl)
-            logger.info(f"Created {index_name} index")

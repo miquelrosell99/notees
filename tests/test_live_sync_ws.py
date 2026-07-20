@@ -6,7 +6,6 @@ presence messages, applied-op broadcast, and room isolation.
 
 from __future__ import annotations
 
-import base64
 import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -113,28 +112,3 @@ async def test_room_isolation():
 
     assert any(m["type"] == "user_focus" for m in room1_conn.ws.sent)
     assert not any(m["type"] == "user_focus" for m in room2_conn.ws.sent)
-
-
-@pytest.mark.asyncio
-async def test_broadcast_yjs_update_sends_to_others():
-    """broadcast_yjs_update delivers a base64-encoded update to other clients."""
-    alice = make_conn(1, "Alice")
-    bob = make_conn(2, "Bob")
-    ws._page_connections.setdefault("room-1", set()).add(alice)
-    ws._page_connections.setdefault("room-1", set()).add(bob)
-
-    update = b"\x00\x01\x02fake-yjs"
-    with patch.object(ws.collab_pubsub, "publish", new_callable=AsyncMock):
-        await ws.broadcast_yjs_update(
-            "room-1",
-            node_uuid="node-abc",
-            update_blob=update,
-            sender_id=1,
-            exclude=alice,
-        )
-
-    assert not any(m["type"] == "yjs_update" for m in alice.ws.sent)
-    bob_msg = next((m for m in bob.ws.sent if m["type"] == "yjs_update"), None)
-    assert bob_msg is not None
-    assert bob_msg["node_uuid"] == "node-abc"
-    assert base64.b64decode(bob_msg["update_blob"]) == update

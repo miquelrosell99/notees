@@ -12,14 +12,14 @@ import time
 import pytest
 
 from app.core.clock import Hlc
-from app.core.crypto import derive_workspace_key
-from app.core.store import WorkspaceStore as CoreWorkspaceStore
 from app.core.sync import SyncEngine
 from app.core.transport import MemoryRelay, MemoryTransport
+from app.core.workspace_store import WorkspaceStore
 from app.relay.models import EncryptedEnvelope
 from app.relay.permissions import StubPermissionChecker
 from app.relay.service import RelayService
 from app.relay.storage import SqliteRelayStorage
+from tests.core.fakes import FakeKeyStorage
 
 pytestmark = [pytest.mark.unit, pytest.mark.stress]
 
@@ -120,31 +120,41 @@ class TestWorkspaceStoreCatchUpLatency:
         count = min(_operation_count(), 1_000)
         relay = MemoryRelay()
         workspace_id = "ws-store-catch-up"
-        key = derive_workspace_key(workspace_id, "x" * 32)
 
         # Seed the relay through a local writer.
-        import sqlite3
-
-        writer_db = sqlite3.connect(":memory:")
-        writer = CoreWorkspaceStore(writer_db, workspace_id, "actor-a")
+        writer = WorkspaceStore(
+            workspace_id=workspace_id,
+            actor_id="actor-a",
+            db_path=":memory:",
+            relay_storage=SqliteRelayStorage(":memory:"),
+            key_storage=FakeKeyStorage(),
+        )
         for i in range(count):
-            writer.create_node(f"node-{i:06d}", kind="block")
+            await writer.create_node(f"node-{i:06d}", kind="block")
 
-        sync_a = SyncEngine(writer, key, MemoryTransport(relay, workspace_id))
+        sync_a = SyncEngine(writer, MemoryTransport(relay, workspace_id))
         await sync_a.push()
 
-        reader_db = sqlite3.connect(":memory:")
-        reader = CoreWorkspaceStore(reader_db, workspace_id, "actor-b")
-        sync_b = SyncEngine(reader, key, MemoryTransport(relay, workspace_id))
+        reader = WorkspaceStore(
+            workspace_id=workspace_id,
+            actor_id="actor-b",
+            db_path=":memory:",
+            relay_storage=SqliteRelayStorage(":memory:"),
+            key_storage=FakeKeyStorage(),
+        )
+        sync_b = SyncEngine(reader, MemoryTransport(relay, workspace_id))
 
         start = time.perf_counter()
         await sync_b.pull()
         elapsed = time.perf_counter() - start
 
-        node_rows = reader.get_db().execute("SELECT COUNT(*) FROM node").fetchone()
-        assert node_rows[0] == count
+        node_rows = await reader.query("SELECT COUNT(*) FROM node")
+        assert node_rows[0][0] == count
         assert elapsed < _catch_up_timeout_s(count), (
             f"WorkspaceStore catch-up for {count} ops took {elapsed:.3f}s "
             f"(bound {_catch_up_timeout_s(count):.3f}s)"
         )
         print(f"workspace_store_catch_up({count}) elapsed: {elapsed:.3f}s")
+
+        await writer.close()
+        await reader.close()
