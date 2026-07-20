@@ -570,39 +570,40 @@ Verification:
 
 ## Phase 13 Follow-up: Dev server HTTP+HTTPS dual-stack
 
-The initial Phase 12 dev HTTPS support used `@vitejs/plugin-basic-ssl` plus `HTTPS=true`, which exposed only TLS on port 5173. That broke the existing `http://atlas:5173` Tailscale workflow and still left plain-HTTP access unavailable. This follow-up replaces the Vite-native TLS setup with an nginx reverse proxy inside the frontend dev container that exposes both protocols simultaneously.
+The initial Phase 12 dev HTTPS support used `@vitejs/plugin-basic-ssl` plus `HTTPS=true`, which exposed only TLS on port 5173. That broke the existing `http://atlas:5173` Tailscale workflow and still left plain-HTTP access unavailable. A first follow-up replaced the Vite-native TLS setup with an nginx reverse proxy inside the frontend dev container. After review, nginx was replaced with a lightweight Node.js TLS-terminating TCP proxy so the dev stack uses only Node + openssl, matching the rest of the self-hosted toolchain.
 
 ### Changes
 
-1. **Nginx reverse proxy** (`frontend/nginx.dev.conf`):
-   - A self-contained nginx config with `http` block, two `server` blocks, and one `upstream vite`.
-   - Listens on `5173` with a self-signed TLS certificate (`/tmp/notees-dev.crt/key`).
-   - Listens on `5172` plain HTTP.
-   - Both servers proxy to Vite running on internal port `5174`.
-   - WebSocket HMR is forwarded via the `Upgrade`/`Connection` headers and the `map $http_upgrade $connection_upgrade` helper.
+1. **Node.js dev proxy** (`frontend/scripts/dev-server.cjs`):
+   - Starts Vite on an internal plain-HTTP port (`5174`).
+   - Generates a self-signed certificate with `openssl` on first start (SANs: `localhost`, `atlas`, `atlas.ts.net`, `127.0.0.1`) and stores it in `/tmp/notees-dev.crt/key`.
+   - Creates an HTTPS server on `5173` that terminates TLS and forwards the raw TCP stream to Vite.
+   - Creates an HTTP server on `5172` that forwards the raw TCP stream to Vite.
+   - Because forwarding happens at the TCP layer, WebSocket HMR and the original `Host` header are preserved without any HTTP-level proxy logic.
+   - Uses only Node.js built-in modules (`net`, `tls`, `fs`, `child_process`) plus `openssl`; no extra npm dependency.
 
-2. **Frontend dev startup script** (`frontend/scripts/start-dev.sh`):
-   - Generates a self-signed certificate with `openssl` on first start (SANs: `localhost`, `atlas`, `atlas.ts.net`, `127.0.0.1`).
-   - Starts nginx with `nginx -c /app/nginx.dev.conf`.
-   - Execs Vite on `--host 0.0.0.0 --port 5174`.
-
-3. **Vite config** (`frontend/vite.config.ts`):
+2. **Vite config** (`frontend/vite.config.ts`):
    - Removed `@vitejs/plugin-basic-ssl` import and plugin usage.
    - Changed dev server port from `5173` to `5174` (internal only).
-   - Vite remains plain HTTP; TLS termination is handled by nginx.
+   - Vite remains plain HTTP; TLS termination is handled by the Node proxy.
 
-4. **Frontend dev Dockerfile** (`frontend/Dockerfile.dev`):
-   - Installs `nginx` and `openssl` alongside existing Alpine packages.
-   - Copies `frontend/scripts/start-dev.sh` to `/usr/local/bin/start-dev.sh` and marks it executable.
-   - Uses `start-dev.sh` as the container `CMD`.
+3. **Frontend dev Dockerfile** (`frontend/Dockerfile.dev`):
+   - Removed `nginx` from the Alpine package list; kept `openssl` for certificate generation.
+   - Copies `frontend/scripts/dev-server.cjs` to `/usr/local/bin/dev-server.cjs`.
+   - Uses `node /usr/local/bin/dev-server.cjs` as the container `CMD`.
 
-5. **Compose dev services** (`compose.dev.yaml`):
+4. **Compose dev services** (`compose.dev.yaml`):
    - Maps host `5173:5173` (HTTPS) and `5172:5172` (HTTP).
    - Removed the `HTTPS` environment variable from the frontend service; it is no longer needed.
 
-6. **Environment files** (`.env`, `.env.example`):
+5. **Environment files** (`.env`, `.env.example`):
    - `.env` set to `HTTPS=false`.
-   - `.env.example` comments explain the new two-port setup and that `HTTPS=true` is no longer required because nginx handles TLS.
+   - `.env.example` comments explain the new two-port setup and that `HTTPS=true` is no longer required because the Node proxy handles TLS.
+
+### Removed files
+
+- `frontend/nginx.dev.conf`
+- `frontend/scripts/start-dev.sh`
 
 ### Host access
 

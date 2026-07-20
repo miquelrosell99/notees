@@ -80,8 +80,9 @@
 
 ### Dev environment
 
-- Replaced the Vite-native `@vitejs/plugin-basic-ssl` setup with an nginx reverse proxy inside the frontend dev container that exposes both HTTPS (`5173`) and HTTP (`5172`) simultaneously.
-- Vite now runs on internal port `5174`; nginx terminates TLS with a self-signed certificate and proxies both protocols.
+- Replaced the Vite-native `@vitejs/plugin-basic-ssl` setup with a Node.js TLS-terminating TCP proxy (`frontend/scripts/dev-server.cjs`) inside the frontend dev container that exposes both HTTPS (`5173`) and HTTP (`5172`) simultaneously.
+- Vite now runs on internal port `5174` plain HTTP; the Node proxy terminates TLS with a self-signed certificate and forwards raw TCP for both protocols, so WebSocket HMR and the original `Host` header are preserved.
+- Removed `nginx` from the dev container and dropped `@vitejs/plugin-basic-ssl` from `frontend/package.json`.
 - Host access: `https://localhost:5173` and `http://localhost:5172`; over Tailscale use `https://atlas:5173` for a secure context (required for `crypto.subtle`) or `http://atlas:5172` for plain HTTP.
 
 ### Verification
