@@ -129,6 +129,7 @@ export class SyncEngine {
       };
       const encrypted = await encryptEnvelope(op.payload, this.key, {
         id: op.envelope.id,
+        workspaceId: this.store.getWorkspaceId(),
         actorId: op.envelope.actorId,
         affectedNodeIds: op.envelope.affectedNodeIds,
         opType: op.envelope.opType,
