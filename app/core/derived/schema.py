@@ -246,7 +246,36 @@ CREATE TABLE IF NOT EXISTS plugin_op_log (
 
 CREATE INDEX IF NOT EXISTS idx_plugin_op_log_plugin
     ON plugin_op_log (plugin_id);
+
+CREATE TABLE IF NOT EXISTS node_view (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    view_type TEXT NOT NULL,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    shown_properties TEXT NOT NULL DEFAULT '[]',
+    group_by TEXT,
+    view_mode TEXT,
+    sort_entries TEXT NOT NULL DEFAULT '[]',
+    settings TEXT NOT NULL DEFAULT '{}',
+    query_ast TEXT,
+    created_at TEXT,
+    updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_view_node
+    ON node_view (node_id);
+
+CREATE INDEX IF NOT EXISTS idx_node_view_node_type
+    ON node_view (node_id, view_type);
+
+CREATE INDEX IF NOT EXISTS idx_node_view_node_order
+    ON node_view (node_id, view_type, order_index);
 """
+
 
 
 def create_derived_schema(conn: sqlite3.Connection) -> None:

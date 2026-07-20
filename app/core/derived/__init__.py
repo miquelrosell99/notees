@@ -24,6 +24,12 @@ from .node import (
     apply_node_move,
     apply_node_update_content,
 )
+from .node_view import (
+    apply_node_view_create,
+    apply_node_view_delete,
+    apply_node_view_reorder,
+    apply_node_view_update,
+)
 from .plugin import apply_plugin_op
 from .property import (
     apply_class_property_edge_create,
@@ -95,6 +101,14 @@ def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:
         apply_class_create(conn, op)
     elif op_type == "class.update":
         apply_class_update(conn, op)
+    elif op_type == "nodeView.create":
+        apply_node_view_create(conn, op)
+    elif op_type == "nodeView.update":
+        apply_node_view_update(conn, op)
+    elif op_type == "nodeView.delete":
+        apply_node_view_delete(conn, op)
+    elif op_type == "nodeView.reorder":
+        apply_node_view_reorder(conn, op)
     elif op_type == "asset.upload":
         apply_asset_upload(conn, op)
     elif op_type == "asset.delete":

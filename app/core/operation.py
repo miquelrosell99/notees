@@ -36,6 +36,11 @@ KNOWN_OP_TYPES: frozenset[str] = frozenset(
         "classPropertyEdge.reorder",
         "class.create",
         "class.update",
+        # NodeViews
+        "nodeView.create",
+        "nodeView.update",
+        "nodeView.delete",
+        "nodeView.reorder",
         # Tasks
         "task.recordCompletion",
         "task.deleteCompletion",

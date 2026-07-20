@@ -343,7 +343,8 @@ class Compiler {
     this.pushParam(condition.value);
 
     const valueExpr = `json_extract(${propAlias}.value, '$')`;
-    const exists = `EXISTS (SELECT 1 FROM property_value ${propAlias} WHERE ${propAlias}.node_id = ${this.alias}.id AND ${propAlias}.property_schema_id = ? AND ${this.valueComparison(valueExpr, op)})`;
+    const isNumeric = condition.property_type === 'number';
+    const exists = `EXISTS (SELECT 1 FROM property_value ${propAlias} WHERE ${propAlias}.node_id = ${this.alias}.id AND ${propAlias}.property_schema_id = ? AND ${this.valueComparison(valueExpr, op, isNumeric)})`;
     return exists;
   }
 
@@ -380,10 +381,10 @@ class Compiler {
 
     if (condition.value === undefined || condition.value === null) return undefined;
     this.pushParam(condition.value);
-    return this.valueComparison(column, op);
+    return this.valueComparison(column, op, false);
   }
 
-  private valueComparison(expr: string, op: string): string | undefined {
+  private valueComparison(expr: string, op: string, isNumeric: boolean): string | undefined {
     switch (op) {
       case 'equals':
         return `${expr} = ?`;
@@ -396,13 +397,13 @@ class Compiler {
       case 'ends_with':
         return `CAST(${expr} AS TEXT) LIKE '%' || ?`;
       case 'greater_than':
-        return `CAST(${expr} AS REAL) > ?`;
+        return isNumeric ? `CAST(${expr} AS REAL) > ?` : `${expr} > ?`;
       case 'less_than':
-        return `CAST(${expr} AS REAL) < ?`;
+        return isNumeric ? `CAST(${expr} AS REAL) < ?` : `${expr} < ?`;
       case 'gte':
-        return `CAST(${expr} AS REAL) >= ?`;
+        return isNumeric ? `CAST(${expr} AS REAL) >= ?` : `${expr} >= ?`;
       case 'lte':
-        return `CAST(${expr} AS REAL) <= ?`;
+        return isNumeric ? `CAST(${expr} AS REAL) <= ?` : `${expr} <= ?`;
       default:
         return undefined;
     }

@@ -8,6 +8,7 @@ import { applyActivityOperation } from '../activity';
 import { applyLinkOperation } from '../link';
 import { applyShareOperation } from '../share';
 import { applyPluginOperation } from '../plugin';
+import { applyNodeViewOperation } from '../nodeView';
 import { WorkspaceStore } from '../../store';
 import { uuidv7 } from '../../uuid';
 import { createTestDatabase } from '../../__tests__/helpers';
@@ -811,6 +812,188 @@ describe('class property edge applier', () => {
     );
     expect(inheritedEdges).toHaveLength(1);
     expect(inheritedEdges[0].property_schema_id).toBe('s-1');
+  });
+});
+
+describe('node view applier', () => {
+  it('creates a node view', async () => {
+    const { db } = await createStore();
+    const nodeId = uuidv7();
+    const viewId = uuidv7();
+    applyNodeViewOperation(
+      db,
+      makeOp('nodeView.create', {
+        viewId,
+        nodeId,
+        name: 'Child Pages',
+        viewType: 'child_pages',
+        orderIndex: 0,
+        isDefault: true,
+        queryAst: { type: 'query', version: '1.0' },
+      })
+    );
+
+    const row = queryOne<{
+      id: string;
+      node_id: string;
+      name: string;
+      view_type: string;
+      order_index: number;
+      is_default: number;
+      query_ast: string;
+    }>(db, 'SELECT * FROM node_view WHERE id = ?', [viewId]);
+    expect(row?.node_id).toBe(nodeId);
+    expect(row?.name).toBe('Child Pages');
+    expect(row?.view_type).toBe('child_pages');
+    expect(row?.order_index).toBe(0);
+    expect(row?.is_default).toBe(1);
+    expect(JSON.parse(row?.query_ast ?? '{}')).toEqual({ type: 'query', version: '1.0' });
+  });
+
+  it('updates a node view', async () => {
+    const { db } = await createStore();
+    const nodeId = uuidv7();
+    const viewId = uuidv7();
+    applyNodeViewOperation(
+      db,
+      makeOp('nodeView.create', { viewId, nodeId, name: 'Old', viewType: 'child_pages' })
+    );
+    applyNodeViewOperation(
+      db,
+      makeOp(
+        'nodeView.update',
+        { viewId, name: 'New', orderIndex: 3, isDefault: true },
+        { hlc: { physical: Date.now() + 1, logical: 0 } }
+      )
+    );
+
+    const row = queryOne<{ name: string; order_index: number; is_default: number }>(
+      db,
+      'SELECT name, order_index, is_default FROM node_view WHERE id = ?',
+      [viewId]
+    );
+    expect(row?.name).toBe('New');
+    expect(row?.order_index).toBe(3);
+    expect(row?.is_default).toBe(1);
+  });
+
+  it('clears fields with null', async () => {
+    const { db } = await createStore();
+    const nodeId = uuidv7();
+    const viewId = uuidv7();
+    applyNodeViewOperation(
+      db,
+      makeOp('nodeView.create', { viewId, nodeId, name: 'Name', viewType: 'child_pages', viewMode: 'list' })
+    );
+    applyNodeViewOperation(
+      db,
+      makeOp('nodeView.update', { viewId, viewMode: null }, { hlc: { physical: Date.now() + 1, logical: 0 } })
+    );
+
+    const row = queryOne<{ view_mode: string | null }>(db, 'SELECT view_mode FROM node_view WHERE id = ?', [viewId]);
+    expect(row?.view_mode).toBeNull();
+  });
+
+  it('deletes a node view', async () => {
+    const { db } = await createStore();
+    const nodeId = uuidv7();
+    const viewId = uuidv7();
+    applyNodeViewOperation(
+      db,
+      makeOp('nodeView.create', { viewId, nodeId, name: 'Name', viewType: 'child_pages' })
+    );
+    applyNodeViewOperation(db, makeOp('nodeView.delete', { viewId }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+
+    const row = queryOne<{ count: number }>(
+      db,
+      'SELECT COUNT(*) AS count FROM node_view WHERE id = ?',
+      [viewId]
+    );
+    expect(row?.count).toBe(0);
+  });
+
+  it('reorders node views', async () => {
+    const { db } = await createStore();
+    const nodeId = uuidv7();
+    const v1 = uuidv7();
+    const v2 = uuidv7();
+    applyNodeViewOperation(
+      db,
+      makeOp('nodeView.create', { viewId: v1, nodeId, name: 'A', viewType: 'child_pages', orderIndex: 0 })
+    );
+    applyNodeViewOperation(
+      db,
+      makeOp('nodeView.create', { viewId: v2, nodeId, name: 'B', viewType: 'child_pages', orderIndex: 1 }, { hlc: { physical: Date.now() + 1, logical: 0 } })
+    );
+    applyNodeViewOperation(
+      db,
+      makeOp(
+        'nodeView.reorder',
+        { nodeId, viewType: 'child_pages', orderedViewIds: [v2, v1] },
+        { hlc: { physical: Date.now() + 2, logical: 0 } }
+      )
+    );
+
+    const rows = queryAll<{ id: string; order_index: number }>(
+      db,
+      'SELECT id, order_index FROM node_view WHERE node_id = ? ORDER BY order_index',
+      [nodeId]
+    );
+    expect(rows.map((r) => [r.id, r.order_index])).toEqual([
+      [v2, 0],
+      [v1, 1],
+    ]);
+  });
+
+  it('ensures default views through the store', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+
+    const created = store.ensureDefaultNodeViews(nodeId, ['child_pages', 'linked_references']);
+    expect(created).toHaveLength(2);
+
+    const second = store.ensureDefaultNodeViews(nodeId, ['child_pages', 'linked_references']);
+    expect(second).toHaveLength(0);
+
+    const rows = queryAll<{ view_type: string }>(
+      store.getDb(),
+      'SELECT view_type FROM node_view WHERE node_id = ? AND active = 1',
+      [nodeId]
+    );
+    expect(rows.map((r) => r.view_type).sort()).toEqual(['child_pages', 'linked_references']);
+  });
+
+  it('cleans up node views on node delete', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.ensureDefaultNodeViews(nodeId, ['child_pages']);
+
+    store.deleteNode(nodeId);
+
+    const row = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM node_view WHERE node_id = ?',
+      [nodeId]
+    );
+    expect(row?.count).toBe(0);
+  });
+
+  it('cleans up node views on node permanent delete', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.ensureDefaultNodeViews(nodeId, ['child_pages']);
+
+    store.permanentDeleteNode(nodeId);
+
+    const row = queryOne<{ count: number }>(
+      store.getDb(),
+      'SELECT COUNT(*) AS count FROM node_view WHERE node_id = ?',
+      [nodeId]
+    );
+    expect(row?.count).toBe(0);
   });
 });
 

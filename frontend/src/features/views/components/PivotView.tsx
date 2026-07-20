@@ -13,7 +13,8 @@ import type { QueryGroupResult } from '@/types/nodeView';
 import type { QueryAST, PropertyCondition, ConditionNode } from '@/types/queryAST';
 import { useProperties } from '@/features/properties';
 import { usePivotAggregate } from '@/features/views';
-import { executeQuery } from '@/api/nodeViews';
+import { executeQuery } from '@/core/query/executeQuery';
+import { getActiveWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { Icon } from '@/components/ui/icons';
@@ -324,11 +325,20 @@ export const PivotView = memo(function PivotView({
     setDrilldownOpen(true);
     setDrilldownLoading(true);
     try {
-      const result = await executeQuery({
-        query_ast: ast,
-        runtime_params: { current_node_uuid: nodeUuid },
-        include_properties: true,
-      });
+      const store = getActiveWorkspaceStore();
+      if (!store) {
+        setDrilldownNodes([]);
+        return;
+      }
+      const result = executeQuery(
+        store,
+        {
+          query_ast: ast,
+          runtime_params: { current_node_uuid: nodeUuid },
+          include_properties: true,
+        },
+        nodeUuid
+      );
       setDrilldownNodes(result.nodes);
     } catch (e) {
       console.error('Drill-down query failed', e);

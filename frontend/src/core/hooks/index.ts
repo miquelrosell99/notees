@@ -32,6 +32,7 @@ export type { SetPropertyArgs } from './useSetProperty';
 export { useUnsetProperty } from './useUnsetProperty';
 export type { UnsetPropertyArgs } from './useUnsetProperty';
 export { useQueryAst } from './useQueryAst';
+export { useQueryAstAggregate } from './useQueryAstAggregate';
 export { useStorageQuota } from './useStorageQuota';
 export type { StorageQuota } from './useStorageQuota';
 export { useClasses } from './useClasses';

@@ -19,13 +19,17 @@
  *   });
  */
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { executeNodeViewQuery, executeQuery as executeAdHocQuery } from '@/api/nodeViews';
+import { executeQuery } from '@/core/query/executeQuery';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { queryOne } from '@/core/db/sqlite';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { useDebouncedValue } from './useDebouncedValue';
 import { nodeViewKeys } from './queryKeys';
 import { resolveNodeViewUuid } from '@/utils/resolveNodeUuid';
+import { createEmptyQueryAST } from '@/types/queryAST';
 import type { QueryAST } from '@/types/queryAST';
 import type { QueryExecuteResponse, QueryExecutionMetrics } from '@/types/nodeView';
 import type { Node } from '@/types/api';
@@ -88,6 +92,22 @@ export interface UseVirtualizedQueryResult {
   refetch: () => void;
 }
 
+// ==================== Helpers ====================
+
+function readViewAst(store: NonNullable<ReturnType<typeof useWorkspaceStore>['store']>, viewUuid: string): QueryAST {
+  const row = queryOne<{ query_ast: string | null }>(
+    store.getDb(),
+    'SELECT query_ast FROM node_view WHERE id = ?',
+    [viewUuid]
+  );
+  if (!row?.query_ast) return createEmptyQueryAST();
+  try {
+    return JSON.parse(row.query_ast) as QueryAST;
+  } catch {
+    return createEmptyQueryAST();
+  }
+}
+
 // ==================== Hook ====================
 
 export function useVirtualizedQuery(
@@ -108,6 +128,9 @@ export function useVirtualizedQuery(
           offset,
           enabled = true,
           staleTime } = options;
+
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store, isLoading: storeLoading } = useWorkspaceStore(workspaceId ?? '');
 
   // Debounce the AST to avoid hammering the backend during edits
   const debouncedAST = useDebouncedValue(ast, debounceMs);
@@ -182,6 +205,10 @@ export function useVirtualizedQuery(
   } = useQuery<QueryExecuteResponse>({
     queryKey,
     queryFn: async (): Promise<QueryExecuteResponse> => {
+      if (!store) {
+        throw new Error('Workspace store is not available');
+      }
+
       const requestOpts = {
         runtime_params: runtimeParams as Record<string, unknown>,
         limit,
@@ -191,20 +218,23 @@ export function useVirtualizedQuery(
         enrich,
       };
 
+      const currentNodeUuid =
+        typeof runtimeParams?.current_node_uuid === 'string'
+          ? runtimeParams.current_node_uuid
+          : nodeUuid;
+
       if (viewId && viewId !== 0 && !preparedAST) {
         // Execute against a saved view
         const viewUuid = typeof viewId === 'string' ? viewId : resolveNodeViewUuid(viewId);
         if (!viewUuid) throw new Error(`Unable to resolve UUID for view ${viewId}`);
-        return executeNodeViewQuery(viewUuid, requestOpts);
+        const viewAst = readViewAst(store, viewUuid);
+        return executeQuery(store, { query_ast: viewAst, ...requestOpts }, currentNodeUuid);
       }
 
       // Ad-hoc query
-      return executeAdHocQuery({
-        query_ast: preparedAST,
-        ...requestOpts,
-      });
+      return executeQuery(store, { query_ast: preparedAST, ...requestOpts }, currentNodeUuid);
     },
-    enabled: enabled && (hasViewId || !!preparedAST),
+    enabled: enabled && !!store && (hasViewId || !!preparedAST),
     staleTime: staleTime ?? (hasViewId ? 30_000 : 0),
   });
 
@@ -229,7 +259,7 @@ export function useVirtualizedQuery(
     visibleNodes,
     totalCount,
     loadedCount: allNodes.length,
-    isLoading,
+    isLoading: storeLoading || isLoading,
     isFetching,
     metrics,
     loadMore,
