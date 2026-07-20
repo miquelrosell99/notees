@@ -17,16 +17,15 @@ class PostgresNotificationRepository(NotificationRepository):
         self._pool = pool
 
     async def list_notifications(self, user_id: int, include_read: bool, limit: int) -> list[Any]:
-        """List notifications for a user with actor and node names."""
+        """List raw notification rows for a user, including actor name only."""
         async with acquire_connection(self._pool) as conn:
             if include_read:
                 rows = await conn.fetch(
                     """
                     SELECT n.id, n.uuid, n.type, n.actor_user_id, u.name as actor_name,
-                           n.node_uuid, nd.name as node_name, n.message, n.is_read, n.create_date
+                           n.node_uuid, n.message, n.is_read, n.create_date
                     FROM notification n
                     LEFT JOIN "user" u ON u.id = n.actor_user_id
-                    LEFT JOIN node nd ON nd.uuid = n.node_uuid
                     WHERE n.user_id = $1
                     ORDER BY n.create_date DESC
                     LIMIT $2
@@ -38,10 +37,9 @@ class PostgresNotificationRepository(NotificationRepository):
                 rows = await conn.fetch(
                     """
                     SELECT n.id, n.uuid, n.type, n.actor_user_id, u.name as actor_name,
-                           n.node_uuid, nd.name as node_name, n.message, n.is_read, n.create_date
+                           n.node_uuid, n.message, n.is_read, n.create_date
                     FROM notification n
                     LEFT JOIN "user" u ON u.id = n.actor_user_id
-                    LEFT JOIN node nd ON nd.uuid = n.node_uuid
                     WHERE n.user_id = $1 AND n.is_read = FALSE
                     ORDER BY n.create_date DESC
                     LIMIT $2

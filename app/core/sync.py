@@ -1,19 +1,16 @@
 """Local-first SyncEngine for the Notees backend.
 
-Ports ``frontend/src/core/sync.ts`` to Python. The engine pushes locally logged
-operations through a ``Transport``, pulls remote operations back, decrypts them,
-and applies them to the ``WorkspaceStore``.
+Ports ``frontend/src/core/sync.ts`` to Python. The engine pushes operations
+persisted by a ``WorkspaceStore`` through a ``Transport``, pulls remote
+operations back, and applies them to the store's derived state.
 """
 
 from __future__ import annotations
 
-import json
-
 from app.core.clock import Hlc, max_hlc
-from app.core.operation import create_operation
-from app.core.store import WorkspaceStore
+from app.core.operation import Operation, OperationEnvelope
 from app.core.transport import Transport
-from app.relay.models import EncryptedEnvelope
+from app.core.workspace_store import WorkspaceStore
 
 
 class SyncEngine:
@@ -22,66 +19,37 @@ class SyncEngine:
     def __init__(
         self,
         store: WorkspaceStore,
-        key: bytes,
         transport: Transport,
     ) -> None:
         self._store = store
-        self._key = key
         self._transport = transport
-        self._last_received_hlc = store.get_watermark()
+        self._last_received_hlc = Hlc(0, 0)
 
     async def push(self) -> int:
-        """Send all operations in the local operation log."""
-        rows = self._store.get_db().execute(
-            """
-            SELECT
-                id,
-                workspace_id,
-                actor_id,
-                hlc_physical,
-                hlc_logical,
-                affected_node_ids,
-                op_type,
-                payload
-            FROM operation
-            WHERE workspace_id = ?
-            ORDER BY hlc_physical ASC, hlc_logical ASC
-            """,
-            (self._store.workspace_id,),
-        ).fetchall()
-
-        for row in rows:
-            payload = json.loads(row[7])
-            envelope = EncryptedEnvelope(
-                id=row[0],
-                workspace_id=row[1],
-                actor_id=row[2],
-                hlc=Hlc(physical=row[3], logical=row[4]),
-                affected_node_ids=json.loads(row[5]),
-                op_type=row[6],
-                payload=payload,
-            )
+        """Send all operations persisted by this store to the relay."""
+        envelopes = await self._store.get_envelopes(Hlc(0, 0))
+        for envelope in envelopes:
             await self._transport.send(envelope)
-
-        return len(rows)
+        return len(envelopes)
 
     async def pull(self) -> int:
-        """Fetch operations newer than the watermark and apply them."""
+        """Fetch operations newer than the last received HLC and apply them."""
         envelopes = await self._transport.catch_up(self._last_received_hlc)
         envelopes.sort(key=lambda env: (env.hlc.physical, env.hlc.logical, env.id))
         for envelope in envelopes:
-            op = create_operation(
-                {
-                    "id": envelope.id,
-                    "workspace_id": envelope.workspace_id,
-                    "actor_id": envelope.actor_id,
-                    "hlc": envelope.hlc,
-                    "affected_node_ids": envelope.affected_node_ids,
-                    "op_type": envelope.op_type,
-                },
-                envelope.payload,
+            operation = Operation(
+                envelope=OperationEnvelope(
+                    id=envelope.id,
+                    workspace_id=envelope.workspace_id,
+                    actor_id=envelope.actor_id,
+                    hlc=envelope.hlc,
+                    affected_node_ids=envelope.affected_node_ids,
+                    op_type=envelope.op_type,
+                    timestamp=envelope.timestamp,
+                ),
+                payload=envelope.payload,
             )
-            self._store.apply(op)
+            await self._store.apply(operation)
             self._last_received_hlc = max_hlc(self._last_received_hlc, envelope.hlc)
         return len(envelopes)
 

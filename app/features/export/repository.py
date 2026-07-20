@@ -20,6 +20,7 @@ from app.domain.stringify_ast import (
     stringify_ast,
 )
 from app.features.export.port import ExportRepository
+from app.relay.dependencies import get_relay_storage
 
 _UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -37,6 +38,7 @@ class WorkspaceStoreExportRepository(ExportRepository):
         return WorkspaceStore(
             workspace_id=workspace_uuid,
             actor_id=self._actor_id,
+            relay_storage=get_relay_storage(),
         )
 
     @staticmethod
