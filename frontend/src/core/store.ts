@@ -47,6 +47,7 @@ export class WorkspaceStore {
   private workspaceId: string;
   private actorId: string;
   private listeners = new Map<string, Set<() => void>>();
+  private allListeners = new Set<() => void>();
   private onPersist?: (data: Uint8Array) => void | Promise<void>;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
   private persistDebounceMs: number;
@@ -149,14 +150,33 @@ export class WorkspaceStore {
     };
   }
 
+  /**
+   * Subscribe to every store change. Used by collection hooks (classes, node
+   * lists, search) that cannot enumerate the individual node ids they depend on.
+   */
+  subscribeAll(callback: () => void): () => void {
+    this.allListeners.add(callback);
+    return () => {
+      this.allListeners.delete(callback);
+    };
+  }
+
   private notify(nodeId: string): void {
     const set = this.listeners.get(nodeId);
-    if (!set) return;
-    for (const callback of set) {
+    if (set) {
+      for (const callback of set) {
+        try {
+          callback();
+        } catch (err) {
+          // Listener errors should not break store operations.
+          console.error('WorkspaceStore listener error:', err);
+        }
+      }
+    }
+    for (const callback of this.allListeners) {
       try {
         callback();
       } catch (err) {
-        // Listener errors should not break store operations.
         console.error('WorkspaceStore listener error:', err);
       }
     }
