@@ -152,6 +152,7 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
   return {
     uuid: node.id,
     name,
+    content: node.content,
     display_name: name,
     icon: null,
     color: null,

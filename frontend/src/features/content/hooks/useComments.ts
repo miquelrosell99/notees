@@ -20,7 +20,9 @@ import type { WorkspaceStore } from '@/core/store';
 function getCommentNodes(store: WorkspaceStore, nodeUuid: string): Node[] {
   const childIds = store.getChildren(nodeUuid);
   return childIds
-    .map((childId) => projectNode(store, childId, 0))
+    // Project with default depth so replies (and replies-to-replies) are
+    // available for threaded rendering in SidebarComments.
+    .map((childId) => projectNode(store, childId))
     .filter(
       (n): n is Node =>
         n !== undefined &&

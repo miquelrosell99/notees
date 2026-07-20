@@ -105,6 +105,7 @@ services:
     environment:
       VITE_API_PROXY_TARGET: http://backend:8000
       VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-localhost}
+      VITE_WORKSPACE_KEY_SECRET: ${SECRET_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     volumes:
       - ./frontend:/app

@@ -181,6 +181,27 @@ describe('useComments', () => {
       expect(repliesResult.current.data?.comments[0].uuid).toBe(reply!.uuid);
     });
 
+    it('useComments projects nested replies as children of top-level page comments', async () => {
+      const workspaceId = uuidv7();
+      const { store, Wrapper } = await setupStore(workspaceId);
+
+      const pageId = uuidv7();
+      const parentCommentId = createCommentNode(store, pageId, 'Parent comment');
+      const replyId = createCommentNode(store, parentCommentId, 'Nested reply');
+
+      const { result: commentsResult } = renderHook(() => useComments(pageId), {
+        wrapper: Wrapper,
+      });
+      await waitFor(() => expect(commentsResult.current.isLoading).toBe(false));
+
+      const topLevel = commentsResult.current.data?.comments ?? [];
+      expect(topLevel).toHaveLength(1);
+      expect(topLevel[0].uuid).toBe(parentCommentId);
+      expect(topLevel[0].children).toHaveLength(1);
+      expect(topLevel[0].children![0].uuid).toBe(replyId);
+      expect(topLevel[0].children![0].parent_uuid).toBe(parentCommentId);
+    });
+
     it('useComments returns only active comment blocks and excludes deleted/non-comment children', async () => {
       const workspaceId = uuidv7();
       const { store, Wrapper } = await setupStore(workspaceId);

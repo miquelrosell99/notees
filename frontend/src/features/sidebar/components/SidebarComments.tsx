@@ -13,13 +13,18 @@ interface CommentItemProps {
   nodeUuid: string;
   isReplying: boolean;
   onReplyToggle: (commentUuid: string | null) => void;
+  depth?: number;
 }
 
-function CommentItem({ comment, nodeUuid, isReplying, onReplyToggle }: CommentItemProps) {
+function CommentItem({ comment, nodeUuid, isReplying, onReplyToggle, depth = 0 }: CommentItemProps) {
   const openNode = useNavigationStore((s) => s.openNode);
+  const hasReplies = comment.children && comment.children.length > 0;
 
   return (
-    <div className="sidebar-comment-item">
+    <div
+      className={`sidebar-comment-item ${depth > 0 ? 'sidebar-comment-item--nested' : ''}`}
+      style={{ '--comment-depth': depth } as React.CSSProperties}
+    >
       <div className="sidebar-comment-item__row">
         <button
           type="button"
@@ -47,6 +52,15 @@ function CommentItem({ comment, nodeUuid, isReplying, onReplyToggle }: CommentIt
           />
         </div>
       )}
+      {hasReplies && (
+        <div className="sidebar-comment-item__replies">
+          <CommentsList
+            nodeUuid={nodeUuid}
+            comments={comment.children!}
+            depth={depth + 1}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -54,9 +68,10 @@ function CommentItem({ comment, nodeUuid, isReplying, onReplyToggle }: CommentIt
 interface CommentsListProps {
   nodeUuid: string;
   comments: Node[];
+  depth?: number;
 }
 
-function CommentsList({ nodeUuid, comments }: CommentsListProps) {
+function CommentsList({ nodeUuid, comments, depth = 0 }: CommentsListProps) {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   if (comments.length === 0) {
@@ -76,6 +91,7 @@ function CommentsList({ nodeUuid, comments }: CommentsListProps) {
           nodeUuid={nodeUuid}
           isReplying={replyingTo === comment.uuid}
           onReplyToggle={setReplyingTo}
+          depth={depth}
         />
       ))}
     </div>

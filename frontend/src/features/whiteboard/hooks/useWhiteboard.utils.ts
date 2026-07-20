@@ -10,14 +10,13 @@ import type { WhiteboardData } from '@/features/whiteboard/types/whiteboard';
 import { DEFAULT_WHITEBOARD_DATA } from '@/features/whiteboard/types/whiteboard';
 
 export function parseWhiteboardData(node: Node | undefined): WhiteboardData {
-  if (!node?.name) return { ...DEFAULT_WHITEBOARD_DATA };
+  if (!node?.content) return { ...DEFAULT_WHITEBOARD_DATA };
 
-  const ast = parseAST(node.name);
+  const ast = parseAST(node.content);
   const wb = ast.find(b => b.type === 'whiteboard') as ASTWhiteboard | undefined;
   if (wb) {
     // Strip legacy per-document fields (grid, background) that are now global.
     const { grid: _grid, background: _bg, ...rest } = wb.data as WhiteboardData & { grid?: unknown; background?: unknown };
-    // Ensure groups array exists (backward compatibility)
     return { ...rest, groups: (rest as WhiteboardData).groups || [] } as WhiteboardData;
   }
 
@@ -30,8 +29,8 @@ export function parseWhiteboardData(node: Node | undefined): WhiteboardData {
  * The title is the first paragraph/heading block (children approach).
  */
 export function parseWhiteboardTitle(node: Node | undefined): string {
-  if (!node?.name) return '';
-  const ast = parseAST(node.name);
+  if (!node?.content) return '';
+  const ast = parseAST(node.content);
   const para = ast.find(b => b.type === 'paragraph' || b.type === 'heading');
   if (para) {
     return stringifyAST([para], { mode: StringifyMode.TEXT_ONLY });
