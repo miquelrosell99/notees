@@ -48,6 +48,28 @@ class TestValidatePayload:
         error = validate_payload("node.delete", {"nodeId": None})
         assert error is not None
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"nodeId": "n-1", "crdtUpdate": [{"type": "text", "text": "hi"}]},
+            {"nodeId": "n-1", "textUpdate": [1, 2, 3]},
+            {"nodeId": "n-1", "content": [{"type": "text", "text": "hi"}]},
+            {"nodeId": "n-1", "treeUpdate": [1, 2, 3]},
+        ],
+    )
+    def test_valid_node_update_content_payloads(self, payload: dict) -> None:
+        assert validate_payload("node.updateContent", payload) is None
+
+    def test_node_update_content_missing_update_key(self) -> None:
+        error = validate_payload("node.updateContent", {"nodeId": "n-1"})
+        assert error is not None
+        assert "crdtUpdate" in error
+
+    def test_node_update_content_missing_node_id(self) -> None:
+        error = validate_payload("node.updateContent", {"crdtUpdate": []})
+        assert error is not None
+        assert "nodeId" in error
+
 
 class TestValidateOperation:
     def test_valid_operation(self) -> None:

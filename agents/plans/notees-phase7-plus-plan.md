@@ -358,3 +358,51 @@ This section tracks functional and architectural gaps between the migrated local
 - [x] Remove remaining legacy `/api/nodes/*` callers from normal app load — complete; `frontend/src/api/nodes.ts` deleted.
 - [x] `AGENTS.md`, plans, and changelog updated.
 - [x] Final milestone commit created.
+
+## Phase 11: Close Remaining Product Gaps
+
+The migration is complete, but several capabilities from original Notees remain gaps. This phase closes them.
+
+### G0 — Core payload alignment
+
+The local-first core emits `node.updateContent` operations with `textUpdate`, `content`, and `treeUpdate` payloads, but the backend derived-state applier and validator only recognize `crdtUpdate` and `textUpdate`. Fix this first so that whiteboard/query-block saves and tree-CRDT state round-trip correctly through the relay.
+
+1. Update `app/core/validation.py` so `node.updateContent` validates `nodeId` plus one of `crdtUpdate`, `textUpdate`, `content`, or `treeUpdate`.
+2. Update `app/core/derived/node.py:apply_node_update_content` to treat `content` as a direct AST payload (list or dict) and to store `treeUpdate` in `crdt_state.tree_state` without overwriting `node.content`.
+3. Add/adjust backend tests in `tests/core/test_validation.py` and `tests/core/derived/test_node.py`.
+
+### G1 — Re-implement removed/missing importers and batch operations
+
+1. **Logseq importer** — restore Logseq Markdown-folder import as a client-side core-store importer. Parsers (`logseqMdParser.ts`) and backend plugin code survived; the UI/hooks were removed. Reuse existing parsers, create pages/blocks via `WorkspaceStore`, resolve `[[Page]]` links, upload assets, and add the source back to `ImportOptionsModal`.
+2. **Date-format migration** — the original batch rename is obsolete: date pages now use stable deterministic UUIDs and ISO names; the date-format setting is display-only. Remove the no-op placeholder from `GraphSettingsModal` and update the gap table.
+3. **Batch create/update/delete** — covered by the Logseq importer re-implementation (it performs batch node creation). No separate batch API is needed for the local-first core.
+
+### G2 — Validate and harden whiteboard and flashcards
+
+1. **Whiteboard** — fix the read path so `parseWhiteboardData` reads the raw node AST from the core store (add a raw `content` projection) instead of parsing `node.name`. Align the save payload with the updated backend applier. Add a Playwright E2E smoke test that creates a whiteboard, draws a shape, navigates away, and returns.
+2. **Flashcards** — rehydrate `front_text`/`back_text` from the card node name and cloze child blocks on read (restore legacy hydration, reading from `WorkspaceStore` derived state). Auto-create a flashcard row when the `card` class is assigned. Add router tests and a Playwright E2E study workflow test.
+
+### G3 — Comments threading
+
+Threading is already supported by the operation-log core via generic `parent_id` + the `comment` class. The gap is UI-only: `SidebarComments` renders only direct children. Make the comment list recursive so replies appear under their parent comment. Add a test for nested reply rendering.
+
+### G4 — Full-text search (FTS5)
+
+Rebuilding sql.js with FTS5 requires a custom Emscripten build. The current FTS4 implementation is functional, tested, and integrated with QueryAST. Close this gap by documenting FTS4 as the current search backend and noting the FTS5 upgrade path. Do not change the WASM build in this pass.
+
+### G5 — Maintenance tools
+
+The remaining maintenance gaps are either covered by G1/G2 or intentionally removed:
+- Raw-UUID fix is already ported to `WorkspaceStore.updateContentAst`.
+- Link rebuild is a no-op because links are derived from AST.
+- Date-format migration is obsolete.
+Update the gap table to reflect this.
+
+### Verification
+
+- `uv run pytest tests/core tests/unit -m unit --no-cov -q` passes.
+- `cd frontend && npx tsc -b --noEmit && npm run lint` passes.
+- `cd frontend && npm run test:run` passes.
+- `npm run test:e2e` passes (existing smoke tests plus new whiteboard/flashcards E2E tests).
+- Gap analysis table updated to mark resolved gaps.
+- Final gap-closure commit created.
