@@ -49,30 +49,22 @@ class PermissionRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_workspace_share(
-        self, workspace_id: int, user_id: int
-    ) -> Permissions | None:
+    async def get_workspace_share(self, workspace_id: int, user_id: int) -> Permissions | None:
         """Return workspace-level share permissions for a user, or None."""
         pass
 
     @abstractmethod
-    async def get_node_info(
-        self, node_id: int, active_only: bool
-    ) -> dict[str, Any] | None:
+    async def get_node_info(self, node_uuid: str, active_only: bool) -> dict[str, Any] | None:
         """Return node workspace_id, create_uid, is_private (and is_shared) row."""
         pass
 
     @abstractmethod
-    async def get_node_share(
-        self, node_id: int, user_id: int
-    ) -> Permissions | None:
+    async def get_node_share(self, node_uuid: str, user_id: int) -> Permissions | None:
         """Return explicit node_share permissions for a user, or None."""
         pass
 
     @abstractmethod
-    async def get_ancestor_node_share(
-        self, node_id: int, user_id: int
-    ) -> Permissions | None:
+    async def get_ancestor_node_share(self, node_uuid: str, user_id: int) -> Permissions | None:
         """Return inherited share permissions from the closest ancestor page."""
         pass
 
@@ -164,9 +156,7 @@ class CleanupRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_workspace_setting(
-        self, workspace_id: int, key: str, default: Any
-    ) -> Any:
+    async def get_workspace_setting(self, workspace_id: int, key: str, default: Any) -> Any:
         """Return a workspace setting value, or the default."""
         pass
 
@@ -178,15 +168,11 @@ class CleanupRepository(ABC):
         pass
 
     @abstractmethod
-    async def delete_activity_logs_older_than(
-        self, workspace_id: int, cutoff: datetime
-    ) -> int:
+    async def delete_activity_logs_older_than(self, workspace_id: int, cutoff: datetime) -> int:
         """Delete old activity logs and return the number of rows removed."""
         pass
 
     @abstractmethod
-    async def delete_task_completions_older_than(
-        self, workspace_id: int, cutoff: datetime
-    ) -> int:
+    async def delete_task_completions_older_than(self, workspace_id: int, cutoff: datetime) -> int:
         """Delete old task completions and return the number of rows removed."""
         pass

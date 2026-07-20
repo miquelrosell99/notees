@@ -89,8 +89,8 @@ class PermissionChecker:
         self._repo = repo
         # Cache for workspace permissions
         self._workspace_cache: dict[int, Permissions] = {}
-        # Cache for node permissions
-        self._node_cache: dict[int, Permissions] = {}
+        # Cache for node permissions keyed by node UUID
+        self._node_cache: dict[str, Permissions] = {}
 
     def clear_cache(self) -> None:
         """Clear permission caches."""
@@ -133,7 +133,7 @@ class PermissionChecker:
         self._workspace_cache[workspace_id] = perms
         return perms
 
-    async def get_node_permissions(self, node_id: int) -> Permissions:
+    async def get_node_permissions(self, node_uuid: str) -> Permissions:
         """Get permissions for a node.
 
         Resolution order:
@@ -141,31 +141,31 @@ class PermissionChecker:
         2. Check node_share for explicit permissions
         3. Fall back to workspace permissions
         """
-        return await self._get_node_permissions_impl(node_id, active_only=True)
+        return await self._get_node_permissions_impl(node_uuid, active_only=True)
 
-    async def get_node_permissions_for_delete(self, node_id: int) -> Permissions:
+    async def get_node_permissions_for_delete(self, node_uuid: str) -> Permissions:
         """Get permissions for deleting a node (works on archived nodes too)."""
-        return await self._get_node_permissions_impl(node_id, active_only=False)
+        return await self._get_node_permissions_impl(node_uuid, active_only=False)
 
-    async def _get_node_permissions_impl(self, node_id: int, active_only: bool = True) -> Permissions:
+    async def _get_node_permissions_impl(self, node_uuid: str, active_only: bool = True) -> Permissions:
         """Internal implementation of get_node_permissions.
 
         Args:
-            node_id: The node to check permissions for
+            node_uuid: The node UUID to check permissions for
             active_only: If True, only check active nodes. If False, include archived.
         """
         # Check cache (only for active_only=True to avoid stale cache issues)
-        if active_only and node_id in self._node_cache:
-            return self._node_cache[node_id]
+        if active_only and node_uuid in self._node_cache:
+            return self._node_cache[node_uuid]
 
         # Get node info including workspace_id and create_uid
-        row = await self._repo.get_node_info(node_id, active_only)
+        row = await self._repo.get_node_info(node_uuid, active_only)
 
         if not row:
             # Node doesn't exist or is inactive
             perms = Permissions.none()
             if active_only:
-                self._node_cache[node_id] = perms
+                self._node_cache[node_uuid] = perms
             return perms
 
         workspace_id = row["workspace_id"]
@@ -175,40 +175,38 @@ class PermissionChecker:
         if row["create_uid"] == self._user_id:
             perms = Permissions.owner()
             if active_only:
-                self._node_cache[node_id] = perms
+                self._node_cache[node_uuid] = perms
             return perms
 
         # Private nodes are only visible to their owner
         if is_private:
             perms = Permissions.none()
             if active_only:
-                self._node_cache[node_id] = perms
+                self._node_cache[node_uuid] = perms
             return perms
 
         # Check node_share for explicit permissions on this node
-        share = await self._repo.get_node_share(node_id, self._user_id)
+        share = await self._repo.get_node_share(node_uuid, self._user_id)
 
         if share:
             perms = share
-            self._node_cache[node_id] = perms
+            self._node_cache[node_uuid] = perms
             return perms
 
         # Check ancestor page shares — child blocks inherit permissions
         # from their closest parent page that has an explicit share
-        ancestor_share = await self._repo.get_ancestor_node_share(
-            node_id, self._user_id
-        )
+        ancestor_share = await self._repo.get_ancestor_node_share(node_uuid, self._user_id)
 
         if ancestor_share:
             perms = ancestor_share
-            self._node_cache[node_id] = perms
+            self._node_cache[node_uuid] = perms
             return perms
 
         # Fall back to workspace permissions
         perms = await self.get_workspace_permissions(workspace_id)
 
         if active_only:
-            self._node_cache[node_id] = perms
+            self._node_cache[node_uuid] = perms
         return perms
 
     async def can_read_workspace(self, workspace_id: int) -> bool:
@@ -231,34 +229,34 @@ class PermissionChecker:
         perms = await self.get_workspace_permissions(workspace_id)
         return perms.can_delete
 
-    async def can_read_node(self, node_id: int) -> bool:
+    async def can_read_node(self, node_uuid: str) -> bool:
         """Check if user can read a node."""
-        perms = await self.get_node_permissions(node_id)
+        perms = await self.get_node_permissions(node_uuid)
         return perms.can_read
 
-    async def can_write_node(self, node_id: int) -> bool:
+    async def can_write_node(self, node_uuid: str) -> bool:
         """Check if user can write to a node."""
-        perms = await self.get_node_permissions(node_id)
+        perms = await self.get_node_permissions(node_uuid)
         return perms.can_write
 
-    async def can_create_in_node(self, node_id: int) -> bool:
+    async def can_create_in_node(self, node_uuid: str) -> bool:
         """Check if user can create children in a node."""
-        perms = await self.get_node_permissions(node_id)
+        perms = await self.get_node_permissions(node_uuid)
         return perms.can_create
 
-    async def can_comment_on_node(self, node_id: int) -> bool:
+    async def can_comment_on_node(self, node_uuid: str) -> bool:
         """Check if user can comment on a node."""
-        perms = await self.get_node_permissions(node_id)
+        perms = await self.get_node_permissions(node_uuid)
         return perms.can_comment or perms.can_write
 
-    async def can_delete_node(self, node_id: int) -> bool:
+    async def can_delete_node(self, node_uuid: str) -> bool:
         """Check if user can delete a node."""
-        perms = await self.get_node_permissions(node_id)
+        perms = await self.get_node_permissions(node_uuid)
         return perms.can_delete
 
-    async def can_delete_node_including_archived(self, node_id: int) -> bool:
+    async def can_delete_node_including_archived(self, node_uuid: str) -> bool:
         """Check if user can delete a node (including archived nodes)."""
-        perms = await self.get_node_permissions_for_delete(node_id)
+        perms = await self.get_node_permissions_for_delete(node_uuid)
         return perms.can_delete
 
     async def get_accessible_workspace_ids(self) -> list[int]:
@@ -288,30 +286,28 @@ class PermissionChecker:
         if not await self.can_delete_workspace(workspace_id):
             raise PermissionDeniedError(f"User {self._user_id} cannot delete workspace {workspace_id}")
 
-    async def require_node_read(self, node_id: int) -> None:
+    async def require_node_read(self, node_uuid: str) -> None:
         """Require read permission on a node, raise if not allowed."""
-        if not await self.can_read_node(node_id):
-            raise PermissionDeniedError(f"User {self._user_id} cannot read node {node_id}")
+        if not await self.can_read_node(node_uuid):
+            raise PermissionDeniedError(f"User {self._user_id} cannot read node {node_uuid}")
 
-    async def require_node_write(self, node_id: int) -> None:
+    async def require_node_write(self, node_uuid: str) -> None:
         """Require write permission on a node, raise if not allowed."""
-        if not await self.can_write_node(node_id):
-            raise PermissionDeniedError(f"User {self._user_id} cannot write to node {node_id}")
+        if not await self.can_write_node(node_uuid):
+            raise PermissionDeniedError(f"User {self._user_id} cannot write to node {node_uuid}")
 
-    async def require_node_create(self, node_id: int) -> None:
+    async def require_node_create(self, node_uuid: str) -> None:
         """Require create permission on a node, raise if not allowed."""
-        if not await self.can_create_in_node(node_id):
-            raise PermissionDeniedError(f"User {self._user_id} cannot create in node {node_id}")
+        if not await self.can_create_in_node(node_uuid):
+            raise PermissionDeniedError(f"User {self._user_id} cannot create in node {node_uuid}")
 
-    async def require_node_delete(self, node_id: int) -> None:
+    async def require_node_delete(self, node_uuid: str) -> None:
         """Require delete permission on a node (works on archived nodes too)."""
-        if not await self.can_delete_node_including_archived(node_id):
-            raise PermissionDeniedError(f"User {self._user_id} cannot delete node {node_id}")
+        if not await self.can_delete_node_including_archived(node_uuid):
+            raise PermissionDeniedError(f"User {self._user_id} cannot delete node {node_uuid}")
 
 
-async def get_permission_checker(
-    user_id: int, repo: PermissionRepository
-) -> PermissionChecker:
+async def get_permission_checker(user_id: int, repo: PermissionRepository) -> PermissionChecker:
     """Factory function to create a permission checker.
 
     Args:

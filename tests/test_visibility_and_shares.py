@@ -9,7 +9,6 @@ These tests verify:
 import pytest
 from httpx import AsyncClient
 
-from app.domain.entities import NodeUpdateData
 from app.domain.permissions import PermissionChecker, Permissions
 from app.domain.repositories import PostgresPermissionRepository
 from app.features.auth import auth
@@ -33,13 +32,10 @@ class TestPagePrivacy:
         create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Private Page"})
         assert create_resp.status_code == 200
         page = create_resp.json()
-        page_id = page["id"]
         page_uuid = page["uuid"]
 
         # Set page to private
-        update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_uuid}", json={"is_private": True}
-        )
+        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"is_private": True})
         assert update_resp.status_code == 200
 
         # Create another user and add them to the workspace
@@ -81,9 +77,7 @@ class TestPagePrivacy:
         page_id = page["id"]
         page_uuid = page["uuid"]
 
-        update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_uuid}", json={"is_private": True}
-        )
+        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"is_private": True})
         assert update_resp.status_code == 200
 
         get_resp = await authenticated_client.get(f"/api/nodes/{page_uuid}")
@@ -108,9 +102,7 @@ class TestPagePrivacy:
         page_uuid = page["uuid"]
 
         # Default is not private; ensure it explicitly
-        update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_uuid}", json={"is_private": False}
-        )
+        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"is_private": False})
         assert update_resp.status_code == 200
 
         # Create another user and add them to the workspace with read permission
@@ -150,12 +142,9 @@ class TestPagePrivacy:
         create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Public Page"})
         assert create_resp.status_code == 200
         page = create_resp.json()
-        page_id = page["id"]
         page_uuid = page["uuid"]
 
-        update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_uuid}", json={"is_private": False}
-        )
+        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"is_private": False})
         assert update_resp.status_code == 200
 
         # Create a public share for the page
@@ -186,7 +175,6 @@ class TestPublicShareStaticHtml:
         create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Shareable Page"})
         assert create_resp.status_code == 200
         page = create_resp.json()
-        page_id = page["id"]
         page_uuid = page["uuid"]
 
         share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
@@ -206,7 +194,6 @@ class TestPublicShareStaticHtml:
         """GET /s/{share_uuid} should serve the pre-generated static HTML."""
         create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Served Page"})
         assert create_resp.status_code == 200
-        page_id = create_resp.json()["id"]
         page_uuid = create_resp.json()["uuid"]
 
         share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
@@ -228,7 +215,6 @@ class TestPublicShareStaticHtml:
         create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Original Content"})
         assert create_resp.status_code == 200
         page = create_resp.json()
-        page_id = page["id"]
         page_uuid = page["uuid"]
 
         share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
@@ -240,9 +226,7 @@ class TestPublicShareStaticHtml:
         assert "Original Content" in initial_content
 
         # Update the page content
-        update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_uuid}", json={"name": "Updated Content"}
-        )
+        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"name": "Updated Content"})
         assert update_resp.status_code == 200
 
         # Verify the HTML file was regenerated
@@ -260,7 +244,6 @@ class TestPublicShareStaticHtml:
         create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Removable Page"})
         assert create_resp.status_code == 200
         page = create_resp.json()
-        page_id = page["id"]
         page_uuid = page["uuid"]
 
         share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
@@ -278,31 +261,52 @@ class TestPublicShareStaticHtml:
 
 
 class TestPermissionCheckerPrivacy:
-    """Test PermissionChecker privacy logic directly."""
+    """Test PermissionChecker privacy logic directly using raw DB rows."""
+
+    async def _create_test_node(
+        self,
+        conn,
+        workspace_id: int,
+        owner_id: int,
+        *,
+        name: str = "Test Page",
+        is_private: bool = False,
+    ) -> str:
+        """Insert a node row and return its UUID."""
+        row = await conn.fetchrow(
+            """
+            INSERT INTO node (uuid, workspace_id, name, is_page, active, is_private, create_uid, write_uid)
+            VALUES (uuid_generate_v4(), $1, $2, TRUE, TRUE, $3, $4, $4)
+            RETURNING uuid
+            """,
+            workspace_id,
+            name,
+            is_private,
+            owner_id,
+        )
+        return str(row["uuid"])
 
     @pytest.mark.asyncio
     async def test_private_page_returns_none_for_non_owners(
         self,
         db_pool,
         test_user: dict,
-        node_service,
     ):
         """PermissionChecker should return Permissions.none() for private pages when caller is not the owner."""
-        # Create a page as the test_user (owner)
-        page = await node_service.create_page("Private Permission Page")
-        assert page.id is not None
-
-        # Set page to private via repository to bypass permission checks on update
-        await node_service._node_repo.update(page.id, NodeUpdateData(is_private=True))
-
-        # Create a PermissionChecker for a different user
         other_user = await auth.create_user("permission_checker@example.com", "password123")
-        permission_repo = PostgresPermissionRepository(
-            db_pool, test_user["workspace_id"], int(other_user["id"])
-        )
+        async with db_pool.acquire() as conn:
+            page_uuid = await self._create_test_node(
+                conn,
+                test_user["workspace_id"],
+                int(test_user["id"]),
+                name="Private Permission Page",
+                is_private=True,
+            )
+
+        permission_repo = PostgresPermissionRepository(db_pool, test_user["workspace_id"], int(other_user["id"]))
         checker = PermissionChecker(int(other_user["id"]), permission_repo)
 
-        perms = await checker.get_node_permissions(page.id)
+        perms = await checker.get_node_permissions(page_uuid)
         assert perms == Permissions.none()
         assert not perms.can_read
         assert not perms.can_write
@@ -314,17 +318,17 @@ class TestPermissionCheckerPrivacy:
         self,
         db_pool,
         test_user: dict,
-        node_service,
     ):
         """PermissionChecker should fall back to workspace permissions for workspace-visible pages."""
-        page = await node_service.create_page("Workspace Permission Page")
-        assert page.id is not None
-
-        await node_service._node_repo.update(page.id, NodeUpdateData(is_private=False))
-
-        # Create a user who has workspace read access
         other_user = await auth.create_user("workspace_reader@example.com", "password123")
         async with db_pool.acquire() as conn:
+            page_uuid = await self._create_test_node(
+                conn,
+                test_user["workspace_id"],
+                int(test_user["id"]),
+                name="Workspace Permission Page",
+                is_private=False,
+            )
             await conn.execute(
                 """
                 INSERT INTO workspace_share
@@ -337,11 +341,9 @@ class TestPermissionCheckerPrivacy:
                 int(test_user["id"]),
             )
 
-        permission_repo = PostgresPermissionRepository(
-            db_pool, test_user["workspace_id"], int(other_user["id"])
-        )
+        permission_repo = PostgresPermissionRepository(db_pool, test_user["workspace_id"], int(other_user["id"]))
         checker = PermissionChecker(int(other_user["id"]), permission_repo)
-        perms = await checker.get_node_permissions(page.id)
+        perms = await checker.get_node_permissions(page_uuid)
         assert perms.can_read is True
         assert perms.can_write is False
 
@@ -350,19 +352,20 @@ class TestPermissionCheckerPrivacy:
         self,
         db_pool,
         test_user: dict,
-        node_service,
     ):
         """The owner should have full permissions regardless of privacy."""
-        page = await node_service.create_page("Owner Permission Page")
-        assert page.id is not None
+        async with db_pool.acquire() as conn:
+            page_uuid = await self._create_test_node(
+                conn,
+                test_user["workspace_id"],
+                int(test_user["id"]),
+                name="Owner Permission Page",
+                is_private=True,
+            )
 
-        await node_service._node_repo.update(page.id, NodeUpdateData(is_private=True))
-
-        permission_repo = PostgresPermissionRepository(
-            db_pool, test_user["workspace_id"], int(test_user["id"])
-        )
+        permission_repo = PostgresPermissionRepository(db_pool, test_user["workspace_id"], int(test_user["id"]))
         checker = PermissionChecker(int(test_user["id"]), permission_repo)
-        perms = await checker.get_node_permissions(page.id)
+        perms = await checker.get_node_permissions(page_uuid)
         assert perms == Permissions.owner()
         assert perms.can_read
         assert perms.can_write

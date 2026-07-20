@@ -60,6 +60,7 @@
 
 - **Shares UUID migration**: share metadata tables (`node_public_share`, `node_share`, `pending_invite`) now use `node_uuid` instead of the legacy numeric `node_id`. The frontend `/nodes/{uuid}/shares` and `/nodes/{uuid}/user-shares` endpoints no longer depend on the legacy `node` table.
 - **Node-scoped share router**: `node_shares_router` is mounted under `/api/nodes` and `/api/v1/nodes`.
+- **Collab permission repository migrated to `node_uuid`**: `PostgresPermissionRepository` and `PermissionChecker` now resolve node-level shares by UUID, removing the last internal consumer of `node_share.node_id`. `app/features/collab/yjs_service.py` checks permissions directly against the node UUID.
 
 ### Rich-text CRDT polish
 

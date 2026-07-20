@@ -21,14 +21,12 @@ class YjsService:
 
     async def get_state(self, node_uuid: str) -> bytes | None:
         """Return the current Yjs state blob if the user can read the node."""
+        if not await self._permission_checker.can_read_node(node_uuid):
+            raise PermissionDeniedError(f"User cannot read Yjs state for node {node_uuid}")
+
         node_id = await self._repository.resolve_node_id(node_uuid)
         if node_id is None:
             raise NodeNotFoundError(node_uuid)
-
-        if not await self._permission_checker.can_read_node(node_id):
-            raise PermissionDeniedError(
-                f"User cannot read Yjs state for node {node_uuid}"
-            )
 
         return await self._repository._get_state_by_node_id(node_id)
 
@@ -37,13 +35,11 @@ class YjsService:
 
         Returns the merged blob after concatenation.
         """
+        if not await self._permission_checker.can_write_node(node_uuid):
+            raise PermissionDeniedError(f"User cannot update Yjs state for node {node_uuid}")
+
         node_id = await self._repository.resolve_node_id(node_uuid)
         if node_id is None:
             raise NodeNotFoundError(node_uuid)
-
-        if not await self._permission_checker.can_write_node(node_id):
-            raise PermissionDeniedError(
-                f"User cannot update Yjs state for node {node_uuid}"
-            )
 
         return await self._repository._apply_update_by_node_id(node_id, update_blob)
