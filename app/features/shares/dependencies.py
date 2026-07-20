@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 
 import asyncpg
 from fastapi import Depends, HTTPException
@@ -14,6 +14,7 @@ from app.features.export.dependencies import _make_export_repository
 from app.features.export.service import ExportService
 from app.infrastructure.export.renderer import HtmlPdfExportRenderer
 from app.models import User
+from app.relay.dependencies import get_relay_storage
 
 from .port import ShareRepository
 from .repository import PostgresShareRepository
@@ -110,6 +111,7 @@ async def get_public_workspace_store(
     store = WorkspaceStore(
         workspace_id=workspace_uuid,
         actor_id="anonymous",
+        relay_storage=get_relay_storage(),
     )
     try:
         yield store
@@ -130,8 +132,24 @@ async def get_workspace_store(
     store = WorkspaceStore(
         workspace_id=workspace_uuid,
         actor_id=user.uuid,
+        relay_storage=get_relay_storage(),
     )
     try:
         yield store
     finally:
         await store.close()
+
+
+async def get_workspace_store_factory(
+    user: User = Depends(get_current_user),
+) -> Callable[[str], WorkspaceStore]:
+    """Return a factory that builds a WorkspaceStore for any workspace UUID."""
+
+    def factory(workspace_uuid: str) -> WorkspaceStore:
+        return WorkspaceStore(
+            workspace_id=workspace_uuid,
+            actor_id=user.uuid,
+            relay_storage=get_relay_storage(),
+        )
+
+    return factory

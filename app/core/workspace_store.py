@@ -10,6 +10,7 @@ as clients.
 from __future__ import annotations
 
 import asyncio
+import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,6 +45,7 @@ class WorkspaceStore:
     ) -> None:
         self.workspace_id = workspace_id
         self._actor_id = actor_id
+        self.actor_id = actor_id
         self._key_storage = key_storage or WorkspaceKeyStorage()
         self._master_key: bytes | None = None
 
@@ -172,6 +174,10 @@ class WorkspaceStore:
         self._apply_to_derived(conn, operation)
         conn.commit()
         await self._invoke_class_side_effects(operation)
+        self._clock.update(
+            operation.envelope.hlc,
+            int(datetime.now(UTC).timestamp() * 1000),
+        )
         return envelope
 
     async def apply_many(
@@ -206,6 +212,10 @@ class WorkspaceStore:
         conn.commit()
         for operation in to_apply:
             await self._invoke_class_side_effects(operation)
+            self._clock.update(
+                operation.envelope.hlc,
+                int(datetime.now(UTC).timestamp() * 1000),
+            )
         return results
 
     async def _persist_operation(
@@ -324,6 +334,12 @@ class WorkspaceStore:
     def _is_applied(self, conn: sqlite3.Connection, operation_id: str) -> bool:
         row = conn.execute("SELECT 1 FROM applied_operation_id WHERE id = ?", (operation_id,)).fetchone()
         return row is not None
+
+    async def get_envelopes(self, after_hlc: Hlc) -> list[EncryptedEnvelope]:
+        """Return persisted envelopes for this workspace newer than ``after_hlc``."""
+        return await self._maybe_await(
+            self._relay_storage.get_catch_up(self.workspace_id, after_hlc)
+        )
 
     async def create_snapshot(self, up_to_hlc: Hlc | None = None) -> str:
         """Serialize the derived database and persist it as a relay snapshot.
@@ -773,6 +789,87 @@ class WorkspaceStore:
         cursor = conn.execute(sql, parameters or ())
         conn.commit()
         return cursor.rowcount
+
+    async def get_node(self, node_id: str) -> dict[str, Any] | None:
+        """Return a single node from the derived database, or ``None``."""
+        rows = await self.query(
+            """
+            SELECT
+                id,
+                workspace_id,
+                kind,
+                parent_id,
+                class_ids,
+                content,
+                created_at,
+                updated_at,
+                created_by,
+                updated_by
+            FROM node
+            WHERE id = ?
+            """,
+            (node_id,),
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        return {
+            "id": row[0],
+            "workspace_id": row[1],
+            "kind": row[2],
+            "parent_id": row[3],
+            "class_ids": json.loads(row[4]),
+            "content": json.loads(row[5]),
+            "created_at": row[6],
+            "updated_at": row[7],
+            "created_by": row[8],
+            "updated_by": row[9],
+        }
+
+    async def list_nodes(self) -> list[dict[str, Any]]:
+        """Return all nodes for this workspace from the derived database."""
+        rows = await self.query(
+            "SELECT id, kind, parent_id, class_ids, content FROM node WHERE workspace_id = ?",
+            (self.workspace_id,),
+        )
+        return [
+            {
+                "id": row[0],
+                "kind": row[1],
+                "parent_id": row[2],
+                "class_ids": json.loads(row[3]),
+                "content": json.loads(row[4]),
+            }
+            for row in rows
+        ]
+
+    async def get_children(self, parent_id: str) -> list[str]:
+        """Return ordered child ids for ``parent_id``."""
+        rows = await self.query(
+            "SELECT child_id FROM node_child_order WHERE parent_id = ? ORDER BY position",
+            (parent_id,),
+        )
+        return [row[0] for row in rows]
+
+    async def get_property(
+        self,
+        *,
+        node_id: str,
+        schema_id: str,
+        index: int = 0,
+    ) -> Any | None:
+        """Return the value of a property, or ``None`` if unset."""
+        rows = await self.query(
+            "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
+            (node_id, schema_id, index),
+        )
+        if not rows:
+            return None
+        return json.loads(rows[0][0])
+
+    async def get_db(self) -> sqlite3.Connection:
+        """Return the underlying derived SQLite connection."""
+        return await self._ensure_connection()
 
     async def close(self) -> None:
         """Close the derived SQLite connection and owned relay storage adapter.

@@ -19,6 +19,7 @@ from app.dependencies import (
 from app.features.assets.service import AssetService
 from app.logging_config import get_logger
 from app.models import User
+from app.relay.dependencies import get_relay_storage
 
 logger = get_logger(__name__)
 _ASSET_TOKEN_LEEWAY_SECONDS = 60
@@ -37,6 +38,7 @@ async def get_workspace_store(
     store = WorkspaceStore(
         workspace_id=workspace_uuid,
         actor_id=user.uuid,
+        relay_storage=get_relay_storage(),
     )
     try:
         yield store
@@ -143,6 +145,7 @@ async def get_workspace_store_with_token(
     store = WorkspaceStore(
         workspace_id=workspace_uuid,
         actor_id=user.uuid,
+        relay_storage=get_relay_storage(),
     )
     try:
         yield store

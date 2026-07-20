@@ -27,7 +27,6 @@ Message protocol (JSON):
 from __future__ import annotations
 
 import asyncio
-import base64
 import contextlib
 import json
 from typing import Any
@@ -42,7 +41,6 @@ from app.domain.repositories.factories import make_permission_repository
 from app.features.auth import authenticate_api_key, decode_token, get_user_by_id
 from app.infrastructure.redis_pubsub import collab_pubsub
 from app.logging_config import get_logger
-from app.relay.broadcast import broadcast as relay_broadcast
 
 logger = get_logger(__name__)
 
@@ -142,30 +140,6 @@ async def broadcast_ops(room_id: str, ops: list[dict[str, Any]]) -> None:
     )
 
 
-async def broadcast_yjs_update(
-    room_id: str,
-    node_uuid: str,
-    update_blob: bytes,
-    sender_id: int = 0,
-    exclude: _LiveSyncConnection | None = None,
-) -> None:
-    """Broadcast a Yjs update to all connected clients in a room.
-
-    The raw bytes are base64-encoded so the message can travel as JSON over
-    WebSocket (and through Redis pub/sub).
-    """
-    await _broadcast(
-        room_id,
-        {
-            "type": "yjs_update",
-            "node_uuid": node_uuid,
-            "update_blob": base64.b64encode(update_blob).decode("ascii"),
-        },
-        sender_id=sender_id,
-        exclude=exclude,
-    )
-
-
 async def _run_redis_loop(
     room_id: str, user_id: int, connection: _LiveSyncConnection
 ) -> None:
@@ -243,9 +217,12 @@ def _make_workspace_store(workspace_uuid: str, actor_id: str) -> WorkspaceStore:
 
     This helper is module-level so tests can patch it with an in-memory store.
     """
+    from app.relay.dependencies import get_relay_storage
+
     return WorkspaceStore(
         workspace_id=workspace_uuid,
         actor_id=actor_id,
+        relay_storage=get_relay_storage(),
     )
 
 
@@ -394,35 +371,6 @@ async def live_sync_websocket(
                         "user_id": user_id,
                     },
                     user_id,
-                    exclude=connection,
-                )
-
-            elif msg_type == "yjs_update":
-                if not can_write:
-                    continue
-                yjs_node_uuid = msg.get("node_uuid")
-                yjs_blob_b64 = msg.get("update_blob")
-                if not isinstance(yjs_node_uuid, str) or not isinstance(yjs_blob_b64, str):
-                    continue
-                try:
-                    yjs_blob = base64.b64decode(yjs_blob_b64)
-                except Exception:
-                    continue
-
-                # Persist the Yjs text update as a node.updateContent operation
-                # in the operation log and broadcast the encrypted envelope over
-                # the relay WebSocket.
-                envelope = await store.update_text_crdt(yjs_node_uuid, yjs_blob)
-                if envelope is not None:
-                    await relay_broadcast(room_id, envelope)
-
-                # Keep the legacy collab-WebSocket broadcast for clients that
-                # have not yet migrated to the relay WebSocket.
-                await broadcast_yjs_update(
-                    room_id,
-                    yjs_node_uuid,
-                    yjs_blob,
-                    sender_id=user_id,
                     exclude=connection,
                 )
 

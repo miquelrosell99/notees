@@ -75,8 +75,6 @@ class FlashcardService:
         """Create a flashcard record for the given card node."""
         card = await self._repo.create(
             node_uuid=node_uuid,
-            workspace_id=self._workspace_id,
-            user_id=self._user_id,
             front_text=front_text,
             back_text=back_text,
         )
@@ -91,7 +89,7 @@ class FlashcardService:
 
     async def get_due_cards(self, limit: int = 100) -> list[FlashcardData]:
         """Return cards due for review, with live front/back content."""
-        cards = await self._repo.get_due_cards(self._workspace_id, self._user_id, limit)
+        cards = await self._repo.get_due_cards(limit)
         return [await self._hydrate(card) for card in cards]
 
     async def review_card(self, node_uuid: str, grade: int) -> FlashcardData:
@@ -150,7 +148,7 @@ class FlashcardService:
 
     async def get_stats(self) -> dict[str, int]:
         """Return workspace flashcard statistics."""
-        return await self._repo.get_stats(self._workspace_id, self._user_id)
+        return await self._repo.get_stats()
 
     async def _hydrate(self, card: FlashcardData) -> FlashcardData:
         """Override stored front/back with live node content from derived state."""

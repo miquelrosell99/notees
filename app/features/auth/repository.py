@@ -152,6 +152,8 @@ class PostgresUserRepository(UserRepository):
         each user's primary workspace store and check whether the node exists in
         the derived state.
         """
+        from app.relay.dependencies import get_relay_storage
+
         async with acquire_connection(self._pool) as conn:
             users = await conn.fetch('SELECT id, uuid FROM "user" WHERE active = TRUE')
             for user_row in users:
@@ -161,6 +163,7 @@ class PostgresUserRepository(UserRepository):
                 store = WorkspaceStore(
                     workspace_id=workspace_uuid,
                     actor_id=str(user_row["uuid"]),
+                    relay_storage=get_relay_storage(),
                 )
                 try:
                     await store.sync()
@@ -176,6 +179,8 @@ class PostgresUserRepository(UserRepository):
 
     async def get_user_ids_by_page_node_uuids(self, node_uuids: list[str]) -> dict[str, int | None]:
         """Get user IDs for multiple page-node UUIDs in one query."""
+        from app.relay.dependencies import get_relay_storage
+
         if not node_uuids:
             return {}
 
@@ -189,6 +194,7 @@ class PostgresUserRepository(UserRepository):
                 store = WorkspaceStore(
                     workspace_id=workspace_uuid,
                     actor_id=str(user_row["uuid"]),
+                    relay_storage=get_relay_storage(),
                 )
                 try:
                     await store.sync()
@@ -738,6 +744,8 @@ class PostgresUserRepository(UserRepository):
         Node counts are derived from each workspace's operation-log store;
         workspace, user, and share counts still come from PostgreSQL.
         """
+        from app.relay.dependencies import get_relay_storage
+
         node_count = 0
         page_count = 0
         block_count = 0
@@ -755,7 +763,11 @@ class PostgresUserRepository(UserRepository):
             )
 
         for ws_row in workspace_rows:
-            store = WorkspaceStore(workspace_id=ws_row["uuid"], actor_id="system")
+            store = WorkspaceStore(
+                workspace_id=ws_row["uuid"],
+                actor_id="system",
+                relay_storage=get_relay_storage(),
+            )
             try:
                 await store.sync()
                 node_count += (await store.query("SELECT COUNT(*) FROM node"))[0][0]
@@ -799,6 +811,8 @@ class PostgresUserRepository(UserRepository):
         Asset-node membership is read from each workspace's operation-log derived
         state instead of the legacy ``node`` table.
         """
+        from app.relay.dependencies import get_relay_storage
+
         data_dir = get_data_dir()
         workspaces_dir = data_dir / "workspaces"
         orphans: list[dict] = []
@@ -816,7 +830,11 @@ class PostgresUserRepository(UserRepository):
             if not assets_dir.exists():
                 continue
 
-            store = WorkspaceStore(workspace_id=ws_uuid, actor_id="system")
+            store = WorkspaceStore(
+                workspace_id=ws_uuid,
+                actor_id="system",
+                relay_storage=get_relay_storage(),
+            )
             try:
                 await store.sync()
                 asset_rows = await store.query(
@@ -898,6 +916,8 @@ class PostgresInviteRepository(BasePostgresRepository, InviteRepository):
         Workspace membership stays in PostgreSQL; node-level sharing is emitted
         as an operation-log ``share.user.grant`` via ``WorkspaceStore``.
         """
+        from app.relay.dependencies import get_relay_storage
+
         async with acquire_connection(self._pool) as conn, conn.transaction():
             if invite["workspace_id"]:
                 perms = {
@@ -953,7 +973,11 @@ class PostgresInviteRepository(BasePostgresRepository, InviteRepository):
                 permission = "write" if role in ("editor", "admin", "write") else "read"
                 share_id = generate_uuid()
 
-                store = WorkspaceStore(workspace_id=ws_uuid, actor_id=user_uuid)
+                store = WorkspaceStore(
+                    workspace_id=ws_uuid,
+                    actor_id=user_uuid,
+                    relay_storage=get_relay_storage(),
+                )
                 try:
                     await store.grant_user_share(
                         share_id=share_id,

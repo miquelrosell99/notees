@@ -5,7 +5,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.core.workspace_store import WorkspaceStore
 
 
 @dataclass
@@ -31,14 +34,17 @@ class FlashcardData:
 
 
 class FlashcardRepository(ABC):
-    """Port for flashcard persistence."""
+    """Port for flashcard persistence backed by the operation-log derived state."""
+
+    def __init__(self, store: WorkspaceStore, workspace_id: int, user_id: int) -> None:
+        self._store = store
+        self._workspace_id = workspace_id
+        self._user_id = user_id
 
     @abstractmethod
     async def create(
         self,
         node_uuid: str,
-        workspace_id: int,
-        user_id: int,
         front_text: str,
         back_text: str,
     ) -> FlashcardData:
@@ -51,12 +57,7 @@ class FlashcardRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_due_cards(
-        self,
-        workspace_id: int,
-        user_id: int,
-        limit: int = 100,
-    ) -> list[FlashcardData]:
+    async def get_due_cards(self, limit: int = 100) -> list[FlashcardData]:
         """Fetch active cards due for review (including new cards with null due_date)."""
         pass
 
@@ -80,6 +81,6 @@ class FlashcardRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_stats(self, workspace_id: int, user_id: int) -> dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Return review statistics."""
         pass

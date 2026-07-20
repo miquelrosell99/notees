@@ -27,6 +27,7 @@ from .dependencies import (
     get_share_repository,
     get_share_service,
     get_workspace_store,
+    get_workspace_store_factory,
 )
 from .port import ShareRepository
 from .service import ShareService
@@ -189,10 +190,13 @@ async def get_share_inbox(
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),  # noqa: B008
     share_repo: ShareRepository = Depends(get_share_repository),
+    store_factory = Depends(get_workspace_store_factory),  # noqa: B008
 ):
     """Get all nodes shared with the current user (share inbox).
 
     Cross-workspace membership metadata is still sourced from PostgreSQL.
+    Node display metadata is resolved from each workspace's operation-log
+    derived state.
     """
     total, rows = await share_repo.list_share_inbox(int(user.id), page, page_size)
 
@@ -200,9 +204,6 @@ async def get_share_inbox(
         {
             "share_uuid": str(r["share_uuid"]) if r["share_uuid"] else None,
             "node_uuid": str(r["node_uuid"]),
-            "node_name": r["node_name"] or "Untitled",
-            "node_icon": r["node_icon"],
-            "is_page": r["is_page"],
             "permission": "write" if r["can_write"] else "read",
             "shared_at": r["shared_at"].isoformat() if r["shared_at"] else None,
             "shared_by": {
@@ -216,8 +217,10 @@ async def get_share_inbox(
         for r in rows
     ]
 
+    enriched = await ShareService.enrich_share_inbox(items, store_factory)
+
     return PaginatedResponse[dict](
-        items=items,
+        items=enriched,
         total=total,
         page=page,
         page_size=page_size,

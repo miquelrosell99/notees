@@ -267,51 +267,6 @@ CREATE TABLE IF NOT EXISTS asset (
 
 CREATE INDEX IF NOT EXISTS idx_asset_workspace_hash ON asset(workspace_id, hash);
 
--- Yjs CRDT state per node (M4 text integration)
-CREATE TABLE IF NOT EXISTS node_yjs_state (
-    node_uuid UUID PRIMARY KEY,
-    update_blob BYTEA NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_node_yjs_state_workspace_id ON node_yjs_state(workspace_id);
-CREATE INDEX IF NOT EXISTS idx_node_yjs_state_updated_at ON node_yjs_state(updated_at);
-
--- ============================================================
--- MIGRATION: node_yjs_state FROM INTEGER node_id TO node_uuid
--- ============================================================
-
--- One-way migration for pre-existing databases that still use the legacy
--- integer node_id column. New databases skip this block because node_id does
--- not exist on the new table.
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'node_yjs_state' AND column_name = 'node_id'
-    ) THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'node_yjs_state' AND column_name = 'node_uuid'
-        ) THEN
-            ALTER TABLE node_yjs_state ADD COLUMN node_uuid UUID;
-        END IF;
-
-        UPDATE node_yjs_state s
-        SET node_uuid = n.uuid
-        FROM node n
-        WHERE n.id = s.node_id;
-
-        IF EXISTS (SELECT 1 FROM node_yjs_state WHERE node_uuid IS NULL) THEN
-            RAISE EXCEPTION 'node_yjs_state rows exist with unmapped node_id values';
-        END IF;
-
-        ALTER TABLE node_yjs_state ALTER COLUMN node_uuid SET NOT NULL;
-        ALTER TABLE node_yjs_state DROP COLUMN node_id CASCADE;
-    END IF;
-END $$;
-
 DO $$
 BEGIN
     IF EXISTS (

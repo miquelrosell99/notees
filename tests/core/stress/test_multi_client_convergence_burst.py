@@ -8,16 +8,16 @@ identical derived state.
 from __future__ import annotations
 
 import os
-import sqlite3
 import time
 
 import pytest
 
 from app.core.clock import Hlc
-from app.core.crypto import derive_workspace_key
-from app.core.store import WorkspaceStore as CoreWorkspaceStore
 from app.core.sync import SyncEngine
 from app.core.transport import MemoryRelay, MemoryTransport
+from app.core.workspace_store import WorkspaceStore
+from app.relay.storage import SqliteRelayStorage
+from tests.core.fakes import FakeKeyStorage
 
 pytestmark = [pytest.mark.unit, pytest.mark.stress]
 
@@ -40,14 +40,14 @@ def _client_count() -> int:
     return default
 
 
-def _install_deterministic_clock(*stores: CoreWorkspaceStore) -> None:
+def _install_deterministic_clock(*stores: WorkspaceStore) -> None:
     """Patch stores to use deterministic HLCs across clients."""
     from app.core.clock import max_hlc
 
     counter = {"physical": 1}
     base = {store.actor_id: 1000 * (i + 1) for i, store in enumerate(stores)}
 
-    def _advance(store: CoreWorkspaceStore) -> Hlc:
+    def _advance(store: WorkspaceStore) -> Hlc:
         counter["physical"] += 1
         phys = base[store.actor_id] + counter["physical"]
         return store._clock.advance(phys)  # noqa: SLF001
@@ -67,16 +67,20 @@ class TestMultiClientConvergenceBurst:
         client_count = _client_count()
         burst_size = _burst_size()
         workspace_id = "ws-convergence-burst"
-        key = derive_workspace_key(workspace_id, "x" * 32)
         relay = MemoryRelay()
 
-        clients: list[CoreWorkspaceStore] = []
+        clients: list[WorkspaceStore] = []
         syncs: list[SyncEngine] = []
         for i in range(client_count):
-            db = sqlite3.connect(":memory:")
-            store = CoreWorkspaceStore(db, workspace_id, f"actor-{i}")
+            store = WorkspaceStore(
+                workspace_id=workspace_id,
+                actor_id=f"actor-{i}",
+                db_path=":memory:",
+                relay_storage=SqliteRelayStorage(":memory:"),
+                key_storage=FakeKeyStorage(),
+            )
             clients.append(store)
-            syncs.append(SyncEngine(store, key, MemoryTransport(relay, workspace_id)))
+            syncs.append(SyncEngine(store, MemoryTransport(relay, workspace_id)))
 
         _install_deterministic_clock(*clients)
 
@@ -84,7 +88,7 @@ class TestMultiClientConvergenceBurst:
         # Each client creates burst_size nodes while disconnected.
         for i, store in enumerate(clients):
             for j in range(burst_size):
-                store.create_node(f"actor{i}-node-{j:04d}", kind="block")
+                await store.create_node(f"actor{i}-node-{j:04d}", kind="block")
 
         # Sync rounds: push all clients, then pull all clients, repeat once.
         for sync in syncs:
@@ -109,13 +113,13 @@ class TestMultiClientConvergenceBurst:
             for j in range(burst_size)
         }
 
-        first_nodes = {row["id"] for row in clients[0].list_nodes()}
+        first_nodes = {row["id"] for row in await clients[0].list_nodes()}
         assert first_nodes == expected_nodes, (
             f"Client 0 has {len(first_nodes)} nodes, expected {len(expected_nodes)}"
         )
 
         for store in clients[1:]:
-            nodes = {row["id"] for row in store.list_nodes()}
+            nodes = {row["id"] for row in await store.list_nodes()}
             assert nodes == first_nodes, (
                 f"Client node set mismatch: {len(nodes)} vs {len(first_nodes)}"
             )
@@ -123,3 +127,6 @@ class TestMultiClientConvergenceBurst:
         assert elapsed < max(5.0, total_ops / 400), (
             f"Burst convergence for {total_ops} ops took {elapsed:.3f}s"
         )
+
+        for store in clients:
+            await store.close()

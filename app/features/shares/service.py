@@ -7,17 +7,33 @@ operation-log derived state via :class:`app.core.workspace_store.WorkspaceStore`
 
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from app.core.workspace_store import WorkspaceStore
 from app.domain.entities.share import PublicShare
 from app.domain.ports import EmailSender, InviteEmailResult
+from app.domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from app.features.export.service import ExportService
 from app.logging_config import get_logger
 
 from .port import ShareRepository
 
 logger = get_logger(__name__)
+
+
+def _display_name_from_content(content: str | None) -> str:
+    """Return a plain-text display name from a node's content AST."""
+    if not content:
+        return "Untitled"
+    try:
+        ast = parse_ast(content, ParseMode.JSON)
+        text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY)) or ""
+    except (ValueError, TypeError):
+        text = content or ""
+    return text.strip() or "Untitled"
 
 
 class ShareService:
@@ -38,6 +54,47 @@ class ShareService:
         self._workspace_uuid = workspace_uuid
         self._user_id = user_id
         self._email_sender = email_sender
+
+    @staticmethod
+    async def enrich_share_inbox(
+        items: list[dict[str, Any]],
+        store_factory: Callable[[str], WorkspaceStore],
+    ) -> list[dict[str, Any]]:
+        """Enrich inbox items with node metadata from the derived store.
+
+        Items are grouped by workspace so each workspace's
+        :class:`WorkspaceStore` is synced once and queried in batch.
+        """
+        by_workspace: dict[str, list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+        for idx, item in enumerate(items):
+            by_workspace[item["workspace"]["uuid"]].append((idx, item))
+
+        for workspace_uuid, indexed_items in by_workspace.items():
+            store = store_factory(workspace_uuid)
+            try:
+                await store.sync()
+                node_uuids = [item["node_uuid"] for _, item in indexed_items]
+                placeholders = ",".join("?" * len(node_uuids))
+                rows = await store.query(
+                    f"SELECT id, kind, content FROM node WHERE id IN ({placeholders})",
+                    tuple(node_uuids),
+                )
+                node_map = {row["id"]: row for row in rows}
+
+                for _, item in indexed_items:
+                    node_row = node_map.get(item["node_uuid"])
+                    if node_row is None:
+                        item["node_name"] = "Untitled"
+                        item["node_icon"] = None
+                        item["is_page"] = False
+                    else:
+                        item["node_name"] = _display_name_from_content(node_row["content"])
+                        item["node_icon"] = None
+                        item["is_page"] = node_row["kind"] == "page"
+            finally:
+                await store.close()
+
+        return items
 
     async def create_share(
         self,

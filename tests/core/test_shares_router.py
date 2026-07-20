@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
@@ -26,6 +26,7 @@ from app.features.shares.dependencies import (
     get_share_repository_for_public,
     get_share_service,
     get_workspace_store,
+    get_workspace_store_factory,
 )
 from app.features.shares.public_router import router as public_router
 from app.features.shares.router import (
@@ -51,11 +52,12 @@ class FixedKeyStorage:
 async def _make_test_store(
     workspace_id: str = "ws-uuid-1",
     actor_id: str = "actor-1",
+    relay_storage: SqliteRelayStorage | None = None,
 ) -> WorkspaceStore:
     return WorkspaceStore(
         workspace_id=workspace_id,
         actor_id=actor_id,
-        relay_storage=SqliteRelayStorage(":memory:"),
+        relay_storage=relay_storage or SqliteRelayStorage(":memory:"),
         db_path=":memory:",
         key_storage=FixedKeyStorage(),
     )
@@ -73,8 +75,35 @@ class FakeShareRepository:
         self._user_id = user_id
         self._public: dict[str, PublicShare] = {}
         self._user_shares: dict[str, dict[str, Any]] = {}
+        self._inbox_entries: list[dict[str, Any]] = []
         self._next_public_id = 1
         self._next_user_id = 1
+
+    def add_inbox_entry(
+        self,
+        node_uuid: str,
+        workspace_id: int = 1,
+        workspace_uuid: str = "ws-uuid-1",
+        workspace_name: str = "Test Workspace",
+        can_write: bool = False,
+        shared_by_email: str = "owner@example.com",
+        share_uuid: str = "inbox-share-1",
+    ) -> None:
+        """Seed a share-inbox row for testing."""
+        self._inbox_entries.append(
+            {
+                "share_uuid": share_uuid,
+                "node_uuid": node_uuid,
+                "can_read": True,
+                "can_write": can_write,
+                "shared_at": datetime.now(UTC),
+                "shared_by_id": 1,
+                "shared_by_email": shared_by_email,
+                "workspace_id": workspace_id,
+                "workspace_name": workspace_name,
+                "workspace_uuid": workspace_uuid,
+            }
+        )
 
     async def create_share(
         self,
@@ -128,7 +157,9 @@ class FakeShareRepository:
     async def list_share_inbox(
         self, user_id: int, page: int, page_size: int
     ) -> tuple[int, list[Any]]:
-        return 0, []
+        total = len(self._inbox_entries)
+        offset = (page - 1) * page_size
+        return total, self._inbox_entries[offset : offset + page_size]
 
     async def create_node_user_share(
         self,
@@ -204,7 +235,8 @@ def _make_share_service(share_repo: FakeShareRepository) -> ShareService:
 @pytest_asyncio.fixture
 async def shares_client() -> AsyncGenerator[AsyncClient, None]:
     """Authenticated test client with the shares store dependency overridden."""
-    store = await _make_test_store(actor_id="owner-uuid-1")
+    relay_storage = SqliteRelayStorage(":memory:")
+    store = await _make_test_store(actor_id="owner-uuid-1", relay_storage=relay_storage)
     share_repo = FakeShareRepository()
     share_service = _make_share_service(share_repo)
 
@@ -243,6 +275,18 @@ async def shares_client() -> AsyncGenerator[AsyncClient, None]:
         finally:
             await store.close()
 
+    async def _override_get_workspace_store_factory() -> Callable[[str], WorkspaceStore]:
+        def factory(workspace_uuid: str) -> WorkspaceStore:
+            return WorkspaceStore(
+                workspace_id=workspace_uuid,
+                actor_id="owner-uuid-1",
+                relay_storage=relay_storage,
+                db_path=":memory:",
+                key_storage=FixedKeyStorage(),
+            )
+
+        return factory
+
     test_app = FastAPI()
     test_app.include_router(workspace_shares_router)
     test_app.include_router(node_shares_router)
@@ -259,10 +303,14 @@ async def shares_client() -> AsyncGenerator[AsyncClient, None]:
     test_app.dependency_overrides[
         get_public_workspace_store
     ] = _override_get_public_workspace_store
+    test_app.dependency_overrides[
+        get_workspace_store_factory
+    ] = _override_get_workspace_store_factory
 
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         client._shares_test_store = store  # type: ignore[attr-defined]
+        client._shares_test_repo = share_repo  # type: ignore[attr-defined]
         yield client
 
 
@@ -417,6 +465,41 @@ class TestUserShares:
             (share_uuid,),
         )
         assert len(rows) == 0
+
+
+def _repo(client: AsyncClient) -> FakeShareRepository:
+    return client._shares_test_repo  # type: ignore[no-any-return,attr-defined]
+
+
+class TestShareInbox:
+    async def test_share_inbox_enriches_from_derived_store(
+        self, shares_client: AsyncClient
+    ) -> None:
+        store = _store(shares_client)
+        repo = _repo(shares_client)
+        await store.create_node(TEST_NODE_UUID, "page")
+        await store.update_content(
+            TEST_NODE_UUID,
+            [{"type": "paragraph", "children": [{"type": "text", "text": "Inbox Node"}]}],
+        )
+        await store.sync()
+
+        repo.add_inbox_entry(
+            TEST_NODE_UUID,
+            workspace_uuid="ws-uuid-1",
+            can_write=True,
+        )
+
+        response = await shares_client.get("/shares/inbox")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 1
+        item = body["items"][0]
+        assert item["node_uuid"] == TEST_NODE_UUID
+        assert item["node_name"] == "Inbox Node"
+        assert item["is_page"] is True
+        assert item["node_icon"] is None
+        assert item["permission"] == "write"
 
 
 class TestPublicRouter:

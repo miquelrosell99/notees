@@ -133,7 +133,12 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
     async def list_share_inbox(
         self, user_id: int, page: int, page_size: int
     ) -> tuple[int, list[asyncpg.Record]]:
-        """Get paginated node shares for a user."""
+        """Get paginated node shares for a user.
+
+        Node metadata (name, icon, kind) is no longer joined from the legacy
+        ``node`` table; callers enrich share rows from the operation-log derived
+        state via :class:`app.core.workspace_store.WorkspaceStore`.
+        """
         offset = (page - 1) * page_size
         async with acquire_connection(self._pool) as conn:
             total = await conn.fetchval(
@@ -148,10 +153,8 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                 SELECT ns.id, ns.uuid as share_uuid, ns.node_uuid, ns.can_read, ns.can_write,
                        ns.create_date as shared_at, ns.create_uid as shared_by_id,
                        u.email as shared_by_email,
-                       n.uuid as node_uuid_legacy, n.name as node_name, n.icon as node_icon,
-                       n.is_page, ns.workspace_id, w.name as workspace_name, w.uuid as workspace_uuid
+                       ns.workspace_id, w.name as workspace_name, w.uuid as workspace_uuid
                 FROM node_share ns
-                LEFT JOIN node n ON n.uuid = ns.node_uuid
                 JOIN "user" u ON u.id = ns.create_uid
                 JOIN workspace w ON w.id = ns.workspace_id
                 WHERE ns.user_id = $1 AND ns.active = TRUE

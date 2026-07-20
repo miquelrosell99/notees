@@ -7,22 +7,32 @@ from datetime import UTC, datetime, timedelta
 import pytest
 import pytest_asyncio
 
+from app.core.workspace_store import WorkspaceStore
 from app.db import schema
-from app.db.connection import get_connection
 from app.domain.entities import generate_uuid
 from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
-from app.plugins.builtin.flashcards.repository import PostgresFlashcardRepository
+from app.plugins.builtin.flashcards.repository import WorkspaceStoreFlashcardRepository
 from app.plugins.builtin.flashcards.service import FlashcardService
+
+
+@pytest_asyncio.fixture
+async def flashcard_store(test_user):
+    """WorkspaceStore for the test user's workspace."""
+    store = WorkspaceStore(test_user["workspace_uuid"], test_user["uuid"])
+    yield store
+    await store.close()
+
+
+def _make_service(store: WorkspaceStore, workspace_id: int, user_id: int) -> FlashcardService:
+    repo = WorkspaceStoreFlashcardRepository(store, workspace_id, user_id)
+    return FlashcardService(repo, workspace_id, user_id, store)
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_create_flashcard(db_pool, test_user):
-    """Creating a flashcard stores it against the supplied node UUID."""
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
-    service = FlashcardService(
-        repo, test_user["workspace_id"], int(test_user["id"])
-    )
+async def test_create_flashcard(db_pool, test_user, flashcard_store):
+    """Creating a flashcard emits a plugin op and stores it in derived state."""
+    service = _make_service(flashcard_store, test_user["workspace_id"], int(test_user["id"]))
     node_uuid = generate_uuid()
 
     card = await service.create_flashcard(node_uuid, "front", "back")
@@ -40,12 +50,9 @@ async def test_create_flashcard(db_pool, test_user):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_upsert_flashcard_updates_text(db_pool, test_user):
+async def test_upsert_flashcard_updates_text(db_pool, test_user, flashcard_store):
     """Inserting the same node UUID twice upserts front/back text."""
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
-    service = FlashcardService(
-        repo, test_user["workspace_id"], int(test_user["id"])
-    )
+    service = _make_service(flashcard_store, test_user["workspace_id"], int(test_user["id"]))
     node_uuid = generate_uuid()
 
     await service.create_flashcard(node_uuid, "old front", "old back")
@@ -59,12 +66,9 @@ async def test_upsert_flashcard_updates_text(db_pool, test_user):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_get_flashcard_by_node_uuid(db_pool, test_user):
+async def test_get_flashcard_by_node_uuid(db_pool, test_user, flashcard_store):
     """A stored flashcard can be fetched by its node UUID."""
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
-    service = FlashcardService(
-        repo, test_user["workspace_id"], int(test_user["id"])
-    )
+    service = _make_service(flashcard_store, test_user["workspace_id"], int(test_user["id"]))
     node_uuid = generate_uuid()
 
     created = await service.create_flashcard(node_uuid, "q", "a")
@@ -77,24 +81,18 @@ async def test_get_flashcard_by_node_uuid(db_pool, test_user):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_get_flashcard_by_node_uuid_missing(db_pool, test_user):
+async def test_get_flashcard_by_node_uuid_missing(db_pool, test_user, flashcard_store):
     """Fetching an unknown node UUID returns None."""
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
-    service = FlashcardService(
-        repo, test_user["workspace_id"], int(test_user["id"])
-    )
+    service = _make_service(flashcard_store, test_user["workspace_id"], int(test_user["id"]))
 
     assert await service.get_by_node_uuid(generate_uuid()) is None
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_review_flashcard_updates_srs(db_pool, test_user):
+async def test_review_flashcard_updates_srs(db_pool, test_user, flashcard_store):
     """Reviewing a card updates ease, interval, repetitions, lapses and due date."""
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
-    service = FlashcardService(
-        repo, test_user["workspace_id"], int(test_user["id"])
-    )
+    service = _make_service(flashcard_store, test_user["workspace_id"], int(test_user["id"]))
     node_uuid = generate_uuid()
     await service.create_flashcard(node_uuid, "q", "a")
 
@@ -118,53 +116,57 @@ async def test_get_due_cards_respects_workspace_and_ordering(db_pool, test_user)
         other_workspace_id = await schema.create_workspace_for_user(
             conn, int(test_user["id"]), name="Other"
         )
+        other_workspace_uuid = (
+            await conn.fetchrow(
+                "SELECT uuid::text as uuid FROM workspace WHERE id = $1",
+                other_workspace_id,
+            )
+        )["uuid"]
 
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
-    service = FlashcardService(
-        repo, test_user["workspace_id"], int(test_user["id"])
-    )
-    other_repo = PostgresFlashcardRepository(other_workspace_id)
-    other_service = FlashcardService(
-        other_repo, other_workspace_id, int(test_user["id"])
-    )
+    main_store = WorkspaceStore(test_user["workspace_uuid"], test_user["uuid"])
+    other_store = WorkspaceStore(other_workspace_uuid, test_user["uuid"])
+    try:
+        service = _make_service(main_store, test_user["workspace_id"], int(test_user["id"]))
+        other_service = _make_service(other_store, other_workspace_id, int(test_user["id"]))
 
-    now = datetime.now(UTC)
-    ws_node_new = generate_uuid()
-    ws_node_due = generate_uuid()
-    other_node = generate_uuid()
+        now = datetime.now(UTC)
+        ws_node_new = generate_uuid()
+        ws_node_due = generate_uuid()
+        other_node = generate_uuid()
 
-    await service.create_flashcard(ws_node_new, "new", "new")
-    await service.create_flashcard(ws_node_due, "due", "due")
-    # Manually set the second card to a past due date so it sorts after the new card.
-    await repo.update_srs(
-        ws_node_due,
-        ease_factor=2.5,
-        interval_days=1,
-        repetitions=1,
-        lapses=0,
-        due_date=now - timedelta(days=1),
-        last_reviewed_at=now,
-    )
-    await other_service.create_flashcard(other_node, "other", "other")
+        await service.create_flashcard(ws_node_new, "new", "new")
+        await service.create_flashcard(ws_node_due, "due", "due")
+        # Manually set the second card to a past due date so it sorts after the new card.
+        repo = WorkspaceStoreFlashcardRepository(main_store, test_user["workspace_id"], int(test_user["id"]))
+        await repo.update_srs(
+            ws_node_due,
+            ease_factor=2.5,
+            interval_days=1,
+            repetitions=1,
+            lapses=0,
+            due_date=now - timedelta(days=1),
+            last_reviewed_at=now,
+        )
+        await other_service.create_flashcard(other_node, "other", "other")
 
-    due = await service.get_due_cards(limit=10)
-    due_node_uuids = [c.node_uuid for c in due]
+        due = await service.get_due_cards(limit=10)
+        due_node_uuids = [c.node_uuid for c in due]
 
-    assert ws_node_new in due_node_uuids
-    assert ws_node_due in due_node_uuids
-    assert other_node not in due_node_uuids
-    # New (NULL due_date) card should come before the overdue card.
-    assert due_node_uuids.index(ws_node_new) < due_node_uuids.index(ws_node_due)
+        assert ws_node_new in due_node_uuids
+        assert ws_node_due in due_node_uuids
+        assert other_node not in due_node_uuids
+        # New (NULL due_date) card should come before the overdue card.
+        assert due_node_uuids.index(ws_node_new) < due_node_uuids.index(ws_node_due)
+    finally:
+        await main_store.close()
+        await other_store.close()
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_get_stats_returns_counts(db_pool, test_user):
+async def test_get_stats_returns_counts(db_pool, test_user, flashcard_store):
     """Stats aggregate total, due, new and mature cards for the workspace."""
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
-    service = FlashcardService(
-        repo, test_user["workspace_id"], int(test_user["id"])
-    )
+    service = _make_service(flashcard_store, test_user["workspace_id"], int(test_user["id"]))
 
     now = datetime.now(UTC)
     new_card = generate_uuid()
@@ -173,6 +175,7 @@ async def test_get_stats_returns_counts(db_pool, test_user):
 
     await service.create_flashcard(new_card, "new", "new")
     await service.create_flashcard(mature_card, "mature", "mature")
+    repo = WorkspaceStoreFlashcardRepository(flashcard_store, test_user["workspace_id"], int(test_user["id"]))
     await repo.update_srs(
         mature_card,
         ease_factor=2.5,
@@ -182,15 +185,12 @@ async def test_get_stats_returns_counts(db_pool, test_user):
         due_date=now - timedelta(days=1),
         last_reviewed_at=now,
     )
-    # Inactive cards count toward total/new/mature but not due_now.
     await service.create_flashcard(inactive_card, "inactive", "inactive")
-    from app.db.connection import get_connection
-
-    async with get_connection() as conn:
-        await conn.execute(
-            "UPDATE flashcard SET active = FALSE WHERE node_uuid = $1",
-            inactive_card,
-        )
+    # Inactive cards count toward total/new/mature but not due_now.
+    await flashcard_store.execute(
+        "UPDATE flashcard SET active = 0 WHERE node_id = ?",
+        (inactive_card,),
+    )
 
     stats = await service.get_stats()
 
@@ -204,10 +204,6 @@ async def test_get_stats_returns_counts(db_pool, test_user):
 @pytest.mark.asyncio
 async def test_hydrate_flashcard_from_node_content(db_pool, test_user):
     """Stored front/back are overridden with live node content on read."""
-    from app.core.workspace_store import WorkspaceStore
-    from app.domain.entities import generate_uuid
-    from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
-
     workspace_uuid = test_user["workspace_uuid"]
     actor_uuid = test_user["uuid"]
     store = WorkspaceStore(workspace_uuid, actor_uuid)
@@ -254,10 +250,7 @@ async def test_hydrate_flashcard_from_node_content(db_pool, test_user):
             class_ids=[SYSTEM_CLASS_UUIDS["cloze"]],
         )
 
-        repo = PostgresFlashcardRepository(test_user["workspace_id"])
-        service = FlashcardService(
-            repo, test_user["workspace_id"], int(test_user["id"]), store
-        )
+        service = _make_service(store, test_user["workspace_id"], int(test_user["id"]))
 
         await service.create_flashcard(card_uuid, "old front", "old back")
         card = await service.get_by_node_uuid(card_uuid)
@@ -271,12 +264,9 @@ async def test_hydrate_flashcard_from_node_content(db_pool, test_user):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_hydrate_fallback_when_node_missing(db_pool, test_user):
+async def test_hydrate_fallback_when_node_missing(db_pool, test_user, flashcard_store):
     """When the card node is not in derived state, stored values are preserved."""
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
-    service = FlashcardService(
-        repo, test_user["workspace_id"], int(test_user["id"]), store=None
-    )
+    service = _make_service(flashcard_store, test_user["workspace_id"], int(test_user["id"]))
     node_uuid = generate_uuid()
 
     await service.create_flashcard(node_uuid, "stored front", "stored back")
@@ -317,17 +307,23 @@ async def test_auto_create_flashcard_side_effect_handler(db_pool, test_user):
         )
     )
 
-    async with get_connection() as conn:
-        row = await conn.fetchrow(
-            "SELECT * FROM flashcard WHERE node_uuid = $1", node_uuid
+    store = WorkspaceStore(test_user["workspace_uuid"], test_user["uuid"])
+    try:
+        await store.sync()
+        rows = await store.query(
+            "SELECT * FROM flashcard WHERE node_id = ?",
+            (node_uuid,),
         )
 
-    assert row is not None
-    assert str(row["node_uuid"]) == node_uuid
-    assert row["workspace_id"] == test_user["workspace_id"]
-    assert row["user_id"] == int(test_user["id"])
-    assert row["front_text"] == ""
-    assert row["back_text"] == ""
+        assert rows
+        row = rows[0]
+        assert str(row["node_id"]) == node_uuid
+        assert row["workspace_id"] == test_user["workspace_uuid"]
+        assert row["actor_id"] == test_user["uuid"]
+        assert row["front_text"] == ""
+        assert row["back_text"] == ""
+    finally:
+        await store.close()
 
 
 @pytest.mark.unit
@@ -335,7 +331,6 @@ async def test_auto_create_flashcard_side_effect_handler(db_pool, test_user):
 async def test_auto_create_flashcard_on_class_assign(db_pool, test_user):
     """Assigning the card class via WorkspaceStore creates a flashcard record."""
     from app.core.derived.class_side_effects import clear as clear_class_side_effects
-    from app.core.workspace_store import WorkspaceStore
     from app.plugins.builtin.flashcards.setup import setup as flashcards_setup
     from app.plugins.core.context import PluginContext
     from app.plugins.core.registry import PluginRegistry
@@ -367,16 +362,19 @@ async def test_auto_create_flashcard_on_class_assign(db_pool, test_user):
             ],
         )
         await store.assign_class(node_uuid, SYSTEM_CLASS_UUIDS["card"])
+        # Side-effect handler runs in a separate store; sync to see its operation.
+        await store.sync()
 
-        async with get_connection() as conn:
-            row = await conn.fetchrow(
-                "SELECT * FROM flashcard WHERE node_uuid = $1", node_uuid
-            )
+        rows = await store.query(
+            "SELECT * FROM flashcard WHERE node_id = ?",
+            (node_uuid,),
+        )
 
-        assert row is not None
-        assert str(row["node_uuid"]) == node_uuid
-        assert row["workspace_id"] == test_user["workspace_id"]
-        assert row["user_id"] == int(test_user["id"])
+        assert rows
+        row = rows[0]
+        assert str(row["node_id"]) == node_uuid
+        assert row["workspace_id"] == test_user["workspace_uuid"]
+        assert row["actor_id"] == test_user["uuid"]
     finally:
         await store.close()
         clear_class_side_effects()
@@ -390,13 +388,13 @@ async def flashcards_client(db_pool, test_user):
     from fastapi import FastAPI
     from httpx import ASGITransport, AsyncClient
 
-    from app.core.workspace_store import WorkspaceStore
     from app.dependencies import get_current_user, get_workspace_id
     from app.models import User
     from app.plugins.builtin.flashcards.dependencies import (
         get_flashcard_service,
         get_workspace_store,
     )
+    from app.plugins.builtin.flashcards.repository import WorkspaceStoreFlashcardRepository
     from app.plugins.builtin.flashcards.router import router as flashcards_router
 
     workspace_uuid = test_user["workspace_uuid"]
@@ -424,7 +422,7 @@ async def flashcards_client(db_pool, test_user):
             await store.close()
 
     async def _override_get_flashcard_service() -> FlashcardService:
-        repo = PostgresFlashcardRepository(workspace_id)
+        repo = WorkspaceStoreFlashcardRepository(store, workspace_id, int(test_user["id"]))
         return FlashcardService(repo, workspace_id, int(test_user["id"]), store)
 
     test_app = FastAPI()
@@ -473,11 +471,11 @@ async def test_due_cards_endpoint_returns_hydrated_content(
         ],
         class_ids=[SYSTEM_CLASS_UUIDS["cloze"]],
     )
-    repo = PostgresFlashcardRepository(test_user["workspace_id"])
+    repo = WorkspaceStoreFlashcardRepository(
+        store, test_user["workspace_id"], int(test_user["id"])
+    )
     await repo.create(
         node_uuid=card_uuid,
-        workspace_id=test_user["workspace_id"],
-        user_id=int(test_user["id"]),
         front_text="",
         back_text="",
     )
