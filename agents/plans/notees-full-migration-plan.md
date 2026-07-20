@@ -1,7 +1,7 @@
 # Notees Full Migration Plan: Current App → Ideal Architecture
 
 **Date:** 2026-07-20  
-**Branch:** `main` (Sprint 14c/d complete, 14e pending)  
+**Branch:** `main` (Sprint 14 complete, docs/E2E follow-up pending)  
 **Scope:** Migrate the real Notees app (`app/`, `frontend/`, PostgreSQL) to the local-first, operation-log, CRDT-driven architecture defined in `docs/superpowers/specs/2026-07-17-notees-ideal-data-architecture-design.md`.
 
 ---
@@ -770,11 +770,22 @@ Duplicate ids:     0
 - `uv run ruff check app/ tests/unit/ tests/core/` → clean.
 - Docker Compose dev stack restarted successfully; backend healthy; frontend dev server ready.
 
-**Commit:** `f0064a45` `feat(backend,frontend): Sprint 14 final cleanup - unify WorkspaceStore, wire relay storage, remove legacy stubs`
+**14e — Drop legacy PostgreSQL tables and obsolete migrations**
+- Removed all legacy `CREATE TABLE / INDEX / TRIGGER / FUNCTION` blocks from `app/db/schema/sql.py` for `node`, `node_link`, `node_property`, `property`, `property_value_scalar`, `property_value_relation`, `property_value_selection`, `property_selection_line`, `class_property`, `class_extend`, `asset`, `flashcard`, `node_view`, `node_activity`, `node_mention`, `node_version`, `node_revision`, `task_recurrence`, `task_completion`, `undo_log`, `link_click`, and related orphaned functions/triggers.
+- Added `app/db/migrations/drop_legacy_tables.py`: idempotent `DROP TABLE IF EXISTS ... CASCADE` migration for existing databases.
+- Cleaned `app/db/schema/init.py`: removed obsolete legacy migration calls (backfill flags, repair page ids, renumber sequences, node mention/version/revision, asset M6, etc.), kept auth/relay/workspace/notifications migrations, and registered the final `drop_legacy_tables` step.
+- Deleted dead `app/utils/import_records.py`.
+- Bumped `SCHEMA_VERSION` to `5`.
+- Dev stack restarted; the live database applied the drop migration and backup size shrank from ~19 MB to ~9 MB, confirming legacy tables were removed.
 
-**Remaining (14e):**
-- Drop unused legacy tables from `app/db/schema/sql.py` once end-to-end behavior is confirmed:
-  - `node`, `node_link`, `node_property`, `property`, `property_value_scalar`, `property_value_relation`, `property_value_selection`, `property_selection_line`, `class_property`, `class_extend`, `asset` (legacy), `flashcard` (legacy), `activity_log` (legacy), `undo_log` (legacy).
-- Remove any remaining dead PostgreSQL repositories/ports that become unreachable after the table drop.
-- Delete legacy integration tests that target removed HTTP endpoints.
-- Update `AGENTS.md` and user-facing docs.
+**Verification:**
+- `uv run pytest tests/core tests/unit -m "not slow" --no-cov -q` → 413 passed, 6 skipped, 1 warning.
+- `uv run ruff check app/ tests/unit/ tests/core/` → clean.
+- Backend starts cleanly and schema initializes without errors.
+
+**Commit:** `99852f52` `feat(db): Sprint 14e - drop legacy PostgreSQL node/property/asset tables and obsolete migrations`
+
+**Remaining (post-Sprint 14):**
+- Update `AGENTS.md` and user-facing docs to reflect the completed cut-over.
+- Run E2E smoke tests against the Docker Compose dev stack once the frontend is exercised in a browser.
+- Decide whether to keep or archive `app/core/migration/` (the one-time PostgreSQL→relay migration code) now that the live data has been migrated.
