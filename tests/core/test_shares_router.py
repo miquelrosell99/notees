@@ -21,8 +21,6 @@ from app.dependencies import (
 from app.domain.entities.share import PublicShare
 from app.features.export.service import ExportService
 from app.features.shares.dependencies import (
-    NodeIdResolver,
-    get_node_id_resolver,
     get_public_workspace_store,
     get_share_repository,
     get_share_repository_for_public,
@@ -64,7 +62,6 @@ async def _make_test_store(
 
 
 TEST_NODE_UUID = "node-uuid-1"
-TEST_NODE_INTERNAL_ID = 42
 TEST_TARGET_USER_UUID = "user-uuid-target"
 
 
@@ -81,7 +78,7 @@ class FakeShareRepository:
 
     async def create_share(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         created_by: int,
         expiry_date: str | None = None,
@@ -89,7 +86,7 @@ class FakeShareRepository:
         share = PublicShare(
             id=self._next_public_id,
             uuid=f"public-share-{self._next_public_id}",
-            node_id=node_id,
+            node_uuid=node_uuid,
             workspace_id=workspace_id,
             created_by=created_by,
             created_at=datetime.now(UTC).isoformat(),
@@ -102,8 +99,8 @@ class FakeShareRepository:
     async def get_share_by_uuid(self, share_uuid: str) -> PublicShare | None:
         return self._public.get(share_uuid)
 
-    async def list_shares_for_node(self, node_id: int) -> list[PublicShare]:
-        return [s for s in self._public.values() if s.node_id == node_id and s.active]
+    async def list_shares_for_node(self, node_uuid: str) -> list[PublicShare]:
+        return [s for s in self._public.values() if s.node_uuid == node_uuid and s.active]
 
     async def list_shares_for_workspace(self, workspace_id: int) -> list[PublicShare]:
         return [
@@ -121,7 +118,7 @@ class FakeShareRepository:
         share = await self.get_share_by_uuid(share_uuid)
         if share is None or not share.is_valid():
             return None
-        return {"id": share.node_id, "uuid": TEST_NODE_UUID, "name": "Shared"}
+        return {"node_uuid": share.node_uuid}
 
     async def set_share_password(self, share_id: int, password_hash: str) -> None:
         for share in self._public.values():
@@ -135,7 +132,7 @@ class FakeShareRepository:
 
     async def create_node_user_share(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         user_id: int,
         target_email: str,
@@ -146,11 +143,12 @@ class FakeShareRepository:
                 "status": "pending",
                 "email": target_email,
                 "invite_token": "invite-token-1",
+                "node_uuid": node_uuid,
             }
         row = {
             "id": self._next_user_id,
             "uuid": f"user-share-{self._next_user_id}",
-            "node_id": node_id,
+            "node_uuid": node_uuid,
             "user_id": 99,
             "user_uuid": TEST_TARGET_USER_UUID,
             "can_write": permission == "write",
@@ -164,10 +162,9 @@ class FakeShareRepository:
         return row
 
     async def list_node_user_shares(
-        self, node_id: int, workspace_id: int, user_id: int
-    ) -> tuple[bool, list[Any]]:
-        rows = [r for r in self._user_shares.values() if r["node_id"] == node_id]
-        return True, rows
+        self, node_uuid: str, workspace_id: int, user_id: int
+    ) -> list[Any]:
+        return [r for r in self._user_shares.values() if r["node_uuid"] == node_uuid]
 
     async def revoke_user_share(
         self, share_id: int, workspace_id: int, user_id: int
@@ -187,8 +184,7 @@ class FakeShareRepository:
             return None
         del self._user_shares[share_uuid]
         return {
-            "node_id": row["node_id"],
-            "node_uuid": TEST_NODE_UUID,
+            "node_uuid": row["node_uuid"],
             "share_uuid": share_uuid,
         }
 
@@ -207,7 +203,7 @@ def _make_share_service(share_repo: FakeShareRepository) -> ShareService:
 @pytest_asyncio.fixture
 async def shares_client() -> AsyncGenerator[AsyncClient, None]:
     """Authenticated test client with the shares store dependency overridden."""
-    store = await _make_test_store()
+    store = await _make_test_store(actor_id="owner-uuid-1")
     share_repo = FakeShareRepository()
     share_service = _make_share_service(share_repo)
 
@@ -228,12 +224,6 @@ async def shares_client() -> AsyncGenerator[AsyncClient, None]:
 
     async def _override_require_scope() -> User:
         return await _override_get_current_user()
-
-    async def _override_get_node_id_resolver() -> AsyncGenerator[NodeIdResolver, None]:
-        async def _fake_resolver(_workspace_id: int, _node_uuid: str) -> int:
-            return TEST_NODE_INTERNAL_ID
-
-        yield _fake_resolver
 
     async def _override_get_share_repository() -> AsyncGenerator[Any, None]:
         yield share_repo
@@ -260,7 +250,6 @@ async def shares_client() -> AsyncGenerator[AsyncClient, None]:
     test_app.dependency_overrides[get_current_user] = _override_get_current_user
     test_app.dependency_overrides[require_read_or_write_scope] = _override_require_scope
     test_app.dependency_overrides[require_write_scope] = _override_require_scope
-    test_app.dependency_overrides[get_node_id_resolver] = _override_get_node_id_resolver
     test_app.dependency_overrides[get_share_repository] = _override_get_share_repository
     test_app.dependency_overrides[
         get_share_repository_for_public
@@ -310,7 +299,7 @@ class TestPublicShares:
         store = _store(shares_client)
         await store.create_node(TEST_NODE_UUID, "page")
         await store.create_public_share(
-            share_id="share-1", node_id=TEST_NODE_UUID, slug="slug-1"
+            share_id="share-1", node_uuid=TEST_NODE_UUID, slug="slug-1"
         )
         await store.sync()
 
@@ -394,7 +383,7 @@ class TestUserShares:
         store = _store(shares_client)
         await store.create_node(TEST_NODE_UUID, "page")
         await store.grant_user_share(
-            share_id="us-1", node_id=TEST_NODE_UUID, user_id=TEST_TARGET_USER_UUID, permission="read"
+            share_id="us-1", node_uuid=TEST_NODE_UUID, user_id=TEST_TARGET_USER_UUID, permission="read"
         )
         await store.sync()
 

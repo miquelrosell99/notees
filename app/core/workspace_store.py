@@ -633,7 +633,7 @@ class WorkspaceStore:
     async def create_public_share(
         self,
         share_id: str,
-        node_id: str,
+        node_uuid: str,
         slug: str,
         password_hash: str | None = None,
         expiry_date: str | None = None,
@@ -641,28 +641,28 @@ class WorkspaceStore:
         """Emit a ``share.public.create`` operation."""
         payload: dict[str, Any] = {
             "shareId": share_id,
-            "nodeId": node_id,
+            "nodeId": node_uuid,
             "slug": slug,
         }
         if password_hash is not None:
             payload["passwordHash"] = password_hash
         if expiry_date is not None:
             payload["expiryDate"] = expiry_date
-        await self.apply(self._build_operation("share.public.create", payload, [node_id]))
+        await self.apply(self._build_operation("share.public.create", payload, [node_uuid]))
 
-    async def revoke_public_share(self, share_id: str, node_id: str | None = None) -> None:
+    async def revoke_public_share(self, share_id: str, node_uuid: str | None = None) -> None:
         """Emit a ``share.public.revoke`` operation."""
         payload: dict[str, Any] = {"shareId": share_id}
         affected_nodes: list[str] = []
-        if node_id is not None:
-            payload["nodeId"] = node_id
-            affected_nodes.append(node_id)
+        if node_uuid is not None:
+            payload["nodeId"] = node_uuid
+            affected_nodes.append(node_uuid)
         await self.apply(self._build_operation("share.public.revoke", payload, affected_nodes))
 
     async def grant_user_share(
         self,
         share_id: str,
-        node_id: str,
+        node_uuid: str,
         user_id: str,
         permission: str,
     ) -> None:
@@ -679,11 +679,11 @@ class WorkspaceStore:
                 "share.user.grant",
                 {
                     "shareId": share_id,
-                    "nodeId": node_id,
+                    "nodeId": node_uuid,
                     "targetUserId": user_id,
                     "permissionBits": permission_bits,
                 },
-                [node_id, user_id],
+                [node_uuid, user_id],
             )
         )
 
@@ -701,15 +701,15 @@ class WorkspaceStore:
     async def revoke_user_share(
         self,
         share_id: str,
-        node_id: str | None = None,
+        node_uuid: str | None = None,
         user_id: str | None = None,
     ) -> None:
         """Emit a ``share.user.revoke`` operation."""
         payload: dict[str, Any] = {"shareId": share_id}
         affected_nodes: list[str] = []
-        if node_id is not None:
-            payload["nodeId"] = node_id
-            affected_nodes.append(node_id)
+        if node_uuid is not None:
+            payload["nodeId"] = node_uuid
+            affected_nodes.append(node_uuid)
         if user_id is not None:
             payload["targetUserId"] = user_id
             affected_nodes.append(user_id)
