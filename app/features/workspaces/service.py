@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.seed import seed_workspace_relay
 from app.domain.ports import EmailSender
 from app.features.auth.port import UserRepository
 from app.features.workspaces.port import WorkspaceRepository
@@ -93,12 +94,22 @@ class WorkspaceService:
             raise RuntimeError("Failed to create workspace")
 
         workspace_id = row["id"]
+        workspace_uuid = str(row["uuid"])
         await self._workspace_repo.seed_workspace(workspace_id, numeric_user_id)
         await self._workspace_repo.ensure_user_page(workspace_id, numeric_user_id)
 
-        self.set_active_workspace(user_id, str(row["uuid"]))
+        # Seed the canonical operation-log state for the local-first frontend.
+        user = await self._user_repo.get_by_id_or_uuid(user_id)
+        if user is not None:
+            await seed_workspace_relay(
+                workspace_uuid,
+                actor_id=user.uuid,
+                user_display_name=user.name or user.email,
+            )
+
+        self.set_active_workspace(user_id, workspace_uuid)
         return {
-            "uuid": str(row["uuid"]),
+            "uuid": workspace_uuid,
             "name": row["name"],
             "created_at": row["create_date"].isoformat() if row["create_date"] else None,
         }
