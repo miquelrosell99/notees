@@ -6,6 +6,7 @@ import { queryAll, queryOne, transaction } from './db/sqlite';
 import { applyNodeOperation } from './derived/node';
 import { applyChildOrderOperation } from './derived/childOrder';
 import { applyPropertyOperation } from './derived/property';
+import { applyNodeViewOperation } from './derived/nodeView';
 import { applyAssetOperation } from './derived/asset';
 import { applyTaskOperation } from './derived/task';
 import { applyActivityOperation } from './derived/activity';
@@ -22,12 +23,17 @@ import {
   type ClassPropertyEdgeDeletePayload,
   type ClassPropertyEdgeReorderPayload,
   type ClassPropertyEdgeUpdatePayload,
+  type NodeViewCreatePayload,
+  type NodeViewDeletePayload,
+  type NodeViewReorderPayload,
+  type NodeViewUpdatePayload,
   type Operation,
   type PropertySchemaCreatePayload,
   type PropertySchemaDeletePayload,
   type PropertySchemaUpdatePayload,
 } from './types/operation';
 import { uuidv7 } from './uuid';
+import { createEmptyQueryAST } from '@/types/queryAST';
 import { createDatabase } from './db/connection';
 
 export interface NodeRow {
@@ -50,6 +56,16 @@ export interface WorkspaceStoreOptions {
   /** Interval in ms to debounce persistence; defaults to 500. */
   persistDebounceMs?: number;
 }
+
+const DEFAULT_VIEW_NAMES: Record<string, string> = {
+  child_pages: 'Child Pages',
+  linked_references: 'Linked References',
+  unlinked_references: 'Unlinked References',
+  classed_nodes: 'Classed Nodes',
+  extended_by: 'Extended By',
+  main_content: 'Main Content',
+  all_pages: 'All Pages',
+};
 
 export class WorkspaceStore {
   private clock: Clock;
@@ -126,6 +142,7 @@ export class WorkspaceStore {
       applyNodeOperation(db, op);
       applyChildOrderOperation(db, op);
       applyPropertyOperation(db, op);
+      applyNodeViewOperation(db, op);
       applyAssetOperation(db, op);
       applyTaskOperation(db, op);
       applyActivityOperation(db, op);
@@ -525,6 +542,98 @@ export class WorkspaceStore {
       args
     );
     this.apply(op);
+  }
+
+  createNodeView(args: Omit<NodeViewCreatePayload, 'viewId'> & { viewId?: string }): string {
+    const viewId = args.viewId ?? uuidv7();
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.nodeId, viewId],
+        opType: 'nodeView.create',
+      },
+      { ...args, viewId } satisfies NodeViewCreatePayload
+    );
+    this.apply(op);
+    return viewId;
+  }
+
+  updateNodeView(args: NodeViewUpdatePayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.viewId],
+        opType: 'nodeView.update',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
+  deleteNodeView(viewId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [viewId],
+        opType: 'nodeView.delete',
+      },
+      { viewId } satisfies NodeViewDeletePayload
+    );
+    this.apply(op);
+  }
+
+  reorderNodeViews(args: NodeViewReorderPayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.nodeId, ...args.orderedViewIds],
+        opType: 'nodeView.reorder',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
+  ensureDefaultNodeViews(nodeId: string, viewTypes: string[]): string[] {
+    const existingTypes = new Set(
+      queryAll<{ view_type: string }>(
+        this.db,
+        'SELECT view_type FROM node_view WHERE node_id = ? AND active = 1',
+        [nodeId]
+      ).map((r) => r.view_type)
+    );
+
+    const created: string[] = [];
+    for (const viewType of viewTypes) {
+      if (existingTypes.has(viewType)) continue;
+
+      const maxOrderRow = queryOne<{ max_order: number | null }>(
+        this.db,
+        'SELECT MAX(order_index) AS max_order FROM node_view WHERE node_id = ? AND view_type = ? AND active = 1',
+        [nodeId, viewType]
+      );
+      const orderIndex = (maxOrderRow?.max_order ?? -1) + 1;
+
+      const viewId = this.createNodeView({
+        nodeId,
+        name: DEFAULT_VIEW_NAMES[viewType] ?? viewType,
+        viewType,
+        orderIndex,
+        isDefault: true,
+        queryAst: createEmptyQueryAST(),
+      });
+      created.push(viewId);
+      existingTypes.add(viewType);
+    }
+    return created;
   }
 
   getOrCreateNode(id: string, defaults: Partial<Omit<NodeRow, 'id'>> & { kind: NodeRow['kind'] }): NodeRow {

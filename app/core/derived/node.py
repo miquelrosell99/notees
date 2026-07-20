@@ -16,6 +16,7 @@ from .child_order import (
 from .class_hierarchy import delete_class_hierarchy_for_node
 from .crdt_state import delete_crdt_state_for_node
 from .edge import rebuild_edges_for_node
+from .node_view import delete_node_views_for_node
 from .search import reindex_node
 
 
@@ -81,6 +82,7 @@ def apply_node_delete(conn: sqlite3.Connection, op: Operation) -> None:
     delete_crdt_state_for_node(conn, node_id)
     conn.execute("DELETE FROM search_index WHERE node_id = ?", (node_id,))
     delete_class_hierarchy_for_node(conn, node_id)
+    delete_node_views_for_node(conn, node_id)
 
 
 def apply_node_move(conn: sqlite3.Connection, op: Operation) -> None:

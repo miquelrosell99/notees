@@ -2,6 +2,7 @@ import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
 import { loadTextCrdt, saveTextCrdt } from './crdtState';
 import { reindexNode } from './search';
+import { deleteNodeViewsForNode } from './nodeView';
 import { queryAll, queryOne } from '../db/sqlite';
 
 function recordNodeVersion(
@@ -95,6 +96,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_version WHERE node_id = ?', [nodeId]);
+    deleteNodeViewsForNode(db, nodeId);
   } else if (opType === 'node.delete') {
     const nodeId = payload.nodeId as string;
     db.run('DELETE FROM node WHERE id = ?', [nodeId]);
@@ -109,6 +111,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_version WHERE node_id = ?', [nodeId]);
+    deleteNodeViewsForNode(db, nodeId);
   } else if (opType === 'class.create') {
     const classId = payload.classId as string;
     db.run(
