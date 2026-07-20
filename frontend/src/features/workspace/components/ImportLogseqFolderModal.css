@@ -1,0 +1,188 @@
+/**
+ * ImportLogseqFolderModal styles
+ */
+
+.import-logseq__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.import-logseq__description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.import-logseq__description code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-hairline) var(--spacing-xxs);
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-extra-small);
+}
+
+.import-logseq__file-input {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.import-logseq__file-input::file-selector-button {
+  padding: var(--spacing-1-5) var(--spacing-3-5);
+  margin-right: var(--spacing-3);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-shorter) var(--motion-easing-standard);
+}
+
+.import-logseq__file-input::file-selector-button:hover {
+  background: var(--color-surface-container);
+}
+
+.import-logseq__error {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  color: var(--color-error);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+}
+
+.import-logseq__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.import-logseq__badges {
+  display: flex;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.import-logseq__badge {
+  display: inline-flex;
+  padding: var(--spacing-1) var(--spacing-2-5);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface-variant);
+  border-radius: var(--shape-full);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.import-logseq__page-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 15rem;
+  overflow-y: auto;
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+}
+
+.import-logseq__page-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-1-5) var(--spacing-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.import-logseq__page-item:last-child {
+  border-bottom: none;
+}
+
+.import-logseq__page-item--more {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.import-logseq__page-blocks {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+}
+
+.import-logseq__status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.import-logseq__status-bar {
+  height: 0.5rem;
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-full);
+  overflow: hidden;
+}
+
+.import-logseq__status-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width var(--motion-duration-shorter) var(--motion-easing-standard);
+}
+
+.import-logseq__status-message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+}
+
+.import-logseq__report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.import-logseq__report-success {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.import-logseq__report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.import-logseq__report-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-1-5) var(--spacing-3);
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.import-logseq__report-errors {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.import-logseq__report-errors summary {
+  cursor: pointer;
+  color: var(--color-error);
+}
+
+.import-logseq__report-errors ul {
+  margin: var(--spacing-2) 0 0;
+  padding-left: var(--spacing-4);
+}
+
+.import-logseq__report-errors li {
+  margin-bottom: var(--spacing-1);
+}
