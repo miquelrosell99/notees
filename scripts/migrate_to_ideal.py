@@ -34,12 +34,14 @@ from app.core.migration.nodes import (
     migrate_nodes_for_workspace,
 )
 from app.core.migration.properties import migrate_properties_for_workspace
+from app.core.migration.relay_writer import PostgresOperationWriter
 from app.core.migration.writer import (
     InMemoryOperationWriter,
     OperationWriter,
     SqliteOperationWriter,
 )
 from app.core.uuid import uuidv7
+from app.db.connection import setup_jsonb_codec
 
 
 async def _fetch_workspace_ids(conn: Any) -> list[int]:
@@ -91,6 +93,16 @@ async def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Generate asset operations but do not copy blob files",
     )
+    parser.add_argument(
+        "--relay",
+        action="store_true",
+        help="Write operations directly to the PostgreSQL relay_envelope table",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Migrate even if the workspace already has relay envelopes",
+    )
     args = parser.parse_args(argv)
 
     load_dotenv()
@@ -99,11 +111,15 @@ async def main(argv: list[str] | None = None) -> int:
     physical_time = int(datetime.now(UTC).timestamp() * 1000)
 
     conn = await connect_postgres()
+    await setup_jsonb_codec(conn)
     writer: OperationWriter
     try:
         if args.dry_run:
             writer = InMemoryOperationWriter()
-            print("DRY RUN: operations will not be written to SQLite")
+            print("DRY RUN: operations will not be written")
+        elif args.relay:
+            writer = PostgresOperationWriter(conn)
+            print("Writing operations directly to PostgreSQL relay_envelope")
         else:
             output_path = args.output or f"data/migration/ideal-{uuidv7()}.sqlite"
             writer = SqliteOperationWriter(output_path)
@@ -114,6 +130,12 @@ async def main(argv: list[str] | None = None) -> int:
             print("No workspaces found to migrate.")
             return 0
 
+        async def _flush() -> None:
+            if isinstance(writer, PostgresOperationWriter):
+                flushed = await writer.flush()
+                if flushed:
+                    print(f"  flushed {flushed} envelopes to relay")
+
         total_ops = 0
         for ws_id in workspace_ids:
             ctx = await create_migration_context(
@@ -122,6 +144,15 @@ async def main(argv: list[str] | None = None) -> int:
                 actor_id=actor_id,
                 physical_time=physical_time,
             )
+
+            if args.relay and not args.force:
+                existing = await writer.count_operations(ctx.workspace_uuid)
+                if existing:
+                    print(
+                        f"Workspace {ws_id}: skipping, already has {existing} relay envelope(s)"
+                    )
+                    continue
+
             count = await migrate_nodes_for_workspace(
                 conn=conn,
                 workspace_int_id=ws_id,
@@ -131,6 +162,7 @@ async def main(argv: list[str] | None = None) -> int:
             )
             total_ops += count
             print(f"Workspace {ws_id}: {count} node operations generated")
+            await _flush()
 
             prop_ops = await migrate_properties_for_workspace(
                 conn=conn,
@@ -141,6 +173,7 @@ async def main(argv: list[str] | None = None) -> int:
                 writer.write_operation(op)
             total_ops += len(prop_ops)
             print(f"Workspace {ws_id}: {len(prop_ops)} property/class operations generated")
+            await _flush()
 
             relation_targets = await map_property_relation_targets(
                 conn=conn,
@@ -160,6 +193,7 @@ async def main(argv: list[str] | None = None) -> int:
             )
             total_ops += link_ops
             print(f"Workspace {ws_id}: {link_ops} link operations generated")
+            await _flush()
 
             asset_ops = await migrate_assets_for_workspace(
                 conn=conn,
@@ -171,6 +205,7 @@ async def main(argv: list[str] | None = None) -> int:
             )
             total_ops += asset_ops
             print(f"Workspace {ws_id}: {asset_ops} asset operations generated")
+            await _flush()
 
             if args.dry_run:
                 ops_in_workspace = count + len(prop_ops) + link_ops + asset_ops
@@ -183,8 +218,11 @@ async def main(argv: list[str] | None = None) -> int:
 
         print(f"Total operations generated: {total_ops}")
     finally:
+        if isinstance(writer, PostgresOperationWriter):
+            await writer.aclose()
+        else:
+            writer.close()
         await conn.close()
-        writer.close()
 
     return 0
 
