@@ -153,14 +153,14 @@ async def load_plugin(plugin_id: str):
     plugin = plugin_manager.get_plugin(plugin_id)
     if plugin is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Plugin not found")
-    loaded = await plugin_manager.load_plugin_dir(Path(plugin.path), enabled=True)
+    loaded = plugin_manager.load_plugin_dir(Path(plugin.path), enabled=True)
     return _plugin_summary(loaded)
 
 
 @router.post("/{plugin_id}/unload", dependencies=[Depends(require_admin)])
 async def unload_plugin_endpoint(plugin_id: str):
     """Deactivate a loaded plugin without removing its files."""
-    ok = await plugin_manager.unload_plugin(plugin_id)
+    ok = plugin_manager.unload_plugin(plugin_id)
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Plugin not found")
     return {"id": plugin_id, "loaded": False}
@@ -170,7 +170,7 @@ async def unload_plugin_endpoint(plugin_id: str):
 async def reload_plugin_endpoint(plugin_id: str):
     """Reload a plugin's code and re-register its contributions."""
     try:
-        loaded = await plugin_manager.reload_plugin(plugin_id)
+        loaded = plugin_manager.reload_plugin(plugin_id)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     return _plugin_summary(loaded)
@@ -185,7 +185,7 @@ async def uninstall_plugin(plugin_id: str):
     if plugin.manifest.builtin:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot uninstall built-in plugins")
 
-    await plugin_manager.unload_plugin(plugin_id)
+    plugin_manager.unload_plugin(plugin_id)
     plugin_manager.registry.remove_plugin(plugin_id)
     shutil.rmtree(plugin.path, ignore_errors=True)
     return {"id": plugin_id, "uninstalled": True}
@@ -209,7 +209,7 @@ async def update_plugin(plugin_id: str):
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"git pull failed: {detail}")
 
     try:
-        loaded = await plugin_manager.reload_plugin(plugin_id)
+        loaded = plugin_manager.reload_plugin(plugin_id)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc)) from exc
     return _plugin_summary(loaded)

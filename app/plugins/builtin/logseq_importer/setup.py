@@ -13,6 +13,6 @@ router = APIRouter()
 router.include_router(logseq_router)
 
 
-async def setup(context: PluginContext) -> None:
+def setup(context: PluginContext) -> None:
     context.register_router(router, prefix="logseq")
     context.register_importer(LogseqFolderImporter())
