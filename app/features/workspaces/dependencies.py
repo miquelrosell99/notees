@@ -28,13 +28,13 @@ def _make_workspace_io_repository(pool: asyncpg.Pool) -> WorkspaceIORepository:
     return PostgresWorkspaceIORepository(pool)
 
 
-def _make_export_repository(pool: asyncpg.Pool):
+def _make_export_repository(actor_id: str):
     # Import inside the function to avoid a circular import cycle with the
     # export feature's __init__ module, which eagerly imports the routers that
     # depend on app.dependencies.
-    from app.features.export.repository import PostgresExportRepository
+    from app.features.export.repository import WorkspaceStoreExportRepository
 
-    return PostgresExportRepository(pool)
+    return WorkspaceStoreExportRepository(actor_id)
 
 
 def _make_export_renderer() -> NodeExportRenderer:
@@ -71,17 +71,20 @@ async def _get_workspace_io_service(user_id: int | str | None = None) -> Workspa
     from app.models import User
 
     numeric_user_id: int | None = None
+    actor_id = "system"
     if isinstance(user_id, User):
         numeric_user_id = int(user_id.id) if user_id.id is not None else None
+        actor_id = user_id.uuid
     elif user_id is not None:
         numeric_user_id = int(user_id) if str(user_id).isdigit() else None
+        actor_id = str(user_id)
 
     pool = await get_pool()
     data_dir = await get_data_dir()
     return WorkspaceIOService(
         repo=_make_workspace_io_repository(pool),
         data_dir=Path(data_dir),
-        export_repo=_make_export_repository(pool),
+        export_repo=_make_export_repository(actor_id),
         renderer=_make_export_renderer(),
         user_id=numeric_user_id,
     )

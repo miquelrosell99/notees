@@ -226,8 +226,8 @@ class WorkspaceIOService:
             for i, node_uuid in enumerate(page_uuids):
                 try:
                     content_bytes, _fn, _mime = await export_service.export_nodes(
-                        workspace_id=workspace_id,
-                        node_ids=[node_uuid],
+                        workspace_uuid=workspace_uuid,
+                        node_uuids=[node_uuid],
                         format=format,
                         include_children=True,
                         layout="outline",

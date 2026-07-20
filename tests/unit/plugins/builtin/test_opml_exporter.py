@@ -26,7 +26,7 @@ async def test_opml_exporter_empty_nodes_raises() -> None:
     exporter = OpmlExporter()
     context = ExportContext(
         node_ids=[],
-        workspace_id=1,
+        workspace_uuid="ws-uuid-1",
         user_id=1,
         plugin_context=None,  # type: ignore[arg-type]
         nodes_data=[],
@@ -46,8 +46,8 @@ async def test_opml_exporter_flat_list() -> None:
         {"id": 2, "uuid": "uuid-2", "name": _ast_text_json("Second"), "depth": 0, "is_page": True},
     ]
     context = ExportContext(
-        node_ids=[1, 2],
-        workspace_id=1,
+        node_ids=["uuid-1", "uuid-2"],
+        workspace_uuid="ws-uuid-1",
         user_id=1,
         plugin_context=None,  # type: ignore[arg-type]
         nodes_data=nodes_data,
@@ -79,8 +79,8 @@ async def test_opml_exporter_nested_outline() -> None:
         {"id": 4, "uuid": "uuid-4", "name": _ast_text_json("Grandchild"), "depth": 2, "is_page": False},
     ]
     context = ExportContext(
-        node_ids=[1, 2, 3, 4],
-        workspace_id=1,
+        node_ids=["uuid-1", "uuid-2", "uuid-3", "uuid-4"],
+        workspace_uuid="ws-uuid-1",
         user_id=1,
         plugin_context=None,  # type: ignore[arg-type]
         nodes_data=nodes_data,
@@ -115,8 +115,8 @@ async def test_opml_exporter_show_uuid_option() -> None:
         {"id": 1, "uuid": "uuid-abc", "name": _ast_text_json("Node"), "depth": 0, "is_page": True},
     ]
     context = ExportContext(
-        node_ids=[1],
-        workspace_id=1,
+        node_ids=["uuid-abc"],
+        workspace_uuid="ws-uuid-1",
         user_id=1,
         plugin_context=None,  # type: ignore[arg-type]
         nodes_data=nodes_data,

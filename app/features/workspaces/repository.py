@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -9,26 +10,188 @@ from typing import Any
 
 import asyncpg
 
+from app.config import settings
 from app.db.connection import acquire_connection, get_workspace_dir
-from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
-from app.features.workspaces.port import WorkspaceIORepository, WorkspaceRepository
-from app.logging_config import get_logger
-
-from ...domain.stringify_ast import (
+from app.domain.entities import generate_uuid
+from app.domain.entities.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PAGE_UUIDS
+from app.domain.stringify_ast import (
     StringifyMode,
     StringifyOptions,
     parse_ast,
-    serialize_ast,
     stringify_ast,
 )
-from ...utils.import_records import build_import_records
+from app.features.workspaces.port import WorkspaceIORepository, WorkspaceRepository
+from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Large workspaces (21k+ nodes) blow the 60-second pool command_timeout because
-# PostgreSQL's per-row triggers fire for every affected node.
-# The notees DB user is the table owner so DISABLE TRIGGER ALL is permitted.
-_BULK_DELETE_TIMEOUT = 600  # 10-minute ceiling for bulk workspace deletion
+_BULK_DELETE_TIMEOUT = 600
+
+# Legacy boolean node flags that map to system classes in the operation-log model.
+_FLAG_TO_CLASS_KEY: dict[str, str] = {
+    "is_task": "task",
+    "is_template": "template",
+    "is_day": "day",
+    "is_month": "month",
+    "is_year": "year",
+    "is_asset": "asset",
+    "is_table": "table",
+    "is_card": "card",
+    "is_cloze": "cloze",
+    "is_comment": "comment",
+}
+
+
+def _name_ast(text: str) -> list[dict[str, Any]]:
+    """Return a minimal paragraph AST for a plain-text node name."""
+    return [
+        {
+            "type": "paragraph",
+            "children": [{"type": "text", "text": text}],
+        }
+    ]
+
+
+def _extract_plain_text(content_json_or_name: Any) -> str:
+    """Extract plain text from a derived content AST or a legacy name string."""
+    if content_json_or_name is None:
+        return "untitled"
+    value = content_json_or_name
+    if isinstance(value, (list, dict)):
+        try:
+            ast = value if isinstance(value, list) else [value]
+            opts = StringifyOptions(mode=StringifyMode.TEXT_ONLY)
+            return stringify_ast(ast, opts) or "untitled"
+        except (ValueError, TypeError):
+            return "untitled"
+    if isinstance(value, str):
+        try:
+            ast = parse_ast(value)
+            opts = StringifyOptions(mode=StringifyMode.TEXT_ONLY)
+            return stringify_ast(ast, opts) or value.strip() or "untitled"
+        except (ValueError, TypeError):
+            return value.strip() or "untitled"
+    return "untitled"
+
+
+def _node_kind_from_flags(
+    is_class: bool,
+    is_page: bool,
+    is_day: bool = False,
+    is_month: bool = False,
+    is_year: bool = False,
+    is_template: bool = False,
+) -> str:
+    """Derive the operation-log node kind from legacy boolean flags."""
+    if is_class:
+        return "class"
+    if is_page or is_day or is_month or is_year or is_template:
+        return "page"
+    return "block"
+
+
+def _is_valid_uuid(value: Any) -> bool:
+    """Return True if ``value`` is a valid UUID string."""
+    if not isinstance(value, str):
+        return False
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _build_uuid_map(dump_data: dict, remap_uuids: bool) -> dict[str, str]:
+    """Build a map of old UUIDs to new UUIDs when remapping is enabled."""
+    uuid_map: dict[str, str] = {}
+    if not remap_uuids:
+        return uuid_map
+
+    entity_keys = [
+        "nodes",
+        "links",
+        "properties",
+        "property_selection_lines",
+        "node_properties",
+        "property_value_scalars",
+        "property_value_relations",
+        "property_value_selections",
+        "node_views",
+    ]
+    for key in entity_keys:
+        for item in dump_data.get(key, []):
+            old_uuid = item.get("uuid")
+            if old_uuid and _is_valid_uuid(old_uuid):
+                uuid_map[str(old_uuid).lower()] = generate_uuid()
+
+    ws_uuid = dump_data.get("workspace", {}).get("uuid")
+    if ws_uuid and _is_valid_uuid(ws_uuid):
+        uuid_map[str(ws_uuid).lower()] = generate_uuid()
+
+    return uuid_map
+
+
+def _resolve_id(old_id: Any, uuid_map: dict[str, str], remap_uuids: bool) -> str:
+    """Resolve a single dump id to a UUID string."""
+    if old_id is None:
+        return generate_uuid()
+    if isinstance(old_id, str):
+        lower = old_id.lower()
+        if _is_valid_uuid(old_id):
+            if remap_uuids:
+                return uuid_map.get(lower, generate_uuid())
+            return old_id
+        try:
+            int(old_id)
+            return generate_uuid()
+        except ValueError:
+            return generate_uuid()
+    return generate_uuid()
+
+
+def _ensure_mapped(
+    old_id: Any,
+    id_map: dict[Any, str],
+    uuid_map: dict[str, str],
+    remap_uuids: bool,
+) -> str:
+    """Return the mapped UUID for ``old_id``, creating it if necessary."""
+    if old_id in id_map:
+        return id_map[old_id]
+    new_id = _resolve_id(old_id, uuid_map, remap_uuids)
+    id_map[old_id] = new_id
+    return new_id
+
+
+def _build_import_operation(
+    workspace_uuid: str,
+    actor_id: str,
+    op_type: str,
+    payload: dict[str, Any],
+    affected_node_ids: list[str] | None = None,
+    physical_time: int | None = None,
+    logical_counter: list[int] | None = None,
+):
+    """Build an Operation with a monotonically increasing HLC."""
+    from app.core.clock import Hlc
+    from app.core.operation import create_operation
+
+    if physical_time is None:
+        physical_time = int(datetime.now(UTC).timestamp() * 1000)
+    if logical_counter is None:
+        logical_counter = [0]
+    hlc = Hlc(physical=physical_time, logical=logical_counter[0])
+    logical_counter[0] += 1
+    return create_operation(
+        envelope={
+            "workspace_id": workspace_uuid,
+            "actor_id": actor_id,
+            "hlc": hlc,
+            "affected_node_ids": affected_node_ids or [],
+            "op_type": op_type,
+        },
+        payload=payload,
+    )
 
 
 class PostgresWorkspaceRepository(WorkspaceRepository):
@@ -36,9 +199,41 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
 
     def __init__(self, pool: asyncpg.Pool):
         self._pool = pool
+        self._relay_storage: Any | None = None
+
+    def _relay(self):
+        from app.relay.storage import PostgresRelayStorage
+
+        if self._relay_storage is None:
+            self._relay_storage = PostgresRelayStorage(self._pool)
+        return self._relay_storage
+
+    async def _workspace_uuid(self, workspace_id: int) -> str | None:
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT uuid::text as uuid FROM workspace WHERE id = $1",
+                workspace_id,
+            )
+            return row["uuid"] if row else None
+
+    async def _user_row(self, user_id: int) -> asyncpg.Record | None:
+        async with acquire_connection(self._pool) as conn:
+            return await conn.fetchrow(
+                'SELECT uuid::text as uuid, email, name FROM "user" WHERE id = $1',
+                user_id,
+            )
+
+    def _store(self, workspace_uuid: str, actor_id: str):
+        from app.core.workspace_store import WorkspaceStore
+
+        return WorkspaceStore(
+            workspace_uuid,
+            actor_id,
+            relay_storage=self._relay(),
+        )
 
     # -------------------------------------------------------------------------
-    # Lifecycle CRUD (migrated from app.workspace_manager)
+    # Lifecycle CRUD
     # -------------------------------------------------------------------------
 
     async def list_workspaces(self, user_id: int) -> list[Any]:
@@ -133,63 +328,52 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
             if not ws_row:
                 return False
 
-            await conn.execute(
-                "ALTER TABLE node DISABLE TRIGGER ALL",
-                timeout=_BULK_DELETE_TIMEOUT,
-            )
-            try:
-                await conn.execute(
-                    """
-                    DELETE FROM node_activity
-                    WHERE node_id IN (SELECT id FROM node WHERE workspace_id = $1)
-                    """,
-                    workspace_id,
-                    timeout=_BULK_DELETE_TIMEOUT,
-                )
-                await conn.execute(
-                    """
-                    DELETE FROM link_click
-                    WHERE source_node_id IN (SELECT id FROM node WHERE workspace_id = $1)
-                       OR target_node_id IN (SELECT id FROM node WHERE workspace_id = $1)
-                    """,
-                    workspace_id,
-                    timeout=_BULK_DELETE_TIMEOUT,
-                )
-                await conn.execute(
-                    "DELETE FROM node WHERE workspace_id = $1",
-                    workspace_id,
-                    timeout=_BULK_DELETE_TIMEOUT,
-                )
-            finally:
-                await conn.execute(
-                    "ALTER TABLE node ENABLE TRIGGER ALL",
-                    timeout=_BULK_DELETE_TIMEOUT,
-                )
+            workspace_uuid = ws_row["uuid"]
 
-            await conn.execute(
-                "DELETE FROM property WHERE workspace_id = $1",
-                workspace_id,
-                timeout=_BULK_DELETE_TIMEOUT,
-            )
             result = await conn.execute(
                 "DELETE FROM workspace WHERE id = $1",
                 workspace_id,
                 timeout=_BULK_DELETE_TIMEOUT,
             )
-
             deleted = result.split()[-1] != "0"
-            if deleted:
-                workspace_dir_path = get_workspace_dir(str(ws_row["uuid"]))
-                if workspace_dir_path.exists():
-                    try:
-                        shutil.rmtree(workspace_dir_path)
-                        logger.info(f"Deleted workspace folder: {workspace_dir_path}")
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to delete workspace folder {workspace_dir_path}: {e}",
-                            exc_info=True,
-                        )
-            return deleted
+
+        if not deleted:
+            return False
+
+        relay = self._relay()
+        max_hlc = await relay.get_max_hlc(workspace_uuid)
+        if max_hlc.physical > 0 or max_hlc.logical > 0:
+            await relay.prune_envelopes(workspace_uuid, max_hlc)
+
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "DELETE FROM relay_snapshot WHERE workspace_id = $1",
+                workspace_uuid,
+            )
+            await conn.execute(
+                "DELETE FROM compacted_operation_segment WHERE workspace_id = $1",
+                workspace_uuid,
+            )
+
+        derived_db_path = settings.database_dir / "relay" / "derived" / f"{workspace_uuid}.db"
+        if derived_db_path.exists():
+            try:
+                derived_db_path.unlink()
+            except Exception as e:
+                logger.error(f"Failed to delete derived DB {derived_db_path}: {e}", exc_info=True)
+
+        workspace_dir_path = get_workspace_dir(workspace_uuid)
+        if workspace_dir_path.exists():
+            try:
+                shutil.rmtree(workspace_dir_path)
+                logger.info(f"Deleted workspace folder: {workspace_dir_path}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to delete workspace folder {workspace_dir_path}: {e}",
+                    exc_info=True,
+                )
+
+        return True
 
     async def resolve_workspace_for_export(
         self, user_id: int, workspace_uuid: str | None = None
@@ -200,58 +384,71 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
             return await get_or_create_user_workspace(conn, user_id, workspace_uuid=workspace_uuid)
 
     async def seed_workspace(self, workspace_id: int, user_id: int) -> None:
-        from ...db.schema.init import seed_workspace
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            raise ValueError(f"Workspace {workspace_id} not found")
+        user = await self._user_row(user_id)
+        if not user:
+            raise ValueError(f"User {user_id} not found")
 
-        async with acquire_connection(self._pool) as conn:
-            await seed_workspace(conn, workspace_id, user_id)
+        actor_id = user["uuid"]
+        store = self._store(workspace_uuid, actor_id)
+        try:
+            class_class_id = SYSTEM_CLASS_UUIDS["class"]
+            page_class_id = SYSTEM_CLASS_UUIDS["page"]
 
-    async def ensure_user_page(self, workspace_id: int, user_id: int) -> int | None:
-        async with acquire_connection(self._pool) as conn:
-            existing = await conn.fetchrow(
-                'SELECT user_page_node_id FROM "user" WHERE id = $1', user_id
-            )
-            if existing and existing["user_page_node_id"]:
-                node_exists = await conn.fetchrow(
-                    "SELECT 1 FROM node WHERE id = $1", existing["user_page_node_id"]
+            for class_name, class_uuid in SYSTEM_CLASS_UUIDS.items():
+                await store.create_class(class_uuid, class_name)
+                await store.update_content(class_uuid, _name_ast(class_name))
+                await store.assign_class(class_uuid, class_class_id)
+                await store.assign_class(class_uuid, page_class_id)
+
+            for page_name, page_uuid in SYSTEM_PAGE_UUIDS.items():
+                await store.create_node(
+                    page_uuid,
+                    "page",
+                    class_ids=[page_class_id],
+                    initial_content=_name_ast(page_name.capitalize()),
                 )
-                if node_exists:
-                    return existing["user_page_node_id"]
+        finally:
+            await store.close()
 
-            user = await conn.fetchrow(
-                'SELECT email, name FROM "user" WHERE id = $1', user_id
+    async def ensure_user_page(self, workspace_id: int, user_id: int) -> str | None:
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            return None
+        user = await self._user_row(user_id)
+        if not user:
+            return None
+
+        user_uuid = user["uuid"]
+        display = user["name"] or user["email"] or "User"
+        user_page_uuid = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_OID,
+                f"notees:user-page:{workspace_uuid}:{user_uuid}",
             )
-            if not user:
-                return None
+        )
 
-            display = user["name"] or user["email"]
-            name_ast = [
-                {"type": "paragraph", "children": [{"type": "text", "text": display}]}
-            ]
-
-            node_row = await conn.fetchrow(
-                """
-                INSERT INTO node (workspace_id, name, is_page, active, create_uid, write_uid)
-                VALUES ($1, $2, TRUE, TRUE, $3, $3)
-                RETURNING id
-                """,
-                workspace_id,
-                serialize_ast(name_ast),
-                user_id,
+        store = self._store(workspace_uuid, user_uuid)
+        try:
+            existing = await store.query(
+                "SELECT 1 FROM node WHERE id = ?",
+                (user_page_uuid,),
             )
-            if not node_row:
-                return None
-
-            node_id = node_row["id"]
-            await conn.execute(
-                'UPDATE "user" SET user_page_node_id = $1 WHERE id = $2',
-                node_id,
-                user_id,
-            )
-            logger.info(f"Created user page node {node_id} for user {user_id}")
-            return node_id
+            if not existing:
+                await store.create_node(
+                    user_page_uuid,
+                    "page",
+                    class_ids=[SYSTEM_CLASS_UUIDS["page"]],
+                    initial_content=_name_ast(display),
+                )
+            return user_page_uuid
+        finally:
+            await store.close()
 
     # -------------------------------------------------------------------------
-    # Membership / invite helpers (already extracted from routers/workspaces.py)
+    # Membership / invite helpers
     # -------------------------------------------------------------------------
 
     async def get_workspace_uuid_by_name_for_user(self, name: str, user_id: int) -> str | None:
@@ -508,182 +705,294 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
 
     def __init__(self, pool: asyncpg.Pool):
         self._pool = pool
+        self._relay_storage: Any | None = None
+
+    def _relay(self):
+        from app.relay.storage import PostgresRelayStorage
+
+        if self._relay_storage is None:
+            self._relay_storage = PostgresRelayStorage(self._pool)
+        return self._relay_storage
+
+    async def _workspace_uuid(self, workspace_id: int) -> str | None:
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT uuid::text as uuid FROM workspace WHERE id = $1",
+                workspace_id,
+            )
+            return row["uuid"] if row else None
+
+    async def _user_uuid(self, user_id: int) -> str | None:
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                'SELECT uuid::text as uuid FROM "user" WHERE id = $1',
+                user_id,
+            )
+            return row["uuid"] if row else None
+
+    def _store(self, workspace_uuid: str, actor_id: str):
+        from app.core.workspace_store import WorkspaceStore
+
+        return WorkspaceStore(
+            workspace_uuid,
+            actor_id,
+            relay_storage=self._relay(),
+        )
 
     async def export_workspace_full(self, workspace_id: int) -> dict:
-        """Create a comprehensive dump of all workspace data."""
+        """Create a comprehensive dump of all workspace data from derived SQLite."""
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            raise ValueError(f"Workspace {workspace_id} not found")
+
         async with acquire_connection(self._pool) as conn:
-            workspace = await conn.fetchrow("SELECT uuid, name FROM workspace WHERE id = $1", workspace_id)
-            if not workspace:
-                raise ValueError(f"Workspace {workspace_id} not found")
+            workspace_row = await conn.fetchrow(
+                "SELECT uuid::text as uuid, name FROM workspace WHERE id = $1",
+                workspace_id,
+            )
+        if not workspace_row:
+            raise ValueError(f"Workspace {workspace_id} not found")
 
-            nodes = await conn.fetch(
+        actor_id = str(workspace_row["uuid"])
+        store = self._store(workspace_uuid, actor_id)
+        try:
+            await store.sync()
+
+            node_rows = await store.query(
+                "SELECT id, kind, class_ids, parent_id, content, created_at, updated_at FROM node WHERE workspace_id = ?",
+                (workspace_uuid,),
+            )
+            nodes = []
+            for row in node_rows:
+                class_ids = _load_json(row["class_ids"], [])
+                content = _load_json(row["content"], [])
+                name = _extract_plain_text(content)
+                kind = row["kind"]
+                nodes.append(
+                    {
+                        "id": row["id"],
+                        "uuid": row["id"],
+                        "name": name,
+                        "kind": kind,
+                        "is_class": kind == "class",
+                        "is_page": kind == "page",
+                        "is_day": SYSTEM_CLASS_UUIDS["day"] in class_ids,
+                        "is_month": SYSTEM_CLASS_UUIDS["month"] in class_ids,
+                        "is_year": SYSTEM_CLASS_UUIDS["year"] in class_ids,
+                        "is_asset": SYSTEM_CLASS_UUIDS["asset"] in class_ids,
+                        "is_template": SYSTEM_CLASS_UUIDS["template"] in class_ids,
+                        "is_comment": SYSTEM_CLASS_UUIDS["comment"] in class_ids,
+                        "is_task": SYSTEM_CLASS_UUIDS["task"] in class_ids,
+                        "is_table": SYSTEM_CLASS_UUIDS["table"] in class_ids,
+                        "is_card": SYSTEM_CLASS_UUIDS["card"] in class_ids,
+                        "is_cloze": SYSTEM_CLASS_UUIDS["cloze"] in class_ids,
+                        "parent_id": row["parent_id"],
+                        "class_ids": class_ids,
+                        "active": True,
+                        "create_date": row["created_at"],
+                        "write_date": row["updated_at"],
+                    }
+                )
+
+            edge_rows = await store.query(
+                "SELECT id, source_id, target_id, type, property_schema_id, metadata, created_at FROM edge WHERE workspace_id = ?",
+                (workspace_uuid,),
+            )
+            links = []
+            for row in edge_rows:
+                if row["type"] not in ("inline", "property", "reference"):
+                    continue
+                links.append(
+                    {
+                        "id": row["id"],
+                        "uuid": row["id"],
+                        "source_id": row["source_id"],
+                        "target_id": row["target_id"],
+                        "property_id": row["property_schema_id"],
+                        "type": row["type"],
+                        "metadata": row["metadata"],
+                        "create_date": row["created_at"],
+                    }
+                )
+
+            property_rows = await store.query(
+                "SELECT id, name, icon, type, multi, is_system, scope, node_id, icon_visibility, options, active, created_at, updated_at FROM property_schema WHERE workspace_id = ?",
+                (workspace_uuid,),
+            )
+            properties = []
+            selection_lines = []
+            for row in property_rows:
+                options = _load_json(row["options"], [])
+                for opt in options:
+                    opt_id = opt.get("id")
+                    if not opt_id and isinstance(opt, dict):
+                        opt_id = generate_uuid()
+                    if opt_id:
+                        selection_lines.append(
+                            {
+                                "id": opt_id,
+                                "uuid": opt_id,
+                                "property_id": row["id"],
+                                "name": opt.get("name", ""),
+                                "icon": opt.get("icon"),
+                                "create_date": row["created_at"],
+                                "write_date": row["updated_at"],
+                            }
+                        )
+                properties.append(
+                    {
+                        "id": row["id"],
+                        "uuid": row["id"],
+                        "name": row["name"],
+                        "icon": row["icon"],
+                        "type": row["type"],
+                        "is_multi": bool(row["multi"]),
+                        "is_system": bool(row["is_system"]),
+                        "scope": row["scope"],
+                        "node_id": row["node_id"],
+                        "icon_visibility": row["icon_visibility"],
+                        "active": bool(row["active"]),
+                        "create_date": row["created_at"],
+                        "write_date": row["updated_at"],
+                    }
+                )
+
+            value_rows = await store.query(
                 """
-                SELECT id, uuid, name, icon, color, parent_id, page_id, sequence,
-                       active, version, is_class, is_page, is_day,
-                       is_month, is_year, is_asset, is_template, is_comment,
-                       class_ids, tag_ids, classes_path, open_date, create_date, write_date,
-                       aliased_id, is_deleted, deleted_at
-                FROM node WHERE workspace_id = $1
-            """,
-                workspace_id,
+                SELECT pv.id, pv.node_id, pv.property_schema_id, pv.value, pv.idx
+                FROM property_value pv
+                JOIN property_schema ps ON ps.id = pv.property_schema_id
+                WHERE ps.workspace_id = ?
+                """,
+                (workspace_uuid,),
             )
+            value_scalars = []
+            value_relations = []
+            value_selections = []
+            for row in value_rows:
+                raw_value = _load_json(row["value"], None)
+                prop_type = next(
+                    (p["type"] for p in properties if p["id"] == row["property_schema_id"]),
+                    "text",
+                )
+                base = {
+                    "id": row["id"],
+                    "uuid": row["id"],
+                    "node_id": row["node_id"],
+                    "property_id": row["property_schema_id"],
+                    "node_property_id": row["id"],
+                }
+                if prop_type in ("node", "relation"):
+                    value_relations.append({**base, "target_id": raw_value, "order": row["idx"]})
+                elif prop_type == "selection":
+                    value_selections.append({**base, "selection_line_id": raw_value})
+                else:
+                    value_scalars.append(
+                        {
+                            **base,
+                            "value_text": raw_value if prop_type not in ("boolean", "integer", "float") else None,
+                            "value_boolean": raw_value if prop_type == "boolean" else None,
+                            "value_integer": raw_value if prop_type == "integer" else None,
+                            "value_float": raw_value if prop_type == "float" else None,
+                        }
+                    )
 
-            links = await conn.fetch(
+            class_property_rows = await store.query(
                 """
-                SELECT id, uuid, source_id, target_id, property_id, position,
-                       is_inline_class, name, create_date
-                FROM node_link WHERE workspace_id = $1
-            """,
-                workspace_id,
+                SELECT class_id, property_schema_id, sequence, default_value, hidden
+                FROM class_property_edge
+                WHERE class_id IN (SELECT id FROM node WHERE workspace_id = ?)
+                """,
+                (workspace_uuid,),
             )
+            class_properties = []
+            for row in class_property_rows:
+                class_properties.append(
+                    {
+                        "class_node_id": row["class_id"],
+                        "property_id": row["property_schema_id"],
+                        "sequence": row["sequence"],
+                        "hidden": bool(row["hidden"]),
+                        "default_value": row["default_value"],
+                    }
+                )
 
-            properties = await conn.fetch(
+            class_extend_rows = await store.query(
                 """
-                SELECT id, uuid, name, icon, type, is_multi, is_system, scope,
-                       node_id, icon_visibility, active, create_date, write_date
-                FROM property WHERE workspace_id = $1
-            """,
-                workspace_id,
+                SELECT ch.class_id, ch.ancestor_id
+                FROM class_hierarchy ch
+                JOIN node n ON n.id = ch.class_id
+                WHERE n.workspace_id = ? AND ch.class_id != ch.ancestor_id
+                """,
+                (workspace_uuid,),
             )
+            class_extends = []
+            for row in class_extend_rows:
+                class_extends.append(
+                    {
+                        "target_id": row["class_id"],
+                        "source_id": row["ancestor_id"],
+                    }
+                )
 
-            selection_lines = await conn.fetch(
-                """
-                SELECT psl.id, psl.uuid, psl.property_id, psl.name, psl.icon,
-                       psl.create_date, psl.write_date
-                FROM property_selection_line psl
-                JOIN property p ON psl.property_id = p.id
-                WHERE p.workspace_id = $1
-            """,
-                workspace_id,
+            view_rows = await store.query(
+                "SELECT id, node_id, name, view_type, order_index, is_default, active, shown_properties, group_by, view_mode, sort_entries, settings, query_ast, created_at, updated_at FROM node_view WHERE workspace_id = ?",
+                (workspace_uuid,),
             )
+            node_views = []
+            for row in view_rows:
+                node_views.append(
+                    {
+                        "id": row["id"],
+                        "uuid": row["id"],
+                        "node_id": row["node_id"],
+                        "name": row["name"],
+                        "query_json": _load_json(row["query_ast"], {}),
+                        "view_type": row["view_type"],
+                        "order_index": row["order_index"],
+                        "is_default": bool(row["is_default"]),
+                        "active": bool(row["active"]),
+                        "shown_properties": _load_json(row["shown_properties"], []),
+                        "group_by": _load_json(row["group_by"], None),
+                        "view_mode": row["view_mode"],
+                        "sort_entries": _load_json(row["sort_entries"], []),
+                        "settings": _load_json(row["settings"], {}),
+                        "create_date": row["created_at"],
+                        "write_date": row["updated_at"],
+                    }
+                )
 
-            node_properties = await conn.fetch(
-                """
-                SELECT np.id, np.uuid, np.node_id, np.property_id,
-                       np.create_date, np.write_date
-                FROM node_property np
-                JOIN node n ON np.node_id = n.id
-                WHERE n.workspace_id = $1
-            """,
-                workspace_id,
-            )
+            async with acquire_connection(self._pool) as conn:
+                settings_rows = await conn.fetch(
+                    "SELECT key, value FROM setting_workspace WHERE workspace_id = $1",
+                    workspace_id,
+                )
 
-            value_scalars = await conn.fetch(
-                """
-                SELECT pvs.id, pvs.uuid, pvs.node_property_id, pvs.property_id,
-                       pvs.node_id, pvs.value_text, pvs.value_boolean,
-                       pvs.value_float, pvs.value_integer,
-                       pvs.create_date, pvs.write_date
-                FROM property_value_scalar pvs
-                JOIN node n ON pvs.node_id = n.id
-                WHERE n.workspace_id = $1
-            """,
-                workspace_id,
-            )
-
-            value_relations = await conn.fetch(
-                """
-                SELECT pvr.id, pvr.uuid, pvr.node_property_id, pvr.property_id,
-                       pvr.node_id, pvr.target_id, pvr."order",
-                       pvr.create_date, pvr.write_date
-                FROM property_value_relation pvr
-                JOIN node n ON pvr.node_id = n.id
-                WHERE n.workspace_id = $1
-            """,
-                workspace_id,
-            )
-
-            value_selections = await conn.fetch(
-                """
-                SELECT pvsel.id, pvsel.uuid, pvsel.node_property_id,
-                       pvsel.property_id, pvsel.node_id, pvsel.selection_line_id,
-                       pvsel.create_date, pvsel.write_date
-                FROM property_value_selection pvsel
-                JOIN node n ON pvsel.node_id = n.id
-                WHERE n.workspace_id = $1
-            """,
-                workspace_id,
-            )
-
-            class_properties = await conn.fetch(
-                """
-                SELECT cp.id, cp.class_node_id, cp.property_id, cp.sequence,
-                       cp.hidden, cp.default_integer, cp.default_float,
-                       cp.default_text, cp.default_boolean,
-                       cp.default_node_id, cp.default_selection_id
-                FROM class_property cp
-                JOIN node n ON cp.class_node_id = n.id
-                WHERE n.workspace_id = $1
-            """,
-                workspace_id,
-            )
-
-            class_extends = await conn.fetch(
-                """
-                SELECT ce.id, ce.target_id, ce.source_id, ce.sequence
-                FROM class_extend ce
-                JOIN node n ON ce.target_id = n.id
-                WHERE n.workspace_id = $1
-            """,
-                workspace_id,
-            )
-
-            class_filters = await conn.fetch(
-                """
-                SELECT pcf.id, pcf.property_id, pcf.class_node_id
-                FROM property_class_filter pcf
-                JOIN property p ON pcf.property_id = p.id
-                WHERE p.workspace_id = $1
-            """,
-                workspace_id,
-            )
-
-            node_views = await conn.fetch(
-                """
-                SELECT nv.id, nv.uuid, nv.node_id, nv.name, nv.query_json,
-                       nv.view_type, nv.order_index, nv.is_default, nv.active,
-                       nv.shown_properties, nv.group_by,
-                       nv.view_mode, nv.sort_entries, nv.settings,
-                       nv.create_date, nv.write_date
-                FROM node_view nv
-                JOIN node n ON nv.node_id = n.id
-                WHERE n.workspace_id = $1
-            """,
-                workspace_id,
-            )
-
-            settings = await conn.fetch(
-                "SELECT key, value FROM setting_workspace WHERE workspace_id = $1",
-                workspace_id,
-            )
-
-        return {
-            "version": 3,
-            "workspace": {
-                "uuid": str(workspace["uuid"]),
-                "name": workspace["name"],
-            },
-            "nodes": [dict(r) for r in nodes],
-            "links": [dict(r) for r in links],
-            "properties": [dict(r) for r in properties],
-            "property_selection_lines": [dict(r) for r in selection_lines],
-            "node_properties": [dict(r) for r in node_properties],
-            "property_value_scalars": [dict(r) for r in value_scalars],
-            "property_value_relations": [dict(r) for r in value_relations],
-            "property_value_selections": [dict(r) for r in value_selections],
-            "class_properties": [dict(r) for r in class_properties],
-            "class_extends": [dict(r) for r in class_extends],
-            "property_class_filters": [dict(r) for r in class_filters],
-            "node_views": [dict(r) for r in node_views],
-            "settings": [dict(r) for r in settings],
-        }
+            return {
+                "version": 3,
+                "workspace": {
+                    "uuid": str(workspace_row["uuid"]),
+                    "name": workspace_row["name"],
+                },
+                "nodes": nodes,
+                "links": links,
+                "properties": properties,
+                "property_selection_lines": selection_lines,
+                "node_properties": [],
+                "property_value_scalars": value_scalars,
+                "property_value_relations": value_relations,
+                "property_value_selections": value_selections,
+                "class_properties": class_properties,
+                "class_extends": class_extends,
+                "property_class_filters": [],
+                "node_views": node_views,
+                "settings": [dict(r) for r in settings_rows],
+            }
+        finally:
+            await store.close()
 
     async def create_workspace_for_import(self, name: str, owner_id: int) -> dict:
-        """Insert a workspace for import and return the inserted row.
-
-        Raises ValueError if the owner already has an active workspace with the
-        same name, matching the original import behavior.
-        """
+        """Insert a workspace for import and return the inserted row."""
         async with acquire_connection(self._pool) as conn, conn.transaction():
             existing = await conn.fetchrow(
                 "SELECT id FROM workspace WHERE create_uid = $1 AND name = $2 AND active = TRUE",
@@ -698,7 +1007,7 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                 INSERT INTO workspace (name, create_uid, write_uid, is_shared, active)
                 VALUES ($1, $2, $2, FALSE, TRUE)
                 RETURNING id, uuid, name, create_date
-            """,
+                """,
                 name,
                 owner_id,
             )
@@ -716,7 +1025,7 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                 LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
                 WHERE g.name = $2 AND g.active = TRUE
                   AND (g.create_uid = $1 OR gs.user_id = $1)
-            """,
+                """,
                 user_id,
                 name,
             )
@@ -732,7 +1041,7 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                 LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
                 WHERE g.uuid::text = $2 AND g.active = TRUE
                   AND (g.create_uid = $1 OR gs.user_id = $1)
-            """,
+                """,
                 user_id,
                 uuid,
             )
@@ -746,493 +1055,449 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
         remap_uuids: bool,
         cleanup_invalid_cloze: bool = False,
     ) -> tuple[dict, dict[str, str]]:
-        """Run the entire multi-phase import inside a single DB transaction."""
-        stats = {
-            "nodes": 0,
-            "links": 0,
-            "properties": 0,
-            "property_selection_lines": 0,
-            "node_properties": 0,
-            "property_values": 0,
-            "class_properties": 0,
-            "class_extends": 0,
-            "property_class_filters": 0,
-            "node_views": 0,
-            "settings": 0,
-        }
+        """Translate a legacy dump into operations and apply them to the relay."""
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            raise ValueError(f"Workspace {workspace_id} not found")
+        actor_id = await self._user_uuid(user_id)
+        if not actor_id:
+            raise ValueError(f"User {user_id} not found")
 
-        now = datetime.now(UTC)
-        async with acquire_connection(self._pool) as conn, conn.transaction():
-            logger.info("Disabling node triggers for bulk import")
-            await conn.execute("ALTER TABLE node DISABLE TRIGGER node_search_update")
-            await conn.execute("ALTER TABLE node DISABLE TRIGGER node_write_date")
-            await conn.execute("ALTER TABLE node DISABLE TRIGGER node_update_workspace_write_date")
-            await conn.execute("""
-                DO $$ BEGIN
-                    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_node_version_capture') THEN
-                        ALTER TABLE node DISABLE TRIGGER trg_node_version_capture;
-                    END IF;
-                END $$;
-            """)
+        uuid_map = _build_uuid_map(dump_data, remap_uuids)
+        node_id_map: dict[Any, str] = {}
+        property_id_map: dict[Any, str] = {}
+        selection_line_id_map: dict[Any, str] = {}
 
-            # Phase 1: nodes
-            bundle = build_import_records(dump_data, workspace_id, user_id, remap_uuids, now=now)
-            node_id_map: dict[int, int] = {}
+        operations = self._build_import_operations(
+            workspace_uuid,
+            actor_id,
+            dump_data,
+            uuid_map,
+            node_id_map,
+            property_id_map,
+            selection_line_id_map,
+        )
 
-            if bundle.node_records:
-                logger.info(f"Importing {len(bundle.node_records)} nodes (phase 1: batch insert)")
-                await conn.executemany(
-                    """
-                    INSERT INTO node (
-                        uuid, workspace_id, name, icon, color,
-                        sequence, active, version,
-                        is_class, is_page, is_day, is_month, is_year,
-                        is_asset, is_template, is_comment,
-                        classes_path, tag_ids, open_date, create_date, write_date,
-                        is_deleted, deleted_at,
-                        create_uid, write_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4, $5,
-                        $6, $7, $8,
-                        $9, $10, $11, $12, $13,
-                        $14, $15, $16,
-                        $17::jsonb, $18, $19, $20, $21,
-                        $22, $23,
-                        $24, $24
-                    )
-                """,
-                    bundle.node_records,
-                    timeout=None,
-                )
-
-                rows = await conn.fetch(
-                    "SELECT id, uuid::text AS uuid_str FROM node WHERE workspace_id = $1",
-                    workspace_id,
-                )
-                for row in rows:
-                    old_id = bundle.node_uuid_to_old_id.get(row["uuid_str"])
-                    if old_id is not None:
-                        node_id_map[old_id] = row["id"]
-
-            stats["nodes"] = len(node_id_map)
-
-            # Phase 2-3: node refs + properties
-            bundle = build_import_records(
-                dump_data, workspace_id, user_id, remap_uuids, node_id_map=node_id_map, now=now
-            )
-
-            if bundle.node_update_records:
-                logger.info("Importing nodes (phase 2: batch update references)")
-                await conn.executemany(
-                    """
-                    UPDATE node
-                    SET parent_id = $1, page_id = $2, aliased_id = $3,
-                        class_ids = $4, tag_ids = $5, classes_path = $6::jsonb
-                    WHERE id = $7
-                """,
-                    bundle.node_update_records,
-                    timeout=None,
-                )
-
-            property_id_map: dict[int, int] = {}
-            if bundle.property_records:
-                logger.info(f"Importing {len(bundle.property_records)} properties")
-                await conn.executemany(
-                    """
-                    INSERT INTO property (
-                        uuid, workspace_id, name, icon, type, is_multi, is_system,
-                        scope, node_id, icon_visibility, active,
-                        create_date, write_date, create_uid, write_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4, $5, $6, $7,
-                        $8, $9, $10, $11,
-                        $12, $13, $14, $14
-                    )
-                """,
-                    bundle.property_records,
-                    timeout=None,
-                )
-
-                rows = await conn.fetch(
-                    "SELECT id, uuid::text AS uuid_str FROM property WHERE workspace_id = $1",
-                    workspace_id,
-                )
-                for row in rows:
-                    old_id = bundle.property_uuid_to_old_id.get(row["uuid_str"])
-                    if old_id is not None:
-                        property_id_map[old_id] = row["id"]
-
-            stats["properties"] = len(property_id_map)
-
-            # Phase 4-6: selection lines + class filters + node properties
-            bundle = build_import_records(
-                dump_data,
-                workspace_id,
-                user_id,
-                remap_uuids,
-                node_id_map=node_id_map,
-                property_id_map=property_id_map,
-                now=now,
-            )
-
-            selection_line_id_map: dict[int, int] = {}
-            if bundle.selection_line_records:
-                logger.info(f"Importing {len(bundle.selection_line_records)} property selection lines")
-                await conn.executemany(
-                    """
-                    INSERT INTO property_selection_line (
-                        uuid, property_id, name, icon, create_date, write_date,
-                        create_uid, write_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4, $5, $6, $7, $7
-                    )
-                """,
-                    bundle.selection_line_records,
-                    timeout=None,
-                )
-
-                rows = await conn.fetch(
-                    """
-                    SELECT psl.id, psl.uuid::text AS uuid_str
-                    FROM property_selection_line psl
-                    JOIN property p ON psl.property_id = p.id
-                    WHERE p.workspace_id = $1
-                """,
-                    workspace_id,
-                )
-                for row in rows:
-                    old_id = bundle.selection_line_uuid_to_old_id.get(row["uuid_str"])
-                    if old_id is not None:
-                        selection_line_id_map[old_id] = row["id"]
-
-            stats["property_selection_lines"] = len(selection_line_id_map)
-
-            if bundle.class_filter_records:
-                logger.info(f"Importing {len(bundle.class_filter_records)} property class filters")
-                await conn.executemany(
-                    """
-                    INSERT INTO property_class_filter (property_id, class_node_id)
-                    VALUES ($1, $2)
-                    ON CONFLICT (property_id, class_node_id) DO NOTHING
-                """,
-                    bundle.class_filter_records,
-                    timeout=None,
-                )
-            stats["property_class_filters"] = len(bundle.class_filter_records)
-
-            node_property_id_map: dict[int, int] = {}
-            if bundle.node_property_records:
-                logger.info(f"Importing {len(bundle.node_property_records)} node properties")
-                await conn.executemany(
-                    """
-                    INSERT INTO node_property (
-                        uuid, node_id, property_id, create_date, write_date,
-                        create_uid, write_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4, $5, $6, $6
-                    )
-                """,
-                    bundle.node_property_records,
-                    timeout=None,
-                )
-
-                rows = await conn.fetch(
-                    """
-                    SELECT np.id, np.uuid::text AS uuid_str
-                    FROM node_property np
-                    JOIN node n ON np.node_id = n.id
-                    WHERE n.workspace_id = $1
-                """,
-                    workspace_id,
-                )
-                for row in rows:
-                    old_id = bundle.node_property_uuid_to_old_id.get(row["uuid_str"])
-                    if old_id is not None:
-                        node_property_id_map[old_id] = row["id"]
-
-            stats["node_properties"] = len(node_property_id_map)
-
-            # Phase 7-14: values, class extends, class properties, links, views, settings
-            bundle = build_import_records(
-                dump_data,
-                workspace_id,
-                user_id,
-                remap_uuids,
-                node_id_map=node_id_map,
-                property_id_map=property_id_map,
-                selection_line_id_map=selection_line_id_map,
-                node_property_id_map=node_property_id_map,
-                now=now,
-            )
-
-            if bundle.scalar_value_records:
-                logger.info(f"Importing {len(bundle.scalar_value_records)} property value scalars")
-                await conn.executemany(
-                    """
-                    INSERT INTO property_value_scalar (
-                        uuid, node_property_id, property_id, node_id,
-                        value_text, value_boolean, value_float, value_integer,
-                        create_date, write_date, create_uid, write_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4,
-                        $5, $6, $7, $8,
-                        $9, $10, $11, $11
-                    )
-                """,
-                    bundle.scalar_value_records,
-                    timeout=None,
-                )
-            stats["property_values"] = len(bundle.scalar_value_records)
-
-            if bundle.relation_value_records:
-                logger.info(f"Importing {len(bundle.relation_value_records)} property value relations")
-                await conn.executemany(
-                    """
-                    INSERT INTO property_value_relation (
-                        uuid, node_property_id, property_id, node_id, target_id,
-                        "order", create_date, write_date, create_uid, write_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4, $5,
-                        $6, $7, $8, $9, $9
-                    )
-                """,
-                    bundle.relation_value_records,
-                    timeout=None,
-                )
-            stats["property_values"] += len(bundle.relation_value_records)
-
-            if bundle.selection_value_records:
-                logger.info(f"Importing {len(bundle.selection_value_records)} property value selections")
-                await conn.executemany(
-                    """
-                    INSERT INTO property_value_selection (
-                        uuid, node_property_id, property_id, node_id,
-                        selection_line_id, create_date, write_date,
-                        create_uid, write_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4,
-                        $5, $6, $7,
-                        $8, $8
-                    )
-                """,
-                    bundle.selection_value_records,
-                    timeout=None,
-                )
-            stats["property_values"] += len(bundle.selection_value_records)
-
-            if bundle.class_extend_records:
-                logger.info(f"Importing {len(bundle.class_extend_records)} class extends")
-                await conn.executemany(
-                    """
-                    INSERT INTO class_extend (target_id, source_id, sequence)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (target_id, source_id) DO NOTHING
-                """,
-                    bundle.class_extend_records,
-                    timeout=None,
-                )
-            stats["class_extends"] = len(bundle.class_extend_records)
-
-            if bundle.class_property_records:
-                logger.info(f"Importing {len(bundle.class_property_records)} class properties")
-                await conn.executemany(
-                    """
-                    INSERT INTO class_property (
-                        class_node_id, property_id, sequence, hidden,
-                        default_integer, default_float, default_text,
-                        default_boolean, default_node_id, default_selection_id
-                    ) VALUES (
-                        $1, $2, $3, $4,
-                        $5, $6, $7,
-                        $8, $9, $10
-                    )
-                    ON CONFLICT (class_node_id, property_id) DO NOTHING
-                """,
-                    bundle.class_property_records,
-                    timeout=None,
-                )
-            stats["class_properties"] = len(bundle.class_property_records)
-
-            if bundle.link_records:
-                logger.info(f"Importing {len(bundle.link_records)} node links")
-                await conn.executemany(
-                    """
-                    INSERT INTO node_link (
-                        uuid, source_id, target_id, workspace_id, property_id,
-                        position, is_inline_class, name, create_date,
-                        create_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4, $5,
-                        $6, $7, $8, $9,
-                        $10
-                    )
-                """,
-                    bundle.link_records,
-                    timeout=None,
-                )
-
-            if bundle.tag_links_by_source:
-                tag_update_records = [(list(targets), source_id) for source_id, targets in bundle.tag_links_by_source.items()]
-                await conn.executemany(
-                    """
-                    UPDATE node
-                    SET tag_ids = (
-                        SELECT ARRAY_AGG(DISTINCT x ORDER BY x)
-                        FROM unnest(COALESCE(tag_ids, '{}') || $1::INTEGER[]) AS x
-                    )
-                    WHERE id = $2
-                """,
-                    tag_update_records,
-                    timeout=None,
-                )
-            stats["links"] = len(bundle.link_records)
-
-            if bundle.node_view_records:
-                logger.info(f"Importing {len(bundle.node_view_records)} node views")
-                await conn.executemany(
-                    """
-                    INSERT INTO node_view (
-                        uuid, node_id, name, query_json, view_type,
-                        order_index, is_default, active,
-                        shown_properties, group_by,
-                        view_mode, sort_entries, settings,
-                        create_date, write_date, create_uid, write_uid
-                    ) VALUES (
-                        $1::uuid, $2, $3, $4::jsonb, $5,
-                        $6, $7, $8,
-                        $9::jsonb, $10::jsonb,
-                        $11, $12::jsonb, $13::jsonb,
-                        $14, $15, $16, $16
-                    )
-                    ON CONFLICT (uuid) DO UPDATE SET
-                        node_id = EXCLUDED.node_id,
-                        name = EXCLUDED.name,
-                        query_json = EXCLUDED.query_json,
-                        view_type = EXCLUDED.view_type,
-                        order_index = EXCLUDED.order_index,
-                        is_default = EXCLUDED.is_default,
-                        active = EXCLUDED.active,
-                        shown_properties = EXCLUDED.shown_properties,
-                        group_by = EXCLUDED.group_by,
-                        view_mode = EXCLUDED.view_mode,
-                        sort_entries = EXCLUDED.sort_entries,
-                        settings = EXCLUDED.settings,
-                        write_date = EXCLUDED.write_date,
-                        write_uid = EXCLUDED.write_uid
-                """,
-                    bundle.node_view_records,
-                    timeout=None,
-                )
-            stats["node_views"] = len(bundle.node_view_records)
-
-            if bundle.settings_records:
-                logger.info(f"Importing {len(bundle.settings_records)} workspace settings")
-                await conn.executemany(
-                    """
-                    INSERT INTO setting_workspace (workspace_id, key, value,
-                                                   create_date, write_date,
-                                                   create_uid, write_uid)
-                    VALUES ($1, $2, $3::jsonb, $4, $4, $5, $5)
-                    ON CONFLICT (workspace_id, key) DO UPDATE
-                        SET value = EXCLUDED.value, write_date = EXCLUDED.write_date
-                """,
-                    bundle.settings_records,
-                    timeout=None,
-                )
-            stats["settings"] = len(bundle.settings_records)
+        store = self._store(workspace_uuid, actor_id)
+        try:
+            await store.apply_many(operations)
+            stats = {
+                "nodes": len(node_id_map),
+                "properties": len(property_id_map),
+                "property_selection_lines": len(selection_line_id_map),
+                "operations": len(operations),
+            }
 
             if cleanup_invalid_cloze:
-                stats["invalid_cloze_cleaned"] = await self._cleanup_invalid_cloze_assignments(
-                    conn, workspace_id
+                cleaned = await self._cleanup_invalid_cloze(store)
+                stats["invalid_cloze_cleaned"] = cleaned
+
+            return stats, uuid_map
+        finally:
+            await store.close()
+
+    def _build_import_operations(
+        self,
+        workspace_uuid: str,
+        actor_id: str,
+        dump_data: dict,
+        uuid_map: dict[str, str],
+        node_id_map: dict[Any, str],
+        property_id_map: dict[Any, str],
+        selection_line_id_map: dict[Any, str],
+    ) -> list[Any]:
+        """Convert a legacy dump into operation-log operations."""
+        from app.core.operation import Operation
+        from app.core.uuid import uuidv7
+
+        physical_time = int(datetime.now(UTC).timestamp() * 1000)
+        logical_counter = [0]
+        operations: list[Operation] = []
+
+        def _op(
+            op_type: str,
+            payload: dict[str, Any],
+            affected_node_ids: list[str] | None = None,
+        ) -> Operation:
+            return _build_import_operation(
+                workspace_uuid,
+                actor_id,
+                op_type,
+                payload,
+                affected_node_ids,
+                physical_time,
+                logical_counter,
+            )
+
+        remap_uuids = bool(uuid_map)
+
+        def _map_node_id(old_id: Any) -> str | None:
+            if old_id is None:
+                return None
+            return _ensure_mapped(old_id, node_id_map, uuid_map, remap_uuids)
+
+        def _map_property_id(old_id: Any) -> str | None:
+            if old_id is None:
+                return None
+            return _ensure_mapped(old_id, property_id_map, uuid_map, remap_uuids)
+
+        def _map_selection_line_id(old_id: Any) -> str | None:
+            if old_id is None:
+                return None
+            return _ensure_mapped(old_id, selection_line_id_map, uuid_map, remap_uuids)
+
+        # Phase 1: property schemas (with selection-line options).
+        selection_lines_by_property: dict[str, list[dict[str, Any]]] = {}
+        for sl in dump_data.get("property_selection_lines", []):
+            prop_old_id = sl.get("property_id")
+            prop_uuid = _map_property_id(prop_old_id)
+            if prop_uuid is None:
+                continue
+            line_uuid = _map_selection_line_id(sl.get("id"))
+            selection_lines_by_property.setdefault(prop_uuid, []).append(
+                {
+                    "id": line_uuid,
+                    "name": sl.get("name", ""),
+                    "icon": sl.get("icon"),
+                }
+            )
+
+        property_type_map: dict[str, str] = {}
+        for prop in dump_data.get("properties", []):
+            prop_uuid = _map_property_id(prop.get("id"))
+            if prop_uuid is None:
+                continue
+            property_type_map[prop_uuid] = prop.get("type", "text")
+            scope = prop.get("scope", "global")
+            node_old_id = prop.get("node_id")
+            node_uuid = _map_node_id(node_old_id) if scope == "node" else None
+            operations.append(
+                _op(
+                    "propertySchema.create",
+                    {
+                        "schemaId": prop_uuid,
+                        "name": prop.get("name", ""),
+                        "icon": prop.get("icon"),
+                        "type": prop.get("type", "text"),
+                        "multi": bool(prop.get("is_multi", False)),
+                        "isSystem": bool(prop.get("is_system", False)),
+                        "scope": scope,
+                        "nodeId": node_uuid,
+                        "iconVisibility": prop.get("icon_visibility"),
+                        "options": selection_lines_by_property.get(prop_uuid, []),
+                    },
+                    [prop_uuid],
+                )
+            )
+
+        # Phase 2: nodes.
+        for node_data in dump_data.get("nodes", []):
+            node_uuid = _map_node_id(node_data.get("id"))
+            if node_uuid is None:
+                continue
+            kind = _node_kind_from_flags(
+                bool(node_data.get("is_class", False)),
+                bool(node_data.get("is_page", False)),
+                bool(node_data.get("is_day", False)),
+                bool(node_data.get("is_month", False)),
+                bool(node_data.get("is_year", False)),
+                bool(node_data.get("is_template", False)),
+            )
+            payload: dict[str, Any] = {"nodeId": node_uuid, "kind": kind}
+            parent_id = _map_node_id(node_data.get("parent_id"))
+            if parent_id is not None:
+                payload["parentId"] = parent_id
+            sequence = node_data.get("sequence")
+            if sequence is not None:
+                payload["index"] = str(sequence)
+            operations.append(_op("node.create", payload, [node_uuid]))
+
+        # Phase 3: node content.
+        for node_data in dump_data.get("nodes", []):
+            node_uuid = node_id_map.get(node_data.get("id"))
+            if node_uuid is None:
+                continue
+            name = node_data.get("name")
+            if name:
+                text = _extract_plain_text(name)
+                operations.append(
+                    _op(
+                        "node.updateContent",
+                        {"nodeId": node_uuid, "content": _name_ast(text)},
+                        [node_uuid],
+                    )
                 )
 
-            logger.info("Re-enabling node triggers")
-            await conn.execute("ALTER TABLE node ENABLE TRIGGER node_search_update")
-            await conn.execute("ALTER TABLE node ENABLE TRIGGER node_write_date")
-            await conn.execute("ALTER TABLE node ENABLE TRIGGER node_update_workspace_write_date")
-            await conn.execute("""
-                DO $$ BEGIN
-                    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_node_version_capture') THEN
-                        ALTER TABLE node ENABLE TRIGGER trg_node_version_capture;
-                    END IF;
-                END $$;
-            """)
+        # Phase 4: node moves (parent / sequence).
+        for node_data in dump_data.get("nodes", []):
+            node_uuid = node_id_map.get(node_data.get("id"))
+            if node_uuid is None:
+                continue
+            parent_id = _map_node_id(node_data.get("parent_id"))
+            sequence = node_data.get("sequence")
+            payload = {"nodeId": node_uuid}
+            if parent_id is not None:
+                payload["newParentId"] = parent_id
+            if sequence is not None:
+                payload["newIndex"] = str(sequence)
+            if len(payload) > 1:
+                operations.append(_op("node.move", payload, [node_uuid]))
 
-            logger.info("Rebuilding search vectors for imported nodes")
-            await conn.execute(
-                """
-                UPDATE node SET search_vector = to_tsvector(
-                    COALESCE(search_language, 'english')::regconfig,
-                    COALESCE(name, '')
-                ) WHERE workspace_id = $1
-            """,
-                workspace_id,
-                timeout=None,
+        # Phase 5: class assignments.
+        for node_data in dump_data.get("nodes", []):
+            node_uuid = node_id_map.get(node_data.get("id"))
+            if node_uuid is None:
+                continue
+            assigned: set[str] = set()
+            for flag, class_key in _FLAG_TO_CLASS_KEY.items():
+                if node_data.get(flag):
+                    class_uuid = SYSTEM_CLASS_UUIDS[class_key]
+                    if class_uuid not in assigned:
+                        assigned.add(class_uuid)
+                        operations.append(
+                            _op(
+                                "class.assign",
+                                {"nodeId": node_uuid, "classId": class_uuid},
+                                [node_uuid, class_uuid],
+                            )
+                        )
+            for class_old_id in node_data.get("class_ids", []) or []:
+                class_uuid = _map_node_id(class_old_id)
+                if class_uuid and class_uuid not in assigned:
+                    assigned.add(class_uuid)
+                    operations.append(
+                        _op(
+                            "class.assign",
+                            {"nodeId": node_uuid, "classId": class_uuid},
+                            [node_uuid, class_uuid],
+                        )
+                    )
+
+        # Phase 6: property values.
+        for pvs in dump_data.get("property_value_scalars", []):
+            node_uuid = node_id_map.get(pvs.get("node_id"))
+            prop_uuid = property_id_map.get(pvs.get("property_id"))
+            value_id = pvs.get("uuid") or str(uuidv7())
+            if remap_uuids and _is_valid_uuid(value_id):
+                value_id = uuid_map.get(str(value_id).lower(), generate_uuid())
+            if node_uuid is None or prop_uuid is None:
+                continue
+            prop_type = property_type_map.get(prop_uuid, "text")
+            if prop_type == "boolean":
+                value = pvs.get("value_boolean")
+            elif prop_type == "integer":
+                value = pvs.get("value_integer")
+            elif prop_type == "float":
+                value = pvs.get("value_float")
+            else:
+                value = pvs.get("value_text")
+            if value is None:
+                continue
+            operations.append(
+                _op(
+                    "property.set",
+                    {
+                        "propertyValueId": value_id,
+                        "nodeId": node_uuid,
+                        "schemaId": prop_uuid,
+                        "value": value,
+                        "index": 0,
+                    },
+                    [node_uuid],
+                )
             )
 
-        logger.info(f"Import complete: {stats}")
-        return stats, bundle.uuid_map
+        for pvr in dump_data.get("property_value_relations", []):
+            node_uuid = node_id_map.get(pvr.get("node_id"))
+            prop_uuid = property_id_map.get(pvr.get("property_id"))
+            target_uuid = _map_node_id(pvr.get("target_id"))
+            value_id = pvr.get("uuid") or str(uuidv7())
+            if remap_uuids and _is_valid_uuid(value_id):
+                value_id = uuid_map.get(str(value_id).lower(), generate_uuid())
+            if node_uuid is None or prop_uuid is None or target_uuid is None:
+                continue
+            operations.append(
+                _op(
+                    "property.set",
+                    {
+                        "propertyValueId": value_id,
+                        "nodeId": node_uuid,
+                        "schemaId": prop_uuid,
+                        "value": target_uuid,
+                        "index": pvr.get("order", 0),
+                    },
+                    [node_uuid, target_uuid],
+                )
+            )
 
-    async def _cleanup_invalid_cloze_assignments(
-        self, conn: asyncpg.Connection, workspace_id: int
-    ) -> int:
-        """Remove the cloze class from nodes that are not direct children of a card.
+        for pvsel in dump_data.get("property_value_selections", []):
+            node_uuid = node_id_map.get(pvsel.get("node_id"))
+            prop_uuid = property_id_map.get(pvsel.get("property_id"))
+            line_uuid = _map_selection_line_id(pvsel.get("selection_line_id"))
+            value_id = pvsel.get("uuid") or str(uuidv7())
+            if remap_uuids and _is_valid_uuid(value_id):
+                value_id = uuid_map.get(str(value_id).lower(), generate_uuid())
+            if node_uuid is None or prop_uuid is None or line_uuid is None:
+                continue
+            operations.append(
+                _op(
+                    "property.set",
+                    {
+                        "propertyValueId": value_id,
+                        "nodeId": node_uuid,
+                        "schemaId": prop_uuid,
+                        "value": line_uuid,
+                        "index": 0,
+                    },
+                    [node_uuid],
+                )
+            )
 
-        This is useful as an opt-in correction after importing a workspace dump
-        that may contain inconsistent cloze assignments.
-        """
+        # Phase 7: class properties.
+        for cp in dump_data.get("class_properties", []):
+            class_uuid = _map_node_id(cp.get("class_node_id"))
+            prop_uuid = property_id_map.get(cp.get("property_id"))
+            if class_uuid is None or prop_uuid is None:
+                continue
+            prop_type = property_type_map.get(prop_uuid, "text")
+            default_value = None
+            if prop_type == "boolean":
+                default_value = cp.get("default_boolean")
+            elif prop_type == "integer":
+                default_value = cp.get("default_integer")
+            elif prop_type == "float":
+                default_value = cp.get("default_float")
+            elif prop_type in ("node", "relation"):
+                default_value = _map_node_id(cp.get("default_node_id"))
+            elif prop_type == "selection":
+                default_value = _map_selection_line_id(cp.get("default_selection_id"))
+            else:
+                default_value = cp.get("default_text")
+            operations.append(
+                _op(
+                    "classPropertyEdge.create",
+                    {
+                        "classId": class_uuid,
+                        "propertySchemaId": prop_uuid,
+                        "sequence": cp.get("sequence", 0),
+                        "hidden": bool(cp.get("hidden", False)),
+                        "defaultValue": default_value,
+                    },
+                    [class_uuid, prop_uuid],
+                )
+            )
+
+        # Phase 8: class extends.
+        extends_map: dict[str, set[str]] = {}
+        for ce in dump_data.get("class_extends", []):
+            class_uuid = _map_node_id(ce.get("target_id"))
+            parent_uuid = _map_node_id(ce.get("source_id"))
+            if class_uuid is None or parent_uuid is None:
+                continue
+            extends_map.setdefault(class_uuid, set()).add(parent_uuid)
+
+        for class_uuid, parents in extends_map.items():
+            operations.append(
+                _op(
+                    "class.update",
+                    {"classId": class_uuid, "extends": sorted(parents)},
+                    [class_uuid],
+                )
+            )
+
+        # Phase 9: node views.
+        for nv in dump_data.get("node_views", []):
+            view_uuid = nv.get("uuid") or str(uuidv7())
+            if remap_uuids and _is_valid_uuid(view_uuid):
+                view_uuid = uuid_map.get(str(view_uuid).lower(), generate_uuid())
+            node_uuid = _map_node_id(nv.get("node_id"))
+            if node_uuid is None:
+                continue
+            query_ast = nv.get("query_json", {})
+            if isinstance(query_ast, str):
+                try:
+                    query_ast = json.loads(query_ast)
+                except (json.JSONDecodeError, TypeError):
+                    query_ast = {}
+            operations.append(
+                _op(
+                    "nodeView.create",
+                    {
+                        "viewId": view_uuid,
+                        "nodeId": node_uuid,
+                        "name": nv.get("name", ""),
+                        "viewType": nv.get("view_type", ""),
+                        "orderIndex": nv.get("order_index", 0),
+                        "isDefault": bool(nv.get("is_default", False)),
+                        "shownProperties": nv.get("shown_properties", []),
+                        "groupBy": nv.get("group_by"),
+                        "viewMode": nv.get("view_mode"),
+                        "sortEntries": nv.get("sort_entries", []),
+                        "settings": nv.get("settings", {}),
+                        "queryAst": query_ast,
+                    },
+                    [node_uuid, view_uuid],
+                )
+            )
+
+        return operations
+
+    async def _cleanup_invalid_cloze(self, store: Any) -> int:
+        """Unassign the cloze class from nodes that are not children of a card."""
         cloze_uuid = SYSTEM_CLASS_UUIDS["cloze"]
-        row = await conn.fetchrow(
-            "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2 AND active = TRUE",
-            workspace_id,
-            cloze_uuid,
-        )
-        if not row:
-            return 0
-        cloze_class_id = row["id"]
-
-        result = await conn.fetchval(
+        card_uuid = SYSTEM_CLASS_UUIDS["card"]
+        rows = await store.query(
             """
-            WITH cleaned AS (
-                UPDATE node n
-                SET class_ids = array_remove(n.class_ids, $2),
-                    is_cloze = FALSE
-                WHERE n.workspace_id = $1
-                  AND n.is_cloze = TRUE
-                  AND $2 = ANY(n.class_ids)
-                  AND (
-                      n.parent_id IS NULL
-                      OR NOT EXISTS (
-                          SELECT 1 FROM node p
-                          WHERE p.id = n.parent_id AND p.is_card = TRUE
-                      )
-                  )
-                RETURNING n.id
-            )
-            SELECT COUNT(*) FROM cleaned
+            SELECT n.id, n.parent_id
+            FROM node n
+            WHERE n.class_ids LIKE ?
             """,
-            workspace_id,
-            cloze_class_id,
+            (f'%"{cloze_uuid}"%',),
         )
-        count = int(result or 0)
-        if count > 0:
-            logger.info(f"Cleaned up {count} invalid cloze assignment(s) in workspace {workspace_id}")
-        return count
+        cleaned = 0
+        for row in rows:
+            parent_id = row["parent_id"]
+            is_card_child = False
+            if parent_id is not None:
+                parent_rows = await store.query(
+                    "SELECT class_ids FROM node WHERE id = ?",
+                    (parent_id,),
+                )
+                if parent_rows:
+                    parent_class_ids = _load_json(parent_rows[0]["class_ids"], [])
+                    is_card_child = card_uuid in parent_class_ids
+            if not is_card_child:
+                await store.unassign_class(row["id"], cloze_uuid)
+                cleaned += 1
+        return cleaned
 
     async def delete_all_workspace_data(self, workspace_id: int) -> None:
-        """Delete all data in a workspace."""
-        async with acquire_connection(self._pool) as conn, conn.transaction():
+        """Delete all relay and derived data for a workspace."""
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            return
+
+        relay = self._relay()
+        max_hlc = await relay.get_max_hlc(workspace_uuid)
+        if max_hlc.physical > 0 or max_hlc.logical > 0:
+            await relay.prune_envelopes(workspace_uuid, max_hlc)
+
+        async with acquire_connection(self._pool) as conn:
             await conn.execute(
-                """
-                DELETE FROM node_view
-                WHERE node_id IN (SELECT id FROM node WHERE workspace_id = $1)
-            """,
-                workspace_id,
+                "DELETE FROM relay_snapshot WHERE workspace_id = $1",
+                workspace_uuid,
             )
-            await conn.execute("DELETE FROM node_link WHERE workspace_id = $1", workspace_id)
-            await conn.execute("DELETE FROM setting_workspace WHERE workspace_id = $1", workspace_id)
-            await conn.execute("DELETE FROM node WHERE workspace_id = $1", workspace_id)
-            await conn.execute("DELETE FROM property WHERE workspace_id = $1", workspace_id)
+            await conn.execute(
+                "DELETE FROM compacted_operation_segment WHERE workspace_id = $1",
+                workspace_uuid,
+            )
+
+        derived_db_path = settings.database_dir / "relay" / "derived" / f"{workspace_uuid}.db"
+        if derived_db_path.exists():
+            try:
+                derived_db_path.unlink()
+            except Exception as e:
+                logger.error(f"Failed to delete derived DB {derived_db_path}: {e}", exc_info=True)
 
     async def restore_workspace(
         self,
@@ -1244,205 +1509,195 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
         """Delete all data then import with remap_uuids=False."""
         await self.delete_all_workspace_data(workspace_id)
         stats, _ = await self.import_dump(
-            workspace_id, user_id, dump_data, remap_uuids=False, cleanup_invalid_cloze=cleanup_invalid_cloze
+            workspace_id,
+            user_id,
+            dump_data,
+            remap_uuids=False,
+            cleanup_invalid_cloze=cleanup_invalid_cloze,
         )
         return stats
 
     async def list_page_uuids(self, workspace_id: int) -> list[dict]:
         """List active page UUIDs and names."""
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(
-                """
-                SELECT uuid::text as uuid, name
-                FROM node
-                WHERE workspace_id = $1 AND is_page = TRUE
-                  AND is_deleted = FALSE AND active = TRUE
-                ORDER BY sequence, id
-            """,
-                workspace_id,
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            return []
+        store = self._store(workspace_uuid, workspace_uuid)
+        try:
+            await store.sync()
+            rows = await store.query(
+                "SELECT id, content FROM node WHERE workspace_id = ? AND kind = ?",
+                (workspace_uuid, "page"),
             )
-            return [dict(r) for r in rows]
+            return [
+                {"uuid": row["id"], "name": _extract_plain_text(_load_json(row["content"], []))}
+                for row in rows
+            ]
+        finally:
+            await store.close()
 
     async def list_asset_uuids(self, workspace_id: int) -> list[dict]:
         """List active asset UUIDs and names."""
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(
-                """
-                SELECT n.uuid::text as uuid, n.name
-                FROM node n
-                WHERE n.workspace_id = $1 AND n.is_asset = TRUE
-                  AND n.is_deleted = FALSE AND n.active = TRUE
-            """,
-                workspace_id,
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            return []
+        asset_class = SYSTEM_CLASS_UUIDS["asset"]
+        store = self._store(workspace_uuid, workspace_uuid)
+        try:
+            await store.sync()
+            rows = await store.query(
+                "SELECT id, content FROM node WHERE workspace_id = ? AND class_ids LIKE ?",
+                (workspace_uuid, f'%"{asset_class}"%'),
             )
-            return [dict(r) for r in rows]
+            return [
+                {"uuid": row["id"], "name": _extract_plain_text(_load_json(row["content"], []))}
+                for row in rows
+            ]
+        finally:
+            await store.close()
 
     async def list_asset_files(self, workspace_id: int) -> list[dict]:
         """List active asset UUIDs with their content file hash and mime_type."""
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            return []
+        store = self._store(workspace_uuid, workspace_uuid)
+        try:
+            await store.sync()
+            rows = await store.query(
                 """
-                SELECT n.uuid::text as uuid, a.hash, a.mime_type
+                SELECT n.id AS uuid, na.asset_hash AS hash, na.mime_type
                 FROM node n
-                JOIN asset a ON a.id = n.asset_id
-                WHERE n.workspace_id = $1 AND n.is_asset = TRUE
-                  AND n.is_deleted = FALSE AND n.active = TRUE
-            """,
-                workspace_id,
+                JOIN node_asset na ON na.node_id = n.id
+                WHERE n.workspace_id = ?
+                """,
+                (workspace_uuid,),
             )
             return [dict(r) for r in rows]
+        finally:
+            await store.close()
 
     async def get_page_metadata(
         self, workspace_id: int, node_uuid: str, include_properties: bool = True
-    ) -> dict[str, Any]:
+    ) -> dict:
         """Fetch full page metadata for YAML frontmatter."""
-        async with acquire_connection(self._pool) as conn:
-            node_row = await conn.fetchrow(
-                """
-                SELECT id, uuid::text as uuid, name, is_page, is_day, is_month, is_year,
-                       color, icon, class_ids, tag_ids, parent_id, create_date, write_date
-                FROM node
-                WHERE workspace_id = $1 AND uuid::text = $2
-                """,
-                workspace_id,
-                node_uuid,
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            raise ValueError(f"Workspace {workspace_id} not found")
+        store = self._store(workspace_uuid, workspace_uuid)
+        try:
+            await store.sync()
+            node_rows = await store.query(
+                "SELECT id, kind, class_ids, parent_id, content, created_at, updated_at FROM node WHERE id = ?",
+                (node_uuid,),
             )
-            if not node_row:
+            if not node_rows:
                 raise ValueError(f"Node not found: {node_uuid}")
+            node_row = node_rows[0]
+            content = _load_json(node_row["content"], [])
+            class_ids = _load_json(node_row["class_ids"], [])
 
             metadata: dict[str, Any] = {
-                "uuid": str(node_row["uuid"]),
-                "create_date": node_row["create_date"].isoformat() if node_row["create_date"] else None,
-                "write_date": node_row["write_date"].isoformat() if node_row["write_date"] else None,
+                "uuid": node_row["id"],
+                "create_date": node_row["created_at"],
+                "write_date": node_row["updated_at"],
+                "title": _extract_plain_text(content),
             }
 
-            metadata["title"] = self._extract_plain_text(node_row["name"])
-
-            if node_row["color"]:
-                metadata["color"] = node_row["color"]
-
-            ancestor_rows = await conn.fetch(
-                """
-                WITH RECURSIVE ancestors AS (
-                    SELECT id, parent_id, 0 AS depth
-                    FROM node
-                    WHERE id = $1
-                    UNION ALL
-                    SELECT n.id, n.parent_id, a.depth + 1
-                    FROM node n
-                    INNER JOIN ancestors a ON n.id = a.parent_id
+            ancestors = []
+            current_parent = node_row["parent_id"]
+            visited = set()
+            while current_parent and current_parent not in visited:
+                visited.add(current_parent)
+                parent_rows = await store.query(
+                    "SELECT id, content FROM node WHERE id = ?",
+                    (current_parent,),
                 )
-                SELECT n.uuid::text as uuid, n.name
-                FROM ancestors a
-                JOIN node n ON n.id = a.id
-                WHERE a.depth > 0
-                ORDER BY a.depth DESC
-                """,
-                node_row["id"],
-            )
-            if ancestor_rows:
-                metadata["parents"] = [
-                    {"uuid": str(row["uuid"]), "title": self._extract_plain_text(row["name"])}
-                    for row in ancestor_rows
-                ]
+                if not parent_rows:
+                    break
+                parent_row = parent_rows[0]
+                ancestors.insert(
+                    0,
+                    {
+                        "uuid": parent_row["id"],
+                        "title": _extract_plain_text(_load_json(parent_row["content"], [])),
+                    },
+                )
+                current_parent = parent_row["parent_id"]
+            if ancestors:
+                metadata["parents"] = ancestors
 
-            tag_rows = await conn.fetch(
-                """
-                SELECT n.uuid::text as uuid, n.name
-                FROM node n
-                WHERE n.id = ANY($1) AND n.active = TRUE
-                ORDER BY n.name
-                """,
-                list(node_row["tag_ids"] or []),
-            )
-            if tag_rows:
-                metadata["tags"] = [
-                    {"uuid": str(row["uuid"]), "name": self._extract_plain_text(row["name"])}
-                    for row in tag_rows
-                ]
-
-            class_ids = list(node_row["class_ids"] or [])
             if class_ids:
-                class_rows = await conn.fetch(
-                    "SELECT id, uuid::text as uuid, name FROM node WHERE id = ANY($1) AND active = TRUE",
-                    class_ids,
+                placeholders = ",".join("?" for _ in class_ids)
+                class_rows = await store.query(
+                    f"SELECT id, content FROM node WHERE id IN ({placeholders})",
+                    tuple(class_ids),
                 )
                 metadata["classes"] = [
-                    {"uuid": str(row["uuid"]), "name": self._extract_plain_text(row["name"])}
-                    for row in class_rows
+                    {"uuid": r["id"], "name": _extract_plain_text(_load_json(r["content"], []))}
+                    for r in class_rows
                 ]
 
             if include_properties:
-                prop_rows = await conn.fetch(
+                prop_rows = await store.query(
                     """
-                    SELECT p.name AS property_name, p.type AS property_type, p.is_multi,
-                           pvs.value_text, pvs.value_boolean, pvs.value_float, pvs.value_integer,
-                           psl.name AS selection_value,
-                           pvr.target_id AS relation_target_id,
-                           rel.uuid::text AS relation_target_uuid, rel.name AS relation_target_name
-                    FROM node_property np
-                    JOIN property p ON p.id = np.property_id
-                    LEFT JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
-                    LEFT JOIN property_value_relation pvr ON pvr.node_property_id = np.id
-                    LEFT JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
-                    LEFT JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
-                    LEFT JOIN node rel ON rel.id = pvr.target_id
-                    WHERE np.node_id = $1 AND p.active = TRUE
-                    ORDER BY p.name
+                    SELECT ps.name AS property_name, ps.type AS property_type, ps.multi, ps.options,
+                           pv.value AS raw_value
+                    FROM property_value pv
+                    JOIN property_schema ps ON ps.id = pv.property_schema_id
+                    WHERE pv.node_id = ? AND ps.active = 1
+                    ORDER BY ps.name
                     """,
-                    node_row["id"],
+                    (node_uuid,),
                 )
-                props_agg: dict[str, dict] = {}
+                props_out: dict[str, Any] = {}
                 for row in prop_rows:
                     prop_name = row["property_name"]
                     prop_type = row["property_type"]
-                    if prop_name not in props_agg:
-                        props_agg[prop_name] = {"type": prop_type, "values": []}
-                    value = None
-                    if prop_type == "integer" and row["value_integer"] is not None:
-                        value = row["value_integer"]
-                    elif prop_type == "float" and row["value_float"] is not None:
-                        value = row["value_float"]
-                    elif prop_type == "boolean" and row["value_boolean"] is not None:
-                        value = bool(row["value_boolean"])
-                    elif prop_type == "date" and row["value_text"] is not None:
-                        value = row["value_text"]
-                    elif prop_type == "selection" and row["selection_value"] is not None:
-                        value = row["selection_value"]
-                    elif prop_type in ("node", "text") and row["relation_target_id"] is not None:
+                    raw_value = _load_json(row["raw_value"], None)
+                    value: Any = None
+                    if prop_type in ("node", "relation"):
+                        target_rows = await store.query(
+                            "SELECT content FROM node WHERE id = ?",
+                            (raw_value,),
+                        )
                         value = {
-                            "uuid": str(row["relation_target_uuid"]) if row["relation_target_uuid"] else None,
-                            "name": self._extract_plain_text(row["relation_target_name"]),
+                            "uuid": raw_value,
+                            "name": _extract_plain_text(
+                                _load_json(target_rows[0]["content"], []) if target_rows else []
+                            ),
                         }
-                    if value is not None and value not in props_agg[prop_name]["values"]:
-                        props_agg[prop_name]["values"].append(value)
-
-                if props_agg:
-                    props_out = {}
-                    for prop_name, prop_data in props_agg.items():
-                        values = prop_data["values"]
-                        prop_type = prop_data["type"]
-                        if not values:
-                            continue
-                        if len(values) == 1 and prop_type != "text":
-                            props_out[prop_name] = values[0]
+                    elif prop_type == "selection":
+                        options = _load_json(row["options"], [])
+                        value = next(
+                            (opt.get("name", "") for opt in options if opt.get("id") == raw_value),
+                            None,
+                        )
+                    else:
+                        value = raw_value
+                    if value is not None:
+                        existing = props_out.get(prop_name)
+                        if existing is None:
+                            props_out[prop_name] = value
+                        elif isinstance(existing, list):
+                            existing.append(value)
                         else:
-                            props_out[prop_name] = values
-                    if props_out:
-                        metadata["properties"] = props_out
-
-            if node_row["icon"]:
-                metadata["icon"] = node_row["icon"]
+                            props_out[prop_name] = [existing, value]
+                if props_out:
+                    metadata["properties"] = props_out
 
             return metadata
+        finally:
+            await store.close()
 
-    @staticmethod
-    def _extract_plain_text(name: str | None) -> str:
-        if not name:
-            return "untitled"
+
+def _load_json(value: Any, default: Any) -> Any:
+    """Parse a JSON string or pass through a parsed value."""
+    if value is None:
+        return default
+    if isinstance(value, str):
         try:
-            ast = parse_ast(name)
-            opts = StringifyOptions(mode=StringifyMode.TEXT_ONLY)
-            return stringify_ast(ast, opts) or "untitled"
-        except (ValueError, TypeError):
-            return name.strip() or "untitled"
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return default
+    return value
