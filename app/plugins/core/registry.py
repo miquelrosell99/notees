@@ -11,6 +11,16 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 
+from app.core.derived.class_side_effects import (
+    clear as clear_core_class_side_effects,
+)
+from app.core.derived.class_side_effects import (
+    get as get_core_class_side_effects,
+)
+from app.core.derived.class_side_effects import (
+    register as register_core_class_side_effect,
+)
+
 from .ports import RouterRegistration
 
 if TYPE_CHECKING:
@@ -182,3 +192,13 @@ class PluginRegistry:
             handlers[:] = [
                 h for h in handlers if getattr(h, "_plugin_id", None) != plugin_id
             ]
+
+        for class_uuid in list(self._class_side_effects.keys()):
+            core_handlers = get_core_class_side_effects(class_uuid)
+            filtered = [
+                h for h in core_handlers if getattr(h, "_plugin_id", None) != plugin_id
+            ]
+            if len(filtered) != len(core_handlers):
+                clear_core_class_side_effects(class_uuid)
+                for handler in filtered:
+                    register_core_class_side_effect(class_uuid, handler)
