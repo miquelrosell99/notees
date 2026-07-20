@@ -146,6 +146,7 @@ async function createWorkspace(baseURL: string, cookies: string[], name: string)
 
 export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:5173';
+  const apiBaseURL = process.env.E2E_API_BASE_URL ?? 'http://localhost:8001';
   const env = loadEnv();
   const adminPassword = env.ADMIN_PASSWORD;
   if (!adminPassword) {
@@ -153,15 +154,15 @@ export default async function globalSetup(config: FullConfig) {
   }
 
   // 1. Authenticate as admin and create a dedicated test user.
-  const adminCookies = await apiLogin(baseURL, ADMIN_EMAIL, adminPassword);
+  const adminCookies = await apiLogin(apiBaseURL, ADMIN_EMAIL, adminPassword);
   const email = testUserEmail();
-  await adminCreateUser(baseURL, adminCookies, email);
+  await adminCreateUser(apiBaseURL, adminCookies, email);
 
   // 2. Authenticate as the test user, complete enrollment, and create a workspace via API.
-  const testCookies = await apiLogin(baseURL, email, TEST_USER_PASSWORD);
-  const me = await fetchMe(baseURL, testCookies);
-  await completeEnrollment(baseURL, testCookies);
-  await createWorkspace(baseURL, testCookies, 'E2E Workspace');
+  const testCookies = await apiLogin(apiBaseURL, email, TEST_USER_PASSWORD);
+  const me = await fetchMe(apiBaseURL, testCookies);
+  await completeEnrollment(apiBaseURL, testCookies);
+  await createWorkspace(apiBaseURL, testCookies, 'E2E Workspace');
 
   // 3. Seed the browser storage state: HTTPOnly cookies + persisted auth user.
   // NOTE: We intentionally do NOT call /api/auth/refresh here. Rotating the
@@ -171,8 +172,9 @@ export default async function globalSetup(config: FullConfig) {
   // refreshing is unnecessary for the E2E suite.
   const browser = await chromium.launch({
     executablePath: existsSync(ALPINE_CHROMIUM_PATH) ? ALPINE_CHROMIUM_PATH : undefined,
+    ignoreHTTPSErrors: true,
   });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
   await context.addCookies(
     testCookies.map((cookie) => {
       const parsed: Record<string, string> = {};
