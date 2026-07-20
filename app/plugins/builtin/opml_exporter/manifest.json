@@ -1,0 +1,23 @@
+{
+  "id": "notees.opml_exporter",
+  "name": "OPML Exporter",
+  "version": "1.0.0",
+  "description": "Export Notees outlines to OPML 2.0.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["export", "read_nodes"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.opml_exporter.setup:setup"
+  },
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "contributes": {
+    "commands": [
+      {"id": "opml.export", "label": "Export to OPML", "icon": "file-tree"}
+    ],
+    "exportFormats": [
+      {"id": "opml", "label": "OPML", "extension": "opml", "mimeType": "text/x-opml+xml"}
+    ]
+  }
+}
