@@ -108,7 +108,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5174,
+    port: 5173,
     host: '0.0.0.0',
     // Restrict to known local dev hosts. To expose the dev server to a remote
     // host (e.g., for LAN testing), set the VITE_ALLOWED_HOSTS env variable to

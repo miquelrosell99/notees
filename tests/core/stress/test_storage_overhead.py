@@ -51,7 +51,7 @@ def _operation_count() -> int:
 
 class TestRelayStorageOverhead:
     async def test_relay_size_per_operation(self) -> None:
-        """Encrypted relay overhead per operation stays under a few KB."""
+        """Relay overhead per operation stays under a few KB."""
         count = _operation_count()
         workspace_id = "ws-storage-overhead"
 
@@ -71,7 +71,7 @@ class TestRelayStorageOverhead:
             bytes_per_op = db_size / count
             print(f"relay_size({count}): {db_size} bytes ({bytes_per_op:.1f} B/op)")
 
-            # A node.create op with a small payload encrypts to a few hundred
+            # A node.create op with a small payload serializes to a few hundred
             # bytes. Allow a generous ceiling to stay green on slow CI disks.
             assert bytes_per_op < 2_500, (
                 f"Relay storage overhead was {bytes_per_op:.1f} B/op "
@@ -92,9 +92,9 @@ class TestRelayStorageOverhead:
 
         estimate = relay.get_operation_size_estimate("ws-size-estimate")
         assert estimate > 0
-        # The estimate is the sum of ciphertext + iv lengths; it should be a
+        # The estimate is the sum of serialized payload lengths; it should be a
         # meaningful fraction of the total database size.
-        assert estimate > count * 50
+        assert estimate > count * 20
 
     async def test_derived_state_size_after_replay(self) -> None:
         """The derived SQLite database stays small relative to the relay log."""

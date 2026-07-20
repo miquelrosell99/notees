@@ -1,4 +1,4 @@
-"""FastAPI router for the encrypted operation relay."""
+"""FastAPI router for the operation relay."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ async def receive_batch(
     actor_id: str = Depends(get_actor_id),
     service: RelayService = Depends(get_relay_service),
 ) -> dict[str, int | list[str]]:
-    """Accept an encrypted batch of operation envelopes."""
+    """Accept a batch of operation envelopes."""
     if actor_id == "anonymous":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -119,7 +119,7 @@ async def catch_up(
     actor_id: str = Depends(get_actor_id),
     service: RelayService = Depends(get_relay_service),
 ) -> CatchUpPaginatedResponse:
-    """Serve encrypted operation envelopes newer than the given HLC."""
+    """Serve operation envelopes newer than the given HLC."""
     if actor_id == "anonymous" and share_token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

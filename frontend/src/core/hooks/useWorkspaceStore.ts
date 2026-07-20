@@ -12,7 +12,6 @@ export interface UseWorkspaceStoreResult {
 export function useWorkspaceStore(workspaceId: string): UseWorkspaceStoreResult {
   const ctx = useContext(WorkspaceStoreContext);
   const actorId = ctx?.actorId;
-  const cryptoKey = ctx?.cryptoKey;
   const transport = ctx?.transport;
 
   const [result, setResult] = useState<UseWorkspaceStoreResult>({
@@ -30,7 +29,7 @@ export function useWorkspaceStore(workspaceId: string): UseWorkspaceStoreResult 
     let cancelled = false;
     setResult({ store: undefined, isLoading: true, error: null });
 
-    getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.cryptoKey, ctx.transport)
+    getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.transport)
       .then((store) => {
         if (!cancelled) {
           setResult({ store, isLoading: false, error: null });
@@ -46,7 +45,7 @@ export function useWorkspaceStore(workspaceId: string): UseWorkspaceStoreResult 
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, ctx, actorId, cryptoKey, transport]);
+  }, [workspaceId, ctx, actorId, transport]);
 
   return result;
 }

@@ -46,17 +46,14 @@ def _seed_relay_storage(
     actor_id: str,
     count: int,
 ) -> list[EncryptedEnvelope]:
-    """Generate deterministic encrypted envelopes and persist them."""
+    """Generate deterministic envelopes and persist them."""
     import random
 
     rng = random.Random(SEED)
-    key = derive_workspace_key(workspace_id, "x" * 32)
-    from app.core.crypto import encrypt_operation_payload
 
     envelopes: list[EncryptedEnvelope] = []
     for i in range(count):
         payload = {"nodeId": f"node-{i:06d}", "kind": "block"}
-        encrypted = encrypt_operation_payload(payload, key)
         envelope = EncryptedEnvelope(
             id=f"env-{workspace_id}-{i:08d}-{rng.randint(0, 1_000_000):06d}",
             workspace_id=workspace_id,
@@ -64,8 +61,7 @@ def _seed_relay_storage(
             hlc=Hlc(physical=i + 1, logical=0),
             affected_node_ids=[f"node-{i:06d}"],
             op_type="node.create",
-            ciphertext=encrypted["ciphertext"],
-            iv=encrypted["iv"],
+            payload=payload,
         )
         envelopes.append(envelope)
     storage.save_envelopes(envelopes)

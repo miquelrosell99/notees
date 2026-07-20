@@ -130,7 +130,6 @@ export function useCreateComment() {
       const store = await getOrCreateWorkspaceStore(
         workspaceUuid,
         ctx.actorId,
-        ctx.cryptoKey,
         ctx.transport,
       );
 
@@ -178,7 +177,6 @@ export function useDeleteComment() {
       const store = await getOrCreateWorkspaceStore(
         workspaceUuid,
         ctx.actorId,
-        ctx.cryptoKey,
         ctx.transport,
       );
       const resolvedCommentUuid = findCommentUuid(queryClient, nodeUuid, commentUuid);
