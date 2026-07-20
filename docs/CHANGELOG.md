@@ -80,7 +80,9 @@
 
 ### Dev environment
 
-- Added optional HTTPS support for the Vite dev server via `@vitejs/plugin-basic-ssl`. Set `HTTPS=true` and add your Tailscale host to `VITE_ALLOWED_HOSTS` to access `https://atlas:5173` without the `crypto.subtle` secure-context error.
+- Replaced the Vite-native `@vitejs/plugin-basic-ssl` setup with an nginx reverse proxy inside the frontend dev container that exposes both HTTPS (`5173`) and HTTP (`5172`) simultaneously.
+- Vite now runs on internal port `5174`; nginx terminates TLS with a self-signed certificate and proxies both protocols.
+- Host access: `https://localhost:5173` and `http://localhost:5172`; over Tailscale use `https://atlas:5173` for a secure context (required for `crypto.subtle`) or `http://atlas:5172` for plain HTTP.
 
 ### Verification
 
