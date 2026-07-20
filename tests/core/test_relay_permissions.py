@@ -72,15 +72,15 @@ async def _create_node(conn, workspace_id: int, owner_id: int) -> str:
     return row["uuid"]
 
 
-async def _create_public_share(conn, node_id: int, workspace_id: int, created_by: int) -> str:
+async def _create_public_share(conn, node_uuid: str, workspace_id: int, created_by: int) -> str:
     """Create an active, unexpired public share for a node and return its UUID."""
     row = await conn.fetchrow(
         """
-        INSERT INTO node_public_share (node_id, workspace_id, created_by, active)
+        INSERT INTO node_public_share (node_uuid, workspace_id, created_by, active)
         VALUES ($1, $2, $3, TRUE)
         RETURNING uuid::text as uuid
         """,
-        node_id,
+        node_uuid,
         workspace_id,
         created_by,
     )
@@ -144,11 +144,7 @@ async def test_public_share_token_grants_read_but_not_write(db_pool, test_user) 
 
     async with db_pool.acquire() as conn:
         node_uuid = await _create_node(conn, workspace_id, owner_id)
-        node_id_row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid::text = $1", node_uuid
-        )
-        node_id = node_id_row["id"]
-        share_token = await _create_public_share(conn, node_id, workspace_id, owner_id)
+        share_token = await _create_public_share(conn, node_uuid, workspace_id, owner_id)
 
     assert (
         await checker.can_read_public_share(workspace_uuid, share_token, node_uuid)
@@ -168,11 +164,7 @@ async def test_public_share_token_allows_anonymous_catch_up(db_pool, test_user) 
 
     async with db_pool.acquire() as conn:
         node_uuid = await _create_node(conn, workspace_id, owner_id)
-        node_id_row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid::text = $1", node_uuid
-        )
-        node_id = node_id_row["id"]
-        share_token = await _create_public_share(conn, node_id, workspace_id, owner_id)
+        share_token = await _create_public_share(conn, node_uuid, workspace_id, owner_id)
 
     # Anonymous catch-up with a valid share token should succeed.
     from app.core.clock import Hlc
@@ -190,11 +182,7 @@ async def test_public_share_token_without_node_scope_any_workspace_node(db_pool,
 
     async with db_pool.acquire() as conn:
         node_uuid = await _create_node(conn, workspace_id, owner_id)
-        node_id_row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid::text = $1", node_uuid
-        )
-        node_id = node_id_row["id"]
-        share_token = await _create_public_share(conn, node_id, workspace_id, owner_id)
+        share_token = await _create_public_share(conn, node_uuid, workspace_id, owner_id)
 
     # Calling without a specific node_id still matches because the workspace has
     # at least one active public share.
@@ -220,11 +208,7 @@ async def test_public_share_write_rejected_via_service(db_pool, test_user) -> No
 
     async with db_pool.acquire() as conn:
         node_uuid = await _create_node(conn, workspace_id, owner_id)
-        node_id_row = await conn.fetchrow(
-            "SELECT id FROM node WHERE uuid::text = $1", node_uuid
-        )
-        node_id = node_id_row["id"]
-        await _create_public_share(conn, node_id, workspace_id, owner_id)
+        await _create_public_share(conn, node_uuid, workspace_id, owner_id)
 
     envelope = EncryptedEnvelope(
         id="env-public",

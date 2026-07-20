@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from app.domain.entities import Node
     from app.domain.entities.share import PublicShare
 
 
@@ -16,7 +15,7 @@ class ShareRepository(ABC):
     @abstractmethod
     async def create_share(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         created_by: int,
         expiry_date: str | None = None,
@@ -30,7 +29,7 @@ class ShareRepository(ABC):
         pass
 
     @abstractmethod
-    async def list_shares_for_node(self, node_id: int) -> list[PublicShare]:
+    async def list_shares_for_node(self, node_uuid: str) -> list[PublicShare]:
         """List all active shares for a node."""
         pass
 
@@ -45,8 +44,8 @@ class ShareRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_shared_node(self, share_uuid: str) -> Node | None:
-        """Get the node associated with a valid share."""
+    async def get_shared_node(self, share_uuid: str) -> dict[str, Any] | None:
+        """Get the node UUID associated with a valid share."""
         pass
 
     @abstractmethod
@@ -64,7 +63,7 @@ class ShareRepository(ABC):
     @abstractmethod
     async def create_node_user_share(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         user_id: int,
         target_email: str,
@@ -79,12 +78,9 @@ class ShareRepository(ABC):
 
     @abstractmethod
     async def list_node_user_shares(
-        self, node_id: int, workspace_id: int, user_id: int
-    ) -> tuple[bool, list[Any]]:
-        """List user shares for a node.
-
-        Returns (is_owner, rows).
-        """
+        self, node_uuid: str, workspace_id: int, user_id: int
+    ) -> list[Any]:
+        """List active user shares for a node visible to the requesting user."""
         pass
 
     @abstractmethod
@@ -93,7 +89,7 @@ class ShareRepository(ABC):
     ) -> dict[str, Any] | None:
         """Revoke a node user share and clear is_shared if no shares remain.
 
-        Returns {"node_id": node_id} on success, or None if not found/forbidden.
+        Returns {"node_uuid": node_uuid} on success, or None if not found/forbidden.
         """
         pass
 

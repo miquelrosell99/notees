@@ -111,15 +111,12 @@ class PostgresPermissionChecker(PermissionChecker):
                     """
                     SELECT 1
                     FROM node_public_share s
-                    JOIN node n ON n.id = s.node_id
-                    JOIN workspace w ON w.id = n.workspace_id
+                    JOIN workspace w ON w.id = s.workspace_id
                     WHERE s.uuid::text = $1
-                      AND n.uuid::text = $2
+                      AND s.node_uuid::text = $2
                       AND w.uuid::text = $3
                       AND s.active = TRUE
                       AND (s.expiry_date IS NULL OR s.expiry_date > NOW())
-                      AND n.active = TRUE
-                      AND n.is_deleted = FALSE
                     """,
                     share_token,
                     node_id,
@@ -131,14 +128,11 @@ class PostgresPermissionChecker(PermissionChecker):
                 """
                 SELECT 1
                 FROM node_public_share s
-                JOIN node n ON n.id = s.node_id
-                JOIN workspace w ON w.id = n.workspace_id
+                JOIN workspace w ON w.id = s.workspace_id
                 WHERE s.uuid::text = $1
                   AND w.uuid::text = $2
                   AND s.active = TRUE
                   AND (s.expiry_date IS NULL OR s.expiry_date > NOW())
-                  AND n.active = TRUE
-                  AND n.is_deleted = FALSE
                 LIMIT 1
                 """,
                 share_token,

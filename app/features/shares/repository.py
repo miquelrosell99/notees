@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -10,9 +9,8 @@ from typing import Any
 import asyncpg
 
 from app.db.connection import acquire_connection
-from app.domain.entities import Node
 from app.domain.entities.share import PublicShare
-from app.domain.repositories.base import BasePostgresRepository, normalize_timestamp
+from app.domain.repositories.base import BasePostgresRepository
 
 from .port import ShareRepository
 
@@ -28,7 +26,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         return PublicShare(
             id=row["id"],
             uuid=str(row["uuid"]),
-            node_id=row["node_id"],
+            node_uuid=str(row["node_uuid"]),
             workspace_id=row["workspace_id"],
             created_by=row["created_by"],
             created_at=row["created_at"].isoformat() if row["created_at"] else "",
@@ -39,7 +37,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
 
     async def create_share(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         created_by: int,
         expiry_date: str | None = None,
@@ -47,11 +45,11 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO node_public_share (node_id, workspace_id, created_by, expiry_date)
+                INSERT INTO node_public_share (node_uuid, workspace_id, created_by, expiry_date)
                 VALUES ($1, $2, $3, $4)
-                RETURNING id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, password_hash, active
+                RETURNING id, uuid, node_uuid, workspace_id, created_by, created_at, expiry_date, password_hash, active
                 """,
-                node_id,
+                node_uuid,
                 workspace_id,
                 created_by,
                 expiry_date,
@@ -63,7 +61,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, password_hash, active
+                SELECT id, uuid, node_uuid, workspace_id, created_by, created_at, expiry_date, password_hash, active
                 FROM node_public_share
                 WHERE uuid = $1
                 """,
@@ -73,16 +71,16 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
             return None
         return self._row_to_share(row)
 
-    async def list_shares_for_node(self, node_id: int) -> list[PublicShare]:
+    async def list_shares_for_node(self, node_uuid: str) -> list[PublicShare]:
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, password_hash, active
+                SELECT id, uuid, node_uuid, workspace_id, created_by, created_at, expiry_date, password_hash, active
                 FROM node_public_share
-                WHERE node_id = $1 AND active = TRUE
+                WHERE node_uuid = $1 AND active = TRUE
                 ORDER BY created_at DESC
                 """,
-                node_id,
+                node_uuid,
             )
         return [self._row_to_share(row) for row in rows]
 
@@ -90,23 +88,14 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT s.id, s.uuid, s.node_id, s.workspace_id, s.created_by, s.created_at, s.expiry_date, s.password_hash, s.active,
-                       n.name as node_name, n.uuid as node_uuid
-                FROM node_public_share s
-                JOIN node n ON n.id = s.node_id
-                WHERE s.workspace_id = $1 AND s.active = TRUE
-                ORDER BY s.created_at DESC
+                SELECT id, uuid, node_uuid, workspace_id, created_by, created_at, expiry_date, password_hash, active
+                FROM node_public_share
+                WHERE workspace_id = $1 AND active = TRUE
+                ORDER BY created_at DESC
                 """,
                 workspace_id,
             )
-        shares = []
-        for row in rows:
-            share = self._row_to_share(row)
-            # Attach node name for display purposes via a private attr
-            object.__setattr__(share, "_node_name", row["node_name"])
-            object.__setattr__(share, "_node_uuid", str(row["node_uuid"]))
-            shares.append(share)
-        return shares
+        return [self._row_to_share(row) for row in rows]
 
     async def delete_share(self, share_uuid: str) -> bool:
         async with acquire_connection(self._pool) as conn:
@@ -117,69 +106,20 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         # asyncpg returns e.g. "UPDATE 1"
         return result.split()[-1] != "0"
 
-    @staticmethod
-    def _row_to_node(row: asyncpg.Record) -> Node:
-        classes_path = row.get("classes_path", [])
-        if classes_path is None:
-            classes_path = []
-        elif isinstance(classes_path, str):
-            try:
-                classes_path = json.loads(classes_path)
-            except (json.JSONDecodeError, TypeError):
-                classes_path = []
-        class_ids = row.get("class_ids", [])
-        if class_ids is None:
-            class_ids = []
-        return Node(
-            id=row["id"],
-            uuid=str(row["uuid"]),
-            workspace_id=row.get("workspace_id"),
-            name=row["name"],
-            icon=row.get("icon"),
-            color=row.get("color"),
-            parent_id=row.get("parent_id"),
-            page_id=row.get("page_id"),
-            sequence=row.get("sequence", 0),
-            active=row.get("active", True),
-            is_shared=row.get("is_shared", False),
-            is_deleted=row.get("is_deleted", False),
-            deleted_at=normalize_timestamp(row.get("deleted_at")) or None,
-            is_class=row.get("is_class", False),
-            is_page=row.get("is_page", False),
-            is_day=row.get("is_day", False),
-            is_month=row.get("is_month", False),
-            is_year=row.get("is_year", False),
-            is_asset=row.get("is_asset", False),
-            is_template=row.get("is_template", False),
-            is_comment=row.get("is_comment", False),
-            parent_locked=row.get("parent_locked", False),
-            open_date=normalize_timestamp(row.get("open_date")) or None,
-            create_date=normalize_timestamp(row.get("create_date", "")),
-            write_date=normalize_timestamp(row.get("write_date", "")),
-            create_uid=row.get("create_uid"),
-            write_uid=row.get("write_uid"),
-            class_ids=class_ids,
-            classes_path=classes_path,
-            version=row.get("version", 1),
-            aliased_id=row.get("aliased_id"),
-        )
-
-    async def get_shared_node(self, share_uuid: str) -> Node | None:
+    async def get_shared_node(self, share_uuid: str) -> dict[str, Any] | None:
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT n.*
-                FROM node_public_share s
-                JOIN node n ON n.id = s.node_id
-                WHERE s.uuid = $1 AND s.active = TRUE
-                  AND (s.expiry_date IS NULL OR s.expiry_date > NOW())
-                  AND n.active = TRUE AND n.is_deleted = FALSE
+                SELECT node_uuid
+                FROM node_public_share
+                WHERE uuid = $1 AND active = TRUE
+                  AND (expiry_date IS NULL OR expiry_date > NOW())
                 """,
                 share_uuid,
             )
         if row is None:
             return None
-        return self._row_to_node(row)
+        return {"node_uuid": str(row["node_uuid"])}
 
     async def set_share_password(self, share_id: int, password_hash: str) -> None:
         """Set a password hash on a public share."""
@@ -199,25 +139,22 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
             total = await conn.fetchval(
                 """
                 SELECT COUNT(*) FROM node_share ns
-                JOIN node n ON n.id = ns.node_id
                 WHERE ns.user_id = $1 AND ns.active = TRUE
-                  AND n.active = TRUE AND n.is_deleted = FALSE
                 """,
                 user_id,
             )
             rows = await conn.fetch(
                 """
-                SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.can_read, ns.can_write,
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_uuid, ns.can_read, ns.can_write,
                        ns.create_date as shared_at, ns.create_uid as shared_by_id,
                        u.email as shared_by_email,
-                       n.uuid as node_uuid, n.name as node_name, n.icon as node_icon,
-                       n.is_page, n.workspace_id, w.name as workspace_name, w.uuid as workspace_uuid
+                       n.uuid as node_uuid_legacy, n.name as node_name, n.icon as node_icon,
+                       n.is_page, ns.workspace_id, w.name as workspace_name, w.uuid as workspace_uuid
                 FROM node_share ns
-                JOIN node n ON n.id = ns.node_id
+                LEFT JOIN node n ON n.uuid = ns.node_uuid
                 JOIN "user" u ON u.id = ns.create_uid
-                JOIN workspace w ON w.id = n.workspace_id
+                JOIN workspace w ON w.id = ns.workspace_id
                 WHERE ns.user_id = $1 AND ns.active = TRUE
-                  AND n.active = TRUE AND n.is_deleted = FALSE
                 ORDER BY ns.create_date DESC
                 LIMIT $2 OFFSET $3
                 """,
@@ -229,7 +166,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
 
     async def create_node_user_share(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         user_id: int,
         target_email: str,
@@ -237,15 +174,6 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
     ) -> dict[str, Any] | None:
         """Create or update a node-level user share or pending invite."""
         async with acquire_connection(self._pool) as conn, conn.transaction():
-            # Verify node exists in workspace
-            node_row = await conn.fetchrow(
-                "SELECT id FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
-                node_id,
-                workspace_id,
-            )
-            if not node_row:
-                raise ValueError("Node not found")
-
             # Resolve target user
             target = await conn.fetchrow(
                 'SELECT id FROM "user" WHERE email = $1 AND active = TRUE',
@@ -258,9 +186,9 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                 expires_at = datetime.now(UTC) + timedelta(days=7)
                 await conn.execute(
                     """
-                    INSERT INTO pending_invite (uuid, email, workspace_id, node_id, role, invited_by, expires_at, active)
+                    INSERT INTO pending_invite (uuid, email, workspace_id, node_uuid, role, invited_by, expires_at, active)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
-                    ON CONFLICT (email, workspace_id, node_id)
+                    ON CONFLICT (email, workspace_id, node_uuid)
                     DO UPDATE SET
                         role = EXCLUDED.role,
                         invited_by = EXCLUDED.invited_by,
@@ -271,7 +199,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                     invite_uuid,
                     target_email,
                     workspace_id,
-                    node_id,
+                    node_uuid,
                     permission,
                     user_id,
                     expires_at,
@@ -281,7 +209,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                     "status": "pending",
                     "email": target_email,
                     "invite_token": invite_uuid,
-                    "node_id": node_id,
+                    "node_uuid": node_uuid,
                 }
 
             target_id = target["id"]
@@ -292,10 +220,10 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
 
             row = await conn.fetchrow(
                 """
-                INSERT INTO node_share (node_id, user_id, can_read, can_write, can_create, can_delete,
+                INSERT INTO node_share (node_uuid, user_id, can_read, can_write, can_create, can_delete,
                                         active, create_uid, write_uid)
                 VALUES ($1, $2, TRUE, $3, $3, FALSE, TRUE, $4, $4)
-                ON CONFLICT (node_id, user_id)
+                ON CONFLICT (node_uuid, user_id)
                 DO UPDATE SET
                     can_read = TRUE,
                     can_write = EXCLUDED.can_write,
@@ -303,95 +231,72 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                     active = TRUE,
                     write_uid = EXCLUDED.write_uid,
                     write_date = NOW()
-                RETURNING id, uuid, node_id, user_id, can_read, can_write, create_date, create_uid,
+                RETURNING id, uuid, node_uuid, user_id, can_read, can_write, create_date, create_uid,
                           (SELECT uuid FROM "user" WHERE id = node_share.user_id) as user_uuid,
                           (SELECT uuid FROM "user" WHERE id = node_share.create_uid) as create_user_uuid
                 """,
-                node_id,
+                node_uuid,
                 target_id,
                 can_write,
                 user_id,
             )
 
-            # Mark node as shared
-            await conn.execute(
-                "UPDATE node SET is_shared = TRUE WHERE id = $1",
-                node_id,
-            )
-
         return dict(row) if row else None
 
     async def list_node_user_shares(
-        self, node_id: int, workspace_id: int, user_id: int
-    ) -> tuple[bool, list[asyncpg.Record]]:
-        """List user shares for a node. Returns (is_owner, rows)."""
-        async with acquire_connection(self._pool) as conn:
-            node_row = await conn.fetchrow(
-                "SELECT create_uid FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE",
-                node_id,
-                workspace_id,
-            )
-            if not node_row:
-                raise ValueError("Node not found")
-            if node_row["create_uid"] != user_id:
-                raise PermissionError("Only node owners can view shares")
+        self, node_uuid: str, workspace_id: int, user_id: int
+    ) -> list[asyncpg.Record]:
+        """List active user shares for a node that involve the requesting user.
 
+        A user may see shares they created or shares where they are the target.
+        This avoids depending on the legacy ``node`` table or a server-side
+        derived store that may lag the relay.
+        """
+        async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.user_id, u.email, ns.can_read, ns.can_write,
-                       ns.create_date, ns.create_uid, u.uuid as user_uuid,
-                       (SELECT uuid FROM "user" WHERE id = ns.create_uid) as create_user_uuid
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_uuid, ns.user_id, u.email, ns.can_read, ns.can_write,
+                       ns.create_date, ns.create_uid, u.uuid as shared_with_user_uuid,
+                       (SELECT uuid FROM "user" WHERE id = ns.create_uid) as created_by_uuid
                 FROM node_share ns
                 JOIN "user" u ON u.id = ns.user_id
-                WHERE ns.node_id = $1 AND ns.active = TRUE
+                WHERE ns.node_uuid = $1
+                  AND ns.workspace_id = $2
+                  AND ns.active = TRUE
+                  AND (ns.create_uid = $3 OR ns.user_id = $3)
                 ORDER BY ns.create_date DESC
                 """,
-                node_id,
+                node_uuid,
+                workspace_id,
+                user_id,
             )
-        return True, rows
+        return rows
 
     async def revoke_user_share(
         self, share_id: int, workspace_id: int, user_id: int
     ) -> dict[str, Any] | None:
-        """Revoke a node user share and clear is_shared if no shares remain."""
+        """Revoke a node user share."""
         async with acquire_connection(self._pool) as conn, conn.transaction():
-            # Verify the share exists and user is the creator or node owner
             share_row = await conn.fetchrow(
                 """
-                SELECT ns.node_id, ns.create_uid, n.create_uid as node_owner_id
-                FROM node_share ns
-                JOIN node n ON n.id = ns.node_id
-                WHERE ns.id = $1 AND ns.active = TRUE AND n.workspace_id = $2
+                SELECT node_uuid, create_uid
+                FROM node_share
+                WHERE id = $1 AND active = TRUE AND workspace_id = $2
                 """,
                 share_id,
                 workspace_id,
             )
             if not share_row:
                 return None
-            if share_row["create_uid"] != user_id and share_row["node_owner_id"] != user_id:
-                raise PermissionError("Only the share creator or node owner can revoke")
+            if share_row["create_uid"] != user_id:
+                raise PermissionError("Only the share creator can revoke")
 
             await conn.execute(
                 "UPDATE node_share SET active = FALSE WHERE id = $1",
                 share_id,
             )
 
-            # Check if any shares remain; if not, clear is_shared flag
-            remaining = await conn.fetchrow(
-                "SELECT 1 FROM node_share WHERE node_id = $1 AND active = TRUE LIMIT 1",
-                share_row["node_id"],
-            )
-            public_remaining = await conn.fetchrow(
-                "SELECT 1 FROM node_public_share WHERE node_id = $1 AND active = TRUE LIMIT 1",
-                share_row["node_id"],
-            )
-            if not remaining and not public_remaining:
-                await conn.execute(
-                    "UPDATE node SET is_shared = FALSE WHERE id = $1",
-                    share_row["node_id"],
-                )
-
-        return {"node_id": share_row["node_id"]}
+        return {"node_uuid": str(share_row["node_uuid"])}
 
     async def get_node_user_share_by_uuid(
         self, share_uuid: str
@@ -400,7 +305,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.user_id, u.email,
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_uuid, ns.user_id, u.email,
                        ns.can_read, ns.can_write, ns.create_date, ns.create_uid
                 FROM node_share ns
                 JOIN "user" u ON u.id = ns.user_id
@@ -413,45 +318,28 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
     async def revoke_user_share_by_uuid(
         self, share_uuid: str, workspace_id: int, user_id: int
     ) -> dict[str, Any] | None:
-        """Revoke a node user share by its public UUID."""
+        """Revoke a node-level user share by its public UUID."""
         async with acquire_connection(self._pool) as conn, conn.transaction():
             share_row = await conn.fetchrow(
                 """
-                SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.create_uid, n.create_uid as node_owner_id,
-                       n.uuid as node_uuid
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_uuid, ns.create_uid
                 FROM node_share ns
-                JOIN node n ON n.id = ns.node_id
-                WHERE ns.uuid = $1 AND ns.active = TRUE AND n.workspace_id = $2
+                WHERE ns.uuid = $1 AND ns.active = TRUE AND ns.workspace_id = $2
                 """,
                 share_uuid,
                 workspace_id,
             )
             if not share_row:
                 return None
-            if share_row["create_uid"] != user_id and share_row["node_owner_id"] != user_id:
-                raise PermissionError("Only the share creator or node owner can revoke")
+            if share_row["create_uid"] != user_id:
+                raise PermissionError("Only the share creator can revoke")
 
             await conn.execute(
                 "UPDATE node_share SET active = FALSE WHERE id = $1",
                 share_row["id"],
             )
 
-            remaining = await conn.fetchrow(
-                "SELECT 1 FROM node_share WHERE node_id = $1 AND active = TRUE LIMIT 1",
-                share_row["node_id"],
-            )
-            public_remaining = await conn.fetchrow(
-                "SELECT 1 FROM node_public_share WHERE node_id = $1 AND active = TRUE LIMIT 1",
-                share_row["node_id"],
-            )
-            if not remaining and not public_remaining:
-                await conn.execute(
-                    "UPDATE node SET is_shared = FALSE WHERE id = $1",
-                    share_row["node_id"],
-                )
-
         return {
-            "node_id": share_row["node_id"],
             "node_uuid": str(share_row["node_uuid"]),
             "share_uuid": str(share_row["share_uuid"]),
         }

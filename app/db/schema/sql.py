@@ -355,7 +355,7 @@ ALTER TABLE "user" ADD COLUMN IF NOT EXISTS user_page_node_id INTEGER REFERENCES
 CREATE TABLE IF NOT EXISTS node_share (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
-    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    node_uuid UUID NOT NULL,
     user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     can_read BOOLEAN DEFAULT TRUE,
     can_write BOOLEAN DEFAULT FALSE,
@@ -368,28 +368,112 @@ CREATE TABLE IF NOT EXISTS node_share (
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
-    UNIQUE(node_id, user_id)
+    UNIQUE(node_uuid, user_id)
 );
-
-CREATE INDEX IF NOT EXISTS idx_node_share_node_id ON node_share(node_id);
-CREATE INDEX IF NOT EXISTS idx_node_share_user_id ON node_share(user_id);
 
 -- Public share links (tokenized anonymous access)
 CREATE TABLE IF NOT EXISTS node_public_share (
     id SERIAL PRIMARY KEY,
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
-    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    node_uuid UUID NOT NULL,
     workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     created_by INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expiry_date TIMESTAMPTZ,
     password_hash TEXT,
-    active BOOLEAN DEFAULT TRUE,
-    UNIQUE(node_id, uuid)
+    active BOOLEAN DEFAULT TRUE
 );
 
+-- ============================================================
+-- MIGRATION: SHARE METADATA FROM INTEGER node_id TO node_uuid
+-- ============================================================
+
+-- One-way migration for pre-existing databases that still use the legacy
+-- integer node_id column in share metadata tables. New databases skip this
+-- block because node_id does not exist on those tables.
+DO $$
+BEGIN
+    -- node_public_share
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_public_share' AND column_name = 'node_id'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'node_public_share' AND column_name = 'node_uuid'
+        ) THEN
+            ALTER TABLE node_public_share ADD COLUMN node_uuid UUID;
+        END IF;
+
+        UPDATE node_public_share s
+        SET node_uuid = n.uuid
+        FROM node n
+        WHERE n.id = s.node_id;
+
+        IF EXISTS (SELECT 1 FROM node_public_share WHERE node_uuid IS NULL) THEN
+            RAISE EXCEPTION 'node_public_share rows exist with unmapped node_id values';
+        END IF;
+
+        ALTER TABLE node_public_share ALTER COLUMN node_uuid SET NOT NULL;
+        ALTER TABLE node_public_share DROP COLUMN node_id CASCADE;
+    END IF;
+
+    -- node_share
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_share' AND column_name = 'node_id'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'node_share' AND column_name = 'node_uuid'
+        ) THEN
+            ALTER TABLE node_share ADD COLUMN node_uuid UUID;
+        END IF;
+
+        UPDATE node_share s
+        SET node_uuid = n.uuid
+        FROM node n
+        WHERE n.id = s.node_id;
+
+        IF EXISTS (SELECT 1 FROM node_share WHERE node_uuid IS NULL) THEN
+            RAISE EXCEPTION 'node_share rows exist with unmapped node_id values';
+        END IF;
+
+        ALTER TABLE node_share ALTER COLUMN node_uuid SET NOT NULL;
+        ALTER TABLE node_share DROP COLUMN node_id CASCADE;
+    END IF;
+
+    -- pending_invite
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'pending_invite' AND column_name = 'node_id'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'pending_invite' AND column_name = 'node_uuid'
+        ) THEN
+            ALTER TABLE pending_invite ADD COLUMN node_uuid UUID;
+        END IF;
+
+        UPDATE pending_invite i
+        SET node_uuid = n.uuid
+        FROM node n
+        WHERE n.id = i.node_id;
+
+        IF EXISTS (SELECT 1 FROM pending_invite WHERE node_uuid IS NULL AND node_id IS NOT NULL) THEN
+            RAISE EXCEPTION 'pending_invite rows exist with unmapped node_id values';
+        END IF;
+
+        ALTER TABLE pending_invite ALTER COLUMN node_uuid SET NOT NULL;
+        ALTER TABLE pending_invite DROP COLUMN node_id CASCADE;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_node_share_node ON node_share(node_uuid);
+CREATE INDEX IF NOT EXISTS idx_node_share_user_id ON node_share(user_id);
+
 CREATE INDEX IF NOT EXISTS idx_node_public_share_uuid ON node_public_share(uuid);
-CREATE INDEX IF NOT EXISTS idx_node_public_share_node ON node_public_share(node_id) WHERE active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_node_public_share_node ON node_public_share(node_uuid) WHERE active = TRUE;
 
 -- Pending invites (for users who don't have an account yet)
 CREATE TABLE IF NOT EXISTS pending_invite (
@@ -397,14 +481,15 @@ CREATE TABLE IF NOT EXISTS pending_invite (
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     email VARCHAR(255) NOT NULL,
     workspace_id INTEGER REFERENCES workspace(id) ON DELETE CASCADE,
-    node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+    node_uuid UUID NOT NULL,
     role VARCHAR(20) DEFAULT 'viewer',
     invited_by INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMPTZ,
     active BOOLEAN DEFAULT TRUE,
-    UNIQUE(email, workspace_id, node_id)
+    UNIQUE(email, workspace_id, node_uuid)
 );
+
 CREATE INDEX IF NOT EXISTS idx_pending_invite_email ON pending_invite(email);
 CREATE INDEX IF NOT EXISTS idx_pending_invite_uuid ON pending_invite(uuid);
 

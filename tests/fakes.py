@@ -278,7 +278,7 @@ class FakeShareRepository:
 
     async def create_share(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         created_by: int,
         expiry_date: str | None = None,
@@ -287,7 +287,7 @@ class FakeShareRepository:
         share = PublicShare(
             id=self._next_share_id,
             uuid=generate_uuid(),
-            node_id=node_id,
+            node_uuid=node_uuid,
             workspace_id=workspace_id,
             created_by=created_by,
             expiry_date=expiry_date,
@@ -303,9 +303,9 @@ class FakeShareRepository:
                 return share
         return None
 
-    async def list_shares_for_node(self, node_id: int) -> list[PublicShare]:
+    async def list_shares_for_node(self, node_uuid: str) -> list[PublicShare]:
         """List all active shares for a node."""
-        return [s for s in self._shares.values() if s.node_id == node_id and s.active]
+        return [s for s in self._shares.values() if s.node_uuid == node_uuid and s.active]
 
     async def list_shares_for_workspace(self, workspace_id: int) -> list[PublicShare]:
         """List all active shares in a workspace."""
@@ -321,12 +321,12 @@ class FakeShareRepository:
         share.active = False
         return True
 
-    async def get_shared_node(self, share_uuid: str) -> Node | None:
-        """Get the node associated with a valid share."""
+    async def get_shared_node(self, share_uuid: str) -> dict[str, Any] | None:
+        """Get the node UUID associated with a valid share."""
         share = await self.get_share_by_uuid(share_uuid)
         if share is None:
             return None
-        return Node(id=share.node_id, name="Shared node")
+        return {"node_uuid": share.node_uuid}
 
     async def set_share_password(self, share_id: int, password_hash: str) -> None:
         """Set a password hash on a public share."""
@@ -342,7 +342,7 @@ class FakeShareRepository:
 
     async def create_node_user_share(
         self,
-        node_id: int,
+        node_uuid: str,
         workspace_id: int,
         user_id: int,
         target_email: str,
@@ -358,12 +358,13 @@ class FakeShareRepository:
             return {
                 "status": "pending",
                 "invite_token": generate_uuid(),
+                "node_uuid": node_uuid,
             }
 
         share_row = {
             "id": self._next_node_share_id,
             "uuid": generate_uuid(),
-            "node_id": node_id,
+            "node_uuid": node_uuid,
             "user_id": target.id,
             "user_uuid": str(target.uuid),
             "can_write": permission == "write",
@@ -376,10 +377,10 @@ class FakeShareRepository:
         return share_row
 
     async def list_node_user_shares(
-        self, _node_id: int, _workspace_id: int, _user_id: int
-    ) -> tuple[bool, list[Any]]:
+        self, _node_uuid: str, _workspace_id: int, _user_id: int
+    ) -> list[Any]:
         """List user shares for a node."""
-        return (True, [])
+        return []
 
     async def revoke_user_share(
         self, share_id: int, _workspace_id: int, _user_id: int
@@ -387,7 +388,19 @@ class FakeShareRepository:
         """Revoke a node user share."""
         for share in self._node_user_shares:
             if share["id"] == share_id:
-                return {"node_id": share["node_id"]}
+                return {"node_uuid": share["node_uuid"]}
+        return None
+
+    async def get_node_user_share_by_uuid(
+        self, _share_uuid: str
+    ) -> dict[str, Any] | None:
+        """Get a node-level user share by its public UUID."""
+        return None
+
+    async def revoke_user_share_by_uuid(
+        self, _share_uuid: str, _workspace_id: int, _user_id: int
+    ) -> dict[str, Any] | None:
+        """Revoke a node-level user share by its public UUID."""
         return None
 
 

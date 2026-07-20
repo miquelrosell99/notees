@@ -39,22 +39,22 @@ class ShareService:
 
     async def create_share(
         self,
-        node_id: int,
+        node_uuid: str,
         expiry_date: str | None = None,
     ) -> PublicShare:
         """Create a new public share for a node."""
         share = await self._share_repo.create_share(
-            node_id=node_id,
+            node_uuid=node_uuid,
             workspace_id=self._workspace_id,
             created_by=self._user_id,
             expiry_date=expiry_date,
         )
-        logger.info(f"Created public share {share.uuid} for node {node_id}")
+        logger.info(f"Created public share {share.uuid} for node {node_uuid}")
         return share
 
-    async def list_shares_for_node(self, node_id: int) -> list[PublicShare]:
+    async def list_shares_for_node(self, node_uuid: str) -> list[PublicShare]:
         """List all active shares for a node."""
-        return await self._share_repo.list_shares_for_node(node_id)
+        return await self._share_repo.list_shares_for_node(node_uuid)
 
     async def list_workspace_shares(self) -> list[PublicShare]:
         """List all active shares in the workspace."""
@@ -85,14 +85,14 @@ class ShareService:
 
     async def create_node_user_share(
         self,
-        node_id: int,
+        node_uuid: str,
         node_name: str | None,
         email: str,
         permission: str,
     ) -> dict[str, Any]:
         """Share a node with a specific user, sending an invite if needed."""
         result = await self._share_repo.create_node_user_share(
-            node_id, self._workspace_id, self._user_id, email, permission
+            node_uuid, self._workspace_id, self._user_id, email, permission
         )
         if result is None:
             return {"status": "error", "detail": "Failed to create share"}
@@ -101,7 +101,7 @@ class ShareService:
             return {
                 "share_id": result["id"],
                 "uuid": str(result["uuid"]),
-                "node_id": result["node_id"],
+                "node_uuid": result["node_uuid"],
                 "shared_with_user_id": result["user_id"],
                 "shared_with_user_uuid": str(result.get("user_uuid", "")),
                 "shared_with_email": email,
@@ -135,11 +135,9 @@ class ShareService:
             share_uuid, self._workspace_id, node_uuid
         )
 
-    async def regenerate_share_html_for_node(
-        self, node_id: int, node_uuid: str
-    ) -> None:
+    async def regenerate_share_html_for_node(self, node_uuid: str) -> None:
         """Regenerate static share HTML for all active shares of a node."""
-        shares = await self._share_repo.list_shares_for_node(node_id)
+        shares = await self._share_repo.list_shares_for_node(node_uuid)
         for share in shares:
             if not share.active:
                 continue

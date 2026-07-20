@@ -24,8 +24,6 @@ from app.models import PaginatedResponse, User
 from app.utils import utc_now_iso
 
 from .dependencies import (
-    NodeIdResolver,
-    get_node_id_resolver,
     get_share_repository,
     get_share_service,
     get_workspace_store,
@@ -83,6 +81,27 @@ async def _resolve_referenced_display_names(
         if node_uuid:
             resolved[node_uuid] = await _resolve_display_name(store, node_uuid)
     return resolved
+
+
+async def _ensure_node_exists(store: WorkspaceStore, node_uuid: str) -> None:
+    """Raise 404 if ``node_uuid`` is not present in the workspace derived state."""
+    await store.sync()
+    rows = await store.query("SELECT 1 FROM node WHERE id = ?", (node_uuid,))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+
+async def _ensure_node_owner(store: WorkspaceStore, node_uuid: str, user_uuid: str) -> None:
+    """Raise 403 if the current user is not the creator of the node."""
+    await store.sync()
+    rows = await store.query(
+        "SELECT created_by FROM node WHERE id = ?",
+        (node_uuid,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Node not found")
+    if rows[0]["created_by"] != user_uuid:
+        raise HTTPException(status_code=403, detail="Only node owners can view shares")
 
 
 # -----------------------------------------------------------------------------
@@ -259,24 +278,24 @@ async def create_share(
     store: WorkspaceStore = Depends(get_workspace_store),
     share_service: ShareService = Depends(get_share_service),
     share_repo: ShareRepository = Depends(get_share_repository),
-    node_id_resolver: NodeIdResolver = Depends(get_node_id_resolver),
 ):
     """Create a new public share link for a node."""
-    workspace_id = share_repo.workspace_id
-    node_id = await node_id_resolver(workspace_id, node_uuid)
+    await _ensure_node_exists(store, node_uuid)
+
     try:
-        share = await share_service.create_share(node_id, expiry_date=body.expiry_date)
+        share = await share_service.create_share(node_uuid, expiry_date=body.expiry_date)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
     password_hash = None
     if body.password:
+        assert share.id is not None
         password_hash = hash_password(body.password)
         await share_repo.set_share_password(share.id, password_hash)
 
     await store.create_public_share(
         share_id=share.uuid,
-        node_id=node_uuid,
+        node_uuid=node_uuid,
         slug=share.uuid,
         password_hash=password_hash,
         expiry_date=body.expiry_date,
@@ -344,17 +363,15 @@ async def create_user_share(
     store: WorkspaceStore = Depends(get_workspace_store),
     share_service: ShareService = Depends(get_share_service),
     share_repo: ShareRepository = Depends(get_share_repository),
-    node_id_resolver: NodeIdResolver = Depends(get_node_id_resolver),
 ):
     """Share a node with a specific user."""
-    workspace_id = share_repo.workspace_id
-    node_id = await node_id_resolver(workspace_id, node_uuid)
+    await _ensure_node_exists(store, node_uuid)
 
     node_name = await _resolve_display_name(store, node_uuid)
 
     try:
         result = await share_service.create_node_user_share(
-            node_id, node_name, body.email, body.permission
+            node_uuid, node_name, body.email, body.permission
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -374,7 +391,7 @@ async def create_user_share(
 
     await store.grant_user_share(
         share_id=str(result["uuid"]),
-        node_id=node_uuid,
+        node_uuid=node_uuid,
         user_id=str(result["shared_with_user_uuid"]),
         permission=body.permission,
     )
@@ -396,22 +413,8 @@ async def list_node_user_shares(
     node_uuid: str,
     user: User = Depends(get_current_user),  # noqa: B008
     store: WorkspaceStore = Depends(get_workspace_store),
-    share_repo: ShareRepository = Depends(get_share_repository),
-    node_id_resolver: NodeIdResolver = Depends(get_node_id_resolver),
-):
-    """List user shares for a node."""
-    workspace_id = share_repo.workspace_id
-    user_id = int(user.id)
-    node_id = await node_id_resolver(workspace_id, node_uuid)
-
-    try:
-        # PostgreSQL still enforces the ownership check.
-        await share_repo.list_node_user_shares(node_id, workspace_id, user_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e)) from e
-
+) -> list[UserShareResponse]:
+    """List user shares for a node from the workspace derived state."""
     await store.sync()
     rows = await store.query(
         """
@@ -454,7 +457,7 @@ async def revoke_user_share(
     if result is None:
         raise HTTPException(status_code=404, detail="Share not found")
 
-    await store.revoke_user_share(share_uuid, node_id=result.get("node_uuid"))
+    await store.revoke_user_share(share_uuid, node_uuid=result.get("node_uuid"))
     await store.sync()
 
     return {"success": True}
