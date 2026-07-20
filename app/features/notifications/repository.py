@@ -23,10 +23,10 @@ class PostgresNotificationRepository(NotificationRepository):
                 rows = await conn.fetch(
                     """
                     SELECT n.id, n.uuid, n.type, n.actor_user_id, u.name as actor_name,
-                           n.node_id, nd.name as node_name, n.message, n.is_read, n.create_date
+                           n.node_uuid, nd.name as node_name, n.message, n.is_read, n.create_date
                     FROM notification n
                     LEFT JOIN "user" u ON u.id = n.actor_user_id
-                    LEFT JOIN node nd ON nd.id = n.node_id
+                    LEFT JOIN node nd ON nd.uuid = n.node_uuid
                     WHERE n.user_id = $1
                     ORDER BY n.create_date DESC
                     LIMIT $2
@@ -38,10 +38,10 @@ class PostgresNotificationRepository(NotificationRepository):
                 rows = await conn.fetch(
                     """
                     SELECT n.id, n.uuid, n.type, n.actor_user_id, u.name as actor_name,
-                           n.node_id, nd.name as node_name, n.message, n.is_read, n.create_date
+                           n.node_uuid, nd.name as node_name, n.message, n.is_read, n.create_date
                     FROM notification n
                     LEFT JOIN "user" u ON u.id = n.actor_user_id
-                    LEFT JOIN node nd ON nd.id = n.node_id
+                    LEFT JOIN node nd ON nd.uuid = n.node_uuid
                     WHERE n.user_id = $1 AND n.is_read = FALSE
                     ORDER BY n.create_date DESC
                     LIMIT $2
@@ -71,9 +71,7 @@ class PostgresNotificationRepository(NotificationRepository):
             )
             return result.split()[-1] != "0"
 
-    async def get_notification_id_by_uuid(
-        self, notification_uuid: str, user_id: int
-    ) -> int | None:
+    async def get_notification_id_by_uuid(self, notification_uuid: str, user_id: int) -> int | None:
         """Resolve a notification UUID to its internal ID, verifying ownership."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
@@ -92,19 +90,19 @@ class PostgresNotificationRepository(NotificationRepository):
             )
 
     async def create_notification(
-        self, user_id: int, type: str, actor_user_id: int | None, node_id: int | None, message: str | None
+        self, user_id: int, type: str, actor_user_id: int | None, node_uuid: str | None, message: str | None
     ) -> None:
         """Create a notification row."""
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 """
-                INSERT INTO notification (user_id, type, actor_user_id, node_id, message)
+                INSERT INTO notification (user_id, type, actor_user_id, node_uuid, message)
                 VALUES ($1, $2, $3, $4, $5)
                 """,
                 user_id,
                 type,
                 actor_user_id,
-                node_id,
+                node_uuid,
                 message,
             )
 
@@ -117,7 +115,7 @@ class PostgresNotificationRepository(NotificationRepository):
                 n["user_id"],
                 n["type"],
                 n.get("actor_user_id"),
-                n.get("node_id"),
+                n.get("node_uuid"),
                 n.get("message"),
             )
             for n in notifications
@@ -125,7 +123,7 @@ class PostgresNotificationRepository(NotificationRepository):
         async with acquire_connection(self._pool) as conn:
             await conn.executemany(
                 """
-                INSERT INTO notification (user_id, type, actor_user_id, node_id, message)
+                INSERT INTO notification (user_id, type, actor_user_id, node_uuid, message)
                 VALUES ($1, $2, $3, $4, $5)
                 """,
                 values,

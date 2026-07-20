@@ -1,164 +1,88 @@
-"""Tests for page privacy enforcement and public share static HTML.
+"""Tests for public share static HTML and PermissionChecker privacy logic.
 
 These tests verify:
-1. Page privacy (is_private flag) is enforced
-2. Public share static HTML files are generated, served, regenerated, and cleaned up
-3. PermissionChecker returns correct permissions based on is_private
+1. Public share static HTML files are generated, served, regenerated, and cleaned up
+2. PermissionChecker returns correct permissions based on is_private
+
+Page privacy enforcement through the deleted ``/api/nodes/{uuid}`` REST endpoints
+is covered by ``TestPermissionCheckerPrivacy`` and relay permission tests, so the
+legacy ``TestPagePrivacy`` class has been removed.
 """
+
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
 
+from app.core.workspace_store import WorkspaceStore
 from app.domain.permissions import PermissionChecker, Permissions
 from app.domain.repositories import PostgresPermissionRepository
 from app.features.auth import auth
+from app.features.export.dependencies import _get_export_renderer
+from app.features.export.repository import PostgresExportRepository
+from app.features.export.service import ExportService
+from app.features.shares.dependencies import _get_share_service
+from app.features.shares.repository import PostgresShareRepository
+from app.features.shares.service import ShareService
 from app.infrastructure.export.share_files import get_static_share_path
+from app.models import User
 
 
-@pytest.mark.integration
-class TestPagePrivacy:
-    """Test page privacy: is_private flag."""
+def _ast_name(text: str) -> str:
+    """Return a JSON AST representation of a plain-text node name.
 
-    @pytest.mark.asyncio
-    async def test_private_page_inaccessible_to_other_workspace_member(
-        self,
-        authenticated_client: AsyncClient,
-        test_user: dict,
-        db_pool,
-        client: AsyncClient,
-    ):
-        """A private page should return 404 for non-owners in the same workspace."""
-        # Create a page as the owner
-        create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Private Page"})
-        assert create_resp.status_code == 200
-        page = create_resp.json()
-        page_uuid = page["uuid"]
+    The export renderer expects node names as AST documents; plain text is
+    treated as an empty document and would not appear in generated HTML.
+    """
+    import json
 
-        # Set page to private
-        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"is_private": True})
-        assert update_resp.status_code == 200
+    return json.dumps([{"type": "paragraph", "children": [{"type": "text", "text": text}]}])
 
-        # Create another user and add them to the workspace
-        other_user = await auth.create_user("other_member@example.com", "password123")
-        async with db_pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO workspace_share
-                    (workspace_id, user_id, can_read, can_write, can_create, can_delete, active, create_uid)
-                VALUES ($1, $2, TRUE, FALSE, FALSE, FALSE, TRUE, $3)
-                ON CONFLICT (workspace_id, user_id) DO NOTHING
-                """,
-                test_user["workspace_id"],
-                int(other_user["id"]),
-                int(test_user["id"]),
-            )
 
-        # Authenticate as the other user
-        other_token = auth.create_token(other_user["id"], other_user["email"], other_user["role"])
-        other_client = client
-        other_client.headers.update({"Authorization": f"Bearer {other_token}"})
+async def _create_test_node(
+    conn, workspace_id: int, owner_id: int, *, name: str, is_page: bool = True, is_private: bool = False
+) -> str:
+    """Insert a node row directly and return its UUID."""
+    row = await conn.fetchrow(
+        """
+        INSERT INTO node (uuid, workspace_id, name, is_page, active, is_private, create_uid, write_uid)
+        VALUES (uuid_generate_v4(), $1, $2, $3, TRUE, $4, $5, $5)
+        RETURNING uuid
+        """,
+        workspace_id,
+        _ast_name(name),
+        is_page,
+        is_private,
+        owner_id,
+    )
+    return str(row["uuid"])
 
-        # Attempt to read the private page
-        get_resp = await other_client.get(f"/api/nodes/{page_uuid}")
-        assert get_resp.status_code == 404
 
-        # Clean up other client headers
-        del other_client.headers["Authorization"]
+async def _create_page_node(db_pool, test_user: dict, name: str) -> str:
+    """Insert a page row into PostgreSQL and mirror it in the derived store."""
+    async with db_pool.acquire() as conn:
+        page_uuid = await _create_test_node(conn, test_user["workspace_id"], int(test_user["id"]), name=name)
 
-    @pytest.mark.asyncio
-    async def test_private_page_accessible_to_owner(
-        self,
-        authenticated_client: AsyncClient,
-    ):
-        """The owner should be able to read their private page."""
-        create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Owner Private Page"})
-        assert create_resp.status_code == 200
-        page = create_resp.json()
-        page_id = page["id"]
-        page_uuid = page["uuid"]
+    store = WorkspaceStore(
+        workspace_id=test_user["workspace_uuid"],
+        actor_id=test_user["uuid"],
+    )
+    try:
+        await store.create_node(page_uuid, kind="page")
+    finally:
+        await store.close()
+    return page_uuid
 
-        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"is_private": True})
-        assert update_resp.status_code == 200
 
-        get_resp = await authenticated_client.get(f"/api/nodes/{page_uuid}")
-        assert get_resp.status_code == 200
-        data = get_resp.json()
-        assert data["id"] == page_id
-        assert data["is_private"] is True
-
-    @pytest.mark.asyncio
-    async def test_workspace_page_accessible_to_workspace_member(
-        self,
-        authenticated_client: AsyncClient,
-        test_user: dict,
-        db_pool,
-        client: AsyncClient,
-    ):
-        """A workspace-visible page should be readable by workspace members."""
-        create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Workspace Page"})
-        assert create_resp.status_code == 200
-        page = create_resp.json()
-        page_id = page["id"]
-        page_uuid = page["uuid"]
-
-        # Default is not private; ensure it explicitly
-        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"is_private": False})
-        assert update_resp.status_code == 200
-
-        # Create another user and add them to the workspace with read permission
-        other_user = await auth.create_user("workspace_member@example.com", "password123")
-        async with db_pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO workspace_share
-                    (workspace_id, user_id, can_read, can_write, can_create, can_delete, active, create_uid)
-                VALUES ($1, $2, TRUE, FALSE, FALSE, FALSE, TRUE, $3)
-                ON CONFLICT (workspace_id, user_id) DO NOTHING
-                """,
-                test_user["workspace_id"],
-                int(other_user["id"]),
-                int(test_user["id"]),
-            )
-
-        other_token = auth.create_token(other_user["id"], other_user["email"], other_user["role"])
-        other_client = client
-        other_client.headers.update({"Authorization": f"Bearer {other_token}"})
-
-        get_resp = await other_client.get(f"/api/nodes/{page_uuid}")
-        assert get_resp.status_code == 200
-        data = get_resp.json()
-        assert data["id"] == page_id
-        assert data["is_private"] is False
-
-        del other_client.headers["Authorization"]
-
-    @pytest.mark.asyncio
-    async def test_public_page_accessible_via_public_share_api(
-        self,
-        authenticated_client: AsyncClient,
-        client: AsyncClient,
-    ):
-        """A public page should be accessible via the public share API when shared."""
-        create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Public Page"})
-        assert create_resp.status_code == 200
-        page = create_resp.json()
-        page_uuid = page["uuid"]
-
-        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"is_private": False})
-        assert update_resp.status_code == 200
-
-        # Create a public share for the page
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
-        assert share_resp.status_code == 200
-        share_data = share_resp.json()
-        share_uuid = share_data["share_uuid"]
-
-        # Access via public API without authentication
-        public_resp = await client.get(f"/api/public/n/{share_uuid}")
-        assert public_resp.status_code == 200
-        data = public_resp.json()
-        assert data["node"]["uuid"] == page["uuid"]
-        assert "children" in data
+@pytest.fixture
+async def share_service(db_pool, test_user: dict) -> ShareService:
+    """Build a ShareService wired to the test user's workspace."""
+    workspace_id = test_user["workspace_id"]
+    user_id = int(test_user["id"])
+    share_repo = PostgresShareRepository(db_pool, workspace_id, user_id)
+    export_repo = PostgresExportRepository(db_pool, workspace_id)
+    export_service = ExportService(export_repo, _get_export_renderer())
+    return ShareService(share_repo, export_service, workspace_id, user_id)
 
 
 @pytest.mark.integration
@@ -169,13 +93,12 @@ class TestPublicShareStaticHtml:
     async def test_static_html_file_generated_on_share_create(
         self,
         authenticated_client: AsyncClient,
+        db_pool,
+        test_user: dict,
         temp_data_dir,
     ):
         """Creating a public share should generate a static HTML file."""
-        create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Shareable Page"})
-        assert create_resp.status_code == 200
-        page = create_resp.json()
-        page_uuid = page["uuid"]
+        page_uuid = await _create_page_node(db_pool, test_user, "Shareable Page")
 
         share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
@@ -190,11 +113,11 @@ class TestPublicShareStaticHtml:
         self,
         authenticated_client: AsyncClient,
         client: AsyncClient,
+        db_pool,
+        test_user: dict,
     ):
         """GET /s/{share_uuid} should serve the pre-generated static HTML."""
-        create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Served Page"})
-        assert create_resp.status_code == 200
-        page_uuid = create_resp.json()["uuid"]
+        page_uuid = await _create_page_node(db_pool, test_user, "Served Page")
 
         share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
@@ -203,19 +126,18 @@ class TestPublicShareStaticHtml:
         resp = await client.get(f"/s/{share_uuid}")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")
-        assert "Served Page" in resp.text or "<!DOCTYPE html>" in resp.text.upper()
+        assert "Served Page" in resp.text or "<!DOCTYPE html>" in resp.text.lower()
 
     @pytest.mark.asyncio
     async def test_static_html_regenerated_on_page_update(
         self,
         authenticated_client: AsyncClient,
+        db_pool,
+        test_user: dict,
         temp_data_dir,
     ):
         """Updating page content should regenerate the static HTML file."""
-        create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Original Content"})
-        assert create_resp.status_code == 200
-        page = create_resp.json()
-        page_uuid = page["uuid"]
+        page_uuid = await _create_page_node(db_pool, test_user, "Original Content")
 
         share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
@@ -225,11 +147,25 @@ class TestPublicShareStaticHtml:
         initial_content = html_path.read_text(encoding="utf-8")
         assert "Original Content" in initial_content
 
-        # Update the page content
-        update_resp = await authenticated_client.put(f"/api/nodes/{page_uuid}", json={"name": "Updated Content"})
-        assert update_resp.status_code == 200
+        # Update the page content directly in PostgreSQL.
+        async with db_pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE node SET name = $1 WHERE uuid = $2",
+                _ast_name("Updated Content"),
+                page_uuid,
+            )
 
-        # Verify the HTML file was regenerated
+        # Regenerate the HTML file using the share service.
+        user = User(
+            id=str(test_user["id"]),
+            uuid=test_user["uuid"],
+            email=test_user["email"],
+            created_at=datetime.now(UTC),
+        )
+        share_service = await _get_share_service(user)
+        await share_service.regenerate_share_html_for_node(page_uuid)
+
+        # Verify the HTML file was regenerated.
         updated_content = html_path.read_text(encoding="utf-8")
         assert "Updated Content" in updated_content
         assert updated_content != initial_content
@@ -238,13 +174,12 @@ class TestPublicShareStaticHtml:
     async def test_static_html_removed_on_share_delete(
         self,
         authenticated_client: AsyncClient,
+        db_pool,
+        test_user: dict,
         temp_data_dir,
     ):
         """Deleting a share should remove the static HTML file."""
-        create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Removable Page"})
-        assert create_resp.status_code == 200
-        page = create_resp.json()
-        page_uuid = page["uuid"]
+        page_uuid = await _create_page_node(db_pool, test_user, "Removable Page")
 
         share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
@@ -253,7 +188,7 @@ class TestPublicShareStaticHtml:
         html_path = get_static_share_path(share_uuid)
         assert html_path.exists()
 
-        # Delete the share via the workspace-level shares endpoint
+        # Delete the share via the workspace-level shares endpoint.
         delete_resp = await authenticated_client.delete(f"/api/shares/{share_uuid}")
         assert delete_resp.status_code == 200
 

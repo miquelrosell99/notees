@@ -25,9 +25,7 @@ class NotificationRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_notification_id_by_uuid(
-        self, notification_uuid: str, user_id: int
-    ) -> int | None:
+    async def get_notification_id_by_uuid(self, notification_uuid: str, user_id: int) -> int | None:
         """Resolve a notification UUID to its internal ID, verifying ownership."""
         pass
 
@@ -38,7 +36,7 @@ class NotificationRepository(ABC):
 
     @abstractmethod
     async def create_notification(
-        self, user_id: int, type: str, actor_user_id: int | None, node_id: int | None, message: str | None
+        self, user_id: int, type: str, actor_user_id: int | None, node_uuid: str | None, message: str | None
     ) -> None:
         """Create a notification for a user."""
         pass
