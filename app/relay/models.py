@@ -175,3 +175,17 @@ class CompactResponse(BaseModel):
     workspace_id: str
     up_to_hlc: Hlc
     operation_count: int
+
+
+class RelayStatsResponse(BaseModel):
+    """Operational statistics for a workspace relay."""
+
+    workspace_id: str
+    envelope_count: int
+    envelope_size_bytes: int
+    snapshot_count: int
+    latest_snapshot_hlc: Hlc | None = None
+    compacted_segment_count: int
+    compacted_operation_count: int
+    max_hlc: Hlc
+    restore_epoch: int = 0

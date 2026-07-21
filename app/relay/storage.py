@@ -128,6 +128,20 @@ class RelayStorage(ABC):
         """
 
     @abstractmethod
+    def get_workspace_stats(self, workspace_id: str) -> dict[str, Any]:
+        """Return operational statistics for ``workspace_id``.
+
+        Returns a dict with:
+        - envelope_count
+        - envelope_size_bytes
+        - snapshot_count
+        - latest_snapshot_hlc
+        - compacted_segment_count
+        - compacted_operation_count
+        - max_hlc
+        """
+
+    @abstractmethod
     def close(self) -> None:
         """Release any resources held by this storage adapter."""
 
@@ -499,6 +513,67 @@ class SqliteRelayStorage(RelayStorage):
         self._connection.commit()
         return cursor.rowcount
 
+    def get_workspace_stats(self, workspace_id: str) -> dict[str, Any]:
+        cursor = self._connection.execute(
+            "SELECT COUNT(*), COALESCE(SUM(LENGTH(payload)), 0) FROM relay_envelope WHERE workspace_id = ?",
+            (workspace_id,),
+        )
+        envelope_count, envelope_size = cursor.fetchone()
+
+        cursor = self._connection.execute(
+            "SELECT COUNT(*) FROM relay_snapshot WHERE workspace_id = ?",
+            (workspace_id,),
+        )
+        snapshot_count = cursor.fetchone()[0]
+
+        cursor = self._connection.execute(
+            """
+            SELECT hlc FROM relay_snapshot
+            WHERE workspace_id = ? AND data IS NOT NULL AND LENGTH(data) > 0
+            ORDER BY hlc DESC LIMIT 1
+            """,
+            (workspace_id,),
+        )
+        snapshot_row = cursor.fetchone()
+        latest_snapshot_hlc = (
+            _dict_to_hlc(json.loads(snapshot_row["hlc"])) if snapshot_row else None
+        )
+
+        cursor = self._connection.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(operation_count), 0)
+            FROM compacted_operation_segment
+            WHERE workspace_id = ?
+            """,
+            (workspace_id,),
+        )
+        compacted_segment_count, compacted_operation_count = cursor.fetchone()
+
+        cursor = self._connection.execute(
+            """
+            SELECT physical, logical FROM relay_envelope
+            WHERE workspace_id = ?
+            ORDER BY physical DESC, logical DESC LIMIT 1
+            """,
+            (workspace_id,),
+        )
+        max_row = cursor.fetchone()
+        max_hlc = (
+            Hlc(physical=max_row["physical"], logical=max_row["logical"])
+            if max_row
+            else Hlc(physical=0, logical=0)
+        )
+
+        return {
+            "envelope_count": envelope_count,
+            "envelope_size_bytes": envelope_size,
+            "snapshot_count": snapshot_count,
+            "latest_snapshot_hlc": latest_snapshot_hlc,
+            "compacted_segment_count": compacted_segment_count,
+            "compacted_operation_count": compacted_operation_count,
+            "max_hlc": max_hlc,
+        }
+
     def close(self) -> None:
         """Close the underlying SQLite connection."""
         self._connection.close()
@@ -778,6 +853,63 @@ class PostgresRelayStorage(RelayStorage):
         # asyncpg DELETE returns "DELETE N"
         parts = result.split()
         return int(parts[-1]) if parts else 0
+
+    async def get_workspace_stats(self, workspace_id: str) -> dict[str, Any]:
+        pool = await self._get_pool()
+        envelope_row = await pool.fetchrow(
+            """
+            SELECT COUNT(*) AS count, COALESCE(SUM(LENGTH(payload::text)), 0) AS size
+            FROM relay_envelope
+            WHERE workspace_id = $1
+            """,
+            workspace_id,
+        )
+        snapshot_count_row = await pool.fetchrow(
+            "SELECT COUNT(*) AS count FROM relay_snapshot WHERE workspace_id = $1",
+            workspace_id,
+        )
+        latest_snapshot_row = await pool.fetchrow(
+            """
+            SELECT hlc FROM relay_snapshot
+            WHERE workspace_id = $1 AND data IS NOT NULL AND OCTET_LENGTH(data) > 0
+            ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC
+            LIMIT 1
+            """,
+            workspace_id,
+        )
+        latest_snapshot_hlc = (
+            _dict_to_hlc(latest_snapshot_row["hlc"]) if latest_snapshot_row else None
+        )
+        compacted_row = await pool.fetchrow(
+            """
+            SELECT COUNT(*) AS count, COALESCE(SUM(operation_count), 0) AS ops
+            FROM compacted_operation_segment
+            WHERE workspace_id = $1
+            """,
+            workspace_id,
+        )
+        max_row = await pool.fetchrow(
+            """
+            SELECT physical, logical FROM relay_envelope
+            WHERE workspace_id = $1
+            ORDER BY physical DESC, logical DESC LIMIT 1
+            """,
+            workspace_id,
+        )
+        max_hlc = (
+            Hlc(physical=max_row["physical"], logical=max_row["logical"])
+            if max_row
+            else Hlc(physical=0, logical=0)
+        )
+        return {
+            "envelope_count": envelope_row["count"] if envelope_row else 0,
+            "envelope_size_bytes": envelope_row["size"] if envelope_row else 0,
+            "snapshot_count": snapshot_count_row["count"] if snapshot_count_row else 0,
+            "latest_snapshot_hlc": latest_snapshot_hlc,
+            "compacted_segment_count": compacted_row["count"] if compacted_row else 0,
+            "compacted_operation_count": compacted_row["ops"] if compacted_row else 0,
+            "max_hlc": max_hlc,
+        }
 
     async def close(self) -> None:
         """No persistent per-instance connection; drop the cached pool reference."""

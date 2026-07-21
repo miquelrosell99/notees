@@ -26,6 +26,7 @@ from app.relay.models import (
     CompactRequest,
     CompactResponse,
     LatestSnapshotResponse,
+    RelayStatsResponse,
     SnapshotRequest,
     SnapshotResponse,
 )
@@ -291,3 +292,40 @@ async def get_latest_snapshot(
 
 
 router.add_api_websocket_route("/ws/{workspace_id}", websocket_endpoint)
+
+
+@router.get("/stats")
+async def get_relay_stats(
+    workspace_id: str = Query(...),
+    actor_id: str = Depends(get_actor_id),
+    service: RelayService = Depends(get_relay_service),
+    restore_epoch: int = Depends(get_workspace_restore_epoch),
+) -> RelayStatsResponse:
+    """Return operational statistics for a workspace relay.
+
+    Requires read access to the workspace.
+    """
+    if actor_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to view relay stats.",
+        )
+    try:
+        stats = await service.get_workspace_stats(workspace_id, actor_id)
+    except PermissionDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
+    return RelayStatsResponse(
+        workspace_id=workspace_id,
+        envelope_count=stats["envelope_count"],
+        envelope_size_bytes=stats["envelope_size_bytes"],
+        snapshot_count=stats["snapshot_count"],
+        latest_snapshot_hlc=stats["latest_snapshot_hlc"],
+        compacted_segment_count=stats["compacted_segment_count"],
+        compacted_operation_count=stats["compacted_operation_count"],
+        max_hlc=stats["max_hlc"],
+        restore_epoch=restore_epoch,
+    )

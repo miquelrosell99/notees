@@ -200,6 +200,16 @@ class RelayService:
         """Delete envelopes with HLC less than or equal to ``up_to_hlc``."""
         return await self._maybe_await(self._storage.prune_envelopes(workspace_id, up_to_hlc))
 
+    async def get_workspace_stats(
+        self, workspace_id: str, actor_id: str, share_token: str | None = None
+    ) -> dict[str, Any]:
+        """Return operational statistics for ``workspace_id`` if readable."""
+        if not await self._may_read(workspace_id, actor_id, share_token):
+            raise PermissionDeniedError(
+                f"Actor {actor_id} cannot read workspace {workspace_id}"
+            )
+        return await self._maybe_await(self._storage.get_workspace_stats(workspace_id))
+
     async def _may_read(
         self,
         workspace_id: str,
