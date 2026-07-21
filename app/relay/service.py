@@ -67,14 +67,18 @@ class RelayService:
         saved: list[EncryptedEnvelope] = []
         for envelope in batch.envelopes:
             self._validate_envelope(envelope)
-            if envelope.actor_id != actor_id:
-                raise PermissionDeniedError("Envelope actor_id does not match the authenticated actor")
-            if not await self._permissions.can_write(
+            # Permissions are checked against the authenticated actor (user), not
+            # the device actor id embedded in the envelope. The envelope actor id
+            # is a CRDT device identifier and may differ from the user's UUID.
+            can_write = await self._permissions.can_write(
                 envelope.workspace_id,
                 actor_id,
                 envelope.affected_node_ids,
-            ):
-                raise PermissionDeniedError(f"Write denied for actor {actor_id} in workspace {envelope.workspace_id}")
+            )
+            if not can_write:
+                raise PermissionDeniedError(
+                    f"Write denied for actor {actor_id} in workspace {envelope.workspace_id}"
+                )
             exists = await self._maybe_await(self._storage.envelope_exists(envelope.id))
             if exists:
                 continue
@@ -159,6 +163,19 @@ class RelayService:
     async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         """Return the newest snapshot for ``workspace_id``."""
         return await self._maybe_await(self._storage.get_latest_snapshot(workspace_id))
+
+    async def get_latest_snapshot_for_actor(
+        self,
+        workspace_id: str,
+        actor_id: str,
+        share_token: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Return the newest snapshot if ``actor_id`` may read the workspace."""
+        if not await self._may_read(workspace_id, actor_id, share_token):
+            raise PermissionDeniedError(
+                f"Actor {actor_id} cannot read workspace {workspace_id}"
+            )
+        return await self.get_latest_snapshot(workspace_id)
 
     async def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""

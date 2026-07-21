@@ -13,6 +13,7 @@ import { applyActivityOperation } from './derived/activity';
 import { applyLinkOperation } from './derived/link';
 import { applyShareOperation } from './derived/share';
 import { applyPluginOperation } from './derived/plugin';
+import { applyFavoriteOperation } from './derived/favorite';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { rewriteLinksToTarget } from './query/mergePages';
@@ -119,47 +120,104 @@ export class WorkspaceStore {
   }
 
   apply(op: Operation): void {
-    const existing = queryOne<{ '1': number }>(this.db, 'SELECT 1 FROM operation WHERE id = ?', [op.envelope.id]);
-    if (existing) return;
+    this.applyMany([op]);
+  }
+
+  /**
+   * Apply multiple operations in a single SQLite transaction.
+   *
+   * This is dramatically faster than calling ``apply()`` in a loop because it
+   * avoids one transaction per operation, batches edge rebuilds, batches
+   * listener notifications, and persists to IndexedDB only once at the end.
+   */
+  applyMany(ops: Operation[]): void {
+    if (ops.length === 0) return;
 
     const db = this.db;
-    transaction(db, () => {
-      db.run(
-        `INSERT INTO operation (id, workspace_id, actor_id, hlc_physical, hlc_logical, affected_node_ids, op_type, payload, timestamp)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          op.envelope.id,
-          op.envelope.workspaceId,
-          op.envelope.actorId,
-          op.envelope.hlc.physical,
-          op.envelope.hlc.logical,
-          JSON.stringify(op.envelope.affectedNodeIds),
-          op.envelope.opType,
-          JSON.stringify(op.payload),
-          new Date().toISOString(),
-        ]
+    const ids = ops.map((op) => op.envelope.id);
+    const existingIds = new Set<string>();
+
+    // Batch the duplicate check for small batches; fall back to individual
+    // checks for very large batches to keep the SQL IN clause reasonable.
+    if (ids.length <= 1000) {
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = queryAll<{ id: string }>(
+        db,
+        `SELECT id FROM operation WHERE id IN (${placeholders})`,
+        ids
       );
-      applyNodeOperation(db, op);
-      applyChildOrderOperation(db, op);
-      applyPropertyOperation(db, op);
-      applyNodeViewOperation(db, op);
-      applyAssetOperation(db, op);
-      applyTaskOperation(db, op);
-      applyActivityOperation(db, op);
-      applyLinkOperation(db, op);
-      applyShareOperation(db, op);
-      applyPluginOperation(db, op);
-      const payload = op.payload as Record<string, unknown>;
-      if (payload?.nodeId) {
-        rebuildEdgesForNode(db, payload.nodeId as string);
+      for (const row of rows) {
+        existingIds.add(row.id);
+      }
+    }
+
+    const affectedNodeIds = new Set<string>();
+    const edgeRebuildNodeIds = new Set<string>();
+    let appliedCount = 0;
+
+    transaction(db, () => {
+      for (const op of ops) {
+        if (ids.length > 1000) {
+          const existing = queryOne<{ '1': number }>(
+            db,
+            'SELECT 1 FROM operation WHERE id = ?',
+            [op.envelope.id]
+          );
+          if (existing) continue;
+        } else if (existingIds.has(op.envelope.id)) {
+          continue;
+        }
+
+        db.run(
+          `INSERT INTO operation (id, workspace_id, actor_id, hlc_physical, hlc_logical, affected_node_ids, op_type, payload, timestamp)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            op.envelope.id,
+            op.envelope.workspaceId,
+            op.envelope.actorId,
+            op.envelope.hlc.physical,
+            op.envelope.hlc.logical,
+            JSON.stringify(op.envelope.affectedNodeIds),
+            op.envelope.opType,
+            JSON.stringify(op.payload),
+            new Date().toISOString(),
+          ]
+        );
+        applyNodeOperation(db, op);
+        applyChildOrderOperation(db, op);
+        applyPropertyOperation(db, op);
+        applyNodeViewOperation(db, op);
+        applyAssetOperation(db, op);
+        applyTaskOperation(db, op);
+        applyActivityOperation(db, op);
+        applyLinkOperation(db, op);
+        applyShareOperation(db, op);
+        applyPluginOperation(db, op);
+        applyFavoriteOperation(db, op);
+
+        for (const nodeId of op.envelope.affectedNodeIds) {
+          affectedNodeIds.add(nodeId);
+        }
+
+        const payload = op.payload as Record<string, unknown>;
+        if (typeof payload?.nodeId === 'string') {
+          edgeRebuildNodeIds.add(payload.nodeId);
+        }
+
+        appliedCount++;
+      }
+
+      for (const nodeId of edgeRebuildNodeIds) {
+        rebuildEdgesForNode(db, nodeId);
       }
     });
 
-    for (const nodeId of op.envelope.affectedNodeIds) {
-      this.notify(nodeId);
+    if (appliedCount > 0) {
+      for (const nodeId of affectedNodeIds) {
+        this.notify(nodeId);
+      }
+      this.schedulePersist();
     }
-
-    this.schedulePersist();
   }
 
   subscribe(nodeId: string, callback: () => void): () => void {
@@ -207,6 +265,15 @@ export class WorkspaceStore {
         console.error('WorkspaceStore listener error:', err);
       }
     }
+  }
+
+  getFavorites(): string[] {
+    const rows = queryAll<{ node_id: string }>(
+      this.db,
+      'SELECT node_id FROM user_favorite WHERE actor_id = ? AND workspace_id = ? ORDER BY position ASC',
+      [this.actorId, this.workspaceId]
+    );
+    return rows.map((r) => r.node_id);
   }
 
   createNode(args: {
@@ -374,6 +441,48 @@ export class WorkspaceStore {
         opType: 'node.permanentDelete',
       },
       { nodeId }
+    );
+    this.apply(op);
+  }
+
+  addFavorite(nodeId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'user.favorite.add',
+      },
+      { nodeId }
+    );
+    this.apply(op);
+  }
+
+  removeFavorite(nodeId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'user.favorite.remove',
+      },
+      { nodeId }
+    );
+    this.apply(op);
+  }
+
+  reorderFavorites(nodeIds: string[]): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: nodeIds,
+        opType: 'user.favorite.reorder',
+      },
+      { nodeIds }
     );
     this.apply(op);
   }
@@ -875,7 +984,19 @@ export class WorkspaceStore {
     return id;
   }
 
-  /** Restore the latest snapshot and return its HLC so callers can replay newer ops. */
+  /** Export the current derived state as a snapshot blob without persisting it. */
+  exportSnapshot(upToHlc?: { physical: number; logical: number }): {
+    id: string;
+    hlc: { physical: number; logical: number };
+    data: Uint8Array;
+  } {
+    const hlc = upToHlc ?? this.getLatestHlc();
+    const id = uuidv7();
+    const data = this.export();
+    return { id, hlc, data };
+  }
+
+  /** Restore the latest local snapshot and return its HLC. */
   async restoreLatestSnapshot(): Promise<{ physical: number; logical: number } | null> {
     const row = queryOne<{
       id: string;
@@ -896,6 +1017,14 @@ export class WorkspaceStore {
     // SQLite database while preserving the WorkspaceStore instance identity.
     this.db = await createDatabase(row.data);
     return { physical: row.hlc_physical, logical: row.hlc_logical };
+  }
+
+  /** Restore from an arbitrary snapshot blob and return its HLC. */
+  async restoreSnapshot(data: Uint8Array): Promise<{ physical: number; logical: number }> {
+    this.db = await createDatabase(data);
+    // Ensure the schema is present in case the snapshot predates a schema change.
+    createSchema(this.db);
+    return this.getLatestHlc();
   }
 
   /** Compact operations older than the given HLC and record a segment. */

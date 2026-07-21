@@ -195,6 +195,24 @@
   color: var(--color-on-surface);
 }
 
+.settings-api-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+}
+
+.settings-api-key-form__submit {
+  align-self: flex-start;
+}
+
+.settings-api-key-scopes__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-4);
+  margin-top: var(--spacing-1);
+}
+
 .settings-api-key-list {
   margin-top: var(--spacing-4);
 }
@@ -205,31 +223,42 @@
   font-style: italic;
 }
 
-.settings-api-key-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-3);
-  background: var(--color-surface-container-low);
-  border-radius: var(--shape-small);
-  margin-bottom: var(--spacing-2);
-}
-
-.settings-api-key-item__info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.settings-api-key-item__name {
+.settings-api-key-table {
+  width: 100%;
+  border-collapse: collapse;
   font: var(--font-body-small);
+}
+
+.settings-api-key-table th,
+.settings-api-key-table td {
+  padding: var(--spacing-2) var(--spacing-3);
+  text-align: left;
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.settings-api-key-table th {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
   font-weight: 500;
+}
+
+.settings-api-key-table td {
   color: var(--color-on-surface);
 }
 
-.settings-api-key-item__meta {
+.settings-api-key-table__name {
+  font-weight: 500;
+}
+
+.settings-api-key-table__scopes {
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
+  text-transform: capitalize;
+}
+
+.settings-api-key-table__actions {
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* ==================== Privacy Card ==================== */

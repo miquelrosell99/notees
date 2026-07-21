@@ -240,7 +240,7 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
         async with acquire_connection(self._pool) as conn:
             return await conn.fetch(
                 """
-                SELECT DISTINCT g.uuid, g.name, g.create_date, g.write_date, g.is_shared,
+                SELECT DISTINCT g.id, g.uuid, g.name, g.create_date, g.write_date, g.is_shared,
                                 g.sync_protocol_version,
                                 g.create_uid = $1 as is_owner,
                                 gs.can_read as s_can_read,

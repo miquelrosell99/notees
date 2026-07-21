@@ -2,9 +2,22 @@ import { compareHlc } from './clock';
 import type { OperationEnvelope } from './crypto';
 import type { Hlc } from './clock';
 
+export interface SnapshotEnvelope {
+  snapshotId: string;
+  workspaceId: string;
+  hlc: Hlc;
+  data: Uint8Array;
+}
+
 export interface Transport {
   send(envelope: OperationEnvelope): Promise<void> | void;
-  catchUp(afterHlc: Hlc): OperationEnvelope[] | Promise<OperationEnvelope[]>;
+  sendBatch?(envelopes: OperationEnvelope[]): Promise<void> | void;
+  catchUp(
+    afterHlc: Hlc,
+    onPage?: (page: OperationEnvelope[], totalSoFar: number, hasMore: boolean) => void
+  ): OperationEnvelope[] | Promise<OperationEnvelope[]>;
+  getLatestSnapshot(): Promise<SnapshotEnvelope | null>;
+  uploadSnapshot?(snapshot: SnapshotEnvelope): Promise<void>;
   subscribe(callback: (envelope: OperationEnvelope) => void): void;
 }
 
@@ -45,8 +58,18 @@ export class MemoryTransport implements Transport {
     this.relay.send(this.workspaceId, envelope);
   }
 
+  sendBatch(envelopes: OperationEnvelope[]): void {
+    for (const envelope of envelopes) {
+      this.relay.send(this.workspaceId, envelope);
+    }
+  }
+
   catchUp(afterHlc: Hlc): OperationEnvelope[] {
     return this.relay.catchUp(this.workspaceId, afterHlc);
+  }
+
+  getLatestSnapshot(): Promise<SnapshotEnvelope | null> {
+    return Promise.resolve(null);
   }
 
   subscribe(callback: (envelope: OperationEnvelope) => void): void {

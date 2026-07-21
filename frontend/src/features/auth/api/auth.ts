@@ -209,6 +209,17 @@ export async function revokeApiKey(keyUuid: string): Promise<{ success: boolean 
 }
 
 /**
+ * Regenerate an existing API key's secret.
+ *
+ * Returns the new plaintext key **once** — copy it immediately.
+ * The key's name, scopes, and expiration date are preserved.
+ */
+export async function regenerateApiKey(keyUuid: string): Promise<ApiKeyWithSecret> {
+  const response = await api.post<ApiKeyWithSecret>(`/auth/api-keys/${keyUuid}/regenerate`);
+  return response.data;
+}
+
+/**
  * Accept a pending invitation
  */
 export async function acceptInvite(data: { token: string; password?: string; name?: string; remember_me?: boolean }): Promise<Token> {

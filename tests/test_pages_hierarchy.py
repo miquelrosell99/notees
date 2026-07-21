@@ -1,7 +1,8 @@
 """Test page hierarchy in list_nodes endpoint."""
 import pytest
-from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 from httpx import AsyncClient
+
+from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 
 pytestmark = pytest.mark.integration
 

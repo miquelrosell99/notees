@@ -18,9 +18,10 @@ function invalidateArchived(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
 }
 
-function cleanupNode(nodeUuid: string) {
-  if (nodeUuid && isFavorite(nodeUuid)) {
-    removeFavorite(nodeUuid).catch(() => {});
+function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
+  const workspaceId = workspaceUuid ?? undefined;
+  if (nodeUuid && isFavorite(workspaceId, nodeUuid)) {
+    removeFavorite(workspaceId, nodeUuid).catch(() => {});
   }
   removeRecent(nodeUuid);
 }
@@ -72,7 +73,7 @@ export function useArchivedPagesMutations() {
       store.permanentDeleteNode(nodeUuid);
     },
     onSuccess: (_data, nodeUuid) => {
-      cleanupNode(nodeUuid);
+      cleanupNode(workspaceUuid, nodeUuid);
       invalidateArchived(queryClient);
     },
   });

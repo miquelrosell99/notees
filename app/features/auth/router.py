@@ -618,6 +618,26 @@ async def revoke_api_key_endpoint(
     return {"success": True}
 
 
+@router.post(
+    "/api-keys/{key_uuid}/regenerate",
+    response_model=ApiKeyCreateResponse,
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_api_key, identifier=ip_only_identifier))],
+)
+async def regenerate_api_key_endpoint(
+    key_uuid: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """Regenerate an existing API key's secret.
+
+    Returns the new plaintext key **once** — copy it immediately.
+    The key's name, scopes, and expiration date are preserved.
+    """
+    result = await auth_module.regenerate_api_key(int(user.id), key_uuid)
+    if result is None:
+        raise HTTPException(status_code=404, detail="API key not found or already revoked")
+    return ApiKeyCreateResponse(**result)
+
+
 @router.post("/device-token")
 async def register_device_token(
     data: DeviceTokenRegisterRequest,

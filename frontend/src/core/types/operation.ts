@@ -51,8 +51,23 @@ const OP_TYPES = new Set([
   'share.public.revoke',
   'share.user.grant',
   'share.user.revoke',
+  'user.favorite.add',
+  'user.favorite.remove',
+  'user.favorite.reorder',
   'plugin.op',
 ]);
+
+export interface UserFavoriteAddPayload {
+  nodeId: string;
+}
+
+export interface UserFavoriteRemovePayload {
+  nodeId: string;
+}
+
+export interface UserFavoriteReorderPayload {
+  nodeIds: string[];
+}
 
 export interface TaskRecordCompletionPayload {
   nodeId: string;

@@ -23,7 +23,7 @@ from app.core.operation import Operation, OperationEnvelope
 from app.core.uuid import uuidv7
 from app.relay.key_storage import WorkspaceKeyStorage
 from app.relay.models import EncryptedEnvelope
-from app.relay.storage import RelayStorage, SqliteRelayStorage
+from app.relay.storage import RelayStorage
 
 
 class WorkspaceStore:
@@ -53,10 +53,12 @@ class WorkspaceStore:
             self._relay_storage = relay_storage
             self._owns_relay_storage = False
         else:
-            relay_db = settings.database_dir / "relay" / "relay.db"
-            relay_db.parent.mkdir(parents=True, exist_ok=True)
-            self._relay_storage = SqliteRelayStorage(relay_db)
-            self._owns_relay_storage = True
+            # Lazy import avoids a circular dependency between the workspace store
+            # and relay dependency providers.
+            from app.relay.dependencies import get_relay_storage
+
+            self._relay_storage = get_relay_storage()
+            self._owns_relay_storage = False
 
         if db_path is not None:
             self._db_path = db_path

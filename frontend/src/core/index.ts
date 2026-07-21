@@ -10,7 +10,7 @@ export { createDatabase, openWorkspaceDatabase } from './db/connection';
 export { WorkspaceStore } from './store';
 export type { NodeRow } from './store';
 export { SyncEngine } from './sync';
-export type { SyncEngineCallbacks, SyncStatus } from './sync';
+export type { SyncEngineCallbacks, SyncPullProgress, SyncStatus } from './sync';
 export { MemoryRelay, MemoryTransport } from './transport';
 export type { Transport } from './transport';
 export { encryptEnvelope, decryptEnvelope } from './crypto';

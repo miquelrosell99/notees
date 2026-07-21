@@ -1,8 +1,9 @@
 """Tests for the unlinked mentions index and promote/ignore actions."""
 
 import pytest
-from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 from httpx import AsyncClient
+
+from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 
 pytestmark = pytest.mark.integration
 

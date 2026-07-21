@@ -41,9 +41,17 @@ import {
   getWorkspaceSyncEngine,
 } from '@/core/adapters/workspaceStoreAdapter';
 import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
+import { useSyncStatusStore, DEFAULT_PROGRESS } from '@/features/sync/stores/syncStatusStore';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import './App.css';
 
 const log = getLogger('App');
+
+function isOriginWherePersistenceWarningMakesSense(): boolean {
+  if (typeof window === 'undefined') return false;
+  const { protocol, hostname } = window.location;
+  return protocol === 'https:' || hostname === 'localhost' || hostname === '127.0.0.1';
+}
 
 /**
  * Global keyboard listener component
@@ -142,11 +150,12 @@ function App() {
     });
 
     // Request persistent storage so IndexedDB is less likely to be evicted
-    // under storage pressure. Failure is non-fatal, but we warn the user.
+    // under storage pressure. Only warn on HTTPS/localhost; over plain HTTP
+    // the browser is expected to deny the request, so the warning is noise.
     requestPersistentStorage()
       .then((granted) => {
         log.info('Persistent storage request result', { granted });
-        if (!granted) {
+        if (!granted && isOriginWherePersistenceWarningMakesSense()) {
           useNotificationStore.getState().warning(
             'Storage may be cleared automatically',
             'Your browser denied persistent storage. Notees data could be evicted if disk space runs low. Consider allowing storage persistence in your browser settings.'
@@ -301,6 +310,9 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
     { actorId: string; transport: ReturnType<typeof createHttpTransport> } | undefined
   >();
   const unregisterVisibilityRef = useRef<(() => void) | null>(null);
+  const progress = useSyncStatusStore((s) =>
+    workspaceId ? s.getWorkspaceProgress(workspaceId) : DEFAULT_PROGRESS
+  );
 
   useEffect(() => {
     useUndoStore.getState().setWorkspaceId(workspaceId);
@@ -314,7 +326,38 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
 
     let cancelled = false;
     const transport = createHttpTransport(workspaceId, actorId);
-    getOrCreateWorkspaceStore(workspaceId, actorId, transport)
+
+    useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, true);
+    getOrCreateWorkspaceStore(workspaceId, actorId, transport, {
+      syncCallbacks: {
+        onStatusChange: (status, error) => {
+          const s = useSyncStatusStore.getState();
+          if (status === 'syncing') {
+            s.setStatus('syncing');
+          } else if (status === 'error') {
+            s.setStatus('error', { lastError: error?.message ?? 'Sync error' });
+          } else {
+            s.setStatus('synced');
+          }
+        },
+        onPullProgress: (p) => {
+          useSyncStatusStore.getState().setWorkspacePullProgress(workspaceId, p);
+        },
+        onPull: (count) => {
+          const s = useSyncStatusStore.getState();
+          s.setWorkspacePullProgress(workspaceId, null);
+          s.setWorkspaceInitializing(workspaceId, false);
+          if (count > 0) {
+            s.setStatus('synced');
+          }
+        },
+        onError: (error) => {
+          const s = useSyncStatusStore.getState();
+          s.setStatus('error', { lastError: error.message });
+          s.setWorkspaceInitializing(workspaceId, false);
+        },
+      },
+    })
       .then(() => {
         if (cancelled) return;
         setCtx({ actorId, transport });
@@ -327,23 +370,41 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         if (!cancelled) {
           log.error(`Failed to initialize workspace store ${workspaceId}`, err);
         }
+        if (workspaceId) {
+          useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
+        }
       });
 
     return () => {
       cancelled = true;
       unregisterVisibilityRef.current?.();
       unregisterVisibilityRef.current = null;
+      if (workspaceId) {
+        useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
+      }
     };
   }, [workspaceId, actorId]);
 
-  if (!ctx) {
-    return children;
-  }
+  const { isInitializing, pullProgress } = progress;
+  const showLoadingOverlay = isInitializing && pullProgress !== null && pullProgress.total > 0;
+  const progressLabel = showLoadingOverlay
+    ? `Syncing workspace… ${pullProgress.applied} / ${pullProgress.total} operations`
+    : 'Loading workspace…';
+  const progressValue = showLoadingOverlay ? pullProgress.applied / pullProgress.total : undefined;
 
   return (
-    <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>
-      {children}
-    </WorkspaceStoreProvider>
+    <>
+      {ctx ? (
+        <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>
+          {children}
+        </WorkspaceStoreProvider>
+      ) : (
+        children
+      )}
+      {showLoadingOverlay && (
+        <LoadingScreen label={progressLabel} progress={progressValue} className="workspace-init-overlay" />
+      )}
+    </>
   );
 }
 

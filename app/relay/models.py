@@ -109,6 +109,7 @@ class SnapshotRequest(BaseModel):
 
     workspace_id: str
     up_to_hlc: Hlc
+    data_base64: str = ""
 
     @field_validator("up_to_hlc", mode="before")
     @classmethod
@@ -118,6 +119,17 @@ class SnapshotRequest(BaseModel):
             raise ValueError("HLC components must be non-negative")
         return hlc
 
+    @property
+    def data(self) -> bytes:
+        import base64
+
+        if not self.data_base64:
+            return b""
+        try:
+            return base64.b64decode(self.data_base64)
+        except Exception as exc:
+            raise ValueError("Invalid base64 snapshot data") from exc
+
 
 class SnapshotResponse(BaseModel):
     """Snapshot creation response."""
@@ -125,6 +137,16 @@ class SnapshotResponse(BaseModel):
     snapshot_id: str
     workspace_id: str
     up_to_hlc: Hlc
+
+
+class LatestSnapshotResponse(BaseModel):
+    """Latest available snapshot for a workspace."""
+
+    snapshot_id: str
+    workspace_id: str
+    hlc: Hlc
+    data_base64: str
+    has_snapshot: bool
 
 
 class CompactRequest(BaseModel):

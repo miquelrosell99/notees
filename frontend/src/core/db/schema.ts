@@ -315,6 +315,17 @@ export function createSchema(db: Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_node_view_node_order
     ON node_view (node_id, view_type, order_index);
+
+    CREATE TABLE IF NOT EXISTS user_favorite (
+      actor_id TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (actor_id, node_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_favorite_actor
+    ON user_favorite (actor_id, workspace_id);
   `);
 
   migrateSchema(db);
@@ -439,6 +450,20 @@ function migrateSchema(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_node_view_node_order ON node_view (node_id, view_type, order_index);
     `);
     db.exec('PRAGMA user_version = 4');
+  }
+
+  if (version < 5) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS user_favorite (
+        actor_id TEXT NOT NULL,
+        node_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (actor_id, node_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_favorite_actor ON user_favorite (actor_id, workspace_id);
+    `);
+    db.exec('PRAGMA user_version = 5');
   }
 }
 

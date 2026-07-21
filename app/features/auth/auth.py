@@ -358,6 +358,31 @@ async def revoke_api_key(user_id: int, key_id: str) -> bool:
     return await repo.revoke_api_key(user_id, key_id)
 
 
+async def regenerate_api_key(user_id: int, key_id: str) -> dict | None:
+    """Regenerate an existing API key's secret.
+
+    Returns the updated record with the plaintext ``key`` field set once.
+    Preserves the key's name, scopes, and expiration date.
+    """
+    key = generate_api_key()
+    key_hash = hash_api_key(key)
+    key_prefix = key[len(_API_KEY_PREFIX):len(_API_KEY_PREFIX) + 8]
+    last_4 = key[-4:]
+
+    repo = await _get_user_repo()
+    record = await repo.regenerate_api_key(
+        user_id=user_id,
+        key_id=key_id,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        last_4=last_4,
+    )
+    if record is None:
+        return None
+    record["key"] = key
+    return record
+
+
 async def authenticate_api_key(key: str) -> dict | None:
     """Authenticate a request by API key.
 

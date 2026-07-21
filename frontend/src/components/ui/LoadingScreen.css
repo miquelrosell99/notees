@@ -32,3 +32,18 @@
   color: var(--color-on-surface-variant);
   font: var(--font-body-large);
 }
+
+.loading-screen__progress {
+  width: min(280px, 80vw);
+  height: 6px;
+  background: var(--color-surface-container-highest);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.loading-screen__progress-bar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: width 150ms ease-out;
+}
