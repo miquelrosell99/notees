@@ -51,6 +51,17 @@ export class SyncEngine {
     this.lastPushedHlc = this.loadWatermark('pushed');
   }
 
+  private countLocalOperations(): number {
+    const db = this.store.getDb();
+    const workspaceId = this.store.getWorkspaceId();
+    const row = queryOne<{ count: number }>(
+      db,
+      'SELECT COUNT(*) AS count FROM operation WHERE workspace_id = ?',
+      [workspaceId]
+    );
+    return row?.count ?? 0;
+  }
+
   private loadWatermark(kind: 'received' | 'pushed'): Hlc {
     const db = this.store.getDb();
     const workspaceId = this.store.getWorkspaceId();
@@ -329,9 +340,18 @@ export class SyncEngine {
 
     this.setStatus('syncing');
     try {
-      // Push any local operations first so they are not lost. After the reset
-      // we will re-download the full server log, which includes them.
-      await this.push();
+      // During a hard rebuild the server is the source of truth. If the local
+      // operation log is large (usually stale state from a restore or old
+      // applier), skip the slow push and clear it. Small local logs are still
+      // pushed to preserve recent offline edits.
+      const localOpCount = this.countLocalOperations();
+      if (localOpCount <= 1000) {
+        await this.push();
+      } else {
+        console.warn(
+          `Hard rebuild skipping push of ${localOpCount} local operations; pulling from server.`
+        );
+      }
       this.store.resetDerivedState();
       this.store.clearOperationLog();
       this.lastReceivedHlc = { physical: 0, logical: 0 };
