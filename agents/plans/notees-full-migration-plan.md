@@ -994,3 +994,7 @@ Future migrations must enumerate *all* user-facing data, including preferences a
 
 **Commits:**
 - `7aa3cf61` feat(ui): extract SyncProgress and add locked modal for force resync
+
+**What the user should do now:**
+- Reload the app. The latest snapshot (with favorites) and the latest frontend code (with the all-pages query fix) are now served.
+- If the workspace still shows stale data, run **Force workspace re-sync** from the command palette.
