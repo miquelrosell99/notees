@@ -960,3 +960,21 @@ Future migrations must enumerate *all* user-facing data, including preferences a
 - Reload `http://atlas:5173`.
 - The client will detect the bumped `restore_epoch`, skip the stale local push, restore the 59 MB snapshot, and finish sync in seconds instead of minutes.
 - If anything still looks off, run **Force workspace re-sync** from the command palette.
+
+---
+
+## Update 2026-07-21: Favorites and All Pages Fixed
+
+**Status:** Migrated legacy favorites and corrected the All Pages query.
+
+**What changed:**
+- Created `scripts/migrate_favorites_from_dump.py` to parse the pre-ideal PostgreSQL dump, map legacy `node.id` integers to current UUIDs, and emit `user.favorite.add` operations. Ran it; imported 4 favorite operations for the main user.
+- Regenerated relay snapshots after importing favorites so new clients see favorites immediately.
+- Fixed the `all_pages` pseudo-node query in `QueryNodeCollection.tsx`: removed the `has_no_parent` condition so it lists all pages in the workspace, not only top-level pages.
+
+**Commits:**
+- `b0777120` fix(favorites,all-pages): import legacy favorites and fix all-pages query
+
+**What the user should do now:**
+- Reload the app (private tab is fine). Favorites should appear in the sidebar.
+- Open the **All Pages** view; it should now list all pages instead of being empty.
