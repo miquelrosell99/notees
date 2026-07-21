@@ -1,8 +1,3 @@
-/* LoadingScreen — centered loading overlay */
-
-
-
-
 .loading-screen {
   display: flex;
   align-items: center;
@@ -18,40 +13,4 @@
 .loading-screen--inline {
   height: 100%;
   min-height: var(--layout-size-2xl);
-}
-
-.loading-screen__content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-4);
-}
-
-.loading-screen__label {
-  color: var(--color-on-surface-variant);
-  font: var(--font-body-large);
-}
-
-.loading-screen__message {
-  color: var(--color-on-surface-variant);
-  font: var(--font-body-medium);
-  opacity: 0.8;
-  min-height: 1.5em;
-  text-align: center;
-}
-
-.loading-screen__progress {
-  width: min(280px, 80vw);
-  height: 6px;
-  background: var(--color-surface-container-highest);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.loading-screen__progress-bar {
-  height: 100%;
-  background: var(--color-primary);
-  border-radius: var(--radius-full);
-  transition: width 150ms ease-out;
 }

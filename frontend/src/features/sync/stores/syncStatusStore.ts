@@ -29,6 +29,8 @@ export interface SyncStatusState {
   lastError: string | null;
   /** Per-workspace initialization state so switching workspaces doesn't fight. */
   workspaceProgress: Record<string, WorkspaceSyncProgress>;
+  /** Workspace currently undergoing an explicit force re-sync; locks the UI. */
+  forceResyncWorkspaceId: string | null;
   setStatus: (
     status: SyncStatus,
     opts?: {
@@ -40,6 +42,7 @@ export interface SyncStatusState {
   setWorkspaceInitializing: (workspaceId: string, isInitializing: boolean) => void;
   setWorkspacePullProgress: (workspaceId: string, pullProgress: SyncPullProgress | null) => void;
   getWorkspaceProgress: (workspaceId: string) => WorkspaceSyncProgress;
+  setForceResyncWorkspaceId: (workspaceId: string | null) => void;
 }
 
 export const DEFAULT_PROGRESS: WorkspaceSyncProgress = {
@@ -53,6 +56,7 @@ export const useSyncStatusStore = create<SyncStatusState>((set, get) => ({
   failedCount: 0,
   lastError: null,
   workspaceProgress: {},
+  forceResyncWorkspaceId: null,
   setStatus: (status, opts) =>
     set((state) => ({
       status,
@@ -82,4 +86,6 @@ export const useSyncStatusStore = create<SyncStatusState>((set, get) => ({
     })),
   getWorkspaceProgress: (workspaceId) =>
     get().workspaceProgress[workspaceId] ?? DEFAULT_PROGRESS,
+  setForceResyncWorkspaceId: (workspaceId) =>
+    set({ forceResyncWorkspaceId: workspaceId }),
 }));
