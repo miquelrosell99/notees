@@ -207,8 +207,13 @@ export function applyNodeOperation(db: Database, op: Operation): void {
       ]);
       recordNodeVersion(db, op.envelope.id, payload.nodeId as string, contentJson, op.envelope.actorId, new Date().toISOString());
       reindexNode(db, payload.nodeId as string);
-    } else if (payload.content) {
-      const contentJson = JSON.stringify(payload.content);
+    } else {
+      // ``content`` is a direct AST payload; ``crdtUpdate`` is the legacy
+      // migration path that also carries an AST (the name is historical).
+      const rawContent = (payload.content ?? payload.crdtUpdate) as unknown;
+      if (!rawContent) return;
+      const content = Array.isArray(rawContent) ? rawContent : [rawContent];
+      const contentJson = JSON.stringify(content);
       db.run('UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
         contentJson,
         new Date().toISOString(),

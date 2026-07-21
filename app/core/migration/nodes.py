@@ -311,7 +311,7 @@ def _update_content_ops(
                 },
                 payload={
                     "nodeId": node_id,
-                    "crdtUpdate": [{"type": "text", "text": name}],
+                    "content": [{"type": "text", "text": name}],
                 },
             )
         )
