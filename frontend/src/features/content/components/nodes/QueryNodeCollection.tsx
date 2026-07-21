@@ -432,11 +432,6 @@ export function QueryNodeCollection({
           children: [
             {
               type: 'condition',
-              condition_type: 'parent',
-              operator: 'has_no_parent',
-            } as any,
-            {
-              type: 'condition',
               condition_type: 'class',
               operator: 'is_any_of',
               class_uuids: [],
