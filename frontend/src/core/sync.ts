@@ -259,10 +259,17 @@ export class SyncEngine {
     }
   }
 
-  /** Reset received watermark to zero and pull everything from the server. */
+  /**
+   * Reset received watermark to zero, clear the local operation log, and pull
+   * everything from the server. Re-applying operations repairs derived state
+   * that may have been produced by an older applier version.
+   */
   async forceResync(): Promise<void> {
+    this.store.clearOperationLog();
     this.lastReceivedHlc = { physical: 0, logical: 0 };
+    this.lastPushedHlc = { physical: 0, logical: 0 };
     this.saveWatermark(this.lastReceivedHlc, 'received');
+    this.saveWatermark(this.lastPushedHlc, 'pushed');
     this.uploadedSnapshotHlc = null;
     await this.syncOnce();
   }

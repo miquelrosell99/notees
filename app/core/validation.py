@@ -18,7 +18,7 @@ REQUIRED_PAYLOAD_FIELDS: dict[str, frozenset[str]] = {
     "node.create": frozenset({"nodeId", "kind", "index"}),
     "node.delete": frozenset({"nodeId"}),
     "node.move": frozenset({"nodeId", "newParentId", "newIndex"}),
-    "node.updateContent": frozenset({"nodeId", "crdtUpdate"}),
+    "node.updateContent": frozenset({"nodeId"}),
     "class.assign": frozenset({"nodeId", "classId"}),
     "class.unassign": frozenset({"nodeId", "classId"}),
     "property.set": frozenset({"propertyValueId", "nodeId", "schemaId", "index", "value"}),
