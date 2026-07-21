@@ -927,4 +927,36 @@ Future migrations must enumerate *all* user-facing data, including preferences a
 - Clear site data / IndexedDB for `atlas:5173` in Firefox to remove stale local state.
 - Open the app via Tailscale. The sync progress overlay will appear while the client rebuilds derived state from the 115k operations.
 - Page titles and content should render correctly after the rebuild completes.
+
+---
+
+## Update 2026-07-21: Snapshots, Compaction, and Admin Tooling Implemented
+
+**Status:** Core operational layers now in place.
+
+**What changed:**
+- Created `scripts/admin_create_snapshots.py` to bulk-generate relay snapshots for workspaces that do not have one. Ran it against the dev database; all 20 workspaces now have snapshots.
+- Largest workspace (`3b30e070-039b-47bc-ad0d-2440a2f173c5`): snapshot is 59 MB and covers 115,706 operations. New clients restore from the snapshot instead of replaying the full log.
+- Updated `scripts/migrate_to_ideal.py --relay` to create a snapshot automatically after each workspace migration (`--skip-snapshot` to opt out).
+- Created `scripts/admin_compact.py` to compact old operation envelopes into snapshot+segment records and prune the originals. Defaults to 30-day retention; supports `--dry-run` and `--all`.
+- Added `GET /api/relay/stats` returning envelope count/size, snapshot count, latest snapshot HLC, compaction stats, max HLC, and restore_epoch.
+- Improved `SyncEngine.initialize()` to use 2,000-operation apply chunks during hard rebuilds (vs. 500 for normal background sync).
+- Fixed the stale-local-push problem by using `restore_epoch` detection instead of an operation-count heuristic.
+
+**Commits:**
+- `a21f3561` fix(sync): use restore_epoch instead of op-count heuristic
+- `b32b2ddf` feat(admin): add bulk snapshot creation script
+- `ef5c7c64` feat(migration): create relay snapshots automatically after migration
+- `5017fd1d` feat(admin): add compaction script
+- `efd62d9c` perf(sync): use larger apply chunks during hard rebuilds
+- `e9974686` feat(relay): add workspace stats endpoint
+
+**Remaining from this workstream:**
+- Phase 1: add a backend unit test that verifies snapshot restore + incremental catch-up.
+- Phase 6: surface `/api/relay/stats` in the settings/admin UI and add workspace-level retention settings.
+
+**What the user should do now:**
+- Kill the frozen browser tab.
+- Reload `http://atlas:5173`.
+- The client will detect the bumped `restore_epoch`, skip the stale local push, restore the 59 MB snapshot, and finish sync in seconds instead of minutes.
 - If anything still looks off, run **Force workspace re-sync** from the command palette.
