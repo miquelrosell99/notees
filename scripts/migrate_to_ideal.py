@@ -41,7 +41,9 @@ from app.core.migration.writer import (
     SqliteOperationWriter,
 )
 from app.core.uuid import uuidv7
+from app.core.workspace_store import WorkspaceStore
 from app.db.connection import setup_jsonb_codec
+from app.relay.storage import PostgresRelayStorage
 
 
 async def _fetch_workspace_ids(conn: Any) -> list[int]:
@@ -50,6 +52,25 @@ async def _fetch_workspace_ids(conn: Any) -> list[int]:
         "SELECT id FROM workspace WHERE active = TRUE ORDER BY id"
     )
     return [row["id"] for row in rows]
+
+
+async def _create_snapshot_for_workspace(workspace_uuid: str) -> str:
+    """Replay operations and upload a snapshot for a migrated workspace."""
+    storage = PostgresRelayStorage(pool=None)
+    try:
+        actor_id = f"migration-snapshot-{uuidv7()}"
+        store = WorkspaceStore(
+            workspace_id=workspace_uuid,
+            actor_id=actor_id,
+            relay_storage=storage,
+            db_path=":memory:",
+            key_storage=None,
+        )
+        await store.sync()
+        snapshot_id = await store.create_snapshot()
+        return snapshot_id
+    finally:
+        await storage.close()
 
 
 async def main(argv: list[str] | None = None) -> int:
@@ -102,6 +123,11 @@ async def main(argv: list[str] | None = None) -> int:
         "--force",
         action="store_true",
         help="Migrate even if the workspace already has relay envelopes",
+    )
+    parser.add_argument(
+        "--skip-snapshot",
+        action="store_true",
+        help="Do not create a relay snapshot after migrating a workspace",
     )
     args = parser.parse_args(argv)
 
@@ -206,6 +232,10 @@ async def main(argv: list[str] | None = None) -> int:
             total_ops += asset_ops
             print(f"Workspace {ws_id}: {asset_ops} asset operations generated")
             await _flush()
+
+            if args.relay and not args.skip_snapshot:
+                snapshot_id = await _create_snapshot_for_workspace(ctx.workspace_uuid)
+                print(f"Workspace {ws_id}: created snapshot {snapshot_id}")
 
             if args.dry_run:
                 ops_in_workspace = count + len(prop_ops) + link_ops + asset_ops
