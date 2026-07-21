@@ -33,6 +33,14 @@
   font: var(--font-body-large);
 }
 
+.loading-screen__message {
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
+  opacity: 0.8;
+  min-height: 1.5em;
+  text-align: center;
+}
+
 .loading-screen__progress {
   width: min(280px, 80vw);
   height: 6px;

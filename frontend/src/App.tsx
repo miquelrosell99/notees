@@ -392,6 +392,15 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
     : 'Loading workspace…';
   const progressValue = showLoadingOverlay ? pullProgress.applied / pullProgress.total : undefined;
 
+  const syncMessages = [
+    'Replaying the operation log…',
+    'Teaching CRDTs to agree…',
+    'Counting blocks, pages, and links…',
+    'Building your local database…',
+    'This is what local-first looks like.',
+    'Still faster than a cloud round-trip.',
+  ];
+
   return (
     <>
       {ctx ? (
@@ -402,7 +411,12 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         children
       )}
       {showLoadingOverlay && (
-        <LoadingScreen label={progressLabel} progress={progressValue} className="workspace-init-overlay" />
+        <LoadingScreen
+          label={progressLabel}
+          progress={progressValue}
+          messages={syncMessages}
+          className="workspace-init-overlay"
+        />
       )}
     </>
   );
