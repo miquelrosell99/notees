@@ -9,6 +9,7 @@ import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useNavigationStore } from '@/stores';
 import { useNotifyActions } from '@/features/layout';
+import { useSyncStatusStore } from '@/features/sync/stores/syncStatusStore';
 import { queryClient } from '@/lib/queryClient';
 import {
   usePageClass,
@@ -116,13 +117,17 @@ export function CommandRegistrations() {
         notifyWarning('No workspace active', 'Open a workspace before forcing a re-sync.');
         return;
       }
+      useSyncStatusStore.getState().setForceResyncWorkspaceId(workspaceId);
       forceResyncWorkspace(workspaceId)
         .then(() => {
-          notifySuccess('Re-sync started', 'Workspace is being re-synced from the server.');
+          notifySuccess('Re-sync complete', 'Workspace has been re-synced from the server.');
         })
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : 'Please try again.';
           notifyError('Re-sync failed', message);
+        })
+        .finally(() => {
+          useSyncStatusStore.getState().setForceResyncWorkspaceId(null);
         });
     },
     {
