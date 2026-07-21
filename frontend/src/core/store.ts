@@ -119,6 +119,21 @@ export class WorkspaceStore {
     void this.onPersist(this.export());
   }
 
+  /**
+   * Clear the local operation log and sync watermarks so the next sync
+   * re-downloads and re-applies all server operations. Derived tables are left
+   * in place because the appliers are idempotent; re-applying will repair any
+   * derived state that was produced by a buggy applier version.
+   */
+  clearOperationLog(): void {
+    transaction(this.db, () => {
+      this.db.run('DELETE FROM operation');
+      this.db.run('DELETE FROM sync_watermark');
+      this.db.run('DELETE FROM sync_push_watermark');
+    });
+    this.schedulePersist();
+  }
+
   apply(op: Operation): void {
     this.applyMany([op]);
   }

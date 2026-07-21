@@ -846,19 +846,23 @@ Future migrations must enumerate *all* user-facing data, including preferences a
    - Run normal paginated catch-up for operations after the snapshot HLC.
    - When the newly caught-up state is newer than the server's snapshot, export and upload a snapshot via `transport.uploadSnapshot()`.
 4. Fixed `RangeError: too many function arguments` in snapshot upload by chunking `Uint8Array` → base64 conversion in `frontend/src/core/transportHttp.ts`.
-5. Added **Force workspace re-sync** command (`COMMAND_IDS.FORCE_RESYNC`) to the command palette; it resets the local received watermark to `{0,0}` and re-runs sync.
+5. Added **Force workspace re-sync** command (`COMMAND_IDS.FORCE_RESYNC`) to the command palette.
+6. Fixed `node.updateContent` applier mismatch: migration emitted `crdtUpdate` but the frontend only handled `textUpdate`/`content`. Frontend now handles `crdtUpdate` as an AST payload, matching the backend applier. Migration changed to emit `content` for future runs.
+7. Strengthened **Force re-sync** to clear the local operation log and watermarks so it re-downloads and re-applies all operations. This repairs derived state produced by an older/buggy applier version.
 
 **Acceptance criteria:**
 - A workspace with 100k+ operations opens in under 10 seconds on a fast LAN after a snapshot exists.
 - The client converges to the same state as a full operation-log replay.
 - Snapshot upload no longer crashes on large derived DBs.
-- Force re-sync is discoverable in the command palette.
+- Force re-sync is discoverable in the command palette and rebuilds local state from the server.
+- Migrated page/block names render instead of showing "Untitled".
 
 **Verification:**
 - `cd frontend && npm run lint` → passes (warnings only, pre-existing).
-- `docker compose -f compose.dev.yaml exec backend uv run pytest tests/core/test_relay_router.py --no-cov` → 8 passed.
+- `cd frontend && npm run test:run` → 598 passed.
+- `docker compose -f compose.dev.yaml exec backend uv run pytest tests/core/migration tests/core/derived tests/core/test_validation.py --no-cov` → 109 passed.
 - No server snapshots existed before this change; first successful client sync will seed one.
 
 **Open:**
-- Verify first full sync uploads a snapshot and subsequent refreshes download it.
+- Verify force re-sync restores page/block names and uploads a snapshot.
 - Snapshot integrity (hash/size check) is not yet implemented; size check implicit in restore/apply path.
