@@ -51,17 +51,6 @@ export class SyncEngine {
     this.lastPushedHlc = this.loadWatermark('pushed');
   }
 
-  private countLocalOperations(): number {
-    const db = this.store.getDb();
-    const workspaceId = this.store.getWorkspaceId();
-    const row = queryOne<{ count: number }>(
-      db,
-      'SELECT COUNT(*) AS count FROM operation WHERE workspace_id = ?',
-      [workspaceId]
-    );
-    return row?.count ?? 0;
-  }
-
   private loadWatermark(kind: 'received' | 'pushed'): Hlc {
     const db = this.store.getDb();
     const workspaceId = this.store.getWorkspaceId();
@@ -340,24 +329,31 @@ export class SyncEngine {
 
     this.setStatus('syncing');
     try {
-      // During a hard rebuild the server is the source of truth. If the local
-      // operation log is large (usually stale state from a restore or old
-      // applier), skip the slow push and clear it. Small local logs are still
-      // pushed to preserve recent offline edits.
-      const localOpCount = this.countLocalOperations();
-      if (localOpCount <= 1000) {
-        await this.push();
-      } else {
+      // Fetch server restore metadata before deciding whether to push local ops.
+      // If the server was restored, local state is stale by definition and we
+      // must not push potentially stale local operations back upstream. In the
+      // normal case (applier update only), preserve local offline edits by
+      // pushing them first.
+      const serverSnapshot = await this.transport.getLatestSnapshot();
+      const localEpoch = this.loadRestoreEpoch();
+      const serverRestored = serverSnapshot.restoreEpoch !== localEpoch;
+
+      if (serverRestored) {
         console.warn(
-          `Hard rebuild skipping push of ${localOpCount} local operations; pulling from server.`
+          `Server restore_epoch ${serverSnapshot.restoreEpoch} differs from local ${localEpoch}; ` +
+            'skipping local push and rebuilding from server.'
         );
+      } else {
+        await this.push();
       }
+
       this.store.resetDerivedState();
       this.store.clearOperationLog();
       this.lastReceivedHlc = { physical: 0, logical: 0 };
       this.lastPushedHlc = { physical: 0, logical: 0 };
       this.saveWatermark(this.lastReceivedHlc, 'received');
       this.saveWatermark(this.lastPushedHlc, 'pushed');
+      this.saveRestoreEpoch(serverSnapshot.restoreEpoch);
       this.uploadedSnapshotHlc = null;
       await this.pull({ ignoreSnapshot: true });
       this.setStatus('idle', null);
