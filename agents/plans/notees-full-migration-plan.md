@@ -978,3 +978,19 @@ Future migrations must enumerate *all* user-facing data, including preferences a
 **What the user should do now:**
 - Reload the app (private tab is fine). Favorites should appear in the sidebar.
 - Open the **All Pages** view; it should now list all pages instead of being empty.
+
+---
+
+## Update 2026-07-21: Sync Progress Modal for Force Re-sync
+
+**Status:** Extracted reusable sync progress UI and added a locked modal for explicit re-syncs.
+
+**What changed:**
+- Extracted `SyncProgress` component from `LoadingScreen` so the same spinner, label, rotating messages, and progress bar can be rendered fullscreen or inside a modal.
+- Added `SyncProgressModal`: a non-dismissible modal that locks the interface during force re-sync.
+- Added `forceResyncWorkspaceId` to `syncStatusStore`.
+- Wired the **Force workspace re-sync** command to show the modal while re-syncing and close it on completion or error.
+- Kept the fullscreen `LoadingScreen` for initial workspace load.
+
+**Commits:**
+- `7aa3cf61` feat(ui): extract SyncProgress and add locked modal for force resync
