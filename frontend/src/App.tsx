@@ -43,6 +43,7 @@ import {
 import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
 import { useSyncStatusStore, DEFAULT_PROGRESS } from '@/features/sync/stores/syncStatusStore';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { SyncProgressModal } from '@/components/ui/SyncProgressModal';
 import './App.css';
 
 const log = getLogger('App');
@@ -313,6 +314,10 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const progress = useSyncStatusStore((s) =>
     workspaceId ? s.getWorkspaceProgress(workspaceId) : DEFAULT_PROGRESS
   );
+  const forceResyncWorkspaceId = useSyncStatusStore((s) => s.forceResyncWorkspaceId);
+  const forceResyncProgress = useSyncStatusStore((s) =>
+    forceResyncWorkspaceId ? s.getWorkspaceProgress(forceResyncWorkspaceId) : DEFAULT_PROGRESS
+  );
 
   useEffect(() => {
     useUndoStore.getState().setWorkspaceId(workspaceId);
@@ -419,6 +424,18 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
           progress={progressValue}
           messages={syncMessages}
           className="workspace-init-overlay"
+        />
+      )}
+      {forceResyncWorkspaceId && (
+        <SyncProgressModal
+          isOpen
+          label={`Re-syncing workspace… ${forceResyncProgress.pullProgress ? Math.round((forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total) * 100) + '%' : ''}`}
+          progress={
+            forceResyncProgress.pullProgress
+              ? forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total
+              : undefined
+          }
+          messages={syncMessages}
         />
       )}
     </>
