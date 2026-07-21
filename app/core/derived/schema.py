@@ -302,6 +302,17 @@ CREATE INDEX IF NOT EXISTS idx_node_view_node_type
 CREATE INDEX IF NOT EXISTS idx_node_view_node_order
     ON node_view (node_id, view_type, order_index);
 
+CREATE TABLE IF NOT EXISTS user_favorite (
+    actor_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (actor_id, node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_favorite_actor
+    ON user_favorite (actor_id, workspace_id);
+
 -- Trash retention tracking. The operation log hard-deletes nodes immediately,
 -- so the derived node table has no soft-delete concept. This table records the
 -- deletion timestamp (and asset metadata needed for file cleanup) so the

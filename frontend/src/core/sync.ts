@@ -6,9 +6,15 @@ import type { Transport } from './transport';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error';
 
+export interface SyncPullProgress {
+  applied: number;
+  total: number;
+}
+
 export interface SyncEngineCallbacks {
   onPush?: (envelopeCount: number) => void;
   onPull?: (envelopeCount: number) => void;
+  onPullProgress?: (progress: SyncPullProgress) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: SyncStatus, error: Error | null) => void;
 }
@@ -34,6 +40,8 @@ export class SyncEngine {
   private lastError: Error | null = null;
   private autoSyncTimer: ReturnType<typeof setInterval> | null = null;
   private statusListeners = new Set<(status: SyncStatus, error: Error | null) => void>();
+  /** HLC of the last snapshot we uploaded this session; avoid re-uploading. */
+  private uploadedSnapshotHlc: Hlc | null = null;
 
   constructor(store: WorkspaceStore, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
     this.store = store;
@@ -97,6 +105,7 @@ export class SyncEngine {
   }
 
   async push(): Promise<void> {
+    const BATCH_SIZE = 100;
     const db = this.store.getDb();
     const rows = queryAll<OperationRow>(
       db,
@@ -111,34 +120,67 @@ export class SyncEngine {
         this.lastPushedHlc.logical,
       ]
     );
+
+    const toEnvelope = (row: OperationRow) => ({
+      id: row.id,
+      workspaceId: this.store.getWorkspaceId(),
+      actorId: row.actor_id,
+      hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
+      affectedNodeIds: JSON.parse(row.affected_node_ids),
+      opType: row.op_type,
+      payload: JSON.parse(row.payload),
+    });
+
     let pushedMaxHlc = this.lastPushedHlc;
-    for (const row of rows) {
-      const envelope = {
-        id: row.id,
-        workspaceId: this.store.getWorkspaceId(),
-        actorId: row.actor_id,
-        hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
-        affectedNodeIds: JSON.parse(row.affected_node_ids),
-        opType: row.op_type,
-        payload: JSON.parse(row.payload),
-      };
-      await this.transport.send(envelope);
-      pushedMaxHlc = maxHlc(pushedMaxHlc, envelope.hlc);
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const chunk = rows.slice(i, i + BATCH_SIZE).map(toEnvelope);
+      if (this.transport.sendBatch) {
+        await this.transport.sendBatch(chunk);
+      } else {
+        for (const envelope of chunk) {
+          await this.transport.send(envelope);
+        }
+      }
+      for (const envelope of chunk) {
+        pushedMaxHlc = maxHlc(pushedMaxHlc, envelope.hlc);
+      }
+      this.lastPushedHlc = pushedMaxHlc;
+      this.saveWatermark(this.lastPushedHlc, 'pushed');
     }
-    this.lastPushedHlc = pushedMaxHlc;
-    this.saveWatermark(this.lastPushedHlc, 'pushed');
+
     this.callbacks.onPush?.(rows.length);
   }
 
   async pull(): Promise<void> {
-    const envelopes = await this.transport.catchUp(this.lastReceivedHlc);
+    // Try to restore from the latest server snapshot first. If the snapshot is
+    // newer than our local watermark, we replace the derived DB with it and then
+    // only replay operations newer than the snapshot.
+    const snapshot = await this.transport.getLatestSnapshot();
+    const snapshotIsNewer =
+      snapshot && compareHlc(snapshot.hlc, this.lastReceivedHlc) > 0;
+
+    if (snapshotIsNewer && snapshot) {
+      this.callbacks.onPullProgress?.({ applied: 0, total: 0 });
+      await this.store.restoreSnapshot(snapshot.data);
+      this.lastReceivedHlc = snapshot.hlc;
+      this.saveWatermark(this.lastReceivedHlc, 'received');
+    }
+
+    // Paginate through all server pages. This keeps the sync logic simple and
+    // lets us apply the full batch in sorted order. Memory use is modest:
+    // 115k envelopes is a few megabytes of JSON.
+    const envelopes = await this.transport.catchUp(this.lastReceivedHlc, (_page, totalSoFar) => {
+      this.callbacks.onPullProgress?.({ applied: 0, total: totalSoFar });
+    });
+
     envelopes.sort((a, b) => {
       const cmp = compareHlc(a.hlc, b.hlc);
       if (cmp !== 0) return cmp;
       return a.id.localeCompare(b.id);
     });
-    for (const env of envelopes) {
-      const op = createOperation(
+
+    const ops = envelopes.map((env) =>
+      createOperation(
         {
           id: env.id,
           workspaceId: this.store.getWorkspaceId(),
@@ -148,12 +190,55 @@ export class SyncEngine {
           opType: env.opType,
         },
         env.payload
-      );
-      this.store.apply(op);
-      this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, env.hlc);
+      )
+    );
+
+    // Apply in chunks so the progress overlay updates and the event loop stays
+    // responsive. A chunk size of 5000 keeps transactions large enough to be
+    // efficient but small enough to yield regularly.
+    const CHUNK_SIZE = 5000;
+    let applied = 0;
+    for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
+      const chunk = ops.slice(i, i + CHUNK_SIZE);
+      this.store.applyMany(chunk);
+      applied += chunk.length;
+      this.callbacks.onPullProgress?.({ applied, total: ops.length });
+      if (i + CHUNK_SIZE < ops.length) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
     }
+
+    for (const op of ops) {
+      this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, op.envelope.hlc);
+    }
+
     this.saveWatermark(this.lastReceivedHlc, 'received');
     this.callbacks.onPull?.(envelopes.length);
+
+    // Upload a snapshot when the server has no snapshot or an older one.
+    // This helps the next device open quickly. Keep it best-effort.
+    const uploadSnapshot = this.transport.uploadSnapshot;
+    const shouldUploadSnapshot =
+      uploadSnapshot &&
+      (!snapshot || compareHlc(this.lastReceivedHlc, snapshot.hlc) > 0) &&
+      (!this.uploadedSnapshotHlc ||
+        compareHlc(this.lastReceivedHlc, this.uploadedSnapshotHlc) > 0);
+
+    if (shouldUploadSnapshot && uploadSnapshot) {
+      try {
+        const { hlc, data } = this.store.exportSnapshot(this.lastReceivedHlc);
+        await uploadSnapshot({
+          snapshotId: '',
+          workspaceId: this.store.getWorkspaceId(),
+          hlc,
+          data,
+        });
+        this.uploadedSnapshotHlc = hlc;
+      } catch (err) {
+        // Snapshot upload is best-effort; don't fail sync if upload errors.
+        console.error('Failed to upload workspace snapshot', err);
+      }
+    }
   }
 
   async sync(): Promise<void> {
@@ -172,6 +257,14 @@ export class SyncEngine {
       this.callbacks.onError?.(error);
       throw error;
     }
+  }
+
+  /** Reset received watermark to zero and pull everything from the server. */
+  async forceResync(): Promise<void> {
+    this.lastReceivedHlc = { physical: 0, logical: 0 };
+    this.saveWatermark(this.lastReceivedHlc, 'received');
+    this.uploadedSnapshotHlc = null;
+    await this.syncOnce();
   }
 
   startAutoSync(intervalMs: number): void {

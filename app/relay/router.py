@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -23,6 +24,7 @@ from app.relay.models import (
     CatchUpRequest,
     CompactRequest,
     CompactResponse,
+    LatestSnapshotResponse,
     SnapshotRequest,
     SnapshotResponse,
 )
@@ -34,11 +36,15 @@ router = APIRouter(prefix="/api/relay", tags=["relay"])
 
 router.include_router(key_router)
 
-# Per-actor/workspace batch submission limit: 100 envelopes per minute.
-_relay_batch_limiter = Limiter(PerKeyBucketFactory([Rate(100, Duration.MINUTE)]))
+# Per-actor/workspace batch submission limit: 30,000 envelopes per minute.
+# The frontend currently pushes one envelope per request during catch-up, so
+# this needs to be high enough for initial sync of large workspaces.
+_relay_batch_limiter = Limiter(PerKeyBucketFactory([Rate(30_000, Duration.MINUTE)]))
 
-# Per-actor catch-up request limit: 60 requests per minute.
-_relay_catchup_limiter = Limiter(PerKeyBucketFactory([Rate(60, Duration.MINUTE)]))
+# Per-actor catch-up request limit: 600 requests per minute.
+# Large workspaces can have 100k+ operations; paging at 10k per request still
+# needs ~10 requests, so the old 60/min limit was too easy to hit.
+_relay_catchup_limiter = Limiter(PerKeyBucketFactory([Rate(600, Duration.MINUTE)]))
 
 
 async def relay_batch_identifier(request: Request) -> str:
@@ -98,7 +104,7 @@ async def receive_batch(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
-    response.headers["X-RateLimit-Limit"] = "100"
+    response.headers["X-RateLimit-Limit"] = "30000"
     return {"saved_count": len(saved), "saved_ids": [envelope.id for envelope in saved]}
 
 
@@ -173,6 +179,7 @@ async def create_snapshot(
         snapshot_id = await service.create_snapshot(
             request.workspace_id,
             request.up_to_hlc,
+            data=request.data,
         )
     except PermissionDeniedError as exc:
         raise HTTPException(
@@ -229,15 +236,47 @@ async def compact_operations(
 
 
 @router.get("/snapshot")
-def snapshot() -> None:
-    """Placeholder for snapshot-based catch-up support.
+async def get_latest_snapshot(
+    workspace_id: str = Query(...),
+    share_token: str | None = Query(None),
+    actor_id: str = Depends(get_actor_id),
+    service: RelayService = Depends(get_relay_service),
+) -> LatestSnapshotResponse:
+    """Return the newest snapshot for a workspace.
 
-    Snapshot sync will be implemented in a later phase; this endpoint reserves
-    the route and returns a clear 501 Not Implemented response.
+    Clients can restore the returned SQLite database bytes and then catch up
+    only operations newer than the snapshot HLC.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Snapshot sync is not implemented yet.",
+    if actor_id == "anonymous" and share_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication or a valid share token is required.",
+        )
+    try:
+        snapshot = await service.get_latest_snapshot_for_actor(
+            workspace_id, actor_id, share_token
+        )
+    except PermissionDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
+    if snapshot is None:
+        return LatestSnapshotResponse(
+            snapshot_id="",
+            workspace_id=workspace_id,
+            hlc={"physical": 0, "logical": 0},
+            data_base64="",
+            has_snapshot=False,
+        )
+
+    return LatestSnapshotResponse(
+        snapshot_id=snapshot["id"],
+        workspace_id=workspace_id,
+        hlc=snapshot["hlc"],
+        data_base64=base64.b64encode(snapshot["data"]).decode("ascii"),
+        has_snapshot=True,
     )
 
 

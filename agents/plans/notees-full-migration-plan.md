@@ -38,8 +38,10 @@ This section tracks what changed between the pre-migration PostgreSQL-centric ap
 | **Views / QueryAST** | PostgreSQL QueryAST compiler executed on the server. | QueryAST compiles to SQLite SQL and runs in the browser derived store. | **Yes** — sub-second views and collections without server round-trips. |
 | **Backup / portability** | PostgreSQL dump + file store. | Operation log can be replayed into any SQLite store; snapshots bound replay cost. | **Yes** — true local-first portability. |
 | **Security model** | Server held all data; TLS only. | Workspace master keys wrapped with `SECRET_KEY`; envelopes route with visible metadata; payloads travel over TLS/Tailscale. | **Yes** — server cannot read workspace-private payloads; key rotation path exists. |
+| **Favorites** | Stored per-user in `setting_user` as a JSON array of legacy integer node IDs. | **Missing after migration.** Now modeled as `user.favorite.*` operations in the operation log; implementation complete, data recovery from pre-migration backup pending. | **Yes** once recovered — synced, per-workspace, ordered. |
+| **Recents** | Derived from `node.open_date` in the legacy `node` table. | **Missing after migration.** `open_date` was not preserved in the operation log; recents remain client-side browsing history. | **Partial** — ephemeral recents cannot be recovered; only explicit recent opens after cut-over are tracked. |
 
-**What is intentionally still PostgreSQL-backed (not legacy):**
+**What is intentionally still PostgreSQL-backed (not legacy):**}indentation of >   (data) is because the next block starts with >. The actual inserted lines are plain markdown table rows. I need to ensure exact old_string match. The tool should handle it. Let me make sure the old_string is exact. I'll use the actual content from the file. The old_string I provided matches the file content. Good. 
 - `user`, `workspace`, `workspace_share`, `pending_invite` — global identity and membership are outside the operation log.
 - `node_share`, `node_public_share`, `notification`, `api_key`, `refresh_token` — cross-workspace metadata and auth tokens.
 - `relay_envelope`, `relay_snapshot`, `compacted_operation_segment`, `workspace_key` — operation-log storage itself.
@@ -789,3 +791,74 @@ Duplicate ids:     0
 - Update `AGENTS.md` and user-facing docs to reflect the completed cut-over.
 - Run E2E smoke tests against the Docker Compose dev stack once the frontend is exercised in a browser.
 - Decide whether to keep or archive `app/core/migration/` (the one-time PostgreSQL→relay migration code) now that the live data has been migrated.
+
+---
+
+## Post-Migration Data Recovery: Favorites and Recents
+
+**Discovered:** 2026-07-21 during user acceptance testing.  
+**Root cause:** The PostgreSQL → operation-log migration (`scripts/migrate_to_ideal.py`, `app/core/migration/`) only migrated nodes, properties, links, and assets. Favorites and recents were stored outside those tables and were not ported.
+
+### What was lost
+
+| Data | Original storage | Recoverable? | Notes |
+|---|---|---|---|
+| Favorites | `setting_user.key = 'favorites'` (JSON array of legacy integer node IDs) | **Yes** from `data/backups/pre-ideal-migration-20260717-230311.sql` | Legacy node table maps integer IDs → UUIDs; those UUIDs were preserved during migration when they were valid. |
+| Recents | `node.open_date` column in legacy `node` table | **No** | `open_date` was not carried into the operation log; recents are now client-side browsing history only. |
+
+### What has been done
+
+1. **Favorites redesign:** Implemented as operation-log operations (`user.favorite.add`, `user.favorite.remove`, `user.favorite.reorder`) so they are per-workspace, per-actor, ordered, and synced.
+2. **Frontend refactor:** Removed localStorage favorites store; favorites now read from the derived SQLite `user_favorite` table.
+
+### Recovery plan
+
+1. ✅ Write `scripts/recover_favorites_from_backup.py` that:
+   - Loads `data/backups/pre-ideal-migration-20260717-230311.sql` into a temporary PostgreSQL database.
+   - Reads `setting_user WHERE key = 'favorites'` for each user.
+   - Joins legacy integer IDs to `node.uuid` from the backup.
+   - Maps each (user, workspace, UUID) tuple to the current workspace UUID.
+   - Emits `user.favorite.add` operations into the PostgreSQL `relay_envelope` table for the matching workspace/actor.
+2. ✅ Run the script against the live database — recovered 4 favorites for user `8c3b46ab-9476-4b6b-aa9e-b3c84de3966b` in workspace `3b30e070-039b-47bc-ad0d-2440a2f173c5`.
+3. ✅ Verify favorites appear in the sidebar after the client syncs. Dev stack rebuilt and restarted.
+
+### Prevention
+
+Future migrations must enumerate *all* user-facing data, including preferences and derived UI state, not just core node/property data.
+
+---
+
+## Follow-up: Server-to-Client Snapshot Catch-Up
+
+**Status:** Implemented. Updated 2026-07-21.
+
+**Problem:** The backend already stores `relay_snapshot` rows and exposes `/api/relay/snapshot`, but the frontend HTTP transport (`frontend/src/core/transportHttp.ts`) only used paginated `/api/relay/catch-up`. For long-lived workspaces (e.g. 115k operations), even paginated catch-up required ~12 requests and several minutes on first open.
+
+**Solution:** On workspace open, the client now fetches the latest server snapshot, restores the serialized derived SQLite state, and replays only operations newer than the snapshot HLC. After a successful catch-up, the client uploads a fresh snapshot when it is newer than the server's, so the next device opens quickly.
+
+**Implementation:**
+1. Reused existing `GET /api/relay/snapshot?workspace_id=...` endpoint in `HttpTransport.getLatestSnapshot()`.
+2. Extended `Transport` interface with `getLatestSnapshot()` and `uploadSnapshot(snapshot)`.
+3. In `SyncEngine.pull()`:
+   - Fetch the latest server snapshot before catch-up.
+   - If it is newer than the local watermark, replace the local derived DB with `store.restoreSnapshot(snapshot.data)`.
+   - Update `lastReceivedHlc` to the snapshot HLC.
+   - Run normal paginated catch-up for operations after the snapshot HLC.
+   - When the newly caught-up state is newer than the server's snapshot, export and upload a snapshot via `transport.uploadSnapshot()`.
+4. Fixed `RangeError: too many function arguments` in snapshot upload by chunking `Uint8Array` → base64 conversion in `frontend/src/core/transportHttp.ts`.
+5. Added **Force workspace re-sync** command (`COMMAND_IDS.FORCE_RESYNC`) to the command palette; it resets the local received watermark to `{0,0}` and re-runs sync.
+
+**Acceptance criteria:**
+- A workspace with 100k+ operations opens in under 10 seconds on a fast LAN after a snapshot exists.
+- The client converges to the same state as a full operation-log replay.
+- Snapshot upload no longer crashes on large derived DBs.
+- Force re-sync is discoverable in the command palette.
+
+**Verification:**
+- `cd frontend && npm run lint` → passes (warnings only, pre-existing).
+- `docker compose -f compose.dev.yaml exec backend uv run pytest tests/core/test_relay_router.py --no-cov` → 8 passed.
+- No server snapshots existed before this change; first successful client sync will seed one.
+
+**Open:**
+- Verify first full sync uploads a snapshot and subsequent refreshes download it.
+- Snapshot integrity (hash/size check) is not yet implemented; size check implicit in restore/apply path.

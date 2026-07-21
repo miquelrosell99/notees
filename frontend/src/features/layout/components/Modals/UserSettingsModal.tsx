@@ -11,7 +11,7 @@ import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSele
 import { useWorkspaces } from '@/features/workspace';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor, TreeEditMode } from '@/stores';
 import { setSetting } from '@/features/workspace';
-import { updateMe, createApiKey, listApiKeys, revokeApiKey, TwoFactorSettings } from '@/features/auth';
+import { updateMe, createApiKey, listApiKeys, revokeApiKey, regenerateApiKey, TwoFactorSettings } from '@/features/auth';
 import { SPONSORSHIP_CHANNELS } from '@/constants/sponsorship';
 import { TextField } from '@/components/ui/TextField';
 import type { ApiKey } from '@/types';
@@ -21,6 +21,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { SelectionButton } from '@/components/ui/SelectionButton';
 import { BooleanToggle } from '@/components/ui/BooleanToggle';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Tabs } from '@/components/ui/Tabs';
 import { getRegisteredSettingsTabs } from '@/plugins/core';
 import './UserSettingsModal.css';
@@ -44,6 +45,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyScopes, setNewKeyScopes] = useState<string[]>(['read', 'write']);
   const [newKeySecret, setNewKeySecret] = useState<string | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -126,13 +128,20 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     if (!name) return;
     setApiKeyError(null);
     try {
-      const created = await createApiKey({ name });
+      const created = await createApiKey({ name, scopes: newKeyScopes });
       setNewKeySecret(created.key);
       setNewKeyName('');
+      setNewKeyScopes(['read', 'write']);
       await loadApiKeys();
     } catch (err) {
       setApiKeyError(err instanceof Error ? err.message : 'Failed to create API key');
     }
+  };
+
+  const toggleScope = (scope: string) => {
+    setNewKeyScopes((prev) =>
+      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]
+    );
   };
 
   const handleRevokeApiKey = async (keyUuid: string) => {
@@ -142,6 +151,17 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
       await loadApiKeys();
     } catch (err) {
       setApiKeyError(err instanceof Error ? err.message : 'Failed to revoke API key');
+    }
+  };
+
+  const handleRegenerateApiKey = async (keyUuid: string) => {
+    setApiKeyError(null);
+    try {
+      const regenerated = await regenerateApiKey(keyUuid);
+      setNewKeySecret(regenerated.key);
+      await loadApiKeys();
+    } catch (err) {
+      setApiKeyError(err instanceof Error ? err.message : 'Failed to regenerate API key');
     }
   };
 
@@ -813,19 +833,53 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                     </div>
                   )}
 
-                  <div className="settings-form-row">
-                    <label className="settings-form-label" htmlFor="api-key-name">
-                      API key name
-                    </label>
-                    <input
-                      id="api-key-name"
-                      type="text"
-                      className="settings-form-input"
-                      value={newKeyName}
-                      onChange={(e) => setNewKeyName(e.target.value)}
-                      placeholder="e.g., My Android Phone"
-                    />
-                    <Button variant="primary" size="sm" onClick={handleCreateApiKey} disabled={!newKeyName.trim()}>
+                  <div className="settings-api-key-form">
+                    <div className="settings-form-row">
+                      <label className="settings-form-label" htmlFor="api-key-name">
+                        Friendly name
+                      </label>
+                      <input
+                        id="api-key-name"
+                        type="text"
+                        className="settings-form-input"
+                        value={newKeyName}
+                        onChange={(e) => setNewKeyName(e.target.value)}
+                        placeholder="e.g., Kimi Code on laptop"
+                      />
+                    </div>
+                    <div className="settings-api-key-scopes">
+                      <span className="settings-form-label">Scopes</span>
+                      <div className="settings-api-key-scopes__group">
+                        <Checkbox
+                          label="Read"
+                          description="Search and read notes"
+                          checked={newKeyScopes.includes('read')}
+                          onChange={() => toggleScope('read')}
+                          size="sm"
+                        />
+                        <Checkbox
+                          label="Write"
+                          description="Create and update notes"
+                          checked={newKeyScopes.includes('write')}
+                          onChange={() => toggleScope('write')}
+                          size="sm"
+                        />
+                        <Checkbox
+                          label="Admin"
+                          description="Manage users and settings"
+                          checked={newKeyScopes.includes('admin')}
+                          onChange={() => toggleScope('admin')}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      className="settings-api-key-form__submit"
+                      variant="primary"
+                      size="sm"
+                      onClick={handleCreateApiKey}
+                      disabled={!newKeyName.trim() || newKeyScopes.length === 0}
+                    >
                       Generate Key
                     </Button>
                   </div>
@@ -838,20 +892,51 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                     ) : apiKeys.length === 0 ? (
                       <p className="settings-api-key-list__empty">No API keys yet.</p>
                     ) : (
-                      apiKeys.map((key) => (
-                        <div key={key.id} className="settings-api-key-item">
-                          <div className="settings-api-key-item__info">
-                            <span className="settings-api-key-item__name">{key.name}</span>
-                            <span className="settings-api-key-item__meta">
-                              Created {new Date(key.created_at).toLocaleDateString()}
-                              {key.last_used_at && ` • Last used ${new Date(key.last_used_at).toLocaleDateString()}`}
-                            </span>
-                          </div>
-                          <Button variant="danger" size="xs" onClick={() => handleRevokeApiKey(key.id)}>
-                            Revoke
-                          </Button>
-                        </div>
-                      ))
+                      <table className="settings-api-key-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Scopes</th>
+                            <th>Created</th>
+                            <th>Last used</th>
+                            <th aria-label="Actions" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apiKeys.map((key) => (
+                            <tr key={key.id}>
+                              <td className="settings-api-key-table__name">{key.name}</td>
+                              <td>
+                                <span className="settings-api-key-table__scopes">
+                                  {key.scopes.length > 0 ? key.scopes.join(', ') : '—'}
+                                </span>
+                              </td>
+                              <td>{new Date(key.created_at).toLocaleDateString()}</td>
+                              <td>
+                                {key.last_used_at
+                                  ? new Date(key.last_used_at).toLocaleDateString()
+                                  : 'Never'}
+                              </td>
+                              <td className="settings-api-key-table__actions">
+                                <Button
+                                  variant="default"
+                                  size="xs"
+                                  onClick={() => handleRegenerateApiKey(key.id)}
+                                >
+                                  Regenerate
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  size="xs"
+                                  onClick={() => handleRevokeApiKey(key.id)}
+                                >
+                                  Revoke
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     )}
                   </div>
                 </Card>

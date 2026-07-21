@@ -14,7 +14,7 @@
 import { useEffect, useCallback, useRef, useContext, type MutableRefObject } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigationStore, useSettingsStore, useAuthStore, useFavoritesStore, useRecentsStore, type MainViewType, type DefaultView } from '@/stores';
+import { useNavigationStore, useSettingsStore, useAuthStore, useRecentsStore, type MainViewType, type DefaultView } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useTodayNote } from '@/features/content';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
@@ -104,7 +104,6 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
           mainViewType: 'node',
         });
 
-        useFavoritesStore.getState().clearFavorites();
         useRecentsStore.getState().clearRecents();
         queryClient.clear();
 
