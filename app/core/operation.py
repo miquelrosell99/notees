@@ -57,6 +57,10 @@ KNOWN_OP_TYPES: frozenset[str] = frozenset(
         "share.public.revoke",
         "share.user.grant",
         "share.user.revoke",
+        # User preferences
+        "user.favorite.add",
+        "user.favorite.remove",
+        "user.favorite.reorder",
         # Plugins
         "plugin.op",
     ]

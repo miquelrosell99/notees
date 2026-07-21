@@ -19,10 +19,11 @@ function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
 }
 
-function cleanupNode(nodeUuid: string) {
+function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
   if (!nodeUuid) return;
-  if (isFavorite(nodeUuid)) {
-    removeFavorite(nodeUuid).catch(() => {});
+  const workspaceId = workspaceUuid ?? undefined;
+  if (isFavorite(workspaceId, nodeUuid)) {
+    removeFavorite(workspaceId, nodeUuid).catch(() => {});
   }
   removeRecent(nodeUuid);
 }
@@ -81,7 +82,7 @@ export function useTrashMutations() {
     },
     onSuccess: (_data, nodeUuid) => {
       invalidateTrash(queryClient);
-      cleanupNode(nodeUuid);
+      cleanupNode(workspaceUuid, nodeUuid);
     },
   });
 
@@ -108,7 +109,7 @@ export function useTrashMutations() {
     onSuccess: (_data, uuids) => {
       invalidateTrash(queryClient);
       for (const nodeUuid of uuids) {
-        cleanupNode(nodeUuid);
+        cleanupNode(workspaceUuid, nodeUuid);
       }
     },
   });

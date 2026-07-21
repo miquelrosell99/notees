@@ -21,8 +21,8 @@ export function useArchiveNode() {
       store.archiveNode(nodeUuid);
     },
     onMutate: (nodeUuid) => {
-      if (nodeUuid && isFavorite(nodeUuid)) {
-        removeFavorite(nodeUuid).catch(() => {});
+      if (nodeUuid && isFavorite(workspaceUuid ?? undefined, nodeUuid)) {
+        removeFavorite(workspaceUuid ?? undefined, nodeUuid).catch(() => {});
       }
       removeRecent(nodeUuid);
     },

@@ -2,6 +2,7 @@ import { useState, useCallback, memo, useEffect } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useIsMobile } from '@/hooks';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useNodeByUuid } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useListDragSort } from '@/hooks/useListDragSort';
@@ -17,6 +18,7 @@ import {
 
 interface SortableFavoriteItemProps {
   nodeUuid: string;
+  workspaceId: string | undefined;
   index: number;
   isActive: boolean;
   isDragging: boolean;
@@ -29,6 +31,7 @@ interface SortableFavoriteItemProps {
 
 const SortableFavoriteItem = memo(function SortableFavoriteItem({
       nodeUuid,
+      workspaceId,
       index,
       isActive,
       isDragging,
@@ -43,9 +46,9 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   // Auto-remove stale favorites for deleted nodes
   useEffect(() => {
     if (error && isApiError(error) && error.response?.status === 404) {
-      removeFavorite(nodeUuid).catch(() => {});
+      removeFavorite(workspaceId, nodeUuid).catch(() => {});
     }
-  }, [error, nodeUuid]);
+  }, [error, workspaceId, nodeUuid]);
 
   const handleClick = useCallback((e: React.MouseEvent | { target?: never }) => {
     // Don't navigate if clicking drag handle, remove button, or breadcrumbs
@@ -159,7 +162,8 @@ interface SidebarFavoritesProps {
 
 export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavoritesProps) {
   const [expanded, setExpanded] = useState(true);
-  const { data: favoritesData } = useFavorites();
+  const workspaceId = useCurrentWorkspaceUuid();
+  const { data: favoritesData } = useFavorites(workspaceId ?? undefined);
   const favorites = favoritesData ?? [];
   const {
     mainViewType,
@@ -192,9 +196,9 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
     onItemClick?.();
   }, [openNode, closeMobileDrawer, onItemClick]);
 
-  const removeFavoriteMutation = useRemoveFavoriteMutation();
-  const addFavoriteMutation = useAddFavoriteMutation();
-  const reorderFavoritesMutation = useReorderFavoritesMutation();
+  const removeFavoriteMutation = useRemoveFavoriteMutation(workspaceId ?? undefined);
+  const addFavoriteMutation = useAddFavoriteMutation(workspaceId ?? undefined);
+  const reorderFavoritesMutation = useReorderFavoritesMutation(workspaceId ?? undefined);
 
   const currentPageIsFavoritable = mainViewType === 'node' && currentNode?.is_page === true;
   const currentPageIsFavorited = currentPageIsFavoritable && currentNodeUuid !== null
@@ -264,6 +268,7 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
               <SortableFavoriteItem
                 key={fav}
                 nodeUuid={fav}
+                workspaceId={workspaceId ?? undefined}
                 index={index}
                 isActive={currentNodeUuid === fav && mainViewType === 'node'}
                 isDragging={dragState?.dragIndex === index}

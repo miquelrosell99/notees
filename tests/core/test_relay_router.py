@@ -114,14 +114,22 @@ def test_receive_batch(client: TestClient) -> None:
     assert data["saved_ids"] == ["op-1"]
 
 
-def test_receive_batch_rejects_actor_mismatch(client: TestClient) -> None:
-    envelope = _envelope("op-1", actor_id="actor-2")
+def test_receive_batch_allows_device_actor_id_different_from_authenticated_actor(
+    client: TestClient,
+) -> None:
+    """Envelope actor ids are CRDT device identifiers and may differ from the
+    authenticated actor supplied by the relay endpoint.
+    """
+    envelope = _envelope("op-1", actor_id="device-actor-1")
     response = client.post(
         "/api/relay/batch",
         json={"envelopes": [envelope.model_dump(by_alias=True, mode="json")]},
-        headers={"x-actor-id": "actor-1"},
+        headers={"x-actor-id": "user-actor-1"},
     )
-    assert response.status_code == 403
+    assert response.status_code == 200
+    data = response.json()
+    assert data["saved_count"] == 1
+    assert data["saved_ids"] == ["op-1"]
 
 
 @pytest.mark.asyncio
@@ -212,8 +220,21 @@ async def test_catch_up_paginated_pages_through_envelopes(
     assert all_ids == [f"op-{i:02d}" for i in range(1, 11)]
 
 
-def test_snapshot_returns_not_implemented(client: TestClient) -> None:
-    """The snapshot endpoint reserves the route but returns 501."""
+def test_snapshot_latest_requires_workspace_id(client: TestClient) -> None:
+    """The snapshot endpoint now requires a workspace_id query parameter."""
     response = client.get("/api/relay/snapshot")
-    assert response.status_code == 501
-    assert "not implemented" in response.json()["detail"].lower()
+    assert response.status_code == 422
+
+
+def test_snapshot_latest_returns_empty_snapshot_for_missing_workspace(
+    client: TestClient,
+) -> None:
+    """A workspace with no snapshots returns has_snapshot=False."""
+    response = client.get(
+        "/api/relay/snapshot",
+        params={"workspace_id": "00000000-0000-0000-0000-000000000001"},
+        headers={"X-Actor-Id": "00000000-0000-0000-0000-000000000002"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["has_snapshot"] is False

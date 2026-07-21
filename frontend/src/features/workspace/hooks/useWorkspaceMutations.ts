@@ -10,7 +10,7 @@ import {
   restoreWorkspace,
 } from '../api/workspaces';
 import { workspaceKeys } from '@/hooks/queryKeys';
-import { useNavigationStore, useFavoritesStore, useRecentsStore } from '@/stores';
+import { useNavigationStore, useRecentsStore } from '@/stores';
 
 export function useWorkspaceMutations() {
   const queryClient = useQueryClient();
@@ -29,7 +29,6 @@ export function useWorkspaceMutations() {
         localGraphNodeUuid: null,
         mainViewType: 'node',
       });
-      useFavoritesStore.getState().clearFavorites();
       useRecentsStore.getState().clearRecents();
       navigate(`/${switchedWorkspaceUuid}`, { replace: true });
       queryClient.clear();
