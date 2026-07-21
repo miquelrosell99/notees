@@ -132,13 +132,6 @@ export class SyncEngine {
     const QUERY_BATCH_SIZE = 1000;
     const db = this.store.getDb();
     const workspaceId = this.store.getWorkspaceId();
-    const baseParams = [
-      workspaceId,
-      this.lastPushedHlc.physical,
-      this.lastPushedHlc.physical,
-      this.lastPushedHlc.logical,
-    ];
-
     const toEnvelope = (row: OperationRow) => ({
       id: row.id,
       workspaceId,
@@ -154,7 +147,8 @@ export class SyncEngine {
     let hasMore = true;
 
     // Query and push in smaller chunks so a large local operation log does not
-    // block the main thread with a single huge SELECT *.
+    // block the main thread with a single huge SELECT *. Recompute the HLC
+    // params each iteration because lastPushedHlc advances after every chunk.
     while (hasMore) {
       const rows = queryAll<OperationRow>(
         db,
@@ -163,7 +157,13 @@ export class SyncEngine {
            AND (hlc_physical > ? OR (hlc_physical = ? AND hlc_logical > ?))
          ORDER BY hlc_physical ASC, hlc_logical ASC
          LIMIT ?`,
-        [...baseParams, QUERY_BATCH_SIZE]
+        [
+          workspaceId,
+          this.lastPushedHlc.physical,
+          this.lastPushedHlc.physical,
+          this.lastPushedHlc.logical,
+          QUERY_BATCH_SIZE,
+        ]
       );
 
       hasMore = rows.length === QUERY_BATCH_SIZE;
