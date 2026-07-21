@@ -194,7 +194,7 @@ export class SyncEngine {
     this.callbacks.onPush?.(totalPushed);
   }
 
-  async pull(options: { ignoreSnapshot?: boolean } = {}): Promise<void> {
+  async pull(options: { ignoreSnapshot?: boolean; applyChunkSize?: number } = {}): Promise<void> {
     const snapshot = await this.transport.getLatestSnapshot();
     const localEpoch = this.loadRestoreEpoch();
 
@@ -260,7 +260,9 @@ export class SyncEngine {
     // Apply in chunks so the progress overlay updates and the browser can paint.
     // A chunk size of 500 keeps each synchronous block small enough that the UI
     // stays responsive (hover, scroll, animation) even with 100k+ operations.
-    const CHUNK_SIZE = 500;
+    // During a hard rebuild the UI is intentionally blocked by a progress overlay,
+    // so we can use a larger chunk size to finish faster.
+    const CHUNK_SIZE = options.applyChunkSize ?? 500;
     let applied = 0;
     for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
       const chunk = ops.slice(i, i + CHUNK_SIZE);
@@ -355,7 +357,7 @@ export class SyncEngine {
       this.saveWatermark(this.lastPushedHlc, 'pushed');
       this.saveRestoreEpoch(serverSnapshot.restoreEpoch);
       this.uploadedSnapshotHlc = null;
-      await this.pull({ ignoreSnapshot: true });
+      await this.pull({ ignoreSnapshot: true, applyChunkSize: 2000 });
       this.setStatus('idle', null);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
