@@ -35,9 +35,11 @@ export async function getOrCreateWorkspaceStore(
   const syncEngine = new SyncEngine(store, transport, options.syncCallbacks);
   registry.set(workspaceId, { store, syncEngine });
 
-  // Kick off an initial sync in the background; opening a workspace should not
-  // fail just because the network is unavailable.
-  void syncEngine.syncOnce().catch((err) => {
+  // Initialize performs a one-time version check and may trigger a hard rebuild
+  // of derived state when the applier version has changed. It then runs the
+  // first sync. Opening a workspace should not fail just because the network is
+  // unavailable, so initialization errors are logged but not thrown here.
+  void syncEngine.initialize().catch((err) => {
     console.error(`Initial sync failed for workspace ${workspaceId}:`, err);
   });
 
