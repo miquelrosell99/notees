@@ -77,6 +77,29 @@ export class SyncEngine {
     );
   }
 
+  private loadRestoreEpoch(): number {
+    const db = this.store.getDb();
+    const workspaceId = this.store.getWorkspaceId();
+    const row = queryOne<{ restore_epoch: number }>(
+      db,
+      'SELECT restore_epoch FROM sync_watermark WHERE workspace_id = ?',
+      [workspaceId]
+    );
+    return row?.restore_epoch ?? 0;
+  }
+
+  private saveRestoreEpoch(epoch: number): void {
+    const db = this.store.getDb();
+    const workspaceId = this.store.getWorkspaceId();
+    db.run(
+      `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical, restore_epoch)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(workspace_id) DO UPDATE SET
+         restore_epoch = excluded.restore_epoch`,
+      [workspaceId, this.lastReceivedHlc.physical, this.lastReceivedHlc.logical, epoch]
+    );
+  }
+
   private setStatus(status: SyncStatus, error: Error | null = null): void {
     this.status = status;
     this.lastError = error;
@@ -151,15 +174,36 @@ export class SyncEngine {
     this.callbacks.onPush?.(rows.length);
   }
 
-  async pull(): Promise<void> {
-    // Try to restore from the latest server snapshot first. If the snapshot is
-    // newer than our local watermark, we replace the derived DB with it and then
-    // only replay operations newer than the snapshot.
+  async pull(options: { ignoreSnapshot?: boolean } = {}): Promise<void> {
     const snapshot = await this.transport.getLatestSnapshot();
-    const snapshotIsNewer =
-      snapshot && compareHlc(snapshot.hlc, this.lastReceivedHlc) > 0;
+    const localEpoch = this.loadRestoreEpoch();
 
-    if (snapshotIsNewer && snapshot) {
+    // If the server was restored or rebuilt, clear local state and start over.
+    // The operation log is the source of truth; re-applying all operations from
+    // the restored server converges to the correct state.
+    if (snapshot.restoreEpoch !== localEpoch) {
+      this.store.clearOperationLog();
+      this.lastReceivedHlc = { physical: 0, logical: 0 };
+      this.lastPushedHlc = { physical: 0, logical: 0 };
+      this.saveWatermark(this.lastReceivedHlc, 'received');
+      this.saveWatermark(this.lastPushedHlc, 'pushed');
+      this.saveRestoreEpoch(snapshot.restoreEpoch);
+      this.uploadedSnapshotHlc = null;
+    }
+
+    // Try to restore from the latest server snapshot. If the snapshot is newer
+    // than our local watermark, replace the derived DB with it and then only
+    // replay operations newer than the snapshot.
+    //
+    // ignoreSnapshot is used during a hard rebuild: the derived state may have
+    // been produced by an older applier, so we replay the full operation log
+    // instead of trusting a possibly stale snapshot.
+    const snapshotIsNewer =
+      !options.ignoreSnapshot &&
+      snapshot.hasSnapshot &&
+      compareHlc(snapshot.hlc, this.lastReceivedHlc) > 0;
+
+    if (snapshotIsNewer) {
       this.callbacks.onPullProgress?.({ applied: 0, total: 0 });
       await this.store.restoreSnapshot(snapshot.data);
       this.lastReceivedHlc = snapshot.hlc;
@@ -213,6 +257,7 @@ export class SyncEngine {
     }
 
     this.saveWatermark(this.lastReceivedHlc, 'received');
+    this.saveRestoreEpoch(snapshot.restoreEpoch);
     this.callbacks.onPull?.(envelopes.length);
 
     // Upload a snapshot when the server has no snapshot or an older one.
@@ -220,7 +265,7 @@ export class SyncEngine {
     const uploadSnapshot = this.transport.uploadSnapshot;
     const shouldUploadSnapshot =
       uploadSnapshot &&
-      (!snapshot || compareHlc(this.lastReceivedHlc, snapshot.hlc) > 0) &&
+      (!snapshot.hasSnapshot || compareHlc(this.lastReceivedHlc, snapshot.hlc) > 0) &&
       (!this.uploadedSnapshotHlc ||
         compareHlc(this.lastReceivedHlc, this.uploadedSnapshotHlc) > 0);
 
@@ -232,6 +277,8 @@ export class SyncEngine {
           workspaceId: this.store.getWorkspaceId(),
           hlc,
           data,
+          restoreEpoch: snapshot.restoreEpoch,
+          hasSnapshot: true,
         });
         this.uploadedSnapshotHlc = hlc;
       } catch (err) {
@@ -243,6 +290,40 @@ export class SyncEngine {
 
   async sync(): Promise<void> {
     await this.syncOnce();
+  }
+
+  /**
+   * One-time initialization when a workspace store is opened. If the client
+   * applier version has changed, this performs a hard rebuild: derived tables
+   * are cleared, local snapshots are discarded, and the full operation log is
+   * replayed from the server using the new applier.
+   */
+  async initialize(): Promise<void> {
+    if (!this.store.isDerivedStateStale()) {
+      await this.syncOnce();
+      return;
+    }
+
+    this.setStatus('syncing');
+    try {
+      // Push any local operations first so they are not lost. After the reset
+      // we will re-download the full server log, which includes them.
+      await this.push();
+      this.store.resetDerivedState();
+      this.store.clearOperationLog();
+      this.lastReceivedHlc = { physical: 0, logical: 0 };
+      this.lastPushedHlc = { physical: 0, logical: 0 };
+      this.saveWatermark(this.lastReceivedHlc, 'received');
+      this.saveWatermark(this.lastPushedHlc, 'pushed');
+      this.uploadedSnapshotHlc = null;
+      await this.pull({ ignoreSnapshot: true });
+      this.setStatus('idle', null);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.setStatus('error', error);
+      this.callbacks.onError?.(error);
+      throw error;
+    }
   }
 
   async syncOnce(): Promise<void> {

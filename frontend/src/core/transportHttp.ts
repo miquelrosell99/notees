@@ -120,7 +120,7 @@ export class HttpTransport implements Transport {
     return allEnvelopes;
   }
 
-  async getLatestSnapshot(): Promise<SnapshotEnvelope | null> {
+  async getLatestSnapshot(): Promise<SnapshotEnvelope> {
     const response = await fetch(
       `${this.baseUrl}/api/relay/snapshot?workspace_id=${encodeURIComponent(this.workspaceId)}`,
       {
@@ -131,10 +131,6 @@ export class HttpTransport implements Transport {
         credentials: 'include',
       }
     );
-
-    if (response.status === 404) {
-      return null;
-    }
 
     if (response.status === 403) {
       throw new Error(
@@ -153,17 +149,16 @@ export class HttpTransport implements Transport {
       hlc: Hlc;
       data_base64: string;
       has_snapshot: boolean;
+      restore_epoch: number;
     };
-
-    if (!data.has_snapshot) {
-      return null;
-    }
 
     return {
       snapshotId: data.snapshot_id,
       workspaceId: data.workspace_id,
       hlc: data.hlc,
-      data: base64ToUint8Array(data.data_base64),
+      data: data.has_snapshot ? base64ToUint8Array(data.data_base64) : new Uint8Array(0),
+      restoreEpoch: data.restore_epoch ?? 0,
+      hasSnapshot: data.has_snapshot,
     };
   }
 

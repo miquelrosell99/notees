@@ -102,6 +102,7 @@ class CatchUpPaginatedResponse(BaseModel):
     envelopes: list[EncryptedEnvelope]
     next_after_id: str | None = None
     has_more: bool = False
+    restore_epoch: int = 0
 
 
 class SnapshotRequest(BaseModel):
@@ -147,6 +148,7 @@ class LatestSnapshotResponse(BaseModel):
     hlc: Hlc
     data_base64: str
     has_snapshot: bool
+    restore_epoch: int = 0
 
 
 class CompactRequest(BaseModel):

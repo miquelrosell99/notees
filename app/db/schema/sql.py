@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS workspace (
     active BOOLEAN DEFAULT TRUE,
     is_shared BOOLEAN DEFAULT FALSE,
     sync_protocol_version VARCHAR(10) NOT NULL DEFAULT 'v2',
+    restore_epoch INTEGER NOT NULL DEFAULT 0,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_workspace_sync_protocol_version CHECK (sync_protocol_version IN ('v1', 'v2'))

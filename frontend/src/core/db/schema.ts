@@ -166,10 +166,16 @@ export function createSchema(db: Database): void {
       tokenize=unicode61
     );
 
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS sync_watermark (
       workspace_id TEXT PRIMARY KEY,
       hlc_physical INTEGER NOT NULL,
-      hlc_logical INTEGER NOT NULL
+      hlc_logical INTEGER NOT NULL,
+      restore_epoch INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS sync_push_watermark (
@@ -464,6 +470,25 @@ function migrateSchema(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_user_favorite_actor ON user_favorite (actor_id, workspace_id);
     `);
     db.exec('PRAGMA user_version = 5');
+  }
+
+  if (version < 6) {
+    try {
+      db.exec('ALTER TABLE sync_watermark ADD COLUMN restore_epoch INTEGER NOT NULL DEFAULT 0');
+    } catch {
+      // Column may already exist in some states; ignore and continue.
+    }
+    db.exec('PRAGMA user_version = 6');
+  }
+
+  if (version < 7) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+    db.exec('PRAGMA user_version = 7');
   }
 }
 
