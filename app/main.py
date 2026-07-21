@@ -41,6 +41,7 @@ from pyrate_limiter import Duration, Limiter, Rate
 from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.features.agents import router as agents_router
 from app.features.collab import live_sync_ws_router
 from app.features.collab import router as events_router
 from app.features.export import auto_export_router
@@ -593,6 +594,9 @@ app.include_router(live_sync_ws_router, prefix="/api")
 
 # Mount encrypted operation relay router.
 app.include_router(relay_router)
+
+# Mount external agent API router.
+app.include_router(agents_router)
 
 
 # ============ Static Routes ============

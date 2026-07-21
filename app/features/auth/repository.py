@@ -495,6 +495,47 @@ class PostgresUserRepository(UserRepository):
             )
             return result.startswith("UPDATE 1")
 
+    async def regenerate_api_key(
+        self,
+        user_id: int,
+        key_id: str,
+        key_hash: str,
+        key_prefix: str,
+        last_4: str,
+    ) -> dict | None:
+        """Rotate an API key's secret in place, preserving name and scopes."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                UPDATE api_key
+                SET key_hash = $3,
+                    key_prefix = $4,
+                    last_4 = $5,
+                    write_date = NOW(),
+                    last_used_at = NULL
+                WHERE id::text = $1 AND user_id = $2 AND revoked = FALSE
+                RETURNING id, uuid, name, scopes, key_prefix, last_4, revoked, create_date, expires_at
+                """,
+                key_id,
+                user_id,
+                key_hash,
+                key_prefix,
+                last_4,
+            )
+            if row is None:
+                return None
+
+            return {
+                "id": str(row["id"]),
+                "uuid": str(row["uuid"]),
+                "name": row["name"],
+                "scopes": row["scopes"],
+                "last_4": row["last_4"],
+                "revoked": row["revoked"],
+                "created_at": row["create_date"].isoformat() if row["create_date"] else None,
+                "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
+            }
+
     async def find_api_key_candidates(self, key_prefix: str, last_4: str) -> list[dict]:
         """Fetch non-revoked, non-expired API keys matching the prefix/last-4 pair."""
         async with acquire_connection(self._pool) as conn:

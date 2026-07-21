@@ -184,20 +184,26 @@ class TestRelayService:
         assert len(storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))) == 2
 
     @pytest.mark.asyncio
-    async def test_receive_batch_rejects_actor_mismatch(self) -> None:
+    async def test_receive_batch_allows_envelope_actor_id_to_differ_from_authenticated_actor(
+        self,
+    ) -> None:
+        """Envelope actor ids are CRDT device identifiers and may differ from the
+        authenticated user's id. Permission is checked against the authenticated
+        actor, so a device-issued envelope from a permitted user is accepted.
+        """
         storage = SqliteRelayStorage()
         service = RelayService(storage, StubPermissionChecker())
         envelope = _envelope(
             envelope_id="env-1",
             workspace_id="ws-1",
-            actor_id="actor-1",
+            actor_id="device-actor-1",
             hlc=Hlc(physical=10, logical=0),
         )
 
-        with pytest.raises(PermissionDeniedError):
-            await service.receive_batch(BatchRequest(envelopes=[envelope]), "actor-2")
+        saved = await service.receive_batch(BatchRequest(envelopes=[envelope]), "user-actor-1")
 
-        assert storage.envelope_exists("env-1") is False
+        assert [envelope.id for envelope in saved] == ["env-1"]
+        assert storage.envelope_exists("env-1") is True
 
     @pytest.mark.asyncio
     async def test_receive_batch_rejects_write_permission_denied(self) -> None:

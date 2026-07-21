@@ -4,7 +4,7 @@ import { SyncEngine } from '../sync';
 import { type OperationEnvelope } from '../crypto';
 import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
-import type { Transport } from '../transport';
+import type { SnapshotEnvelope, Transport } from '../transport';
 import type { Hlc } from '../clock';
 
 class MockHttpTransport implements Transport {
@@ -17,6 +17,10 @@ class MockHttpTransport implements Transport {
 
   async catchUp(_afterHlc: Hlc): Promise<OperationEnvelope[]> {
     return this.catchUpEnvelopes;
+  }
+
+  async getLatestSnapshot(): Promise<SnapshotEnvelope | null> {
+    return null;
   }
 
   subscribe(_callback: (envelope: OperationEnvelope) => void): void {

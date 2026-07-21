@@ -18,6 +18,8 @@ import {
 } from '@/features/content';
 import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
+import { useWorkspaceRole } from '@/features/workspace/hooks/useWorkspaceRole';
+import { forceResyncWorkspace } from '@/core/adapters/workspaceStoreAdapter';
 
 export function CommandRegistrations() {
   const { pageClassUuid } = usePageClass();
@@ -27,6 +29,7 @@ export function CommandRegistrations() {
   const { notifyError, notifyWarning, notifySuccess } = useNotifyActions();
   const createNodeMutation = useCreateNode();
   const resetNodeViewsMutation = useResetNodeViews();
+  const { activeWorkspace } = useWorkspaceRole();
 
   // Toggle page privacy — not modeled in the core store yet, so this is a no-op.
   useCommand(
@@ -101,6 +104,31 @@ export function CommandRegistrations() {
       label: 'Capture task',
       icon: 'mdi mdi-plus-circle-outline',
       palette: { category: 'navigation', keywords: ['task', 'todo', 'capture'] },
+    }
+  );
+
+  // Force a full re-sync of the active workspace from the relay.
+  useCommand(
+    COMMAND_IDS.FORCE_RESYNC,
+    () => {
+      const workspaceId = activeWorkspace?.uuid;
+      if (!workspaceId) {
+        notifyWarning('No workspace active', 'Open a workspace before forcing a re-sync.');
+        return;
+      }
+      forceResyncWorkspace(workspaceId)
+        .then(() => {
+          notifySuccess('Re-sync started', 'Workspace is being re-synced from the server.');
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : 'Please try again.';
+          notifyError('Re-sync failed', message);
+        });
+    },
+    {
+      label: 'Force workspace re-sync',
+      icon: 'mdi mdi-cloud-sync-outline',
+      palette: { category: 'tools', keywords: ['sync', 'refresh', 'reload'] },
     }
   );
 

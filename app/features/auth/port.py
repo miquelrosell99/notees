@@ -196,6 +196,18 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
+    async def regenerate_api_key(
+        self,
+        user_id: int,
+        key_id: str,
+        key_hash: str,
+        key_prefix: str,
+        last_4: str,
+    ) -> dict | None:
+        """Rotate an existing API key's secret. Returns the updated record or None."""
+        pass
+
+    @abstractmethod
     async def find_api_key_candidates(self, key_prefix: str, last_4: str) -> list[dict]:
         """Fetch non-revoked, non-expired API keys matching the prefix/last-4 pair."""
         pass

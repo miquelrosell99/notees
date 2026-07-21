@@ -15,6 +15,7 @@ from app.core.operation import Operation
 from .activity import apply_activity_record
 from .asset import apply_asset_delete, apply_asset_upload
 from .class_hierarchy import apply_class_create, apply_class_update
+from .favorite import apply_favorite_add, apply_favorite_remove, apply_favorite_reorder
 from .link import apply_link_click
 from .node import (
     apply_class_assign,
@@ -133,6 +134,12 @@ def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:
         apply_share_user_grant(conn, op)
     elif op_type == "share.user.revoke":
         apply_share_user_revoke(conn, op)
+    elif op_type == "user.favorite.add":
+        apply_favorite_add(conn, op)
+    elif op_type == "user.favorite.remove":
+        apply_favorite_remove(conn, op)
+    elif op_type == "user.favorite.reorder":
+        apply_favorite_reorder(conn, op)
     elif op_type == "plugin.op":
         apply_plugin_op(conn, op)
     else:

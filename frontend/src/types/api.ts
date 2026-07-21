@@ -880,6 +880,7 @@ export interface ApiKey {
 
 export interface ApiKeyCreate {
   name: string;
+  scopes?: string[];
 }
 
 export interface ApiKeyWithSecret extends ApiKey {

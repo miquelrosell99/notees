@@ -59,3 +59,9 @@ svg[class*="icon"],
   padding: var(--container-gap);
   gap: var(--container-gap);
 }
+
+.workspace-init-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop, 1000);
+}

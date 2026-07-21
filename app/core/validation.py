@@ -27,6 +27,9 @@ REQUIRED_PAYLOAD_FIELDS: dict[str, frozenset[str]] = {
     "propertySchema.update": frozenset({"schemaId", "configDelta"}),
     "class.create": frozenset({"classId", "name", "propertySchemaIds", "extends"}),
     "class.update": frozenset({"classId"}),
+    "user.favorite.add": frozenset({"nodeId"}),
+    "user.favorite.remove": frozenset({"nodeId"}),
+    "user.favorite.reorder": frozenset({"nodeIds"}),
 }
 
 

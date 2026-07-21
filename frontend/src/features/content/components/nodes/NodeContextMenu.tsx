@@ -29,6 +29,7 @@ import {
   useFlashSidebarCardAction,
 } from '@/features/layout';
 import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation } from '@/features/content';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import {
@@ -123,11 +124,12 @@ export function NodeContextMenu({
   const addSidebarCard = useAddSidebarCardAction();
   const flashSidebarCard = useFlashSidebarCardAction();
   const showDevOptions = useSettingsStore((s) => s.showDevOptions);
-  const { data: favoriteIds } = useFavorites();
+  const workspaceId = useCurrentWorkspaceUuid();
+  const { data: favoriteIds } = useFavorites(workspaceId ?? undefined);
   const favorites = favoriteIds ?? [];
   const isPageFavorited = favorites.some((favoriteUuid) => favoriteUuid === node.uuid);
-  const addFavoriteMutation = useAddFavoriteMutation();
-  const removeFavoriteMutation = useRemoveFavoriteMutation();
+  const addFavoriteMutation = useAddFavoriteMutation(workspaceId ?? undefined);
+  const removeFavoriteMutation = useRemoveFavoriteMutation(workspaceId ?? undefined);
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.uuid);
   const clipboardMode = useClipboardStore((state) => state.mode);
   const pluginActions = useNodeActions();
