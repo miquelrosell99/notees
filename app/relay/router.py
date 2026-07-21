@@ -15,6 +15,7 @@ from app.rate_limit import PerKeyBucketFactory, user_identifier
 from app.relay.dependencies import (
     get_actor_id,
     get_relay_service,
+    get_workspace_restore_epoch,
     require_workspace_owner_or_admin,
 )
 from app.relay.key_router import router as key_router
@@ -108,6 +109,10 @@ async def receive_batch(
     return {"saved_count": len(saved), "saved_ids": [envelope.id for envelope in saved]}
 
 
+async def _catch_up_restore_epoch(request: CatchUpRequest) -> int:
+    return await get_workspace_restore_epoch(request.workspace_id)
+
+
 @router.post(
     "/catch-up",
     dependencies=[
@@ -124,6 +129,7 @@ async def catch_up(
     share_token: str | None = Query(None),
     actor_id: str = Depends(get_actor_id),
     service: RelayService = Depends(get_relay_service),
+    restore_epoch: int = Depends(_catch_up_restore_epoch),
 ) -> CatchUpPaginatedResponse:
     """Serve operation envelopes newer than the given HLC."""
     if actor_id == "anonymous" and share_token is None:
@@ -150,6 +156,7 @@ async def catch_up(
         envelopes=envelopes,
         next_after_id=next_after_id,
         has_more=next_after_id is not None,
+        restore_epoch=restore_epoch,
     )
 
 
@@ -241,6 +248,7 @@ async def get_latest_snapshot(
     share_token: str | None = Query(None),
     actor_id: str = Depends(get_actor_id),
     service: RelayService = Depends(get_relay_service),
+    restore_epoch: int = Depends(get_workspace_restore_epoch),
 ) -> LatestSnapshotResponse:
     """Return the newest snapshot for a workspace.
 
@@ -269,6 +277,7 @@ async def get_latest_snapshot(
             hlc={"physical": 0, "logical": 0},
             data_base64="",
             has_snapshot=False,
+            restore_epoch=restore_epoch,
         )
 
     return LatestSnapshotResponse(
@@ -277,6 +286,7 @@ async def get_latest_snapshot(
         hlc=snapshot["hlc"],
         data_base64=base64.b64encode(snapshot["data"]).decode("ascii"),
         has_snapshot=True,
+        restore_epoch=restore_epoch,
     )
 
 

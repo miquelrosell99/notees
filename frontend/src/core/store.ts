@@ -68,6 +68,14 @@ const DEFAULT_VIEW_NAMES: Record<string, string> = {
   all_pages: 'All Pages',
 };
 
+/**
+ * Bumps whenever client-side applier logic changes in a way that could leave
+ * derived SQLite state inconsistent with the immutable operation log. Opening
+ * a workspace with a stale version triggers a hard rebuild: derived tables are
+ * cleared and the full server operation log is replayed with the new applier.
+ */
+export const CURRENT_DERIVED_STATE_VERSION = 1;
+
 export class WorkspaceStore {
   private clock: Clock;
   private db: Database;
@@ -91,6 +99,19 @@ export class WorkspaceStore {
     this.onPersist = options.onPersist;
     this.persistDebounceMs = options.persistDebounceMs ?? 500;
     createSchema(db);
+
+    // New empty databases do not need a rebuild; mark them current immediately.
+    if (!this.getDerivedStateVersion()) {
+      const anyOp = queryOne<{ '1': number }>(
+        db,
+        'SELECT 1 FROM operation WHERE workspace_id = ? LIMIT 1',
+        [workspaceId]
+      );
+      if (!anyOp) {
+        this.setDerivedStateVersion(CURRENT_DERIVED_STATE_VERSION);
+      }
+    }
+
     this.clock = new Clock(actorId);
   }
 
@@ -130,6 +151,69 @@ export class WorkspaceStore {
       this.db.run('DELETE FROM operation');
       this.db.run('DELETE FROM sync_watermark');
       this.db.run('DELETE FROM sync_push_watermark');
+    });
+    this.schedulePersist();
+  }
+
+  getDerivedStateVersion(): number {
+    const row = queryOne<{ value: string }>(
+      this.db,
+      "SELECT value FROM app_meta WHERE key = 'derived_state_version'"
+    );
+    if (!row?.value) return 0;
+    const parsed = parseInt(row.value, 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  setDerivedStateVersion(version: number): void {
+    this.db.run(
+      `INSERT INTO app_meta (key, value) VALUES ('derived_state_version', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      [String(version)]
+    );
+  }
+
+  isDerivedStateStale(): boolean {
+    return this.getDerivedStateVersion() < CURRENT_DERIVED_STATE_VERSION;
+  }
+
+  /**
+   * Clear all derived tables and local snapshots. Preserves the immutable
+   * operation log so pending local changes can be pushed before a full replay.
+   * Call this when the derived-state applier version changes; a subsequent
+   * sync will re-download operations and rebuild derived tables with the new
+   * applier. Snapshots are deleted because they may have been produced by an
+   * older applier.
+   */
+  resetDerivedState(): void {
+    transaction(this.db, () => {
+      this.db.run('DELETE FROM node');
+      this.db.run('DELETE FROM node_child_order');
+      this.db.run('DELETE FROM property_value');
+      this.db.run('DELETE FROM property_value_tombstone');
+      this.db.run('DELETE FROM edge');
+      this.db.run('DELETE FROM crdt_state');
+      this.db.run('DELETE FROM class_hierarchy');
+      this.db.run('DELETE FROM property_schema');
+      this.db.run('DELETE FROM class_property_edge');
+      this.db.run('DELETE FROM search_index');
+      this.db.run('DELETE FROM node_asset');
+      this.db.run('DELETE FROM task_completion');
+      this.db.run('DELETE FROM task_recurrence');
+      this.db.run('DELETE FROM activity_log');
+      this.db.run('DELETE FROM link_click');
+      this.db.run('DELETE FROM node_public_share');
+      this.db.run('DELETE FROM node_user_share');
+      this.db.run('DELETE FROM plugin_op_log');
+      this.db.run('DELETE FROM node_alias');
+      this.db.run('DELETE FROM node_version');
+      this.db.run('DELETE FROM node_view');
+      this.db.run('DELETE FROM user_favorite');
+
+      this.db.run('DELETE FROM snapshot');
+      this.db.run('DELETE FROM compacted_operation_segment');
+
+      this.setDerivedStateVersion(CURRENT_DERIVED_STATE_VERSION);
     });
     this.schedulePersist();
   }

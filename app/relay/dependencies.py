@@ -177,6 +177,23 @@ async def get_relay_service(
     return RelayService(storage, permissions)
 
 
+async def get_workspace_restore_epoch(workspace_id: str) -> int:
+    """Return the current restore_epoch for a workspace, or 0 if not found.
+
+    Falls back to 0 when the database is unavailable (e.g. in unit tests that
+    use in-memory relay storage without a full PostgreSQL workspace table).
+    """
+    try:
+        pool = await get_pool()
+        row = await pool.fetchrow(
+            "SELECT restore_epoch FROM workspace WHERE uuid::text = $1 AND active = TRUE",
+            workspace_id,
+        )
+        return int(row["restore_epoch"]) if row else 0
+    except Exception:
+        return 0
+
+
 def get_key_management_service() -> KeyManagementService:
     """Return the shared workspace key-management service."""
     global _key_management_service_instance

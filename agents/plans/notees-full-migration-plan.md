@@ -866,3 +866,36 @@ Future migrations must enumerate *all* user-facing data, including preferences a
 **Open:**
 - Verify force re-sync restores page/block names and uploads a snapshot.
 - Snapshot integrity (hash/size check) is not yet implemented; size check implicit in restore/apply path.
+
+---
+
+## Follow-up: Client Derived-State Applier Version
+
+**Status:** Implemented. Updated 2026-07-21.
+
+**Problem:** The `node.updateContent` applier mismatch showed that fixing applier logic on the client is not enough: existing derived SQLite state may have been produced by the old logic. Force re-sync repairs this, but only if the user runs it manually and only if it avoids trusting a stale server snapshot.
+
+**Solution:** Track a `CURRENT_DERIVED_STATE_VERSION` constant in the frontend core. Each client-side SQLite database stores its version in a new `app_meta` table. When the stored version is older than the code constant, `SyncEngine.initialize()` performs a hard rebuild:
+1. Push any local operations so nothing is lost.
+2. Clear all derived tables and delete local snapshots/compaction segments (they may be stale).
+3. Clear the local operation log and reset sync watermarks.
+4. Pull the full operation log from the server while ignoring the server snapshot.
+5. Apply every operation with the new applier, converging to the correct derived state.
+6. Save the new derived-state version.
+
+**Implementation:**
+- Added `app_meta` table and PRAGMA `user_version = 7` migration in `frontend/src/core/db/schema.ts`.
+- Added `CURRENT_DERIVED_STATE_VERSION`, `getDerivedStateVersion()`, `setDerivedStateVersion()`, `isDerivedStateStale()`, and `resetDerivedState()` to `WorkspaceStore` (`frontend/src/core/store.ts`).
+- Added `SyncEngine.initialize()` in `frontend/src/core/sync.ts` that detects stale derived state and runs the hard-rebuild path.
+- `SyncEngine.pull()` accepts `{ ignoreSnapshot?: boolean }` and always persists the server's `restore_epoch` after a pull.
+- `frontend/src/core/adapters/workspaceStoreAdapter.ts` now calls `syncEngine.initialize()` instead of `syncEngine.syncOnce()` when opening a workspace.
+- Added unit test in `frontend/src/core/__tests__/sync.test.ts` proving that a stale derived-state version ignores a stale server snapshot and converges to the latest operation-log state.
+
+**Acceptance criteria:**
+- Applier bug fixes automatically repair derived state on the next workspace open, without requiring the user to run force re-sync.
+- Stale server snapshots are never trusted after an applier version bump.
+- The mechanism is covered by a frontend unit test.
+
+**Verification:**
+- `cd frontend && npm run test:run -- --run src/core/__tests__/sync.test.ts` → 3 passed.
+- Full frontend suite and backend unit tests pending this commit.

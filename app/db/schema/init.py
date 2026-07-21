@@ -85,6 +85,16 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("normalize_settings_jsonb", conn, _normalize_settings_jsonb)
     await _run_migration("add_totp_2fa", conn, _add_totp_2fa)
     await _run_migration("drop_legacy_tables", conn, _run_drop_legacy_tables)
+    await _run_migration("add_workspace_restore_epoch", conn, _add_workspace_restore_epoch)
+
+
+async def _add_workspace_restore_epoch(conn: asyncpg.Connection) -> None:
+    """Add restore_epoch column to workspace for safe backup restoration."""
+    has_col = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'workspace' AND column_name = 'restore_epoch')"
+    )
+    if not has_col:
+        await conn.execute("ALTER TABLE workspace ADD COLUMN restore_epoch INTEGER NOT NULL DEFAULT 0")
 
 
 async def _run_drop_legacy_tables(conn: asyncpg.Connection) -> None:

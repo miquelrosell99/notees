@@ -7,6 +7,8 @@ export interface SnapshotEnvelope {
   workspaceId: string;
   hlc: Hlc;
   data: Uint8Array;
+  restoreEpoch: number;
+  hasSnapshot: boolean;
 }
 
 export interface Transport {
@@ -16,7 +18,7 @@ export interface Transport {
     afterHlc: Hlc,
     onPage?: (page: OperationEnvelope[], totalSoFar: number, hasMore: boolean) => void
   ): OperationEnvelope[] | Promise<OperationEnvelope[]>;
-  getLatestSnapshot(): Promise<SnapshotEnvelope | null>;
+  getLatestSnapshot(): Promise<SnapshotEnvelope>;
   uploadSnapshot?(snapshot: SnapshotEnvelope): Promise<void>;
   subscribe(callback: (envelope: OperationEnvelope) => void): void;
 }
@@ -68,8 +70,15 @@ export class MemoryTransport implements Transport {
     return this.relay.catchUp(this.workspaceId, afterHlc);
   }
 
-  getLatestSnapshot(): Promise<SnapshotEnvelope | null> {
-    return Promise.resolve(null);
+  getLatestSnapshot(): Promise<SnapshotEnvelope> {
+    return Promise.resolve({
+      snapshotId: '',
+      workspaceId: this.workspaceId,
+      hlc: { physical: 0, logical: 0 },
+      data: new Uint8Array(0),
+      restoreEpoch: 0,
+      hasSnapshot: false,
+    });
   }
 
   subscribe(callback: (envelope: OperationEnvelope) => void): void {

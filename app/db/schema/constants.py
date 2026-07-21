@@ -28,7 +28,7 @@ from app.domain.entities.constants import (
 )
 
 # Schema version for migrations
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 # Default pages created on initialization
