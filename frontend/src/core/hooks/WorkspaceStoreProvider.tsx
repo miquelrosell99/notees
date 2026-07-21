@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { WorkspaceStoreContext, type WorkspaceStoreContextValue } from './WorkspaceStoreContext';
 
 export interface WorkspaceStoreProviderProps {
@@ -12,8 +12,12 @@ export function WorkspaceStoreProvider({
   transport,
   children,
 }: WorkspaceStoreProviderProps): React.ReactElement {
+  const value = useMemo(
+    () => ({ actorId, transport }),
+    [actorId, transport]
+  );
   return (
-    <WorkspaceStoreContext.Provider value={{ actorId, transport }}>
+    <WorkspaceStoreContext.Provider value={value}>
       {children}
     </WorkspaceStoreContext.Provider>
   );
