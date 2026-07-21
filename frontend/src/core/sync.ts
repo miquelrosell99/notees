@@ -128,25 +128,20 @@ export class SyncEngine {
   }
 
   async push(): Promise<void> {
-    const BATCH_SIZE = 100;
+    const SEND_BATCH_SIZE = 100;
+    const QUERY_BATCH_SIZE = 1000;
     const db = this.store.getDb();
-    const rows = queryAll<OperationRow>(
-      db,
-      `SELECT * FROM operation
-       WHERE workspace_id = ?
-         AND (hlc_physical > ? OR (hlc_physical = ? AND hlc_logical > ?))
-       ORDER BY hlc_physical ASC, hlc_logical ASC`,
-      [
-        this.store.getWorkspaceId(),
-        this.lastPushedHlc.physical,
-        this.lastPushedHlc.physical,
-        this.lastPushedHlc.logical,
-      ]
-    );
+    const workspaceId = this.store.getWorkspaceId();
+    const baseParams = [
+      workspaceId,
+      this.lastPushedHlc.physical,
+      this.lastPushedHlc.physical,
+      this.lastPushedHlc.logical,
+    ];
 
     const toEnvelope = (row: OperationRow) => ({
       id: row.id,
-      workspaceId: this.store.getWorkspaceId(),
+      workspaceId,
       actorId: row.actor_id,
       hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
       affectedNodeIds: JSON.parse(row.affected_node_ids),
@@ -155,23 +150,48 @@ export class SyncEngine {
     });
 
     let pushedMaxHlc = this.lastPushedHlc;
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const chunk = rows.slice(i, i + BATCH_SIZE).map(toEnvelope);
-      if (this.transport.sendBatch) {
-        await this.transport.sendBatch(chunk);
-      } else {
-        for (const envelope of chunk) {
-          await this.transport.send(envelope);
+    let totalPushed = 0;
+    let hasMore = true;
+
+    // Query and push in smaller chunks so a large local operation log does not
+    // block the main thread with a single huge SELECT *.
+    while (hasMore) {
+      const rows = queryAll<OperationRow>(
+        db,
+        `SELECT * FROM operation
+         WHERE workspace_id = ?
+           AND (hlc_physical > ? OR (hlc_physical = ? AND hlc_logical > ?))
+         ORDER BY hlc_physical ASC, hlc_logical ASC
+         LIMIT ?`,
+        [...baseParams, QUERY_BATCH_SIZE]
+      );
+
+      hasMore = rows.length === QUERY_BATCH_SIZE;
+      totalPushed += rows.length;
+
+      for (let i = 0; i < rows.length; i += SEND_BATCH_SIZE) {
+        const chunk = rows.slice(i, i + SEND_BATCH_SIZE).map(toEnvelope);
+        if (this.transport.sendBatch) {
+          await this.transport.sendBatch(chunk);
+        } else {
+          for (const envelope of chunk) {
+            await this.transport.send(envelope);
+          }
         }
+        for (const envelope of chunk) {
+          pushedMaxHlc = maxHlc(pushedMaxHlc, envelope.hlc);
+        }
+        this.lastPushedHlc = pushedMaxHlc;
+        this.saveWatermark(this.lastPushedHlc, 'pushed');
       }
-      for (const envelope of chunk) {
-        pushedMaxHlc = maxHlc(pushedMaxHlc, envelope.hlc);
+
+      // Yield so the UI can process input events between query chunks.
+      if (hasMore) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
-      this.lastPushedHlc = pushedMaxHlc;
-      this.saveWatermark(this.lastPushedHlc, 'pushed');
     }
 
-    this.callbacks.onPush?.(rows.length);
+    this.callbacks.onPush?.(totalPushed);
   }
 
   async pull(options: { ignoreSnapshot?: boolean } = {}): Promise<void> {
