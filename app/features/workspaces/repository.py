@@ -1506,8 +1506,13 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
         dump_data: dict,
         cleanup_invalid_cloze: bool = False,
     ) -> dict:
-        """Delete all data then import with remap_uuids=False."""
+        """Delete all data, bump restore epoch, then import with remap_uuids=False."""
         await self.delete_all_workspace_data(workspace_id)
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "UPDATE workspace SET restore_epoch = restore_epoch + 1, write_date = NOW() WHERE id = $1",
+                workspace_id,
+            )
         stats, _ = await self.import_dump(
             workspace_id,
             user_id,

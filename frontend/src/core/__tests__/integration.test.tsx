@@ -19,8 +19,15 @@ class MockHttpTransport implements Transport {
     return this.catchUpEnvelopes;
   }
 
-  async getLatestSnapshot(): Promise<SnapshotEnvelope | null> {
-    return null;
+  async getLatestSnapshot(): Promise<SnapshotEnvelope> {
+    return {
+      snapshotId: '',
+      workspaceId: '',
+      hlc: { physical: 0, logical: 0 },
+      data: new Uint8Array(0),
+      restoreEpoch: 0,
+      hasSnapshot: false,
+    };
   }
 
   subscribe(_callback: (envelope: OperationEnvelope) => void): void {
