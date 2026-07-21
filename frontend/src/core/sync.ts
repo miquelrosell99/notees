@@ -237,16 +237,19 @@ export class SyncEngine {
       )
     );
 
-    // Apply in chunks so the progress overlay updates and the event loop stays
-    // responsive. A chunk size of 5000 keeps transactions large enough to be
-    // efficient but small enough to yield regularly.
-    const CHUNK_SIZE = 5000;
+    // Apply in chunks so the progress overlay updates and the browser can paint.
+    // A chunk size of 500 keeps each synchronous block small enough that the UI
+    // stays responsive (hover, scroll, animation) even with 100k+ operations.
+    const CHUNK_SIZE = 500;
     let applied = 0;
     for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
       const chunk = ops.slice(i, i + CHUNK_SIZE);
       this.store.applyMany(chunk);
       applied += chunk.length;
       this.callbacks.onPullProgress?.({ applied, total: ops.length });
+      // Yield so the browser can paint and process input events before the next
+      // chunk. setTimeout(0) is cheaper than requestAnimationFrame for bulk work
+      // while still letting the event loop handle hover/scroll/animation frames.
       if (i + CHUNK_SIZE < ops.length) {
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }

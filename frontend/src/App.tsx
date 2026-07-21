@@ -386,7 +386,10 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   }, [workspaceId, actorId]);
 
   const { isInitializing, pullProgress } = progress;
-  const showLoadingOverlay = isInitializing && pullProgress !== null && pullProgress.total > 0;
+  // Show the overlay as soon as a workspace is initializing, even before we know
+  // the total operation count. This prevents interaction with the half-ready UI
+  // and keeps the loading animation visible during the first catch-up request.
+  const showLoadingOverlay = isInitializing && pullProgress !== null;
   const progressLabel = showLoadingOverlay
     ? `Syncing workspace… ${Math.round((pullProgress.applied / pullProgress.total) * 100)}%`
     : 'Loading workspace…';
