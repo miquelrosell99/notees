@@ -388,7 +388,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const { isInitializing, pullProgress } = progress;
   const showLoadingOverlay = isInitializing && pullProgress !== null && pullProgress.total > 0;
   const progressLabel = showLoadingOverlay
-    ? `Syncing workspace… ${pullProgress.applied} / ${pullProgress.total} operations`
+    ? `Syncing workspace… ${Math.round((pullProgress.applied / pullProgress.total) * 100)}%`
     : 'Loading workspace…';
   const progressValue = showLoadingOverlay ? pullProgress.applied / pullProgress.total : undefined;
 
