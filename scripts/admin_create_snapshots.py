@@ -21,7 +21,6 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from app.config import settings
 from app.core.uuid import uuidv7
 from app.core.workspace_store import WorkspaceStore
 from app.db.connection import get_pool, setup_jsonb_codec
