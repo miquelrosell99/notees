@@ -899,3 +899,32 @@ Future migrations must enumerate *all* user-facing data, including preferences a
 **Verification:**
 - `cd frontend && npm run test:run -- --run src/core/__tests__/sync.test.ts` → 3 passed.
 - Full frontend suite and backend unit tests pending this commit.
+
+---
+
+## Recovery: Restore Pre-Ideal-Migration Dump and Re-migrate
+
+**Status:** Completed. Updated 2026-07-21.
+
+**Reason:** The live workspace data had accumulated several migration/applier inconsistencies (e.g. `crdtUpdate` handling, stale snapshots, possible incomplete prior migration state). Rather than chase individual corruptions, the pre-ideal PostgreSQL dump was restored and the ideal-architecture migration was re-run cleanly.
+
+**Steps performed:**
+1. Stopped the dev stack and backed up the current PostgreSQL data volume and app data dir to `data/backups/manual-restore-20260721-143749/`.
+2. Wiped `.config/notees-postgres-dev/` and `.config/notees-backend-dev/data/`.
+3. Extracted `pre-ideal-migration-assets-20260717-230316.tar.gz` and `pre-ideal-migration-assets-20260717-230333.tar.gz` into `.config/notees-backend-dev/data/`.
+4. Started PostgreSQL and restored `data/backups/pre-ideal-migration-20260717-230311.sql`.
+5. Applied `SCHEMA_SQL` (via backend container) to create relay/snapshot tables without dropping legacy tables.
+6. Ran `uv run python scripts/migrate_to_ideal.py --relay --data-dir /app/data --force`:
+   - Generated **133,804 operations** across all workspaces.
+   - Largest workspace (`3b30e070-039b-47bc-ad0d-2440a2f173c5`): **115,705 operations**.
+   - Asset operations copied files from legacy `assets/` to content-addressed `files/`.
+7. Started backend and frontend. Backend `init_database` dropped legacy tables cleanly.
+8. Verified backend health, frontend reachability, and relay_envelope counts.
+
+**Result:** The dev stack is running from a clean, re-migrated state. The user's main workspace contains 115k+ operations in the immutable relay log. Opening the workspace in the browser will trigger the derived-state version hard rebuild and reconstruct SQLite state from the operation log.
+
+**Next steps for the user:**
+- Clear site data / IndexedDB for `atlas:5173` in Firefox to remove stale local state.
+- Open the app via Tailscale. The sync progress overlay will appear while the client rebuilds derived state from the 115k operations.
+- Page titles and content should render correctly after the rebuild completes.
+- If anything still looks off, run **Force workspace re-sync** from the command palette.
