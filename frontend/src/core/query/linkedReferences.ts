@@ -8,7 +8,7 @@
 import type { LinkedReference, LinkedReferencesResponse, BreadcrumbSegment, Node as ApiNode } from '@/types/api';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import type { WorkspaceStore } from '../store';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { queryNodes } from './queryNodes';
