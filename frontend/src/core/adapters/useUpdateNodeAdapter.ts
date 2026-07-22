@@ -2,7 +2,6 @@ import { useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import type { Node, NodeUpdate } from '@/types/api';
-import type { TextCrdt } from '../crdt/text';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
 import { projectNodeFromClient } from './nodeProjection';
@@ -45,17 +44,7 @@ export function useUpdateNodeAdapter(): UseMutationResult<
         if (parsedAst) {
           await client.mutate<void>('updateContentAst', [nodeUuid, parsedAst]);
         } else {
-          // TODO: Passing a callback through the worker will not work in a real
-          // browser because functions are not structured-clonable. Replace with a
-          // serializable updateText variant before enabling the Web Worker path.
-          await client.mutate<void>('updateText', [
-            nodeUuid,
-            (text: TextCrdt) => {
-              const current = text.toPlaintext();
-              text.delete(0, current.length);
-              text.insert(0, nameValue);
-            },
-          ]);
+          await client.mutate<void>('setNodeText', [nodeUuid, nameValue]);
         }
       }
 

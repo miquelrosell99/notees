@@ -2,7 +2,6 @@ import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { useContext } from 'react';
 import type { Node, NodeCreate } from '@/types/api';
-import type { TextCrdt } from '../crdt/text';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
 import { projectNodeFromClient } from './nodeProjection';
@@ -41,19 +40,8 @@ export function useCreateNodeAdapter(): UseMutationResult<Node, Error, NodeCreat
       ]);
 
       // If an initial name was provided, set the text content.
-      // TODO: Passing a callback through the worker will not work in a real
-      // browser because functions are not structured-clonable. Replace with a
-      // serializable updateText variant (e.g. replace/range operations) before
-      // enabling the Web Worker path.
       if (data.name) {
-        await client.mutate<void>('updateText', [
-          nodeId,
-          (text: TextCrdt) => {
-            const current = text.toPlaintext();
-            text.delete(0, current.length);
-            text.insert(0, data.name as string);
-          },
-        ]);
+        await client.mutate<void>('setNodeText', [nodeId, data.name as string]);
       }
 
       const projected = await projectNodeFromClient(client, nodeId);
