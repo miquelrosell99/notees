@@ -165,9 +165,14 @@ class TestWorkspaceStoreReplay:
         # the old envelopes are pruned.
         await writer.create_snapshot()
 
-        # Compact everything older than the highest relay HLC.
+        # Compact everything older than the highest relay HLC, reusing the
+        # serialized derived-state bytes so the compaction snapshot is restorable.
         max_hlc = relay.get_max_hlc("ws-compact")
-        result = relay.create_compaction_segment("ws-compact", max_hlc, prune=True)
+        latest_snapshot = relay.get_latest_snapshot("ws-compact")
+        snapshot_data = latest_snapshot["data"] if latest_snapshot else b""
+        result = relay.create_compaction_segment(
+            "ws-compact", max_hlc, prune=True, data=snapshot_data
+        )
         assert result["operation_count"] == count
 
         remaining = relay.count_operations("ws-compact")

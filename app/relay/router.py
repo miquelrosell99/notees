@@ -140,6 +140,8 @@ async def catch_up(
         )
     try:
         limit = min(request.limit, 10_000)
+        if limit < 1:
+            limit = 1000
         envelopes, next_after_id = await service.catch_up_paginated(
             request.workspace_id,
             actor_id,
@@ -151,6 +153,11 @@ async def catch_up(
     except PermissionDeniedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     return CatchUpPaginatedResponse(
@@ -194,6 +201,11 @@ async def create_snapshot(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc),
         ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     return SnapshotResponse(
         snapshot_id=snapshot_id,
         workspace_id=request.workspace_id,
@@ -228,10 +240,16 @@ async def compact_operations(
             request.workspace_id,
             request.up_to_hlc,
             prune=request.prune,
+            data=request.data,
         )
     except PermissionDeniedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
     return CompactResponse(

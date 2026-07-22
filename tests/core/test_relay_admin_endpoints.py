@@ -40,13 +40,28 @@ async def test_create_snapshot_as_owner(
         "/api/relay/snapshot",
         json={
             "workspace_id": test_user["workspace_uuid"],
-            "up_to_hlc": {"physical": 100, "logical": 0},
+            "up_to_hlc": {"physical": 0, "logical": 0},
         },
     )
     assert response.status_code == 200
     data = response.json()
     assert "snapshot_id" in data
     assert data["workspace_id"] == test_user["workspace_uuid"]
+
+
+@pytest.mark.asyncio
+async def test_create_snapshot_rejects_up_to_hlc_ahead_of_log(
+    auth_client: AsyncClient, test_user: dict
+) -> None:
+    """Snapshots whose HLC exceeds the current maximum envelope HLC are rejected."""
+    response = await auth_client.post(
+        "/api/relay/snapshot",
+        json={
+            "workspace_id": test_user["workspace_uuid"],
+            "up_to_hlc": {"physical": 9_999_999_999_999, "logical": 0},
+        },
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
