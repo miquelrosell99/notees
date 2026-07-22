@@ -163,4 +163,40 @@ describe('WorkspaceStoreClient', () => {
     expect(perClassEdges).toHaveLength(1);
     expect(perClassEdges[0].some((e) => e.property_uuid === schemaId)).toBe(true);
   });
+
+  it('sets node text through the worker boundary', async () => {
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const nodeId = uuidv7();
+
+    await client.init(workspaceId, actorId);
+    await client.mutate('createNode', [
+      { nodeId, kind: 'page', parentId: null, classIds: [] },
+    ]);
+    await client.mutate('setNodeText', [nodeId, 'Hello worker']);
+
+    const node = await client.query('getNode', [nodeId]);
+    expect(node).toBeDefined();
+    const content = JSON.parse((node as { content: string }).content);
+    expect(content[0].text).toBe('Hello worker');
+  });
+
+  it('inserts and deletes node text through the worker boundary', async () => {
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const nodeId = uuidv7();
+
+    await client.init(workspaceId, actorId);
+    await client.mutate('createNode', [
+      { nodeId, kind: 'page', parentId: null, classIds: [] },
+    ]);
+    await client.mutate('setNodeText', [nodeId, 'Hello']);
+    await client.mutate('insertNodeText', [nodeId, 5, ' world']);
+    await client.mutate('deleteNodeText', [nodeId, 5, 6]);
+
+    const node = await client.query('getNode', [nodeId]);
+    expect(node).toBeDefined();
+    const content = JSON.parse((node as { content: string }).content);
+    expect(content[0].text).toBe('Hello');
+  });
 });

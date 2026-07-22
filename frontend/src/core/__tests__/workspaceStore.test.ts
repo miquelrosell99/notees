@@ -41,6 +41,40 @@ describe('WorkspaceStore', () => {
     expect(content[0].text).toBe('Hello world');
   });
 
+  it('sets node text', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.setNodeText(nodeId, 'Replaced content');
+
+    const node = store.getNode(nodeId);
+    expect(node).toBeDefined();
+    const content = JSON.parse(node!.content);
+    expect(content[0].text).toBe('Replaced content');
+  });
+
+  it('inserts and deletes node text', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.setNodeText(nodeId, 'Hello');
+    store.insertNodeText(nodeId, 5, ' world');
+    store.deleteNodeText(nodeId, 5, 6);
+
+    const node = store.getNode(nodeId);
+    expect(node).toBeDefined();
+    const content = JSON.parse(node!.content);
+    expect(content[0].text).toBe('Hello');
+  });
+
   it('moves nodes between parents', async () => {
     const db = await createTestDatabase();
     const workspaceId = uuidv7();
