@@ -210,7 +210,7 @@ async function getOrCreateDateNoteClient(
   return projected;
 }
 
-async function getOrCreateDailyNoteClient(
+export async function getOrCreateDailyNoteClient(
   client: IWorkspaceStoreClient,
   dateStr: string
 ): Promise<Node> {

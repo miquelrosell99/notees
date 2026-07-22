@@ -17,10 +17,12 @@ import type { ASTDocument } from '@/types/ast';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { paragraph, text as astText, buildLinkId, nodeLink } from '@/lib/astBuilder';
 import { serializeContentAST } from '@/features/editor/editor/editorConfig';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { useWorkspaceStoreClient, useUndoManager } from '@/core/hooks';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { insertText, insertAtomicNode } from '../model/inlineEditorModel';
 import type { InlineEditorState } from '../model/types';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
+import type { UndoManagerClient } from '@/core/hooks/useUndoManager';
 
 interface UseInlineCopyPasteProps {
   stateRef: React.MutableRefObject<InlineEditorState>;
@@ -62,12 +64,13 @@ function parseBlockName(name: string): ASTDocument {
  * core store API yet; `moveNode` appends to the parent. A TODO marks where a
  * tree-CRDT update should be used once available.
  */
-function createBlockTree(
-  workspaceId: string,
+async function createBlockTree(
+  client: IWorkspaceStoreClient,
+  manager: UndoManagerClient,
   parentId: string,
   blocks: BlockData[],
   afterBlockId: string | null,
-): string[] {
+): Promise<string[]> {
   const createdIds: string[] = [];
 
   for (const block of blocks) {
@@ -75,24 +78,16 @@ function createBlockTree(
     const newId = generateUUID();
     createdIds.push(newId);
 
-    const store = getWorkspaceStore(workspaceId);
-    if (!store) continue;
-
-    store.createNode({ nodeId: newId, kind: 'block', parentId });
+    const content = serializeContentAST(contentAST);
+    await manager.createBlock({ nodeId: newId, kind: 'block', parentId, content });
     if (afterBlockId !== null) {
       // TODO: ordered insertion after `afterBlockId` requires a custom tree update.
       void afterBlockId;
     }
-    store.moveNode(newId, parentId);
-    store.updateText(newId, (text) => {
-      const serialized = serializeContentAST(contentAST);
-      const current = text.toPlaintext();
-      text.delete(0, current.length);
-      text.insert(0, serialized);
-    });
+    await manager.moveNode(newId, parentId);
 
     if (block.children && block.children.length > 0) {
-      createBlockTree(workspaceId, newId, block.children, null);
+      await createBlockTree(client, manager, newId, block.children, null);
     }
   }
 
@@ -106,21 +101,24 @@ export function useInlineCopyPaste({
   onPasteImage,
 }: UseInlineCopyPasteProps): (event: React.ClipboardEvent<HTMLDivElement>) => void {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
+  const manager = useUndoManager(workspaceId ?? '');
   const onPasteImageRef = useRef(onPasteImage);
   useEffect(() => {
     onPasteImageRef.current = onPasteImage;
   }, [onPasteImage]);
 
   const handlePaste = useCallback(
-    (event: React.ClipboardEvent<HTMLDivElement>) => {
+    async (event: React.ClipboardEvent<HTMLDivElement>) => {
       const clipboardData = event.clipboardData;
       if (!clipboardData) return;
+      if (!client || !manager) return;
 
-      const store = workspaceId ? getWorkspaceStore(workspaceId) : undefined;
       const analysis = analyzeClipboard(clipboardData);
       if (analysis.type === 'image' || analysis.type === 'audio' || analysis.type === 'file') {
         if (analysis.file) {
-          const blockServerId = store?.getNode(blockId)?.id ?? blockId;
+          const node = await client.query<{ id: string } | undefined>('getNode', [blockId]);
+          const blockServerId = node?.id ?? blockId;
           if (onPasteImageRef.current) {
             const hasContent = !isBlockEmpty(stateRef.current.ast);
             onPasteImageRef.current(blockServerId, analysis.file, hasContent);
@@ -151,45 +149,37 @@ export function useInlineCopyPaste({
 
       const blockData = tryParseInternalFormat(text);
       if (blockData && blockData.blocks.length > 0) {
-        if (!store || !workspaceId) return;
-        const currentNode = store.getNode(blockId);
+        const currentNode = await client.query<{ parentId: string | null } | undefined>('getNode', [blockId]);
         if (!currentNode?.parentId) return;
 
         event.preventDefault();
         event.stopPropagation();
         const parentId = currentNode.parentId;
 
-        void (async () => {
-          if (isBlockEmpty(stateRef.current.ast)) {
-            const [firstBlock, ...restBlocks] = blockData.blocks;
-            const firstAST = parseBlockName(firstBlock.name);
+        if (isBlockEmpty(stateRef.current.ast)) {
+          const [firstBlock, ...restBlocks] = blockData.blocks;
+          const firstAST = parseBlockName(firstBlock.name);
 
-            store.updateText(blockId, (text) => {
-              const serialized = serializeContentAST(firstAST);
-              const current = text.toPlaintext();
-              text.delete(0, current.length);
-              text.insert(0, serialized);
-            });
+          await manager.recordSetNodeText(blockId, serializeContentAST(firstAST));
 
-            if (firstBlock.children && firstBlock.children.length > 0) {
-              createBlockTree(workspaceId, blockId, firstBlock.children, null);
-            }
+          if (firstBlock.children && firstBlock.children.length > 0) {
+            await createBlockTree(client, manager, blockId, firstBlock.children, null);
+          }
 
-            if (restBlocks.length > 0) {
-              const created = createBlockTree(workspaceId, parentId, restBlocks, blockId);
-              if (created.length > 0) {
-                useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
-              }
-            } else {
-              useEditorFocusStore.getState().setPendingFocus(blockId);
-            }
-          } else {
-            const created = createBlockTree(workspaceId, parentId, blockData.blocks, blockId);
+          if (restBlocks.length > 0) {
+            const created = await createBlockTree(client, manager, parentId, restBlocks, blockId);
             if (created.length > 0) {
               useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
             }
+          } else {
+            useEditorFocusStore.getState().setPendingFocus(blockId);
           }
-        })();
+        } else {
+          const created = await createBlockTree(client, manager, parentId, blockData.blocks, blockId);
+          if (created.length > 0) {
+            useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
+          }
+        }
         return;
       }
 
@@ -197,7 +187,7 @@ export function useInlineCopyPaste({
       event.stopPropagation();
       applyMutation((prev) => insertText(prev, text));
     },
-    [stateRef, applyMutation, blockId, workspaceId],
+    [stateRef, applyMutation, blockId, client, manager],
   );
 
   return handlePaste;
