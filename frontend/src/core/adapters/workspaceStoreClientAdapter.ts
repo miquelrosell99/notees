@@ -7,6 +7,7 @@
  * synchronous store registry.
  */
 
+import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
 import type { Transport } from '../transport';
 import {
   createWorkspaceStoreClient,
@@ -21,6 +22,12 @@ interface ClientEntry {
 
 const clientRegistry = new Map<string, ClientEntry>();
 
+function isWorkerSupported(): boolean {
+  if (typeof Worker === 'undefined') return false;
+  if (typeof navigator === 'undefined') return false;
+  return !navigator.userAgent.includes('jsdom');
+}
+
 function isRealBrowser(): boolean {
   if (typeof window === 'undefined') return false;
   if (typeof navigator === 'undefined') return false;
@@ -29,14 +36,15 @@ function isRealBrowser(): boolean {
 
 /**
  * Open or return an existing async workspace store client for the given
- * workspace. The client runs sql.js in a Web Worker in real browsers.
+ * workspace. The client runs sql.js in a Web Worker in real browsers. In tests
+ * it wraps the same synchronous WorkspaceStore so migrated and legacy callers
+ * see the same data during the transition.
  */
 export async function getOrCreateWorkspaceStoreClient(
   workspaceId: string,
   actorId: string,
   transport?: Transport
 ): Promise<IWorkspaceStoreClient> {
-  void transport;
   const existing = clientRegistry.get(workspaceId);
   if (existing && existing.actorId === actorId) {
     return existing.client;
@@ -48,15 +56,26 @@ export async function getOrCreateWorkspaceStoreClient(
   }
 
   const client = createWorkspaceStoreClient();
-  let dbBytes: Uint8Array | undefined;
-  if (isRealBrowser()) {
-    const saved = await loadWorkspaceDatabase(workspaceId);
-    if (saved) {
-      dbBytes = saved;
+
+  if (isWorkerSupported()) {
+    let dbBytes: Uint8Array | undefined;
+    if (isRealBrowser()) {
+      const saved = await loadWorkspaceDatabase(workspaceId);
+      if (saved) {
+        dbBytes = saved;
+      }
     }
+    await client.init(workspaceId, actorId, { dbBytes });
+  } else {
+    // Test mode: share the synchronous store so legacy and migrated callers
+    // observe the same database during the transition.
+    if (!transport) {
+      throw new Error('Transport is required to open a workspace store client');
+    }
+    const store = await getOrCreateWorkspaceStore(workspaceId, actorId, transport);
+    await client.init(workspaceId, actorId, { store });
   }
 
-  await client.init(workspaceId, actorId, { dbBytes });
   clientRegistry.set(workspaceId, { client, actorId });
   return client;
 }

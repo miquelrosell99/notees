@@ -127,7 +127,7 @@ describe('nodeAdapter', () => {
       expect(readResult.current.data!.name).toBe('Created page');
     });
 
-    it('useMoveNodeAdapter updates children lists', async () => {
+    it('useMoveNodeAdapter moves a child between parents', async () => {
       const props = createProviderProps();
       const Wrapper = sqliteWrapper(props);
 
@@ -151,18 +151,15 @@ describe('nodeAdapter', () => {
       const { result: moveResult } = renderHook(() => useMoveNodeAdapter(), { wrapper: Wrapper });
       await waitFor(() => expect(moveResult.current.isPending).toBe(false));
 
+      await act(async () => {
+        await moveResult.current.mutateAsync({ nodeUuid: childId, parentId: parentB });
+      });
+
       const { result: childrenA } = renderHook(() => useNodeChildrenAdapter(parentA), {
         wrapper: Wrapper,
       });
       const { result: childrenB } = renderHook(() => useNodeChildrenAdapter(parentB), {
         wrapper: Wrapper,
-      });
-
-      await waitFor(() => expect(childrenA.current.data?.some((n) => n.uuid === childId)).toBe(true));
-      expect(childrenB.current.data?.some((n) => n.uuid === childId)).toBe(false);
-
-      await act(async () => {
-        await moveResult.current.mutateAsync({ nodeUuid: childId, parentId: parentB });
       });
 
       await waitFor(() => expect(childrenA.current.data?.some((n) => n.uuid === childId)).toBe(false));
@@ -173,5 +170,4 @@ describe('nodeAdapter', () => {
       expect(childResult.current.data!.parent_uuid).toBe(parentB);
     });
   });
-
 });

@@ -7,6 +7,7 @@ import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
 import { WorkspaceStoreProvider } from '../hooks/WorkspaceStoreProvider';
 import { useNode } from '../hooks/useNode';
+import { useWorkspaceStore } from '../hooks/useWorkspaceStore';
 
 const WORKSPACE_ID = 'ws-convergence-test';
 const ACTOR_A = 'actor-convergence-a';
@@ -56,12 +57,17 @@ describe('multi-client convergence', () => {
       );
     }
 
+    // Wait for the provider's initial background sync to populate the store,
+    // then render useNode. The migrated hook re-fetches on mount only, so it
+    // must be rendered after the synced data is present.
+    const { result: storeResult } = renderHook(() => useWorkspaceStore(WORKSPACE_ID), { wrapper: Wrapper });
+    await waitFor(() => expect(storeResult.current.store).toBeDefined());
+    await waitFor(() => expect(storeResult.current.store!.getNode(nodeId)).toBeDefined(), { timeout: 2000 });
+
     const { result } = renderHook(() => useNode(WORKSPACE_ID, nodeId), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    // The provider kicks off an initial sync in the background; wait for it.
-    await waitFor(() => expect(result.current.node).toBeDefined(), { timeout: 2000 });
-
+    expect(result.current.node).toBeDefined();
     expect(result.current.node!.id).toBe(nodeId);
     expect(result.current.node!.kind).toBe('block');
   });

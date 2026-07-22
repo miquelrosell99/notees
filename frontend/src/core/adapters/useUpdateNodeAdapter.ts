@@ -2,12 +2,13 @@ import { useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import type { Node, NodeUpdate } from '@/types/api';
+import type { TextCrdt } from '../crdt/text';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
-import { projectNode } from './nodeProjection';
+import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
+import { projectNodeFromClient } from './nodeProjection';
 
 /**
- * Adapter hook that updates a node in the SQLite store.
+ * Adapter hook that updates a node through the async worker-backed store client.
  */
 export function useUpdateNodeAdapter(): UseMutationResult<
   Node,
@@ -23,7 +24,7 @@ export function useUpdateNodeAdapter(): UseMutationResult<
         throw new Error('Workspace not available for SQLite update');
       }
 
-      const store = await getOrCreateWorkspaceStore(
+      const client = await getOrCreateWorkspaceStoreClient(
         workspaceId,
         ctx.actorId,
         ctx.transport
@@ -42,13 +43,19 @@ export function useUpdateNodeAdapter(): UseMutationResult<
         }
 
         if (parsedAst) {
-          store.updateContentAst(nodeUuid, parsedAst);
+          await client.mutate<void>('updateContentAst', [nodeUuid, parsedAst]);
         } else {
-          store.updateText(nodeUuid, (text) => {
-            const current = text.toPlaintext();
-            text.delete(0, current.length);
-            text.insert(0, nameValue);
-          });
+          // TODO: Passing a callback through the worker will not work in a real
+          // browser because functions are not structured-clonable. Replace with a
+          // serializable updateText variant before enabling the Web Worker path.
+          await client.mutate<void>('updateText', [
+            nodeUuid,
+            (text: TextCrdt) => {
+              const current = text.toPlaintext();
+              text.delete(0, current.length);
+              text.insert(0, nameValue);
+            },
+          ]);
         }
       }
 
@@ -63,7 +70,7 @@ export function useUpdateNodeAdapter(): UseMutationResult<
         console.warn('[useUpdateNodeAdapter] icon/color updates not yet supported in SQLite store');
       }
 
-      const projected = projectNode(store, nodeUuid);
+      const projected = await projectNodeFromClient(client, nodeUuid);
       if (!projected) {
         throw new Error('Node not found after SQLite update');
       }

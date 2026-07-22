@@ -3,8 +3,8 @@ import { useNavigate, useParams, type NavigateOptions } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
-import { projectNode } from './nodeProjection';
+import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
+import { projectNodeFromClient } from './nodeProjection';
 
 const NOT_FOUND_REDIRECT_DELAY_MS = 100;
 
@@ -17,10 +17,15 @@ export interface UseNodeAdapterOptions {
 }
 
 /**
- * Adapter hook that reads a single node from the SQLite core store.
+ * Adapter hook that reads a single node through the async worker-backed store client.
  *
  * Mirrors the legacy 404 behaviour: if the node disappears or is not found,
  * navigate away from it after a short delay.
+ *
+ * TODO: This uses `projectNodeFromClient`, which fetches the underlying sql.js
+ * Database via `client.query('getDb')`. That works in the jsdom test shim but
+ * cannot work in a real Web Worker. Replace with a worker-side projection query
+ * before enabling the Web Worker path in production.
  */
 export function useNodeAdapter(
   id: string | null,
@@ -43,21 +48,18 @@ export function useNodeAdapter(
     }
 
     let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
     setIsLoading(true);
     setError(null);
 
-    getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.transport)
-      .then((store) => {
+    getOrCreateWorkspaceStoreClient(workspaceId, ctx.actorId, ctx.transport)
+      .then(async (client) => {
         if (cancelled) return;
 
-        const update = (): void => {
-          if (cancelled) return;
-          setData(projectNode(store, id));
-        };
-        update();
+        const node = await projectNodeFromClient(client, id);
+        if (cancelled) return;
+
+        setData(node);
         setIsLoading(false);
-        unsubscribe = store.subscribe(id, update);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -67,7 +69,6 @@ export function useNodeAdapter(
 
     return () => {
       cancelled = true;
-      unsubscribe?.();
     };
   }, [ctx, workspaceId, id]);
 

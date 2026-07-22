@@ -6,6 +6,11 @@ import { usePropertySchemas } from '../hooks/usePropertySchemas';
 import { useWorkspaceStore } from '../hooks/useWorkspaceStore';
 import { queryAll } from '../db/sqlite';
 
+// TODO: Migrate to the async WorkspaceStoreClient. This adapter depends on
+// `usePropertySchemas` (blocked by raw SQL) and on `store.getDb()` for batch
+// property values, neither of which is transferable from a Web Worker. Add
+// worker-side query methods before switching to `useWorkspaceStoreClient`.
+
 function toQueryResult<TData>(
   data: TData | undefined,
   isLoading: boolean,

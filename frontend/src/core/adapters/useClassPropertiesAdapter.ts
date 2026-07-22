@@ -7,6 +7,11 @@ import { useWorkspaceStore } from '../hooks/useWorkspaceStore';
 import { queryAll, queryOne } from '../db/sqlite';
 import { orderClassPropertyEdges } from '@/features/properties/utils/classPropertyEdges';
 
+// TODO: Migrate to the async WorkspaceStoreClient. This adapter runs raw SQL
+// against `store.getDb()`, which is not transferable from a Web Worker. Add
+// worker-side query methods for class-property edges before switching to
+// `useWorkspaceStoreClient` and `getOrCreateWorkspaceStoreClient`.
+
 function toQueryResult<TData>(
   data: TData | undefined,
   isLoading: boolean,

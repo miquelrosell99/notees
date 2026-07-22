@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { NodeRow } from '../store';
-import { useWorkspaceStore } from './useWorkspaceStore';
+import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 
 export interface UseNodeResult {
   node: NodeRow | undefined;
@@ -9,18 +9,37 @@ export interface UseNodeResult {
 }
 
 export function useNode(workspaceId: string, nodeId: string | undefined): UseNodeResult {
-  const { store, isLoading, error } = useWorkspaceStore(workspaceId);
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId);
   const [node, setNode] = useState<NodeRow | undefined>(undefined);
 
   useEffect(() => {
-    if (!store || !nodeId) {
+    if (!client || !nodeId) {
       setNode(undefined);
       return;
     }
-    const update = (): void => setNode(store.getNode(nodeId));
+
+    let cancelled = false;
+    const update = (): void => {
+      client
+        .query<NodeRow | undefined>('getNode', [nodeId])
+        .then((result) => {
+          if (!cancelled) {
+            setNode(result);
+          }
+        })
+        .catch((err) => {
+          console.error('[useNode] query failed:', err);
+        });
+    };
+
     update();
-    return store.subscribe(nodeId, update);
-  }, [store, nodeId]);
+    const unsubscribe = client.subscribe(nodeId, update);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client, nodeId]);
 
   return { node, isLoading, error };
 }

@@ -3,6 +3,11 @@
  *
  * Replaces the legacy `/api/nodes/classes` TanStack Query hook. Classes are
  * nodes with the `isClass` flag derived from the operation log.
+ *
+ * TODO: Migrate to the async WorkspaceStoreClient. This hook relies on
+ * `queryNodes`, which is not a WorkspaceStore method and cannot be invoked
+ * through the generic client.query handler. Migrate `queryNodes` to the worker
+ * first, then switch this hook to `useWorkspaceStoreClient`.
  */
 import { useEffect, useState } from 'react';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';

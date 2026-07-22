@@ -1,6 +1,8 @@
+import type { Database } from 'sql.js';
 import type { Node } from '@/types/api';
 import { queryAll, queryOne } from '../db/sqlite';
-import type { WorkspaceStore } from '../store';
+import type { NodeRow, WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_CHILDREN_DEPTH = 2;
@@ -53,18 +55,66 @@ function findFirstText(value: unknown): string | undefined {
   return undefined;
 }
 
+function getNodeFromDb(db: Database, nodeId: string): NodeRow | undefined {
+  const row = queryOne<{
+    id: string;
+    workspaceId: string;
+    kind: 'page' | 'block' | 'class';
+    parentId: string | null;
+    classIds: string;
+    content: string;
+    active: number;
+    createdAt: string | null;
+    updatedAt: string | null;
+    createdBy: string | null;
+    updatedBy: string | null;
+  }>(
+    db,
+    `SELECT
+       id,
+       workspace_id AS workspaceId,
+       kind,
+       parent_id AS parentId,
+       class_ids AS classIds,
+       content,
+       active,
+       created_at AS createdAt,
+       updated_at AS updatedAt,
+       created_by AS createdBy,
+       updated_by AS updatedBy
+     FROM node
+     WHERE id = ?`,
+    [nodeId]
+  );
+  if (!row) return undefined;
+  return {
+    ...row,
+    active: row.active !== 0,
+    classIds: JSON.parse(row.classIds) as string[],
+  };
+}
+
+function getChildrenFromDb(db: Database, parentId: string): string[] {
+  const rows = queryAll<{ child_id: string }>(
+    db,
+    'SELECT child_id FROM node_child_order WHERE parent_id = ? ORDER BY position',
+    [parentId]
+  );
+  return rows.map((r) => r.child_id);
+}
+
 /**
  * Walk up the parent chain to find the containing page UUID.
  * TODO(D2): This uses node.kind === 'page'. Once class-based page tagging is
  * fully wired, resolve the page class UUID and check class_ids too.
  */
-function resolvePageUuid(store: WorkspaceStore, nodeId: string): string | null {
+function resolvePageUuid(db: Database, nodeId: string): string | null {
   const visited = new Set<string>();
   let current: string | null = nodeId;
 
   while (current && !visited.has(current)) {
     visited.add(current);
-    const node = store.getNode(current);
+    const node = getNodeFromDb(db, current);
     if (!node) break;
     if (node.kind === 'page') {
       return node.id;
@@ -80,9 +130,8 @@ function resolvePageUuid(store: WorkspaceStore, nodeId: string): string | null {
  * TODO(D2): node_child_order.position is an HLC-sortable string; map it to a
  * stable numeric sequence when the ordering scheme is finalized.
  */
-function resolveSequence(store: WorkspaceStore, nodeId: string, parentId: string | null): number {
+function resolveSequence(db: Database, nodeId: string, parentId: string | null): number {
   if (!parentId) return 0;
-  const db = store.getDb();
   const row = queryAll<{ position: string }>(
     db,
     'SELECT position FROM node_child_order WHERE parent_id = ? AND child_id = ?',
@@ -98,9 +147,19 @@ function resolveSequence(store: WorkspaceStore, nodeId: string, parentId: string
  *
  * Children are projected recursively up to MAX_CHILDREN_DEPTH to avoid
  * returning huge trees for the prototype slice.
+ *
+ * This variant takes a raw Database so it can be used from the async worker
+ * client as well as the synchronous WorkspaceStore. Note that transferring a
+ * sql.js Database from a Web Worker is not possible, so callers running in a
+ * real worker must route projection through a worker-side method instead.
  */
-export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_CHILDREN_DEPTH): Node | undefined {
-  const node = store.getNode(nodeId);
+export function projectNodeFromDb(
+  db: Database,
+  _workspaceId: string,
+  nodeId: string,
+  depth = MAX_CHILDREN_DEPTH
+): Node | undefined {
+  const node = getNodeFromDb(db, nodeId);
   if (!node) return undefined;
 
   const now = new Date().toISOString();
@@ -110,19 +169,19 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
   // TODO(D2): When the page system class UUID is known, also check
   // classIds.includes(pageClassUuid) here.
   const isClass = node.kind === 'class';
-  const pageUuid = resolvePageUuid(store, nodeId);
-  const childIds = store.getChildren(nodeId);
+  const pageUuid = resolvePageUuid(db, nodeId);
+  const childIds = getChildrenFromDb(db, nodeId);
 
   const children =
     depth > 0
       ? childIds
           .slice(0, 100)
-          .map((childId) => projectNode(store, childId, depth - 1))
+          .map((childId) => projectNodeFromDb(db, _workspaceId, childId, depth - 1))
           .filter((n): n is Node => n !== undefined)
       : undefined;
 
   const propertyRows = queryAll<{ property_schema_id: string; value: string }>(
-    store.getDb(),
+    db,
     'SELECT property_schema_id, value FROM property_value WHERE node_id = ?',
     [nodeId]
   );
@@ -136,14 +195,14 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
   }
 
   const aliasRow = queryOne<{ canonical_node_id: string }>(
-    store.getDb(),
+    db,
     'SELECT canonical_node_id FROM node_alias WHERE alias_node_id = ?',
     [nodeId]
   );
   const aliasedUuid = aliasRow?.canonical_node_id ?? null;
 
   const aliasRows = queryAll<{ alias_node_id: string }>(
-    store.getDb(),
+    db,
     'SELECT alias_node_id FROM node_alias WHERE canonical_node_id = ?',
     [nodeId]
   );
@@ -158,7 +217,7 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
     color: null,
     parent_uuid: node.parentId,
     page_uuid: pageUuid,
-    sequence: resolveSequence(store, nodeId, node.parentId),
+    sequence: resolveSequence(db, nodeId, node.parentId),
     active: node.active,
     is_page: isPage,
     is_class: isClass,
@@ -181,4 +240,33 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
     is_private: false,
     parent_locked: false,
   };
+}
+
+/**
+ * Synchronous convenience wrapper that projects from a WorkspaceStore.
+ */
+export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_CHILDREN_DEPTH): Node | undefined {
+  return projectNodeFromDb(store.getDb(), store.getWorkspaceId(), nodeId, depth);
+}
+
+/**
+ * Async projection helper for the worker-backed store client.
+ *
+ * TODO: This fetches the underlying sql.js Database via `client.query('getDb')`,
+ * which works in the jsdom test shim (where the client shares the same store)
+ * but cannot work in a real Web Worker because sql.js Database instances are
+ * not transferable. For production worker support, projection must either be
+ * implemented as a worker-side query method or receive serializable node data
+ * from the worker.
+ */
+export async function projectNodeFromClient(
+  client: IWorkspaceStoreClient,
+  nodeId: string,
+  depth = MAX_CHILDREN_DEPTH
+): Promise<Node | undefined> {
+  const [db, workspaceId] = await Promise.all([
+    client.query<Database>('getDb', []),
+    client.query<string>('getWorkspaceId', []),
+  ]);
+  return projectNodeFromDb(db, workspaceId, nodeId, depth);
 }

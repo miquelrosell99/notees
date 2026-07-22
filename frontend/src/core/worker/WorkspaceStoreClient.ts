@@ -17,6 +17,8 @@ import {
 export interface WorkspaceStoreClientOptions {
   /** Optional persisted database bytes to hydrate on init. */
   dbBytes?: Uint8Array;
+  /** Optional existing store to use directly (test shim to share state). */
+  store?: WorkspaceStore;
 }
 
 interface PendingRequest {
@@ -40,12 +42,19 @@ export interface IWorkspaceStoreClient {
   export(): Promise<Uint8Array>;
   mutate<T>(method: string, args: unknown[]): Promise<T>;
   query<T>(method: string, args: unknown[]): Promise<T>;
+  /**
+   * Subscribe to changes for a specific node. Pass `null` to subscribe to all
+   * changes. The callback is invoked whenever the worker reports a matching
+   * change.
+   */
+  subscribe(nodeId: string | null, callback: () => void): () => void;
   close(): void;
 }
 
 class WorkerStoreClient implements IWorkspaceStoreClient {
   private worker: Worker;
   private pending = new Map<number, PendingRequest>();
+  private listeners = new Map<string | null, Set<() => void>>();
 
   constructor(workerUrl: URL) {
     this.worker = new Worker(workerUrl, { type: 'module' });
@@ -63,7 +72,7 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
 
   private handleMessage(msg: WorkerMessage): void {
     if (msg.type === 'notify') {
-      // Notifications will be wired up in later milestones.
+      this.emit(msg.nodeId ?? null);
       return;
     }
 
@@ -138,6 +147,44 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
     });
   }
 
+  subscribe(nodeId: string | null, callback: () => void): () => void {
+    let set = this.listeners.get(nodeId);
+    if (!set) {
+      set = new Set();
+      this.listeners.set(nodeId, set);
+    }
+    set.add(callback);
+    return () => {
+      set?.delete(callback);
+      if (set?.size === 0) {
+        this.listeners.delete(nodeId);
+      }
+    };
+  }
+
+  private emit(nodeId: string | null): void {
+    const specific = this.listeners.get(nodeId);
+    if (specific) {
+      for (const callback of specific) {
+        try {
+          callback();
+        } catch (err) {
+          console.error('Workspace store listener error:', err);
+        }
+      }
+    }
+    const all = this.listeners.get(null);
+    if (all) {
+      for (const callback of all) {
+        try {
+          callback();
+        } catch (err) {
+          console.error('Workspace store listener error:', err);
+        }
+      }
+    }
+  }
+
   close(): void {
     this.worker.postMessage({ type: 'close' });
     this.worker.terminate();
@@ -145,6 +192,7 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
       reject(new Error('Worker closed'));
     }
     this.pending.clear();
+    this.listeners.clear();
   }
 }
 
@@ -156,6 +204,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
   private store: WorkspaceStore | null = null;
 
   async init(workspaceId: string, actorId: string, options: WorkspaceStoreClientOptions = {}): Promise<void> {
+    if (options.store) {
+      this.store = options.store;
+      return;
+    }
     const db = await createDatabase(options.dbBytes);
     this.store = new WorkspaceStore(db, workspaceId, actorId, {
       onPersist: async () => {
@@ -185,6 +237,18 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       return Promise.reject(new Error(`Unknown query method: ${method}`));
     }
     return Promise.resolve(fn.apply(this.store, args) as T);
+  }
+
+  subscribe(nodeId: string | null, callback: () => void): () => void {
+    if (!this.store) {
+      return () => {
+        // No-op if store was not initialized.
+      };
+    }
+    if (nodeId === null) {
+      return this.store.subscribeAll(callback);
+    }
+    return this.store.subscribe(nodeId, callback);
   }
 
   close(): void {

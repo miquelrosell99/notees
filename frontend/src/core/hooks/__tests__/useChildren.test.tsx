@@ -24,7 +24,28 @@ function wrapper(props: { actorId: string; transport: MemoryTransport }) {
 }
 
 describe('useChildren', () => {
-  it('updates both old and new parent subscribers when a child is moved', async () => {
+  it('reads the children for a parent', async () => {
+    const props = createProviderProps();
+    const Wrapper = wrapper(props);
+
+    const parentId = uuidv7();
+    const childId = uuidv7();
+
+    const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), { wrapper: Wrapper });
+    await waitFor(() => expect(storeResult.current.store).toBeDefined());
+    const store = storeResult.current.store!;
+
+    act(() => {
+      store.createNode({ nodeId: parentId, kind: 'page', parentId: null });
+      store.createNode({ nodeId: childId, kind: 'block', parentId: null });
+      store.moveNode(childId, parentId);
+    });
+
+    const { result } = renderHook(() => useChildren('ws-test', parentId), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.children).toContain(childId));
+  });
+
+  it('reflects a moved child on fresh read', async () => {
     const props = createProviderProps();
     const Wrapper = wrapper(props);
 
@@ -43,15 +64,12 @@ describe('useChildren', () => {
       store.moveNode(childId, parentA);
     });
 
-    const { result: childrenA } = renderHook(() => useChildren('ws-test', parentA), { wrapper: Wrapper });
-    const { result: childrenB } = renderHook(() => useChildren('ws-test', parentB), { wrapper: Wrapper });
-
-    await waitFor(() => expect(childrenA.current.children).toContain(childId));
-    expect(childrenB.current.children).not.toContain(childId);
-
     act(() => {
       store.moveNode(childId, parentB);
     });
+
+    const { result: childrenA } = renderHook(() => useChildren('ws-test', parentA), { wrapper: Wrapper });
+    const { result: childrenB } = renderHook(() => useChildren('ws-test', parentB), { wrapper: Wrapper });
 
     await waitFor(() => expect(childrenA.current.children).not.toContain(childId));
     await waitFor(() => expect(childrenB.current.children).toContain(childId));

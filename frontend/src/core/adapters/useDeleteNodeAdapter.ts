@@ -2,10 +2,10 @@ import { useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
+import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
 
 /**
- * Adapter hook that deletes a node from the SQLite store.
+ * Adapter hook that deletes a node through the async worker-backed store client.
  *
  * The SQLite path performs a hard delete, matching the current new-core behaviour.
  */
@@ -19,13 +19,13 @@ export function useDeleteNodeAdapter(): UseMutationResult<void, Error, string> {
         throw new Error('Workspace not available for SQLite delete');
       }
 
-      const store = await getOrCreateWorkspaceStore(
+      const client = await getOrCreateWorkspaceStoreClient(
         workspaceId,
         ctx.actorId,
         ctx.transport
       );
 
-      store.deleteNode(nodeUuid);
+      await client.mutate<void>('deleteNode', [nodeUuid]);
     },
   });
 }
