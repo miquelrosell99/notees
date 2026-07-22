@@ -392,18 +392,19 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   }, [workspaceId, actorId, workspaceResetNonce]);
 
   const { isInitializing, pullProgress } = progress;
-  // Show the overlay as soon as a workspace is initializing, even before we know
-  // the total operation count. This prevents interaction with the half-ready UI
-  // and keeps the loading animation visible during the first catch-up request.
-  const showLoadingOverlay = isInitializing && pullProgress !== null;
-  const progressPercent = showLoadingOverlay
+  // Show the overlay as soon as a workspace is initializing. This prevents the
+  // main UI from flashing before the first catch-up request has reported any
+  // progress, and keeps the loading animation visible until the local store is
+  // ready.
+  const showLoadingOverlay = isInitializing;
+  const progressPercent = showLoadingOverlay && pullProgress
     ? pullProgress.total > 0
       ? Math.round((pullProgress.applied / pullProgress.total) * 100)
       : 0
     : undefined;
   const progressLabel =
     progressPercent !== undefined ? `Syncing workspace… ${progressPercent}%` : 'Loading workspace…';
-  const progressValue = showLoadingOverlay
+  const progressValue = showLoadingOverlay && pullProgress
     ? pullProgress.total > 0
       ? pullProgress.applied / pullProgress.total
       : 0
