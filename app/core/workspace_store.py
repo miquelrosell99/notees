@@ -105,14 +105,24 @@ class WorkspaceStore:
 
         if self._db_path == ":memory:":
             self._conn = sqlite3.connect(":memory:", check_same_thread=False)
+            self._conn.deserialize(data)
         else:
             Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
             if Path(self._db_path).exists():
                 Path(self._db_path).unlink()
+            # ``sqlite3.Connection.deserialize`` loads the serialized bytes into
+            # memory even when the connection is opened on a file path, leaving
+            # the backing file empty. Restore into an in-memory connection and
+            # then copy it to the target file with ``backup`` so subsequent
+            # openings of the file path see the snapshot.
+            mem_conn = sqlite3.connect(":memory:", check_same_thread=False)
+            mem_conn.deserialize(data)
             self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+            with self._conn:
+                mem_conn.backup(self._conn)
+            mem_conn.close()
 
         self._conn.row_factory = sqlite3.Row
-        self._conn.deserialize(data)
         self._ensure_applied_table()
         self._conn.commit()
         return self._conn
