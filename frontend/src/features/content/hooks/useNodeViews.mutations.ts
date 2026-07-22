@@ -271,7 +271,6 @@ const _pendingBatch = new Map<
 let _flushScheduled = false;
 
 async function flushBatch() {
-  _flushScheduled = false;
   const batch = new Map(_pendingBatch);
   _pendingBatch.clear();
 
@@ -301,6 +300,18 @@ async function flushBatch() {
   }
 }
 
+function scheduleFlush() {
+  if (_flushScheduled) return;
+  _flushScheduled = true;
+  queueMicrotask(async () => {
+    try {
+      await flushBatch();
+    } finally {
+      _flushScheduled = false;
+    }
+  });
+}
+
 /**
  * Queue an ensure-defaults request. All requests that arrive in the same
  * micro-task are batched into a single store write per node.
@@ -318,10 +329,7 @@ export function batchEnsureDefaults(nodeUuid: string, viewType: string): Promise
     entry.viewTypes.add(viewType);
     entry.resolvers.push(resolve);
 
-    if (!_flushScheduled) {
-      _flushScheduled = true;
-      queueMicrotask(flushBatch);
-    }
+    scheduleFlush();
   });
 }
 

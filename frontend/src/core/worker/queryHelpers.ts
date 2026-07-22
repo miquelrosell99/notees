@@ -49,7 +49,7 @@ export function getNodeKindMap(store: WorkspaceStore): Map<string, 'page' | 'blo
 
 // ─── NodeView queries ───────────────────────────────────────────────────────
 
-function rowToNodeView(row: {
+interface NodeViewRow {
   id: string;
   node_id: string;
   name: string;
@@ -65,7 +65,9 @@ function rowToNodeView(row: {
   query_ast: string | null;
   created_at: string | null;
   updated_at: string | null;
-}): NodeView {
+}
+
+function rowToNodeView(row: NodeViewRow): NodeView {
   return {
     uuid: row.id,
     node_uuid: row.node_id,
@@ -95,23 +97,7 @@ export function getNodeViews(
     ? `SELECT * FROM node_view WHERE node_id = ? AND view_type = ? AND active = 1 ORDER BY order_index`
     : `SELECT * FROM node_view WHERE node_id = ? AND active = 1 ORDER BY order_index`;
   const params = viewType ? [nodeUuid, viewType] : [nodeUuid];
-  const rows = queryAll<{
-    id: string;
-    node_id: string;
-    name: string;
-    view_type: string;
-    order_index: number;
-    is_default: number;
-    active: number;
-    shown_properties: string;
-    group_by: string | null;
-    view_mode: string | null;
-    sort_entries: string;
-    settings: string;
-    query_ast: string | null;
-    created_at: string | null;
-    updated_at: string | null;
-  }>(store.getDb(), sql, params);
+  const rows = queryAll<NodeViewRow>(store.getDb(), sql, params);
 
   const views = rows.map(rowToNodeView);
   if (!includeQueryAST) {
@@ -121,23 +107,7 @@ export function getNodeViews(
 }
 
 export function getNodeViewsByType(store: WorkspaceStore, nodeUuid: string): Record<string, NodeView[]> {
-  const rows = queryAll<{
-    id: string;
-    node_id: string;
-    name: string;
-    view_type: string;
-    order_index: number;
-    is_default: number;
-    active: number;
-    shown_properties: string;
-    group_by: string | null;
-    view_mode: string | null;
-    sort_entries: string;
-    settings: string;
-    query_ast: string | null;
-    created_at: string | null;
-    updated_at: string | null;
-  }>(
+  const rows = queryAll<NodeViewRow>(
     store.getDb(),
     `SELECT * FROM node_view WHERE node_id = ? AND active = 1 ORDER BY order_index`,
     [nodeUuid]
@@ -158,23 +128,7 @@ export function getNodeViewsByType(store: WorkspaceStore, nodeUuid: string): Rec
 }
 
 export function getNodeView(store: WorkspaceStore, viewUuid: string): NodeView | undefined {
-  const row = queryOne<{
-    id: string;
-    node_id: string;
-    name: string;
-    view_type: string;
-    order_index: number;
-    is_default: number;
-    active: number;
-    shown_properties: string;
-    group_by: string | null;
-    view_mode: string | null;
-    sort_entries: string;
-    settings: string;
-    query_ast: string | null;
-    created_at: string | null;
-    updated_at: string | null;
-  }>(store.getDb(), `SELECT * FROM node_view WHERE id = ?`, [viewUuid]);
+  const row = queryOne<NodeViewRow>(store.getDb(), `SELECT * FROM node_view WHERE id = ?`, [viewUuid]);
   return row ? rowToNodeView(row) : undefined;
 }
 
@@ -183,23 +137,7 @@ export function getDefaultNodeView(
   nodeUuid: string,
   viewType: string
 ): NodeView | undefined {
-  const row = queryOne<{
-    id: string;
-    node_id: string;
-    name: string;
-    view_type: string;
-    order_index: number;
-    is_default: number;
-    active: number;
-    shown_properties: string;
-    group_by: string | null;
-    view_mode: string | null;
-    sort_entries: string;
-    settings: string;
-    query_ast: string | null;
-    created_at: string | null;
-    updated_at: string | null;
-  }>(
+  const row = queryOne<NodeViewRow>(
     store.getDb(),
     `SELECT * FROM node_view WHERE node_id = ? AND view_type = ? AND is_default = 1 AND active = 1`,
     [nodeUuid, viewType]
@@ -256,6 +194,15 @@ export function getClassExtends(store: WorkspaceStore, classId: string, classes:
     extends_class_node_name: classNameByUuid(classes, row.ancestor_id),
     sequence: index,
   }));
+}
+
+export function getClassExtendsAncestors(store: WorkspaceStore, classId: string): string[] {
+  const rows = queryAll<{ ancestor_id: string }>(
+    store.getDb(),
+    'SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? AND ancestor_id != ? ORDER BY ancestor_id',
+    [classId, classId]
+  );
+  return rows.map((row) => row.ancestor_id);
 }
 
 export function getInheritedProperties(
@@ -506,16 +453,14 @@ export interface RawUuidLinkCandidate {
 }
 
 export function getNodesWithRawUuidLinks(store: WorkspaceStore): RawUuidLinkCandidate[] {
-  const rows = store.getDb().exec('SELECT id, content FROM node WHERE content LIKE "%[[%" ESCAPE "\\"');
-  const candidates: RawUuidLinkCandidate[] = [];
-  for (const row of rows) {
-    for (let i = 0; i < row.values.length; i++) {
-      const id = String(row.values[i][0]);
-      const content = JSON.parse(String(row.values[i][1])) as unknown[];
-      candidates.push({ id, content });
-    }
-  }
-  return candidates;
+  const rows = queryAll<{ id: string; content: string }>(
+    store.getDb(),
+    'SELECT id, content FROM node WHERE content LIKE "%[[%" ESCAPE "\\"'
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    content: JSON.parse(row.content) as unknown[],
+  }));
 }
 
 // ─── Existing helpers ───────────────────────────────────────────────────────
