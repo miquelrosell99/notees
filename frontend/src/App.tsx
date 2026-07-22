@@ -318,6 +318,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const forceResyncProgress = useSyncStatusStore((s) =>
     forceResyncWorkspaceId ? s.getWorkspaceProgress(forceResyncWorkspaceId) : DEFAULT_PROGRESS
   );
+  const workspaceResetNonce = useSyncStatusStore((s) => s.workspaceResetNonce);
 
   useEffect(() => {
     useUndoStore.getState().setWorkspaceId(workspaceId);
@@ -388,17 +389,25 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
       }
     };
-  }, [workspaceId, actorId]);
+  }, [workspaceId, actorId, workspaceResetNonce]);
 
   const { isInitializing, pullProgress } = progress;
   // Show the overlay as soon as a workspace is initializing, even before we know
   // the total operation count. This prevents interaction with the half-ready UI
   // and keeps the loading animation visible during the first catch-up request.
   const showLoadingOverlay = isInitializing && pullProgress !== null;
-  const progressLabel = showLoadingOverlay
-    ? `Syncing workspace… ${Math.round((pullProgress.applied / pullProgress.total) * 100)}%`
-    : 'Loading workspace…';
-  const progressValue = showLoadingOverlay ? pullProgress.applied / pullProgress.total : undefined;
+  const progressPercent = showLoadingOverlay
+    ? pullProgress.total > 0
+      ? Math.round((pullProgress.applied / pullProgress.total) * 100)
+      : 0
+    : undefined;
+  const progressLabel =
+    progressPercent !== undefined ? `Syncing workspace… ${progressPercent}%` : 'Loading workspace…';
+  const progressValue = showLoadingOverlay
+    ? pullProgress.total > 0
+      ? pullProgress.applied / pullProgress.total
+      : 0
+    : undefined;
 
   const syncMessages = [
     'Replaying the operation log…',
@@ -429,9 +438,17 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       {forceResyncWorkspaceId && (
         <SyncProgressModal
           isOpen
-          label={`Re-syncing workspace… ${forceResyncProgress.pullProgress ? Math.round((forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total) * 100) + '%' : ''}`}
+          label={`Re-syncing workspace… ${
+            forceResyncProgress.pullProgress && forceResyncProgress.pullProgress.total > 0
+              ? Math.round(
+                  (forceResyncProgress.pullProgress.applied /
+                    forceResyncProgress.pullProgress.total) *
+                    100
+                ) + '%'
+              : ''
+          }`}
           progress={
-            forceResyncProgress.pullProgress
+            forceResyncProgress.pullProgress && forceResyncProgress.pullProgress.total > 0
               ? forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total
               : undefined
           }

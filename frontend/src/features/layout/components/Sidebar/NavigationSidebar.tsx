@@ -10,7 +10,7 @@
  * trash, settings, and account remain reachable.
  */
 import { useState, useCallback, useMemo } from 'react';
-import { useModalStore, useNavigationStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useIsMobile } from '@/hooks';
@@ -203,9 +203,6 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
     }))
   );
 
-  const isTasksPopupOpen = useModalStore((s) => s.isTasksPopupOpen);
-  const toggleTasksPopup = useModalStore((s) => s.toggleTasksPopup);
-
   const { data: workspaceSettings } = useWorkspaceSettings();
   const showJournals = (workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true;
   const showInbox = (workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true;
@@ -258,17 +255,6 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
           onClick={handleGoToToday}
           aria-label="Go to today"
           title="Go to today"
-        />
-        <Button
-          className="sidebar-rail__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-checkbox-marked-circle-outline"
-          fullWidth
-          active={isTasksPopupOpen}
-          onClick={toggleTasksPopup}
-          aria-label="Tasks"
-          title="Tasks"
         />
         <Button
           className="sidebar-rail__btn"

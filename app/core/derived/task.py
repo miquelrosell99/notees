@@ -26,8 +26,7 @@ def apply_task_record_completion(conn: sqlite3.Connection, op: Operation) -> Non
     completed_at = payload.get("completedAt")
     if completed_at is None and op.envelope.timestamp is not None:
         completed_at = op.envelope.timestamp.isoformat()
-    if completed_at is None:
-        completed_at = ""
+    created_at = completed_at
 
     scheduled_date = payload.get("scheduledDate")
     deadline_date = payload.get("deadlineDate")
@@ -37,14 +36,16 @@ def apply_task_record_completion(conn: sqlite3.Connection, op: Operation) -> Non
     conn.execute(
         """
         INSERT OR IGNORE INTO task_completion (
-            id, node_id, completed_at, actor_id, scheduled_date, deadline_date, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            id, node_id, completed_at, actor_id, created_at,
+            scheduled_date, deadline_date, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             completion_id,
             node_id,
             completed_at,
             completed_by,
+            created_at,
             scheduled_date,
             deadline_date,
             status,
@@ -75,17 +76,15 @@ def apply_task_set_recurrence(conn: sqlite3.Connection, op: Operation) -> None:
     node_id = payload["nodeId"]
     rule = payload.get("rule", {})
     ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else ""
+    actor_id = payload.get("actorId") or op.envelope.actor_id
 
+    conn.execute("DELETE FROM task_recurrence WHERE node_id = ?", (node_id,))
     conn.execute(
         """
-        INSERT INTO task_recurrence (id, node_id, rule_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(node_id) DO UPDATE SET
-            id = excluded.id,
-            rule_json = excluded.rule_json,
-            updated_at = excluded.updated_at
+        INSERT INTO task_recurrence (id, node_id, rule, actor_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (recurrence_id, node_id, json.dumps(rule), ts, ts),
+        (recurrence_id, node_id, json.dumps(rule), actor_id, ts, ts),
     )
 
 

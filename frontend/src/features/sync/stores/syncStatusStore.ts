@@ -31,6 +31,8 @@ export interface SyncStatusState {
   workspaceProgress: Record<string, WorkspaceSyncProgress>;
   /** Workspace currently undergoing an explicit force re-sync; locks the UI. */
   forceResyncWorkspaceId: string | null;
+  /** Bumped when the user explicitly discards local state and checks out from the server. */
+  workspaceResetNonce: number;
   setStatus: (
     status: SyncStatus,
     opts?: {
@@ -43,6 +45,7 @@ export interface SyncStatusState {
   setWorkspacePullProgress: (workspaceId: string, pullProgress: SyncPullProgress | null) => void;
   getWorkspaceProgress: (workspaceId: string) => WorkspaceSyncProgress;
   setForceResyncWorkspaceId: (workspaceId: string | null) => void;
+  bumpWorkspaceResetNonce: () => void;
 }
 
 export const DEFAULT_PROGRESS: WorkspaceSyncProgress = {
@@ -57,6 +60,7 @@ export const useSyncStatusStore = create<SyncStatusState>((set, get) => ({
   lastError: null,
   workspaceProgress: {},
   forceResyncWorkspaceId: null,
+  workspaceResetNonce: 0,
   setStatus: (status, opts) =>
     set((state) => ({
       status,
@@ -88,4 +92,6 @@ export const useSyncStatusStore = create<SyncStatusState>((set, get) => ({
     get().workspaceProgress[workspaceId] ?? DEFAULT_PROGRESS,
   setForceResyncWorkspaceId: (workspaceId) =>
     set({ forceResyncWorkspaceId: workspaceId }),
+  bumpWorkspaceResetNonce: () =>
+    set((state) => ({ workspaceResetNonce: state.workspaceResetNonce + 1 })),
 }));

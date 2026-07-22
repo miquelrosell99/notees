@@ -87,12 +87,12 @@
   --color-focus-overlay: rgba(0, 0, 0, 0.08);
   --color-pressed-overlay: rgba(0, 0, 0, 0.12);
 
-  /* ==================== Accent (sage default) ==================== */
-  --color-accent: #527051;
+  /* ==================== Accent (monochrome default) ==================== */
+  --color-accent: #404040;
   --color-on-accent: #ffffff;
   --color-accent-hover: color-mix(in srgb, var(--color-accent) 90%, black);
   --color-accent-active: color-mix(in srgb, var(--color-accent) 80%, black);
-  --color-accent-subtle: #6f8a6d;
+  --color-accent-subtle: #737373;
   --color-surface-tint: transparent;
 
   /* ==================== Graph View (light defaults) ==================== */
@@ -725,7 +725,7 @@
 }
 
 [data-accent="custom"] {
-  --color-accent: var(--color-accent-custom, #527051);
+  --color-accent: var(--color-accent-custom, #404040);
   --color-on-accent: var(--color-on-accent-custom, #ffffff);
   --color-accent-subtle: color-mix(in srgb, var(--color-accent) 72%, var(--color-on-accent));
 }

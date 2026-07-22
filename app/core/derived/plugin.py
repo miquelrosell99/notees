@@ -48,10 +48,24 @@ def apply_plugin_op(conn: sqlite3.Connection, op: Operation) -> None:
             apply_flashcard_delete(conn, op)
             return
 
+    recorded_at = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
     conn.execute(
         """
-        INSERT OR IGNORE INTO plugin_op_log (id, plugin_id, op_type, node_id, data_json)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO plugin_op_log (
+            id, workspace_id, op_id, plugin_id, op_type, data, actor_id, recorded_at,
+            node_id, data_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (op.envelope.id, plugin_id, op_type, node_id, json.dumps(data)),
+        (
+            op.envelope.id,
+            op.envelope.workspace_id,
+            op.envelope.id,
+            plugin_id,
+            op_type,
+            json.dumps(data),
+            op.envelope.actor_id,
+            recorded_at,
+            node_id,
+            json.dumps(data),
+        ),
     )

@@ -26,24 +26,24 @@ def apply_link_click(conn: sqlite3.Connection, op: Operation) -> None:
         clicked_at = ""
 
     existing = conn.execute(
-        "SELECT id, count FROM link_click WHERE source_node_id = ? AND target_node_id = ?",
+        "SELECT click_count FROM link_click WHERE node_id = ? AND target_id = ?",
         (source_node_id, target_node_id),
     ).fetchone()
 
     if existing is None:
         conn.execute(
             """
-            INSERT INTO link_click (id, source_node_id, target_node_id, count, last_clicked_at)
+            INSERT INTO link_click (node_id, target_id, click_count, last_clicked_at, id)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (uuidv7(), source_node_id, target_node_id, 1, clicked_at),
+            (source_node_id, target_node_id, 1, clicked_at, uuidv7()),
         )
     else:
         conn.execute(
             """
             UPDATE link_click
-            SET count = count + 1, last_clicked_at = ?
-            WHERE id = ?
+            SET click_count = click_count + 1, last_clicked_at = ?
+            WHERE node_id = ? AND target_id = ?
             """,
-            (clicked_at, existing["id"]),
+            (clicked_at, source_node_id, target_node_id),
         )

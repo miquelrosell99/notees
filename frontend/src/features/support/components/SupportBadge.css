@@ -80,37 +80,7 @@
   background: var(--color-hover-overlay);
 }
 
-/* Compact variant for collapsed sidebar */
-.support-badge--compact {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  aspect-ratio: 1;
-  padding: 0;
-  margin: 0;
-  border-radius: var(--shape-small);
-  background: transparent;
-  color: var(--color-on-surface-variant);
-  text-decoration: none;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
-              color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.support-badge--compact:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-accent);
-}
-
-.support-badge--compact:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: calc(var(--spacing-micro) * -1);
-}
-
-.support-badge--compact .support-badge__icon {
-  font-size: var(--font-size-lg);
-  color: inherit;
-}
+/* Compact variant uses the shared Button component (ghost, md, icon-only). */
 
 /* Confirmation modal */
 .support-badge__confirm-text {

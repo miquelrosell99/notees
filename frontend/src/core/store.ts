@@ -74,7 +74,7 @@ const DEFAULT_VIEW_NAMES: Record<string, string> = {
  * a workspace with a stale version triggers a hard rebuild: derived tables are
  * cleared and the full server operation log is replayed with the new applier.
  */
-export const CURRENT_DERIVED_STATE_VERSION = 1;
+export const CURRENT_DERIVED_STATE_VERSION = 2;
 
 export class WorkspaceStore {
   private clock: Clock;
@@ -215,6 +215,7 @@ export class WorkspaceStore {
 
       this.setDerivedStateVersion(CURRENT_DERIVED_STATE_VERSION);
     });
+    this.emitAll();
     this.schedulePersist();
   }
 
@@ -357,6 +358,16 @@ export class WorkspaceStore {
         }
       }
     }
+    for (const callback of this.allListeners) {
+      try {
+        callback();
+      } catch (err) {
+        console.error('WorkspaceStore listener error:', err);
+      }
+    }
+  }
+
+  private emitAll(): void {
     for (const callback of this.allListeners) {
       try {
         callback();
@@ -1068,6 +1079,10 @@ export class WorkspaceStore {
     return this.workspaceId;
   }
 
+  getActorId(): string {
+    return this.actorId;
+  }
+
   /** Create a snapshot of the derived state up to the given HLC. */
   createSnapshot(upToHlc?: { physical: number; logical: number }): string {
     const hlc = upToHlc ?? this.getLatestHlc();
@@ -1115,6 +1130,7 @@ export class WorkspaceStore {
     // Re-create the database from the snapshot bytes. This replaces the underlying
     // SQLite database while preserving the WorkspaceStore instance identity.
     this.db = await createDatabase(row.data);
+    this.emitAll();
     return { physical: row.hlc_physical, logical: row.hlc_logical };
   }
 
@@ -1123,6 +1139,7 @@ export class WorkspaceStore {
     this.db = await createDatabase(data);
     // Ensure the schema is present in case the snapshot predates a schema change.
     createSchema(this.db);
+    this.emitAll();
     return this.getLatestHlc();
   }
 

@@ -202,7 +202,7 @@ export function applyAccentColor(accentColor: AccentColor, customHex?: string): 
   document.documentElement.setAttribute('data-accent', accentColor);
 
   if (accentColor === 'custom') {
-    const hex = customHex && isValidHexColor(customHex) ? customHex : '#527051';
+    const hex = customHex && isValidHexColor(customHex) ? customHex : '#404040';
     document.documentElement.style.setProperty('--color-accent-custom', hex);
     document.documentElement.style.setProperty('--color-on-accent-custom', getContrastColor(hex));
   } else {
@@ -299,8 +299,8 @@ export const useSettingsStore = create<SettingsState>()(
       // Defaults
       theme: 'system',
       oledMode: false,
-      accentColor: 'sage',
-      customAccentHex: '#527051',
+      accentColor: 'monochrome',
+      customAccentHex: '#404040',
       dateFormat: 'YYYY/MM/DD',
       defaultView: 'journal',
       showDailyNotes: true,
@@ -334,7 +334,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       setCustomAccentHex: (customAccentHex) => {
         const { accentColor } = useSettingsStore.getState();
-        const validHex = isValidHexColor(customAccentHex) ? customAccentHex : '#527051';
+        const validHex = isValidHexColor(customAccentHex) ? customAccentHex : '#404040';
         set({ customAccentHex: validHex });
         if (accentColor === 'custom') {
           applyAccentColor('custom', validHex);
@@ -391,7 +391,7 @@ export const useSettingsStore = create<SettingsState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           applyTheme(state.theme, state.oledMode ?? false);
-          applyAccentColor(state.accentColor ?? 'sage', state.customAccentHex);
+          applyAccentColor(state.accentColor ?? 'monochrome', state.customAccentHex);
         }
       },
     }

@@ -1,5 +1,5 @@
 import { openWorkspaceDatabase } from '../db/connection';
-import { saveWorkspaceDatabase } from '../persistence/indexedDb';
+import { saveWorkspaceDatabase, deleteWorkspaceDatabase } from '../persistence/indexedDb';
 import { SyncEngine, type SyncEngineCallbacks } from '../sync';
 import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
@@ -23,7 +23,18 @@ export async function getOrCreateWorkspaceStore(
   options: WorkspaceStoreInitOptions = {}
 ): Promise<WorkspaceStore> {
   const existing = registry.get(workspaceId);
-  if (existing) return existing.store;
+  if (existing) {
+    // If the same workspace is being opened for a different actor, the persisted
+    // local state (favorites, watermarks, etc.) is actor-specific. Re-create the
+    // store so the correct actor is used and stale anonymous/login state is not
+    // reused.
+    if (existing.store.getActorId() === actorId) {
+      return existing.store;
+    }
+    existing.syncEngine.stopAutoSync();
+    registry.delete(workspaceId);
+    await deleteWorkspaceDatabase(workspaceId);
+  }
 
   const db = await openWorkspaceDatabase(workspaceId);
   const store = new WorkspaceStore(db, workspaceId, actorId, {
@@ -87,4 +98,22 @@ export async function forceResyncWorkspace(workspaceId: string): Promise<void> {
     throw new Error(`Workspace ${workspaceId} is not open`);
   }
   await entry.syncEngine.forceResync();
+}
+
+/**
+ * Discard all local state for a workspace and check out fresh from the server.
+ *
+ * This is stronger than force re-sync: it wipes the in-browser IndexedDB/OPFS
+ * copy of the workspace database, clears the in-memory registry, and re-opens
+ * the workspace so it rebuilds from the server operation log. Use it when local
+ * derived state is corrupt, stale, or out of sync with the server.
+ */
+export async function resetWorkspaceStore(workspaceId: string): Promise<void> {
+  const entry = registry.get(workspaceId);
+  if (entry) {
+    entry.syncEngine.stopAutoSync();
+    registry.delete(workspaceId);
+  }
+  UndoManager.removeUndoManager(workspaceId);
+  await deleteWorkspaceDatabase(workspaceId);
 }

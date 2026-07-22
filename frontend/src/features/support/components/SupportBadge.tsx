@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useSettingsStore, isSupportBadgeVisible } from '@/stores';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { Icon } from '@/components/ui/Icon';
 import { PRIMARY_SPONSORSHIP_CHANNEL } from '@/constants/sponsorship';
 import './SupportBadge.css';
 
@@ -52,16 +53,19 @@ export function SupportBadge({ compact = false, className = '' }: SupportBadgePr
 
   if (compact) {
     return (
-      <a
+      <Button
+        as="a"
         href={PRIMARY_SPONSORSHIP_CHANNEL.url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`support-badge support-badge--compact ${className}`}
+        variant="ghost"
+        size="md"
+        icon="mdi mdi-heart"
+        fullWidth
+        className={`support-badge--compact ${className}`}
         aria-label="Support Notees"
         title="Support Notees"
-      >
-        <span className="support-badge__icon mdi mdi-heart" aria-hidden="true" />
-      </a>
+      />
     );
   }
 
@@ -69,7 +73,7 @@ export function SupportBadge({ compact = false, className = '' }: SupportBadgePr
     <>
       <div className={`support-badge ${className}`}>
         <div className="support-badge__content">
-          <span className="support-badge__icon mdi mdi-heart" aria-hidden="true" />
+          <Icon path="mdi mdi-heart" size="16px" className="support-badge__icon" />
           <span className="support-badge__text">Support Notees</span>
         </div>
         <div className="support-badge__actions">

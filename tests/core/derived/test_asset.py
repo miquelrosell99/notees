@@ -35,7 +35,7 @@ class TestAssetApplier:
         assert row is not None
         assert row["asset_hash"] == "sha256-deadbeef"
         assert row["mime_type"] == "image/webp"
-        assert row["size_bytes"] == 1024
+        assert row["size"] == 1024
         assert row["original_name"] == "photo.webp"
         conn.close()
 

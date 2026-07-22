@@ -249,13 +249,13 @@ async def track_link_click(
 
     rows = await store.query(
         """
-        SELECT count, last_clicked_at
+        SELECT click_count, last_clicked_at
         FROM link_click
-        WHERE source_node_id = ? AND target_node_id = ?
+        WHERE node_id = ? AND target_id = ?
         """,
         (data.source_node_uuid, data.target_node_uuid),
     )
-    click_count = rows[0]["count"] if rows else 1
+    click_count = rows[0]["click_count"] if rows else 1
     last_click_date = rows[0]["last_clicked_at"] if rows else now
 
     return LinkClickResponse(
@@ -277,9 +277,9 @@ async def get_link_clicks(
     await store.sync()
     rows = await store.query(
         """
-        SELECT target_node_id, count, last_clicked_at
+        SELECT target_id, click_count, last_clicked_at
         FROM link_click
-        WHERE source_node_id = ?
+        WHERE node_id = ?
         """,
         (source_node_uuid,),
     )
@@ -287,8 +287,8 @@ async def get_link_clicks(
     return [
         LinkClickResponse(
             source_node_id=source_node_uuid,
-            target_node_id=row["target_node_id"],
-            click_count=row["count"],
+            target_node_id=row["target_id"],
+            click_count=row["click_count"],
             last_click_date=row["last_clicked_at"],
         )
         for row in rows
@@ -306,9 +306,9 @@ async def get_link_click(
     await store.sync()
     rows = await store.query(
         """
-        SELECT count, last_clicked_at
+        SELECT click_count, last_clicked_at
         FROM link_click
-        WHERE source_node_id = ? AND target_node_id = ?
+        WHERE node_id = ? AND target_id = ?
         """,
         (source_node_uuid, target_node_uuid),
     )
@@ -316,7 +316,7 @@ async def get_link_click(
         return LinkClickResponse(
             source_node_id=source_node_uuid,
             target_node_id=target_node_uuid,
-            click_count=rows[0]["count"],
+            click_count=rows[0]["click_count"],
             last_click_date=rows[0]["last_clicked_at"],
         )
     return LinkClickResponse(
@@ -342,9 +342,9 @@ async def get_link_click_history(
     await store.sync()
     rows = await store.query(
         """
-        SELECT id, count, last_clicked_at
+        SELECT id, click_count, last_clicked_at
         FROM link_click
-        WHERE source_node_id = ? AND target_node_id = ?
+        WHERE node_id = ? AND target_id = ?
         ORDER BY last_clicked_at DESC
         LIMIT ?
         """,
@@ -352,8 +352,8 @@ async def get_link_click_history(
     )
     return [
         LinkClickHistoryResponse(
-            id=row["id"],
-            link_click_uuid=row["id"],
+            id=row["id"] or "",
+            link_click_uuid=row["id"] or "",
             source_node_id=source_node_uuid,
             target_node_id=target_node_uuid,
             node_link_uuid=None,
@@ -373,7 +373,7 @@ async def reset_link_click(
     """Reset click counter for a specific link (deletes the aggregated row)."""
     await store.sync()
     await store.execute(
-        "DELETE FROM link_click WHERE source_node_id = ? AND target_node_id = ?",
+        "DELETE FROM link_click WHERE node_id = ? AND target_id = ?",
         (source_node_uuid, target_node_uuid),
     )
     return {"success": True}

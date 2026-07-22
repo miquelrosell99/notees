@@ -367,7 +367,7 @@ class AssetService:
         rows = await self._store.query(
             """
             SELECT n.id AS node_id, n.kind, n.class_ids,
-                   a.asset_hash, a.mime_type, a.size_bytes, a.original_name
+                   a.asset_hash, a.mime_type, a.size, a.original_name
             FROM node n
             JOIN node_asset a ON a.node_id = n.id
             WHERE n.id = ?
@@ -506,7 +506,7 @@ class AssetService:
 
         rows = await self._store.query(
             """
-            SELECT n.id AS node_id, a.asset_hash, a.mime_type, a.size_bytes, a.original_name
+            SELECT n.id AS node_id, a.asset_hash, a.mime_type, a.size, a.original_name
             FROM node n
             JOIN node_asset a ON a.node_id = n.id
             WHERE n.kind = 'block'
