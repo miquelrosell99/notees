@@ -3,11 +3,16 @@ import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
-import { projectNode } from './nodeProjection';
+import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
+import { projectNodeFromClient } from './nodeProjection';
 
 /**
- * Adapter hook that reads direct children from the SQLite core store.
+ * Adapter hook that reads direct children through the async worker-backed store client.
+ *
+ * TODO: This uses `projectNodeFromClient`, which fetches the underlying sql.js
+ * Database via `client.query('getDb')`. That works in the jsdom test shim but
+ * cannot work in a real Web Worker. Replace with a worker-side projection query
+ * before enabling the Web Worker path in production.
  */
 export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<Node[], Error> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
@@ -26,25 +31,25 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
     }
 
     let cancelled = false;
-    let unsubscribe: (() => void) | undefined;
     setIsLoading(true);
     setError(null);
 
-    getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.transport)
-      .then((store) => {
+    getOrCreateWorkspaceStoreClient(workspaceId, ctx.actorId, ctx.transport)
+      .then(async (client) => {
         if (cancelled) return;
 
-        const update = (): void => {
-          if (cancelled) return;
-          const childIds = store.getChildren(parentId);
-          const nodes = childIds
-            .map((childId) => projectNode(store, childId, 1))
-            .filter((n): n is Node => n !== undefined);
-          setData(nodes);
-        };
-        update();
+        const childIds = await client.query<string[]>('getChildren', [parentId]);
+        if (cancelled) return;
+
+        const nodes = (
+          await Promise.all(
+            childIds.map((childId) => projectNodeFromClient(client, childId, 1))
+          )
+        ).filter((n): n is Node => n !== undefined);
+        if (cancelled) return;
+
+        setData(nodes);
         setIsLoading(false);
-        unsubscribe = store.subscribe(parentId, update);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -54,7 +59,6 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
 
     return () => {
       cancelled = true;
-      unsubscribe?.();
     };
   }, [ctx, workspaceId, parentId]);
 

@@ -3,11 +3,11 @@ import { useParams } from 'react-router-dom';
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
-import { projectNode } from './nodeProjection';
+import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
+import { projectNodeFromClient } from './nodeProjection';
 
 /**
- * Adapter hook that moves a node in the SQLite store.
+ * Adapter hook that moves a node through the async worker-backed store client.
  *
  * Position is out of scope for the prototype: the node is always appended to
  * the end of the target parent's children.
@@ -30,7 +30,7 @@ export function useMoveNodeAdapter(): UseMutationResult<
         throw new Error('Workspace not available for SQLite move');
       }
 
-      const store = await getOrCreateWorkspaceStore(
+      const client = await getOrCreateWorkspaceStoreClient(
         workspaceId,
         ctx.actorId,
         ctx.transport
@@ -43,9 +43,9 @@ export function useMoveNodeAdapter(): UseMutationResult<
         );
       }
 
-      store.moveNode(nodeUuid, parentId);
+      await client.mutate<void>('moveNode', [nodeUuid, parentId]);
 
-      const projected = projectNode(store, nodeUuid);
+      const projected = await projectNodeFromClient(client, nodeUuid);
       if (!projected) {
         throw new Error('Node not found after SQLite move');
       }
