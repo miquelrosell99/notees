@@ -94,6 +94,17 @@ export interface NotifyChangeMessage {
 
 export type WorkerMessage = WorkerResponse | NotifyChangeMessage;
 
+// ─── Client interface (lives here to avoid circular imports) ────────────────
+
+export interface IWorkspaceStoreClient {
+  init(workspaceId: string, actorId: string, options?: { dbBytes?: Uint8Array; store?: import('../store').WorkspaceStore }): Promise<void>;
+  export(): Promise<Uint8Array>;
+  mutate<T>(method: string, args: unknown[]): Promise<T>;
+  query<T>(method: string, args: unknown[]): Promise<T>;
+  subscribe(nodeId: string | null, callback: () => void): () => void;
+  close(): void;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 let nextRequestId = 1;
