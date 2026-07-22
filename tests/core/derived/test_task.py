@@ -88,7 +88,7 @@ class TestTaskRecurrence:
         assert row is not None
         import json
 
-        assert json.loads(row["rule_json"]) == {"interval": "daily", "frequency": 1}
+        assert json.loads(row["rule"]) == {"interval": "daily", "frequency": 1}
         conn.close()
 
     def test_set_recurrence_overwrites_existing_rule(self) -> None:
@@ -105,11 +105,11 @@ class TestTaskRecurrence:
         ]
         conn = replay_operations(ops)
         row = conn.execute(
-            "SELECT rule_json FROM task_recurrence WHERE node_id = ?", ("task-1",)
+            "SELECT rule FROM task_recurrence WHERE node_id = ?", ("task-1",)
         ).fetchone()
         import json
 
-        assert json.loads(row["rule_json"]) == {"interval": "weekly"}
+        assert json.loads(row["rule"]) == {"interval": "weekly"}
         conn.close()
 
     def test_delete_recurrence_removes_row(self) -> None:

@@ -32,7 +32,7 @@ class TestPluginOpApplier:
         assert row["node_id"] == "event-node"
         import json
 
-        assert json.loads(row["data_json"]) == {
+        assert json.loads(row["data"]) == {
             "start": "2026-07-18T10:00:00",
             "title": "Standup",
         }

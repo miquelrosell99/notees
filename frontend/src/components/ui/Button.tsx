@@ -38,6 +38,14 @@ export interface ButtonBadge {
 }
 
 type ButtonBaseProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label' | 'children'> & {
+  /** Render as a button (default) or an anchor. */
+  as?: 'button' | 'a';
+  /** URL to navigate to when rendered as an anchor. */
+  href?: string;
+  /** Anchor target, used when as="a". */
+  target?: string;
+  /** Anchor rel, used when as="a". */
+  rel?: string;
   /** MDI CSS class string (e.g. "mdi mdi-plus") */
   icon?: string;
   /** Explicit icon size multiplier (overrides the default for the button size) */
@@ -72,7 +80,7 @@ const ICON_SIZES: Record<ButtonSize, number> = {
   lg: 1,
 };
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonProps>(function Button(
   {
     icon,
     iconSize,
@@ -87,6 +95,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     className = '',
     disabled,
     badges,
+    as = 'button',
+    href,
+    target,
+    rel,
     onClick,
     type = 'button',
     ...props
@@ -95,14 +107,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const prefersReducedMotion = useReducedMotion();
 
-  const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement | HTMLAnchorElement>) => {
     // Tactile feedback on mobile — design-system haptic map.
     // Skip haptics when the user prefers reduced motion.
     const duration = HAPTIC_DURATIONS[hapticIntensity];
     if (duration && !prefersReducedMotion && typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(duration);
     }
-    onClick?.(e);
+    (onClick as React.MouseEventHandler<HTMLButtonElement | HTMLAnchorElement> | undefined)?.(e);
   }, [onClick, hapticIntensity, prefersReducedMotion]);
 
   const hasText = !!children;
@@ -129,16 +141,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
   const spinnerSize = size === 'xs' || size === 'sm' ? 'sm' : 'md';
 
-  return (
-    <button
-      ref={ref}
-      type={type}
-      className={classNames}
-      disabled={disabled || loading}
-      onClick={handleClick}
-      aria-busy={loading || undefined}
-      {...props}
-    >
+  const content = (
+    <>
       {loading ? (
         <Spinner size={spinnerSize} className="btn__icon btn__icon--left" />
       ) : (
@@ -168,6 +172,36 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         }
         return null;
       })}
+    </>
+  );
+
+  if (as === 'a') {
+    return (
+      <a
+        ref={ref as React.Ref<HTMLAnchorElement>}
+        href={href}
+        target={target}
+        rel={rel}
+        className={classNames}
+        onClick={handleClick}
+        {...(props as React.HTMLAttributes<HTMLAnchorElement>)}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      ref={ref as React.Ref<HTMLButtonElement>}
+      type={type}
+      className={classNames}
+      disabled={disabled || loading}
+      onClick={handleClick}
+      aria-busy={loading || undefined}
+      {...props}
+    >
+      {content}
     </button>
   );
 });

@@ -20,7 +20,12 @@ import {
 import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useWorkspaceRole } from '@/features/workspace/hooks/useWorkspaceRole';
-import { forceResyncWorkspace } from '@/core/adapters/workspaceStoreAdapter';
+import {
+  forceResyncWorkspace,
+  resetWorkspaceStore,
+} from '@/core/adapters/workspaceStoreAdapter';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { useState } from 'react';
 
 export function CommandRegistrations() {
   const { pageClassUuid } = usePageClass();
@@ -31,6 +36,7 @@ export function CommandRegistrations() {
   const createNodeMutation = useCreateNode();
   const resetNodeViewsMutation = useResetNodeViews();
   const { activeWorkspace } = useWorkspaceRole();
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Toggle page privacy — not modeled in the core store yet, so this is a no-op.
   useCommand(
@@ -137,5 +143,41 @@ export function CommandRegistrations() {
     }
   );
 
-  return null;
+  // Discard all local state for the active workspace and check out from the server.
+  useCommand(
+    COMMAND_IDS.RESET_LOCAL_STATE,
+    () => {
+      if (!activeWorkspace?.uuid) {
+        notifyWarning('No workspace active', 'Open a workspace before resetting local state.');
+        return;
+      }
+      setShowResetConfirm(true);
+    },
+    {
+      label: 'Discard local state and check out from server',
+      icon: 'mdi mdi-database-remove-outline',
+      palette: { category: 'tools', keywords: ['reset', 'clear', 'local', 'checkout'] },
+    }
+  );
+
+  return (
+    <ConfirmationModal
+      isOpen={showResetConfirm}
+      title="Discard local state?"
+      message="This will delete the local copy of this workspace and rebuild it from the server. Any offline changes that have not yet synced will be lost."
+      secondaryMessage="Use this when local state looks corrupt or out of sync."
+      confirmLabel="Discard and rebuild"
+      cancelLabel="Cancel"
+      variant="danger"
+      onConfirm={async () => {
+        const workspaceId = activeWorkspace?.uuid;
+        if (!workspaceId) return;
+        await resetWorkspaceStore(workspaceId);
+        useSyncStatusStore.getState().bumpWorkspaceResetNonce();
+        notifySuccess('Local state discarded', 'Rebuilding workspace from the server…');
+        setShowResetConfirm(false);
+      }}
+      onCancel={() => setShowResetConfirm(false)}
+    />
+  );
 }

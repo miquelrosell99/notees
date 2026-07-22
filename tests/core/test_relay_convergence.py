@@ -346,7 +346,7 @@ async def _node_asset_rows(store: WorkspaceStore) -> dict[str, dict[str, object]
         row["node_id"]: {
             "asset_hash": row["asset_hash"],
             "mime_type": row["mime_type"],
-            "size_bytes": row["size_bytes"],
+            "size": row["size"],
             "original_name": row["original_name"],
         }
         for row in rows

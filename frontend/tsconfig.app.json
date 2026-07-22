@@ -18,8 +18,7 @@
       "@/components/*": ["./src/components/*"],
       "@/hooks/*": ["./src/hooks/*"],
       "@/stores/*": ["./src/stores/*"],
-      "@/api/*": ["./src/api/*"],
-      "@/editor/*": ["./src/editor/*"]
+      "@/api/*": ["./src/api/*"]
     },
     "strict": true,
     "noUnusedLocals": true,

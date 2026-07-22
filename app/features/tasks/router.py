@@ -49,14 +49,14 @@ async def _require_task_node(store: WorkspaceStore, node_uuid: str) -> None:
         )
 
 
-def _rule_from_json(rule_json: str) -> dict:
+def _rule_from_json(rule: str) -> dict:
     """Parse the stored recurrence rule JSON."""
-    return json.loads(rule_json)
+    return json.loads(rule)
 
 
 def _build_recurrence_response(row: dict) -> RecurrenceRuleResponse:
     """Map a ``task_recurrence`` derived row to its API response."""
-    rule = _rule_from_json(row["rule_json"])
+    rule = _rule_from_json(row["rule"])
     recurrence = TaskRecurrence(**rule)
     return RecurrenceRuleResponse(
         recurrence_uuid=row["id"],
@@ -101,7 +101,7 @@ async def get_recurrence_rule(
     await _require_task_node(store, node_uuid)
 
     rows = await store.query(
-        "SELECT id, node_id, rule_json, created_at, updated_at FROM task_recurrence WHERE node_id = ?",
+        "SELECT id, node_id, rule, created_at, updated_at FROM task_recurrence WHERE node_id = ?",
         (node_uuid,),
     )
     if not rows:
@@ -126,7 +126,7 @@ async def set_recurrence_rule(
     await store.sync()
 
     rows = await store.query(
-        "SELECT id, node_id, rule_json, created_at, updated_at FROM task_recurrence WHERE node_id = ?",
+        "SELECT id, node_id, rule, created_at, updated_at FROM task_recurrence WHERE node_id = ?",
         (node_uuid,),
     )
     if not rows:
