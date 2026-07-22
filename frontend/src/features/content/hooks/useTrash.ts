@@ -6,10 +6,8 @@ import { trashKeys, nodeKeys } from '@/hooks/queryKeys';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { projectNode } from '@/core/adapters/nodeProjection';
-import { queryAll } from '@/core/db/sqlite';
-import type { Node, PaginatedResponse } from '@/types/api';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import type { Node } from '@/types/api';
 
 function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: trashKeys.all });
@@ -19,10 +17,10 @@ function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
 }
 
-function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
+async function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
   if (!nodeUuid) return;
   const workspaceId = workspaceUuid ?? undefined;
-  if (isFavorite(workspaceId, nodeUuid)) {
+  if (await isFavorite(workspaceId, nodeUuid)) {
     removeFavorite(workspaceId, nodeUuid).catch(() => {});
   }
   removeRecent(nodeUuid);
@@ -30,27 +28,16 @@ function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
 
 export function useTrash() {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
-  const result = useQuery<PaginatedResponse<Node>, Error, Node[]>({
+  const result = useQuery<Node[], Error>({
     queryKey: trashKeys.all,
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      const rows = queryAll<{ id: string }>(store.getDb(), 'SELECT id FROM node WHERE active = 0 ORDER BY updated_at DESC');
-      const items = rows
-        .map((row) => projectNode(store, row.id))
-        .filter((n): n is Node => n !== undefined);
-      return {
-        items,
-        total: items.length,
-        page: 1,
-        page_size: items.length,
-        has_next: false,
-        has_prev: false,
-      };
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      return client.query<Node[]>('getTrashedNodes', []);
     },
-    select: (data) => data.items,
-    enabled: !!store,
+    select: (data) => data,
+    enabled: !!client,
   });
 
   return {
@@ -63,13 +50,13 @@ export function useTrash() {
 export function useTrashMutations() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const restore = useMutation({
     mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
-      store.restoreNode(nodeUuid);
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('restoreNode', [nodeUuid]);
     },
     onSuccess: () => invalidateTrash(queryClient),
   });
@@ -77,39 +64,39 @@ export function useTrashMutations() {
   const permanentDelete = useMutation({
     mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
-      store.permanentDeleteNode(nodeUuid);
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('permanentDeleteNode', [nodeUuid]);
     },
-    onSuccess: (_data, nodeUuid) => {
+    onSuccess: async (_data, nodeUuid) => {
+      await cleanupNode(workspaceUuid, nodeUuid);
       invalidateTrash(queryClient);
-      cleanupNode(workspaceUuid, nodeUuid);
     },
   });
 
   const emptyTrash = useMutation({
     mutationFn: async () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      const rows = queryAll<{ id: string }>(store.getDb(), 'SELECT id FROM node WHERE active = 0');
-      for (const row of rows) {
-        store.permanentDeleteNode(row.id);
+      if (!client) throw new Error('Workspace store is not ready');
+      const nodes = await client.query<Node[]>('getTrashedNodes', []);
+      for (const node of nodes) {
+        await client.mutate<void>('permanentDeleteNode', [node.uuid]);
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       invalidateTrash(queryClient);
     },
   });
 
   const batchDelete = useMutation({
     mutationFn: async (uuids: string[]) => {
-      if (!store) throw new Error('Workspace store is not ready');
+      if (!client) throw new Error('Workspace store is not ready');
       for (const nodeUuid of uuids) {
-        store.permanentDeleteNode(nodeUuid);
+        await client.mutate<void>('permanentDeleteNode', [nodeUuid]);
       }
     },
-    onSuccess: (_data, uuids) => {
+    onSuccess: async (_data, uuids) => {
       invalidateTrash(queryClient);
       for (const nodeUuid of uuids) {
-        cleanupNode(workspaceUuid, nodeUuid);
+        await cleanupNode(workspaceUuid, nodeUuid);
       }
     },
   });
