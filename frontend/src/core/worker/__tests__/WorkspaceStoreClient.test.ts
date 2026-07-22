@@ -58,4 +58,109 @@ describe('WorkspaceStoreClient', () => {
     expect(node).toBeDefined();
     expect((node as { id: string }).id).toBe(nodeId);
   });
+
+  it('queries aggregated node properties through the worker boundary', async () => {
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const nodeId = uuidv7();
+    const schemaId = uuidv7();
+
+    await client.init(workspaceId, actorId);
+    await client.mutate('createNode', [
+      { nodeId, kind: 'page', parentId: null, classIds: [] },
+    ]);
+    await client.mutate('setProperty', [
+      { propertyValueId: uuidv7(), nodeId, schemaId, index: 0, value: 'hello' },
+    ]);
+
+    const properties = await client.query<Record<string, unknown[]>>('getNodeProperties', [nodeId]);
+
+    expect(properties[schemaId]).toEqual(['hello']);
+  });
+
+  it('queries property schemas through the worker boundary', async () => {
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const schemaId = uuidv7();
+
+    await client.init(workspaceId, actorId);
+    await client.mutate('createPropertySchema', [
+      { schemaId, name: 'Test Property', type: 'text' },
+    ]);
+
+    const schemas = await client.query<{ uuid: string; name: string }[]>('getPropertySchemas', []);
+
+    expect(schemas.some((s) => s.uuid === schemaId && s.name === 'Test Property')).toBe(true);
+  });
+
+  it('queries batch property values through the worker boundary', async () => {
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const nodeId = uuidv7();
+    const schemaId = uuidv7();
+
+    await client.init(workspaceId, actorId);
+    await client.mutate('createNode', [
+      { nodeId, kind: 'page', parentId: null, classIds: [] },
+    ]);
+    await client.mutate('setProperty', [
+      { propertyValueId: uuidv7(), nodeId, schemaId, index: 0, value: 'batch-value' },
+    ]);
+
+    const batch = await client.query<Record<string, Record<string, unknown>>>('getBatchPropertyValues', [
+      [nodeId],
+    ]);
+
+    expect(batch[nodeId]?.[schemaId]).toBe('batch-value');
+  });
+
+  it('queries class properties through the worker boundary', async () => {
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const classId = uuidv7();
+    const schemaId = uuidv7();
+
+    await client.init(workspaceId, actorId);
+    await client.mutate('createNode', [
+      { nodeId: classId, kind: 'class', parentId: null, classIds: [] },
+    ]);
+    await client.mutate('createPropertySchema', [
+      { schemaId, name: 'Class Property', type: 'text' },
+    ]);
+    await client.mutate('addPropertyToClass', [
+      { classId, propertySchemaId: schemaId, sequence: 0 },
+    ]);
+
+    const edges = await client.query<{ property_uuid: string }[]>('getClassProperties', [
+      classId,
+      false,
+    ]);
+
+    expect(edges.some((e) => e.property_uuid === schemaId)).toBe(true);
+  });
+
+  it('queries class-property edges for multiple classes through the worker boundary', async () => {
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const classId = uuidv7();
+    const schemaId = uuidv7();
+
+    await client.init(workspaceId, actorId);
+    await client.mutate('createNode', [
+      { nodeId: classId, kind: 'class', parentId: null, classIds: [] },
+    ]);
+    await client.mutate('createPropertySchema', [
+      { schemaId, name: 'Multi Class Property', type: 'text' },
+    ]);
+    await client.mutate('addPropertyToClass', [
+      { classId, propertySchemaId: schemaId, sequence: 0 },
+    ]);
+
+    const perClassEdges = await client.query<{ property_uuid: string }[][]>('getNodeClassPropertyEdges', [
+      [classId],
+    ]);
+
+    expect(perClassEdges).toHaveLength(1);
+    expect(perClassEdges[0].some((e) => e.property_uuid === schemaId)).toBe(true);
+  });
 });
