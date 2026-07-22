@@ -5,6 +5,8 @@
  * requests and the worker replies with results, errors, or change notifications.
  */
 
+import type { WorkspaceStore } from '../store';
+
 // ─── Requests (main → worker) ───────────────────────────────────────────────
 
 export interface InitRequest {
@@ -97,7 +99,7 @@ export type WorkerMessage = WorkerResponse | NotifyChangeMessage;
 // ─── Client interface (lives here to avoid circular imports) ────────────────
 
 export interface IWorkspaceStoreClient {
-  init(workspaceId: string, actorId: string, options?: { dbBytes?: Uint8Array; store?: import('../store').WorkspaceStore }): Promise<void>;
+  init(workspaceId: string, actorId: string, options?: { dbBytes?: Uint8Array; store?: WorkspaceStore }): Promise<void>;
   export(): Promise<Uint8Array>;
   mutate<T>(method: string, args: unknown[]): Promise<T>;
   query<T>(method: string, args: unknown[]): Promise<T>;

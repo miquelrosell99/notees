@@ -9,10 +9,8 @@
 
 import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
 import type { Transport } from '../transport';
-import {
-  createWorkspaceStoreClient,
-  type IWorkspaceStoreClient,
-} from '../worker/WorkspaceStoreClient';
+import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { loadWorkspaceDatabase } from '../persistence/indexedDb';
 
 interface ClientEntry {

@@ -8,7 +8,11 @@
 
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
+import { queryNodes } from '../query/queryNodes';
+import { executeQuery } from '../query/executeQuery';
+import { projectNode } from '../adapters/nodeProjection';
 import {
+  type IWorkspaceStoreClient,
   type WorkerRequest,
   type WorkerMessage,
   generateRequestId,
@@ -31,24 +35,6 @@ function isWorkerSupported(): boolean {
   if (typeof navigator === 'undefined') return false;
   // jsdom does not implement Web Workers reliably.
   return !navigator.userAgent.includes('jsdom');
-}
-
-/**
- * Abstract interface so both the real worker client and the inline test shim
- * expose the same API.
- */
-export interface IWorkspaceStoreClient {
-  init(workspaceId: string, actorId: string, options?: WorkspaceStoreClientOptions): Promise<void>;
-  export(): Promise<Uint8Array>;
-  mutate<T>(method: string, args: unknown[]): Promise<T>;
-  query<T>(method: string, args: unknown[]): Promise<T>;
-  /**
-   * Subscribe to changes for a specific node. Pass `null` to subscribe to all
-   * changes. The callback is invoked whenever the worker reports a matching
-   * change.
-   */
-  subscribe(nodeId: string | null, callback: () => void): () => void;
-  close(): void;
 }
 
 class WorkerStoreClient implements IWorkspaceStoreClient {
@@ -232,6 +218,17 @@ class InlineStoreClient implements IWorkspaceStoreClient {
 
   query<T>(method: string, args: unknown[]): Promise<T> {
     if (!this.store) return Promise.reject(new Error('Store not initialized'));
+    // Special-case query helpers that are not methods on WorkspaceStore.
+    if (method === 'queryNodes') {
+      return Promise.resolve(queryNodes(this.store, args[0] as Parameters<typeof queryNodes>[1]) as T);
+    }
+    if (method === 'executeQuery') {
+      return Promise.resolve(executeQuery(this.store, args[0] as Parameters<typeof executeQuery>[1]) as T);
+    }
+    if (method === 'projectNode') {
+      const [nodeId, depth] = args as [string, number | undefined];
+      return Promise.resolve(projectNode(this.store, nodeId, depth) as T);
+    }
     const fn = (this.store as unknown as Record<string, unknown>)[method];
     if (typeof fn !== 'function') {
       return Promise.reject(new Error(`Unknown query method: ${method}`));

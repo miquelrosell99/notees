@@ -2,7 +2,7 @@ import type { Database } from 'sql.js';
 import type { Node } from '@/types/api';
 import { queryAll, queryOne } from '../db/sqlite';
 import type { NodeRow, WorkspaceStore } from '../store';
-import type { IWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_CHILDREN_DEPTH = 2;

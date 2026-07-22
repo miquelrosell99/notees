@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   createWorkspaceStoreClient,
   resetSharedWorkspaceStoreClient,
-  type IWorkspaceStoreClient,
 } from '../WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../workerProtocol';
 import { uuidv7 } from '../../uuid';
 
 describe('WorkspaceStoreClient', () => {
