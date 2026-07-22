@@ -20,8 +20,8 @@ export function useArchiveNode() {
       if (!client) throw new Error('Workspace store is not ready');
       await client.mutate<void>('archiveNode', [nodeUuid]);
     },
-    onMutate: async (nodeUuid) => {
-      if (nodeUuid && (await isFavorite(workspaceUuid ?? undefined, nodeUuid))) {
+    onMutate: (nodeUuid) => {
+      if (nodeUuid && isFavorite(workspaceUuid ?? undefined, nodeUuid)) {
         removeFavorite(workspaceUuid ?? undefined, nodeUuid).catch(() => {});
       }
       removeRecent(nodeUuid);
