@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { TextCrdt } from '../crdt/text';
 import type { TextCrdt as TextCrdtType } from '../crdt/text';
-import { useWorkspaceStore } from './useWorkspaceStore';
+import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 import { useUndoManager } from './useUndoManager';
 
 export interface UseUpdateTextResult {
@@ -15,29 +15,24 @@ export interface UseUpdateTextResult {
 }
 
 export function useUpdateText(workspaceId: string): UseUpdateTextResult {
-  const { store } = useWorkspaceStore(workspaceId);
+  const { client } = useWorkspaceStoreClient(workspaceId);
   const manager = useUndoManager(workspaceId);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const mutateAsync = useCallback(
     async (args: { nodeId: string; editor: (text: TextCrdtType) => void }): Promise<void> => {
-      if (!store) throw new Error('Workspace store is not ready');
+      if (!client || !manager) throw new Error('Workspace store client is not ready');
       setIsPending(true);
       setError(null);
       try {
-        if (manager) {
-          // TODO(D3): This reads from the main-thread sync store, which will
-          // diverge from the worker-owned store once the Web Worker path is
-          // primary in the browser. Replace with a serializable text-edit
-          // operation sent to the worker before enabling the worker there.
-          const currentState = store.getTextState(args.nodeId);
-          const text = new TextCrdt(currentState);
-          args.editor(text);
-          await manager.recordSetNodeText(args.nodeId, text.toPlaintext());
-        } else {
-          store.updateText(args.nodeId, args.editor);
-        }
+        // TODO(D3): This still computes the resulting plaintext on the main
+        // thread. Replace with a serializable text-edit operation that can be
+        // applied directly by the worker once the worker path is primary.
+        const currentState = await client.query<Uint8Array>('getTextState', [args.nodeId]);
+        const text = new TextCrdt(currentState);
+        args.editor(text);
+        await manager.recordSetNodeText(args.nodeId, text.toPlaintext());
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         setError(error);
@@ -46,7 +41,7 @@ export function useUpdateText(workspaceId: string): UseUpdateTextResult {
         setIsPending(false);
       }
     },
-    [store, manager]
+    [client, manager]
   );
 
   const mutate = useCallback(

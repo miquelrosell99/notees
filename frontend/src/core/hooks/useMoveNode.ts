@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { useWorkspaceStore } from './useWorkspaceStore';
 import { useUndoManager } from './useUndoManager';
 
 export interface UseMoveNodeResult {
@@ -13,22 +12,17 @@ export interface UseMoveNodeResult {
 }
 
 export function useMoveNode(workspaceId: string): UseMoveNodeResult {
-  const { store } = useWorkspaceStore(workspaceId);
   const manager = useUndoManager(workspaceId);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const mutateAsync = useCallback(
     async (args: { nodeId: string; newParentId: string | null }): Promise<void> => {
-      if (!store) throw new Error('Workspace store is not ready');
+      if (!manager) throw new Error('Workspace store client is not ready');
       setIsPending(true);
       setError(null);
       try {
-        if (manager) {
-          await manager.moveNode(args.nodeId, args.newParentId);
-        } else {
-          store.moveNode(args.nodeId, args.newParentId);
-        }
+        await manager.moveNode(args.nodeId, args.newParentId);
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         setError(error);
@@ -37,7 +31,7 @@ export function useMoveNode(workspaceId: string): UseMoveNodeResult {
         setIsPending(false);
       }
     },
-    [store, manager]
+    [manager]
   );
 
   const mutate = useCallback(
