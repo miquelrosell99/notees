@@ -60,6 +60,7 @@ function createTestWorkspaceStoreClient(store: WorkspaceStore): IWorkspaceStoreC
     },
     subscribe: () => () => {},
     close: () => {},
+    isClosed: () => false,
   };
 }
 

@@ -24,6 +24,7 @@ interface ClientEntry {
 }
 
 const clientRegistry = new Map<string, ClientEntry>();
+const pendingOpens = new Map<string, Promise<IWorkspaceStoreClient>>();
 
 function isWorkerSupported(): boolean {
   if (typeof Worker === 'undefined') return false;
@@ -50,7 +51,7 @@ export async function getOrCreateWorkspaceStoreClient(
   transport?: Transport
 ): Promise<IWorkspaceStoreClient> {
   const existing = clientRegistry.get(workspaceId);
-  if (existing && existing.actorId === actorId) {
+  if (existing && existing.actorId === actorId && !existing.client.isClosed()) {
     return existing.client;
   }
 
@@ -59,6 +60,34 @@ export async function getOrCreateWorkspaceStoreClient(
     clientRegistry.delete(workspaceId);
   }
 
+  // Serialize concurrent open attempts for the same workspace so only one
+  // worker/client is created and all callers receive the same instance.
+  const previous = pendingOpens.get(workspaceId);
+  const current = (async () => {
+    if (previous) {
+      try {
+        await previous;
+      } catch {
+        // Ignore previous failure; proceed with a fresh open.
+      }
+    }
+    return openWorkspaceStoreClient(workspaceId, actorId, transport);
+  })();
+  pendingOpens.set(workspaceId, current);
+  try {
+    return await current;
+  } finally {
+    if (pendingOpens.get(workspaceId) === current) {
+      pendingOpens.delete(workspaceId);
+    }
+  }
+}
+
+async function openWorkspaceStoreClient(
+  workspaceId: string,
+  actorId: string,
+  transport?: Transport
+): Promise<IWorkspaceStoreClient> {
   const client = createWorkspaceStoreClient();
 
   if (isWorkerSupported()) {
