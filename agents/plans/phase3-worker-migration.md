@@ -59,11 +59,14 @@ For each helper added to the worker, also handle it in `InlineStoreClient.query`
 - Add serializable operations to `WorkspaceStore` (e.g. `setNodeText(nodeId, plainText)`, `deleteTextRange`, `insertText`) and expose them as worker mutations.
 - Update `useCreateNodeAdapter` and any other callers that currently pass an `updateText` callback.
 
-## Task 3 — Migrate UndoManager to async
+## Task 3 — Migrate UndoManager to the worker
 
 - `frontend/src/core/undo/UndoManager.ts` currently takes a synchronous `WorkspaceStore`.
-- Make it accept an `IWorkspaceStoreClient` and perform async inverse operations via `client.mutate`.
-- Update callers (`workspaceStoreAdapter.ts`, tests, command handlers).
+- Move it into the workspace Web Worker so it operates on the worker-owned store.
+- Each worker instance holds one `UndoManager` alongside its `WorkspaceStore`.
+- The main thread uses a thin async facade (`UndoManagerClient` / `useUndoManager`) that forwards record/undo/redo operations through `IWorkspaceStoreClient.mutate`/`query`.
+- Add serializable recording methods (e.g. `recordSetNodeText`) for paths that cross the worker boundary.
+- Update callers (`undoStore.ts`, `workspaceStoreAdapter.ts`, hooks, tests) to `await` the async facade.
 
 ## Task 4 — Migrate SyncEngine apply to the worker
 
