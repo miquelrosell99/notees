@@ -24,15 +24,11 @@ function wrapper(props: { actorId: string; transport: MemoryTransport }) {
 }
 
 describe('useNode', () => {
-  it('re-renders when a node is created via the store', async () => {
+  it('reads a node that exists in the store', async () => {
     const props = createProviderProps();
     const Wrapper = wrapper(props);
 
     const nodeId = uuidv7();
-    const { result } = renderHook(() => useNode('ws-test', nodeId), { wrapper: Wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.node).toBeUndefined();
-
     const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), { wrapper: Wrapper });
     await waitFor(() => expect(storeResult.current.store).toBeDefined());
 
@@ -40,8 +36,20 @@ describe('useNode', () => {
       storeResult.current.store!.createNode({ nodeId, kind: 'page', parentId: null });
     });
 
-    await waitFor(() => expect(result.current.node).toBeDefined());
+    const { result } = renderHook(() => useNode('ws-test', nodeId), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.node).toBeDefined();
     expect(result.current.node!.id).toBe(nodeId);
     expect(result.current.node!.kind).toBe('page');
+  });
+
+  it('returns undefined for a missing node', async () => {
+    const props = createProviderProps();
+    const Wrapper = wrapper(props);
+
+    const nodeId = uuidv7();
+    const { result } = renderHook(() => useNode('ws-test', nodeId), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.node).toBeUndefined();
   });
 });

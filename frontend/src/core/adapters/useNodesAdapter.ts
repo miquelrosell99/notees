@@ -1,10 +1,11 @@
 import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import type { Database } from 'sql.js';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
-import { projectNode } from './nodeProjection';
+import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
+import { projectNodeFromDb } from './nodeProjection';
 import { queryAll } from '../db/sqlite';
 
 const NODES_LIMIT = 100;
@@ -17,7 +18,12 @@ export interface UseNodesAdapterFilters {
 }
 
 /**
- * Adapter hook that lists nodes from the SQLite core store.
+ * Adapter hook that lists nodes through the async worker-backed store client.
+ *
+ * TODO: This fetches the underlying sql.js Database via `client.query('getDb')`,
+ * which works in the jsdom test shim but cannot work in a real Web Worker.
+ * Replace with a worker-side query method (e.g. `client.query('listNodes', filters)`)
+ * before enabling the Web Worker path in production.
  */
 export function useNodesAdapter(
   filters?: UseNodesAdapterFilters | null
@@ -41,10 +47,15 @@ export function useNodesAdapter(
     setIsLoading(true);
     setError(null);
 
-    getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.transport)
-      .then((store) => {
+    getOrCreateWorkspaceStoreClient(workspaceId, ctx.actorId, ctx.transport)
+      .then(async (client) => {
         if (cancelled) return;
-        const db = store.getDb();
+
+        const [db] = await Promise.all([
+          client.query<Database>('getDb', []),
+          client.query<string>('getWorkspaceId', []),
+        ]);
+        if (cancelled) return;
 
         const where = filters?.pages_only ? "WHERE kind = 'page'" : '';
         const rows = queryAll<{ id: string }>(
@@ -53,8 +64,10 @@ export function useNodesAdapter(
           [filters?.page_size ?? NODES_LIMIT]
         );
         const nodes = rows
-          .map((row) => projectNode(store, row.id))
+          .map((row) => projectNodeFromDb(db, workspaceId, row.id))
           .filter((n): n is Node => n !== undefined);
+        if (cancelled) return;
+
         setData(nodes);
         setIsLoading(false);
       })
