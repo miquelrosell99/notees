@@ -212,6 +212,8 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
       // Shift+ArrowUp / Shift+ArrowDown: extend selection
       if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.shiftKey) {
         if (isFocusProtected()) return;
+        e.preventDefault();
+
         const activeBlockId = useEditorFocusStore.getState().activeBlockId;
         const anchor = anchorId || activeBlockId;
         if (!anchor || !client) return;
@@ -219,8 +221,6 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         const currentFocus = useBlockSelectionStore.getState().focusId || anchor;
         const currentIdx = siblings.indexOf(currentFocus);
         if (currentIdx === -1) return;
-
-        e.preventDefault();
         let newFocusIdx: number;
         if (e.key === 'ArrowUp') {
           newFocusIdx = Math.max(0, currentIdx - 1);
