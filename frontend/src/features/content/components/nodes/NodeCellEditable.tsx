@@ -64,8 +64,8 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
 
   // Flush pending debounced saves before unmounting so the static view never
   // shows stale content after blur.
-  const handleEditorBlur = useCallback(() => {
-    flushAllContentSaves();
+  const handleEditorBlur = useCallback(async () => {
+    await flushAllContentSaves();
   }, []);
 
   // Enter/Escape commit and close — a cell has no sibling or child blocks.

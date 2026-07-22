@@ -37,7 +37,7 @@ import { useTouchIndent } from '@/features/content/hooks/useTouchIndent';
 import { BlockFindReplacePlugin } from '@/features/editor';
 import { flushAllContentSaves } from '@/features/editor';
 import './BlockList.css';
-import { useWorkspaceStore } from '@/core/hooks';
+import { useWorkspaceStoreClient } from '@/core/hooks';
 import { useCoreBlockMutations } from '@/features/content/hooks/useCoreBlockMutations';
 
 interface BlockListProps {
@@ -172,7 +172,7 @@ export function BlockList({
 
   useBlockSelection({ containerRef, blockIds, readOnly });
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const mutations = useCoreBlockMutations(workspaceId);
   const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
   const toggleCollapsed = useUIStateStore((s) => s.toggleCollapsed);
@@ -190,12 +190,13 @@ export function BlockList({
 
   const handleBlockDrop = useCallback(
     async (anchor: DropAnchor, draggedBlockIds: string[]) => {
-      if (!store) return;
+      if (!client) return;
       let newParentId: string | null = null;
       if (anchor.target.position === 'child') {
         newParentId = anchor.target.blockId;
       } else {
-        newParentId = store.getNode(anchor.target.blockId)?.parentId ?? nodeUuid ?? null;
+        const targetNode = await client.query<{ parentId: string | null } | undefined>('getNode', [anchor.target.blockId]);
+        newParentId = targetNode?.parentId ?? nodeUuid ?? null;
       }
       if (!newParentId) return;
 
@@ -204,7 +205,8 @@ export function BlockList({
       const stack = [newParentId];
       while (stack.length > 0) {
         const current = stack.pop()!;
-        for (const childId of store.getChildren(current)) {
+        const children = await client.query<string[]>('getChildren', [current]);
+        for (const childId of children) {
           descendantIds.add(childId);
           stack.push(childId);
         }
@@ -215,7 +217,7 @@ export function BlockList({
         await mutations.moveBlock({ blockId, newParentId });
       }
     },
-    [store, nodeUuid, mutations],
+    [client, nodeUuid, mutations],
   );
 
   useBlockDragDrop({
@@ -229,22 +231,29 @@ export function BlockList({
   // Compute ancestor UUIDs of the active block so each row can know whether it
   // sits on the active editing path. This replaces the imperative DOM class
   // toggling that the old thread-line system used.
-  const activeTrailIds = useMemo(() => {
-    if (!activeBlockId || !store) return new Set<string>();
-    // structureVersion is intentionally unused inside the callback; it acts as
-    // a signal that the core tree structure changed, so we must re-walk the
-    // active block's ancestors.
-    void structureVersion;
-    const trail = new Set<string>();
-    let current = store.getNode(activeBlockId);
-    while (current?.parentId) {
-      const parent = store.getNode(current.parentId);
-      if (!parent) break;
-      trail.add(parent.id);
-      current = parent;
+  const [activeTrailIds, setActiveTrailIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeBlockId || !client) {
+      setActiveTrailIds(new Set());
+      return;
     }
-    return trail;
-  }, [activeBlockId, structureVersion, store]);
+    let cancelled = false;
+    const compute = async (): Promise<void> => {
+      const trail = new Set<string>();
+      let current = await client.query<{ parentId: string | null } | undefined>('getNode', [activeBlockId]);
+      while (current?.parentId) {
+        const parent = await client.query<{ id: string; parentId: string | null } | undefined>('getNode', [current.parentId]);
+        if (!parent) break;
+        trail.add(parent.id);
+        current = parent;
+      }
+      if (!cancelled) {
+        setActiveTrailIds(trail);
+      }
+    };
+    compute();
+    return () => { cancelled = true; };
+  }, [activeBlockId, structureVersion, client]);
 
   const focusPreviousBlock = useEditorFocusStore((s) => s.focusPreviousBlock);
   const focusNextBlock = useEditorFocusStore((s) => s.focusNextBlock);
@@ -259,20 +268,20 @@ export function BlockList({
   }, []);
 
   const canMergeInHierarchy = useCallback(
-    (sourceBlockId: string, targetBlockId: string): boolean => {
-      if (!store) return false;
-      const source = store.getNode(sourceBlockId);
-      const target = store.getNode(targetBlockId);
+    async (sourceBlockId: string, targetBlockId: string): Promise<boolean> => {
+      if (!client) return false;
+      const source = await client.query<{ parentId: string | null } | undefined>('getNode', [sourceBlockId]);
+      const target = await client.query<{ parentId: string | null } | undefined>('getNode', [targetBlockId]);
       if (!source || !target) return false;
 
-      const sourceChildren = store.getChildren(sourceBlockId);
+      const sourceChildren = await client.query<string[]>('getChildren', [sourceBlockId]);
 
       if (source.parentId === target.parentId && sourceChildren.length === 0) {
         return true;
       }
 
       if (source.parentId === targetBlockId) {
-        const targetChildren = store.getChildren(targetBlockId);
+        const targetChildren = await client.query<string[]>('getChildren', [targetBlockId]);
         if (targetChildren.length === 1) {
           return true;
         }
@@ -280,24 +289,26 @@ export function BlockList({
 
       return false;
     },
-    [store],
+    [client],
   );
 
   const handleEnter = useCallback(
     async (blockId: string) => {
-      flushAllContentSaves();
+      if (!client) return;
+      await flushAllContentSaves();
       const row = rowRefs.current.get(blockId);
       const cursor = row?.getCursorPosition() ?? 'empty';
 
       if (cursor === 'empty' || cursor === 'end') {
-        const hasChildren = store ? store.getChildren(blockId).length > 0 : false;
+        const children = await client.query<string[]>('getChildren', [blockId]);
+        const hasChildren = children.length > 0;
         let parentId: string | null = null;
         if (hasChildren) {
           // When a block already has children, create the new block as its first
           // child instead of a sibling after the entire subtree.
           parentId = blockId;
         } else {
-          const currentNode = store?.getNode(blockId);
+          const currentNode = await client.query<{ parentId: string | null } | undefined>('getNode', [blockId]);
           parentId = currentNode?.parentId ?? null;
           if (!parentId && nodeUuid) {
             parentId = nodeUuid;
@@ -309,7 +320,7 @@ export function BlockList({
         });
         setPendingFocus(newBlockId);
       } else if (cursor === 'start') {
-        const currentNode = store?.getNode(blockId);
+        const currentNode = await client.query<{ parentId: string | null } | undefined>('getNode', [blockId]);
         if (!currentNode) return;
         const parentId = currentNode.parentId;
         const newBlockId = await mutations.createBlock({
@@ -323,7 +334,7 @@ export function BlockList({
         setPendingFocus(newBlockId);
       }
     },
-    [setPendingFocus, nodeUuid, store, mutations],
+    [setPendingFocus, nodeUuid, client, mutations],
   );
 
   const handleBackspaceAtStart = useCallback(
@@ -332,11 +343,11 @@ export function BlockList({
       if (idx <= 0) return;
       const prevBlockId = blockIdsRef.current[idx - 1];
 
-      if (!canMergeInHierarchy(blockId, prevBlockId)) {
+      if (!await canMergeInHierarchy(blockId, prevBlockId)) {
         return;
       }
 
-      flushAllContentSaves();
+      await flushAllContentSaves();
       await mutations.mergeBlocks({
         sourceBlockId: blockId,
         targetBlockId: prevBlockId,
@@ -352,11 +363,11 @@ export function BlockList({
       if (idx < 0 || idx >= blockIdsRef.current.length - 1) return;
       const nextBlockId = blockIdsRef.current[idx + 1];
 
-      if (!canMergeInHierarchy(nextBlockId, blockId)) {
+      if (!await canMergeInHierarchy(nextBlockId, blockId)) {
         return;
       }
 
-      flushAllContentSaves();
+      await flushAllContentSaves();
       await mutations.mergeBlocks({
         sourceBlockId: nextBlockId,
         targetBlockId: blockId,
@@ -401,6 +412,7 @@ export function BlockList({
   }, [readOnly, handleCollapseToggle]);
 
   const handleGhostRealize = useCallback(async (ghostUuid: string) => {
+    if (!client) return;
     const parentUuid = parseGhostParentUuid(ghostUuid);
     if (!parentUuid) return;
 
@@ -415,8 +427,8 @@ export function BlockList({
       return;
     }
 
-    flushAllContentSaves();
-    const runtimeChildren = store ? store.getChildren(parentUuid) : [];
+    await flushAllContentSaves();
+    const runtimeChildren = await client.query<string[]>('getChildren', [parentUuid]);
     const lastRealChild = runtimeChildren.length > 0 ? runtimeChildren[runtimeChildren.length - 1] : null;
 
     const newBlockId = await mutations.createBlock({
@@ -425,42 +437,47 @@ export function BlockList({
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
     setPendingFocus(newBlockId);
-  }, [setPendingFocus, store, mutations]);
+  }, [setPendingFocus, client, mutations]);
 
   const handleIndentOutdentSelected = useCallback(
     async (shiftKey: boolean) => {
       const selectedSet = useBlockSelectionStore.getState().selectedIds;
-      if (selectedSet.size === 0 || !store) return;
+      if (selectedSet.size === 0 || !client) return;
 
       const orderedIds = blockIds.filter((id) => selectedSet.has(id));
-      const topLevelIds = orderedIds.filter((id) => {
-        const n = store.getNode(id);
+      const nodes = await Promise.all(
+        orderedIds.map((id) => client.query<{ parentId: string | null } | undefined>('getNode', [id]))
+      );
+      const topLevelIds = orderedIds.filter((_id, idx) => {
+        const n = nodes[idx];
         return n && (!n.parentId || !selectedSet.has(n.parentId));
       });
       if (topLevelIds.length === 0) return;
 
-      flushAllContentSaves();
+      await flushAllContentSaves();
 
       if (shiftKey) {
         for (const blockId of topLevelIds) {
           await mutations.outdentBlock({ blockId });
         }
       } else {
-        for (const parentId of new Set(topLevelIds.map((id) => store.getNode(id)?.parentId ?? ''))) {
-          const siblings = parentId ? store.getChildren(parentId) : [];
+        const parentIds = Array.from(new Set(topLevelIds.map((_id, idx) => nodes[idx]?.parentId ?? '')));
+        for (const parentId of parentIds) {
+          if (!parentId) continue;
+          const siblings = await client.query<string[]>('getChildren', [parentId]);
           const siblingIds = siblings;
-          const runCandidates = topLevelIds.filter((id) => store.getNode(id)?.parentId === parentId);
+          const runCandidates = topLevelIds.filter((_blockId, idx) => nodes[idx]?.parentId === parentId);
 
           let currentRun: string[] = [];
           let lastIndex = -2;
 
-          const flushRun = () => {
+          const flushRun = async () => {
             if (currentRun.length === 0) return;
             const firstIndex = siblingIds.indexOf(currentRun[0]!);
             if (firstIndex > 0) {
               const targetParentId = siblingIds[firstIndex - 1]!;
               for (const blockId of currentRun) {
-                void mutations.moveBlock({ blockId, newParentId: targetParentId });
+                await mutations.moveBlock({ blockId, newParentId: targetParentId });
               }
             }
             currentRun = [];
@@ -471,16 +488,16 @@ export function BlockList({
             if (idx === lastIndex + 1) {
               currentRun.push(id);
             } else {
-              flushRun();
+              await flushRun();
               currentRun = [id];
             }
             lastIndex = idx;
           }
-          flushRun();
+          await flushRun();
         }
       }
     },
-    [blockIds, store, mutations],
+    [blockIds, client, mutations],
   );
 
   const handleKeyDown = useCallback(
@@ -491,7 +508,7 @@ export function BlockList({
 
         if (focusInEditor) {
           e.preventDefault();
-          flushAllContentSaves();
+          await flushAllContentSaves();
           if (e.shiftKey) {
             await mutations.outdentBlock({ blockId: activeBlockId });
           } else {

@@ -8,13 +8,15 @@ import { renderHook, act } from '@testing-library/react';
 import { WorkspaceStore } from '@/core/store';
 import { UndoManager } from '@/core/undo/UndoManager';
 import type { UndoManagerClient } from '@/core/hooks/useUndoManager';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
+import { projectNode } from '@/core/adapters/nodeProjection';
 import { uuidv7 } from '@/core/uuid';
 import { createTestDatabase } from '@/core/__tests__/helpers';
 import { useCoreBlockMutations } from './useCoreBlockMutations';
 
 const mocks = vi.hoisted(() => ({
   store: undefined as WorkspaceStore | undefined,
-  useWorkspaceStore: vi.fn(() => ({ store: undefined as WorkspaceStore | undefined, isLoading: false, error: null })),
+  useWorkspaceStoreClient: vi.fn(() => ({ client: undefined as IWorkspaceStoreClient | undefined, isLoading: false, error: null })),
   useUndoManager: vi.fn(() => undefined as UndoManagerClient | undefined),
 }));
 
@@ -23,7 +25,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@/core/hooks', () => ({
-  useWorkspaceStore: mocks.useWorkspaceStore,
+  useWorkspaceStoreClient: mocks.useWorkspaceStoreClient,
   useUndoManager: mocks.useUndoManager,
   useNode: vi.fn(() => ({ node: undefined, isLoading: false, error: null })),
   useChildren: vi.fn(() => ({ children: [], isLoading: false, error: null })),
@@ -32,6 +34,33 @@ vi.mock('@/core/hooks', () => ({
 async function createTestStore(): Promise<WorkspaceStore> {
   const db = await createTestDatabase();
   return new WorkspaceStore(db, uuidv7(), uuidv7());
+}
+
+function createTestWorkspaceStoreClient(store: WorkspaceStore): IWorkspaceStoreClient {
+  return {
+    init: async () => {},
+    export: async () => store.export(),
+    async mutate<T>(method: string, args: unknown[]): Promise<T> {
+      const fn = (store as unknown as Record<string, unknown>)[method];
+      if (typeof fn !== 'function') {
+        throw new Error(`Unknown mutation method: ${method}`);
+      }
+      return fn.apply(store, args) as T;
+    },
+    async query<T>(method: string, args: unknown[]): Promise<T> {
+      if (method === 'projectNode') {
+        const [nodeId, depth] = args as [string, number | undefined];
+        return projectNode(store, nodeId, depth) as T;
+      }
+      const fn = (store as unknown as Record<string, unknown>)[method];
+      if (typeof fn !== 'function') {
+        throw new Error(`Unknown query method: ${method}`);
+      }
+      return fn.apply(store, args) as T;
+    },
+    subscribe: () => () => {},
+    close: () => {},
+  };
 }
 
 function createTestUndoManagerClient(store: WorkspaceStore): UndoManagerClient {
@@ -67,7 +96,7 @@ describe('useCoreBlockMutations', () => {
   beforeEach(async () => {
     const store = await createTestStore();
     mocks.store = store;
-    mocks.useWorkspaceStore.mockReturnValue({ store, isLoading: false, error: null });
+    mocks.useWorkspaceStoreClient.mockReturnValue({ client: createTestWorkspaceStoreClient(store), isLoading: false, error: null });
     mocks.useUndoManager.mockReturnValue(createTestUndoManagerClient(store));
   });
 

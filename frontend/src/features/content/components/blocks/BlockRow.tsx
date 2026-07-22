@@ -422,19 +422,19 @@ export const BlockRow = memo(
       return getNodeColorStylesAuto(directNodeColor);
     }, [directNodeColor]);
 
-    const handleEditorBlur = useCallback(() => {
+    const handleEditorBlur = useCallback(async () => {
       // Flush pending debounced saves before unmounting the editor so the
       // static view does not briefly show stale content after blur.
-      flushAllContentSaves();
+      await flushAllContentSaves();
     }, []);
 
     // Pill Delete/Unlink from the static (read-only) view: save and flush
     // immediately so the runtime projection is up-to-date before the editor
     // could mount with stale content on the next click.
     const handleStaticContentEdit = useCallback(
-      (content: string) => {
+      async (content: string) => {
         onContentChange?.(node.uuid, content);
-        flushAllContentSaves();
+        await flushAllContentSaves();
       },
       [node.uuid, onContentChange],
     );

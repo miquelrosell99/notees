@@ -3,22 +3,23 @@
  *
  * This hook is the single source of truth for block tree projection.
  * It:
- * 1. Resolves the core WorkspaceStore for the current workspace.
- * 2. Subscribes to structural/content changes on all node IDs in the prop tree.
+ * 1. Resolves the async worker-backed store client for the current workspace.
+ * 2. Subscribes to structural/content changes.
  * 3. Computes a flat list by walking the store's node + child_order tables.
  *
- * When the core store is not available, it falls back to the static prop tree
- * so read-only / test / legacy callers keep working.
+ * When the core store client is not available, it falls back to the static prop
+ * tree so read-only / test / legacy callers keep working.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { useWorkspaceStore } from '@/core/hooks';
+import { useWorkspaceStoreClient } from '@/core/hooks';
 import { projectNode } from '@/core/adapters/nodeProjection';
 import { useUIStateStore } from '@/features/sync';
 import type { Node } from '@/types/api';
 import type { NodeUIState } from '@/features/sync/stores/uiStateStore';
 import type { WorkspaceStore } from '@/core/store';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 
 const EMPTY_STATES: Record<string, NodeUIState> = {};
 
@@ -126,16 +127,6 @@ export function flattenNodes(
   return result;
 }
 
-function collectNodeIds(nodes: Node[]): string[] {
-  const ids: string[] = [];
-  const walk = (n: Node) => {
-    ids.push(n.uuid);
-    n.children?.forEach(walk);
-  };
-  nodes.forEach(walk);
-  return ids;
-}
-
 /** @internal Exported for unit testing. */
 export function buildFlatNodesFromStore(
   store: WorkspaceStore,
@@ -228,6 +219,97 @@ export function buildFlatNodesFromStore(
   return result;
 }
 
+async function buildFlatNodesFromClient(
+  client: IWorkspaceStoreClient,
+  nodes: Node[],
+  options: UseBlockTreeOptions,
+  collapsedLookup: (nodeUuid: string) => boolean | undefined,
+): Promise<FlatNode[]> {
+  const {
+    maxDepth = -1,
+    pagesOnly = false,
+    skipPages = false,
+    expandAll = false,
+    nodeUuid,
+    readOnly = false,
+    showNewBlock = true,
+    rootIsBlock = false,
+  } = options;
+
+  const result: FlatNode[] = [];
+  const visited = new Set<string>();
+  const duplicateUuids: string[] = [];
+
+  const flatten = async (nodeUuids: string[], depth: number): Promise<void> => {
+    if (maxDepth >= 0 && depth > maxDepth) return;
+
+    for (const nodeUuid of nodeUuids) {
+      if (visited.has(nodeUuid)) {
+        if (!duplicateUuids.includes(nodeUuid)) duplicateUuids.push(nodeUuid);
+        continue;
+      }
+      visited.add(nodeUuid);
+
+      const node = await client.query<Node | undefined>('projectNode', [nodeUuid, 0]);
+      if (!node) continue;
+      if (node.is_deleted) continue;
+      if (node.is_comment) continue;
+      if (pagesOnly && !node.is_page) continue;
+      if (skipPages && node.is_page) continue;
+
+      const effectiveCollapsed = expandAll ? false : (collapsedLookup(nodeUuid) ?? false);
+      result.push({ node, depth, effectiveCollapsed });
+
+      if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {
+        const children = await client.query<string[]>('getChildren', [nodeUuid]);
+        await flatten(children, depth + 1);
+
+        const isRootLevel = depth === 0;
+        if (
+          !readOnly &&
+          showNewBlock &&
+          !pagesOnly &&
+          !skipPages &&
+          !(rootIsBlock && isRootLevel) &&
+          isValidServerNodeId(nodeUuid)
+        ) {
+          result.push(createGhostFlatNode(nodeUuid, depth + 1));
+        }
+      }
+    }
+  };
+
+  let rootUuids: string[];
+  if (nodeUuid) {
+    if (rootIsBlock && nodes.some((n) => n.uuid === nodeUuid)) {
+      rootUuids = [nodeUuid];
+    } else {
+      rootUuids = await client.query<string[]>('getChildren', [nodeUuid]);
+    }
+  } else {
+    const nodeMap = new Map(nodes.map((n) => [n.uuid, n]));
+    rootUuids = nodes
+      .filter((n) => !n.parent_uuid || !nodeMap.has(n.parent_uuid))
+      .map((n) => n.uuid);
+  }
+
+  await flatten(rootUuids, 0);
+
+  if (!readOnly && showNewBlock && nodeUuid && isValidServerNodeId(nodeUuid)) {
+    const rootGhostDepth = rootIsBlock ? 1 : 0;
+    result.push(createGhostFlatNode(nodeUuid, rootGhostDepth));
+  }
+
+  if (duplicateUuids.length > 0 && process.env.NODE_ENV === 'development') {
+    console.warn(
+      '[useBlockTree] Skipped duplicate node UUID(s) in core projection:',
+      duplicateUuids,
+    );
+  }
+
+  return result;
+}
+
 export function useBlockTree(
   nodes: Node[],
   options: UseBlockTreeOptions = {}
@@ -243,7 +325,7 @@ export function useBlockTree(
     rootIsBlock = false,
   } = options;
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store, isLoading } = useWorkspaceStore(workspaceId ?? '');
+  const { client, isLoading } = useWorkspaceStoreClient(workspaceId ?? '');
   const workspaceStates = useUIStateStore(
     useMemo(() => (s) => (workspaceId ? s.states[workspaceId] ?? EMPTY_STATES : EMPTY_STATES), [workspaceId])
   );
@@ -253,27 +335,41 @@ export function useBlockTree(
   );
 
   const [structureVersion, setStructureVersion] = useState(0);
-  const nodeIds = useMemo(() => collectNodeIds(nodes), [nodes]);
+  const [projectedFlatNodes, setProjectedFlatNodes] = useState<FlatNode[]>([]);
 
   useEffect(() => {
-    if (!store) return;
-    const update = (): void => setStructureVersion((v) => v + 1);
-    const unsubscribes = nodeIds.map((id) => store.subscribe(id, update));
-    return () => {
-      for (const unsubscribe of unsubscribes) {
-        unsubscribe();
+    if (!client) {
+      return;
+    }
+
+    let cancelled = false;
+    const update = async (): Promise<void> => {
+      const flat = await buildFlatNodesFromClient(client, nodes, options, collapsedLookup);
+      if (!cancelled) {
+        setProjectedFlatNodes(flat);
       }
     };
-  }, [store, nodeIds]);
+
+    update();
+    const unsubscribe = client.subscribe(null, () => {
+      setStructureVersion((v) => v + 1);
+      void update();
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client, nodes, options, collapsedLookup]);
 
   const flatNodes = useMemo(() => {
-    if (!store || isLoading) {
+    if (!client || isLoading) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, collapsedLookup, 0, expandAll);
     }
-    return buildFlatNodesFromStore(store, nodes, options, collapsedLookup);
+    return projectedFlatNodes;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    store,
+    client,
     isLoading,
     nodes,
     maxDepth,
@@ -284,7 +380,7 @@ export function useBlockTree(
     showNewBlock,
     nodeUuid,
     rootIsBlock,
-    structureVersion,
+    projectedFlatNodes,
     collapsedLookup,
   ]);
 

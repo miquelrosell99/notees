@@ -3,6 +3,7 @@
  */
 
 import { type RefObject } from 'react';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -121,14 +122,12 @@ export function updateSelectionOverlay(rootEl: HTMLElement, selectedEls: HTMLEle
   wrapper.appendChild(overlay);
 }
 
-export function getSiblingIds(blockId: string, store?: { getNode: (id: string) => { parentId: string | null } | undefined; getChildren: (id: string) => string[] }): string[] {
-  if (store) {
-    const parentId = store.getNode(blockId)?.parentId;
-    if (!parentId) return [];
-    return store.getChildren(parentId);
-  }
-  // Without a core store, sibling resolution is not available.
-  return [];
+export async function getSiblingIds(blockId: string, client?: IWorkspaceStoreClient): Promise<string[]> {
+  if (!client) return [];
+  const node = await client.query<{ parentId: string | null } | undefined>('getNode', [blockId]);
+  const parentId = node?.parentId;
+  if (!parentId) return [];
+  return client.query<string[]>('getChildren', [parentId]);
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────

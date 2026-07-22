@@ -11,10 +11,10 @@ import { BlockList } from './BlockList';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useBlockTree } from '@/features/content/hooks/useBlockTree';
-import { useWorkspaceStore } from '@/core/hooks';
+import { useWorkspaceStoreClient } from '@/core/hooks';
 import type { Node } from '@/types/api';
 import type { FlatNode } from '@/features/content/hooks/useBlockTree';
-import type { WorkspaceStore } from '@/core/store';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 
 const PAGE_UUID = '11111111-1111-1111-1111-111111111111';
 const FOCUSED_UUID = '22222222-2222-2222-2222-222222222222';
@@ -120,6 +120,7 @@ vi.mock('@/features/content/hooks/useBlockTree', () => ({
 const {
   runtimeNodesMock,
   mockStore,
+  mockClient,
   createBlockMock,
   moveBlockMock,
   deleteBlockMock,
@@ -144,9 +145,31 @@ const {
     subscribe: vi.fn(() => vi.fn()),
   };
 
+  const mockClient: IWorkspaceStoreClient = {
+    init: async () => {},
+    export: async () => new Uint8Array(),
+    async mutate<T>(method: string, args: unknown[]): Promise<T> {
+      const fn = (mockStore as unknown as Record<string, unknown>)[method];
+      if (typeof fn !== 'function') {
+        throw new Error(`Unknown mutation method: ${method}`);
+      }
+      return fn.apply(mockStore, args) as T;
+    },
+    async query<T>(method: string, args: unknown[]): Promise<T> {
+      const fn = (mockStore as unknown as Record<string, unknown>)[method];
+      if (typeof fn !== 'function') {
+        throw new Error(`Unknown query method: ${method}`);
+      }
+      return fn.apply(mockStore, args) as T;
+    },
+    subscribe: () => () => {},
+    close: () => {},
+  };
+
   return {
     runtimeNodesMock,
     mockStore,
+    mockClient,
     createBlockMock: vi.fn(async () => 'new-block-uuid'),
     moveBlockMock: vi.fn(async () => {}),
     deleteBlockMock: vi.fn(async () => {}),
@@ -159,7 +182,8 @@ const {
 });
 
 vi.mock('@/core/hooks', () => ({
-  useWorkspaceStore: vi.fn(() => ({ store: mockStore as unknown as WorkspaceStore, isLoading: false, error: null })),
+  useWorkspaceStoreClient: vi.fn(() => ({ client: mockClient, isLoading: false, error: null })),
+  useWorkspaceStore: vi.fn(() => ({ store: undefined, isLoading: false, error: null })),
   useNode: vi.fn(() => ({ node: undefined, isLoading: false })),
   useChildren: vi.fn(() => ({ children: [], isLoading: false })),
   useUndoManager: vi.fn(() => ({ group: vi.fn(), wrap: vi.fn() })),
@@ -194,8 +218,8 @@ describe('BlockList focused block view', () => {
     pasteBlocksAfterMock.mockClear();
 
     vi.mocked(useBlockTree).mockReset();
-    vi.mocked(useWorkspaceStore).mockReturnValue({
-      store: mockStore as unknown as WorkspaceStore,
+    vi.mocked(useWorkspaceStoreClient).mockReturnValue({
+      client: mockClient,
       isLoading: false,
       error: null,
     });

@@ -50,15 +50,15 @@ export function useNodeNavigation() {
   const addSidebarCard = useNavigationStore(state => state.addSidebarCard);
 
   /** Navigate to a node in the main view */
-  const navigateToNode = useCallback((node: Node, options?: NavigationOptions) => {
+  const navigateToNode = useCallback(async (node: Node, options?: NavigationOptions) => {
     // Flush pending content saves before navigation so the mutation's
     // onMutate optimistic update runs while the current query cache is
     // still active. Without this, navigating to a focused block view can
     // show stale (blank) content because the save fires too late.
-    flushAllContentSaves();
+    await flushAllContentSaves();
     // Redirect to main node if this is an alias (unless opted out)
-    const targetId = (!options?.skipAliasRedirect && node.aliased_uuid) 
-      ? node.aliased_uuid 
+    const targetId = (!options?.skipAliasRedirect && node.aliased_uuid)
+      ? node.aliased_uuid
       : node.uuid;
     openNode(targetId);
   }, [openNode]);
@@ -73,11 +73,11 @@ export function useNodeNavigation() {
   }, [addSidebarCard]);
 
   /** Click handler: navigates to the node. Pass directly as onNodeClick. */
-  const handleNodeClick = useCallback((node: Node, options?: NavigationOptions) => {
-    flushAllContentSaves();
+  const handleNodeClick = useCallback(async (node: Node, options?: NavigationOptions) => {
+    await flushAllContentSaves();
     // Redirect to main node if this is an alias (unless opted out)
-    const targetId = (!options?.skipAliasRedirect && node.aliased_uuid) 
-      ? node.aliased_uuid 
+    const targetId = (!options?.skipAliasRedirect && node.aliased_uuid)
+      ? node.aliased_uuid
       : node.uuid;
     openNode(targetId);
   }, [openNode]);
