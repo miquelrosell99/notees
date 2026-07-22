@@ -6,11 +6,17 @@ import type { Transport } from '../transport';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
+import {
+  clearFavoritesCache,
+  subscribeFavorites,
+  warmFavoritesCache,
+} from '@/features/content/hooks/favoritesCache';
 
 interface RegistryEntry {
   store: WorkspaceStore;
   syncEngine: SyncEngine;
   client: IWorkspaceStoreClient;
+  unsubscribeFavorites: () => void;
 }
 
 const registry = new Map<string, RegistryEntry>();
@@ -73,6 +79,8 @@ async function openWorkspaceStore(
     if (existing.store.getActorId() === actorId) {
       return existing.store;
     }
+    existing.unsubscribeFavorites();
+    clearFavoritesCache(workspaceId);
     existing.syncEngine.stopAutoSync();
     existing.client.close();
     registry.delete(workspaceId);
@@ -98,7 +106,12 @@ async function openWorkspaceStore(
   }
 
   const syncEngine = new SyncEngine(client, transport, options.syncCallbacks);
-  registry.set(workspaceId, { store, syncEngine, client });
+  const unsubscribeFavorites = subscribeFavorites(workspaceId, client);
+  registry.set(workspaceId, { store, syncEngine, client, unsubscribeFavorites });
+
+  // Prime the synchronous favorites cache before the workspace is considered
+  // fully opened. Failures are logged but must not block workspace open.
+  await warmFavoritesCache(workspaceId, client);
 
   // Initialize performs a one-time version check and may trigger a hard rebuild
   // of derived state when the applier version has changed. It then runs the
@@ -139,6 +152,8 @@ export async function closeWorkspaceStore(workspaceId: string): Promise<void> {
   const entry = registry.get(workspaceId);
   if (!entry) return;
 
+  entry.unsubscribeFavorites();
+  clearFavoritesCache(workspaceId);
   entry.syncEngine.stopAutoSync();
   await persistWorkspace(workspaceId, entry.client);
   entry.client.close();
@@ -174,6 +189,8 @@ export async function forceResyncWorkspace(workspaceId: string): Promise<void> {
 export async function resetWorkspaceStore(workspaceId: string): Promise<void> {
   const entry = registry.get(workspaceId);
   if (entry) {
+    entry.unsubscribeFavorites();
+    clearFavoritesCache(workspaceId);
     entry.syncEngine.stopAutoSync();
     entry.client.close();
     registry.delete(workspaceId);

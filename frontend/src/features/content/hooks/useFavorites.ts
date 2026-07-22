@@ -8,6 +8,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import {
+  getCachedFavorites,
+  subscribeFavorites,
+} from './favoritesCache';
 
 export interface UseFavoritesResult {
   data: string[];
@@ -15,39 +19,18 @@ export interface UseFavoritesResult {
   error: Error | null;
 }
 
-/**
- * Module-level cache of the last known favorites list per workspace.
- *
- * `useFavorites` keeps this cache warm while mounted, and the synchronous
- * `isFavorite` helper reads from it. This preserves the public
- * `isFavorite(workspaceId, nodeId): boolean` signature after migrating the
- * favorites hooks to the async worker-backed store client.
- */
-const favoritesCache = new Map<string, string[]>();
-
 export function useFavorites(workspaceId: string | undefined): UseFavoritesResult {
   const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId ?? '');
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>(() =>
+    workspaceId ? getCachedFavorites(workspaceId) ?? [] : []
+  );
 
   useEffect(() => {
     if (!client || !workspaceId) {
       setFavorites([]);
       return;
     }
-    let cancelled = false;
-    const update = async (): Promise<void> => {
-      const list = await client.query<string[]>('getFavorites', []);
-      if (!cancelled) {
-        favoritesCache.set(workspaceId, list);
-        setFavorites(list);
-      }
-    };
-    update();
-    const unsubscribe = client.subscribe(null, update);
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
+    return subscribeFavorites(workspaceId, client, setFavorites);
   }, [client, workspaceId]);
 
   return { data: favorites, isLoading, error };
@@ -179,16 +162,5 @@ export async function reorderFavorites(
   return client.query<string[]>('getFavorites', []);
 }
 
-/**
- * Synchronous favorite check.
- *
- * Reads from the module-level cache maintained by `useFavorites`. This keeps the
- * public signature unchanged after the migration to the async worker-backed
- * store client.
- */
-export function isFavorite(workspaceId: string | undefined, nodeUuid: string): boolean {
-  if (!workspaceId || !nodeUuid) return false;
-  const cached = favoritesCache.get(workspaceId);
-  return cached?.includes(nodeUuid) ?? false;
-}
+export { isFavorite } from './favoritesCache';
 
