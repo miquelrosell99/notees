@@ -21,23 +21,13 @@ import {
 import { UndoManager } from '../undo/UndoManager';
 import type { Hlc } from '../clock';
 import type { Operation } from '../types/operation';
+import type { OperationRow } from '../sync';
 import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
 
 interface WorkerState {
   store: WorkspaceStore | null;
   undoManager: UndoManager | null;
   workspaceId: string | null;
-}
-
-interface OperationRow {
-  id: string;
-  workspace_id: string;
-  actor_id: string;
-  hlc_physical: number;
-  hlc_logical: number;
-  affected_node_ids: string;
-  op_type: string;
-  payload: string;
 }
 
 const state: WorkerState = {
