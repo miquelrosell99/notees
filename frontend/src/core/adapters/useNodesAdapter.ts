@@ -1,14 +1,9 @@
 import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import type { Database } from 'sql.js';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
-import { projectNodeFromDb } from './nodeProjection';
-import { queryAll } from '../db/sqlite';
-
-const NODES_LIMIT = 100;
 
 export interface UseNodesAdapterFilters {
   pages_only?: boolean;
@@ -20,10 +15,8 @@ export interface UseNodesAdapterFilters {
 /**
  * Adapter hook that lists nodes through the async worker-backed store client.
  *
- * TODO: This fetches the underlying sql.js Database via `client.query('getDb')`,
- * which works in the jsdom test shim but cannot work in a real Web Worker.
- * Replace with a worker-side query method (e.g. `client.query('listNodes', filters)`)
- * before enabling the Web Worker path in production.
+ * The actual query runs inside the worker via `listNodes`; the raw sql.js
+ * Database is never transferred to the main thread.
  */
 export function useNodesAdapter(
   filters?: UseNodesAdapterFilters | null
@@ -51,21 +44,7 @@ export function useNodesAdapter(
       .then(async (client) => {
         if (cancelled) return;
 
-        const [db] = await Promise.all([
-          client.query<Database>('getDb', []),
-          client.query<string>('getWorkspaceId', []),
-        ]);
-        if (cancelled) return;
-
-        const where = filters?.pages_only ? "WHERE kind = 'page'" : '';
-        const rows = queryAll<{ id: string }>(
-          db,
-          `SELECT id FROM node ${where} ORDER BY created_at DESC LIMIT ?`,
-          [filters?.page_size ?? NODES_LIMIT]
-        );
-        const nodes = rows
-          .map((row) => projectNodeFromDb(db, workspaceId, row.id))
-          .filter((n): n is Node => n !== undefined);
+        const nodes = await client.query<Node[]>('listNodes', [filters]);
         if (cancelled) return;
 
         setData(nodes);
@@ -80,7 +59,15 @@ export function useNodesAdapter(
     return () => {
       cancelled = true;
     };
-  }, [ctx, workspaceId, filters?.pages_only, filters?.page_size]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    ctx,
+    workspaceId,
+    filters?.pages_only,
+    filters?.parent_uuid,
+    filters?.tag_uuid,
+    filters?.page_size,
+  ]);
 
   const isPending = isLoading;
   const isSuccess = !isLoading && !error;
