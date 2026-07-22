@@ -38,12 +38,17 @@ import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOve
 import { getLogger } from './utils/logger';
 import { pluginManager } from '@/plugins/core';
 import { WorkspaceStoreProvider } from '@/core/hooks/WorkspaceStoreProvider';
-import { ensureSqlInitialized, getSqlInitError } from '@/core/db/connection';
+import {
+  ensureSqlInitialized,
+  getSqlInitError,
+  clearSqlInitError,
+} from '@/core/db/connection';
 import { requestPersistentStorage } from '@/core/persistence/storagePersistence';
 import { createHttpTransport } from '@/core/transportHttp';
 import {
   getOrCreateWorkspaceStore,
   getWorkspaceSyncEngine,
+  closeWorkspaceStore,
 } from '@/core/adapters/workspaceStoreAdapter';
 import { Button } from '@/components/ui/Button';
 import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
@@ -275,7 +280,8 @@ const PERSIST_OPTIONS = {
  * `useWorkspaces`, which in turn uses TanStack Query's useQuery hook.
  */
 function WorkspacePersisterSync() {
-  const { data: workspacesData } = useWorkspaces({ enabled: true });
+  const authVerified = useAuthStore((s) => s.authVerified);
+  const { data: workspacesData } = useWorkspaces({ enabled: authVerified });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
     return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
@@ -313,8 +319,9 @@ function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
  */
 function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
+  const authVerified = useAuthStore((s) => s.authVerified);
   const actorId = user?.uuid ?? 'anonymous';
-  const { data: workspacesData } = useWorkspaces({ enabled: true });
+  const { data: workspacesData } = useWorkspaces({ enabled: authVerified });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
     return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
@@ -341,7 +348,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId) {
+    if (!workspaceId || !authVerified || !user) {
       setCtx(undefined);
       setReadyWorkspaceId(null);
       setInitError(null);
@@ -413,9 +420,12 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       unregisterVisibilityRef.current = null;
       if (workspaceId) {
         useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
+        closeWorkspaceStore(workspaceId).catch((err) => {
+          log.error(`Failed to close workspace ${workspaceId}`, err);
+        });
       }
     };
-  }, [workspaceId, actorId, workspaceResetNonce, retryNonce]);
+  }, [workspaceId, actorId, workspaceResetNonce, retryNonce, authVerified, user]);
 
   const isReady =
     !!workspaceId && readyWorkspaceId === workspaceId && !progress.isInitializing && !initError;
@@ -451,7 +461,14 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
           <div className="workspace-init-overlay workspace-init-overlay--error" role="alert">
             <h1 className="workspace-init-error__title">Failed to load workspace</h1>
             <p className="workspace-init-error__message">{initError.message}</p>
-            <Button onClick={() => setRetryNonce((n) => n + 1)}>Retry</Button>
+            <Button
+              onClick={() => {
+                clearSqlInitError();
+                setRetryNonce((n) => n + 1);
+              }}
+            >
+              Retry
+            </Button>
           </div>
         ) : (
           <LoadingScreen

@@ -80,6 +80,8 @@ function postNotify(nodeId?: string): void {
   self.postMessage(msg);
 }
 
+const INIT_SQL_TIMEOUT_MS = 60_000;
+
 async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Promise<void> {
   if (state.store) {
     // Close existing store gracefully if re-initializing.
@@ -88,7 +90,15 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
     state.workspaceId = null;
   }
 
-  const db = await createDatabase(request.dbBytes);
+  const db = await Promise.race([
+    createDatabase(request.dbBytes),
+    new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error('sql.js initialization timed out in worker')),
+        INIT_SQL_TIMEOUT_MS
+      );
+    }),
+  ]);
   const store = new WorkspaceStore(db, request.workspaceId, request.actorId, {
     onPersist: async (data) => {
       // M5 will send this back to the main thread for IndexedDB persistence.
