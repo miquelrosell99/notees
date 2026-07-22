@@ -32,7 +32,7 @@ import { substituteRuntimeParams } from '../query/substituteRuntimeParams';
 import { compileToSqlite } from '../query/compileToSqlite';
 import { queryNodes } from '../query/queryNodes';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (raw === null || raw === undefined || raw === '') return fallback;
