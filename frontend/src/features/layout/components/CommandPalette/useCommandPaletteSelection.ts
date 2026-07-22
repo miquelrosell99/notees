@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
-import { listCorePages } from '@/core/query/listPages';
+import { listCorePagesAsync } from '@/core/query/listPages';
 import {
-  getOrCreateDailyNote,
-  getOrCreateMonthlyNote,
-  getOrCreateYearlyNote,
+  getOrCreateDailyNoteClient,
+  getOrCreateMonthlyNoteClient,
+  getOrCreateYearlyNoteClient,
 } from '@/features/content/hooks/useNodeDateQueries';
 import { useNavigationStore } from '@/stores';
 import { useCommandRegistry } from '@/stores/commandRegistry';
@@ -13,7 +13,7 @@ import { useNotifications } from '@/stores/notificationStore';
 import { useCreateNode } from '@/features/content';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
 import type { ItemEntry, DuplicateModalState } from './CommandPalette.types';
 
@@ -54,6 +54,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
 
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const openNode = useNavigationStore((s) => s.openNode);
   const openPropertyView = useNavigationStore((s) => s.openPropertyView);
   const { error: notifyError, warning: notifyWarning } = useNotifications();
@@ -66,13 +67,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     switch (item.type) {
       case 'date': {
         const pd = item.parsedDate;
-        if (!pd || !workspaceUuid) break;
-        const store = getWorkspaceStore(workspaceUuid);
-        if (!store) {
-          notifyError('Failed to navigate to date', 'Workspace store not available.');
-          onClose();
-          break;
-        }
+        if (!pd || !workspaceUuid || !client) break;
         try {
           let dateNode: Node;
           if (item.existingNode) {
@@ -80,11 +75,11 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           } else {
             if (pd.type === 'day' && pd.month && pd.day) {
               const dateStr = `${pd.year}-${String(pd.month).padStart(2, '0')}-${String(pd.day).padStart(2, '0')}`;
-              dateNode = getOrCreateDailyNote(store, dateStr);
+              dateNode = await getOrCreateDailyNoteClient(client, dateStr);
             } else if (pd.type === 'month' && pd.month) {
-              dateNode = getOrCreateMonthlyNote(store, pd.year, pd.month);
+              dateNode = await getOrCreateMonthlyNoteClient(client, pd.year, pd.month);
             } else {
-              dateNode = getOrCreateYearlyNote(store, pd.year);
+              dateNode = await getOrCreateYearlyNoteClient(client, pd.year);
             }
             queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
             queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -134,7 +129,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           const classUuids = [pageClassUuid, ...selectedClasses.map(c => c.uuid)];
 
           if (parsed.isHierarchical) {
-            const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
+            const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
             parentUuid = await resolveHierarchicalParentUuid(
               parsed.parentSegments,
               freshPages,
@@ -221,7 +216,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     destinationPage, onSelect, openNode, openPropertyView, createNodeMutation,
     onClose, queryClient, handlePrefixSelect, handleBooleanSelect,
     setDuplicateModal, setMaxPages, setMaxBlocks, setMaxProperties,
-    notifyError, notifyWarning, workspaceUuid,
+    notifyError, notifyWarning, workspaceUuid, client,
   ]);
 
   return { handleSelect };

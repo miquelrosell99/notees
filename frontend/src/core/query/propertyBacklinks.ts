@@ -6,6 +6,7 @@ import type { PropertyBacklink } from '@/types/api';
 import { queryAll } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export function buildPropertyBacklinks(store: WorkspaceStore, nodeUuid: string): PropertyBacklink[] {
   const db = store.getDb();
@@ -52,4 +53,11 @@ function findSourcePage(store: WorkspaceStore, nodeId: string) {
   }
 
   return undefined;
+}
+
+export async function buildPropertyBacklinksFromClient(
+  client: IWorkspaceStoreClient,
+  nodeUuid: string
+): Promise<PropertyBacklink[]> {
+  return client.query<PropertyBacklink[]>('buildPropertyBacklinks', [nodeUuid]);
 }

@@ -2,9 +2,9 @@ import { useState, useRef, useMemo, useCallback } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '../hooks';
 import { useNode } from '@/features/content';
-import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { DatePickerPopup } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import './PropertyCell.css';
@@ -50,10 +50,10 @@ export function DatePropertyCell({
   const handleSelect = useCallback(async (selectedIsoDate: string) => {
     setIsPickerOpen(false);
     if (!workspaceUuid) return;
-    const store = getWorkspaceStore(workspaceUuid);
-    if (!store) return;
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
     try {
-      const dayPage = getOrCreateDailyNote(store, selectedIsoDate);
+      const dayPage = await getOrCreateDailyNoteClient(client, selectedIsoDate);
       await setPropertyMutation.mutateAsync({
         nodeUuid: node.uuid,
         propertyId: property.uuid,

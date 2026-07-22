@@ -12,7 +12,7 @@ vi.mock('@/features/content', () => ({
   useCreateNode: () => ({ mutateAsync: mutateAsyncMock }),
 }));
 vi.mock('@/features/content/hooks/useNodeDateQueries', () => ({
-  getOrCreateDailyNote: getOrCreateDailyNoteMock,
+  getOrCreateDailyNoteClient: getOrCreateDailyNoteMock,
 }));
 vi.mock('@/features/properties', () => ({
   useSetNodeProperty: () => ({ mutate: setPropertyMutateMock }),
@@ -20,9 +20,10 @@ vi.mock('@/features/properties', () => ({
 vi.mock('@/hooks/useCurrentWorkspaceUuid', () => ({
   useCurrentWorkspaceUuid: () => 'ws-1',
 }));
-vi.mock('@/core/adapters/workspaceStoreAdapter', () => ({
-  getWorkspaceStore: () => ({}),
+vi.mock('@/core/hooks/useWorkspaceStoreClient', () => ({
+  useWorkspaceStoreClient: () => ({ client: {}, isLoading: false, error: null }),
 }));
+
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -32,7 +33,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useQuickAddTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateDailyNoteMock.mockReturnValue({ uuid: 'daily-uuid' });
+    getOrCreateDailyNoteMock.mockResolvedValue({ uuid: 'daily-uuid' });
     mutateAsyncMock.mockResolvedValue({ uuid: 'new-task-uuid' });
   });
 

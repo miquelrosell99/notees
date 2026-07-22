@@ -9,6 +9,7 @@ const { classListRef } = vi.hoisted(() => ({ classListRef: { current: [] as Node
 
 vi.mock('@/core/hooks', () => ({
   useWorkspaceStore: vi.fn(() => ({ store: null, isLoading: false, error: null })),
+  useWorkspaceStoreClient: vi.fn(() => ({ client: null, isLoading: false, error: null })),
   useNode: vi.fn(() => ({ node: undefined, isLoading: false })),
   useChildren: vi.fn(() => ({ children: [], isLoading: false })),
   useUndoManager: vi.fn(() => ({ group: vi.fn(), wrap: vi.fn() })),

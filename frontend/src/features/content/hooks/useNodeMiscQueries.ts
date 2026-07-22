@@ -3,24 +3,23 @@
  */
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import type { Node, PaginatedResponse } from '@/types/api';
+import type { Node, PaginatedResponse, TextLink } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { queryNodes } from '@/core/query/queryNodes';
-import { buildTasks } from '@/core/query/tasks';
-import { buildTextLinks } from '@/core/query/textLinks';
-import { buildSuggestions } from '@/core/query/suggestions';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { buildTasksFromClient } from '@/core/query/tasks';
+import { buildTextLinksFromClient } from '@/core/query/textLinks';
+import { buildSuggestionsFromClient } from '@/core/query/suggestions';
 
 export function useTasks(includeComplete = false) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<PaginatedResponse<Node>, Error, Node[]>({
     queryKey: nodeKeys.tasks(includeComplete),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      const items = buildTasks(store, includeComplete);
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      const items = await buildTasksFromClient(client, includeComplete);
       return {
         items,
         total: items.length,
@@ -30,7 +29,7 @@ export function useTasks(includeComplete = false) {
         has_prev: false,
       };
     },
-    enabled: !!store,
+    enabled: !!client,
     select: (data) => data.items,
   });
 
@@ -47,13 +46,15 @@ export function useTasks(includeComplete = false) {
 
 export function useNodesWithClass(classUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<PaginatedResponse<Node>, Error, Node[]>({
     queryKey: nodeKeys.byClass(classUuid ?? ''),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      const items = queryNodes(store, { classIds: classUuid ? [classUuid] : [], projectionDepth: 0 });
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      const items = await client.query<Node[]>('queryNodes', [
+        { classIds: classUuid ? [classUuid] : [], projectionDepth: 0 },
+      ]);
       return {
         items,
         total: items.length,
@@ -63,7 +64,7 @@ export function useNodesWithClass(classUuid: string | null) {
         has_prev: false,
       };
     },
-    enabled: !!store && !!classUuid,
+    enabled: !!client && !!classUuid,
     select: (data) => data.items,
   });
 
@@ -80,16 +81,16 @@ export function useNodesWithClass(classUuid: string | null) {
 
 export function useTextLinks(nodeUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
-  const result = useQuery<ReturnType<typeof buildTextLinks>>({
+  const result = useQuery<TextLink[]>({
     queryKey: nodeKeys.textLinks(nodeUuid ?? ''),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
       if (!nodeUuid) throw new Error('Node UUID not found');
-      return buildTextLinks(store, nodeUuid);
+      return buildTextLinksFromClient(client, nodeUuid);
     },
-    enabled: !!store && !!nodeUuid,
+    enabled: !!client && !!nodeUuid,
     staleTime: 30000,
   });
 
@@ -107,15 +108,15 @@ export function useTextLinks(nodeUuid: string | null) {
 
 export function useSuggestions(classFilters?: string, enabled = true) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery({
     queryKey: nodeKeys.suggestions(classFilters),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      return buildSuggestions(store, classFilters);
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      return buildSuggestionsFromClient(client, classFilters);
     },
-    enabled: enabled && !!store,
+    enabled: enabled && !!client,
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30,
   });

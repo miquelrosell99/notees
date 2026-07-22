@@ -8,7 +8,7 @@ import { useNotifications } from '@/stores/notificationStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import type { NodeVersion } from '@/types/api';
 
 interface SidebarVersionsProps {
@@ -22,36 +22,41 @@ export function SidebarVersions({ nodeUuid }: SidebarVersionsProps) {
   const dateFormat = useSettingsStore(s => s.dateFormat);
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const { success: notifySuccess, error: notifyError } = useNotifications();
 
   useEffect(() => {
-    if (expanded && nodeUuid && store) {
+    if (expanded && nodeUuid && client) {
       setLoading(true);
-      try {
-        setVersions(store.getNodeVersions(nodeUuid, 30));
-      } catch {
-        setVersions([]);
-      } finally {
-        setLoading(false);
-      }
+      const run = async () => {
+        try {
+          const result = await client.query<NodeVersion[]>('getNodeVersions', [nodeUuid, 30]);
+          setVersions(result);
+        } catch {
+          setVersions([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      run();
     }
-  }, [expanded, nodeUuid, store]);
+  }, [expanded, nodeUuid, client]);
 
   const handleRestore = useCallback(async (versionUuid: string) => {
-    if (!store) {
+    if (!client) {
       notifyError('Failed to restore', 'Workspace store is not ready.');
       return;
     }
     try {
-      store.restoreNodeVersion(nodeUuid, versionUuid);
+      await client.mutate<void>('restoreNodeVersion', [nodeUuid, versionUuid]);
       queryClient.invalidateQueries({ queryKey: nodeKeys.byUuid(nodeUuid) });
       notifySuccess('Version restored', 'The node content has been restored.');
-      setVersions(store.getNodeVersions(nodeUuid, 30));
+      const refreshed = await client.query<NodeVersion[]>('getNodeVersions', [nodeUuid, 30]);
+      setVersions(refreshed);
     } catch {
       notifyError('Failed to restore', 'Could not restore this version.');
     }
-  }, [nodeUuid, store, queryClient, notifySuccess, notifyError]);
+  }, [nodeUuid, client, queryClient, notifySuccess, notifyError]);
 
   return (
     <NodeViewSection

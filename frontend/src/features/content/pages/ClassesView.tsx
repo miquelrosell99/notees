@@ -12,8 +12,8 @@ import { useClassClass } from '@/features/content/hooks/usePageClass';
 import { useContentSave } from '@/features/editor';
 import { useNavigationStore } from '@/stores';
 import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import { projectNode } from '@/core/adapters/nodeProjection';
+import { getOrCreateWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
 import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
@@ -73,20 +73,16 @@ export function ClassesView({ initialViewMode }: ClassesViewProps) {
 
   const handleCreateClass = useCallback(async () => {
     if (!ctx || !workspaceId) return;
-    const store = await getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.transport);
+    const client = await getOrCreateWorkspaceStoreClient(workspaceId, ctx.actorId, ctx.transport);
     const classId = uuidv7();
-    store.createNode({
+    await client.mutate<void>('createNode', [{
       nodeId: classId,
       kind: 'class',
       parentId: null,
       classIds: classClassUuid ? [classClassUuid] : [],
-    });
-    store.updateText(classId, (text) => {
-      const current = text.toPlaintext();
-      text.delete(0, current.length);
-      text.insert(0, 'New class');
-    });
-    const projected = projectNode(store, classId);
+    }]);
+    await client.mutate<void>('setNodeText', [classId, 'New class']);
+    const projected = await projectNodeFromClient(client, classId);
     if (projected) {
       openNode(projected.uuid);
     }

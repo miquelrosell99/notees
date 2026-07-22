@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { NodeRow } from '../store';
-import { useWorkspaceStore } from './useWorkspaceStore';
+import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 
 export interface UseNodesResult {
   nodes: (NodeRow | undefined)[];
@@ -9,23 +9,35 @@ export interface UseNodesResult {
 }
 
 export function useNodes(workspaceId: string, nodeIds: string[]): UseNodesResult {
-  const { store, isLoading, error } = useWorkspaceStore(workspaceId);
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId);
   const [nodes, setNodes] = useState<(NodeRow | undefined)[]>([]);
 
   useEffect(() => {
-    if (!store) {
+    if (!client) {
       setNodes([]);
       return;
     }
-    const update = (): void => setNodes(nodeIds.map((nodeId) => store.getNode(nodeId)));
+
+    let cancelled = false;
+
+    const update = async (): Promise<void> => {
+      const nextNodes = await Promise.all(
+        nodeIds.map((nodeId) => client.query<NodeRow | undefined>('getNode', [nodeId])),
+      );
+      if (!cancelled) {
+        setNodes(nextNodes);
+      }
+    };
+
     update();
-    const unsubscribes = nodeIds.map((nodeId) => store.subscribe(nodeId, update));
+    const unsubscribes = nodeIds.map((nodeId) => client.subscribe(nodeId, update));
     return () => {
+      cancelled = true;
       for (const unsubscribe of unsubscribes) {
         unsubscribe();
       }
     };
-  }, [store, nodeIds]);
+  }, [client, nodeIds]);
 
   return { nodes, isLoading, error };
 }

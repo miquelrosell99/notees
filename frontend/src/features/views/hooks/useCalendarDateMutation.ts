@@ -3,9 +3,9 @@
  */
 import { useMutation } from '@tanstack/react-query';
 import { useSetNodePropertyAdapter } from '@/core/adapters/useSetNodePropertyAdapter';
-import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import type { Property } from '@/types/api';
 
 function formatDateForApi(d: Date): string {
@@ -20,9 +20,9 @@ export function useCalendarDateMutation(startDateProperty: Property | undefined)
   return useMutation({
     mutationFn: async ({ nodeUuid, newDate }: { nodeUuid: string; newDate: Date }) => {
       if (!startDateProperty || !workspaceUuid) return;
-      const store = getWorkspaceStore(workspaceUuid);
-      if (!store) return;
-      const dayNode = getOrCreateDailyNote(store, formatDateForApi(newDate));
+      const client = getWorkspaceStoreClient(workspaceUuid);
+      if (!client) return;
+      const dayNode = await getOrCreateDailyNoteClient(client, formatDateForApi(newDate));
       await setProperty.mutateAsync({ nodeUuid, propertyId: startDateProperty.uuid, value: dayNode.uuid });
     },
   });

@@ -5,6 +5,7 @@
 import type { Backlink, LinkType } from '@/types/api';
 import { projectNode } from '../adapters/nodeProjection';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export function buildBacklinks(store: WorkspaceStore, nodeUuid: string): Backlink[] {
   const sourceIds = store.getBacklinks(nodeUuid);
@@ -43,4 +44,11 @@ function findSourcePage(store: WorkspaceStore, nodeId: string) {
   }
 
   return undefined;
+}
+
+export async function buildBacklinksFromClient(
+  client: IWorkspaceStoreClient,
+  nodeUuid: string
+): Promise<Backlink[]> {
+  return client.query<Backlink[]>('buildBacklinks', [nodeUuid]);
 }

@@ -2,9 +2,9 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import { useNode } from '@/features/content';
 import { DatePickerPopup } from '@/features/content';
 import { Button } from '@/components/ui/Button';
-import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { nodeNameToText } from '@/features/queries';
 import './DatePropertyValue.css';
 
@@ -48,11 +48,11 @@ export function DatePropertyValue({
       return;
     }
     if (!workspaceUuid) return;
-    const store = getWorkspaceStore(workspaceUuid);
-    if (!store) return;
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
     setLoading(true);
     try {
-      const newDayNode = getOrCreateDailyNote(store, isoDate);
+      const newDayNode = await getOrCreateDailyNoteClient(client, isoDate);
       onChange(newDayNode.uuid);
     } catch (err) {
       console.error('Failed to create/get day page:', err);
