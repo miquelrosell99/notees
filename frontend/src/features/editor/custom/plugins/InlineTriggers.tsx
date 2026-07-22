@@ -25,11 +25,10 @@ import {
   useCreateProperty,
 } from '@/features/properties';
 import { DatePickerPopup, useCreateComment } from '@/features/content';
-import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { generateUUID } from '@/utils/uuid';
 import type { DateRangeValue } from '@/utils/dateRange';
 import { useParams } from 'react-router-dom';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { serializeContentAST } from '@/features/editor/editor/editorConfig';
@@ -37,6 +36,8 @@ import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { getSlashCommand } from '@/plugins/core';
 import { Modal, Button, TextField } from '@/components/ui';
 import { buildLinkId, nodeLink, dateRange as buildDateRangeNode, externalLink, text as textNode } from '@/lib/astBuilder';
+import { useWorkspaceStoreClient, useUndoManager, useNode } from '@/core/hooks';
+import type { ASTDocument } from '@/types/ast';
 import {
   insertText,
   deleteRange,
@@ -47,7 +48,6 @@ import {
 } from '../model/inlineEditorModel';
 import { isInsideEditorCompanion } from '../utils/editorCompanion';
 import type { InlineEditorState } from '../model/types';
-import type { ASTDocument } from '@/types/ast';
 
 interface PopupState {
   type: TriggerPopupType;
@@ -179,6 +179,11 @@ export function InlineTriggers({
   templateClassFilters,
 }: InlineTriggersProps): JSX.Element | null {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
+  const manager = useUndoManager(workspaceId ?? '');
+  const { node: blockNode } = useNode(workspaceId ?? '', blockId);
+  const { node: parentNode } = useNode(workspaceId ?? '', blockNode?.parentId ?? undefined);
+
   const [popup, setPopup] = useState<PopupState | null>(null);
   const [dateRangePickerOpen, setDateRangePickerOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -229,6 +234,11 @@ export function InlineTriggers({
     popupOpenRef.current = popup !== null;
   }, [popup]);
 
+  // Keep the block server id in sync with the worker-backed node projection.
+  useEffect(() => {
+    blockServerIdRef.current = blockNode?.id ?? blockId;
+  }, [blockNode, blockId]);
+
   // Keep the editor's active block alive while ANY inline picker is open — the
   // trigger popup AND the follow-on pickers (date / date-range / url / property /
   // comment). blurBlock() is suppressed while popupOpen is true; without this,
@@ -262,18 +272,11 @@ export function InlineTriggers({
     return () => clearTimeout(t);
   }, [commentPromptOpen]);
 
-  const resolveBlockServerId = useCallback(() => {
-    if (!workspaceId) return;
-    const store = getWorkspaceStore(workspaceId);
-    blockServerIdRef.current = store?.getNode(blockId)?.id;
-  }, [blockId, workspaceId]);
-
   const openTrigger = useCallback(
     (key: TriggerChar, fromComposition = false) => {
       const root = rootRef.current;
       if (!root) return;
 
-      resolveBlockServerId();
       const coords = getCaretCoordinates(root);
       hadFocusBeforeRef.current =
         root === document.activeElement || root.contains(document.activeElement);
@@ -308,7 +311,7 @@ export function InlineTriggers({
       }
       setPopup({ type: triggerType(key), position: coords, ...(isSlash ? { inline: true } : {}) });
     },
-    [rootRef, stateRef, applyMutation, resolveBlockServerId],
+    [rootRef, stateRef, applyMutation],
   );
 
   const removePlaceholder = useCallback(() => {
@@ -345,28 +348,28 @@ export function InlineTriggers({
     popupOpenRef.current = false;
     flushSync(() => setPopup(null));
     placeholderOffsetRef.current = null;
-    blockServerIdRef.current = undefined;
+    blockServerIdRef.current = blockNode?.id ?? blockId;
     selectionMadeRef.current = false;
 
     if (hadFocusBeforeRef.current) {
       rootRef.current?.focus();
     }
     hadFocusBeforeRef.current = false;
-  }, [applyMutation, rootRef]);
+  }, [applyMutation, rootRef, blockNode, blockId]);
 
   const handleDeletePlaceholder = useCallback(() => {
     removePlaceholder();
     popupOpenRef.current = false;
     flushSync(() => setPopup(null));
     placeholderOffsetRef.current = null;
-    blockServerIdRef.current = undefined;
+    blockServerIdRef.current = blockNode?.id ?? blockId;
     selectionMadeRef.current = false;
 
     if (hadFocusBeforeRef.current) {
       rootRef.current?.focus();
     }
     hadFocusBeforeRef.current = false;
-  }, [removePlaceholder, rootRef]);
+  }, [removePlaceholder, rootRef, blockNode, blockId]);
 
   // Close the inline slash popup while KEEPING the typed text in the block and
   // leaving the caret where it is (used for Esc and for deleting the '/').
@@ -374,7 +377,7 @@ export function InlineTriggers({
     popupOpenRef.current = false;
     flushSync(() => setPopup(null));
     placeholderOffsetRef.current = null;
-    blockServerIdRef.current = undefined;
+    blockServerIdRef.current = blockNode?.id ?? blockId;
     selectionMadeRef.current = false;
     slashActiveIdRef.current = null;
     slashCountRef.current = 0;
@@ -382,7 +385,7 @@ export function InlineTriggers({
       rootRef.current?.focus();
     }
     hadFocusBeforeRef.current = false;
-  }, [rootRef]);
+  }, [rootRef, blockNode, blockId]);
 
   const insertPill = useCallback(
     (nodeUuid: string, refType: 'node' | 'class' | 'user') => {
@@ -418,11 +421,9 @@ export function InlineTriggers({
   const handleDateSelect = useCallback(
     async (isoDate: string) => {
       const insertOffset = dateInsertOffsetRef.current;
-      if (!workspaceId) return;
-      const store = getWorkspaceStore(workspaceId);
-      if (!store) return;
+      if (!workspaceId || !client) return;
       try {
-        const dayNode = getOrCreateDailyNote(store, isoDate);
+        const dayNode = await getOrCreateDailyNoteClient(client, isoDate);
         applyMutation((prev) => {
           const fallbackOffset =
             prev.selection.type === 'collapsed' ? prev.selection.offset : 0;
@@ -444,7 +445,7 @@ export function InlineTriggers({
         dateInsertOffsetRef.current = null;
       }
     },
-    [applyMutation, workspaceId],
+    [applyMutation, workspaceId, client],
   );
 
   const handleUrlSave = useCallback(
@@ -511,36 +512,30 @@ export function InlineTriggers({
     async (nodeUuid: string) => {
       const offset = placeholderOffsetRef.current;
       if (offset === null) return;
-      if (!workspaceId) return;
+      if (!workspaceId || !client || !manager) return;
 
-      const store = getWorkspaceStore(workspaceId);
-      if (!store) return;
-
-      const hostNode = store.getNode(blockId);
+      const hostNode = await client.query<{ parentId: string | null } | undefined>('getNode', [blockId]);
       if (!hostNode?.parentId) return;
 
       removePlaceholder();
       const newBlockId = generateUUID();
       useEditorFocusStore.getState().setPendingFocus(newBlockId);
 
-      store.createNode({ nodeId: newBlockId, kind: 'block', parentId: hostNode.parentId });
+      await manager.createBlock({ nodeId: newBlockId, kind: 'block', parentId: hostNode.parentId });
       // TODO: ordered insertion after `blockId` requires a custom tree-CRDT update;
       // `moveNode` currently appends to the end of the parent list.
-      store.moveNode(newBlockId, hostNode.parentId);
-      store.updateText(newBlockId, (text) => {
-        const contentAST: ASTDocument = [
-          {
-            type: 'paragraph',
-            children: [{ type: 'node_link', link_id: nodeUuid, ref_type: 'embed' }],
-          },
-        ];
-        const serialized = serializeContentAST(contentAST);
-        const current = text.toPlaintext();
-        text.delete(0, current.length);
-        text.insert(0, serialized);
-      });
+      await manager.moveNode(newBlockId, hostNode.parentId);
+
+      const contentAST: ASTDocument = [
+        {
+          type: 'paragraph',
+          children: [{ type: 'node_link', link_id: nodeUuid, ref_type: 'embed' }],
+        },
+      ];
+      const serialized = serializeContentAST(contentAST);
+      await manager.recordSetNodeText(newBlockId, serialized);
     },
-    [blockId, removePlaceholder, workspaceId],
+    [blockId, removePlaceholder, workspaceId, client, manager],
   );
 
   const handleSelectNode = useCallback(
@@ -717,26 +712,17 @@ export function InlineTriggers({
   // Hide the /cloze command unless the active block's parent is a card node.
   const hiddenSlashCommandIds = (() => {
     const hidden = new Set<string>();
-    const blockServerId = blockServerIdRef.current;
-    if (blockServerId == null || workspaceId == null) {
+    if (!blockNode) {
       hidden.add('cloze');
       return hidden;
     }
 
-    const store = getWorkspaceStore(workspaceId);
-    if (!store) {
+    if (!parentNode) {
       hidden.add('cloze');
       return hidden;
     }
 
-    const blockNode = store.getNode(blockServerId);
-    if (!blockNode?.parentId) {
-      hidden.add('cloze');
-      return hidden;
-    }
-
-    const parentNode = store.getNode(blockNode.parentId);
-    const parentIsCard = parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
+    const parentIsCard = parentNode.classIds.includes(SYSTEM_CLASS_UUIDS.card);
     if (!parentIsCard) {
       hidden.add('cloze');
     }

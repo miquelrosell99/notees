@@ -24,7 +24,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@/core/hooks', () => ({
-  useWorkspaceStore: vi.fn(() => ({ store: undefined, isLoading: false })),
+  useWorkspaceStoreClient: vi.fn(() => ({ client: undefined, isLoading: false, error: null })),
 }));
 
 const PAGE_UUID = '11111111-1111-1111-1111-111111111111';

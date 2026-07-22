@@ -8,14 +8,14 @@
  */
 
 import { useCallback } from 'react';
-import { useWorkspaceStore, useUndoManager } from '@/core/hooks';
+import { useWorkspaceStoreClient, useUndoManager } from '@/core/hooks';
 import type { UndoManagerClient } from '@/core/hooks/useUndoManager';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { paragraph, text as astText } from '@/lib/astBuilder';
 import { generateUUID } from '@/utils/uuid';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import type { ASTDocument } from '@/types/ast';
-import type { WorkspaceStore } from '@/core/store';
 import type { BlockCopyData, BlockData } from '@/utils/clipboardManager';
 
 export interface CoreBlockMutations {
@@ -38,8 +38,12 @@ function astToPlaintext(ast: ASTDocument): string {
   return stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY });
 }
 
-function getNodePlaintext(store: WorkspaceStore, nodeId: string): string {
-  const content = store.getNode(nodeId)?.content ?? '';
+async function getNodePlaintext(
+  client: IWorkspaceStoreClient,
+  nodeId: string,
+): Promise<string> {
+  const node = await client.query<{ content: string } | undefined>('getNode', [nodeId]);
+  const content = node?.content ?? '';
   try {
     const ast = JSON.parse(content) as Array<{ text?: string }>;
     if (Array.isArray(ast)) {
@@ -61,16 +65,16 @@ function parseBlockName(name: string): ASTDocument {
   return [paragraph(astText(name))];
 }
 
-function requireStore(
-  store: WorkspaceStore | undefined,
+function requireClientAndManager(
+  client: IWorkspaceStoreClient | undefined,
   manager: UndoManagerClient | undefined,
-): { store: WorkspaceStore; manager: UndoManagerClient } {
-  if (!store || !manager) throw new Error('Workspace store is not ready');
-  return { store, manager };
+): { client: IWorkspaceStoreClient; manager: UndoManagerClient } {
+  if (!client || !manager) throw new Error('Workspace store is not ready');
+  return { client, manager };
 }
 
 export function useCoreBlockMutations(workspaceId: string | undefined): CoreBlockMutations {
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const manager = useUndoManager(workspaceId ?? '');
 
   const createBlock = useCallback(
@@ -80,7 +84,7 @@ export function useCoreBlockMutations(workspaceId: string | undefined): CoreBloc
       afterBlockId?: string | null;
       contentAST?: ASTDocument;
     }): Promise<string> => {
-      const { manager: m } = requireStore(store, manager);
+      const { manager: m } = requireClientAndManager(client, manager);
       const blockId = args.blockId ?? generateUUID();
       const content = astToPlaintext(args.contentAST ?? []);
       await m.createBlock({
@@ -96,33 +100,34 @@ export function useCoreBlockMutations(workspaceId: string | undefined): CoreBloc
       }
       return blockId;
     },
-    [store, manager],
+    [client, manager],
   );
 
   const moveBlock = useCallback(
     async (args: { blockId: string; newParentId: string | null }): Promise<void> => {
-      const { manager: m } = requireStore(store, manager);
+      const { manager: m } = requireClientAndManager(client, manager);
       await m.moveNode(args.blockId, args.newParentId ?? null);
     },
-    [store, manager],
+    [client, manager],
   );
 
   const deleteBlock = useCallback(
     async (args: { blockId: string }): Promise<void> => {
-      const { manager: m } = requireStore(store, manager);
+      const { manager: m } = requireClientAndManager(client, manager);
       await m.deleteNode(args.blockId);
     },
-    [store, manager],
+    [client, manager],
   );
 
   const splitBlock = useCallback(
     async (args: { blockId: string; atOffset: number; newBlockId?: string }): Promise<string> => {
-      const { store: s, manager: m } = requireStore(store, manager);
+      const { client: c, manager: m } = requireClientAndManager(client, manager);
       const newBlockId = args.newBlockId ?? generateUUID();
-      const plainText = getNodePlaintext(s, args.blockId);
+      const plainText = await getNodePlaintext(c, args.blockId);
       const before = plainText.slice(0, Math.max(0, args.atOffset));
       const after = plainText.slice(Math.max(0, args.atOffset));
-      const parentId = s.getNode(args.blockId)?.parentId ?? null;
+      const node = await c.query<{ parentId: string | null } | undefined>('getNode', [args.blockId]);
+      const parentId = node?.parentId ?? null;
 
       await m.recordSetNodeText(args.blockId, before);
       await m.createBlock({
@@ -133,47 +138,47 @@ export function useCoreBlockMutations(workspaceId: string | undefined): CoreBloc
       });
       return newBlockId;
     },
-    [store, manager],
+    [client, manager],
   );
 
   const mergeBlocks = useCallback(
     async (args: { sourceBlockId: string; targetBlockId: string }): Promise<void> => {
-      const { manager: m } = requireStore(store, manager);
+      const { manager: m } = requireClientAndManager(client, manager);
       await m.mergeBlocks(args.sourceBlockId, args.targetBlockId);
     },
-    [store, manager],
+    [client, manager],
   );
 
   const indentBlock = useCallback(
     async (args: { blockId: string }): Promise<void> => {
-      const { store: s, manager: m } = requireStore(store, manager);
-      const node = s.getNode(args.blockId);
+      const { client: c, manager: m } = requireClientAndManager(client, manager);
+      const node = await c.query<{ parentId: string | null } | undefined>('getNode', [args.blockId]);
       if (!node?.parentId) return;
-      const siblings = s.getChildren(node.parentId);
+      const siblings = await c.query<string[]>('getChildren', [node.parentId]);
       const idx = siblings.indexOf(args.blockId);
       if (idx <= 0) return;
       const newParentId = siblings[idx - 1];
       if (!newParentId) return;
       await m.moveNode(args.blockId, newParentId);
     },
-    [store, manager],
+    [client, manager],
   );
 
   const outdentBlock = useCallback(
     async (args: { blockId: string }): Promise<void> => {
-      const { store: s, manager: m } = requireStore(store, manager);
-      const node = s.getNode(args.blockId);
+      const { client: c, manager: m } = requireClientAndManager(client, manager);
+      const node = await c.query<{ parentId: string | null } | undefined>('getNode', [args.blockId]);
       if (!node?.parentId) return;
-      const parentNode = s.getNode(node.parentId);
+      const parentNode = await c.query<{ parentId: string | null } | undefined>('getNode', [node.parentId]);
       await m.moveNode(args.blockId, parentNode?.parentId ?? null);
     },
-    [store, manager],
+    [client, manager],
   );
 
   const pasteBlocksAfter = useCallback(
     async (args: { afterBlockId: string; blockData: BlockCopyData }): Promise<void> => {
-      const { store: s, manager: m } = requireStore(store, manager);
-      const afterNode = s.getNode(args.afterBlockId);
+      const { client: c, manager: m } = requireClientAndManager(client, manager);
+      const afterNode = await c.query<{ parentId: string | null } | undefined>('getNode', [args.afterBlockId]);
       if (!afterNode?.parentId) return;
 
       async function pasteTree(blocks: BlockData[], parentId: string): Promise<string[]> {
@@ -196,7 +201,7 @@ export function useCoreBlockMutations(workspaceId: string | undefined): CoreBloc
         useEditorFocusStore.getState().setPendingFocus(createdIds[createdIds.length - 1]);
       }
     },
-    [store, manager],
+    [client, manager],
   );
 
   return {

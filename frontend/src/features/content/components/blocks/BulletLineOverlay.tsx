@@ -11,7 +11,7 @@ import { useParams } from 'react-router-dom';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useNavigationStore } from '@/stores/navigationStore';
-import { useWorkspaceStore } from '@/core/hooks';
+import { useWorkspaceStoreClient } from '@/core/hooks';
 import './BulletLineOverlay.css';
 
 interface VirtualItemInfo {
@@ -118,26 +118,44 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
   onLineClick,
 }: BulletLineOverlayProps) {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
   const showBulletThread = useSettingsStore((s) => s.showBulletThread);
   const isFocusMode = useNavigationStore((s) => s.viewMode === 'focus');
   const isEditing = activeBlockId != null;
 
-  const getAncestorIds = useCallback(
-    (nodeId: string): string[] => {
-      if (!store) return [];
+  const [ancestorIds, setAncestorIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!activeBlockId || !client) {
+      setAncestorIds([]);
+      return;
+    }
+    let cancelled = false;
+    const compute = async (): Promise<void> => {
       const ancestors: string[] = [];
       const visited = new Set<string>();
-      let current = store.getNode(nodeId)?.parentId ?? null;
-      while (current && !visited.has(current)) {
-        visited.add(current);
-        ancestors.push(current);
-        current = store.getNode(current)?.parentId ?? null;
+      let current = await client.query<{ parentId: string | null } | undefined>('getNode', [activeBlockId]);
+      while (current?.parentId && !visited.has(current.parentId)) {
+        visited.add(current.parentId);
+        ancestors.push(current.parentId);
+        current = await client.query<{ parentId: string | null } | undefined>('getNode', [current.parentId]);
       }
-      return ancestors;
+      if (!cancelled) {
+        setAncestorIds(ancestors);
+      }
+    };
+    compute();
+    return () => { cancelled = true; };
+  }, [activeBlockId, client]);
+
+  const getAncestorIds = useCallback(
+    (nodeId: string): string[] => {
+      if (nodeId === activeBlockId) return ancestorIds;
+      // Fallback for any other node (not currently used).
+      return [];
     },
-    [store],
+    [activeBlockId, ancestorIds],
   );
 
   const [spans, setSpans] = useState<LineSpan[]>([]);
@@ -156,7 +174,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
     }
 
     cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
+    rafRef.current = requestAnimationFrame(async () => {
       const bulletCenter = getBulletCenterOffset();
       const startTrim = getLineStartTrim();
       const step = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--block-indent-step')) || 24;

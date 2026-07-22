@@ -4,6 +4,8 @@ export { WorkspaceStoreContext } from './WorkspaceStoreContext';
 export type { WorkspaceStoreContextValue } from './WorkspaceStoreContext';
 export { useWorkspaceStore } from './useWorkspaceStore';
 export type { UseWorkspaceStoreResult } from './useWorkspaceStore';
+export { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
+export type { UseWorkspaceStoreClientResult } from './useWorkspaceStoreClient';
 export { useNode } from './useNode';
 export type { UseNodeResult } from './useNode';
 export { useNodes } from './useNodes';
