@@ -174,126 +174,130 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
     }
 
     cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(async () => {
-      const bulletCenter = getBulletCenterOffset();
-      const startTrim = getLineStartTrim();
-      const step = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--block-indent-step')) || 24;
-      const containerRect = container.getBoundingClientRect();
+    rafRef.current = requestAnimationFrame(() => {
+      void (async () => {
+        const bulletCenter = getBulletCenterOffset();
+        const startTrim = getLineStartTrim();
+        const step = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--block-indent-step')) || 24;
+        const containerRect = container.getBoundingClientRect();
 
-      // Build active-path set from the core store when a block is being edited.
-      const activeAncestorIds = activeBlockId ? getAncestorIds(activeBlockId) : [];
-      const activePath = new Set<string>(activeAncestorIds);
-      if (activeBlockId) activePath.add(activeBlockId);
+        // Build active-path set from the core store when a block is being edited.
+        const activeAncestorIds = activeBlockId ? getAncestorIds(activeBlockId) : [];
+        const activePath = new Set<string>(activeAncestorIds);
+        if (activeBlockId) activePath.add(activeBlockId);
 
-      // Collect visible rows with coordinates.
-      const rows: { depth: number; blockUuid: string; y: number; x: number }[] = [];
+        // Collect visible rows with coordinates.
+        const rows: { depth: number; blockUuid: string; y: number; x: number }[] = [];
 
-      if (virtualized && virtualItems) {
-        // Measure the actual rendered rows so guide lines match the virtualized
-        // layout (including dynamic heights and the scroll-margin offset).
-        for (const vi of virtualItems) {
-          const fn = flatNodes[vi.index];
-          if (!fn || fn.isGhost) continue;
-          const el = container.querySelector(`.node-block[data-block-id="${fn.node.uuid}"]`) as HTMLElement | null;
-          if (!el) continue;
-          const rect = el.getBoundingClientRect();
-          rows.push({
-            depth: fn.depth,
-            blockUuid: fn.node.uuid,
-            y: getBulletCenterY(el, containerRect.top, rect.top - containerRect.top + rect.height / 2),
-            x: fn.depth * step + bulletCenter,
-          });
-        }
-      } else {
-        for (const fn of flatNodes) {
-          if (fn.isGhost) continue;
-          const el = container.querySelector(`.node-block[data-block-id="${fn.node.uuid}"]`) as HTMLElement | null;
-          if (!el) continue;
-          const rect = el.getBoundingClientRect();
-          rows.push({
-            depth: fn.depth,
-            blockUuid: fn.node.uuid,
-            y: getBulletCenterY(el, containerRect.top, rect.top - containerRect.top + rect.height / 2),
-            x: rect.left - containerRect.left + bulletCenter,
-          });
-        }
-      }
-
-      if (rows.length === 0) {
-        setSpans([]);
-        setConnectors([]);
-        setActivePathChain([]);
-        setSize({ width: containerRect.width, height: containerRect.height });
-        return;
-      }
-
-      // Compute the last descendant index for every row using a monotonic stack.
-      const lastDescendantIndex: (number | null)[] = new Array(rows.length).fill(null);
-      const stack: number[] = [];
-
-      for (let i = 0; i < rows.length; i++) {
-        while (stack.length > 0 && rows[stack[stack.length - 1]].depth >= rows[i].depth) {
-          const parentIndex = stack.pop()!;
-          lastDescendantIndex[parentIndex] = i - 1;
-        }
-        stack.push(i);
-      }
-      while (stack.length > 0) {
-        const parentIndex = stack.pop()!;
-        lastDescendantIndex[parentIndex] = rows.length - 1;
-      }
-
-      // Draw one continuous vertical line per parent with descendants.
-      const newSpans: LineSpan[] = [];
-      for (let i = 0; i < rows.length; i++) {
-        const last = lastDescendantIndex[i];
-        if (last == null || last <= i) continue;
-        const row = rows[i];
-        const yStart = row.y + startTrim;
-        const yEnd = rows[last].y;
-        if (yEnd <= yStart) continue;
-
-        newSpans.push({
-          x: row.x,
-          yStart,
-          yEnd,
-          blockId: row.blockUuid,
-        });
-      }
-
-      // Compute L-connectors for the active path.
-      const newConnectors: Connector[] = [];
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        if (!activePath.has(row.blockUuid)) continue;
-
-        for (let j = i - 1; j >= 0; j--) {
-          if (rows[j].depth === row.depth - 1) {
-            newConnectors.push({ x: rows[j].x, y: row.y });
-            break;
+        if (virtualized && virtualItems) {
+          // Measure the actual rendered rows so guide lines match the virtualized
+          // layout (including dynamic heights and the scroll-margin offset).
+          for (const vi of virtualItems) {
+            const fn = flatNodes[vi.index];
+            if (!fn || fn.isGhost) continue;
+            const el = container.querySelector(`.node-block[data-block-id="${fn.node.uuid}"]`) as HTMLElement | null;
+            if (!el) continue;
+            const rect = el.getBoundingClientRect();
+            rows.push({
+              depth: fn.depth,
+              blockUuid: fn.node.uuid,
+              y: getBulletCenterY(el, containerRect.top, rect.top - containerRect.top + rect.height / 2),
+              x: fn.depth * step + bulletCenter,
+            });
           }
-          if (rows[j].depth < row.depth - 1) break;
+        } else {
+          for (const fn of flatNodes) {
+            if (fn.isGhost) continue;
+            const el = container.querySelector(`.node-block[data-block-id="${fn.node.uuid}"]`) as HTMLElement | null;
+            if (!el) continue;
+            const rect = el.getBoundingClientRect();
+            rows.push({
+              depth: fn.depth,
+              blockUuid: fn.node.uuid,
+              y: getBulletCenterY(el, containerRect.top, rect.top - containerRect.top + rect.height / 2),
+              x: rect.left - containerRect.left + bulletCenter,
+            });
+          }
         }
-      }
 
-      // Build the continuous active-path chain from root to active block,
-      // using only the visible rows for coordinates.
-      const newActivePathChain: Point[] = [];
-      if (activeBlockId) {
-        const chain: Point[] = [];
-        for (const ancestorId of [...activeAncestorIds].reverse()) {
-          const row = rows.find((r) => r.blockUuid === ancestorId);
-          if (row) chain.push({ x: row.x, y: row.y });
+        if (rows.length === 0) {
+          setSpans([]);
+          setConnectors([]);
+          setActivePathChain([]);
+          setSize({ width: containerRect.width, height: containerRect.height });
+          return;
         }
-        const activeRow = rows.find((r) => r.blockUuid === activeBlockId);
-        if (activeRow) chain.push({ x: activeRow.x, y: activeRow.y });
-        newActivePathChain.push(...chain);
-      }
 
-      setSpans(newSpans);
-      setConnectors(newConnectors);
-      setActivePathChain(newActivePathChain);
-      setSize({ width: containerRect.width, height: containerRect.height });
+        // Compute the last descendant index for every row using a monotonic stack.
+        const lastDescendantIndex: (number | null)[] = new Array(rows.length).fill(null);
+        const stack: number[] = [];
+
+        for (let i = 0; i < rows.length; i++) {
+          while (stack.length > 0 && rows[stack[stack.length - 1]].depth >= rows[i].depth) {
+            const parentIndex = stack.pop()!;
+            lastDescendantIndex[parentIndex] = i - 1;
+          }
+          stack.push(i);
+        }
+        while (stack.length > 0) {
+          const parentIndex = stack.pop()!;
+          lastDescendantIndex[parentIndex] = rows.length - 1;
+        }
+
+        // Draw one continuous vertical line per parent with descendants.
+        const newSpans: LineSpan[] = [];
+        for (let i = 0; i < rows.length; i++) {
+          const last = lastDescendantIndex[i];
+          if (last == null || last <= i) continue;
+          const row = rows[i];
+          const yStart = row.y + startTrim;
+          const yEnd = rows[last].y;
+          if (yEnd <= yStart) continue;
+
+          newSpans.push({
+            x: row.x,
+            yStart,
+            yEnd,
+            blockId: row.blockUuid,
+          });
+        }
+
+        // Compute L-connectors for the active path.
+        const newConnectors: Connector[] = [];
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          if (!activePath.has(row.blockUuid)) continue;
+
+          for (let j = i - 1; j >= 0; j--) {
+            if (rows[j].depth === row.depth - 1) {
+              newConnectors.push({ x: rows[j].x, y: row.y });
+              break;
+            }
+            if (rows[j].depth < row.depth - 1) break;
+          }
+        }
+
+        // Build the continuous active-path chain from root to active block,
+        // using only the visible rows for coordinates.
+        const newActivePathChain: Point[] = [];
+        if (activeBlockId) {
+          const chain: Point[] = [];
+          for (const ancestorId of [...activeAncestorIds].reverse()) {
+            const row = rows.find((r) => r.blockUuid === ancestorId);
+            if (row) chain.push({ x: row.x, y: row.y });
+          }
+          const activeRow = rows.find((r) => r.blockUuid === activeBlockId);
+          if (activeRow) chain.push({ x: activeRow.x, y: activeRow.y });
+          newActivePathChain.push(...chain);
+        }
+
+        setSpans(newSpans);
+        setConnectors(newConnectors);
+        setActivePathChain(newActivePathChain);
+        setSize({ width: containerRect.width, height: containerRect.height });
+      })().catch((err) => {
+        console.error('[BulletLineOverlay] computeOverlay failed:', err);
+      });
     });
   }, [containerRef, flatNodes, activeBlockId, virtualized, virtualItems, getAncestorIds]);
 

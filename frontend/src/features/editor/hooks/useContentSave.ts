@@ -78,8 +78,6 @@ function clearPendingBackup(workspaceId: string): void {
   }
 }
 
-const restoredWorkspaces = new Set<string>();
-
 interface Flushable {
   flushAll: () => Promise<void>;
 }
@@ -244,9 +242,6 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     if (!backup || Object.keys(backup).length === 0) return;
 
     hasRestoredRef.current = true;
-    if (!restoredWorkspaces.has(workspaceId)) {
-      restoredWorkspaces.add(workspaceId);
-    }
 
     const entries = Object.entries(backup);
     void Promise.all(
