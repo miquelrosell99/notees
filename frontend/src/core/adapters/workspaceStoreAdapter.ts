@@ -3,10 +3,14 @@ import { saveWorkspaceDatabase, deleteWorkspaceDatabase } from '../persistence/i
 import { SyncEngine, type SyncEngineCallbacks } from '../sync';
 import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
+import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
+import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
 
 interface RegistryEntry {
   store: WorkspaceStore;
   syncEngine: SyncEngine;
+  client: IWorkspaceStoreClient;
 }
 
 const registry = new Map<string, RegistryEntry>();
@@ -14,6 +18,13 @@ const pendingOpens = new Map<string, Promise<WorkspaceStore>>();
 
 export interface WorkspaceStoreInitOptions {
   syncCallbacks?: SyncEngineCallbacks;
+}
+
+function isWorkerSupported(): boolean {
+  if (typeof Worker === 'undefined') return false;
+  if (typeof navigator === 'undefined') return false;
+  // jsdom does not implement Web Workers reliably.
+  return !navigator.userAgent.includes('jsdom');
 }
 
 export async function getOrCreateWorkspaceStore(
@@ -73,8 +84,20 @@ async function openWorkspaceStore(
       await saveWorkspaceDatabase(workspaceId, data);
     },
   });
-  const syncEngine = new SyncEngine(store, transport, options.syncCallbacks);
-  registry.set(workspaceId, { store, syncEngine });
+
+  // The SyncEngine operates on the worker-owned database in real browsers. In
+  // jsdom/tests the inline client wraps this same synchronous store so legacy
+  // and migrated callers observe the same data.
+  let client: IWorkspaceStoreClient;
+  if (isWorkerSupported()) {
+    client = await getOrCreateWorkspaceStoreClient(workspaceId, actorId, transport);
+  } else {
+    client = createWorkspaceStoreClient();
+    await client.init(workspaceId, actorId, { store });
+  }
+
+  const syncEngine = new SyncEngine(client, transport, options.syncCallbacks);
+  registry.set(workspaceId, { store, syncEngine, client });
 
   // Initialize performs a one-time version check and may trigger a hard rebuild
   // of derived state when the applier version has changed. It then runs the
@@ -106,13 +129,17 @@ export function getWorkspaceSyncEngine(workspaceId: string): SyncEngine | undefi
   return registry.get(workspaceId)?.syncEngine;
 }
 
+async function persistWorkspace(workspaceId: string, client: IWorkspaceStoreClient): Promise<void> {
+  const bytes = await client.export();
+  await saveWorkspaceDatabase(workspaceId, bytes);
+}
+
 export async function closeWorkspaceStore(workspaceId: string): Promise<void> {
   const entry = registry.get(workspaceId);
   if (!entry) return;
 
   entry.syncEngine.stopAutoSync();
-  const bytes = entry.store.getDb().export();
-  await saveWorkspaceDatabase(workspaceId, bytes);
+  await persistWorkspace(workspaceId, entry.client);
   registry.delete(workspaceId);
 }
 
@@ -122,6 +149,7 @@ export async function syncWorkspace(workspaceId: string): Promise<void> {
     throw new Error(`Workspace ${workspaceId} is not open`);
   }
   await entry.syncEngine.syncOnce();
+  await persistWorkspace(workspaceId, entry.client);
 }
 
 export async function forceResyncWorkspace(workspaceId: string): Promise<void> {
@@ -130,6 +158,7 @@ export async function forceResyncWorkspace(workspaceId: string): Promise<void> {
     throw new Error(`Workspace ${workspaceId} is not open`);
   }
   await entry.syncEngine.forceResync();
+  await persistWorkspace(workspaceId, entry.client);
 }
 
 /**

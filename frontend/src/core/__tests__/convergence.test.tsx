@@ -8,10 +8,18 @@ import { createTestDatabase } from './helpers';
 import { WorkspaceStoreProvider } from '../hooks/WorkspaceStoreProvider';
 import { useNode } from '../hooks/useNode';
 import { useWorkspaceStore } from '../hooks/useWorkspaceStore';
+import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 const WORKSPACE_ID = 'ws-convergence-test';
 const ACTOR_A = 'actor-convergence-a';
 const ACTOR_B = 'actor-convergence-b';
+
+async function createClientFromStore(store: WorkspaceStore): Promise<IWorkspaceStoreClient> {
+  const client = createWorkspaceStoreClient();
+  await client.init(store.getWorkspaceId(), store.getActorId(), { store });
+  return client;
+}
 
 async function setupPair() {
   const relay = new MemoryRelay();
@@ -20,9 +28,11 @@ async function setupPair() {
   const dbB = await createTestDatabase();
   const storeA = new WorkspaceStore(dbA, WORKSPACE_ID, ACTOR_A);
   const storeB = new WorkspaceStore(dbB, WORKSPACE_ID, ACTOR_B);
+  const clientA = await createClientFromStore(storeA);
+  const clientB = await createClientFromStore(storeB);
 
-  const syncA = new SyncEngine(storeA, new MemoryTransport(relay, WORKSPACE_ID));
-  const syncB = new SyncEngine(storeB, new MemoryTransport(relay, WORKSPACE_ID));
+  const syncA = new SyncEngine(clientA, new MemoryTransport(relay, WORKSPACE_ID));
+  const syncB = new SyncEngine(clientB, new MemoryTransport(relay, WORKSPACE_ID));
 
   return { relay, storeA, storeB, syncA, syncB };
 }
