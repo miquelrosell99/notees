@@ -152,7 +152,7 @@ export class SyncEngine {
     this.callbacks.onPush?.(totalPushed);
   }
 
-  async pull(options: { ignoreSnapshot?: boolean; applyChunkSize?: number } = {}): Promise<void> {
+  async pull(options: { ignoreSnapshot?: boolean } = {}): Promise<void> {
     await this.ensureWatermarksLoaded();
 
     const snapshot = await this.transport.getLatestSnapshot();
@@ -269,9 +269,6 @@ export class SyncEngine {
       }
     }
 
-    // The applyChunkSize option is no longer used; it is kept in the signature
-    // for backward compatibility with existing callers.
-    void options.applyChunkSize;
   }
 
   async sync(): Promise<void> {
