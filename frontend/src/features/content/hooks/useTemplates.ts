@@ -8,13 +8,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { templateKeys, nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { queryNodes } from '@/core/query/queryNodes';
-import { projectNode } from '@/core/adapters/nodeProjection';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { uuidv7 } from '@/core/uuid';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import type { Node, PaginatedResponse } from '@/types/api';
-import type { WorkspaceStore } from '@/core/store';
+import type { NodeRow } from '@/core/store';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 
 export interface TemplateInstantiateOptions {
   parent_uuid?: string;
@@ -78,18 +77,16 @@ function applySubstitutions(
 
 export function useTemplates() {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(
-    workspaceUuid ?? ''
-  );
+  const { client, isLoading: storeLoading, error: storeError } =
+    useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<PaginatedResponse<Node>, Error>({
     queryKey: templateKeys.list(),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      const items = queryNodes(store, {
-        classIds: [SYSTEM_CLASS_UUIDS.template],
-        projectionDepth: 0,
-      });
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      const items = await client.query<Node[]>('queryNodes', [
+        { classIds: [SYSTEM_CLASS_UUIDS.template], projectionDepth: 0 },
+      ]);
       return {
         items,
         total: items.length,
@@ -99,7 +96,7 @@ export function useTemplates() {
         has_prev: false,
       };
     },
-    enabled: !!store,
+    enabled: !!client,
     staleTime: 30_000,
   });
 
@@ -112,15 +109,16 @@ export function useTemplates() {
 
 export function useTemplateVariables(nodeUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(
-    workspaceUuid ?? ''
-  );
+  const { client, isLoading: storeLoading, error: storeError } =
+    useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<TemplateVariablesResult, Error>({
     queryKey: templateKeys.variables(nodeUuid ?? ''),
-    queryFn: () => {
-      if (!nodeUuid || !store) throw new Error('Node UUID or workspace store not found');
-      const node = store.getNode(nodeUuid);
+    queryFn: async () => {
+      if (!nodeUuid || !client) {
+        throw new Error('Node UUID or workspace store not found');
+      }
+      const node = await client.query<NodeRow | undefined>('getNode', [nodeUuid]);
       if (!node) throw new Error('Template node not found');
       const text =
         typeof node.content === 'string' && node.content.length > 0
@@ -134,7 +132,7 @@ export function useTemplateVariables(nodeUuid: string | null) {
       }
       return extractVariables(contentText);
     },
-    enabled: nodeUuid != null && !!store,
+    enabled: nodeUuid != null && !!client,
     staleTime: 60_000,
   });
 
@@ -145,12 +143,14 @@ export function useTemplateVariables(nodeUuid: string | null) {
   };
 }
 
-function instantiateNode(
-  store: WorkspaceStore,
+async function instantiateNode(
+  client: IWorkspaceStoreClient,
   templateUuid: string,
   options: TemplateInstantiateOptions
-): TemplateInstantiateResult {
-  const template = store.getNode(templateUuid);
+): Promise<TemplateInstantiateResult> {
+  const template = await client.query<NodeRow | undefined>('getNode', [
+    templateUuid,
+  ]);
   if (!template) throw new Error('Template node not found');
 
   const templateContent: unknown[] =
@@ -171,16 +171,24 @@ function instantiateNode(
     if (!parentId) throw new Error('Parent UUID is required for block instantiation');
 
     const blockId = uuidv7();
-    store.createNode({
-      nodeId: blockId,
-      kind: 'block',
-      parentId,
-      classIds: [],
-    });
-    store.moveNode(blockId, parentId);
-    store.updateContentAst(blockId, substitutedContent);
+    await client.mutate<void>('createNode', [
+      {
+        nodeId: blockId,
+        kind: 'block',
+        parentId,
+        classIds: [],
+      },
+    ]);
+    await client.mutate<void>('moveNode', [blockId, parentId]);
+    await client.mutate<void>('updateContentAst', [
+      blockId,
+      substitutedContent,
+    ]);
 
-    const projected = projectNode(store, blockId, 0);
+    const projected = await client.query<Node | undefined>('projectNode', [
+      blockId,
+      0,
+    ]);
     if (!projected) throw new Error('Failed to project instantiated block');
     return { node: null, blocks: [projected], as_blocks: true };
   }
@@ -189,15 +197,23 @@ function instantiateNode(
   const classIds = template.classIds.filter(
     (id) => id !== SYSTEM_CLASS_UUIDS.template
   );
-  store.createNode({
-    nodeId: pageId,
-    kind: 'page',
-    parentId: null,
-    classIds,
-  });
-  store.updateContentAst(pageId, substitutedContent);
+  await client.mutate<void>('createNode', [
+    {
+      nodeId: pageId,
+      kind: 'page',
+      parentId: null,
+      classIds,
+    },
+  ]);
+  await client.mutate<void>('updateContentAst', [
+    pageId,
+    substitutedContent,
+  ]);
 
-  const projected = projectNode(store, pageId, 1);
+  const projected = await client.query<Node | undefined>('projectNode', [
+    pageId,
+    1,
+  ]);
   if (!projected) throw new Error('Failed to project instantiated page');
   return { node: projected, blocks: [projected], as_blocks: false };
 }
@@ -205,12 +221,18 @@ function instantiateNode(
 export function useInstantiateTemplate() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
-  return useMutation<TemplateInstantiateResult, Error, { nodeUuid: string; options: TemplateInstantiateOptions }>({
+  return useMutation<
+    TemplateInstantiateResult,
+    Error,
+    { nodeUuid: string; options: TemplateInstantiateOptions }
+  >({
     mutationFn: async ({ nodeUuid, options }) => {
-      if (!nodeUuid || !store) throw new Error('Node UUID or workspace store not found');
-      return instantiateNode(store, nodeUuid, options);
+      if (!nodeUuid || !client) {
+        throw new Error('Node UUID or workspace store not found');
+      }
+      return instantiateNode(client, nodeUuid, options);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.all });
