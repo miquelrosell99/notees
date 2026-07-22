@@ -21,9 +21,9 @@ import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useWorkspaceRole } from '@/features/workspace/hooks/useWorkspaceRole';
 import {
-  forceResyncWorkspace,
-  resetWorkspaceStore,
-} from '@/core/adapters/workspaceStoreAdapter';
+  forceResyncActiveWorkspace,
+  resetActiveWorkspace,
+} from '@/core/adapters/workspaceStoreClientAdapter';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useState } from 'react';
 
@@ -124,7 +124,7 @@ export function CommandRegistrations() {
         return;
       }
       useSyncStatusStore.getState().setForceResyncWorkspaceId(workspaceId);
-      forceResyncWorkspace(workspaceId)
+      forceResyncActiveWorkspace()
         .then(() => {
           notifySuccess('Re-sync complete', 'Workspace has been re-synced from the server.');
         })
@@ -172,7 +172,7 @@ export function CommandRegistrations() {
       onConfirm={async () => {
         const workspaceId = activeWorkspace?.uuid;
         if (!workspaceId) return;
-        await resetWorkspaceStore(workspaceId);
+        await resetActiveWorkspace();
         useSyncStatusStore.getState().bumpWorkspaceResetNonce();
         notifySuccess('Local state discarded', 'Rebuilding workspace from the server…');
         setShowResetConfirm(false);

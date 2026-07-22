@@ -7,7 +7,12 @@
  * synchronous store registry.
  */
 
-import { getOrCreateWorkspaceStore } from './workspaceStoreAdapter';
+import {
+  getOrCreateWorkspaceStore,
+  getActiveWorkspaceStore,
+  forceResyncWorkspace,
+  resetWorkspaceStore,
+} from './workspaceStoreAdapter';
 import type { Transport } from '../transport';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
@@ -98,4 +103,30 @@ export async function closeWorkspaceStoreClient(workspaceId: string): Promise<vo
   if (!entry) return;
   entry.client.close();
   clientRegistry.delete(workspaceId);
+}
+
+/**
+ * Force a full re-sync of the active workspace from the relay.
+ *
+ * This is the async-client entry point for the command palette and other
+ * production UI. It delegates to the sync adapter which owns the SyncEngine.
+ */
+export async function forceResyncActiveWorkspace(): Promise<void> {
+  const store = getActiveWorkspaceStore();
+  if (!store) {
+    throw new Error('No workspace is open');
+  }
+  return forceResyncWorkspace(store.getWorkspaceId());
+}
+
+/**
+ * Discard all local state for the active workspace and check out fresh from the
+ * server.
+ */
+export async function resetActiveWorkspace(): Promise<void> {
+  const store = getActiveWorkspaceStore();
+  if (!store) {
+    throw new Error('No workspace is open');
+  }
+  return resetWorkspaceStore(store.getWorkspaceId());
 }
