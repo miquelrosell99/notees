@@ -33,6 +33,7 @@ import {
   getExtendedByClasses,
   getInheritedProperties,
   getClassExtends,
+  getClassExtendsAncestors,
   getNodeByUuid,
   getNodeKindMap,
   getNodeView,
@@ -518,6 +519,16 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
       type: 'query-result',
       id: request.id,
       result: getClassExtends(state.store, classId, classes),
+    });
+    return;
+  }
+
+  if (request.method === 'getClassExtendsAncestors') {
+    const [classId] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getClassExtendsAncestors(state.store, classId),
     });
     return;
   }

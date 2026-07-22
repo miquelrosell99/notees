@@ -39,6 +39,7 @@ import {
   getExtendedByClasses,
   getInheritedProperties,
   getClassExtends,
+  getClassExtendsAncestors,
   getNodeByUuid,
   getNodeKindMap,
   getNodeView,
@@ -499,6 +500,11 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'getClassExtends') {
       const [classId, classes] = args as [string, Node[]];
       return Promise.resolve(getClassExtends(this.store, classId, classes) as T);
+    }
+
+    if (method === 'getClassExtendsAncestors') {
+      const [classId] = args as [string];
+      return Promise.resolve(getClassExtendsAncestors(this.store, classId) as T);
     }
 
     if (method === 'getInheritedProperties') {
