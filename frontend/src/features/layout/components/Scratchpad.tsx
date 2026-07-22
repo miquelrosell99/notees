@@ -122,7 +122,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
     // Flush any pending debounced content saves before moving blocks,
     // so typed content is persisted to the server before the move.
-    flushAllContentSaves();
+    await flushAllContentSaves();
 
     setIsSending(true);
     try {
@@ -149,7 +149,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
   const handleClearAll = useCallback(async () => {
     if (!scratchpadPage?.children?.length) return;
-    flushAllContentSaves();
+    await flushAllContentSaves();
     for (const child of scratchpadPage.children) {
       await deleteNode.mutateAsync(child.uuid);
     }

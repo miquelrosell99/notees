@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { useWorkspaceStore } from '@/core/hooks';
+import { useWorkspaceStoreClient } from '@/core/hooks';
 import { useCoreBlockMutations } from '@/features/content/hooks/useCoreBlockMutations';
 import { useInputContext } from '@/stores/inputContext';
 import { createBlockCopyData, copyToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
@@ -20,7 +20,7 @@ import type { Node } from '@/types/api';
 
 export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlockSelectionOptions): void {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const mutations = useCoreBlockMutations(workspaceId);
 
   const selectedIds = useBlockSelectionStore((s) => s.selectedIds);
@@ -214,8 +214,8 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (isFocusProtected()) return;
         const activeBlockId = useEditorFocusStore.getState().activeBlockId;
         const anchor = anchorId || activeBlockId;
-        if (!anchor || !store) return;
-        const siblings = getSiblingIds(anchor, store);
+        if (!anchor || !client) return;
+        const siblings = await getSiblingIds(anchor, client);
         const currentFocus = useBlockSelectionStore.getState().focusId || anchor;
         const currentIdx = siblings.indexOf(currentFocus);
         if (currentIdx === -1) return;
@@ -256,7 +256,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (isFocusProtected()) return;
 
         e.preventDefault();
-        flushAllContentSaves();
+        await flushAllContentSaves();
         const ids = [...selectedIds];
         clearSelection();
         for (const blockId of ids) {
@@ -270,15 +270,18 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
       // the target parent, so precise reordering is not implemented.
       if (e.altKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         if (isFocusProtected()) return;
-        if (selectedIds.size === 0 || !store) return;
+        if (selectedIds.size === 0 || !client) return;
         e.preventDefault();
         const blockIdSet = new Set(selectedIds);
         const allSelectedIds = [...selectedIds];
-        const topLevelIds = allSelectedIds.filter((id) => {
-          const n = store.getNode(id);
+        const nodes = await Promise.all(
+          allSelectedIds.map((id) => client.query<{ parentId: string | null } | undefined>('getNode', [id]))
+        );
+        const topLevelIds = allSelectedIds.filter((_id, idx) => {
+          const n = nodes[idx];
           return n && (!n.parentId || !blockIdSet.has(n.parentId));
         });
-        flushAllContentSaves();
+        await flushAllContentSaves();
         if (process.env.NODE_ENV === 'development') {
           console.warn('[useBlockSelection] move_up/move_down is not supported by the prototype core store; operation skipped.');
         }
@@ -293,8 +296,10 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (selectedIds.size === 0) return;
         if (isFocusProtected()) return;
         e.preventDefault();
-        const selectedNodes = [...selectedIds]
-          .map((id) => store?.getNode(id))
+        const selectedNodeRows = await Promise.all(
+          [...selectedIds].map((id) => client?.query<{ id: string; content: string; classIds: string[]; parentId: string | null; kind: 'page' | 'block' | 'class'; createdAt: string | null; updatedAt: string | null } | undefined>('getNode', [id]))
+        );
+        const selectedNodes = selectedNodeRows
           .filter((n): n is NonNullable<typeof n> => n !== undefined)
           .map((n) => ({
             uuid: n.id,
@@ -310,11 +315,20 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
             active: true,
             is_page: n.kind === 'page',
             is_deleted: false,
-            has_children: store ? store.getChildren(n.id).length > 0 : false,
+            has_children: false,
             children: [],
             create_date: n.createdAt ?? new Date().toISOString(),
             write_date: n.updatedAt ?? new Date().toISOString(),
           } as Node));
+
+        // Best-effort populate has_children from the worker.
+        for (let i = 0; i < selectedNodes.length; i++) {
+          const n = selectedNodes[i];
+          if (!n || !client) continue;
+          const children = await client.query<string[]>('getChildren', [n.uuid]);
+          n.has_children = children.length > 0;
+        }
+
         const data = createBlockCopyData(selectedNodes);
         copyToClipboard(JSON.stringify(data))
           .then(() => useClipboardStore.getState().setCopied(data))
@@ -324,12 +338,16 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
 
       // Document-level Ctrl+V: paste after selected blocks when editor blurred
       if (isMod && e.key.toLowerCase() === 'v' && !e.shiftKey && !e.altKey) {
-        if (selectedIds.size === 0 || !store) return;
+        if (selectedIds.size === 0 || !client) return;
         if (isFocusProtected()) return;
 
         const blockIdSet = new Set(selectedIds);
-        const topLevelIds = [...selectedIds].filter((id) => {
-          const n = store.getNode(id);
+        const allSelectedIds = [...selectedIds];
+        const nodes = await Promise.all(
+          allSelectedIds.map((id) => client.query<{ parentId: string | null } | undefined>('getNode', [id]))
+        );
+        const topLevelIds = allSelectedIds.filter((_id, idx) => {
+          const n = nodes[idx];
           return n && (!n.parentId || !blockIdSet.has(n.parentId));
         });
         if (topLevelIds.length === 0) return;
@@ -374,5 +392,5 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         dragRafId.current = null;
       }
     };
-  }, [containerRef, readOnly, selectedIds, anchorId, clearSelection, selectSingle, extendTo, setSelectedIds, setDragging, blockIds, store, mutations]);
+  }, [containerRef, readOnly, selectedIds, anchorId, clearSelection, selectSingle, extendTo, setSelectedIds, setDragging, blockIds, client, mutations]);
 }
