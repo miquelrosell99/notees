@@ -13,6 +13,36 @@ function isRealBrowser(): boolean {
   return !navigator.userAgent.includes('jsdom');
 }
 
+function isWorker(): boolean {
+  // Web Workers expose importScripts and do not have a window object.
+  return (
+    typeof self !== 'undefined' &&
+    typeof (self as { importScripts?: unknown }).importScripts === 'function' &&
+    typeof window === 'undefined'
+  );
+}
+
+async function fetchWasmBinary(): Promise<ArrayBuffer> {
+  // Bypass the service worker when fetching the wasm binary so we always hit
+  // the network/Vite dev server. Service workers (especially in dev) can
+  // return a stale HTML fallback for URLs they do not recognize.
+  const response = await fetch('/sql-wasm.wasm', {
+    cache: 'no-store',
+    headers: { 'Service-Worker': 'script' },
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  }
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('text/html')) {
+    throw new Error(
+      `Server returned HTML instead of wasm (content-type: ${contentType}). ` +
+        'The service worker or dev server may be serving a fallback page.'
+    );
+  }
+  return response.arrayBuffer();
+}
+
 async function getSqlModule(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
   if (sqlInitError) {
     throw sqlInitError;
@@ -20,9 +50,18 @@ async function getSqlModule(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
 
   if (!sqlModule) {
     try {
-      sqlModule = await initSqlJs(
-        isRealBrowser() ? { locateFile: () => `/sql-wasm.wasm` } : undefined
-      );
+      const config: Parameters<typeof initSqlJs>[0] = {};
+      if (isRealBrowser()) {
+        if (isWorker()) {
+          // In a Web Worker, fetch the wasm binary ourselves and pass it as an
+          // ArrayBuffer. This avoids sql.js' streaming compile path, which can
+          // fail in dev when the service worker returns an HTML fallback.
+          config.wasmBinary = await fetchWasmBinary();
+        } else {
+          config.locateFile = () => `/sql-wasm.wasm`;
+        }
+      }
+      sqlModule = await initSqlJs(config);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       sqlInitError = new Error(
