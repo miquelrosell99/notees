@@ -378,23 +378,29 @@ export const TableView = memo(function TableView({
 
   const selectedKeys = selectedIds;
 
+  // Virtualization is required for large tables, but the current NodeTable
+  // implementation only supports it for flat tables (no expandable rows, no
+  // reordering). For large datasets we trade row expansion/reordering for
+  // render performance.
+  const enableVirtualization = nodes.length > 100;
+
   // Expandable configuration
   const expandableConfig: ExpandableConfig<Node> | undefined = useMemo(() => {
-    if (!expandable) return undefined;
+    if (!expandable || enableVirtualization) return undefined;
     return {
       getChildren: (node: Node) => node.children ?? [],
       maxDepth: maxDepth,
     };
-  }, [expandable, maxDepth]);
+  }, [expandable, maxDepth, enableVirtualization]);
 
   // Reorderable configuration
   const reorderableConfig: ReorderableConfig | undefined = useMemo(() => {
-    if (!sortable || !onReorder) return undefined;
+    if (!sortable || !onReorder || enableVirtualization) return undefined;
     return {
       onReorder,
       renderDragHandle: () => <DragHandleIcon size="xs" />,
     };
-  }, [sortable, onReorder]);
+  }, [sortable, onReorder, enableVirtualization]);
 
   // Context menu handler
   const handleRowContextMenu = useCallback((node: Node, event: React.MouseEvent) => {
@@ -433,7 +439,7 @@ export const TableView = memo(function TableView({
           defaultSort={defaultSort}
           sort={sort}
           onSortChange={onSortChange}
-          virtualized={nodes.length > 100}
+          virtualized={enableVirtualization}
         />
       )}
 

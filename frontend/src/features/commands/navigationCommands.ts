@@ -25,7 +25,7 @@ async function getRandomPages(limit: number): Promise<Node[]> {
   if (!workspaceUuid) return [];
   const store = getWorkspaceStore(workspaceUuid);
   if (!store) return [];
-  const pages = queryNodes(store, { isPage: true });
+  const pages = queryNodes(store, { isPage: true, projectionDepth: 0 });
   if (pages.length === 0) return [];
   const shuffled = [...pages];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -69,6 +69,15 @@ registerCommand({
   context: 'global',
   palette: { category: 'navigation', keywords: ['pages'] },
   execute: () => useNavigationStore.getState().setMainViewType('pages'),
+});
+
+registerCommand({
+  id: COMMAND_IDS.OPEN_CLASSES,
+  label: 'Open Classes',
+  icon: 'mdi mdi-shape-outline',
+  context: 'global',
+  palette: { category: 'navigation', keywords: ['classes', 'types'] },
+  execute: () => useNavigationStore.getState().setMainViewType('classes'),
 });
 
 registerCommand({

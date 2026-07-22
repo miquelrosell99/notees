@@ -13,6 +13,7 @@ function useCoreNodeQuery(
   queryKey: readonly unknown[],
   filters: Parameters<typeof queryNodes>[1],
   enabled = true,
+  projectionDepth = 0,
 ) {
   const workspaceUuid = useCurrentWorkspaceUuid();
   const { store, isLoading, error } = useWorkspaceStore(enabled && workspaceUuid ? workspaceUuid : '');
@@ -21,7 +22,7 @@ function useCoreNodeQuery(
     queryKey: [...queryKey],
     queryFn: () => {
       if (!store) return [];
-      return queryNodes(store, filters);
+      return queryNodes(store, { ...filters, projectionDepth });
     },
     enabled: enabled && !!store,
     placeholderData: [],
@@ -89,6 +90,7 @@ export function useSearch(query: string, filters?: {
         isClass: filters?.isClass,
         isDaily: filters?.isDaily,
         classIds,
+        projectionDepth: 0,
       });
     },
     enabled,

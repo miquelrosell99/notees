@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
 import { useNavigationStore, useModalStore, useRecentsStore } from '@/stores';
 import { workspaceKeys } from '@/hooks/queryKeys';
+import { invalidateWorkspaceQueries } from '@/lib/queryClient';
 import { Button } from '@/components/ui/Button';
 import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown';
 import './WorkspaceSwitcher.css';
@@ -44,8 +45,9 @@ export function WorkspaceSwitcher() {
     // Navigate to new workspace home
     navigate(`/${switchedUuid}`, { replace: true });
     
-    // Clear ALL cached data to prevent any stale data from previous workspace
-    queryClient.clear();
+    // Invalidate workspace-scoped queries to prevent stale data from the
+    // previous workspace, while keeping auth/settings/workspace-list caches.
+    invalidateWorkspaceQueries(queryClient);
     useNavigationStore.setState({ isSwitchingWorkspace: false });
   }, [queryClient, navigate]);
 

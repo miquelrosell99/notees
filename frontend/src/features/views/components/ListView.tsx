@@ -204,71 +204,54 @@ export const ListView = memo(function ListView({
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
   const { data: allClasses } = useClasses();
 
-  // Collect all nodes recursively, filtering by pagesOnly if needed,
-  // then sort by sequence (order field) so the editor receives them in
-  // the correct display order.
-  const allNodes = useMemo(() => {
-    const result: Node[] = [];
-    const collect = (n: Node) => {
-      if (pagesOnly && !n.is_page) return;
-      if (!pagesOnly && n.is_page) return;
-      result.push(n);
-      if (n.children) {
-        for (const child of n.children) {
-          collect(child);
-        }
-      }
-    };
-    for (const n of nodes) {
-      collect(n);
-    }
-    return sortBySequence(result);
-  }, [nodes, pagesOnly]);
-
   // Effective icons for list items/group headers, resolving class inheritance.
+  // Only the top-level nodes are needed here: nested children are rendered by
+  // BlockList, which computes their own icons in BlockRow. This avoids the
+  // O(n) recursive walk that used to freeze the main thread for large lists
+  // before BlockList's virtualization could kick in.
   const effectiveIconMap = useMemo(() => {
     const map = new Map<string, string | null>();
     if (!allClasses) return map;
-    for (const node of allNodes) {
+    for (const node of nodes) {
       map.set(node.uuid, getEffectiveIcon(node, allClasses) ?? null);
     }
     return map;
-  }, [allNodes, allClasses]);
+  }, [nodes, allClasses]);
 
   // Resolve alias: if node is an alias, return the main node instead
   const resolveAlias = useCallback((node: Node): Node => {
     if (node.aliased_uuid) {
-      const mainNode = allNodes.find(n => n.uuid === node.aliased_uuid);
+      const mainNode = nodes.find(n => n.uuid === node.aliased_uuid);
       return mainNode ?? { uuid: node.aliased_uuid, is_page: true } as unknown as Node;
     }
     return node;
-  }, [allNodes]);
+  }, [nodes]);
 
   // Handler for navigation from editor
   const handleNavigateToNode = useCallback((blockId: string) => {
     const nodeUuid = parseLinkId(blockId).nodeUuid;
 
-    const targetNode = allNodes.find(n => n.uuid === nodeUuid);
+    const targetNode = nodes.find(n => n.uuid === nodeUuid);
     if (targetNode) {
       onNodeClick?.(resolveAlias(targetNode));
     } else {
       // Target is not in the loaded view; pass a minimal node so navigation can
       // still proceed. Alias redirection is only possible when the node is in
-      // the local allNodes set.
+      // the local nodes set.
       onNodeClick?.({ uuid: nodeUuid, is_page: true } as unknown as Node);
     }
-  }, [allNodes, onNodeClick, resolveAlias]);
+  }, [nodes, onNodeClick, resolveAlias]);
 
   // Handler for shift-click (open in sidebar) from editor
   const handleOpenInSidebar = useCallback((blockId: string) => {
     const nodeUuid = parseLinkId(blockId).nodeUuid;
-    const targetNode = allNodes.find(n => n.uuid === nodeUuid);
+    const targetNode = nodes.find(n => n.uuid === nodeUuid);
     if (targetNode) {
       onNodeShiftClick?.(targetNode);
     } else {
       onNodeShiftClick?.({ uuid: nodeUuid, is_page: false } as unknown as Node);
     }
-  }, [allNodes, onNodeShiftClick]);
+  }, [nodes, onNodeShiftClick]);
 
   // Handler for content changes from editor.
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {

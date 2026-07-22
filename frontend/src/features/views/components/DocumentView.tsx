@@ -5,7 +5,7 @@
  * Passes nodes directly to BlockEditor which handles runtime sync.
  */
 
-import { useMemo, useCallback, type JSX, memo } from 'react';
+import { useCallback, type JSX, memo } from 'react';
 import { BlockList } from '@/features/content';
 
 import { parseLinkId } from '@/lib/astBuilder';
@@ -18,6 +18,9 @@ import { registerView } from './registry';
  * DocumentView - Document view rendering blocks via BlockList
  *
  * Accepts nodes[] and renders as a flat document (no bullets/indentation).
+ * BlockList handles its own flattening and virtualization, so this view avoids
+ * any recursive pre-processing that would freeze the main thread for large
+ * documents.
  */
 export const DocumentView = memo(function DocumentView({
   nodes,
@@ -36,48 +39,15 @@ export const DocumentView = memo(function DocumentView({
   className = '',
   hideProperties: _hideProperties,
 }: NodeDocumentViewProps): JSX.Element {
-
-  // Collect all nodes recursively up to maxDepth
-  const allNodes = useMemo(() => {
-    const result: Node[] = [];
-    const collect = (n: Node, depth: number) => {
-      if (n.is_page) return;
-      result.push(n);
-      if (depth < maxDepth && n.children) {
-        for (const child of n.children) {
-          collect(child, depth + 1);
-        }
-      }
-    };
-    for (const n of nodes) {
-      collect(n, 0);
-    }
-    return result;
-  }, [nodes, maxDepth]);
-
-  // Resolve alias: if node is an alias, return the main node instead
-  const resolveAlias = useCallback((node: Node): Node => {
-    if (node.aliased_uuid) {
-      const mainNode = allNodes.find(n => n.uuid === node.aliased_uuid);
-      return mainNode ?? ({ uuid: node.aliased_uuid, is_page: true } as unknown as Node);
-    }
-    return node;
-  }, [allNodes]);
-
-  // Handler for navigation from editor
+  // Handler for navigation from editor. Only resolve against the top-level
+  // nodes passed to the view; children are handled by BlockList. With
+  // projectionDepth: 0 the input is already flat, so this is both cheap and
+  // sufficient.
   const handleNavigateToNode = useCallback((linkId: string) => {
     const nodeUuid = parseLinkId(linkId).nodeUuid;
-
-    const targetNode = allNodes.find(n => n.uuid === nodeUuid);
-    if (targetNode) {
-      onNodeClick?.(resolveAlias(targetNode));
-    } else {
-      // Target is not in the loaded view; pass a minimal node so navigation can
-      // still proceed. Alias redirection is only possible when the node is in
-      // the local allNodes set.
-      onNodeClick?.({ uuid: nodeUuid, is_page: true } as unknown as Node);
-    }
-  }, [allNodes, onNodeClick, resolveAlias]);
+    const targetNode = nodes.find(n => n.uuid === nodeUuid);
+    onNodeClick?.(targetNode ?? ({ uuid: nodeUuid, is_page: true } as unknown as Node));
+  }, [nodes, onNodeClick]);
 
   // Handler for content changes from editor.
   // Pass the runtime block id (UUID) through; useContentSave resolves it to the
@@ -93,7 +63,7 @@ export const DocumentView = memo(function DocumentView({
   // is wired to the SQLite-derived state.
 
   // Early return if no nodes
-  if (allNodes.length === 0) {
+  if (nodes.length === 0) {
     return (
       <div className={`node-document-view node-document-view--empty ${className}`}>
         <span className="node-document-view__empty-message">No content yet</span>

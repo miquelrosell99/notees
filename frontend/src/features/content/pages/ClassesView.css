@@ -1,0 +1,59 @@
+/**
+ * ClassesView Styles
+ */
+
+.classes-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.classes-view__header {
+  padding: var(--spacing-2) var(--spacing-6);
+}
+
+.classes-view__content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollable for non-immersive views (list, card, table) */
+.classes-view--list .classes-view__content,
+.classes-view--card .classes-view__content,
+.classes-view--table .classes-view__content {
+  overflow-y: auto;
+}
+
+.classes-view__node-collection {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Header: generous padding so controls don't hug the edge */
+.classes-view__header {
+  padding: var(--spacing-2) var(--spacing-6);
+  margin-bottom: 0;
+}
+
+.classes-view__content {
+  padding: 0;
+}
+
+@media (max-width: 768px) {
+  .classes-view__header {
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .classes-view__header {
+    padding-left: var(--spacing-3);
+    padding-right: var(--spacing-3);
+  }
+}

@@ -154,11 +154,25 @@ export const BlockRow = memo(
     const { children: parentSiblingIds } = useChildren(workspaceId ?? '', parentNode?.parentId ?? undefined);
     const setCollapsed = useUIStateStore((s) => s.setCollapsed);
 
-    // Check if another user holds the server-enforced lock for this block
-    const lockOwner = useLivePresenceStore(
-      (s) => (nodeUuid ? s.locks[nodeUuid]?.[node.uuid] : undefined),
-    );
     const currentUserId = useAuthStore((s) => s.user?.nodeUuid ?? 0);
+
+    // Scalar presence state is combined into one subscription to reduce the
+    // per-row subscription count in large virtualized lists.
+    const { lockOwner, isQueued, conflict } = useLivePresenceStore(
+      useShallow(
+        useCallback(
+          (s) =>
+            nodeUuid
+              ? {
+                  lockOwner: s.locks[nodeUuid]?.[node.uuid],
+                  isQueued: s.isQueued(nodeUuid, node.uuid),
+                  conflict: s.getConflict(nodeUuid, node.uuid),
+                }
+              : { lockOwner: undefined, isQueued: false, conflict: undefined },
+          [nodeUuid, node.uuid],
+        ),
+      ),
+    );
     const lockedBy = lockOwner && Number(lockOwner.nodeUuid) !== Number(currentUserId) ? [lockOwner] : undefined;
     const isLocked = lockedBy != null && lockedBy.length > 0;
 
@@ -169,12 +183,6 @@ export const BlockRow = memo(
     );
     const typingUsers = useLivePresenceStore(
       useShallow((s) => (nodeUuid ? s.getTypingUsersOnBlock(nodeUuid, node.uuid).filter((u) => u.nodeUuid !== currentUserId) : [])),
-    );
-    const isQueued = useLivePresenceStore(
-      (s) => (nodeUuid ? s.isQueued(nodeUuid, node.uuid) : false),
-    );
-    const conflict = useLivePresenceStore(
-      (s) => (nodeUuid ? s.getConflict(nodeUuid, node.uuid) : undefined),
     );
 
     const rowRef = useRef<HTMLDivElement>(null);
