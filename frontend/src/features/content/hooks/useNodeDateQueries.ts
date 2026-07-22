@@ -210,6 +210,12 @@ async function getOrCreateDateNoteClient(
   return projected;
 }
 
+/**
+ * Worker-client (async) version of getOrCreateDailyNote.
+ *
+ * The synchronous `getOrCreateDailyNote(store, dateStr)` export is still available
+ * for callers that hold a `WorkspaceStore` directly.
+ */
 export async function getOrCreateDailyNoteClient(
   client: IWorkspaceStoreClient,
   dateStr: string

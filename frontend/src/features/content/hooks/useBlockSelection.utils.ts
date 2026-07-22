@@ -122,6 +122,12 @@ export function updateSelectionOverlay(rootEl: HTMLElement, selectedEls: HTMLEle
   wrapper.appendChild(overlay);
 }
 
+/**
+ * Returns the sibling block IDs for `blockId` by querying the worker store.
+ *
+ * @warning This helper is asynchronous as of the worker-client migration.
+ *          Callers must `await` the result; it no longer returns `string[]` synchronously.
+ */
 export async function getSiblingIds(blockId: string, client?: IWorkspaceStoreClient): Promise<string[]> {
   if (!client) return [];
   const node = await client.query<{ parentId: string | null } | undefined>('getNode', [blockId]);
