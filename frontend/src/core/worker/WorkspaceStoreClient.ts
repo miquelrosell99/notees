@@ -415,7 +415,8 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     }
 
     if (method === 'getTrashedNodes') {
-      return Promise.resolve(getTrashedNodes(this.store) as T);
+      const [projectionDepth] = args as [number | undefined];
+      return Promise.resolve(getTrashedNodes(this.store, projectionDepth) as T);
     }
 
     if (method === 'getArchivedPages') {

@@ -15,12 +15,22 @@ export interface UseFavoritesResult {
   error: Error | null;
 }
 
+/**
+ * Module-level cache of the last known favorites list per workspace.
+ *
+ * `useFavorites` keeps this cache warm while mounted, and the synchronous
+ * `isFavorite` helper reads from it. This preserves the public
+ * `isFavorite(workspaceId, nodeId): boolean` signature after migrating the
+ * favorites hooks to the async worker-backed store client.
+ */
+const favoritesCache = new Map<string, string[]>();
+
 export function useFavorites(workspaceId: string | undefined): UseFavoritesResult {
   const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId ?? '');
   const [favorites, setFavorites] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!client) {
+    if (!client || !workspaceId) {
       setFavorites([]);
       return;
     }
@@ -28,6 +38,7 @@ export function useFavorites(workspaceId: string | undefined): UseFavoritesResul
     const update = async (): Promise<void> => {
       const list = await client.query<string[]>('getFavorites', []);
       if (!cancelled) {
+        favoritesCache.set(workspaceId, list);
         setFavorites(list);
       }
     };
@@ -37,7 +48,7 @@ export function useFavorites(workspaceId: string | undefined): UseFavoritesResul
       cancelled = true;
       unsubscribe();
     };
-  }, [client]);
+  }, [client, workspaceId]);
 
   return { data: favorites, isLoading, error };
 }
@@ -55,9 +66,10 @@ export function useAddFavoriteMutation(workspaceId: string | undefined) {
 
   const mutate = useCallback(
     (nodeUuid: string) => {
-      mutateAsync(nodeUuid).catch(() => {});
+      if (!client) return;
+      return mutateAsync(nodeUuid);
     },
-    [mutateAsync]
+    [client, mutateAsync]
   );
 
   return { mutate, mutateAsync };
@@ -76,9 +88,10 @@ export function useRemoveFavoriteMutation(workspaceId: string | undefined) {
 
   const mutate = useCallback(
     (nodeUuid: string) => {
-      mutateAsync(nodeUuid).catch(() => {});
+      if (!client) return;
+      return mutateAsync(nodeUuid);
     },
-    [mutateAsync]
+    [client, mutateAsync]
   );
 
   return { mutate, mutateAsync };
@@ -110,9 +123,10 @@ export function useReorderFavoritesMutation(workspaceId: string | undefined) {
 
   const mutate = useCallback(
     ({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }) => {
-      mutateAsync({ fromIndex, toIndex }).catch(() => {});
+      if (!client) return;
+      return mutateAsync({ fromIndex, toIndex });
     },
-    [mutateAsync]
+    [client, mutateAsync]
   );
 
   return { mutate, mutateAsync };
@@ -165,13 +179,16 @@ export async function reorderFavorites(
   return client.query<string[]>('getFavorites', []);
 }
 
-export async function isFavorite(
-  workspaceId: string | undefined,
-  nodeUuid: string
-): Promise<boolean> {
+/**
+ * Synchronous favorite check.
+ *
+ * Reads from the module-level cache maintained by `useFavorites`. This keeps the
+ * public signature unchanged after the migration to the async worker-backed
+ * store client.
+ */
+export function isFavorite(workspaceId: string | undefined, nodeUuid: string): boolean {
   if (!workspaceId || !nodeUuid) return false;
-  const client = getWorkspaceStoreClient(workspaceId);
-  if (!client) return false;
-  const favorites = await client.query<string[]>('getFavorites', []);
-  return favorites.includes(nodeUuid);
+  const cached = favoritesCache.get(workspaceId);
+  return cached?.includes(nodeUuid) ?? false;
 }
+
