@@ -17,6 +17,69 @@ import { TextCrdt } from '@/core/crdt/text';
 import { useWorkspaceStoreClient } from '@/core/hooks';
 import { useUndoManager } from '@/core/hooks';
 
+const PENDING_CONTENT_BACKUP_KEY = (workspaceId: string) =>
+  `notees:pendingContent:${workspaceId}`;
+const BACKUP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+interface PendingContentBackup {
+  timestamp: number;
+  changes: Record<string, string>;
+}
+
+function isStorageAvailable(): boolean {
+  return typeof localStorage !== 'undefined';
+}
+
+function readPendingBackup(workspaceId: string): Record<string, string> | null {
+  if (!isStorageAvailable()) return null;
+  try {
+    const raw = localStorage.getItem(PENDING_CONTENT_BACKUP_KEY(workspaceId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingContentBackup;
+    if (!parsed || typeof parsed.timestamp !== 'number' || !parsed.changes) {
+      return null;
+    }
+    if (Date.now() - parsed.timestamp > BACKUP_MAX_AGE_MS) {
+      localStorage.removeItem(PENDING_CONTENT_BACKUP_KEY(workspaceId));
+      return null;
+    }
+    return parsed.changes;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingBackup(
+  workspaceId: string,
+  pending: Map<string, PendingChange>
+): void {
+  if (!isStorageAvailable() || pending.size === 0) return;
+  try {
+    const changes: Record<string, string> = {};
+    for (const [blockId, change] of pending) {
+      changes[blockId] = change.content;
+    }
+    const backup: PendingContentBackup = { timestamp: Date.now(), changes };
+    localStorage.setItem(
+      PENDING_CONTENT_BACKUP_KEY(workspaceId),
+      JSON.stringify(backup)
+    );
+  } catch {
+    // Best-effort backup; ignore quota/private-mode errors.
+  }
+}
+
+function clearPendingBackup(workspaceId: string): void {
+  if (!isStorageAvailable()) return;
+  try {
+    localStorage.removeItem(PENDING_CONTENT_BACKUP_KEY(workspaceId));
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
+const restoredWorkspaces = new Set<string>();
+
 interface Flushable {
   flushAll: () => Promise<void>;
 }
@@ -56,6 +119,7 @@ interface UseContentSaveOptions {
 export function useContentSave(options: UseContentSaveOptions = {}) {
   const { delay = DEFAULT_TEXT_DEBOUNCE_MS } = options;
   const pendingChangesRef = useRef<Map<string, PendingChange>>(new Map());
+  const hasRestoredRef = useRef(false);
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const manager = useUndoManager(workspaceId ?? '');
@@ -172,13 +236,46 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     return () => { flushRegistry.delete(entry); };
   }, [flushAll]);
 
+  // Restore any content that was synchronously backed up during a previous
+  // beforeunload/visibilitychange event but did not finish flushing to the worker.
+  useEffect(() => {
+    if (!client || !manager || !workspaceId || hasRestoredRef.current) return;
+    const backup = readPendingBackup(workspaceId);
+    if (!backup || Object.keys(backup).length === 0) return;
+
+    hasRestoredRef.current = true;
+    if (!restoredWorkspaces.has(workspaceId)) {
+      restoredWorkspaces.add(workspaceId);
+    }
+
+    const entries = Object.entries(backup);
+    void Promise.all(
+      entries.map(([blockId, content]) =>
+        saveBlock(blockId, content).catch((_err) => {
+          console.error(
+            '[useContentSave] Failed to restore pending content for block',
+            blockId
+          );
+        })
+      )
+    ).then(() => {
+      clearPendingBackup(workspaceId);
+    });
+  }, [client, manager, workspaceId, saveBlock]);
+
   useEffect(() => {
     const handleBeforeUnload = () => {
+      if (workspaceId) {
+        writePendingBackup(workspaceId, pendingChangesRef.current);
+      }
       void flushAll();
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
+        if (workspaceId) {
+          writePendingBackup(workspaceId, pendingChangesRef.current);
+        }
         void flushAll();
       }
     };
@@ -189,7 +286,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [flushAll]);
+  }, [flushAll, workspaceId]);
 
   return {
     handleContentChange,
