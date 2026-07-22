@@ -8,6 +8,7 @@
 
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
+import { queryAll, queryOne } from '../db/sqlite';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
 import { projectNode } from '../adapters/nodeProjection';
@@ -19,12 +20,25 @@ import {
   getNodeClassPropertyEdges,
 } from '../adapters/propertyQueries';
 import { UndoManager } from '../undo/UndoManager';
+import type { Hlc } from '../clock';
+import type { Operation } from '../types/operation';
 import {
   type IWorkspaceStoreClient,
   type WorkerRequest,
   type WorkerMessage,
   generateRequestId,
 } from './workerProtocol';
+
+interface OperationRow {
+  id: string;
+  workspace_id: string;
+  actor_id: string;
+  hlc_physical: number;
+  hlc_logical: number;
+  affected_node_ids: string;
+  op_type: string;
+  payload: string;
+}
 
 export interface WorkspaceStoreClientOptions {
   /** Optional persisted database bytes to hydrate on init. */
@@ -220,6 +234,43 @@ class InlineStoreClient implements IWorkspaceStoreClient {
   mutate<T>(method: string, args: unknown[]): Promise<T> {
     if (!this.store || !this.undoManager) return Promise.reject(new Error('Store not initialized'));
 
+    // Sync-engine helpers.
+    if (method === 'applyMany') {
+      const [ops] = args as [Operation[]];
+      const count = this.store.applyMany(ops);
+      return Promise.resolve(count as T);
+    }
+    if (method === 'startBatch') {
+      this.store.startBatch();
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'endBatch') {
+      this.store.endBatch();
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'restoreSnapshot') {
+      const [data] = args as [Uint8Array];
+      return this.store.restoreSnapshot(data) as Promise<T>;
+    }
+    if (method === 'clearOperationLog') {
+      this.store.clearOperationLog();
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'resetDerivedState') {
+      this.store.resetDerivedState();
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'saveWatermark') {
+      const [kind, hlc] = args as ['received' | 'pushed', Hlc];
+      this.saveWatermark(kind, hlc);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'saveRestoreEpoch') {
+      const [epoch, receivedHlc] = args as [number, Hlc];
+      this.saveRestoreEpoch(epoch, receivedHlc);
+      return Promise.resolve(undefined as T);
+    }
+
     // Undo-manager operations are addressed through record-* method names.
     if (method === 'recordCreateNode') {
       const [arg] = args as [Parameters<WorkspaceStore['createNode']>[0]];
@@ -296,6 +347,29 @@ class InlineStoreClient implements IWorkspaceStoreClient {
   query<T>(method: string, args: unknown[]): Promise<T> {
     if (!this.store) return Promise.reject(new Error('Store not initialized'));
 
+    // Sync-engine query helpers.
+    if (method === 'isDerivedStateStale') {
+      return Promise.resolve(this.store.isDerivedStateStale() as T);
+    }
+    if (method === 'loadWatermarks') {
+      return Promise.resolve(this.loadWatermarks() as T);
+    }
+    if (method === 'queryOperationLog') {
+      const [afterHlc, limit] = args as [Hlc, number];
+      return Promise.resolve(this.queryOperationLog(afterHlc, limit) as T);
+    }
+    if (method === 'getWorkspaceId') {
+      return Promise.resolve(this.store.getWorkspaceId() as T);
+    }
+    if (method === 'getActorId') {
+      return Promise.resolve(this.store.getActorId() as T);
+    }
+    if (method === 'exportSnapshot') {
+      const [upToHlc] = args as [Hlc | undefined];
+      const snapshot = this.store.exportSnapshot(upToHlc);
+      return Promise.resolve({ hlc: snapshot.hlc, data: snapshot.data } as T);
+    }
+
     // Undo-manager state queries.
     if (method === 'canUndo') {
       const result = {
@@ -361,6 +435,88 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       return this.store.subscribeAll(callback);
     }
     return this.store.subscribe(nodeId, callback);
+  }
+
+  private loadWatermarks(): { received: Hlc; pushed: Hlc; restoreEpoch: number } {
+    const store = this.store!;
+    const db = store.getDb();
+    const workspaceId = store.getWorkspaceId();
+
+    const received = queryOne<{ hlc_physical: number; hlc_logical: number }>(
+      db,
+      'SELECT hlc_physical, hlc_logical FROM sync_watermark WHERE workspace_id = ?',
+      [workspaceId]
+    );
+    const pushed = queryOne<{ hlc_physical: number; hlc_logical: number }>(
+      db,
+      'SELECT hlc_physical, hlc_logical FROM sync_push_watermark WHERE workspace_id = ?',
+      [workspaceId]
+    );
+    const epochRow = queryOne<{ restore_epoch: number }>(
+      db,
+      'SELECT restore_epoch FROM sync_watermark WHERE workspace_id = ?',
+      [workspaceId]
+    );
+
+    return {
+      received: received
+        ? { physical: received.hlc_physical, logical: received.hlc_logical }
+        : { physical: 0, logical: 0 },
+      pushed: pushed
+        ? { physical: pushed.hlc_physical, logical: pushed.hlc_logical }
+        : { physical: 0, logical: 0 },
+      restoreEpoch: epochRow?.restore_epoch ?? 0,
+    };
+  }
+
+  private saveWatermark(kind: 'received' | 'pushed', hlc: Hlc): void {
+    const store = this.store!;
+    const db = store.getDb();
+    const workspaceId = store.getWorkspaceId();
+    const table = kind === 'received' ? 'sync_watermark' : 'sync_push_watermark';
+    db.run(
+      `INSERT INTO ${table} (workspace_id, hlc_physical, hlc_logical)
+       VALUES (?, ?, ?)
+       ON CONFLICT(workspace_id) DO UPDATE SET
+         hlc_physical = excluded.hlc_physical,
+         hlc_logical = excluded.hlc_logical`,
+      [workspaceId, hlc.physical, hlc.logical]
+    );
+  }
+
+  private saveRestoreEpoch(epoch: number, receivedHlc: Hlc): void {
+    const store = this.store!;
+    const db = store.getDb();
+    const workspaceId = store.getWorkspaceId();
+    db.run(
+      `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical, restore_epoch)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(workspace_id) DO UPDATE SET
+         restore_epoch = excluded.restore_epoch`,
+      [workspaceId, receivedHlc.physical, receivedHlc.logical, epoch]
+    );
+  }
+
+  private queryOperationLog(afterHlc: Hlc, limit: number): OperationRow[] {
+    const store = this.store!;
+    const db = store.getDb();
+    const workspaceId = store.getWorkspaceId();
+    return queryAll<OperationRow>(
+      db,
+      `SELECT id, workspace_id, actor_id, hlc_physical, hlc_logical, affected_node_ids, op_type, payload
+       FROM operation
+       WHERE workspace_id = ?
+         AND (hlc_physical > ? OR (hlc_physical = ? AND hlc_logical > ?))
+       ORDER BY hlc_physical ASC, hlc_logical ASC
+       LIMIT ?`,
+      [
+        workspaceId,
+        afterHlc.physical,
+        afterHlc.physical,
+        afterHlc.logical,
+        limit,
+      ]
+    );
   }
 
   close(): void {

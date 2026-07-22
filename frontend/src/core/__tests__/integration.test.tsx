@@ -4,8 +4,16 @@ import { SyncEngine } from '../sync';
 import { type OperationEnvelope } from '../crypto';
 import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
+import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import type { SnapshotEnvelope, Transport } from '../transport';
 import type { Hlc } from '../clock';
+
+async function createClientFromStore(store: WorkspaceStore): Promise<IWorkspaceStoreClient> {
+  const client = createWorkspaceStoreClient();
+  await client.init(store.getWorkspaceId(), store.getActorId(), { store });
+  return client;
+}
 
 class MockHttpTransport implements Transport {
   sent: OperationEnvelope[] = [];
@@ -41,8 +49,9 @@ describe('local-first integration', () => {
     const actorId = uuidv7();
     const db = await createTestDatabase();
     const store = new WorkspaceStore(db, workspaceId, actorId);
+    const client = await createClientFromStore(store);
     const transport = new MockHttpTransport();
-    const sync = new SyncEngine(store, transport);
+    const sync = new SyncEngine(client, transport);
 
     const nodeId = uuidv7();
     store.createNode({ nodeId, kind: 'page', parentId: null });
@@ -62,8 +71,9 @@ describe('local-first integration', () => {
     const actorId = uuidv7();
     const db = await createTestDatabase();
     const store = new WorkspaceStore(db, workspaceId, actorId);
+    const client = await createClientFromStore(store);
     const transport = new MockHttpTransport();
-    const sync = new SyncEngine(store, transport);
+    const sync = new SyncEngine(client, transport);
 
     const nodeId = uuidv7();
     const payload = { nodeId, kind: 'page', parentId: null, classIds: [] };

@@ -7,6 +7,7 @@
 
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
+import { queryAll, queryOne } from '../db/sqlite';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
 import { projectNode } from '../adapters/nodeProjection';
@@ -18,12 +19,25 @@ import {
   getNodeClassPropertyEdges,
 } from '../adapters/propertyQueries';
 import { UndoManager } from '../undo/UndoManager';
+import type { Hlc } from '../clock';
+import type { Operation } from '../types/operation';
 import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
 
 interface WorkerState {
   store: WorkspaceStore | null;
   undoManager: UndoManager | null;
   workspaceId: string | null;
+}
+
+interface OperationRow {
+  id: string;
+  workspace_id: string;
+  actor_id: string;
+  hlc_physical: number;
+  hlc_logical: number;
+  affected_node_ids: string;
+  op_type: string;
+  payload: string;
 }
 
 const state: WorkerState = {
@@ -74,15 +88,67 @@ function handleExport(request: Extract<WorkerRequest, { type: 'export' }>): void
   postResponse({ type: 'export-result', id: request.id, bytes });
 }
 
-function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>): void {
+async function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>): Promise<void> {
   if (!state.store || !state.undoManager) {
     postResponse({ type: 'error', id: request.id, message: 'Store not initialized' });
     return;
   }
 
+  const { method } = request;
+
+  // Sync-engine helpers. These run directly on the worker-owned store.
+  if (method === 'applyMany') {
+    const [ops] = request.args as [Operation[]];
+    const count = state.store.applyMany(ops);
+    postResponse({ type: 'mutate-done', id: request.id, result: count });
+    postNotify();
+    return;
+  }
+  if (method === 'startBatch') {
+    state.store.startBatch();
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    return;
+  }
+  if (method === 'endBatch') {
+    state.store.endBatch();
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'restoreSnapshot') {
+    const [data] = request.args as [Uint8Array];
+    const hlc = await state.store.restoreSnapshot(data);
+    postResponse({ type: 'mutate-done', id: request.id, result: hlc });
+    postNotify();
+    return;
+  }
+  if (method === 'clearOperationLog') {
+    state.store.clearOperationLog();
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'resetDerivedState') {
+    state.store.resetDerivedState();
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'saveWatermark') {
+    const [kind, hlc] = request.args as ['received' | 'pushed', Hlc];
+    saveWatermark(state.store, kind, hlc);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    return;
+  }
+  if (method === 'saveRestoreEpoch') {
+    const [epoch, receivedHlc] = request.args as [number, Hlc];
+    saveRestoreEpoch(state.store, epoch, receivedHlc);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    return;
+  }
+
   // Undo-manager operations run on the worker-owned store and are addressed
   // through record-* method names so they can be serialized across the boundary.
-  const { method } = request;
   if (method === 'recordCreateNode') {
     const [args] = request.args as [Parameters<WorkspaceStore['createNode']>[0]];
     state.undoManager.createNode(args);
@@ -183,14 +249,55 @@ function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>): void
     });
     return;
   }
-  const result = (storeMethod as (...args: unknown[]) => unknown).apply(state.store, request.args);
+  const result = await (storeMethod as (...args: unknown[]) => unknown).apply(state.store, request.args);
   postResponse({ type: 'mutate-done', id: request.id, result });
   postNotify();
 }
 
-function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): void {
+async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): Promise<void> {
   if (!state.store) {
     postResponse({ type: 'error', id: request.id, message: 'Store not initialized' });
+    return;
+  }
+
+  // Sync-engine query helpers.
+  if (request.method === 'isDerivedStateStale') {
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: state.store.isDerivedStateStale(),
+    });
+    return;
+  }
+  if (request.method === 'loadWatermarks') {
+    postResponse({ type: 'query-result', id: request.id, result: loadWatermarks(state.store) });
+    return;
+  }
+  if (request.method === 'queryOperationLog') {
+    const [afterHlc, limit] = request.args as [Hlc, number];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: queryOperationLog(state.store, afterHlc, limit),
+    });
+    return;
+  }
+  if (request.method === 'getWorkspaceId') {
+    postResponse({ type: 'query-result', id: request.id, result: state.store.getWorkspaceId() });
+    return;
+  }
+  if (request.method === 'getActorId') {
+    postResponse({ type: 'query-result', id: request.id, result: state.store.getActorId() });
+    return;
+  }
+  if (request.method === 'exportSnapshot') {
+    const [upToHlc] = request.args as [Hlc | undefined];
+    const snapshot = state.store.exportSnapshot(upToHlc);
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: { hlc: snapshot.hlc, data: snapshot.data },
+    });
     return;
   }
 
@@ -277,7 +384,7 @@ function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): void {
     });
     return;
   }
-  const result = (method as (...args: unknown[]) => unknown).apply(state.store, request.args);
+  const result = await (method as (...args: unknown[]) => unknown).apply(state.store, request.args);
   postResponse({ type: 'query-result', id: request.id, result });
 }
 
@@ -298,10 +405,10 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         handleExport(request);
         break;
       case 'mutate':
-        handleMutate(request);
+        await handleMutate(request);
         break;
       case 'query':
-        handleQuery(request);
+        await handleQuery(request);
         break;
       case 'close':
         handleClose();
@@ -320,3 +427,86 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   }
 };
 
+// ─── Sync helper implementations ────────────────────────────────────────────
+
+function loadWatermarks(store: WorkspaceStore): {
+  received: Hlc;
+  pushed: Hlc;
+  restoreEpoch: number;
+} {
+  const db = store.getDb();
+  const workspaceId = store.getWorkspaceId();
+
+  const received = queryOne<{ hlc_physical: number; hlc_logical: number }>(
+    db,
+    'SELECT hlc_physical, hlc_logical FROM sync_watermark WHERE workspace_id = ?',
+    [workspaceId]
+  );
+  const pushed = queryOne<{ hlc_physical: number; hlc_logical: number }>(
+    db,
+    'SELECT hlc_physical, hlc_logical FROM sync_push_watermark WHERE workspace_id = ?',
+    [workspaceId]
+  );
+  const epochRow = queryOne<{ restore_epoch: number }>(
+    db,
+    'SELECT restore_epoch FROM sync_watermark WHERE workspace_id = ?',
+    [workspaceId]
+  );
+
+  return {
+    received: received
+      ? { physical: received.hlc_physical, logical: received.hlc_logical }
+      : { physical: 0, logical: 0 },
+    pushed: pushed
+      ? { physical: pushed.hlc_physical, logical: pushed.hlc_logical }
+      : { physical: 0, logical: 0 },
+    restoreEpoch: epochRow?.restore_epoch ?? 0,
+  };
+}
+
+function saveWatermark(store: WorkspaceStore, kind: 'received' | 'pushed', hlc: Hlc): void {
+  const db = store.getDb();
+  const workspaceId = store.getWorkspaceId();
+  const table = kind === 'received' ? 'sync_watermark' : 'sync_push_watermark';
+  db.run(
+    `INSERT INTO ${table} (workspace_id, hlc_physical, hlc_logical)
+     VALUES (?, ?, ?)
+     ON CONFLICT(workspace_id) DO UPDATE SET
+       hlc_physical = excluded.hlc_physical,
+       hlc_logical = excluded.hlc_logical`,
+    [workspaceId, hlc.physical, hlc.logical]
+  );
+}
+
+function saveRestoreEpoch(store: WorkspaceStore, epoch: number, receivedHlc: Hlc): void {
+  const db = store.getDb();
+  const workspaceId = store.getWorkspaceId();
+  db.run(
+    `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical, restore_epoch)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(workspace_id) DO UPDATE SET
+       restore_epoch = excluded.restore_epoch`,
+    [workspaceId, receivedHlc.physical, receivedHlc.logical, epoch]
+  );
+}
+
+function queryOperationLog(store: WorkspaceStore, afterHlc: Hlc, limit: number): OperationRow[] {
+  const db = store.getDb();
+  const workspaceId = store.getWorkspaceId();
+  return queryAll<OperationRow>(
+    db,
+    `SELECT id, workspace_id, actor_id, hlc_physical, hlc_logical, affected_node_ids, op_type, payload
+     FROM operation
+     WHERE workspace_id = ?
+       AND (hlc_physical > ? OR (hlc_physical = ? AND hlc_logical > ?))
+     ORDER BY hlc_physical ASC, hlc_logical ASC
+     LIMIT ?`,
+    [
+      workspaceId,
+      afterHlc.physical,
+      afterHlc.physical,
+      afterHlc.logical,
+      limit,
+    ]
+  );
+}

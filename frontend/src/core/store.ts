@@ -257,8 +257,8 @@ export class WorkspaceStore {
    * avoids one transaction per operation, batches edge rebuilds, batches
    * listener notifications, and persists to IndexedDB only once at the end.
    */
-  applyMany(ops: Operation[]): void {
-    if (ops.length === 0) return;
+  applyMany(ops: Operation[]): number {
+    if (ops.length === 0) return 0;
 
     const db = this.db;
     const ids = ops.map((op) => op.envelope.id);
@@ -347,6 +347,8 @@ export class WorkspaceStore {
         this.schedulePersist();
       }
     }
+
+    return appliedCount;
   }
 
   subscribe(nodeId: string, callback: () => void): () => void {

@@ -4,6 +4,14 @@ import { SyncEngine } from '../../sync';
 import { MemoryRelay, MemoryTransport } from '../../transport';
 import { uuidv7 } from '../../uuid';
 import { createTestDatabase } from '../helpers';
+import { createWorkspaceStoreClient } from '../../worker/WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../../worker/workerProtocol';
+
+async function createClientFromStore(store: WorkspaceStore): Promise<IWorkspaceStoreClient> {
+  const client = createWorkspaceStoreClient();
+  await client.init(store.getWorkspaceId(), store.getActorId(), { store });
+  return client;
+}
 
 /**
  * Stress tests for SyncEngine catch-up and multi-client convergence.
@@ -34,7 +42,8 @@ describe('SyncEngine stress', () => {
 
     const dbA = await createTestDatabase();
     const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
-    const syncA = new SyncEngine(storeA, new MemoryTransport(relay, workspaceId));
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, new MemoryTransport(relay, workspaceId));
 
     const count = opCount();
     for (let i = 0; i < count; i++) {
@@ -44,7 +53,8 @@ describe('SyncEngine stress', () => {
 
     const dbB = await createTestDatabase();
     const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
-    const syncB = new SyncEngine(storeB, new MemoryTransport(relay, workspaceId));
+    const clientB = await createClientFromStore(storeB);
+    const syncB = new SyncEngine(clientB, new MemoryTransport(relay, workspaceId));
 
     const start = performance.now();
     await syncB.pull();
@@ -69,8 +79,9 @@ describe('SyncEngine stress', () => {
       const db = await createTestDatabase();
       const actorId = uuidv7();
       const store = new WorkspaceStore(db, workspaceId, actorId);
+      const client = await createClientFromStore(store);
       clients.push(store);
-      syncs.push(new SyncEngine(store, new MemoryTransport(relay, workspaceId)));
+      syncs.push(new SyncEngine(client, new MemoryTransport(relay, workspaceId)));
     }
 
     const start = performance.now();

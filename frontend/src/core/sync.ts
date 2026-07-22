@@ -1,7 +1,6 @@
 import { compareHlc, maxHlc, type Hlc } from './clock';
-import { queryAll, queryOne } from './db/sqlite';
 import { createOperation } from './types/operation';
-import type { WorkspaceStore } from './store';
+import type { IWorkspaceStoreClient } from './worker/workerProtocol';
 import type { Transport } from './transport';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error';
@@ -19,7 +18,7 @@ export interface SyncEngineCallbacks {
   onStatusChange?: (status: SyncStatus, error: Error | null) => void;
 }
 
-interface OperationRow {
+export interface OperationRow {
   id: string;
   workspace_id: string;
   actor_id: string;
@@ -30,18 +29,10 @@ interface OperationRow {
   payload: string;
 }
 
-function yieldToMain(): Promise<void> {
-  const sched = (globalThis as unknown as { scheduler?: { yield: () => Promise<void> } }).scheduler;
-  if (sched?.yield) {
-    return sched.yield();
-  }
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
 export class SyncEngine {
-  private lastReceivedHlc: Hlc;
-  private lastPushedHlc: Hlc;
-  private store: WorkspaceStore;
+  private lastReceivedHlc: Hlc = { physical: 0, logical: 0 };
+  private lastPushedHlc: Hlc = { physical: 0, logical: 0 };
+  private client: IWorkspaceStoreClient;
   private transport: Transport;
   private callbacks: SyncEngineCallbacks;
   private status: SyncStatus = 'idle';
@@ -50,62 +41,36 @@ export class SyncEngine {
   private statusListeners = new Set<(status: SyncStatus, error: Error | null) => void>();
   /** HLC of the last snapshot we uploaded this session; avoid re-uploading. */
   private uploadedSnapshotHlc: Hlc | null = null;
+  private watermarksLoaded = false;
 
-  constructor(store: WorkspaceStore, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
-    this.store = store;
+  constructor(client: IWorkspaceStoreClient, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
+    this.client = client;
     this.transport = transport;
     this.callbacks = callbacks;
-    this.lastReceivedHlc = this.loadWatermark('received');
-    this.lastPushedHlc = this.loadWatermark('pushed');
   }
 
-  private loadWatermark(kind: 'received' | 'pushed'): Hlc {
-    const db = this.store.getDb();
-    const workspaceId = this.store.getWorkspaceId();
-    const table = kind === 'received' ? 'sync_watermark' : 'sync_push_watermark';
-    const row = queryOne<{ hlc_physical: number; hlc_logical: number }>(
-      db,
-      `SELECT hlc_physical, hlc_logical FROM ${table} WHERE workspace_id = ?`,
-      [workspaceId]
-    );
-    return row ? { physical: row.hlc_physical, logical: row.hlc_logical } : { physical: 0, logical: 0 };
+  private async ensureWatermarksLoaded(): Promise<void> {
+    if (this.watermarksLoaded) return;
+    const watermarks = await this.client.query<{ received: Hlc; pushed: Hlc }>('loadWatermarks', []);
+    this.lastReceivedHlc = watermarks.received;
+    this.lastPushedHlc = watermarks.pushed;
+    this.watermarksLoaded = true;
   }
 
-  private saveWatermark(hlc: Hlc, kind: 'received' | 'pushed'): void {
-    const db = this.store.getDb();
-    const workspaceId = this.store.getWorkspaceId();
-    const table = kind === 'received' ? 'sync_watermark' : 'sync_push_watermark';
-    db.run(
-      `INSERT INTO ${table} (workspace_id, hlc_physical, hlc_logical)
-       VALUES (?, ?, ?)
-       ON CONFLICT(workspace_id) DO UPDATE SET
-         hlc_physical = excluded.hlc_physical,
-         hlc_logical = excluded.hlc_logical`,
-      [workspaceId, hlc.physical, hlc.logical]
+  private async loadRestoreEpoch(): Promise<number> {
+    const watermarks = await this.client.query<{ received: Hlc; pushed: Hlc; restoreEpoch: number }>(
+      'loadWatermarks',
+      []
     );
+    return watermarks.restoreEpoch;
   }
 
-  private loadRestoreEpoch(): number {
-    const db = this.store.getDb();
-    const workspaceId = this.store.getWorkspaceId();
-    const row = queryOne<{ restore_epoch: number }>(
-      db,
-      'SELECT restore_epoch FROM sync_watermark WHERE workspace_id = ?',
-      [workspaceId]
-    );
-    return row?.restore_epoch ?? 0;
+  private async saveWatermark(hlc: Hlc, kind: 'received' | 'pushed'): Promise<void> {
+    await this.client.mutate('saveWatermark', [kind, hlc]);
   }
 
-  private saveRestoreEpoch(epoch: number): void {
-    const db = this.store.getDb();
-    const workspaceId = this.store.getWorkspaceId();
-    db.run(
-      `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical, restore_epoch)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(workspace_id) DO UPDATE SET
-         restore_epoch = excluded.restore_epoch`,
-      [workspaceId, this.lastReceivedHlc.physical, this.lastReceivedHlc.logical, epoch]
-    );
+  private async saveRestoreEpoch(epoch: number): Promise<void> {
+    await this.client.mutate('saveRestoreEpoch', [epoch, this.lastReceivedHlc]);
   }
 
   private setStatus(status: SyncStatus, error: Error | null = null): void {
@@ -136,10 +101,11 @@ export class SyncEngine {
   }
 
   async push(): Promise<void> {
+    await this.ensureWatermarksLoaded();
+
     const SEND_BATCH_SIZE = 100;
     const QUERY_BATCH_SIZE = 1000;
-    const db = this.store.getDb();
-    const workspaceId = this.store.getWorkspaceId();
+    const workspaceId = await this.client.query<string>('getWorkspaceId', []);
     const toEnvelope = (row: OperationRow) => ({
       id: row.id,
       workspaceId,
@@ -158,21 +124,10 @@ export class SyncEngine {
     // block the main thread with a single huge SELECT *. Recompute the HLC
     // params each iteration because lastPushedHlc advances after every chunk.
     while (hasMore) {
-      const rows = queryAll<OperationRow>(
-        db,
-        `SELECT * FROM operation
-         WHERE workspace_id = ?
-           AND (hlc_physical > ? OR (hlc_physical = ? AND hlc_logical > ?))
-         ORDER BY hlc_physical ASC, hlc_logical ASC
-         LIMIT ?`,
-        [
-          workspaceId,
-          this.lastPushedHlc.physical,
-          this.lastPushedHlc.physical,
-          this.lastPushedHlc.logical,
-          QUERY_BATCH_SIZE,
-        ]
-      );
+      const rows = await this.client.query<OperationRow[]>('queryOperationLog', [
+        this.lastPushedHlc,
+        QUERY_BATCH_SIZE,
+      ]);
 
       hasMore = rows.length === QUERY_BATCH_SIZE;
       totalPushed += rows.length;
@@ -190,12 +145,7 @@ export class SyncEngine {
           pushedMaxHlc = maxHlc(pushedMaxHlc, envelope.hlc);
         }
         this.lastPushedHlc = pushedMaxHlc;
-        this.saveWatermark(this.lastPushedHlc, 'pushed');
-      }
-
-      // Yield so the UI can process input events between query chunks.
-      if (hasMore) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        await this.saveWatermark(this.lastPushedHlc, 'pushed');
       }
     }
 
@@ -203,19 +153,21 @@ export class SyncEngine {
   }
 
   async pull(options: { ignoreSnapshot?: boolean; applyChunkSize?: number } = {}): Promise<void> {
+    await this.ensureWatermarksLoaded();
+
     const snapshot = await this.transport.getLatestSnapshot();
-    const localEpoch = this.loadRestoreEpoch();
+    const localEpoch = await this.loadRestoreEpoch();
 
     // If the server was restored or rebuilt, clear local state and start over.
     // The operation log is the source of truth; re-applying all operations from
     // the restored server converges to the correct state.
     if (snapshot.restoreEpoch !== localEpoch) {
-      this.store.clearOperationLog();
+      await this.client.mutate('clearOperationLog', []);
       this.lastReceivedHlc = { physical: 0, logical: 0 };
       this.lastPushedHlc = { physical: 0, logical: 0 };
-      this.saveWatermark(this.lastReceivedHlc, 'received');
-      this.saveWatermark(this.lastPushedHlc, 'pushed');
-      this.saveRestoreEpoch(snapshot.restoreEpoch);
+      await this.saveWatermark(this.lastReceivedHlc, 'received');
+      await this.saveWatermark(this.lastPushedHlc, 'pushed');
+      await this.saveRestoreEpoch(snapshot.restoreEpoch);
       this.uploadedSnapshotHlc = null;
     }
 
@@ -233,9 +185,12 @@ export class SyncEngine {
 
     if (snapshotIsNewer) {
       this.callbacks.onPullProgress?.({ applied: 0, total: 0 });
-      await this.store.restoreSnapshot(snapshot.data);
-      this.lastReceivedHlc = snapshot.hlc;
-      this.saveWatermark(this.lastReceivedHlc, 'received');
+      const restoredHlc = await this.client.mutate<{ physical: number; logical: number }>(
+        'restoreSnapshot',
+        [snapshot.data]
+      );
+      this.lastReceivedHlc = restoredHlc;
+      await this.saveWatermark(this.lastReceivedHlc, 'received');
     }
 
     // Paginate through all server pages. This keeps the sync logic simple and
@@ -251,11 +206,12 @@ export class SyncEngine {
       return a.id.localeCompare(b.id);
     });
 
+    const workspaceId = await this.client.query<string>('getWorkspaceId', []);
     const ops = envelopes.map((env) =>
       createOperation(
         {
           id: env.id,
-          workspaceId: this.store.getWorkspaceId(),
+          workspaceId,
           actorId: env.actorId,
           hlc: env.hlc,
           affectedNodeIds: env.affectedNodeIds,
@@ -265,37 +221,22 @@ export class SyncEngine {
       )
     );
 
-    // Apply in chunks so the progress overlay updates and the browser can paint.
-    // A chunk size of 100 keeps each synchronous block short enough that the UI
-    // stays responsive (hover, scroll, animation) even with 100k+ operations.
-    // Listener notifications are batched across the whole pull so the UI does not
-    // re-render on every chunk.
-    const CHUNK_SIZE = options.applyChunkSize ?? 100;
-    let applied = 0;
-    this.store.startBatch();
+    // Apply the full batch in the worker. The worker runs off the main thread,
+    // so we no longer need to chunk and yield to keep the UI responsive.
+    await this.client.mutate('startBatch', []);
     try {
-      for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
-        const chunk = ops.slice(i, i + CHUNK_SIZE);
-        this.store.applyMany(chunk);
-        applied += chunk.length;
-        this.callbacks.onPullProgress?.({ applied, total: ops.length });
-        // Yield so the browser can paint and process input events before the next
-        // chunk. scheduler.yield() is preferred when available because it returns
-        // control to the browser without the minimum delay of setTimeout.
-        if (i + CHUNK_SIZE < ops.length) {
-          await yieldToMain();
-        }
-      }
+      const applied = await this.client.mutate<number>('applyMany', [ops]);
+      this.callbacks.onPullProgress?.({ applied, total: ops.length });
     } finally {
-      this.store.endBatch();
+      await this.client.mutate('endBatch', []);
     }
 
     for (const op of ops) {
       this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, op.envelope.hlc);
     }
 
-    this.saveWatermark(this.lastReceivedHlc, 'received');
-    this.saveRestoreEpoch(snapshot.restoreEpoch);
+    await this.saveWatermark(this.lastReceivedHlc, 'received');
+    await this.saveRestoreEpoch(snapshot.restoreEpoch);
     this.callbacks.onPull?.(envelopes.length);
 
     // Upload a snapshot when the server has no snapshot or an older one.
@@ -309,10 +250,13 @@ export class SyncEngine {
 
     if (shouldUploadSnapshot && uploadSnapshot) {
       try {
-        const { hlc, data } = this.store.exportSnapshot(this.lastReceivedHlc);
+        const { hlc, data } = await this.client.query<{ hlc: Hlc; data: Uint8Array }>(
+          'exportSnapshot',
+          [this.lastReceivedHlc]
+        );
         await uploadSnapshot({
           snapshotId: '',
-          workspaceId: this.store.getWorkspaceId(),
+          workspaceId,
           hlc,
           data,
           restoreEpoch: snapshot.restoreEpoch,
@@ -324,6 +268,10 @@ export class SyncEngine {
         console.error('Failed to upload workspace snapshot', err);
       }
     }
+
+    // The applyChunkSize option is no longer used; it is kept in the signature
+    // for backward compatibility with existing callers.
+    void options.applyChunkSize;
   }
 
   async sync(): Promise<void> {
@@ -337,7 +285,10 @@ export class SyncEngine {
    * replayed from the server using the new applier.
    */
   async initialize(): Promise<void> {
-    if (!this.store.isDerivedStateStale()) {
+    await this.ensureWatermarksLoaded();
+
+    const isStale = await this.client.query<boolean>('isDerivedStateStale', []);
+    if (!isStale) {
       await this.syncOnce();
       return;
     }
@@ -350,7 +301,7 @@ export class SyncEngine {
       // normal case (applier update only), preserve local offline edits by
       // pushing them first.
       const serverSnapshot = await this.transport.getLatestSnapshot();
-      const localEpoch = this.loadRestoreEpoch();
+      const localEpoch = await this.loadRestoreEpoch();
       const serverRestored = serverSnapshot.restoreEpoch !== localEpoch;
 
       if (serverRestored) {
@@ -362,15 +313,15 @@ export class SyncEngine {
         await this.push();
       }
 
-      this.store.resetDerivedState();
-      this.store.clearOperationLog();
+      await this.client.mutate('resetDerivedState', []);
+      await this.client.mutate('clearOperationLog', []);
       this.lastReceivedHlc = { physical: 0, logical: 0 };
       this.lastPushedHlc = { physical: 0, logical: 0 };
-      this.saveWatermark(this.lastReceivedHlc, 'received');
-      this.saveWatermark(this.lastPushedHlc, 'pushed');
-      this.saveRestoreEpoch(serverSnapshot.restoreEpoch);
+      await this.saveWatermark(this.lastReceivedHlc, 'received');
+      await this.saveWatermark(this.lastPushedHlc, 'pushed');
+      await this.saveRestoreEpoch(serverSnapshot.restoreEpoch);
       this.uploadedSnapshotHlc = null;
-      await this.pull({ ignoreSnapshot: true, applyChunkSize: 2000 });
+      await this.pull({ ignoreSnapshot: true });
       this.setStatus('idle', null);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -400,13 +351,17 @@ export class SyncEngine {
    * that may have been produced by an older applier version.
    */
   async forceResync(): Promise<void> {
-    this.store.clearOperationLog();
+    await this.ensureWatermarksLoaded();
+
+    await this.client.mutate('clearOperationLog', []);
     this.lastReceivedHlc = { physical: 0, logical: 0 };
     this.lastPushedHlc = { physical: 0, logical: 0 };
-    this.saveWatermark(this.lastReceivedHlc, 'received');
-    this.saveWatermark(this.lastPushedHlc, 'pushed');
+    await this.saveWatermark(this.lastReceivedHlc, 'received');
+    await this.saveWatermark(this.lastPushedHlc, 'pushed');
     this.uploadedSnapshotHlc = null;
     await this.syncOnce();
+    // Note: we intentionally do not reset restoreEpoch here. syncOnce -> pull
+    // will compare the local epoch with the server's and handle a mismatch.
   }
 
   startAutoSync(intervalMs: number): void {
