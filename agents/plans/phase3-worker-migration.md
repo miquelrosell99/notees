@@ -70,15 +70,42 @@ For each helper added to the worker, also handle it in `InlineStoreClient.query`
 
 ## Task 4 — Migrate SyncEngine apply to the worker
 
-- Keep transport and network orchestration on the main thread.
-- Move the heavy parts into worker helpers:
-  - `syncInitialize(payload)` — version check, hard rebuild, full replay.
-  - `syncPull(payload)` — snapshot restore, apply envelopes, save watermarks, return new watermark + export snapshot data if needed.
-  - `syncPushQuery(afterHlc)` — query local operation log to push (or keep this on main thread if simpler).
-  - `forceResync()` — clear log and rebuild.
-- Add `export()` response from worker for snapshot upload.
-- Update `SyncEngine` to call these helpers via `client.mutate` / `client.query`.
-- Update `workspaceStoreAdapter.ts` to create the worker client instead of the synchronous store and to wire the `SyncEngine` to it.
+Goal: keep transport/network orchestration on the main thread, but move all heavy SQLite work (restore snapshot, apply operation envelopes, export snapshot, watermark reads/writes, operation-log queries) into the worker.
+
+Implementation approach:
+
+1. Add worker mutation/query helpers (real worker in `workspaceWorker.ts` and inline shim in `WorkspaceStoreClient.ts`):
+   - `applyMany(ops)` → applies operations and returns count.
+   - `startBatch()` / `endBatch()` → batch notification boundaries.
+   - `restoreSnapshot(data)` → restores a server snapshot into the worker DB.
+   - `exportSnapshot(hlc)` → returns `{ hlc: Hlc, data: Uint8Array }` from the worker DB.
+   - `clearOperationLog()` → clears the local operation log.
+   - `resetDerivedState()` → resets derived tables.
+   - `isDerivedStateStale()` → boolean.
+   - `loadWatermarks()` → `{ received: Hlc, pushed: Hlc, restoreEpoch: number }`.
+   - `saveWatermark(kind, hlc)` → void.
+   - `saveRestoreEpoch(epoch)` → void.
+   - `queryOperationLog(afterHlc, limit)` → `OperationRow[]` (the rows SyncEngine.push reads).
+   - `getWorkspaceId()` / `getActorId()` if still needed.
+
+2. Refactor `frontend/src/core/sync.ts`:
+   - Change constructor to accept `IWorkspaceStoreClient` instead of `WorkspaceStore`.
+   - Make all store-touching methods async and call the worker helpers above.
+   - Remove all direct `this.store.getDb()` SQLite access; use worker queries/mutations instead.
+   - Keep transport usage, callbacks, and progress reporting on the main thread.
+   - Remove `yieldToMain` chunking inside `pull()` (the worker can apply in one go without blocking the UI).
+
+3. Update `frontend/src/core/adapters/workspaceStoreAdapter.ts`:
+   - Create/return an `IWorkspaceStoreClient` via `getOrCreateWorkspaceStoreClient`.
+   - Create `SyncEngine` with the client instead of the sync store.
+   - Remove the synchronous store registry or keep it only for test callers.
+   - Persist the DB via `client.export()` + IndexedDB after sync completes.
+
+4. Update tests:
+   - `frontend/src/core/__tests__/sync.test.ts` and `frontend/src/core/__tests__/stress/sync.stress.test.ts` must create an inline `IWorkspaceStoreClient` from the test `WorkspaceStore` and pass it to `SyncEngine`.
+   - The inline test client already exists in `WorkspaceStoreClient.ts` via `createWorkspaceStoreClient()` in jsdom, but tests that use a specific store should initialize it with `{ store }`.
+
+5. Verify: type-check, lint, and the sync-related tests pass.
 
 ## Task 5 — Persistence and lifecycle
 
