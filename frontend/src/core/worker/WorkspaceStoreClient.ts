@@ -22,23 +22,13 @@ import {
 import { UndoManager } from '../undo/UndoManager';
 import type { Hlc } from '../clock';
 import type { Operation } from '../types/operation';
+import type { OperationRow } from '../sync';
 import {
   type IWorkspaceStoreClient,
   type WorkerRequest,
   type WorkerMessage,
   generateRequestId,
 } from './workerProtocol';
-
-interface OperationRow {
-  id: string;
-  workspace_id: string;
-  actor_id: string;
-  hlc_physical: number;
-  hlc_logical: number;
-  affected_node_ids: string;
-  op_type: string;
-  payload: string;
-}
 
 export interface WorkspaceStoreClientOptions {
   /** Optional persisted database bytes to hydrate on init. */

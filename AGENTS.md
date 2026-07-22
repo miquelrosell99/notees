@@ -195,6 +195,7 @@ Agent reference (under `agents/`):
 - `react-ui-patterns` — React/TypeScript/Vite conventions, data flow, state boundaries, query discipline, view composition, barrels, hook decomposition, TanStack Query v5 behavior.
 - `postgresql-patterns` — PostgreSQL schema design, migrations, JSONB, query parameterization, and multi-tenancy.
 - `security-hardening` — Auth, HTTPS, secrets, input validation, rate limiting, dependency auditing.
+- `user-management` — User accounts, profiles, roles, workspaces, invitations, and preferences data design for self-hosted apps.
 - `performance-optimizer` — Profiling, memoization, code splitting, list virtualization, pool tuning.
 - `accessibility-primer` — Screen readers, focus, contrast, touch targets, motion, hover-reveal fallbacks.
 - `design-system` — Fleet-wide design tokens, dark mode, motion, haptics.
