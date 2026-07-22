@@ -24,7 +24,7 @@ export function useAddClass() {
       if (!store) throw new Error('Workspace store is not ready');
 
       if (manager) {
-        manager.assignClass(nodeUuid, classUuid);
+        await manager.assignClass(nodeUuid, classUuid);
       } else {
         store.assignClass(nodeUuid, classUuid);
       }

@@ -25,7 +25,7 @@ export function useMoveNode(workspaceId: string): UseMoveNodeResult {
       setError(null);
       try {
         if (manager) {
-          manager.moveNode(args.nodeId, args.newParentId);
+          await manager.moveNode(args.nodeId, args.newParentId);
         } else {
           store.moveNode(args.nodeId, args.newParentId);
         }

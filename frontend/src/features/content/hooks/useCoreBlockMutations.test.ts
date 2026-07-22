@@ -7,6 +7,7 @@ import { webcrypto } from 'node:crypto';
 import { renderHook, act } from '@testing-library/react';
 import { WorkspaceStore } from '@/core/store';
 import { UndoManager } from '@/core/undo/UndoManager';
+import type { UndoManagerClient } from '@/core/hooks/useUndoManager';
 import { uuidv7 } from '@/core/uuid';
 import { createTestDatabase } from '@/core/__tests__/helpers';
 import { useCoreBlockMutations } from './useCoreBlockMutations';
@@ -14,7 +15,7 @@ import { useCoreBlockMutations } from './useCoreBlockMutations';
 const mocks = vi.hoisted(() => ({
   store: undefined as WorkspaceStore | undefined,
   useWorkspaceStore: vi.fn(() => ({ store: undefined as WorkspaceStore | undefined, isLoading: false, error: null })),
-  useUndoManager: vi.fn(() => undefined as UndoManager | undefined),
+  useUndoManager: vi.fn(() => undefined as UndoManagerClient | undefined),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -33,6 +34,29 @@ async function createTestStore(): Promise<WorkspaceStore> {
   return new WorkspaceStore(db, uuidv7(), uuidv7());
 }
 
+function createTestUndoManagerClient(store: WorkspaceStore): UndoManagerClient {
+  const manager = UndoManager.getOrCreateUndoManager(store.getWorkspaceId(), store);
+  return {
+    createNode: async (args) => manager.createNode(args),
+    createBlock: async (args) => manager.createBlock(args),
+    deleteNode: async (nodeId) => manager.deleteNode(nodeId),
+    moveNode: async (nodeId, newParentId) => manager.moveNode(nodeId, newParentId),
+    mergeBlocks: async (sourceBlockId, targetBlockId) => manager.mergeBlocks(sourceBlockId, targetBlockId),
+    setProperty: async (args) => manager.setProperty(args),
+    unsetProperty: async (args) => manager.unsetProperty(args),
+    assignClass: async (nodeId, classId) => manager.assignClass(nodeId, classId),
+    unassignClass: async (nodeId, classId) => manager.unassignClass(nodeId, classId),
+    recordSetNodeText: async (nodeId, value) => manager.recordSetNodeText(nodeId, value),
+    undo: async () => manager.undo(),
+    redo: async () => manager.redo(),
+    canUndo: async () => manager.canUndo(),
+    canRedo: async () => manager.canRedo(),
+    clear: async () => manager.clear(),
+    getStacks: async () => manager.getStacks(),
+    subscribe: (listener) => manager.subscribe(listener),
+  };
+}
+
 describe('useCoreBlockMutations', () => {
   beforeAll(() => {
     if (!globalThis.crypto?.subtle) {
@@ -44,7 +68,7 @@ describe('useCoreBlockMutations', () => {
     const store = await createTestStore();
     mocks.store = store;
     mocks.useWorkspaceStore.mockReturnValue({ store, isLoading: false, error: null });
-    mocks.useUndoManager.mockReturnValue(UndoManager.getOrCreateUndoManager(store.getWorkspaceId(), store));
+    mocks.useUndoManager.mockReturnValue(createTestUndoManagerClient(store));
   });
 
   it('creates a block under a parent', async () => {

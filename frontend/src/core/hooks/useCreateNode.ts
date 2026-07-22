@@ -29,7 +29,7 @@ export function useCreateNode(workspaceId: string): UseCreateNodeResult {
       setError(null);
       try {
         if (manager) {
-          manager.createNode(args);
+          await manager.createNode(args);
         } else {
           store.createNode(args);
         }

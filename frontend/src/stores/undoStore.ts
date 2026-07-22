@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { type QueryClient } from '@tanstack/react-query';
 import type { UndoEntry } from '@/core/undo';
-import { UndoManager } from '@/core/undo';
+import { createUndoManagerClient, type UndoManagerClient } from '@/core/hooks/useUndoManager';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useNotificationStore } from '@/stores/notificationStore';
 
@@ -26,7 +27,7 @@ interface UndoState {
   runtimeVersion: number;
   setWorkspaceId: (workspaceId: string | null) => void;
   refreshStack: () => Promise<void>;
-  syncRuntimeState: () => void;
+  syncRuntimeState: () => Promise<void>;
   performUndo: (queryClient: QueryClient) => Promise<void>;
   performRedo: (queryClient: QueryClient) => Promise<void>;
   performUndoTo: (queryClient: QueryClient, entry: UnifiedUndoEntry) => Promise<void>;
@@ -66,15 +67,17 @@ function notifyUndoRedoError(action: string, error: unknown): void {
   useNotificationStore.getState().error(`${action} failed`, message);
 }
 
-function getManager(workspaceId: string | null): UndoManager | undefined {
+function getManager(workspaceId: string | null): UndoManagerClient | undefined {
   if (!workspaceId) return undefined;
-  return UndoManager.getUndoManager(workspaceId);
+  const client = getWorkspaceStoreClient(workspaceId);
+  if (!client) return undefined;
+  return createUndoManagerClient(client);
 }
 
 export const useUndoStore = create<UndoState>()((set, get) => {
   let unsubscribeManager: (() => void) | undefined;
 
-  const syncWithManager = (workspaceId: string | null) => {
+  const syncWithManager = async (workspaceId: string | null) => {
     const manager = getManager(workspaceId);
     if (!manager) {
       set({
@@ -87,15 +90,19 @@ export const useUndoStore = create<UndoState>()((set, get) => {
       return;
     }
 
-    const stacks = manager.getStacks();
+    const [canUndo, canRedo, stacks] = await Promise.all([
+      manager.canUndo(),
+      manager.canRedo(),
+      manager.getStacks(),
+    ]);
     // Undo stack: newest first for display (reverse of internal storage)
     const undoEntries = buildLocalEntries([...stacks.undo].reverse());
     // Redo stack: oldest first for display (same as internal storage)
     const redoEntries = buildLocalEntries(stacks.redo);
 
     set({
-      canUndo: undoEntries.length > 0,
-      canRedo: redoEntries.length > 0,
+      canUndo,
+      canRedo,
       undoEntries,
       redoEntries,
       runtimeVersion: get().runtimeVersion + 1,
@@ -109,9 +116,11 @@ export const useUndoStore = create<UndoState>()((set, get) => {
     }
     const manager = getManager(workspaceId);
     if (manager) {
-      unsubscribeManager = manager.subscribe(() => syncWithManager(workspaceId));
+      unsubscribeManager = manager.subscribe(() => {
+        void syncWithManager(workspaceId);
+      });
     }
-    syncWithManager(workspaceId);
+    void syncWithManager(workspaceId);
   };
 
   return {
@@ -129,12 +138,11 @@ export const useUndoStore = create<UndoState>()((set, get) => {
     },
 
     refreshStack: async () => {
-      syncWithManager(get().currentWorkspaceId);
-      return Promise.resolve();
+      await syncWithManager(get().currentWorkspaceId);
     },
 
-    syncRuntimeState: () => {
-      syncWithManager(get().currentWorkspaceId);
+    syncRuntimeState: async () => {
+      await syncWithManager(get().currentWorkspaceId);
     },
 
     performUndo: async (queryClient: QueryClient) => {
@@ -147,7 +155,7 @@ export const useUndoStore = create<UndoState>()((set, get) => {
       }
 
       try {
-        const entry = manager.undo();
+        const entry = await manager.undo();
         if (entry) {
           notifyUndo(entryDescription(entry));
           await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -169,7 +177,7 @@ export const useUndoStore = create<UndoState>()((set, get) => {
       }
 
       try {
-        const entry = manager.redo();
+        const entry = await manager.redo();
         if (entry) {
           notifyRedo(entryDescription(entry));
           await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -194,7 +202,7 @@ export const useUndoStore = create<UndoState>()((set, get) => {
         const steps = Math.abs(entry.runtimeId);
         let lastDescription = '';
         for (let i = 0; i < steps; i++) {
-          const localEntry = manager.undo();
+          const localEntry = await manager.undo();
           if (localEntry) lastDescription = entryDescription(localEntry);
         }
         if (lastDescription) notifyUndo(lastDescription);
@@ -219,7 +227,7 @@ export const useUndoStore = create<UndoState>()((set, get) => {
         const steps = Math.abs(entry.runtimeId);
         let lastDescription = '';
         for (let i = 0; i < steps; i++) {
-          const localEntry = manager.redo();
+          const localEntry = await manager.redo();
           if (localEntry) lastDescription = entryDescription(localEntry);
         }
         if (lastDescription) notifyRedo(lastDescription);
@@ -231,11 +239,11 @@ export const useUndoStore = create<UndoState>()((set, get) => {
       }
     },
 
-    clearHistory: () => {
+    clearHistory: async () => {
       const workspaceId = get().currentWorkspaceId;
       const manager = getManager(workspaceId);
       if (manager) {
-        manager.clear();
+        await manager.clear();
       }
       useNotificationStore.getState().success('History cleared', 'Undo/redo history has been cleared.');
       set({ canUndo: false, canRedo: false, undoEntries: [], redoEntries: [] });

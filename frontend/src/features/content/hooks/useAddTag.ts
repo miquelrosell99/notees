@@ -27,7 +27,7 @@ export function useAddTag() {
         throw new Error(`Node ${nodeUuid} is not available in the workspace store`);
       }
 
-      manager.assignClass(nodeUuid, tagUuid);
+      await manager.assignClass(nodeUuid, tagUuid);
       return findNodeInCache(queryClient, nodeUuid);
     },
     onSuccess: (_data, { nodeUuid, tagId }) => {
