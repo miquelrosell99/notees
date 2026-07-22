@@ -154,13 +154,15 @@ function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>): void
     return;
   }
   if (method === 'undo') {
-    const result = state.undoManager.undo();
+    const entry = state.undoManager.undo();
+    const result = entry ? { label: entry.label, timestamp: entry.timestamp } : null;
     postResponse({ type: 'mutate-done', id: request.id, result });
     postNotify();
     return;
   }
   if (method === 'redo') {
-    const result = state.undoManager.redo();
+    const entry = state.undoManager.redo();
+    const result = entry ? { label: entry.label, timestamp: entry.timestamp } : null;
     postResponse({ type: 'mutate-done', id: request.id, result });
     postNotify();
     return;
@@ -203,7 +205,11 @@ function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): void {
   }
 
   if (request.method === 'getUndoStacks') {
-    const result = state.undoManager?.getStacks() ?? { undo: [], redo: [] };
+    const stacks = state.undoManager?.getStacks() ?? { undo: [], redo: [] };
+    const result = {
+      undo: stacks.undo.map((entry) => ({ label: entry.label, timestamp: entry.timestamp })),
+      redo: stacks.redo.map((entry) => ({ label: entry.label, timestamp: entry.timestamp })),
+    };
     postResponse({ type: 'query-result', id: request.id, result });
     return;
   }
