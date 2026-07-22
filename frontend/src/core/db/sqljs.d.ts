@@ -37,6 +37,7 @@ declare module 'sql.js' {
 
   interface InitSqlJsOptions {
     locateFile?: (file: string) => string;
+    wasmBinary?: ArrayBuffer | Uint8Array;
   }
 
   function initSqlJs(options?: InitSqlJsOptions): Promise<SqlJsStatic>;

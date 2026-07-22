@@ -4,10 +4,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
-    VitePWA({
+    mode !== 'development' && VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['notees-icon.svg', 'apple-touch-icon.png'],
       workbox: {
@@ -162,4 +162,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))
