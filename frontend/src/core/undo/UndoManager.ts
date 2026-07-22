@@ -108,6 +108,23 @@ export class UndoManager {
     this.push(entry);
   }
 
+  /**
+   * Serializable replacement for `updateText(callback)`.
+   * Replaces the node's entire text with a plain string and records the
+   * inverse so the previous text can be restored on undo.
+   */
+  recordSetNodeText(nodeId: string, value: string): void {
+    const previousText = this.getNodeText(nodeId);
+    this.store.setNodeText(nodeId, value);
+    const entry: UndoEntry = {
+      forward: () => this.store.setNodeText(nodeId, value),
+      inverse: () => this.store.setNodeText(nodeId, previousText),
+      label: 'Edit text',
+      timestamp: Date.now(),
+    };
+    this.push(entry);
+  }
+
   moveNode(nodeId: string, newParentId: string | null): void {
     const oldParentId = this.store.getNode(nodeId)?.parentId ?? null;
     this.store.moveNode(nodeId, newParentId);

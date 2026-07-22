@@ -18,6 +18,7 @@ import {
   getClassProperties,
   getNodeClassPropertyEdges,
 } from '../adapters/propertyQueries';
+import { UndoManager } from '../undo/UndoManager';
 import {
   type IWorkspaceStoreClient,
   type WorkerRequest,
@@ -195,18 +196,20 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
  */
 class InlineStoreClient implements IWorkspaceStoreClient {
   private store: WorkspaceStore | null = null;
+  private undoManager: UndoManager | null = null;
 
   async init(workspaceId: string, actorId: string, options: WorkspaceStoreClientOptions = {}): Promise<void> {
     if (options.store) {
       this.store = options.store;
-      return;
+    } else {
+      const db = await createDatabase(options.dbBytes);
+      this.store = new WorkspaceStore(db, workspaceId, actorId, {
+        onPersist: async () => {
+          // Persistence is handled differently in tests.
+        },
+      });
     }
-    const db = await createDatabase(options.dbBytes);
-    this.store = new WorkspaceStore(db, workspaceId, actorId, {
-      onPersist: async () => {
-        // Persistence is handled differently in tests.
-      },
-    });
+    this.undoManager = new UndoManager(this.store);
   }
 
   async export(): Promise<Uint8Array> {
@@ -215,7 +218,72 @@ class InlineStoreClient implements IWorkspaceStoreClient {
   }
 
   mutate<T>(method: string, args: unknown[]): Promise<T> {
-    if (!this.store) return Promise.reject(new Error('Store not initialized'));
+    if (!this.store || !this.undoManager) return Promise.reject(new Error('Store not initialized'));
+
+    // Undo-manager operations are addressed through record-* method names.
+    if (method === 'recordCreateNode') {
+      const [arg] = args as [Parameters<WorkspaceStore['createNode']>[0]];
+      this.undoManager.createNode(arg);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordCreateBlock') {
+      const [arg] = args as [(Parameters<WorkspaceStore['createNode']>[0] & { content?: string })];
+      this.undoManager.createBlock(arg);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordSetNodeText') {
+      const [nodeId, value] = args as [string, string];
+      this.undoManager.recordSetNodeText(nodeId, value);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordDeleteNode') {
+      const [nodeId] = args as [string];
+      this.undoManager.deleteNode(nodeId);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordMoveNode') {
+      const [nodeId, newParentId] = args as [string, string | null];
+      this.undoManager.moveNode(nodeId, newParentId);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordMergeBlocks') {
+      const [sourceBlockId, targetBlockId] = args as [string, string];
+      this.undoManager.mergeBlocks(sourceBlockId, targetBlockId);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordSetProperty') {
+      const [arg] = args as [Parameters<WorkspaceStore['setProperty']>[0]];
+      this.undoManager.setProperty(arg);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordUnsetProperty') {
+      const [arg] = args as [Parameters<WorkspaceStore['unsetProperty']>[0]];
+      this.undoManager.unsetProperty(arg);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordAssignClass') {
+      const [nodeId, classId] = args as [string, string];
+      this.undoManager.assignClass(nodeId, classId);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'recordUnassignClass') {
+      const [nodeId, classId] = args as [string, string];
+      this.undoManager.unassignClass(nodeId, classId);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'undo') {
+      const result = this.undoManager.undo();
+      return Promise.resolve(result as T);
+    }
+    if (method === 'redo') {
+      const result = this.undoManager.redo();
+      return Promise.resolve(result as T);
+    }
+    if (method === 'clearUndoHistory') {
+      this.undoManager.clear();
+      return Promise.resolve(undefined as T);
+    }
+
     const fn = (this.store as unknown as Record<string, unknown>)[method];
     if (typeof fn !== 'function') {
       return Promise.reject(new Error(`Unknown mutation method: ${method}`));
@@ -225,6 +293,20 @@ class InlineStoreClient implements IWorkspaceStoreClient {
 
   query<T>(method: string, args: unknown[]): Promise<T> {
     if (!this.store) return Promise.reject(new Error('Store not initialized'));
+
+    // Undo-manager state queries.
+    if (method === 'canUndo') {
+      const result = {
+        canUndo: this.undoManager?.canUndo() ?? false,
+        canRedo: this.undoManager?.canRedo() ?? false,
+      };
+      return Promise.resolve(result as T);
+    }
+    if (method === 'getUndoStacks') {
+      const result = this.undoManager?.getStacks() ?? { undo: [], redo: [] };
+      return Promise.resolve(result as T);
+    }
+
     // Special-case query helpers that are not methods on WorkspaceStore.
     if (method === 'queryNodes') {
       return Promise.resolve(queryNodes(this.store, args[0] as Parameters<typeof queryNodes>[1]) as T);
@@ -277,6 +359,7 @@ class InlineStoreClient implements IWorkspaceStoreClient {
 
   close(): void {
     this.store = null;
+    this.undoManager = null;
   }
 }
 

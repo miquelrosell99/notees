@@ -27,7 +27,7 @@ export function useRemoveTag() {
         throw new Error(`Node ${nodeUuid} is not available in the workspace store`);
       }
 
-      manager.unassignClass(nodeUuid, tagUuid);
+      await manager.unassignClass(nodeUuid, tagUuid);
       return findNodeInCache(queryClient, nodeUuid);
     },
     onSuccess: (_data, { nodeUuid, tagId }) => {

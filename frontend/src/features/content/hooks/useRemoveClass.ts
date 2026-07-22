@@ -24,7 +24,7 @@ export function useRemoveClass() {
       if (!store) throw new Error('Workspace store is not ready');
 
       if (manager) {
-        manager.unassignClass(nodeUuid, classUuid);
+        await manager.unassignClass(nodeUuid, classUuid);
       } else {
         store.unassignClass(nodeUuid, classUuid);
       }
