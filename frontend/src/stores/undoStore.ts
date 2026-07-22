@@ -3,6 +3,7 @@ import { type QueryClient } from '@tanstack/react-query';
 import type { UndoEntry } from '@/core/undo';
 import { createUndoManagerClient, type UndoManagerClient } from '@/core/hooks/useUndoManager';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useNotificationStore } from '@/stores/notificationStore';
 
@@ -32,7 +33,7 @@ interface UndoState {
   performRedo: (queryClient: QueryClient) => Promise<void>;
   performUndoTo: (queryClient: QueryClient, entry: UnifiedUndoEntry) => Promise<void>;
   performRedoTo: (queryClient: QueryClient, entry: UnifiedUndoEntry) => Promise<void>;
-  clearHistory: () => void;
+  clearHistory: () => Promise<void>;
 }
 
 /** Generate a display label from a core undo entry. */
@@ -67,11 +68,18 @@ function notifyUndoRedoError(action: string, error: unknown): void {
   useNotificationStore.getState().error(`${action} failed`, message);
 }
 
+const managerCache = new WeakMap<IWorkspaceStoreClient, UndoManagerClient>();
+
 function getManager(workspaceId: string | null): UndoManagerClient | undefined {
   if (!workspaceId) return undefined;
   const client = getWorkspaceStoreClient(workspaceId);
   if (!client) return undefined;
-  return createUndoManagerClient(client);
+  let manager = managerCache.get(client);
+  if (!manager) {
+    manager = createUndoManagerClient(client);
+    managerCache.set(client, manager);
+  }
+  return manager;
 }
 
 export const useUndoStore = create<UndoState>()((set, get) => {
