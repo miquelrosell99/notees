@@ -11,7 +11,7 @@ import { useParams } from 'react-router-dom';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { TaskReport, type TaskPhaseResult } from '@/components/ui/TaskReport';
-import { useWorkspaceStore } from '@/core/hooks';
+import { useWorkspaceStoreClient } from '@/core/hooks';
 import { fixRawUuidLinksInAST } from '@/lib/astBuilder';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/features/content';
@@ -65,25 +65,23 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   const handleConfirm = useCallback(async () => {
     setIsFixing(true);
     setError(null);
     try {
-      if (!store) throw new Error('Workspace store is not ready');
+      if (!client) throw new Error('Workspace store is not ready');
 
-      const rows = store.getDb().exec(
-        'SELECT id, content FROM node WHERE content LIKE "%[[%" ESCAPE "\\"'
+      const candidates = await client.query<Array<{ id: string; content: unknown[] }>>(
+        'getNodesWithRawUuidLinks',
+        []
       );
-      const candidates: { id: string; content: unknown[] }[] = [];
-      for (const row of rows) {
-        for (let i = 0; i < row.values.length; i++) {
-          const id = String(row.values[i][0]);
-          const content = JSON.parse(String(row.values[i][1])) as unknown[];
-          candidates.push({ id, content });
-        }
-      }
+      const kindEntries = await client.query<Array<[string, 'page' | 'block' | 'class']>>(
+        'getNodeKindMap',
+        []
+      );
+      const kindMap = new Map(kindEntries);
 
       const fixResult: FixResult = {
         nodesProcessed: candidates.length,
@@ -96,12 +94,15 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
       for (const candidate of candidates) {
         try {
           const resolved = fixRawUuidLinksInAST(candidate.content as never, (uuid) => {
-            const target = store.getNode(uuid);
-            if (!target) return null;
-            return target.kind === 'class' ? 'class' : 'node';
+            const kind = kindMap.get(uuid);
+            if (!kind) return null;
+            return kind === 'class' ? 'class' : 'node';
           });
           if (resolved.changed) {
-            store.updateContentAst(candidate.id, resolved.document as unknown[]);
+            await client.mutate<void>('updateContentAst', [
+              candidate.id,
+              resolved.document as unknown[],
+            ]);
             fixResult.nodesFixed++;
             fixResult.linksConverted += resolved.linksConverted;
           }
@@ -123,7 +124,7 @@ export function FixRawLinksModal({ isOpen, onClose }: FixRawLinksModalProps) {
     } finally {
       setIsFixing(false);
     }
-  }, [queryClient, store]);
+  }, [queryClient, client]);
 
   const handleClose = useCallback(() => {
     setResult(null);

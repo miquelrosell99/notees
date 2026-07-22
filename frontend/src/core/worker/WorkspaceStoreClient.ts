@@ -23,6 +23,8 @@ import { UndoManager } from '../undo/UndoManager';
 import type { Hlc } from '../clock';
 import type { Operation } from '../types/operation';
 import type { OperationRow } from '../sync';
+import type { Node } from '@/types/api';
+import type { QueryAST } from '@/types/queryAST';
 import {
   type IWorkspaceStoreClient,
   type WorkerRequest,
@@ -30,10 +32,25 @@ import {
   generateRequestId,
 } from './workerProtocol';
 import {
+  countQueryResults,
   getArchivedPages,
   getCommentNodes,
+  getDefaultNodeView,
+  getExtendedByClasses,
+  getInheritedProperties,
+  getClassExtends,
+  getNodeByUuid,
+  getNodeKindMap,
+  getNodeView,
+  getNodeViews,
+  getNodeViewsByType,
+  getNodesWithProperty,
+  getNodesWithRawUuidLinks,
   getPageAliases,
+  getPropertySuggestions,
   getTrashedNodes,
+  readViewAst,
+  validateClassExtends,
 } from './queryHelpers';
 
 export interface WorkspaceStoreClientOptions {
@@ -388,7 +405,8 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       return Promise.resolve(queryNodes(this.store, args[0] as Parameters<typeof queryNodes>[1]) as T);
     }
     if (method === 'executeQuery') {
-      return Promise.resolve(executeQuery(this.store, args[0] as Parameters<typeof executeQuery>[1]) as T);
+      const [req, currentNodeUuid] = args as [Parameters<typeof executeQuery>[1], string | undefined];
+      return Promise.resolve(executeQuery(this.store, req, currentNodeUuid) as T);
     }
     if (method === 'projectNode') {
       const [nodeId, depth] = args as [string, number | undefined];
@@ -431,6 +449,85 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'getCommentNodes') {
       const [nodeUuid] = args as [string];
       return Promise.resolve(getCommentNodes(this.store, nodeUuid) as T);
+    }
+
+    if (method === 'getNodeByUuid') {
+      const [nodeUuid] = args as [string];
+      return Promise.resolve(getNodeByUuid(this.store, nodeUuid) as T);
+    }
+
+    if (method === 'getNodeKindMap') {
+      return Promise.resolve(Array.from(getNodeKindMap(this.store).entries()) as T);
+    }
+
+    if (method === 'getNodeViews') {
+      const [nodeUuid, options] = args as [
+        string,
+        { viewType?: string; includeQueryAST?: boolean } | undefined,
+      ];
+      return Promise.resolve(getNodeViews(this.store, nodeUuid, options) as T);
+    }
+
+    if (method === 'getNodeViewsByType') {
+      const [nodeUuid] = args as [string];
+      return Promise.resolve(getNodeViewsByType(this.store, nodeUuid) as T);
+    }
+
+    if (method === 'getNodeView') {
+      const [viewUuid] = args as [string];
+      return Promise.resolve(getNodeView(this.store, viewUuid) as T);
+    }
+
+    if (method === 'getDefaultNodeView') {
+      const [nodeUuid, viewType] = args as [string, string];
+      return Promise.resolve(getDefaultNodeView(this.store, nodeUuid, viewType) as T);
+    }
+
+    if (method === 'readViewAst') {
+      const [viewUuid] = args as [string];
+      return Promise.resolve(readViewAst(this.store, viewUuid) as T);
+    }
+
+    if (method === 'countQueryResults') {
+      const [workspaceId, queryRequest] = args as [
+        string,
+        { query_ast?: QueryAST; runtime_params?: Record<string, unknown> },
+      ];
+      return Promise.resolve(countQueryResults(this.store, workspaceId, queryRequest) as T);
+    }
+
+    if (method === 'getClassExtends') {
+      const [classId, classes] = args as [string, Node[]];
+      return Promise.resolve(getClassExtends(this.store, classId, classes) as T);
+    }
+
+    if (method === 'getInheritedProperties') {
+      const [classId, classes] = args as [string, Node[]];
+      return Promise.resolve(getInheritedProperties(this.store, classId, classes) as T);
+    }
+
+    if (method === 'getExtendedByClasses') {
+      const [classId, classes] = args as [string, Node[]];
+      return Promise.resolve(getExtendedByClasses(this.store, classId, classes) as T);
+    }
+
+    if (method === 'getPropertySuggestions') {
+      const [contextNodeUuid] = args as [string | undefined];
+      return Promise.resolve(getPropertySuggestions(this.store, contextNodeUuid) as T);
+    }
+
+    if (method === 'getNodesWithProperty') {
+      const [propertyUuid] = args as [string];
+      return Promise.resolve(getNodesWithProperty(this.store, propertyUuid) as T);
+    }
+
+    if (method === 'validateClassExtends') {
+      const [classId, extendsIds] = args as [string, string[]];
+      return Promise.resolve(validateClassExtends(this.store, classId, extendsIds) as T);
+    }
+
+    if (method === 'getNodesWithRawUuidLinks') {
+      return Promise.resolve(getNodesWithRawUuidLinks(this.store) as T);
     }
 
     const fn = (this.store as unknown as Record<string, unknown>)[method];
