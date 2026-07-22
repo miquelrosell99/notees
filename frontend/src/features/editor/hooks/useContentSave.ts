@@ -51,7 +51,7 @@ function readPendingBackup(workspaceId: string): Record<string, string> | null {
 
 function writePendingBackup(
   workspaceId: string,
-  pending: Map<string, PendingChange>
+  pending: Map<string, { content: string }>
 ): void {
   if (!isStorageAvailable() || pending.size === 0) return;
   try {
@@ -117,13 +117,19 @@ interface UseContentSaveOptions {
 export function useContentSave(options: UseContentSaveOptions = {}) {
   const { delay = DEFAULT_TEXT_DEBOUNCE_MS } = options;
   const pendingChangesRef = useRef<Map<string, PendingChange>>(new Map());
+  const earlyChangesRef = useRef<Map<string, string>>(new Map());
   const hasRestoredRef = useRef(false);
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const manager = useUndoManager(workspaceId ?? '');
 
   const saveBlock = useCallback(async (blockId: string, content: string) => {
-    if (!client || !manager) return;
+    if (!client || !manager) {
+      // Buffer edits that arrive before the workspace client and undo manager
+      // are ready; they will be flushed once both become available.
+      earlyChangesRef.current.set(blockId, content);
+      return;
+    }
 
     const ast = parseAST(content);
     const converted = convertMarkdownInAST(ast);
@@ -136,6 +142,26 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
 
     await manager.recordSetNodeText(blockId, finalContent);
   }, [client, manager]);
+
+  const flushEarlyChanges = useCallback(async () => {
+    if (!client || !manager) return;
+    const entries = Array.from(earlyChangesRef.current.entries());
+    if (entries.length === 0) return;
+    earlyChangesRef.current.clear();
+    await Promise.all(
+      entries.map(async ([blockId, content]) => {
+        await saveBlock(blockId, content);
+      })
+    );
+  }, [client, manager, saveBlock]);
+
+  // Flush any edits that were queued while the workspace client was still
+  // initializing as soon as both the client and undo manager are available.
+  useEffect(() => {
+    if (client && manager) {
+      void flushEarlyChanges();
+    }
+  }, [client, manager, flushEarlyChanges]);
 
   const flushBlock = useCallback(async (blockId: string) => {
     const pending = pendingChangesRef.current.get(blockId);
@@ -259,9 +285,20 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
   }, [client, manager, workspaceId, saveBlock]);
 
   useEffect(() => {
+    const buildBackupMap = (): Map<string, { content: string }> => {
+      const merged = new Map<string, { content: string }>();
+      for (const [blockId, change] of pendingChangesRef.current) {
+        merged.set(blockId, { content: change.content });
+      }
+      for (const [blockId, content] of earlyChangesRef.current) {
+        merged.set(blockId, { content });
+      }
+      return merged;
+    };
+
     const handleBeforeUnload = () => {
       if (workspaceId) {
-        writePendingBackup(workspaceId, pendingChangesRef.current);
+        writePendingBackup(workspaceId, buildBackupMap());
       }
       void flushAll();
     };
@@ -269,7 +306,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         if (workspaceId) {
-          writePendingBackup(workspaceId, pendingChangesRef.current);
+          writePendingBackup(workspaceId, buildBackupMap());
         }
         void flushAll();
       }

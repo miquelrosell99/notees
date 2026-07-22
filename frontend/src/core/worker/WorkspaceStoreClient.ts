@@ -9,6 +9,7 @@
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
+import { listNodes } from '../query/listNodes';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
 import { buildGraphData } from '../query/graphData';
@@ -467,6 +468,9 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     }
 
     // Special-case query helpers that are not methods on WorkspaceStore.
+    if (method === 'listNodes') {
+      return Promise.resolve(listNodes(this.store, args[0] as Parameters<typeof listNodes>[1]) as T);
+    }
     if (method === 'queryNodes') {
       return Promise.resolve(queryNodes(this.store, args[0] as Parameters<typeof queryNodes>[1]) as T);
     }

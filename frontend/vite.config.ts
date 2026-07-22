@@ -26,16 +26,6 @@ export default defineConfig(({ mode }) => ({
             handler: 'NetworkOnly',
           },
           {
-            // Cache API responses with network-first strategy
-            urlPattern: /^https?:\/\/.*\/api\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 300 },
-              networkTimeoutSeconds: 3,
-            },
-          },
-          {
             // Cache the WASM binary
             urlPattern: /sql-wasm\.wasm$/,
             handler: 'CacheFirst',
