@@ -129,6 +129,7 @@ notees/
 - **Verify before finishing**: run the lint/test commands below after code changes; fix all failures your changes caused.
 - **Rebuild the dev stack for runtime-behavior fixes** (routes, request/response schemas, sync mappers, build output, container startup): `docker compose -f compose.dev.yaml down && docker compose -f compose.dev.yaml up --build` (or `task dev -- --build`), then confirm the behavior in the browser.
 - **Race condition triage**: if a bug is "local change disappears after a network mutation", check the **debounced save / query invalidation boundary FIRST**. See `agents/operations.md`.
+- **Structure validation**: run `python3 scripts/validate-structure.py` after structural refactors. It enforces the fleet-wide self-hosted app layout (feature-first backend/frontend, path aliases, no native dialogs).
 
 ---
 
@@ -187,6 +188,7 @@ Agent reference (under `agents/`):
 ## Skill References
 
 - `agent-repo-workflow` — Snapshot commits, concurrent-agent discipline, verify-before-finishing, plan-mode threshold.
+- `selfhosted-app-scaffold` — Canonical project skeleton for new self-hosted FastAPI + React apps.
 - `fastapi-patterns` — Hexagonal architecture, request-scoped connections, background tasks, per-key rate limiting, backend code style.
 - `react-ui-patterns` — React/TypeScript/Vite conventions, data flow, state boundaries, query discipline, view composition, barrels, hook decomposition, TanStack Query v5 behavior.
 - `security-hardening` — Auth, HTTPS, secrets, input validation, rate limiting, dependency auditing.
