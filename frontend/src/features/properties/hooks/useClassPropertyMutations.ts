@@ -4,8 +4,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { nodeKeys, propertyKeys, nodeViewKeys } from '@/hooks/queryKeys';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { queryAll } from '@/core/db/sqlite';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import type {
   ClassPropertyEdgeCreatePayload,
   ClassPropertyEdgeDeletePayload,
@@ -13,9 +12,9 @@ import type {
   ClassPropertyEdgeUpdatePayload,
 } from '@/core/types/operation';
 
-function useStore() {
+function useClient() {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  return useWorkspaceStore(workspaceId ?? '').store;
+  return useWorkspaceStoreClient(workspaceId ?? '');
 }
 
 function resolveClassId(classId: string): string {
@@ -37,16 +36,16 @@ function invalidateClassQueries(
 
 export function useAddPropertyToClass() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const { client } = useClient();
 
   return useMutation<void, Error, { classId: string; propertyId: string }>({
     mutationFn: async ({ classId, propertyId }) => {
-      if (!store) throw new Error('Workspace store not available');
+      if (!client) throw new Error('Workspace store not available');
       const payload: ClassPropertyEdgeCreatePayload = {
         classId: resolveClassId(classId),
         propertySchemaId: resolvePropertyId(propertyId),
       };
-      store.addPropertyToClass(payload);
+      await client.mutate<void>('addPropertyToClass', [payload]);
     },
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
@@ -60,16 +59,16 @@ export function useAddPropertyToClass() {
 
 export function useRemovePropertyFromClass() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const { client } = useClient();
 
   return useMutation<void, Error, { classId: string; propertyId: string }>({
     mutationFn: async ({ classId, propertyId }) => {
-      if (!store) throw new Error('Workspace store not available');
+      if (!client) throw new Error('Workspace store not available');
       const payload: ClassPropertyEdgeDeletePayload = {
         classId: resolveClassId(classId),
         propertySchemaId: resolvePropertyId(propertyId),
       };
-      store.removePropertyFromClass(payload);
+      await client.mutate<void>('removePropertyFromClass', [payload]);
     },
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
@@ -83,16 +82,16 @@ export function useRemovePropertyFromClass() {
 
 export function useReorderClassProperties() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const { client } = useClient();
 
   return useMutation<void, Error, { classId: string; propertyIds: string[] }>({
     mutationFn: async ({ classId, propertyIds }) => {
-      if (!store) throw new Error('Workspace store not available');
+      if (!client) throw new Error('Workspace store not available');
       const payload: ClassPropertyEdgeReorderPayload = {
         classId: resolveClassId(classId),
         orderedPropertySchemaIds: propertyIds.map(resolvePropertyId),
       };
-      store.reorderClassProperties(payload);
+      await client.mutate<void>('reorderClassProperties', [payload]);
     },
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
@@ -106,7 +105,7 @@ export function useReorderClassProperties() {
 
 export function useUpdateClassProperty() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const { client } = useClient();
 
   return useMutation<
     void,
@@ -124,7 +123,7 @@ export function useUpdateClassProperty() {
     }
   >({
     mutationFn: async ({ classId, propertyId, data }) => {
-      if (!store) throw new Error('Workspace store not available');
+      if (!client) throw new Error('Workspace store not available');
       const payload: ClassPropertyEdgeUpdatePayload = {
         classId: resolveClassId(classId),
         propertySchemaId: resolvePropertyId(propertyId),
@@ -134,7 +133,7 @@ export function useUpdateClassProperty() {
         hideWhenEmpty: data.hide_when_empty,
         defaultValue: data.default_value,
       };
-      store.updateClassProperty(payload);
+      await client.mutate<void>('updateClassProperty', [payload]);
     },
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
@@ -148,20 +147,15 @@ export function useUpdateClassProperty() {
 
 export function useAddClassExtends() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const { client } = useClient();
 
   return useMutation<void, Error, { classId: string; extendsClassId: string }>({
     mutationFn: async ({ classId, extendsClassId }) => {
-      if (!store) throw new Error('Workspace store not available');
-      const db = store.getDb();
-      const rows = queryAll<{ ancestor_id: string }>(
-        db,
-        'SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? AND ancestor_id != ?',
-        [classId, classId]
-      );
+      if (!client) throw new Error('Workspace store not available');
+      const rows = await client.query<Array<{ ancestor_id: string }>>('getClassExtends', [classId, []]);
       const existing = new Set(rows.map((r) => r.ancestor_id));
       existing.add(extendsClassId);
-      store.updateClass(classId, Array.from(existing));
+      await client.mutate<void>('updateClass', [classId, Array.from(existing)]);
     },
     onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
@@ -176,20 +170,15 @@ export function useAddClassExtends() {
 
 export function useRemoveClassExtends() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const { client } = useClient();
 
   return useMutation<void, Error, { classId: string; extendsClassId: string }>({
     mutationFn: async ({ classId, extendsClassId }) => {
-      if (!store) throw new Error('Workspace store not available');
-      const db = store.getDb();
-      const rows = queryAll<{ ancestor_id: string }>(
-        db,
-        'SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? AND ancestor_id != ?',
-        [classId, classId]
-      );
+      if (!client) throw new Error('Workspace store not available');
+      const rows = await client.query<Array<{ ancestor_id: string }>>('getClassExtends', [classId, []]);
       const existing = new Set(rows.map((r) => r.ancestor_id));
       existing.delete(extendsClassId);
-      store.updateClass(classId, Array.from(existing));
+      await client.mutate<void>('updateClass', [classId, Array.from(existing)]);
     },
     onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });

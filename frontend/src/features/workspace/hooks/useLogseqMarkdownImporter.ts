@@ -10,8 +10,9 @@
  * page/block hierarchy, text content, links, and assets are imported.
  */
 import { useCallback, useState } from 'react';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import type { WorkspaceStore } from '@/core/store';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 import {
   parseLogseqFolder,
   countMdBlocks,
@@ -173,14 +174,46 @@ async function defaultUploadAsset(file: File, parentUuid?: string): Promise<Asse
   return uploadAsset(file, parentUuid);
 }
 
+interface StoreOperations {
+  createNode: (args: {
+    nodeId: string;
+    kind: 'page' | 'block';
+    parentId: string | null;
+    classIds?: string[];
+  }) => Promise<void>;
+  updateContentAst: (nodeId: string, ast: ASTDocument) => Promise<void>;
+  moveNode: (nodeId: string, parentId: string) => Promise<void>;
+}
+
+function isWorkspaceStore(storeOrClient: WorkspaceStore | IWorkspaceStoreClient): storeOrClient is WorkspaceStore {
+  return !('mutate' in storeOrClient);
+}
+
+function createStoreOperations(storeOrClient: WorkspaceStore | IWorkspaceStoreClient): StoreOperations {
+  if (isWorkspaceStore(storeOrClient)) {
+    return {
+      createNode: async (args) => storeOrClient.createNode(args),
+      updateContentAst: async (nodeId, ast) => storeOrClient.updateContentAst(nodeId, ast),
+      moveNode: async (nodeId, parentId) => storeOrClient.moveNode(nodeId, parentId),
+    };
+  }
+  return {
+    createNode: (args) => storeOrClient.mutate<void>('createNode', [args]),
+    updateContentAst: (nodeId, ast) => storeOrClient.mutate<void>('updateContentAst', [nodeId, ast]),
+    moveNode: (nodeId, parentId) => storeOrClient.mutate<void>('moveNode', [nodeId, parentId]),
+  };
+}
+
 /**
- * Pure importer entry point. Creates pages/blocks in the provided WorkspaceStore.
+ * Pure importer entry point. Creates pages/blocks in the provided WorkspaceStore
+ * or async worker client.
  */
 export async function importLogseqFolderToStore(
-  store: WorkspaceStore,
+  storeOrClient: WorkspaceStore | IWorkspaceStoreClient,
   files: FileList,
   options: LogseqImportOptions = {},
 ): Promise<LogseqImportReport> {
+  const ops = createStoreOperations(storeOrClient);
   const { onProgress, uploadAsset: doUpload = defaultUploadAsset } = options;
   const report: LogseqImportReport = {
     pagesCreated: 0,
@@ -266,13 +299,13 @@ export async function importLogseqFolderToStore(
   let createdPages = 0;
   for (const [pageId, title] of pageTitles) {
     try {
-      store.createNode({
+      await ops.createNode({
         nodeId: pageId,
         kind: 'page',
         parentId: null,
         classIds: [SYSTEM_CLASS_UUIDS.page],
       });
-      store.updateContentAst(pageId, [paragraph(text(title))]);
+      await ops.updateContentAst(pageId, [paragraph(text(title))]);
       report.pagesCreated++;
       createdPages++;
       notify({
@@ -293,14 +326,14 @@ export async function importLogseqFolderToStore(
   notify({ phase: 'creating-blocks', current: 0, total: totalBlocks, message: 'Creating blocks...' });
   let createdBlocks = 0;
 
-  const createBlocksRecursively = (blocks: LogseqMdBlock[], parentId: string) => {
+  const createBlocksRecursively = async (blocks: LogseqMdBlock[], parentId: string) => {
     for (const block of blocks) {
       const blockId = uuidv7();
       try {
-        store.createNode({ nodeId: blockId, kind: 'block', parentId: null });
+        await ops.createNode({ nodeId: blockId, kind: 'block', parentId: null });
         const ast = blockContentToAst(block.content, pageMap, assetMap);
-        store.updateContentAst(blockId, ast);
-        store.moveNode(blockId, parentId);
+        await ops.updateContentAst(blockId, ast);
+        await ops.moveNode(blockId, parentId);
         report.blocksCreated++;
         report.linksCreated += countLinks(ast);
         createdBlocks++;
@@ -311,7 +344,7 @@ export async function importLogseqFolderToStore(
           message: `Created block ${createdBlocks}/${totalBlocks}`,
         });
         if (block.children.length > 0) {
-          createBlocksRecursively(block.children, blockId);
+          await createBlocksRecursively(block.children, blockId);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -323,7 +356,7 @@ export async function importLogseqFolderToStore(
   for (const page of allPages) {
     const pageId = pageMap.get(normalizePageTitle(page.title));
     if (!pageId) continue;
-    createBlocksRecursively(page.blocks, pageId);
+    await createBlocksRecursively(page.blocks, pageId);
   }
 
   notify({
@@ -347,7 +380,7 @@ export interface UseLogseqMarkdownImporterResult {
 export function useLogseqMarkdownImporter(
   workspaceId: string | undefined,
 ): UseLogseqMarkdownImporterResult {
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [report, setReport] = useState<LogseqImportReport | null>(null);
@@ -355,7 +388,7 @@ export function useLogseqMarkdownImporter(
 
   const importFolder = useCallback(
     async (files: FileList): Promise<LogseqImportReport> => {
-      if (!store || !workspaceId) {
+      if (!client || !workspaceId) {
         throw new Error('Workspace store is not ready');
       }
       setIsImporting(true);
@@ -363,7 +396,7 @@ export function useLogseqMarkdownImporter(
       setReport(null);
       setProgress(null);
       try {
-        const result = await importLogseqFolderToStore(store, files, {
+        const result = await importLogseqFolderToStore(client, files, {
           onProgress: setProgress,
         });
         setReport(result);
@@ -376,7 +409,7 @@ export function useLogseqMarkdownImporter(
         setIsImporting(false);
       }
     },
-    [store, workspaceId],
+    [client, workspaceId],
   );
 
   return { importFolder, isImporting, progress, report, error };
