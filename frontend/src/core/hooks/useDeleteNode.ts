@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react';
-import { useWorkspaceStore } from './useWorkspaceStore';
 import { useUndoManager } from './useUndoManager';
 
 export interface UseDeleteNodeResult {
@@ -10,22 +9,17 @@ export interface UseDeleteNodeResult {
 }
 
 export function useDeleteNode(workspaceId: string): UseDeleteNodeResult {
-  const { store } = useWorkspaceStore(workspaceId);
   const manager = useUndoManager(workspaceId);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const mutateAsync = useCallback(
     async (args: { nodeId: string }): Promise<void> => {
-      if (!store) throw new Error('Workspace store is not ready');
+      if (!manager) throw new Error('Workspace store client is not ready');
       setIsPending(true);
       setError(null);
       try {
-        if (manager) {
-          await manager.deleteNode(args.nodeId);
-        } else {
-          store.deleteNode(args.nodeId);
-        }
+        await manager.deleteNode(args.nodeId);
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         setError(error);
@@ -34,7 +28,7 @@ export function useDeleteNode(workspaceId: string): UseDeleteNodeResult {
         setIsPending(false);
       }
     },
-    [store, manager]
+    [manager]
   );
 
   const mutate = useCallback(
