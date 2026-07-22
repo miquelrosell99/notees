@@ -49,3 +49,9 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Remove the static splash screen once React has mounted so it never outlives
+// a failed workspace load or an auth/onboarding state.
+requestAnimationFrame(() => {
+  (window as unknown as { __hideNoteesSplash?: () => void }).__hideNoteesSplash?.();
+});

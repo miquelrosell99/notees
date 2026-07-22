@@ -13,6 +13,7 @@ const VIEW_LABELS: Record<string, string> = {
   node: 'Node',
   pages: 'Pages',
   'all-pages': 'All Pages',
+  classes: 'Classes',
   journals: 'Journals',
   graph: 'Graph',
   timeline: 'Timeline',

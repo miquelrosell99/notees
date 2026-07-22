@@ -10,6 +10,7 @@ import {
   restoreWorkspace,
 } from '../api/workspaces';
 import { workspaceKeys } from '@/hooks/queryKeys';
+import { invalidateWorkspaceQueries } from '@/lib/queryClient';
 import { useNavigationStore, useRecentsStore } from '@/stores';
 
 export function useWorkspaceMutations() {
@@ -31,7 +32,7 @@ export function useWorkspaceMutations() {
       });
       useRecentsStore.getState().clearRecents();
       navigate(`/${switchedWorkspaceUuid}`, { replace: true });
-      queryClient.clear();
+      invalidateWorkspaceQueries(queryClient);
       useNavigationStore.setState({ isSwitchingWorkspace: false });
     },
     onError: () => {
@@ -57,7 +58,7 @@ export function useWorkspaceMutations() {
   const restoreWorkspaceMutation = useMutation({
     mutationFn: ({ workspaceUuid, file }: { workspaceUuid: string; file: File }) => restoreWorkspace(workspaceUuid, file),
     onSuccess: () => {
-      queryClient.clear();
+      invalidateWorkspaceQueries(queryClient);
     },
   });
 

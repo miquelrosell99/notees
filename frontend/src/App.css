@@ -64,4 +64,24 @@ svg[class*="icon"],
   position: fixed;
   inset: 0;
   z-index: var(--z-modal-backdrop, 1000);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.workspace-init-overlay--error {
+  gap: var(--spacing-4);
+  text-align: center;
+}
+
+.workspace-init-error__title {
+  font: var(--type-headline-small);
+  color: var(--color-on-surface);
+}
+
+.workspace-init-error__message {
+  color: var(--color-error, #ef4444);
+  max-width: 480px;
+  padding: 0 var(--spacing-6);
 }

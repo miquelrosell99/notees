@@ -19,6 +19,7 @@ export type MainViewType =
   | 'node'
   | 'pages'
   | 'all-pages'
+  | 'classes'
   | 'journals'
   | 'graph'
   | 'timeline'

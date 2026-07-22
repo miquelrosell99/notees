@@ -89,7 +89,7 @@ export function useNodeSearch(
     queryFn: () => {
       if (!store) return [];
       const classIds = classFiltersParam ? classFiltersParam.split(',').filter(Boolean) : undefined;
-      return queryNodes(store, { isPage: true, classIds });
+      return queryNodes(store, { isPage: true, classIds, projectionDepth: 0 });
     },
     enabled: !!classFiltersParam && !!store,
     placeholderData: keepPreviousData,

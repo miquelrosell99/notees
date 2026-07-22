@@ -1,7 +1,7 @@
 /**
  * React Query client configuration with offline persistence
  */
-import { QueryClient, QueryCache } from '@tanstack/react-query';
+import { QueryClient, QueryCache, type Query } from '@tanstack/react-query';
 import { get, set, del } from 'idb-keyval';
 import { isApiError } from '@/api/client';
 import type { Persister, PersistedClient } from '@tanstack/react-query-persist-client';
@@ -44,6 +44,33 @@ function onQueryError(error: Error, query: unknown) {
   if ((query as { meta?: { skipGlobalError?: boolean } })?.meta?.skipGlobalError) return;
   const message = getErrorMessage(error);
   useNotificationStore.getState().error('Failed to load data', message);
+}
+
+/**
+ * Query-key prefixes that are cross-workspace (auth, settings, workspace list,
+ * admin, notifications). Everything else is assumed to be scoped to the current
+ * workspace and is invalidated when switching workspaces.
+ */
+const CROSS_WORKSPACE_PREFIXES = new Set([
+  'auth',
+  'settings',
+  'workspaces',
+  'admin',
+  'notifications',
+]);
+
+export function isWorkspaceScopedQuery(query: Query): boolean {
+  const key = query.queryKey as unknown[];
+  if (!key || key.length === 0) return false;
+  return !CROSS_WORKSPACE_PREFIXES.has(key[0] as string);
+}
+
+/**
+ * Invalidate workspace-scoped queries without blowing away the entire cache.
+ * This keeps auth, settings, and the workspace list intact across switches.
+ */
+export function invalidateWorkspaceQueries(queryClient: QueryClient): void {
+  queryClient.invalidateQueries({ predicate: isWorkspaceScopedQuery });
 }
 
 export const queryClient = new QueryClient({

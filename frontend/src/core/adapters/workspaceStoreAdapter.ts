@@ -11,12 +11,44 @@ interface RegistryEntry {
 }
 
 const registry = new Map<string, RegistryEntry>();
+const pendingOpens = new Map<string, Promise<WorkspaceStore>>();
 
 export interface WorkspaceStoreInitOptions {
   syncCallbacks?: SyncEngineCallbacks;
 }
 
 export async function getOrCreateWorkspaceStore(
+  workspaceId: string,
+  actorId: string,
+  transport: Transport,
+  options: WorkspaceStoreInitOptions = {}
+): Promise<WorkspaceStore> {
+  // Serialize concurrent open attempts for the same workspace. Without this,
+  // overlapping calls (e.g. from test files that reuse the same workspaceId)
+  // can race on registry deletion/replacement and end up with different store
+  // instances for the same logical workspace.
+  const previous = pendingOpens.get(workspaceId);
+  const current = (async () => {
+    if (previous) {
+      try {
+        await previous;
+      } catch {
+        // Ignore previous failure; proceed with a fresh open.
+      }
+    }
+    return openWorkspaceStore(workspaceId, actorId, transport, options);
+  })();
+  pendingOpens.set(workspaceId, current);
+  try {
+    return await current;
+  } finally {
+    if (pendingOpens.get(workspaceId) === current) {
+      pendingOpens.delete(workspaceId);
+    }
+  }
+}
+
+async function openWorkspaceStore(
   workspaceId: string,
   actorId: string,
   transport: Transport,
@@ -33,6 +65,7 @@ export async function getOrCreateWorkspaceStore(
     }
     existing.syncEngine.stopAutoSync();
     registry.delete(workspaceId);
+    UndoManager.removeUndoManager(workspaceId);
     await deleteWorkspaceDatabase(workspaceId);
   }
 
@@ -49,8 +82,10 @@ export async function getOrCreateWorkspaceStore(
   // Initialize performs a one-time version check and may trigger a hard rebuild
   // of derived state when the applier version has changed. It then runs the
   // first sync. Opening a workspace should not fail just because the network is
-  // unavailable, so initialization errors are logged but not thrown here.
-  void syncEngine.initialize().catch((err) => {
+  // unavailable, so initialization errors are caught and logged rather than
+  // rejecting the open promise. Awaiting initialization lets callers (e.g. the
+  // workspace loading overlay) know exactly when the first sync is complete.
+  await syncEngine.initialize().catch((err) => {
     console.error(`Initial sync failed for workspace ${workspaceId}:`, err);
   });
 

@@ -30,6 +30,14 @@ interface OperationRow {
   payload: string;
 }
 
+function yieldToMain(): Promise<void> {
+  const sched = (globalThis as unknown as { scheduler?: { yield: () => Promise<void> } }).scheduler;
+  if (sched?.yield) {
+    return sched.yield();
+  }
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 export class SyncEngine {
   private lastReceivedHlc: Hlc;
   private lastPushedHlc: Hlc;
@@ -258,23 +266,28 @@ export class SyncEngine {
     );
 
     // Apply in chunks so the progress overlay updates and the browser can paint.
-    // A chunk size of 500 keeps each synchronous block small enough that the UI
+    // A chunk size of 100 keeps each synchronous block short enough that the UI
     // stays responsive (hover, scroll, animation) even with 100k+ operations.
-    // During a hard rebuild the UI is intentionally blocked by a progress overlay,
-    // so we can use a larger chunk size to finish faster.
-    const CHUNK_SIZE = options.applyChunkSize ?? 500;
+    // Listener notifications are batched across the whole pull so the UI does not
+    // re-render on every chunk.
+    const CHUNK_SIZE = options.applyChunkSize ?? 100;
     let applied = 0;
-    for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
-      const chunk = ops.slice(i, i + CHUNK_SIZE);
-      this.store.applyMany(chunk);
-      applied += chunk.length;
-      this.callbacks.onPullProgress?.({ applied, total: ops.length });
-      // Yield so the browser can paint and process input events before the next
-      // chunk. setTimeout(0) is cheaper than requestAnimationFrame for bulk work
-      // while still letting the event loop handle hover/scroll/animation frames.
-      if (i + CHUNK_SIZE < ops.length) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    this.store.startBatch();
+    try {
+      for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
+        const chunk = ops.slice(i, i + CHUNK_SIZE);
+        this.store.applyMany(chunk);
+        applied += chunk.length;
+        this.callbacks.onPullProgress?.({ applied, total: ops.length });
+        // Yield so the browser can paint and process input events before the next
+        // chunk. scheduler.yield() is preferred when available because it returns
+        // control to the browser without the minimum delay of setTimeout.
+        if (i + CHUNK_SIZE < ops.length) {
+          await yieldToMain();
+        }
       }
+    } finally {
+      this.store.endBatch();
     }
 
     for (const op of ops) {

@@ -36,17 +36,17 @@ function setDatePageContent(store: WorkspaceStore, nodeId: string, name: string)
 }
 
 function findDayNoteByName(store: WorkspaceStore, dateStr: string): Node | undefined {
-  const dayNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.day], query: dateStr });
+  const dayNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.day], query: dateStr, projectionDepth: 0 });
   return dayNodes.find((n) => nodeNameToText(n.name) === dateStr);
 }
 
 function findMonthlyNoteByName(store: WorkspaceStore, label: string): Node | undefined {
-  const monthNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.month], query: label });
+  const monthNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.month], query: label, projectionDepth: 0 });
   return monthNodes.find((n) => nodeNameToText(n.name) === label);
 }
 
 function findYearlyNoteByName(store: WorkspaceStore, label: string): Node | undefined {
-  const yearNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.year], query: label });
+  const yearNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.year], query: label, projectionDepth: 0 });
   return yearNodes.find((n) => nodeNameToText(n.name) === label);
 }
 
@@ -127,7 +127,7 @@ export function batchGetOrCreateDailyNotes(store: WorkspaceStore, dates: string[
  * List all existing daily journal pages in the local-first core store.
  */
 export function listDailyPagesFromStore(store: WorkspaceStore): Node[] {
-  return queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.day] });
+  return queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.day], projectionDepth: 0 });
 }
 
 export function useExistingDailyPages() {

@@ -84,7 +84,7 @@ export function useQueryAstAggregate(
         const groups = mapAggregateRows(rows);
         setData({ nodes: [], groups, total_count: groups.length, metrics: undefined });
       } else {
-        const nodes = queryNodes(store, { ast: astWithParams, runtimeParams });
+        const nodes = queryNodes(store, { ast: astWithParams, runtimeParams, projectionDepth: 0 });
         setData({ nodes, groups: undefined, total_count: nodes.length, metrics: undefined });
       }
     } catch (err) {

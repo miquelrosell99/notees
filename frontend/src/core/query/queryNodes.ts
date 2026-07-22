@@ -27,6 +27,12 @@ export interface QueryNodesFilters {
   isClass?: boolean;
   isDaily?: boolean;
   includeArchived?: boolean;
+  /**
+   * How many levels of children to project for each result. List/collection
+   * views should pass 0 to avoid the huge cost of recursively fetching children
+   * that they never render.
+   */
+  projectionDepth?: number;
 }
 
 function buildSearchFilters(filters: QueryNodesFilters): SearchFilters {
@@ -62,7 +68,7 @@ export function queryNodes(
       compiled.params as (string | number | null | Uint8Array)[],
     );
     return rows
-      .map((row) => projectNode(store, row.id))
+      .map((row) => projectNode(store, row.id, filters.projectionDepth))
       .filter((n): n is Node => n !== undefined)
       .filter(isActiveMatch)
       .slice(0, LOCAL_QUERY_RESULT_LIMIT);
@@ -83,7 +89,7 @@ export function queryNodes(
     const { sql, params } = listNodesSql(store.getWorkspaceId(), filters);
     const rows = queryAll<{ id: string }>(store.getDb(), sql, params);
     return rows
-      .map((row) => projectNode(store, row.id))
+      .map((row) => projectNode(store, row.id, filters.projectionDepth))
       .filter((n): n is Node => n !== undefined)
       .filter(isActiveMatch)
       .slice(0, LOCAL_QUERY_RESULT_LIMIT);
@@ -92,7 +98,7 @@ export function queryNodes(
   const results = searchNodes(store, query, searchFilters);
   return results
     .sort((a, b) => b.score - a.score)
-    .map((r) => projectNode(store, r.id))
+    .map((r) => projectNode(store, r.id, filters.projectionDepth))
     .filter((n): n is Node => n !== undefined)
     .filter(isActiveMatch)
     .slice(0, LOCAL_QUERY_RESULT_LIMIT);

@@ -8,7 +8,7 @@
  * Visual styling mirrors InlineEditor so the switch to edit mode is seamless.
  */
 
-import React, { useCallback, useRef, type JSX } from 'react';
+import React, { useCallback, useRef, memo, type JSX } from 'react';
 import { useParams } from 'react-router-dom';
 import type { ASTDocument as ContentAST } from '@/types/ast';
 import type { ASTInlineNode } from '@/types/ast';
@@ -284,7 +284,7 @@ function isContentEmpty(ast: ContentAST): boolean {
   return true;
 }
 
-export function InlineContentStatic({
+export const InlineContentStatic = memo(function InlineContentStatic({
   name,
   placeholder,
   blockId,
@@ -367,4 +367,4 @@ export function InlineContentStatic({
       )}
     </div>
   );
-}
+});

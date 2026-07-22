@@ -88,6 +88,7 @@ export function useTemplates() {
       if (!store) throw new Error('Workspace store is not ready');
       const items = queryNodes(store, {
         classIds: [SYSTEM_CLASS_UUIDS.template],
+        projectionDepth: 0,
       });
       return {
         items,

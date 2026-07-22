@@ -19,6 +19,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useTodayNote } from '@/features/content';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace';
+import { invalidateWorkspaceQueries } from '@/lib/queryClient';
 import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { getNodeByUuid } from '@/core/query/nodeByUuid';
@@ -105,7 +106,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         });
 
         useRecentsStore.getState().clearRecents();
-        queryClient.clear();
+        invalidateWorkspaceQueries(queryClient);
 
         await queryClient.fetchQuery({
           queryKey: workspaceKeys.all,

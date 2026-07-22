@@ -1,23 +1,29 @@
 /**
- * Pages View - hub for all pages with view mode switching
+ * Classes View - hub for all class definitions with view mode switching
  *
  * Uses NodeCollection directly with multiple view modes (list, document, card,
- * table, graph, timeline). Only page nodes are shown; child blocks are never
+ * table, graph, timeline). Only class nodes are shown; their members are never
  * rendered in this view.
  */
-import { useState, useCallback, useMemo } from 'react';
-import { usePages } from '@/features/content';
+import { useState, useCallback, useMemo, useContext } from 'react';
+import { useParams } from 'react-router-dom';
+import { useClasses } from '@/features/content';
+import { useClassClass } from '@/features/content/hooks/usePageClass';
 import { useContentSave } from '@/features/editor';
-import { useNavigationStore, useModalStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
+import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
+import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { projectNode } from '@/core/adapters/nodeProjection';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
 import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
 import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
 import { Button } from '@/components/ui/Button';
 import { DataStateView } from '@/components/ui/DataStateView';
+import { uuidv7 } from '@/core/uuid';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy, SortEntry } from '@/types/nodeCollection';
 import type { Node } from '@/types';
-import './PagesView.css';
+import './ClassesView.css';
 
 const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
   'list',
@@ -27,19 +33,22 @@ const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
   'timeline',
 ];
 
-interface PagesViewProps {
+interface ClassesViewProps {
   initialViewMode?: NodeCollectionViewMode;
 }
 
-export function PagesView({ initialViewMode }: PagesViewProps) {
+export function ClassesView({ initialViewMode }: ClassesViewProps) {
   const openNode = useNavigationStore((state) => state.openNode);
-  const setCommandPaletteOpen = useModalStore((state) => state.setCommandPaletteOpen);
   const { handleContentChange: saveContent } = useContentSave();
+  const { data: classes, isLoading, error } = useClasses();
+  const { classClassUuid } = useClassClass();
+  const ctx = useContext(WorkspaceStoreContext);
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
 
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(initialViewMode ?? 'list');
 
-  // Transient filter state for All Pages — resets on page reload
-  const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
+  // Transient filter state for Classes — resets on page reload
+  const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('none');
   const [sortColumns, setSortColumns] = useState<SortEntry[]>([{ key: 'name', direction: 'asc' }]);
   const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
   const [cardLayout, setCardLayout] = useState<'no-cover' | 'cover-top' | 'cover-left' | 'cover-right'>('no-cover');
@@ -48,36 +57,54 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
     setViewMode(mode);
   }, []);
 
-  const { data: pages, isLoading, isPlaceholderData, error, refetch } = usePages();
-
-  // All pages view modes operate on a flat list of page nodes only.
-  // Strip children so block contents are never rendered here.
+  // All classes view modes operate on a flat list of class nodes only.
+  // Strip children so member nodes are never rendered here.
   const displayNodes = useMemo<Node[]>(() => {
-    if (!pages) return [];
+    if (!classes) return [];
     const seen = new Set<string>();
     const result: Node[] = [];
-    for (const n of pages) {
-      if (!n.is_page || seen.has(n.uuid)) continue;
+    for (const n of classes) {
+      if (!n.is_class || seen.has(n.uuid)) continue;
       seen.add(n.uuid);
-      // Prevent any view from recursing into page contents.
       result.push({ ...n, children: undefined, has_children: false });
     }
     return result;
-  }, [pages]);
+  }, [classes]);
+
+  const handleCreateClass = useCallback(async () => {
+    if (!ctx || !workspaceId) return;
+    const store = await getOrCreateWorkspaceStore(workspaceId, ctx.actorId, ctx.transport);
+    const classId = uuidv7();
+    store.createNode({
+      nodeId: classId,
+      kind: 'class',
+      parentId: null,
+      classIds: classClassUuid ? [classClassUuid] : [],
+    });
+    store.updateText(classId, (text) => {
+      const current = text.toPlaintext();
+      text.delete(0, current.length);
+      text.insert(0, 'New class');
+    });
+    const projected = projectNode(store, classId);
+    if (projected) {
+      openNode(projected.uuid);
+    }
+  }, [ctx, workspaceId, classClassUuid, openNode]);
 
   const handleSearchSelect = useCallback((node: Node) => {
     openNode(node.uuid);
   }, [openNode]);
 
   return (
-    <article className={`node-view node-view--page pages-view pages-view--${viewMode}`}>
+    <article className={`node-view node-view--page classes-view classes-view--${viewMode}`}>
       <PageViewHeader
-        className="pages-view__header"
-        title={<h1>Pages</h1>}
+        className="classes-view__header"
+        title={<h1>Classes</h1>}
         middle={
           viewMode !== 'graph' && viewMode !== 'timeline' ? (
             <NodeSearchBox
-              placeholder="Search pages..."
+              placeholder="Search classes..."
               onSelect={handleSearchSelect}
             />
           ) : undefined
@@ -105,25 +132,25 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
               size="sm"
               icon={"mdi mdi-plus"}
               iconSize={0.9}
-              onClick={() => setCommandPaletteOpen(true)}
-              title="New page (Ctrl+K)"
+              onClick={handleCreateClass}
+              title="New class"
             >
-              New page
+              New class
             </Button>
           </>
         }
       />
 
       {/* Content */}
-      <div className="pages-view__content">
+      <div className="classes-view__content">
         <DataStateView
-          isLoading={isLoading || isPlaceholderData}
+          isLoading={isLoading}
           error={error}
           isEmpty={displayNodes.length === 0}
-          onRetry={refetch}
-          emptyTitle="No pages yet"
-          emptyDescription="Create your first page to start building your workspace."
-          emptyAction={{ label: 'Create page', onClick: () => setCommandPaletteOpen(true) }}
+          onRetry={() => { /* useClasses is store-backed; no refetch needed */ }}
+          emptyTitle="No classes yet"
+          emptyDescription="Create your first class to define reusable types and properties."
+          emptyAction={{ label: 'Create class', onClick: handleCreateClass }}
           skeletonRows={4}
         >
           <NodeCollection
@@ -131,7 +158,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             viewMode={viewMode}
             availableViewModes={AVAILABLE_VIEW_MODES}
             onViewModeChange={handleViewModeChange}
-            pagesOnly={true}
+            pagesOnly={false}
             hideProperties={true}
             showBreadcrumbs={false}
             hideToolbar={true}
@@ -140,9 +167,9 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             onNodeClick={(node) => openNode(node.uuid)}
             showClasses={true}
             showEmpty={true}
-            emptyMessage="Create a page to get started"
+            emptyMessage="Create a class to get started"
             expandAll={true}
-            className="pages-view__node-collection"
+            className="classes-view__node-collection"
             isTransient={true}
             showGroupBy={true}
             groupBy={groupBy}
@@ -162,5 +189,4 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
   );
 }
 
-export default PagesView;
-
+export default ClassesView;
