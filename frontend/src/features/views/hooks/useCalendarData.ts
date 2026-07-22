@@ -1,7 +1,7 @@
 /**
  * React Query hook for resolving calendar event data.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { dateFromUuid } from '@/types/api';
@@ -87,6 +87,7 @@ export function useCalendarData(
 
   // Resolve day nodes from the local-first core store
   const [dayNodeMap, setDayNodeMap] = useState<Map<string, Node>>(new Map());
+  const latestUuidsRef = useRef<string>('');
 
   useEffect(() => {
     if (!client) {
@@ -95,13 +96,16 @@ export function useCalendarData(
     }
 
     let cancelled = false;
+    const key = dayNodeUuids.join(',');
+    latestUuidsRef.current = key;
     const update = async (): Promise<void> => {
       const map = new Map<string, Node>();
       for (const nodeUuid of dayNodeUuids) {
         const node = await client.query<Node | null>('getNodeByUuid', [nodeUuid]);
+        if (cancelled || latestUuidsRef.current !== key) return;
         if (node) map.set(nodeUuid, node);
       }
-      if (!cancelled) setDayNodeMap(map);
+      if (!cancelled && latestUuidsRef.current === key) setDayNodeMap(map);
     };
 
     update();
