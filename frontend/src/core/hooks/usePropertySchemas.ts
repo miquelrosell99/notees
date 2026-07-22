@@ -16,10 +16,12 @@ export function usePropertySchemas(): UsePropertySchemasResult {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId);
   const [schemas, setSchemas] = useState<Property[]>([]);
+  const [queryError, setQueryError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!client) {
       setSchemas([]);
+      setQueryError(null);
       return;
     }
 
@@ -30,9 +32,13 @@ export function usePropertySchemas(): UsePropertySchemasResult {
         .then((result) => {
           if (!cancelled) {
             setSchemas(result);
+            setQueryError(null);
           }
         })
         .catch((err) => {
+          if (!cancelled) {
+            setQueryError(err instanceof Error ? err : new Error(String(err)));
+          }
           console.error('[usePropertySchemas] query failed:', err);
         });
     };
@@ -46,5 +52,5 @@ export function usePropertySchemas(): UsePropertySchemasResult {
     };
   }, [client]);
 
-  return { schemas, isLoading, error };
+  return { schemas, isLoading, error: error ?? queryError };
 }
