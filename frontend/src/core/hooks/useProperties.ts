@@ -15,10 +15,12 @@ export function useProperties(nodeId: string): UsePropertiesResult {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId);
   const [properties, setProperties] = useState<Record<string, unknown[]>>({});
+  const [queryError, setQueryError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!client || !nodeId) {
       setProperties({});
+      setQueryError(null);
       return;
     }
 
@@ -29,9 +31,13 @@ export function useProperties(nodeId: string): UsePropertiesResult {
         .then((result) => {
           if (!cancelled) {
             setProperties(result);
+            setQueryError(null);
           }
         })
         .catch((err) => {
+          if (!cancelled) {
+            setQueryError(err instanceof Error ? err : new Error(String(err)));
+          }
           console.error('[useProperties] query failed:', err);
         });
     };
@@ -45,5 +51,5 @@ export function useProperties(nodeId: string): UsePropertiesResult {
     };
   }, [client, nodeId]);
 
-  return { properties, isLoading, error };
+  return { properties, isLoading, error: error ?? queryError };
 }
