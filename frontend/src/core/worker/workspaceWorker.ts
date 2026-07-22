@@ -8,6 +8,7 @@
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
+import { listNodes } from '../query/listNodes';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
 import { buildGraphData } from '../query/graphData';
@@ -357,6 +358,12 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
   }
 
   // Special-case query helpers that are not methods on WorkspaceStore.
+  if (request.method === 'listNodes') {
+    const result = listNodes(state.store, request.args[0] as Parameters<typeof listNodes>[1]);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
   if (request.method === 'queryNodes') {
     const result = queryNodes(state.store, request.args[0] as Parameters<typeof queryNodes>[1]);
     postResponse({ type: 'query-result', id: request.id, result });

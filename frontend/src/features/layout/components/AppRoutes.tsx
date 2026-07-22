@@ -229,6 +229,16 @@ function AuthenticatedShell() {
     enabled: authRestored,
   });
 
+  // If the server says the session is no longer valid, clear the persisted
+  // auth state and redirect to the login screen before rendering the workspace
+  // UI. This prevents users with stale cookies from landing on a broken shell.
+  useEffect(() => {
+    if (authStatus && authStatus.authenticated === false) {
+      useAuthStore.getState().logout();
+      navigate('/auth', { replace: true });
+    }
+  }, [authStatus, navigate]);
+
   const needsOnboarding = authStatus?.needs_onboarding ?? false;
 
   // Verify the access token is fresh before firing any other authenticated
