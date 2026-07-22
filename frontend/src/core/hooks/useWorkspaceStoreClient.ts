@@ -9,7 +9,7 @@ import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { WorkspaceStoreContext } from './WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from '../adapters/workspaceStoreClientAdapter';
-import type { IWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export interface UseWorkspaceStoreClientResult {
   client: IWorkspaceStoreClient | undefined;
