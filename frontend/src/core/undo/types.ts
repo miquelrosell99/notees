@@ -5,6 +5,15 @@ export interface UndoEntry {
   timestamp: number;
 }
 
+/**
+ * Worker-safe subset of UndoEntry. Functions cannot be structured-cloned, so
+ * only display/identity fields cross the boundary.
+ */
+export interface SerializableUndoEntry {
+  label: string;
+  timestamp: number;
+}
+
 export type UndoEventType = 'stack_changed' | 'undo' | 'redo';
 
 export interface UndoEvent {

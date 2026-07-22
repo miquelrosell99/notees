@@ -272,11 +272,13 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       return Promise.resolve(undefined as T);
     }
     if (method === 'undo') {
-      const result = this.undoManager.undo();
+      const entry = this.undoManager.undo();
+      const result = entry ? { label: entry.label, timestamp: entry.timestamp } : null;
       return Promise.resolve(result as T);
     }
     if (method === 'redo') {
-      const result = this.undoManager.redo();
+      const entry = this.undoManager.redo();
+      const result = entry ? { label: entry.label, timestamp: entry.timestamp } : null;
       return Promise.resolve(result as T);
     }
     if (method === 'clearUndoHistory') {
@@ -303,7 +305,11 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       return Promise.resolve(result as T);
     }
     if (method === 'getUndoStacks') {
-      const result = this.undoManager?.getStacks() ?? { undo: [], redo: [] };
+      const stacks = this.undoManager?.getStacks() ?? { undo: [], redo: [] };
+      const result = {
+        undo: stacks.undo.map((entry) => ({ label: entry.label, timestamp: entry.timestamp })),
+        redo: stacks.redo.map((entry) => ({ label: entry.label, timestamp: entry.timestamp })),
+      };
       return Promise.resolve(result as T);
     }
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { type QueryClient } from '@tanstack/react-query';
-import type { UndoEntry } from '@/core/undo';
+import type { SerializableUndoEntry } from '@/core/undo';
 import { createUndoManagerClient, type UndoManagerClient } from '@/core/hooks/useUndoManager';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
@@ -37,12 +37,12 @@ interface UndoState {
 }
 
 /** Generate a display label from a core undo entry. */
-function entryDescription(entry: UndoEntry): string {
+function entryDescription(entry: SerializableUndoEntry): string {
   return entry.label || 'Edit';
 }
 
 /** Build synthetic undo-history rows from the core undo-manager stacks. */
-function buildLocalEntries(stack: UndoEntry[]): UnifiedUndoEntry[] {
+function buildLocalEntries(stack: SerializableUndoEntry[]): UnifiedUndoEntry[] {
   // Assign negative IDs based on display order (top/first = -1, next = -2, …).
   return stack.map((entry, displayIndex) => ({
     nodeUuid: '',

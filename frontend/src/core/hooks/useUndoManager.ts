@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 import type { WorkspaceStore } from '../store';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
-import type { UndoEntry, UndoListener } from '../undo';
+import type { SerializableUndoEntry, UndoListener } from '../undo';
 
 type CreateNodeArgs = Parameters<WorkspaceStore['createNode']>[0];
 type SetPropertyArgs = Parameters<WorkspaceStore['setProperty']>[0];
@@ -26,12 +26,12 @@ export interface UndoManagerClient {
   assignClass(nodeId: string, classId: string): Promise<void>;
   unassignClass(nodeId: string, classId: string): Promise<void>;
   recordSetNodeText(nodeId: string, value: string): Promise<void>;
-  undo(): Promise<UndoEntry | null>;
-  redo(): Promise<UndoEntry | null>;
+  undo(): Promise<SerializableUndoEntry | null>;
+  redo(): Promise<SerializableUndoEntry | null>;
   canUndo(): Promise<boolean>;
   canRedo(): Promise<boolean>;
   clear(): Promise<void>;
-  getStacks(): Promise<{ undo: UndoEntry[]; redo: UndoEntry[] }>;
+  getStacks(): Promise<{ undo: SerializableUndoEntry[]; redo: SerializableUndoEntry[] }>;
   subscribe(listener: UndoListener): () => void;
 }
 
@@ -48,8 +48,8 @@ export function createUndoManagerClient(client: IWorkspaceStoreClient): UndoMana
     assignClass: (nodeId, classId) => client.mutate<void>('recordAssignClass', [nodeId, classId]),
     unassignClass: (nodeId, classId) => client.mutate<void>('recordUnassignClass', [nodeId, classId]),
     recordSetNodeText: (nodeId, value) => client.mutate<void>('recordSetNodeText', [nodeId, value]),
-    undo: () => client.mutate<UndoEntry | null>('undo', []),
-    redo: () => client.mutate<UndoEntry | null>('redo', []),
+    undo: () => client.mutate<SerializableUndoEntry | null>('undo', []),
+    redo: () => client.mutate<SerializableUndoEntry | null>('redo', []),
     clear: () => client.mutate<void>('clearUndoHistory', []),
     canUndo: async () => {
       const result = await client.query<{ canUndo: boolean; canRedo: boolean }>('canUndo', []);
@@ -59,7 +59,7 @@ export function createUndoManagerClient(client: IWorkspaceStoreClient): UndoMana
       const result = await client.query<{ canUndo: boolean; canRedo: boolean }>('canUndo', []);
       return result.canRedo;
     },
-    getStacks: () => client.query<{ undo: UndoEntry[]; redo: UndoEntry[] }>('getUndoStacks', []),
+    getStacks: () => client.query<{ undo: SerializableUndoEntry[]; redo: SerializableUndoEntry[] }>('getUndoStacks', []),
     subscribe: (listener) => client.subscribe(null, () => listener({ type: 'stack_changed' })),
   };
 }
