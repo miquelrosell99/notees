@@ -6,7 +6,7 @@ import asyncio
 import json
 from typing import Any
 
-from app.core.clock import Hlc
+from app.core.clock import Hlc, compare_hlc
 from app.relay.models import BatchRequest, CatchUpRequest, EncryptedEnvelope
 from app.relay.permissions import PermissionChecker, PermissionDeniedError
 from app.relay.storage import RelayStorage
@@ -180,7 +180,17 @@ class RelayService:
     async def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
     ) -> str:
-        """Create a snapshot covering all envelopes up to ``up_to_hlc``."""
+        """Create a snapshot covering all envelopes up to ``up_to_hlc``.
+
+        Raises:
+            ValueError: If ``up_to_hlc`` is ahead of the current maximum
+                envelope HLC for the workspace.
+        """
+        max_hlc = await self.get_max_hlc(workspace_id)
+        if compare_hlc(up_to_hlc, max_hlc) > 0:
+            raise ValueError(
+                "up_to_hlc cannot exceed the current maximum envelope HLC"
+            )
         return await self._maybe_await(
             self._storage.create_snapshot(workspace_id, up_to_hlc, data=data)
         )
@@ -190,10 +200,17 @@ class RelayService:
         workspace_id: str,
         up_to_hlc: Hlc,
         prune: bool = True,
+        data: bytes = b"",
     ) -> dict[str, Any]:
-        """Create a snapshot and record a compacted operation segment."""
+        """Create a snapshot and record a compacted operation segment.
+
+        Raises:
+            ValueError: If ``prune`` is ``True`` but ``data`` is empty.
+        """
         return await self._maybe_await(
-            self._storage.create_compaction_segment(workspace_id, up_to_hlc, prune=prune)
+            self._storage.create_compaction_segment(
+                workspace_id, up_to_hlc, prune=prune, data=data
+            )
         )
 
     async def prune_envelopes(self, workspace_id: str, up_to_hlc: Hlc) -> int:
