@@ -105,6 +105,8 @@ export interface IWorkspaceStoreClient {
   query<T>(method: string, args: unknown[]): Promise<T>;
   subscribe(nodeId: string | null, callback: () => void): () => void;
   close(): void;
+  /** True if the client has been closed or the underlying worker terminated. */
+  isClosed(): boolean;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
