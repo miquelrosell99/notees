@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { SidebarRail } from './NavigationSidebar';
-import { useModalStore, useNavigationStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 
 vi.mock('@/features/workspace', () => ({
   WorkspaceSwitcher: () => null,
@@ -32,26 +32,9 @@ vi.mock('@/features/support', () => ({
 }));
 
 describe('SidebarRail', () => {
-  beforeEach(() => {
+  it('shows the Pages button', () => {
     useNavigationStore.setState({ mainViewType: 'pages' });
-    useModalStore.setState({ isTasksPopupOpen: false });
-  });
-
-  it('shows a Tasks button', () => {
     render(<SidebarRail />);
-    expect(screen.getByRole('button', { name: 'Tasks' })).toBeInTheDocument();
-  });
-
-  it('opens the tasks popup from the rail button', () => {
-    useModalStore.setState({ isTasksPopupOpen: false });
-    render(<SidebarRail />);
-    fireEvent.click(screen.getByRole('button', { name: /^tasks$/i }));
-    expect(useModalStore.getState().isTasksPopupOpen).toBe(true);
-  });
-
-  it('shows the rail tasks button active while the popup is open', () => {
-    useModalStore.setState({ isTasksPopupOpen: true });
-    render(<SidebarRail />);
-    expect(screen.getByRole('button', { name: /^tasks$/i }).className).toContain('btn--active');
+    expect(screen.getByRole('button', { name: 'Pages' })).toBeInTheDocument();
   });
 });

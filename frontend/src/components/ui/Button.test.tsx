@@ -39,4 +39,12 @@ describe('Button', () => {
     const button = screen.getByRole('button', { name: 'Large' });
     expect(button).toHaveClass('btn--lg');
   });
+
+  it('renders as an anchor when as="a" and href are provided', () => {
+    render(<Button as="a" href="https://example.com" aria-label="Example" icon="mdi mdi-link" />);
+    const link = screen.getByRole('link', { name: 'Example' });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', 'https://example.com');
+    expect(link).toHaveClass('btn');
+  });
 });

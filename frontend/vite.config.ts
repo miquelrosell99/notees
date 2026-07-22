@@ -104,7 +104,6 @@ export default defineConfig({
       '@/stores': path.resolve(__dirname, './src/stores'),
       '@/api': path.resolve(__dirname, './src/api'),
       '@/core': path.resolve(__dirname, './src/core'),
-      '@/editor': path.resolve(__dirname, './src/editor'),
     },
   },
   server: {

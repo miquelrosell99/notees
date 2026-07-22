@@ -24,11 +24,11 @@ class TestLinkClickApplier:
         ]
         conn = replay_operations(ops)
         row = conn.execute(
-            "SELECT * FROM link_click WHERE source_node_id = ? AND target_node_id = ?",
+            "SELECT * FROM link_click WHERE node_id = ? AND target_id = ?",
             ("page-1", "page-2"),
         ).fetchone()
         assert row is not None
-        assert row["count"] == 1
+        assert row["click_count"] == 1
         assert row["last_clicked_at"] == "2026-07-18T10:00:00"
         conn.close()
 
@@ -45,8 +45,8 @@ class TestLinkClickApplier:
         ]
         conn = replay_operations(ops)
         row = conn.execute(
-            "SELECT count FROM link_click WHERE source_node_id = ? AND target_node_id = ?",
+            "SELECT click_count FROM link_click WHERE node_id = ? AND target_id = ?",
             ("page-1", "page-2"),
         ).fetchone()
-        assert row["count"] == 2
+        assert row["click_count"] == 2
         conn.close()

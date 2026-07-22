@@ -202,7 +202,7 @@ class TestLinkClicks:
         # append-only, so a later sync would recreate it; this test verifies the
         # immediate derived-state effect only.
         rows = await store.query(
-            "SELECT 1 FROM link_click WHERE source_node_id = ? AND target_node_id = ?",
+            "SELECT 1 FROM link_click WHERE node_id = ? AND target_id = ?",
             ("source-uuid-1", "target-uuid-1"),
         )
         assert len(rows) == 0

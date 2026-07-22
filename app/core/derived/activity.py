@@ -29,17 +29,22 @@ def apply_activity_record(conn: sqlite3.Connection, op: Operation) -> None:
     conn.execute(
         """
         INSERT OR IGNORE INTO activity_log (
-            id, node_id, action, target_node_id, details,
-            actor_id, hlc_physical, hlc_logical, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, workspace_id, actor_id, op_id, node_id, op_type, metadata, recorded_at,
+            action, target_node_id, details, hlc_physical, hlc_logical, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             activity_id,
+            op.envelope.workspace_id,
+            op.envelope.actor_id,
+            op.envelope.id,
             node_id,
+            action,
+            json.dumps(details),
+            timestamp,
             action,
             target_node_id,
             json.dumps(details),
-            op.envelope.actor_id,
             op.envelope.hlc.physical,
             op.envelope.hlc.logical,
             timestamp,

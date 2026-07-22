@@ -44,6 +44,10 @@ export class UndoManager {
     return UndoManager.registry.get(workspaceId);
   }
 
+  static removeUndoManager(workspaceId: string): void {
+    UndoManager.registry.delete(workspaceId);
+  }
+
   createNode(args: CreateNodeArgs): void {
     this.store.createNode(args);
     const entry: UndoEntry = {

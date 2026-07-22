@@ -29,7 +29,9 @@ export function SyncProgress({
   messages,
 }: SyncProgressProps) {
   const progressPercent =
-    progress !== undefined ? Math.max(0, Math.min(1, progress)) * 100 : null;
+    progress !== undefined && Number.isFinite(progress)
+      ? Math.max(0, Math.min(1, progress)) * 100
+      : null;
 
   const [messageIndex, setMessageIndex] = useState(0);
   const hasMessages = messages && messages.length > 0;

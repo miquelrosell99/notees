@@ -24,15 +24,16 @@ def apply_asset_upload(conn: sqlite3.Connection, op: Operation) -> None:
     """
     payload = op.payload
     node_id = payload["nodeId"]
+    uploaded_at = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
     conn.execute(
         """
-        INSERT INTO node_asset (node_id, asset_hash, mime_type, size_bytes, original_name)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(node_id) DO UPDATE SET
-            asset_hash = excluded.asset_hash,
+        INSERT INTO node_asset (node_id, asset_hash, mime_type, size, original_name, uploaded_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(node_id, asset_hash) DO UPDATE SET
             mime_type = excluded.mime_type,
-            size_bytes = excluded.size_bytes,
-            original_name = excluded.original_name
+            size = excluded.size,
+            original_name = excluded.original_name,
+            uploaded_at = excluded.uploaded_at
         """,
         (
             node_id,
@@ -40,6 +41,7 @@ def apply_asset_upload(conn: sqlite3.Connection, op: Operation) -> None:
             payload["mimeType"],
             payload["sizeBytes"],
             payload["originalName"],
+            uploaded_at,
         ),
     )
 
