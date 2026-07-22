@@ -82,6 +82,16 @@ export function getWorkspaceStoreClient(workspaceId: string): IWorkspaceStoreCli
   return clientRegistry.get(workspaceId)?.client;
 }
 
+/**
+ * Return the client for the first open workspace.
+ *
+ * This is a convenience for imperative code paths that do not have access to a
+ * workspace ID. In normal operation only one workspace is open at a time.
+ */
+export function getActiveWorkspaceStoreClient(): IWorkspaceStoreClient | undefined {
+  return clientRegistry.values().next().value?.client;
+}
+
 export async function closeWorkspaceStoreClient(workspaceId: string): Promise<void> {
   const entry = clientRegistry.get(workspaceId);
   if (!entry) return;

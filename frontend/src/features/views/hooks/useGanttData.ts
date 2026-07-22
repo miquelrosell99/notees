@@ -6,12 +6,11 @@
  * - Date range computation
  * - Row building (grouping + sorting)
  */
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { getNodeByUuid } from '@/core/query/nodeByUuid';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import {
   resolveDate,
   getDateRange,
@@ -60,18 +59,34 @@ export function useGanttData(
   }, [nodes, startDateProperty, endDateProperty]);
 
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading: storeLoading } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading: storeLoading } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   // Resolve day nodes from the local-first core store
-  const dayNodeMap = useMemo<Map<string, Node>>(() => {
-    if (!store) return new Map();
-    const map = new Map<string, Node>();
-    for (const nodeUuid of dayNodeUuids) {
-      const node = getNodeByUuid(store, nodeUuid);
-      if (node) map.set(nodeUuid, node);
+  const [dayNodeMap, setDayNodeMap] = useState<Map<string, Node>>(new Map());
+
+  useEffect(() => {
+    if (!client) {
+      setDayNodeMap(new Map());
+      return;
     }
-    return map;
-  }, [store, dayNodeUuids]);
+
+    let cancelled = false;
+    const update = async (): Promise<void> => {
+      const map = new Map<string, Node>();
+      for (const nodeUuid of dayNodeUuids) {
+        const node = await client.query<Node | null>('getNodeByUuid', [nodeUuid]);
+        if (node) map.set(nodeUuid, node);
+      }
+      if (!cancelled) setDayNodeMap(map);
+    };
+
+    update();
+    const unsubscribe = client.subscribe(null, update);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client, dayNodeUuids]);
 
   const isLoading = dayNodeUuids.length > 0 && storeLoading;
 
