@@ -89,8 +89,8 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
   private pending = new Map<number, PendingRequest>();
   private listeners = new Map<string | null, Set<() => void>>();
 
-  constructor(workerUrl: URL) {
-    this.worker = new Worker(workerUrl, { type: 'module' });
+  constructor(worker: Worker) {
+    this.worker = worker;
     this.worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
       this.handleMessage(event.data);
     };
@@ -716,7 +716,13 @@ let sharedClient: IWorkspaceStoreClient | null = null;
  */
 export function createWorkspaceStoreClient(): IWorkspaceStoreClient {
   if (isWorkerSupported()) {
-    return new WorkerStoreClient(new URL('./workspaceWorker.ts', import.meta.url));
+    // Create the Worker inline so Vite detects and bundles the worker entry
+    // at build time. Passing the URL through a parameter prevents Vite from
+    // recognizing it as a worker URL.
+    const worker = new Worker(new URL('./workspaceWorker.ts', import.meta.url), {
+      type: 'module',
+    });
+    return new WorkerStoreClient(worker);
   }
   return new InlineStoreClient();
 }
