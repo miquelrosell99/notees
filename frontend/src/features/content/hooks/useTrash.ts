@@ -20,7 +20,7 @@ function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
 async function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
   if (!nodeUuid) return;
   const workspaceId = workspaceUuid ?? undefined;
-  if (await isFavorite(workspaceId, nodeUuid)) {
+  if (isFavorite(workspaceId, nodeUuid)) {
     removeFavorite(workspaceId, nodeUuid).catch(() => {});
   }
   removeRecent(nodeUuid);
@@ -36,7 +36,6 @@ export function useTrash() {
       if (!client) throw new Error('Workspace store is not ready');
       return client.query<Node[]>('getTrashedNodes', []);
     },
-    select: (data) => data,
     enabled: !!client,
   });
 
