@@ -114,12 +114,86 @@ Implementation approach:
 - IndexedDB save should happen after worker init and after sync completes, using `client.export()`.
 - On workspace close / actor change, close the worker client and delete persisted DB when needed.
 
-## Task 6 — Cleanup and verification
+## Task 6 — Migrate core node action hooks
+
+Finish migrating the core CRUD hooks so they no longer depend on the synchronous `WorkspaceStore`. In Task 3 the undo recording was made async, but several hooks still require the sync store to be present. They should now work with only the async worker client / undo manager.
+
+Files:
+- `frontend/src/core/hooks/useCreateNode.ts`
+- `frontend/src/core/hooks/useDeleteNode.ts`
+- `frontend/src/core/hooks/useMoveNode.ts`
+- `frontend/src/core/hooks/useUpdateText.ts` (replace main-thread text computation with a worker-side serializable edit or a clear fallback)
+
+For each hook:
+- Remove `useWorkspaceStore` dependency.
+- Use `useWorkspaceStoreClient` / `useUndoManager` only.
+- Keep public hook signatures unchanged.
+- Update any affected tests.
+
+## Task 7 — Migrate content feature hooks
+
+Migrate feature hooks that read or write node/content data through the sync store.
+
+Files:
+- `frontend/src/features/content/hooks/useComments.ts`
+- `frontend/src/features/content/hooks/useTemplates.ts`
+- `frontend/src/features/content/hooks/useTrash.ts`
+- `frontend/src/features/content/hooks/useArchivedPages.ts`
+- `frontend/src/features/content/hooks/useArchiveNode.ts`
+- `frontend/src/features/content/hooks/useUnarchiveNode.ts`
+- `frontend/src/features/content/hooks/useFavorites.ts`
+- `frontend/src/features/content/hooks/useEmptyTrash.ts`
+- `frontend/src/features/content/hooks/useConvertNode.ts`
+- `frontend/src/features/content/hooks/usePageAliases.ts`, `useAddAlias.ts`, `useRemoveAlias.ts`
+- `frontend/src/features/content/hooks/useNodeDateQueries.ts`
+
+Add worker-side query helpers if needed for any raw SQL currently run against `store.getDb()`.
+
+## Task 8 — Migrate block tree / editor hooks
+
+Migrate the block editor and block-tree hooks that currently use the sync store.
+
+Files:
+- `frontend/src/features/content/hooks/useBlockTree.ts` (+ test)
+- `frontend/src/features/content/hooks/useCoreBlockMutations.ts` (+ test)
+- `frontend/src/features/content/hooks/useBlockSelection.ts` and `useBlockSelection.utils.ts`
+- `frontend/src/features/editor/hooks/useContentSave.ts`
+- `frontend/src/features/editor/custom/plugins/InlineTriggers.tsx`
+- `frontend/src/features/editor/custom/plugins/useInlineCopyPaste.ts`
+- `frontend/src/features/editor/editor/utils/pasteBlocks.ts`
+- `frontend/src/features/content/components/blocks/BlockList.tsx`
+- `frontend/src/features/content/components/blocks/BlockRow.tsx`
+- `frontend/src/features/content/components/blocks/BulletLineOverlay.tsx`
+
+`flushAllContentSaves()` must become async (`Promise<void>`); update all callers accordingly.
+
+## Task 9 — Migrate views and advanced hooks
+
+Migrate remaining hooks in views, properties, tasks, shares, whiteboard, and maintenance.
+
+Files:
+- `frontend/src/features/content/hooks/useNodeViews.mutations.ts`
+- `frontend/src/features/content/hooks/useNodeViews.queries.ts`
+- `frontend/src/features/views/hooks/useCalendarData.ts`
+- `frontend/src/features/views/hooks/useGanttData.ts`
+- `frontend/src/features/views/hooks/usePivotAggregate.ts`
+- `frontend/src/features/views/hooks/useChartAggregate.ts`
+- `frontend/src/hooks/useVirtualizedQuery.ts`
+- `frontend/src/features/properties/hooks/useClassProperties.ts`
+- `frontend/src/features/properties/hooks/usePropertySuggestions.ts`
+- `frontend/src/features/properties/hooks/useNodesWithProperty.ts`
+- `frontend/src/features/properties/hooks/useClassPropertyMutations.ts`
+- `frontend/src/features/workspace/hooks/useLogseqMarkdownImporter.ts`
+- `frontend/src/features/shares/hooks/useShareReceiver.ts`
+- `frontend/src/features/whiteboard/hooks/useWhiteboard*.ts`
+- `frontend/src/features/maintenance/components/FixRawLinksModal.tsx`
+
+## Task 10 — Final cleanup and verification
 
 - Remove remaining direct `WorkspaceStore` imports from production UI code.
 - Update `frontend/src/core/index.ts` exports if needed.
 - Run `npm run lint`, `npx tsc -b --noEmit`, `npm run test:run`.
-- Manual browser test with a workspace large enough to have previously frozen.
+- Manual browser smoke test: open a workspace, create/edit/delete nodes, switch workspaces, reload — no freeze, no infinite "Loading notees".
 
 ## Interface contract
 
