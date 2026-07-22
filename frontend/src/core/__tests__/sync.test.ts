@@ -4,6 +4,14 @@ import { SyncEngine } from '../sync';
 import { MemoryRelay, MemoryTransport } from '../transport';
 import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
+import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
+
+async function createClientFromStore(store: WorkspaceStore): Promise<IWorkspaceStoreClient> {
+  const client = createWorkspaceStoreClient();
+  await client.init(store.getWorkspaceId(), store.getActorId(), { store });
+  return client;
+}
 
 describe('SyncEngine', () => {
   it('only pushes operations newer than the last push watermark', async () => {
@@ -14,7 +22,8 @@ describe('SyncEngine', () => {
 
     const dbA = await createTestDatabase();
     const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
-    const syncA = new SyncEngine(storeA, transport);
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, transport);
 
     const nodeId = uuidv7();
     storeA.createNode({ nodeId, kind: 'page', parentId: null });
@@ -42,8 +51,10 @@ describe('SyncEngine', () => {
     const dbB = await createTestDatabase();
     const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
     const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
-    const syncA = new SyncEngine(storeA, new MemoryTransport(relay, workspaceId));
-    const syncB = new SyncEngine(storeB, new MemoryTransport(relay, workspaceId));
+    const clientA = await createClientFromStore(storeA);
+    const clientB = await createClientFromStore(storeB);
+    const syncA = new SyncEngine(clientA, new MemoryTransport(relay, workspaceId));
+    const syncB = new SyncEngine(clientB, new MemoryTransport(relay, workspaceId));
 
     const nodeId = uuidv7();
     storeA.createNode({ nodeId, kind: 'page', parentId: null });
@@ -74,7 +85,8 @@ describe('SyncEngine', () => {
 
     const dbA = await createTestDatabase();
     const storeA = new WorkspaceStore(dbA, workspaceId, actor);
-    const syncA = new SyncEngine(storeA, new MemoryTransport(relay, workspaceId));
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, new MemoryTransport(relay, workspaceId));
 
     const nodeId = uuidv7();
     storeA.createNode({ nodeId, kind: 'page', parentId: null });
@@ -107,7 +119,8 @@ describe('SyncEngine', () => {
       hasSnapshot: true,
     });
 
-    const syncB = new SyncEngine(storeB, transportB);
+    const clientB = await createClientFromStore(storeB);
+    const syncB = new SyncEngine(clientB, transportB);
     await syncB.initialize();
 
     // Hard rebuild ignores the snapshot and replays the full operation log.
