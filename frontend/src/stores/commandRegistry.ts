@@ -206,6 +206,7 @@ export const COMMAND_IDS = {
   NEW_TEMP_QUERY: 'query.newTemporary',
   FORCE_REEXPORT: 'data.forceReexport',
   FORCE_RESYNC: 'sync.forceResync',
+  RESET_LOCAL_STATE: 'sync.resetLocalState',
 
   // View navigation (command palette)
   OPEN_JOURNALS: 'view.journals',
