@@ -22,7 +22,7 @@ export function useDeleteNode(workspaceId: string): UseDeleteNodeResult {
       setError(null);
       try {
         if (manager) {
-          manager.deleteNode(args.nodeId);
+          await manager.deleteNode(args.nodeId);
         } else {
           store.deleteNode(args.nodeId);
         }

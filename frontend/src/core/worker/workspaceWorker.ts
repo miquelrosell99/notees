@@ -17,15 +17,18 @@ import {
   getClassProperties,
   getNodeClassPropertyEdges,
 } from '../adapters/propertyQueries';
+import { UndoManager } from '../undo/UndoManager';
 import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
 
 interface WorkerState {
   store: WorkspaceStore | null;
+  undoManager: UndoManager | null;
   workspaceId: string | null;
 }
 
 const state: WorkerState = {
   store: null,
+  undoManager: null,
   workspaceId: null,
 };
 
@@ -42,6 +45,7 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   if (state.store) {
     // Close existing store gracefully if re-initializing.
     state.store = null;
+    state.undoManager = null;
     state.workspaceId = null;
   }
 
@@ -55,6 +59,7 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   });
 
   state.store = store;
+  state.undoManager = new UndoManager(store);
   state.workspaceId = request.workspaceId;
 
   postResponse({ type: 'init-done', id: request.id });
@@ -70,12 +75,105 @@ function handleExport(request: Extract<WorkerRequest, { type: 'export' }>): void
 }
 
 function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>): void {
-  if (!state.store) {
+  if (!state.store || !state.undoManager) {
     postResponse({ type: 'error', id: request.id, message: 'Store not initialized' });
     return;
   }
-  const method = (state.store as unknown as Record<string, unknown>)[request.method];
-  if (typeof method !== 'function') {
+
+  // Undo-manager operations run on the worker-owned store and are addressed
+  // through record-* method names so they can be serialized across the boundary.
+  const { method } = request;
+  if (method === 'recordCreateNode') {
+    const [args] = request.args as [Parameters<WorkspaceStore['createNode']>[0]];
+    state.undoManager.createNode(args);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordCreateBlock') {
+    const [args] = request.args as [(Parameters<WorkspaceStore['createNode']>[0] & { content?: string })];
+    state.undoManager.createBlock(args);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordSetNodeText') {
+    const [nodeId, value] = request.args as [string, string];
+    state.undoManager.recordSetNodeText(nodeId, value);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordDeleteNode') {
+    const [nodeId] = request.args as [string];
+    state.undoManager.deleteNode(nodeId);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordMoveNode') {
+    const [nodeId, newParentId] = request.args as [string, string | null];
+    state.undoManager.moveNode(nodeId, newParentId);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordMergeBlocks') {
+    const [sourceBlockId, targetBlockId] = request.args as [string, string];
+    state.undoManager.mergeBlocks(sourceBlockId, targetBlockId);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordSetProperty') {
+    const [args] = request.args as [Parameters<WorkspaceStore['setProperty']>[0]];
+    state.undoManager.setProperty(args);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordUnsetProperty') {
+    const [args] = request.args as [Parameters<WorkspaceStore['unsetProperty']>[0]];
+    state.undoManager.unsetProperty(args);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordAssignClass') {
+    const [nodeId, classId] = request.args as [string, string];
+    state.undoManager.assignClass(nodeId, classId);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'recordUnassignClass') {
+    const [nodeId, classId] = request.args as [string, string];
+    state.undoManager.unassignClass(nodeId, classId);
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+  if (method === 'undo') {
+    const result = state.undoManager.undo();
+    postResponse({ type: 'mutate-done', id: request.id, result });
+    postNotify();
+    return;
+  }
+  if (method === 'redo') {
+    const result = state.undoManager.redo();
+    postResponse({ type: 'mutate-done', id: request.id, result });
+    postNotify();
+    return;
+  }
+  if (method === 'clearUndoHistory') {
+    state.undoManager.clear();
+    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+    postNotify();
+    return;
+  }
+
+  const storeMethod = (state.store as unknown as Record<string, unknown>)[request.method];
+  if (typeof storeMethod !== 'function') {
     postResponse({
       type: 'error',
       id: request.id,
@@ -83,7 +181,7 @@ function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>): void
     });
     return;
   }
-  const result = (method as (...args: unknown[]) => unknown).apply(state.store, request.args);
+  const result = (storeMethod as (...args: unknown[]) => unknown).apply(state.store, request.args);
   postResponse({ type: 'mutate-done', id: request.id, result });
   postNotify();
 }
@@ -91,6 +189,22 @@ function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>): void
 function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): void {
   if (!state.store) {
     postResponse({ type: 'error', id: request.id, message: 'Store not initialized' });
+    return;
+  }
+
+  // Undo-manager state queries are serviced by the worker-owned manager.
+  if (request.method === 'canUndo') {
+    const result = {
+      canUndo: state.undoManager?.canUndo() ?? false,
+      canRedo: state.undoManager?.canRedo() ?? false,
+    };
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getUndoStacks') {
+    const result = state.undoManager?.getStacks() ?? { undo: [], redo: [] };
+    postResponse({ type: 'query-result', id: request.id, result });
     return;
   }
 
@@ -163,6 +277,7 @@ function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): void {
 
 function handleClose(): void {
   state.store = null;
+  state.undoManager = null;
   state.workspaceId = null;
 }
 
