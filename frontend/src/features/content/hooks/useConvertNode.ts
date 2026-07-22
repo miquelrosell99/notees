@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { useWorkspaceStore } from '@/core/hooks';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 
@@ -39,19 +39,17 @@ function invalidateAfterConversion(
 export function useConvertToPage() {
   const queryClient = useQueryClient();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   return useMutation<void, Error, { nodeUuid: string; name?: string; oldParentId?: string | null }>({
     mutationFn: async ({ nodeUuid, name }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
-      store.convertNode({ nodeId: nodeUuid, kind: 'page', parentId: null });
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('convertNode', [
+        { nodeId: nodeUuid, kind: 'page', parentId: null },
+      ]);
       if (name !== undefined && name !== '') {
-        store.updateText(nodeUuid, (text) => {
-          const current = text.toPlaintext();
-          text.delete(0, current.length);
-          text.insert(0, name);
-        });
+        await client.mutate<void>('setNodeText', [nodeUuid, name]);
       }
     },
     onSuccess: (_, variables) => {
@@ -66,7 +64,7 @@ export function useConvertToPage() {
 export function useConvertToBlock() {
   const queryClient = useQueryClient();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   return useMutation<
     void,
@@ -75,8 +73,10 @@ export function useConvertToBlock() {
   >({
     mutationFn: async ({ nodeUuid, parentId }) => {
       if (!nodeUuid || !parentId) throw new Error('Node UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
-      store.convertNode({ nodeId: nodeUuid, kind: 'block', parentId });
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('convertNode', [
+        { nodeId: nodeUuid, kind: 'block', parentId },
+      ]);
     },
     onSuccess: (_, variables) => {
       invalidateAfterConversion(queryClient, variables.nodeUuid, variables.oldParentId, variables.parentId);
