@@ -74,6 +74,7 @@ async function openWorkspaceStore(
       return existing.store;
     }
     existing.syncEngine.stopAutoSync();
+    existing.client.close();
     registry.delete(workspaceId);
     await deleteWorkspaceDatabase(workspaceId);
   }
@@ -140,6 +141,7 @@ export async function closeWorkspaceStore(workspaceId: string): Promise<void> {
 
   entry.syncEngine.stopAutoSync();
   await persistWorkspace(workspaceId, entry.client);
+  entry.client.close();
   registry.delete(workspaceId);
 }
 
@@ -173,6 +175,7 @@ export async function resetWorkspaceStore(workspaceId: string): Promise<void> {
   const entry = registry.get(workspaceId);
   if (entry) {
     entry.syncEngine.stopAutoSync();
+    entry.client.close();
     registry.delete(workspaceId);
   }
   await deleteWorkspaceDatabase(workspaceId);
