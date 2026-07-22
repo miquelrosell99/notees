@@ -15,7 +15,7 @@ export function useEmptyTrash() {
   return useMutation({
     mutationFn: async () => {
       if (!store) throw new Error('Workspace store is not ready');
-      const archived = queryNodes(store, { includeArchived: true });
+      const archived = queryNodes(store, { includeArchived: true, projectionDepth: 0 });
       for (const node of archived) {
         store.permanentDeleteNode(node.uuid);
       }

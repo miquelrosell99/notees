@@ -11,33 +11,35 @@ import { uuidv7 } from '@/core/uuid';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { dateToDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
 
-function wrapper({ children }: { children: ReactNode }) {
+function createWrapper() {
   const actorId = uuidv7();
   const relay = new MemoryRelay();
   const transport = new MemoryTransport(relay, 'ws-test');
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return createElement(
-    QueryClientProvider,
-    { client: qc },
-    createElement(
-      MemoryRouter,
-      { initialEntries: ['/ws-test'] },
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(
+      QueryClientProvider,
+      { client: qc },
       createElement(
-        Routes,
-        null,
+        MemoryRouter,
+        { initialEntries: ['/ws-test'] },
         createElement(
-          Route,
-          {
-            path: '/:workspaceId/*',
-            element: createElement(
-              WorkspaceStoreProvider,
-              { actorId, transport, children }
-            ),
-          }
+          Routes,
+          null,
+          createElement(
+            Route,
+            {
+              path: '/:workspaceId/*',
+              element: createElement(
+                WorkspaceStoreProvider,
+                { actorId, transport, children }
+              ),
+            }
+          )
         )
       )
-    )
-  );
+    );
+  };
 }
 
 function seedTaskData(store: NonNullable<ReturnType<typeof useWorkspaceStore>['store']>) {
@@ -145,17 +147,18 @@ describe('getTaskDateUuid', () => {
 });
 
 describe('useTasksPopupData', () => {
-  async function getStore() {
-    const { result } = renderHook(() => useWorkspaceStore('ws-test'), { wrapper });
+  async function getStore(Wrapper: ReturnType<typeof createWrapper>) {
+    const { result } = renderHook(() => useWorkspaceStore('ws-test'), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.store).toBeDefined());
     return result.current.store!;
   }
 
   it('derives the due count from overdue + today totals', async () => {
-    const store = await getStore();
+    const Wrapper = createWrapper();
+    const store = await getStore(Wrapper);
     seedTaskData(store);
 
-    const { result } = renderHook(() => useTasksPopupData(), { wrapper });
+    const { result } = renderHook(() => useTasksPopupData(), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.dueCount).toBe(4));
 
     expect(result.current.sections.upcoming.totalCount).toBe(1);
@@ -164,10 +167,11 @@ describe('useTasksPopupData', () => {
   });
 
   it('sorts unscheduled tasks by recently updated first', async () => {
-    const store = await getStore();
+    const Wrapper = createWrapper();
+    const store = await getStore(Wrapper);
     seedTaskData(store);
 
-    const { result } = renderHook(() => useTasksPopupData(), { wrapper });
+    const { result } = renderHook(() => useTasksPopupData(), { wrapper: Wrapper });
     await waitFor(() =>
       expect(result.current.sections.unscheduled.nodes.map((n) => n.uuid)).toEqual([
         'unscheduled-1',

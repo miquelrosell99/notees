@@ -11,7 +11,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { queryClient, workspaceAwarePersister, setPersistWorkspaceUuid } from './lib/queryClient';
+import {
+  queryClient,
+  workspaceAwarePersister,
+  setPersistWorkspaceUuid,
+  invalidateWorkspaceQueries,
+} from './lib/queryClient';
 import { NotificationToast, type ToastNotification } from './components/ui/NotificationToast';
 import { useNotificationStore, type Notification } from './stores/notificationStore';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
@@ -40,6 +45,7 @@ import {
   getOrCreateWorkspaceStore,
   getWorkspaceSyncEngine,
 } from '@/core/adapters/workspaceStoreAdapter';
+import { Button } from '@/components/ui/Button';
 import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
 import { useSyncStatusStore, DEFAULT_PROGRESS } from '@/features/sync/stores/syncStatusStore';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
@@ -190,16 +196,17 @@ function App() {
         Skip to main content
       </a>
       <EncryptedPersistProvider>
-        <WorkspaceStoreInitializer>
-          <AppProviders>
+        <WorkspacePersisterSync />
+        <AppProviders>
+          <WorkspaceStoreInitializer>
             <BrowserRouter>
               <ErrorBoundary context="App">
                 <AppContent />
               </ErrorBoundary>
             </BrowserRouter>
-            <ConnectedNotificationToast />
-          </AppProviders>
-        </WorkspaceStoreInitializer>
+          </WorkspaceStoreInitializer>
+          <ConnectedNotificationToast />
+        </AppProviders>
       </EncryptedPersistProvider>
       <BackendUnavailableOverlay />
     </>
@@ -277,9 +284,10 @@ function WorkspacePersisterSync() {
 
   useEffect(() => {
     setPersistWorkspaceUuid(workspaceUuid);
-    // Clear the in-memory cache when the active workspace changes so that
-    // cached data from one workspace is never displayed under another.
-    queryClient.clear();
+    // Invalidate workspace-scoped queries when the active workspace changes so
+    // cached data from one workspace is never displayed under another, while
+    // keeping auth/settings/workspace-list caches intact.
+    invalidateWorkspaceQueries(queryClient);
   }, [workspaceUuid]);
 
   return null;
@@ -297,6 +305,11 @@ function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
 /**
  * Initialize the local-first workspace store for the active workspace and
  * provide it (plus the transport) to the rest of the app.
+ *
+ * While a workspace is being opened, this component renders a fullscreen
+ * loading overlay *instead of* its children. That prevents the main UI from
+ * mounting underneath the overlay and freezing while the local database is
+ * opened and the first sync runs.
  */
 function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -310,6 +323,9 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const [ctx, setCtx] = useState<
     { actorId: string; transport: ReturnType<typeof createHttpTransport> } | undefined
   >();
+  const [readyWorkspaceId, setReadyWorkspaceId] = useState<string | null>(null);
+  const [initError, setInitError] = useState<Error | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const unregisterVisibilityRef = useRef<(() => void) | null>(null);
   const progress = useSyncStatusStore((s) =>
     workspaceId ? s.getWorkspaceProgress(workspaceId) : DEFAULT_PROGRESS
@@ -327,10 +343,14 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!workspaceId) {
       setCtx(undefined);
+      setReadyWorkspaceId(null);
+      setInitError(null);
+      setRetryNonce(0);
       return;
     }
 
     let cancelled = false;
+    setInitError(null);
     const transport = createHttpTransport(workspaceId, actorId);
 
     useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, true);
@@ -367,6 +387,10 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       .then(() => {
         if (cancelled) return;
         setCtx({ actorId, transport });
+        setReadyWorkspaceId(workspaceId);
+        // The open promise now waits for the initial sync to finish (or fail),
+        // so the workspace is fully initialized at this point.
+        useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
         const syncEngine = getWorkspaceSyncEngine(workspaceId);
         if (syncEngine) {
           unregisterVisibilityRef.current = registerVisibilitySync(syncEngine);
@@ -375,6 +399,8 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       .catch((err) => {
         if (!cancelled) {
           log.error(`Failed to initialize workspace store ${workspaceId}`, err);
+          setInitError(err instanceof Error ? err : new Error(String(err)));
+          setReadyWorkspaceId(null);
         }
         if (workspaceId) {
           useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
@@ -389,22 +415,21 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
       }
     };
-  }, [workspaceId, actorId, workspaceResetNonce]);
+  }, [workspaceId, actorId, workspaceResetNonce, retryNonce]);
 
-  const { isInitializing, pullProgress } = progress;
-  // Show the overlay as soon as a workspace is initializing. This prevents the
-  // main UI from flashing before the first catch-up request has reported any
-  // progress, and keeps the loading animation visible until the local store is
-  // ready.
-  const showLoadingOverlay = isInitializing;
-  const progressPercent = showLoadingOverlay && pullProgress
+  const isReady =
+    !!workspaceId && readyWorkspaceId === workspaceId && !progress.isInitializing && !initError;
+  const showOverlay = !!workspaceId && !isReady;
+
+  const { pullProgress } = progress;
+  const progressPercent = showOverlay && pullProgress
     ? pullProgress.total > 0
       ? Math.round((pullProgress.applied / pullProgress.total) * 100)
       : 0
     : undefined;
   const progressLabel =
     progressPercent !== undefined ? `Syncing workspace… ${progressPercent}%` : 'Loading workspace…';
-  const progressValue = showLoadingOverlay && pullProgress
+  const progressValue = showOverlay && pullProgress
     ? pullProgress.total > 0
       ? pullProgress.applied / pullProgress.total
       : 0
@@ -419,6 +444,47 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
     'Still faster than a cloud round-trip.',
   ];
 
+  if (showOverlay) {
+    return (
+      <>
+        {initError ? (
+          <div className="workspace-init-overlay workspace-init-overlay--error" role="alert">
+            <h1 className="workspace-init-error__title">Failed to load workspace</h1>
+            <p className="workspace-init-error__message">{initError.message}</p>
+            <Button onClick={() => setRetryNonce((n) => n + 1)}>Retry</Button>
+          </div>
+        ) : (
+          <LoadingScreen
+            label={progressLabel}
+            progress={progressValue}
+            messages={syncMessages}
+            className="workspace-init-overlay"
+          />
+        )}
+        {forceResyncWorkspaceId && (
+          <SyncProgressModal
+            isOpen
+            label={`Re-syncing workspace… ${
+              forceResyncProgress.pullProgress && forceResyncProgress.pullProgress.total > 0
+                ? Math.round(
+                    (forceResyncProgress.pullProgress.applied /
+                      forceResyncProgress.pullProgress.total) *
+                      100
+                  ) + '%'
+                : ''
+            }`}
+            progress={
+              forceResyncProgress.pullProgress && forceResyncProgress.pullProgress.total > 0
+                ? forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total
+                : undefined
+            }
+            messages={syncMessages}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       {ctx ? (
@@ -427,14 +493,6 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         </WorkspaceStoreProvider>
       ) : (
         children
-      )}
-      {showLoadingOverlay && (
-        <LoadingScreen
-          label={progressLabel}
-          progress={progressValue}
-          messages={syncMessages}
-          className="workspace-init-overlay"
-        />
       )}
       {forceResyncWorkspaceId && (
         <SyncProgressModal

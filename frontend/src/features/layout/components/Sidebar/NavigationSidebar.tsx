@@ -227,6 +227,7 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
   }, [refetchToday, openNode]);
 
   const isPagesActive = mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline';
+  const isClassesActive = mainViewType === 'classes';
 
   if (hidden) return null;
 
@@ -266,6 +267,17 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
           onClick={() => setMainViewType('pages')}
           aria-label="Pages"
           title="Pages"
+        />
+        <Button
+          className="sidebar-rail__btn"
+          variant="ghost"
+          size="md"
+          icon="mdi mdi-shape-outline"
+          fullWidth
+          active={isClassesActive}
+          onClick={() => setMainViewType('classes')}
+          aria-label="Classes"
+          title="Classes"
         />
         {showInbox && (
           <Button

@@ -10,6 +10,7 @@ import type { MainViewType } from '@/stores';
 export const SPECIAL_VIEWS: Record<string, MainViewType | 'auth'> = {
   graph: 'graph',
   pages: 'pages',
+  classes: 'classes',
   journal: 'journals',
   archived: 'archived',
   trash: 'trash',
@@ -27,6 +28,7 @@ export const VIEW_TO_PATH: Record<MainViewType, string> = {
   graph: 'graph',
   pages: 'pages',
   'all-pages': 'pages',
+  classes: 'classes',
   journals: 'journal',
   timeline: 'timeline',
   archived: 'archived',

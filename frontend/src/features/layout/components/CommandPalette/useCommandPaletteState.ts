@@ -26,7 +26,7 @@ function getWorkspacePages(workspaceUuid: string | null): Node[] {
   if (!workspaceUuid) return [];
   const store = getWorkspaceStore(workspaceUuid);
   if (!store) return [];
-  return queryNodes(store, { isPage: true });
+  return queryNodes(store, { isPage: true, projectionDepth: 0 });
 }
 
 async function getRecentlyCreatedPages(limit: number, workspaceUuid: string | null): Promise<Node[]> {

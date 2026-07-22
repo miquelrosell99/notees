@@ -31,7 +31,7 @@ export function useClasses(options?: { enabled?: boolean }): UseClassesResult {
       return;
     }
     const update = (): void => {
-      setData(queryNodes(store, { isClass: true }));
+      setData(queryNodes(store, { isClass: true, projectionDepth: 0 }));
     };
     update();
     return store.subscribeAll(update);
