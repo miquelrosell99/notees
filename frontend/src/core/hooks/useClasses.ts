@@ -3,16 +3,10 @@
  *
  * Replaces the legacy `/api/nodes/classes` TanStack Query hook. Classes are
  * nodes with the `isClass` flag derived from the operation log.
- *
- * TODO: Migrate to the async WorkspaceStoreClient. This hook relies on
- * `queryNodes`, which is not a WorkspaceStore method and cannot be invoked
- * through the generic client.query handler. Migrate `queryNodes` to the worker
- * first, then switch this hook to `useWorkspaceStoreClient`.
  */
 import { useEffect, useState } from 'react';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from './useWorkspaceStore';
-import { queryNodes } from '../query/queryNodes';
+import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 import type { Node } from '@/types/api';
 
 export interface UseClassesResult {
@@ -24,27 +18,44 @@ export interface UseClassesResult {
 export function useClasses(options?: { enabled?: boolean }): UseClassesResult {
   const workspaceUuid = useCurrentWorkspaceUuid();
   const enabled = options?.enabled ?? true;
-  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(
-    enabled && workspaceUuid ? workspaceUuid : '',
+  const { client, isLoading, error } = useWorkspaceStoreClient(
+    enabled && workspaceUuid ? workspaceUuid : undefined
   );
 
   const [data, setData] = useState<Node[] | undefined>(undefined);
 
   useEffect(() => {
-    if (!store) {
+    if (!client) {
       setData(undefined);
       return;
     }
+
+    let cancelled = false;
     const update = (): void => {
-      setData(queryNodes(store, { isClass: true, projectionDepth: 0 }));
+      client
+        .query<Node[]>('queryNodes', [{ isClass: true, projectionDepth: 0 }])
+        .then((result) => {
+          if (!cancelled) {
+            setData(result);
+          }
+        })
+        .catch((err) => {
+          console.error('[useClasses] query failed:', err);
+        });
     };
+
     update();
-    return store.subscribeAll(update);
-  }, [store]);
+    const unsubscribe = client.subscribe(null, update);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client]);
 
   return {
     data,
-    isLoading: storeLoading,
-    error: storeError,
+    isLoading,
+    error,
   };
 }
