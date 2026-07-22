@@ -19,6 +19,11 @@ function parseValue(raw: string): unknown {
 
 /**
  * Aggregate all property values for a node, keyed by property schema UUID.
+ *
+ * TODO: Migrate to the async WorkspaceStoreClient. This hook runs raw SQL
+ * against `store.getDb()`, which is not transferable from a Web Worker.
+ * Either add worker-side query methods for property aggregation or expose a
+ * serializable API before switching to `useWorkspaceStoreClient`.
  */
 export function useProperties(nodeId: string): UsePropertiesResult {
   const { workspaceId } = useParams<{ workspaceId?: string }>();

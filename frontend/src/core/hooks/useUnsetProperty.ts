@@ -1,9 +1,8 @@
 import { useContext } from 'react';
 import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { getOrCreateWorkspaceStore } from '../adapters/workspaceStoreAdapter';
+import { getOrCreateWorkspaceStoreClient } from '../adapters/workspaceStoreClientAdapter';
 import { WorkspaceStoreContext } from './WorkspaceStoreContext';
-import { UndoManager } from '../undo';
 
 export interface UnsetPropertyArgs {
   nodeId: string;
@@ -12,7 +11,10 @@ export interface UnsetPropertyArgs {
 }
 
 /**
- * Unset a property value on a node in the SQLite store.
+ * Unset a property value on a node through the async worker-backed store client.
+ *
+ * TODO: Re-integrate UndoManager once it supports the async client. Until then
+ * this mutation writes directly to the store without an undo entry.
  */
 export function useUnsetProperty(): UseMutationResult<void, Error, UnsetPropertyArgs> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
@@ -23,13 +25,12 @@ export function useUnsetProperty(): UseMutationResult<void, Error, UnsetProperty
       if (!ctx || !workspaceId) {
         throw new Error('Workspace store not available');
       }
-      const store = await getOrCreateWorkspaceStore(
+      const client = await getOrCreateWorkspaceStoreClient(
         workspaceId,
         ctx.actorId,
         ctx.transport
       );
-      const manager = UndoManager.getOrCreateUndoManager(workspaceId, store);
-      manager.unsetProperty(args);
+      await client.mutate<void>('unsetProperty', [args]);
     },
   });
 }
