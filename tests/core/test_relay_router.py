@@ -11,10 +11,11 @@ from app.relay.dependencies import (
     get_effective_permission_checker,
     get_permission_checker,
     get_relay_storage,
+    get_workspace_restore_epoch,
 )
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import CatchUpRequest, EncryptedEnvelope
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
-from app.relay.router import router
+from app.relay.router import _catch_up_restore_epoch, router
 from app.relay.service import RelayService
 from app.relay.storage import RelayStorage, SqliteRelayStorage
 
@@ -41,10 +42,18 @@ def app(storage: RelayStorage, permissions: PermissionChecker) -> FastAPI:
     def _get_permissions() -> PermissionChecker:
         return permissions
 
+    async def _get_restore_epoch(workspace_id: str) -> int:  # noqa: ARG001
+        return 0
+
+    async def _get_catch_up_restore_epoch(request: CatchUpRequest) -> int:  # noqa: ARG001
+        return 0
+
     application.include_router(router)
     application.dependency_overrides[get_relay_storage] = _get_storage
     application.dependency_overrides[get_permission_checker] = _get_permissions
     application.dependency_overrides[get_effective_permission_checker] = _get_permissions
+    application.dependency_overrides[get_workspace_restore_epoch] = _get_restore_epoch
+    application.dependency_overrides[_catch_up_restore_epoch] = _get_catch_up_restore_epoch
     return application
 
 
@@ -83,10 +92,18 @@ def test_relay_router_mounted_and_reachable(storage: RelayStorage, permissions: 
     def _get_permissions() -> PermissionChecker:
         return permissions
 
+    async def _get_restore_epoch(workspace_id: str) -> int:  # noqa: ARG001
+        return 0
+
+    async def _get_catch_up_restore_epoch(request: CatchUpRequest) -> int:  # noqa: ARG001
+        return 0
+
     application.include_router(router)
     application.dependency_overrides[get_relay_storage] = _get_storage
     application.dependency_overrides[get_permission_checker] = _get_permissions
     application.dependency_overrides[get_effective_permission_checker] = _get_permissions
+    application.dependency_overrides[get_workspace_restore_epoch] = _get_restore_epoch
+    application.dependency_overrides[_catch_up_restore_epoch] = _get_catch_up_restore_epoch
 
     with TestClient(application) as client:
         envelope = _envelope("op-mounted")
@@ -158,11 +175,15 @@ def test_catch_up_rejects_permission_denied(client: TestClient, permissions: Per
         async def can_read(self, workspace_id: str, actor_id: str) -> bool:
             return False
 
+    async def _get_catch_up_restore_epoch(request: CatchUpRequest) -> int:  # noqa: ARG001
+        return 0
+
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_relay_storage] = lambda: SqliteRelayStorage()
     app.dependency_overrides[get_permission_checker] = lambda: DenyAll()
     app.dependency_overrides[get_effective_permission_checker] = lambda: DenyAll()
+    app.dependency_overrides[_catch_up_restore_epoch] = _get_catch_up_restore_epoch
     deny_client = TestClient(app)
 
     response = deny_client.post(
@@ -211,8 +232,6 @@ async def test_catch_up_paginated_pages_through_envelopes(
         if not data["has_more"]:
             break
 
-        last_envelope = data["envelopes"][-1]
-        hlc = last_envelope["hlc"]
         after_id = data["next_after_id"]
         assert after_id == page_ids[-1]
         page_count += 1
