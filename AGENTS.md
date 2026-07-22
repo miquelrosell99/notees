@@ -189,8 +189,11 @@ Agent reference (under `agents/`):
 
 - `agent-repo-workflow` — Snapshot commits, concurrent-agent discipline, verify-before-finishing, plan-mode threshold.
 - `selfhosted-app-scaffold` — Canonical project skeleton for new self-hosted FastAPI + React apps.
+- `python-conventions` — Python language-level style, typing, packaging, and tooling.
 - `fastapi-patterns` — Hexagonal architecture, request-scoped connections, background tasks, per-key rate limiting, backend code style.
+- `typescript-conventions` — TypeScript config, module boundaries, shared packages, and type discipline.
 - `react-ui-patterns` — React/TypeScript/Vite conventions, data flow, state boundaries, query discipline, view composition, barrels, hook decomposition, TanStack Query v5 behavior.
+- `postgresql-patterns` — PostgreSQL schema design, migrations, JSONB, query parameterization, and multi-tenancy.
 - `security-hardening` — Auth, HTTPS, secrets, input validation, rate limiting, dependency auditing.
 - `performance-optimizer` — Profiling, memoization, code splitting, list virtualization, pool tuning.
 - `accessibility-primer` — Screen readers, focus, contrast, touch targets, motion, hover-reveal fallbacks.

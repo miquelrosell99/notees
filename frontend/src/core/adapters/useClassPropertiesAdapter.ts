@@ -39,10 +39,12 @@ export function useClassPropertiesAdapter(
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId);
   const [data, setData] = useState<ClassProperty[] | undefined>(undefined);
+  const [queryError, setQueryError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!client || !classId) {
       setData(undefined);
+      setQueryError(null);
       return;
     }
 
@@ -53,9 +55,13 @@ export function useClassPropertiesAdapter(
         .then((result) => {
           if (!cancelled) {
             setData(result);
+            setQueryError(null);
           }
         })
         .catch((err) => {
+          if (!cancelled) {
+            setQueryError(err instanceof Error ? err : new Error(String(err)));
+          }
           console.error('[useClassPropertiesAdapter] query failed:', err);
         });
     };
@@ -69,7 +75,7 @@ export function useClassPropertiesAdapter(
     };
   }, [client, classId, includeInherited]);
 
-  return toQueryResult(data, isLoading, error);
+  return toQueryResult(data, isLoading, error ?? queryError);
 }
 
 /**
@@ -79,15 +85,15 @@ export function useNodeClassPropertyEdgesAdapter(classUuids: string[]): ClassPro
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client } = useWorkspaceStoreClient(workspaceId);
   const [data, setData] = useState<ClassProperty[]>([]);
-  const classUuidsKey = classUuids.join(',');
+  const classUuidsKey = JSON.stringify(classUuids);
 
   useEffect(() => {
-    if (!client || classUuidsKey === '') {
+    if (!client || classUuidsKey === '[]') {
       setData([]);
       return;
     }
 
-    const ids = classUuidsKey.split(',');
+    const ids = JSON.parse(classUuidsKey) as string[];
     let cancelled = false;
     const update = (): void => {
       client

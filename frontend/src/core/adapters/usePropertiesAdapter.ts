@@ -88,15 +88,17 @@ export function useBatchPropertyValuesAdapter(
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId);
   const [data, setData] = useState<BatchPropertiesResult>({});
-  const nodeUuidsKey = nodeUuids.join(',');
+  const [queryError, setQueryError] = useState<Error | null>(null);
+  const nodeUuidsKey = JSON.stringify(nodeUuids);
 
   useEffect(() => {
-    if (!client || nodeUuidsKey === '') {
+    if (!client || nodeUuidsKey === '[]') {
       setData({});
+      setQueryError(null);
       return;
     }
 
-    const ids = nodeUuidsKey.split(',');
+    const ids = JSON.parse(nodeUuidsKey) as string[];
     let cancelled = false;
     const update = (): void => {
       client
@@ -104,9 +106,13 @@ export function useBatchPropertyValuesAdapter(
         .then((result) => {
           if (!cancelled) {
             setData(result);
+            setQueryError(null);
           }
         })
         .catch((err) => {
+          if (!cancelled) {
+            setQueryError(err instanceof Error ? err : new Error(String(err)));
+          }
           console.error('[useBatchPropertyValuesAdapter] query failed:', err);
         });
     };
@@ -120,5 +126,5 @@ export function useBatchPropertyValuesAdapter(
     };
   }, [client, nodeUuidsKey]);
 
-  return toQueryResult(data, isLoading, error);
+  return toQueryResult(data, isLoading, error ?? queryError);
 }
