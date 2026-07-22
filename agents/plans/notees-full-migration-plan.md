@@ -22,9 +22,10 @@ Each phase produces a snapshot commit and a verifiable milestone.
 
 The pre-ideal PostgreSQL backup (`pre-ideal-migration-20260717-230311.sql`) and asset tar were restored after a schema-mismatch between the server-generated relay snapshot and the frontend derived schema. The ideal migration was re-run for workspace `Notas` (`3b30e070-039b-47bc-ad0d-2440a2f173c5`), producing 115,705 relay envelopes plus a fresh 59 MB snapshot. Favorites were recovered from the legacy dump (4 operations). Legacy tables were dropped by the normal backend migration flow. `restore_epoch` was bumped to 1 so existing clients rebuild their local SQLite store on next load. Browser verification succeeded: workspace selection, sync overlay, favorites, and All Pages all populated correctly.
 
-Two follow-ups completed:
+Three follow-ups completed:
 - **First-load flash-to-sync UX:** Fixed in `frontend/src/App.tsx` (`702cc4a1`). The workspace sync overlay now shows as soon as `isInitializing` is true, instead of waiting for the first pull-progress event.
 - **Legacy API audit:** No calls to the removed `/api/nodes/*` (nodes router) or `/api/properties/*` (properties router) remain in `frontend/src/`. The earlier 404/405 errors for views/properties were from a stale build/service worker. Still-live `/api/activity/node/*` and `/api/nodes/*/shares` calls route to existing `activity` and `shares` routers and only fire on user action.
+- **Activity/shares 500s:** Root cause was `_restore_from_snapshot` in `app/core/workspace_store.py` (`0cfd6626`). `sqlite3.Connection.deserialize` loads bytes into memory even for a file-backed connection, leaving the derived DB file at 0 bytes. Every API request therefore re-deserialized the 59 MB snapshot from scratch. Fixed by restoring into an in-memory connection and using `backup()` to copy to the file path. The derived DB for `Notas` is now 59 MB and subsequent syncs only apply deltas.
 
 ---
 
