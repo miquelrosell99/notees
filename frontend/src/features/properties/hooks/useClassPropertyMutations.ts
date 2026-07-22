@@ -152,8 +152,8 @@ export function useAddClassExtends() {
   return useMutation<void, Error, { classId: string; extendsClassId: string }>({
     mutationFn: async ({ classId, extendsClassId }) => {
       if (!client) throw new Error('Workspace store not available');
-      const rows = await client.query<Array<{ ancestor_id: string }>>('getClassExtends', [classId, []]);
-      const existing = new Set(rows.map((r) => r.ancestor_id));
+      const rows = await client.query<string[]>('getClassExtendsAncestors', [classId]);
+      const existing = new Set(rows);
       existing.add(extendsClassId);
       await client.mutate<void>('updateClass', [classId, Array.from(existing)]);
     },
@@ -175,8 +175,8 @@ export function useRemoveClassExtends() {
   return useMutation<void, Error, { classId: string; extendsClassId: string }>({
     mutationFn: async ({ classId, extendsClassId }) => {
       if (!client) throw new Error('Workspace store not available');
-      const rows = await client.query<Array<{ ancestor_id: string }>>('getClassExtends', [classId, []]);
-      const existing = new Set(rows.map((r) => r.ancestor_id));
+      const rows = await client.query<string[]>('getClassExtendsAncestors', [classId]);
+      const existing = new Set(rows);
       existing.delete(extendsClassId);
       await client.mutate<void>('updateClass', [classId, Array.from(existing)]);
     },
