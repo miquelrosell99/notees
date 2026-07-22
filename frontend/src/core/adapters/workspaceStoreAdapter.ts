@@ -10,7 +10,7 @@ import {
   clearFavoritesCache,
   subscribeFavorites,
   warmFavoritesCache,
-} from '@/features/content/hooks/favoritesCache';
+} from '@/core/favoritesCache';
 
 interface RegistryEntry {
   store: WorkspaceStore;
