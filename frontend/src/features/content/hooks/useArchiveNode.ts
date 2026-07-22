@@ -4,7 +4,7 @@ import { nodeViewKeys } from './useNodeViews';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 
 /**
  * Hook to archive a node
@@ -12,16 +12,16 @@ import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
 export function useArchiveNode() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   return useMutation({
     mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
-      store.archiveNode(nodeUuid);
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('archiveNode', [nodeUuid]);
     },
-    onMutate: (nodeUuid) => {
-      if (nodeUuid && isFavorite(workspaceUuid ?? undefined, nodeUuid)) {
+    onMutate: async (nodeUuid) => {
+      if (nodeUuid && (await isFavorite(workspaceUuid ?? undefined, nodeUuid))) {
         removeFavorite(workspaceUuid ?? undefined, nodeUuid).catch(() => {});
       }
       removeRecent(nodeUuid);

@@ -6,9 +6,7 @@ import { archivedPagesKeys, nodeKeys } from '@/hooks/queryKeys';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { projectNode } from '@/core/adapters/nodeProjection';
-import { queryAll } from '@/core/db/sqlite';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import type { Node } from '@/types/api';
 
 function invalidateArchived(queryClient: ReturnType<typeof useQueryClient>) {
@@ -18,9 +16,9 @@ function invalidateArchived(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
 }
 
-function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
+async function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
   const workspaceId = workspaceUuid ?? undefined;
-  if (nodeUuid && isFavorite(workspaceId, nodeUuid)) {
+  if (nodeUuid && (await isFavorite(workspaceId, nodeUuid))) {
     removeFavorite(workspaceId, nodeUuid).catch(() => {});
   }
   removeRecent(nodeUuid);
@@ -28,21 +26,15 @@ function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
 
 export function useArchivedPages() {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<Node[], Error>({
     queryKey: archivedPagesKeys.all,
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      const rows = queryAll<{ id: string }>(
-        store.getDb(),
-        "SELECT id FROM node WHERE kind = 'page' AND active = 0 ORDER BY updated_at DESC"
-      );
-      return rows
-        .map((row) => projectNode(store, row.id))
-        .filter((n): n is Node => n !== undefined);
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      return client.query<Node[]>('getArchivedPages', []);
     },
-    enabled: !!store,
+    enabled: !!client,
   });
 
   return {
@@ -55,13 +47,13 @@ export function useArchivedPages() {
 export function useArchivedPagesMutations() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const unarchive = useMutation({
     mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
-      store.restoreNode(nodeUuid);
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('restoreNode', [nodeUuid]);
     },
     onSuccess: () => invalidateArchived(queryClient),
   });
@@ -69,23 +61,25 @@ export function useArchivedPagesMutations() {
   const deleteNode = useMutation({
     mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
-      store.permanentDeleteNode(nodeUuid);
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('permanentDeleteNode', [nodeUuid]);
     },
-    onSuccess: (_data, nodeUuid) => {
-      cleanupNode(workspaceUuid, nodeUuid);
+    onSuccess: async (_data, nodeUuid) => {
+      await cleanupNode(workspaceUuid, nodeUuid);
       invalidateArchived(queryClient);
     },
   });
 
   const deleteAll = useMutation({
     mutationFn: async (uuids: string[]) => {
-      if (!store) throw new Error('Workspace store is not ready');
+      if (!client) throw new Error('Workspace store is not ready');
       for (const nodeUuid of uuids) {
-        store.permanentDeleteNode(nodeUuid);
+        await client.mutate<void>('permanentDeleteNode', [nodeUuid]);
       }
     },
-    onSuccess: () => invalidateArchived(queryClient),
+    onSuccess: async () => {
+      invalidateArchived(queryClient);
+    },
   });
 
   return { unarchive, deleteNode, deleteAll };

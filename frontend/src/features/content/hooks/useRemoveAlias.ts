@@ -7,18 +7,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 
 export function useRemoveAlias() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   return useMutation<void, Error, { nodeUuid: string; aliasNodeUuid: string }>({
     mutationFn: async ({ nodeUuid, aliasNodeUuid }) => {
       if (!nodeUuid || !aliasNodeUuid) throw new Error('Node UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
-      store.removeAlias(nodeUuid, aliasNodeUuid);
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('removeAlias', [nodeUuid, aliasNodeUuid]);
     },
     onSuccess: (_, { nodeUuid, aliasNodeUuid }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });

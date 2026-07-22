@@ -10,10 +10,11 @@ import type { Node } from '@/types/api';
 import type { BatchNodeDailyResponse } from '@/types/api';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { queryNodes } from '@/core/query/queryNodes';
 import { projectNode } from '@/core/adapters/nodeProjection';
-import type { WorkspaceStore } from '@/core/store';
+import type { WorkspaceStore, NodeRow } from '@/core/store';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 import { nodeNameToText } from '@/features/queries';
 import { dateStrToDayUuid, yearMonthToMonthUuid, yearToYearUuid } from '@/utils/dateUuid';
 import { formatLocalDate } from './useNodeQueries.utils';
@@ -24,6 +25,8 @@ interface DateNoteResult {
   error: Error | null;
   refetch: () => { data: Node | undefined };
 }
+
+// ─── Synchronous helpers (kept for legacy callers that still hold a WorkspaceStore) ───
 
 function setDatePageContent(store: WorkspaceStore, nodeId: string, name: string): void {
   store.updateText(nodeId, (text) => {
@@ -130,18 +133,137 @@ export function listDailyPagesFromStore(store: WorkspaceStore): Node[] {
   return queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.day], projectionDepth: 0 });
 }
 
+// ─── Asynchronous helpers for worker-backed hooks ───
+
+async function findDayNoteByNameClient(
+  client: IWorkspaceStoreClient,
+  dateStr: string
+): Promise<Node | undefined> {
+  const dayNodes = await client.query<Node[]>('queryNodes', [
+    { classIds: [SYSTEM_CLASS_UUIDS.day], query: dateStr, projectionDepth: 0 },
+  ]);
+  return dayNodes.find((n) => nodeNameToText(n.name) === dateStr);
+}
+
+async function findMonthlyNoteByNameClient(
+  client: IWorkspaceStoreClient,
+  label: string
+): Promise<Node | undefined> {
+  const monthNodes = await client.query<Node[]>('queryNodes', [
+    { classIds: [SYSTEM_CLASS_UUIDS.month], query: label, projectionDepth: 0 },
+  ]);
+  return monthNodes.find((n) => nodeNameToText(n.name) === label);
+}
+
+async function findYearlyNoteByNameClient(
+  client: IWorkspaceStoreClient,
+  label: string
+): Promise<Node | undefined> {
+  const yearNodes = await client.query<Node[]>('queryNodes', [
+    { classIds: [SYSTEM_CLASS_UUIDS.year], query: label, projectionDepth: 0 },
+  ]);
+  return yearNodes.find((n) => nodeNameToText(n.name) === label);
+}
+
+async function getOrCreateDailyNoteClient(
+  client: IWorkspaceStoreClient,
+  dateStr: string
+): Promise<Node> {
+  const nodeId = dateStrToDayUuid(dateStr);
+  const existingRow = await client.query<NodeRow | undefined>('getNode', [nodeId]);
+  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.day)) {
+    const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
+    if (projected) return projected;
+  }
+  const existingByName = await findDayNoteByNameClient(client, dateStr);
+  if (existingByName) return existingByName;
+
+  await client.mutate<void>('createNode', [
+    { nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.day] },
+  ]);
+  await client.mutate<void>('setNodeText', [nodeId, dateStr]);
+  const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
+  if (!projected) throw new Error(`Failed to project daily note ${nodeId}`);
+  return projected;
+}
+
+async function getOrCreateMonthlyNoteClient(
+  client: IWorkspaceStoreClient,
+  year: number,
+  month: number
+): Promise<Node> {
+  const label = `${year}-${String(month).padStart(2, '0')}`;
+  const nodeId = yearMonthToMonthUuid(year, month);
+  const existingRow = await client.query<NodeRow | undefined>('getNode', [nodeId]);
+  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.month)) {
+    const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
+    if (projected) return projected;
+  }
+  const existingByName = await findMonthlyNoteByNameClient(client, label);
+  if (existingByName) return existingByName;
+
+  await client.mutate<void>('createNode', [
+    { nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.month] },
+  ]);
+  await client.mutate<void>('setNodeText', [nodeId, label]);
+  const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
+  if (!projected) throw new Error(`Failed to project monthly note ${nodeId}`);
+  return projected;
+}
+
+async function getOrCreateYearlyNoteClient(
+  client: IWorkspaceStoreClient,
+  year: number
+): Promise<Node> {
+  const label = `${year}`;
+  const nodeId = yearToYearUuid(year);
+  const existingRow = await client.query<NodeRow | undefined>('getNode', [nodeId]);
+  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.year)) {
+    const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
+    if (projected) return projected;
+  }
+  const existingByName = await findYearlyNoteByNameClient(client, label);
+  if (existingByName) return existingByName;
+
+  await client.mutate<void>('createNode', [
+    { nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.year] },
+  ]);
+  await client.mutate<void>('setNodeText', [nodeId, label]);
+  const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
+  if (!projected) throw new Error(`Failed to project yearly note ${nodeId}`);
+  return projected;
+}
+
+async function listDailyPagesFromStoreClient(client: IWorkspaceStoreClient): Promise<Node[]> {
+  return client.query<Node[]>('queryNodes', [
+    { classIds: [SYSTEM_CLASS_UUIDS.day], projectionDepth: 0 },
+  ]);
+}
+
+// ─── Hooks ───
+
 export function useExistingDailyPages() {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const [data, setData] = useState<Node[]>([]);
 
   useEffect(() => {
-    if (!store) {
+    if (!client) {
       setData([]);
       return;
     }
-    setData(listDailyPagesFromStore(store));
-  }, [store]);
+    let cancelled = false;
+    const update = async (): Promise<void> => {
+      const pages = await listDailyPagesFromStoreClient(client);
+      if (!cancelled) setData(pages);
+    };
+    update();
+    const unsubscribe = client.subscribe(null, update);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client]);
 
   return { data, isLoading, error, refetch: () => ({ data }) };
 }
@@ -151,24 +273,35 @@ export function useExistingDailyPages() {
  */
 export function useDailyNote(date?: Date): DateNoteResult {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const [data, setData] = useState<Node | undefined>(undefined);
   const dateStr = formatLocalDate(date ?? new Date());
 
   useEffect(() => {
-    if (!store) {
+    if (!client) {
       setData(undefined);
       return;
     }
-    const node = getOrCreateDailyNote(store, dateStr);
-    setData(node);
-    const nodeId = node.uuid;
-    const update = (): void => {
-      setData(projectNode(store, nodeId) ?? undefined);
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    const run = async (): Promise<void> => {
+      const node = await getOrCreateDailyNoteClient(client, dateStr);
+      if (cancelled) return;
+      setData(node);
+      const nodeId = node.uuid;
+      const update = async (): Promise<void> => {
+        const refreshed = await client.query<Node | undefined>('projectNode', [nodeId]);
+        if (!cancelled) setData(refreshed ?? undefined);
+      };
+      update();
+      unsubscribe = client.subscribe(nodeId, update);
     };
-    update();
-    return store.subscribe(nodeId, update);
-  }, [store, dateStr]);
+    run();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [client, dateStr]);
 
   return { data, isLoading, error, refetch: () => ({ data }) };
 }
@@ -185,23 +318,34 @@ export function useTodayNote(): DateNoteResult {
  */
 export function useMonthlyNote(year: number, month: number): DateNoteResult {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const [data, setData] = useState<Node | undefined>(undefined);
 
   useEffect(() => {
-    if (!store || year < 1900 || month < 1 || month > 12) {
+    if (!client || year < 1900 || month < 1 || month > 12) {
       setData(undefined);
       return;
     }
-    const node = getOrCreateMonthlyNote(store, year, month);
-    setData(node);
-    const nodeId = node.uuid;
-    const update = (): void => {
-      setData(projectNode(store, nodeId) ?? undefined);
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    const run = async (): Promise<void> => {
+      const node = await getOrCreateMonthlyNoteClient(client, year, month);
+      if (cancelled) return;
+      setData(node);
+      const nodeId = node.uuid;
+      const update = async (): Promise<void> => {
+        const refreshed = await client.query<Node | undefined>('projectNode', [nodeId]);
+        if (!cancelled) setData(refreshed ?? undefined);
+      };
+      update();
+      unsubscribe = client.subscribe(nodeId, update);
     };
-    update();
-    return store.subscribe(nodeId, update);
-  }, [store, year, month]);
+    run();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [client, year, month]);
 
   return { data, isLoading, error, refetch: () => ({ data }) };
 }
@@ -211,23 +355,34 @@ export function useMonthlyNote(year: number, month: number): DateNoteResult {
  */
 export function useYearlyNote(year: number): DateNoteResult {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const [data, setData] = useState<Node | undefined>(undefined);
 
   useEffect(() => {
-    if (!store || year < 1900) {
+    if (!client || year < 1900) {
       setData(undefined);
       return;
     }
-    const node = getOrCreateYearlyNote(store, year);
-    setData(node);
-    const nodeId = node.uuid;
-    const update = (): void => {
-      setData(projectNode(store, nodeId) ?? undefined);
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    const run = async (): Promise<void> => {
+      const node = await getOrCreateYearlyNoteClient(client, year);
+      if (cancelled) return;
+      setData(node);
+      const nodeId = node.uuid;
+      const update = async (): Promise<void> => {
+        const refreshed = await client.query<Node | undefined>('projectNode', [nodeId]);
+        if (!cancelled) setData(refreshed ?? undefined);
+      };
+      update();
+      unsubscribe = client.subscribe(nodeId, update);
     };
-    update();
-    return store.subscribe(nodeId, update);
-  }, [store, year]);
+    run();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [client, year]);
 
   return { data, isLoading, error, refetch: () => ({ data }) };
 }

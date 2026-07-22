@@ -3,21 +3,21 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { useWorkspaceStore } from '@/core/hooks';
-import { queryNodes } from '@/core/query/queryNodes';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { trashKeys, nodeKeys } from '@/hooks/queryKeys';
+import type { Node } from '@/types/api';
 
 export function useEmptyTrash() {
   const queryClient = useQueryClient();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   return useMutation({
     mutationFn: async () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      const archived = queryNodes(store, { includeArchived: true, projectionDepth: 0 });
+      if (!client) throw new Error('Workspace store is not ready');
+      const archived = await client.query<Node[]>('getTrashedNodes', []);
       for (const node of archived) {
-        store.permanentDeleteNode(node.uuid);
+        await client.mutate<void>('permanentDeleteNode', [node.uuid]);
       }
     },
     onSuccess: () => {

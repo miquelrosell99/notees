@@ -29,6 +29,12 @@ import {
   type WorkerMessage,
   generateRequestId,
 } from './workerProtocol';
+import {
+  getArchivedPages,
+  getCommentNodes,
+  getPageAliases,
+  getTrashedNodes,
+} from './queryHelpers';
 
 export interface WorkspaceStoreClientOptions {
   /** Optional persisted database bytes to hydrate on init. */
@@ -406,6 +412,24 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'getNodeClassPropertyEdges') {
       const [classUuids] = args as [string[]];
       return Promise.resolve(getNodeClassPropertyEdges(this.store, classUuids) as T);
+    }
+
+    if (method === 'getTrashedNodes') {
+      return Promise.resolve(getTrashedNodes(this.store) as T);
+    }
+
+    if (method === 'getArchivedPages') {
+      return Promise.resolve(getArchivedPages(this.store) as T);
+    }
+
+    if (method === 'getPageAliases') {
+      const [canonicalNodeId] = args as [string];
+      return Promise.resolve(getPageAliases(this.store, canonicalNodeId) as T);
+    }
+
+    if (method === 'getCommentNodes') {
+      const [nodeUuid] = args as [string];
+      return Promise.resolve(getCommentNodes(this.store, nodeUuid) as T);
     }
 
     const fn = (this.store as unknown as Record<string, unknown>)[method];

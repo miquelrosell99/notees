@@ -5,31 +5,13 @@
  * target node that carry the system `comment` class.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useContext } from 'react';
 import { commentKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import { projectNode } from '@/core/adapters/nodeProjection';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { useUndoManager } from '@/core/hooks/useUndoManager';
 import { uuidv7 } from '@/core/uuid';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import type { Node, PaginatedResponse } from '@/types/api';
-import type { WorkspaceStore } from '@/core/store';
-
-function getCommentNodes(store: WorkspaceStore, nodeUuid: string): Node[] {
-  const childIds = store.getChildren(nodeUuid);
-  return childIds
-    // Project with default depth so replies (and replies-to-replies) are
-    // available for threaded rendering in SidebarComments.
-    .map((childId) => projectNode(store, childId))
-    .filter(
-      (n): n is Node =>
-        n !== undefined &&
-        n.active !== false &&
-        !!n.classes_uuid?.includes(SYSTEM_CLASS_UUIDS.comment)
-    );
-}
 
 function findCommentUuid(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -53,15 +35,20 @@ function findCommentUuid(
  */
 export function useComments(nodeUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(
-    workspaceUuid ?? ''
-  );
+  const { client, isLoading: storeLoading, error: storeError } =
+    useWorkspaceStoreClient(workspaceUuid ?? '');
 
-  const result = useQuery<PaginatedResponse<Node>, Error, { comments: Node[]; comment_count: number }>({
+  const result = useQuery<
+    PaginatedResponse<Node>,
+    Error,
+    { comments: Node[]; comment_count: number }
+  >({
     queryKey: commentKeys.forNode(nodeUuid ?? ''),
-    queryFn: () => {
-      if (!nodeUuid || !store) throw new Error('Node UUID or workspace store not found');
-      const items = getCommentNodes(store, nodeUuid);
+    queryFn: async () => {
+      if (!nodeUuid || !client) {
+        throw new Error('Node UUID or workspace store not found');
+      }
+      const items = await client.query<Node[]>('getCommentNodes', [nodeUuid]);
       return {
         items,
         total: items.length,
@@ -71,7 +58,7 @@ export function useComments(nodeUuid: string | null) {
         has_prev: false,
       };
     },
-    enabled: !!nodeUuid && !!store,
+    enabled: !!nodeUuid && !!client,
     select: (data) => ({ comments: data.items, comment_count: data.total }),
   });
 
@@ -87,17 +74,19 @@ export function useComments(nodeUuid: string | null) {
  */
 export function useCommentCount(nodeUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(
-    workspaceUuid ?? ''
-  );
+  const { client, isLoading: storeLoading, error: storeError } =
+    useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<number, Error>({
     queryKey: commentKeys.count(nodeUuid ?? ''),
-    queryFn: () => {
-      if (!nodeUuid || !store) throw new Error('Node UUID or workspace store not found');
-      return getCommentNodes(store, nodeUuid).length;
+    queryFn: async () => {
+      if (!nodeUuid || !client) {
+        throw new Error('Node UUID or workspace store not found');
+      }
+      const items = await client.query<Node[]>('getCommentNodes', [nodeUuid]);
+      return items.length;
     },
-    enabled: !!nodeUuid && !!store,
+    enabled: !!nodeUuid && !!client,
     staleTime: 30000,
   });
 
@@ -116,7 +105,8 @@ export function useCommentCount(nodeUuid: string | null) {
 export function useCreateComment() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const ctx = useContext(WorkspaceStoreContext);
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
+  const manager = useUndoManager(workspaceUuid ?? '');
 
   return useMutation<
     Node,
@@ -124,33 +114,26 @@ export function useCreateComment() {
     { nodeUuid: string; name: string; parentCommentUuid?: string }
   >({
     mutationFn: async ({ nodeUuid, name, parentCommentUuid }) => {
-      if (!nodeUuid || !ctx || !workspaceUuid) {
+      if (!nodeUuid || !workspaceUuid || !client || !manager) {
         throw new Error('Node UUID or workspace store not found');
       }
-      const store = await getOrCreateWorkspaceStore(
-        workspaceUuid,
-        ctx.actorId,
-        ctx.transport,
-      );
 
       const parentId = parentCommentUuid ?? nodeUuid;
       const commentId = uuidv7();
 
-      store.createNode({
+      await manager.createNode({
         nodeId: commentId,
         kind: 'block',
         parentId,
         classIds: [SYSTEM_CLASS_UUIDS.comment],
       });
-      // Ensure the comment appears in the parent's ordered child list.
-      store.moveNode(commentId, parentId);
-      store.updateText(commentId, (text) => {
-        const current = text.toPlaintext();
-        text.delete(0, current.length);
-        text.insert(0, name);
-      });
+      await manager.moveNode(commentId, parentId);
+      await manager.recordSetNodeText(commentId, name);
 
-      const projected = projectNode(store, commentId, 0);
+      const projected = await client.query<Node | undefined>('projectNode', [
+        commentId,
+        0,
+      ]);
       if (!projected) throw new Error('Failed to project created comment');
       return projected;
     },
@@ -167,21 +150,16 @@ export function useCreateComment() {
 export function useDeleteComment() {
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const ctx = useContext(WorkspaceStoreContext);
+  const manager = useUndoManager(workspaceUuid ?? '');
 
   return useMutation<void, Error, { nodeUuid: string; commentUuid: string }>({
     mutationFn: async ({ nodeUuid, commentUuid }) => {
-      if (!nodeUuid || !ctx || !workspaceUuid) {
+      if (!nodeUuid || !workspaceUuid || !manager) {
         throw new Error('Node UUID or workspace store not found');
       }
-      const store = await getOrCreateWorkspaceStore(
-        workspaceUuid,
-        ctx.actorId,
-        ctx.transport,
-      );
       const resolvedCommentUuid = findCommentUuid(queryClient, nodeUuid, commentUuid);
       if (!resolvedCommentUuid) throw new Error('Comment UUID not found');
-      store.deleteNode(resolvedCommentUuid);
+      await manager.deleteNode(resolvedCommentUuid);
     },
     onSuccess: (_, { nodeUuid }) => {
       queryClient.invalidateQueries({ queryKey: commentKeys.forNode(nodeUuid) });

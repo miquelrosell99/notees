@@ -23,6 +23,12 @@ import type { Hlc } from '../clock';
 import type { Operation } from '../types/operation';
 import type { OperationRow } from '../sync';
 import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
+import {
+  getArchivedPages,
+  getCommentNodes,
+  getPageAliases,
+  getTrashedNodes,
+} from './queryHelpers';
 
 interface WorkerState {
   store: WorkspaceStore | null;
@@ -362,6 +368,36 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
     const [classUuids] = request.args as [string[]];
     const result = getNodeClassPropertyEdges(state.store, classUuids);
     postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getTrashedNodes') {
+    postResponse({ type: 'query-result', id: request.id, result: getTrashedNodes(state.store) });
+    return;
+  }
+
+  if (request.method === 'getArchivedPages') {
+    postResponse({ type: 'query-result', id: request.id, result: getArchivedPages(state.store) });
+    return;
+  }
+
+  if (request.method === 'getPageAliases') {
+    const [canonicalNodeId] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getPageAliases(state.store, canonicalNodeId),
+    });
+    return;
+  }
+
+  if (request.method === 'getCommentNodes') {
+    const [nodeUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getCommentNodes(state.store, nodeUuid),
+    });
     return;
   }
 

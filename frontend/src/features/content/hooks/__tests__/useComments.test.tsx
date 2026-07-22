@@ -8,6 +8,7 @@ import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
 import { MemoryRelay, MemoryTransport } from '@/core/transport';
 import { uuidv7 } from '@/core/uuid';
 import { useComments, useCreateComment } from '../useComments';
+import { useUndoManager } from '@/core/hooks/useUndoManager';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import type { Node } from '@/types/api';
 import type { WorkspaceStore } from '@/core/store';
@@ -110,14 +111,19 @@ describe('useComments', () => {
         store.createNode({ nodeId: pageId, kind: 'page', parentId: null });
       });
 
-      const { result: createResult } = renderHook(() => useCreateComment(), {
-        wrapper: Wrapper,
-      });
-      await waitFor(() => expect(createResult.current.isPending).toBe(false));
+      const { result: createResult } = renderHook(
+        () => {
+          const create = useCreateComment();
+          const manager = useUndoManager(workspaceId);
+          return { create, manager };
+        },
+        { wrapper: Wrapper }
+      );
+      await waitFor(() => expect(createResult.current.manager).toBeDefined());
 
       let created: Node | undefined;
       await act(async () => {
-        created = await createResult.current.mutateAsync({
+        created = await createResult.current.create.mutateAsync({
           nodeUuid: pageId,
           name: 'Top-level comment',
         });
@@ -143,14 +149,19 @@ describe('useComments', () => {
       const pageId = uuidv7();
       const parentCommentId = createCommentNode(store, pageId, 'Parent comment');
 
-      const { result: createResult } = renderHook(() => useCreateComment(), {
-        wrapper: Wrapper,
-      });
-      await waitFor(() => expect(createResult.current.isPending).toBe(false));
+      const { result: createResult } = renderHook(
+        () => {
+          const create = useCreateComment();
+          const manager = useUndoManager(workspaceId);
+          return { create, manager };
+        },
+        { wrapper: Wrapper }
+      );
+      await waitFor(() => expect(createResult.current.manager).toBeDefined());
 
       let reply: Node | undefined;
       await act(async () => {
-        reply = await createResult.current.mutateAsync({
+        reply = await createResult.current.create.mutateAsync({
           nodeUuid: pageId,
           parentCommentUuid: parentCommentId,
           name: 'Nested reply',

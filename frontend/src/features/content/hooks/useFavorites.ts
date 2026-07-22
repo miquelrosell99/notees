@@ -6,9 +6,8 @@
  * clearing as long as the workspace relay is intact.
  */
 import { useEffect, useState, useCallback } from 'react';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import type { WorkspaceStore } from '@/core/store';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 
 export interface UseFavoritesResult {
   data: string[];
@@ -17,97 +16,81 @@ export interface UseFavoritesResult {
 }
 
 export function useFavorites(workspaceId: string | undefined): UseFavoritesResult {
-  const { store, isLoading, error } = useWorkspaceStore(workspaceId ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId ?? '');
   const [favorites, setFavorites] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!store) {
+    if (!client) {
       setFavorites([]);
       return;
     }
-    const update = (): void => setFavorites(store.getFavorites());
+    let cancelled = false;
+    const update = async (): Promise<void> => {
+      const list = await client.query<string[]>('getFavorites', []);
+      if (!cancelled) {
+        setFavorites(list);
+      }
+    };
     update();
-    return store.subscribeAll(update);
-  }, [store]);
+    const unsubscribe = client.subscribe(null, update);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client]);
 
   return { data: favorites, isLoading, error };
 }
 
-function useFavoriteStore(workspaceId: string | undefined): WorkspaceStore | undefined {
-  const { store } = useWorkspaceStore(workspaceId ?? '');
-  return store;
-}
-
 export function useAddFavoriteMutation(workspaceId: string | undefined) {
-  const store = useFavoriteStore(workspaceId);
-
-  const mutate = useCallback(
-    (nodeUuid: string) => {
-      store?.addFavorite(nodeUuid);
-    },
-    [store]
-  );
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   const mutateAsync = useCallback(
     async (nodeUuid: string): Promise<void> => {
-      if (!store) throw new Error('Workspace store is not ready');
-      store.addFavorite(nodeUuid);
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('addFavorite', [nodeUuid]);
     },
-    [store]
+    [client]
+  );
+
+  const mutate = useCallback(
+    (nodeUuid: string) => {
+      mutateAsync(nodeUuid).catch(() => {});
+    },
+    [mutateAsync]
   );
 
   return { mutate, mutateAsync };
 }
 
 export function useRemoveFavoriteMutation(workspaceId: string | undefined) {
-  const store = useFavoriteStore(workspaceId);
-
-  const mutate = useCallback(
-    (nodeUuid: string) => {
-      store?.removeFavorite(nodeUuid);
-    },
-    [store]
-  );
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   const mutateAsync = useCallback(
     async (nodeUuid: string): Promise<void> => {
-      if (!store) throw new Error('Workspace store is not ready');
-      store.removeFavorite(nodeUuid);
+      if (!client) throw new Error('Workspace store is not ready');
+      await client.mutate<void>('removeFavorite', [nodeUuid]);
     },
-    [store]
+    [client]
+  );
+
+  const mutate = useCallback(
+    (nodeUuid: string) => {
+      mutateAsync(nodeUuid).catch(() => {});
+    },
+    [mutateAsync]
   );
 
   return { mutate, mutateAsync };
 }
 
 export function useReorderFavoritesMutation(workspaceId: string | undefined) {
-  const store = useFavoriteStore(workspaceId);
-
-  const mutate = useCallback(
-    ({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }) => {
-      if (!store) return;
-      const favorites = store.getFavorites();
-      if (
-        fromIndex < 0 ||
-        fromIndex >= favorites.length ||
-        toIndex < 0 ||
-        toIndex >= favorites.length ||
-        fromIndex === toIndex
-      ) {
-        return;
-      }
-      const next = [...favorites];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      store.reorderFavorites(next);
-    },
-    [store]
-  );
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   const mutateAsync = useCallback(
     async ({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }): Promise<void> => {
-      if (!store) throw new Error('Workspace store is not ready');
-      const favorites = store.getFavorites();
+      if (!client) throw new Error('Workspace store is not ready');
+      const favorites = await client.query<string[]>('getFavorites', []);
       if (
         fromIndex < 0 ||
         fromIndex >= favorites.length ||
@@ -120,30 +103,41 @@ export function useReorderFavoritesMutation(workspaceId: string | undefined) {
       const next = [...favorites];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
-      store.reorderFavorites(next);
+      await client.mutate<void>('reorderFavorites', [next]);
     },
-    [store]
+    [client]
+  );
+
+  const mutate = useCallback(
+    ({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }) => {
+      mutateAsync({ fromIndex, toIndex }).catch(() => {});
+    },
+    [mutateAsync]
   );
 
   return { mutate, mutateAsync };
 }
 
-export async function addFavorite(workspaceId: string | undefined, nodeUuid: string): Promise<string[]> {
+export async function addFavorite(
+  workspaceId: string | undefined,
+  nodeUuid: string
+): Promise<string[]> {
   if (!workspaceId) return [];
-  // Non-component callers don't have the workspace context; we reach for the
-  // adapter which caches the active store.
-  const store = getWorkspaceStore(workspaceId);
-  if (!store) return [];
-  store.addFavorite(nodeUuid);
-  return store.getFavorites();
+  const client = getWorkspaceStoreClient(workspaceId);
+  if (!client) return [];
+  await client.mutate<void>('addFavorite', [nodeUuid]);
+  return client.query<string[]>('getFavorites', []);
 }
 
-export async function removeFavorite(workspaceId: string | undefined, nodeUuid: string): Promise<string[]> {
+export async function removeFavorite(
+  workspaceId: string | undefined,
+  nodeUuid: string
+): Promise<string[]> {
   if (!workspaceId) return [];
-  const store = getWorkspaceStore(workspaceId);
-  if (!store) return [];
-  store.removeFavorite(nodeUuid);
-  return store.getFavorites();
+  const client = getWorkspaceStoreClient(workspaceId);
+  if (!client) return [];
+  await client.mutate<void>('removeFavorite', [nodeUuid]);
+  return client.query<string[]>('getFavorites', []);
 }
 
 export async function reorderFavorites(
@@ -152,9 +146,9 @@ export async function reorderFavorites(
   toIndex: number
 ): Promise<string[]> {
   if (!workspaceId) return [];
-  const store = getWorkspaceStore(workspaceId);
-  if (!store) return [];
-  const favorites = store.getFavorites();
+  const client = getWorkspaceStoreClient(workspaceId);
+  if (!client) return [];
+  const favorites = await client.query<string[]>('getFavorites', []);
   if (
     fromIndex < 0 ||
     fromIndex >= favorites.length ||
@@ -167,13 +161,17 @@ export async function reorderFavorites(
   const next = [...favorites];
   const [moved] = next.splice(fromIndex, 1);
   next.splice(toIndex, 0, moved);
-  store.reorderFavorites(next);
-  return store.getFavorites();
+  await client.mutate<void>('reorderFavorites', [next]);
+  return client.query<string[]>('getFavorites', []);
 }
 
-export function isFavorite(workspaceId: string | undefined, nodeUuid: string): boolean {
-  // Synchronous check is only available when a store instance is cached.
-  // Components should use useFavorites and derive inclusion from there.
+export async function isFavorite(
+  workspaceId: string | undefined,
+  nodeUuid: string
+): Promise<boolean> {
   if (!workspaceId || !nodeUuid) return false;
-  return getWorkspaceStore(workspaceId)?.getFavorites().includes(nodeUuid) ?? false;
+  const client = getWorkspaceStoreClient(workspaceId);
+  if (!client) return false;
+  const favorites = await client.query<string[]>('getFavorites', []);
+  return favorites.includes(nodeUuid);
 }
