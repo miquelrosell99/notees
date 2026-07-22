@@ -157,6 +157,7 @@ class CompactRequest(BaseModel):
     workspace_id: str
     up_to_hlc: Hlc
     prune: bool = True
+    data_base64: str = ""
 
     @field_validator("up_to_hlc", mode="before")
     @classmethod
@@ -165,6 +166,17 @@ class CompactRequest(BaseModel):
         if hlc.physical < 0 or hlc.logical < 0:
             raise ValueError("HLC components must be non-negative")
         return hlc
+
+    @property
+    def data(self) -> bytes:
+        import base64
+
+        if not self.data_base64:
+            return b""
+        try:
+            return base64.b64decode(self.data_base64)
+        except Exception as exc:
+            raise ValueError("Invalid base64 snapshot data") from exc
 
 
 class CompactResponse(BaseModel):

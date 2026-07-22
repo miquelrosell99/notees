@@ -96,3 +96,121 @@ class TestSqliteRelayStorageSnapshots:
         )
 
         assert storage.get_max_hlc("ws-1") == Hlc(20, 0)
+
+
+class TestSqliteRelayStorageCompaction:
+    def test_compaction_refuses_prune_without_data(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-1", workspace_id="ws-1", hlc=Hlc(physical=1, logical=0)
+            )
+        )
+
+        with pytest.raises(ValueError, match="non-empty snapshot data"):
+            storage.create_compaction_segment(
+                "ws-1", Hlc(physical=1, logical=0), prune=True
+            )
+
+        assert storage.count_operations("ws-1") == 1
+
+    def test_compaction_prunes_with_data(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-1", workspace_id="ws-1", hlc=Hlc(physical=1, logical=0)
+            )
+        )
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-2", workspace_id="ws-1", hlc=Hlc(physical=2, logical=0)
+            )
+        )
+
+        result = storage.create_compaction_segment(
+            "ws-1",
+            Hlc(physical=1, logical=0),
+            prune=True,
+            data=b"snapshot-bytes",
+        )
+        assert result["operation_count"] == 1
+        assert storage.count_operations("ws-1") == 1
+
+        latest = storage.get_latest_snapshot("ws-1")
+        assert latest is not None
+        assert latest["data"] == b"snapshot-bytes"
+
+    def test_create_snapshot_rejects_empty_data_when_pruned_operations_exist(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-1", workspace_id="ws-1", hlc=Hlc(physical=1, logical=0)
+            )
+        )
+        storage.create_compaction_segment(
+            "ws-1",
+            Hlc(physical=1, logical=0),
+            prune=True,
+            data=b"snapshot-bytes",
+        )
+
+        with pytest.raises(ValueError, match="non-empty"):
+            storage.create_snapshot("ws-1", Hlc(physical=2, logical=0), data=b"")
+
+
+class TestSqliteRelayStoragePagination:
+    def test_get_catch_up_paginated_includes_concurrent_insert_with_smaller_id(
+        self,
+    ) -> None:
+        """A concurrent insert whose id sorts before the cursor id but whose HLC
+        is ahead of the cursor must not be skipped across pages.
+        """
+        storage = SqliteRelayStorage(":memory:")
+        workspace_id = "ws-race"
+        first = _envelope(
+            envelope_id="env-a", workspace_id=workspace_id, hlc=Hlc(physical=1, logical=0)
+        )
+        second = _envelope(
+            envelope_id="env-b", workspace_id=workspace_id, hlc=Hlc(physical=2, logical=0)
+        )
+        storage.save_envelopes([first, second])
+
+        start_hlc = Hlc(physical=0, logical=0)
+        page1, after1 = storage.get_catch_up_paginated(
+            workspace_id, start_hlc, limit=1
+        )
+        assert [envelope.id for envelope in page1] == [first.id]
+        assert after1 == first.id
+
+        # Inserted after page 1: HLC is ahead of the cursor so it belongs on
+        # page 2, but its id is lexicographically smaller than the cursor id.
+        concurrent = _envelope(
+            envelope_id="env-concurrent",
+            workspace_id=workspace_id,
+            hlc=Hlc(physical=2, logical=0),
+        )
+        concurrent.id = "env-aa"
+        storage.save_envelope(concurrent)
+
+        page2, after2 = storage.get_catch_up_paginated(
+            workspace_id, start_hlc, limit=10, after_id=after1
+        )
+        ids = [envelope.id for envelope in page2]
+        assert concurrent.id in ids
+        assert after2 is None
+
+    def test_get_catch_up_paginated_detects_missing_after_id(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-a", workspace_id="ws-1", hlc=Hlc(physical=1, logical=0)
+            )
+        )
+
+        with pytest.raises(ValueError, match="no longer exists"):
+            storage.get_catch_up_paginated(
+                "ws-1",
+                Hlc(physical=0, logical=0),
+                limit=2,
+                after_id="missing",
+            )

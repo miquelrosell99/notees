@@ -168,23 +168,93 @@ class TestPostgresRelayStorage:
         ]
         await storage.save_envelopes(envelopes)
 
+        start_hlc = Hlc(physical=0, logical=0)
         page, next_after_id = await storage.get_catch_up_paginated(
-            workspace_id, Hlc(physical=0, logical=0), limit=2
+            workspace_id, start_hlc, limit=2
         )
         assert len(page) == 2
         assert next_after_id == page[-1].id
 
         page2, next_after_id2 = await storage.get_catch_up_paginated(
-            workspace_id, Hlc(physical=0, logical=0), limit=2, after_id=next_after_id
+            workspace_id, start_hlc, limit=2, after_id=next_after_id
         )
         assert len(page2) == 2
         assert next_after_id2 == page2[-1].id
 
         page3, next_after_id3 = await storage.get_catch_up_paginated(
-            workspace_id, Hlc(physical=0, logical=0), limit=2, after_id=next_after_id2
+            workspace_id, start_hlc, limit=2, after_id=next_after_id2
         )
         assert len(page3) == 1
         assert next_after_id3 is None
+
+    @pytest.mark.asyncio
+    async def test_get_catch_up_paginated_detects_missing_after_id(
+        self, storage: PostgresRelayStorage
+    ) -> None:
+        workspace_id = "ws-pg-missing-cursor"
+        await storage.save_envelope(
+            _envelope(
+                envelope_id="env-a",
+                workspace_id=workspace_id,
+                actor_id="actor-1",
+                hlc=Hlc(physical=1, logical=0),
+            )
+        )
+
+        with pytest.raises(ValueError, match="no longer exists"):
+            await storage.get_catch_up_paginated(
+                workspace_id,
+                Hlc(physical=0, logical=0),
+                limit=2,
+                after_id="does-not-exist",
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_catch_up_paginated_includes_concurrent_insert_with_smaller_id(
+        self, storage: PostgresRelayStorage
+    ) -> None:
+        """A concurrent insert whose id sorts before the cursor id but whose HLC
+        is ahead of the cursor must not be skipped across pages.
+        """
+        workspace_id = "ws-pg-race"
+        first = _envelope(
+            envelope_id="env-a",
+            workspace_id=workspace_id,
+            actor_id="actor-1",
+            hlc=Hlc(physical=1, logical=0),
+        )
+        second = _envelope(
+            envelope_id="env-b",
+            workspace_id=workspace_id,
+            actor_id="actor-1",
+            hlc=Hlc(physical=2, logical=0),
+        )
+        await storage.save_envelopes([first, second])
+
+        start_hlc = Hlc(physical=0, logical=0)
+        page1, after1 = await storage.get_catch_up_paginated(
+            workspace_id, start_hlc, limit=1
+        )
+        assert [envelope.id for envelope in page1] == [first.id]
+        assert after1 == first.id
+
+        # Inserted after page 1: HLC is ahead of the cursor so it belongs on
+        # page 2, but its id is lexicographically smaller than the cursor id.
+        concurrent = _envelope(
+            envelope_id="env-concurrent",
+            workspace_id=workspace_id,
+            actor_id="actor-1",
+            hlc=Hlc(physical=2, logical=0),
+        )
+        concurrent.id = "env-aa"
+        await storage.save_envelope(concurrent)
+
+        page2, after2 = await storage.get_catch_up_paginated(
+            workspace_id, start_hlc, limit=10, after_id=after1
+        )
+        ids = [envelope.id for envelope in page2]
+        assert concurrent.id in ids
+        assert after2 is None
 
     @pytest.mark.asyncio
     async def test_count_operations_and_size_estimate(self, storage: PostgresRelayStorage) -> None:
@@ -236,7 +306,10 @@ class TestPostgresRelayStorage:
         await storage.save_envelopes(envelopes)
 
         result = await storage.create_compaction_segment(
-            workspace_id, Hlc(physical=3, logical=0), prune=True
+            workspace_id,
+            Hlc(physical=3, logical=0),
+            prune=True,
+            data=b"derived-state-bytes",
         )
         assert result["operation_count"] == 3
         assert len(result["snapshot_id"]) > 0
@@ -244,3 +317,54 @@ class TestPostgresRelayStorage:
 
         remaining = await storage.count_operations(workspace_id)
         assert remaining == 2
+
+        latest = await storage.get_latest_snapshot(workspace_id)
+        assert latest is not None
+        assert latest["data"] == b"derived-state-bytes"
+
+    @pytest.mark.asyncio
+    async def test_create_compaction_segment_refuses_prune_without_data(
+        self, storage: PostgresRelayStorage
+    ) -> None:
+        workspace_id = "ws-pg-compact-no-data"
+        await storage.save_envelope(
+            _envelope(
+                envelope_id="env-c-1",
+                workspace_id=workspace_id,
+                actor_id="actor-1",
+                hlc=Hlc(physical=1, logical=0),
+            )
+        )
+
+        with pytest.raises(ValueError, match="non-empty snapshot data"):
+            await storage.create_compaction_segment(
+                workspace_id, Hlc(physical=1, logical=0), prune=True
+            )
+
+        # No envelopes should have been pruned.
+        assert await storage.count_operations(workspace_id) == 1
+
+    @pytest.mark.asyncio
+    async def test_create_snapshot_rejects_empty_data_when_pruned_operations_exist(
+        self, storage: PostgresRelayStorage
+    ) -> None:
+        workspace_id = "ws-pg-empty-snapshot"
+        await storage.save_envelope(
+            _envelope(
+                envelope_id="env-s-1",
+                workspace_id=workspace_id,
+                actor_id="actor-1",
+                hlc=Hlc(physical=1, logical=0),
+            )
+        )
+        await storage.create_compaction_segment(
+            workspace_id,
+            Hlc(physical=1, logical=0),
+            prune=True,
+            data=b"snapshot-bytes",
+        )
+
+        with pytest.raises(ValueError, match="non-empty"):
+            await storage.create_snapshot(
+                workspace_id, Hlc(physical=2, logical=0), data=b""
+            )

@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import asyncpg
 from fastapi import Depends, HTTPException, Request, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -180,8 +181,10 @@ async def get_relay_service(
 async def get_workspace_restore_epoch(workspace_id: str) -> int:
     """Return the current restore_epoch for a workspace, or 0 if not found.
 
-    Falls back to 0 when the database is unavailable (e.g. in unit tests that
-    use in-memory relay storage without a full PostgreSQL workspace table).
+    A missing workspace row returns 0 so that anonymous snapshot/catch-up
+    requests for unknown workspaces behave consistently. Genuine database
+    errors are propagated as HTTP 503 Service Unavailable so clients retry
+    instead of interpreting a transient failure as a workspace restore.
     """
     try:
         pool = await get_pool()
@@ -190,8 +193,18 @@ async def get_workspace_restore_epoch(workspace_id: str) -> int:
             workspace_id,
         )
         return int(row["restore_epoch"]) if row else 0
-    except Exception:
-        return 0
+    except HTTPException:
+        raise
+    except asyncpg.exceptions.PostgresError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database error reading restore_epoch: {exc}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database error reading restore_epoch: {exc}",
+        ) from exc
 
 
 def get_key_management_service() -> KeyManagementService:

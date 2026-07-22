@@ -107,6 +107,9 @@ class TestRelayCatchUpPerformance:
         service = RelayService(storage, StubPermissionChecker())
 
         collected: list[EncryptedEnvelope] = []
+        # The HLC cursor stays at the starting watermark; only after_id advances
+        # per page. This keeps pagination stable if concurrent inserts arrive
+        # with the same HLC as a page boundary.
         cursor_hlc = Hlc(physical=0, logical=0)
         after_id: str | None = None
         page = 0
@@ -124,9 +127,6 @@ class TestRelayCatchUpPerformance:
             if next_after_id is None:
                 break
             after_id = next_after_id
-            # Advance the HLC cursor to the last envelope of this page so the
-            # next page starts after it.
-            cursor_hlc = results[-1].hlc
             assert page <= 10, "pagination did not terminate"
 
         assert len(collected) == count

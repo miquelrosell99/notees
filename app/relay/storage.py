@@ -107,6 +107,7 @@ class RelayStorage(ABC):
         workspace_id: str,
         up_to_hlc: Hlc,
         prune: bool = True,
+        data: bytes = b"",
     ) -> dict[str, Any]:
         """Create a snapshot and record a compacted operation segment.
 
@@ -114,6 +115,8 @@ class RelayStorage(ABC):
             workspace_id: Workspace to compact.
             up_to_hlc: Highest HLC included in the compaction.
             prune: If ``True``, delete envelopes covered by the segment.
+            data: Serialized derived-state payload for the snapshot. Required to
+                be non-empty when ``prune`` is ``True``.
 
         Returns:
             A dict with ``snapshot_id``, ``segment_id``, and ``operation_count``.
@@ -308,25 +311,29 @@ class SqliteRelayStorage(RelayStorage):
         after_id: str | None = None,
     ) -> tuple[list[EncryptedEnvelope], str | None]:
         if after_id is not None:
+            cursor_row = self._connection.execute(
+                "SELECT physical, logical FROM relay_envelope WHERE id = ?",
+                (after_id,),
+            ).fetchone()
+            if cursor_row is None:
+                raise ValueError(
+                    f"Pagination cursor envelope {after_id} no longer exists"
+                )
             cursor = self._connection.execute(
                 """
                 SELECT * FROM relay_envelope
                 WHERE workspace_id = ?
-                  AND (
-                    physical > ?
-                    OR (physical = ? AND logical > ?)
-                    OR (physical = ? AND logical = ? AND id > ?)
-                  )
+                  AND (physical, logical) > (?, ?)
+                  AND (physical, logical, id) > (?, ?, ?)
                 ORDER BY physical ASC, logical ASC, id ASC
                 LIMIT ?
                 """,
                 (
                     workspace_id,
                     hlc.physical,
-                    hlc.physical,
                     hlc.logical,
-                    hlc.physical,
-                    hlc.logical,
+                    cursor_row["physical"],
+                    cursor_row["logical"],
                     after_id,
                     limit,
                 ),
@@ -336,20 +343,11 @@ class SqliteRelayStorage(RelayStorage):
                 """
                 SELECT * FROM relay_envelope
                 WHERE workspace_id = ?
-                  AND (
-                    physical > ?
-                    OR (physical = ? AND logical > ?)
-                  )
+                  AND (physical, logical) > (?, ?)
                 ORDER BY physical ASC, logical ASC, id ASC
                 LIMIT ?
                 """,
-                (
-                    workspace_id,
-                    hlc.physical,
-                    hlc.physical,
-                    hlc.logical,
-                    limit,
-                ),
+                (workspace_id, hlc.physical, hlc.logical, limit),
             )
         results = [self._row_to_envelope(row) for row in cursor.fetchall()]
         next_after_id = results[-1].id if len(results) == limit else None
@@ -424,8 +422,17 @@ class SqliteRelayStorage(RelayStorage):
         }
 
     def create_snapshot(
-        self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
+        self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b"", commit: bool = True
     ) -> str:
+        if not data:
+            cursor = self._connection.execute(
+                "SELECT 1 FROM compacted_operation_segment WHERE workspace_id = ? LIMIT 1",
+                (workspace_id,),
+            )
+            if cursor.fetchone() is not None:
+                raise ValueError(
+                    "Snapshot data must be non-empty when covering pruned operations"
+                )
         snapshot_id = str(uuid.uuid4())
         hlc_json = json.dumps(_hlc_to_dict(up_to_hlc))
         state_hash = hashlib.sha256(
@@ -446,7 +453,8 @@ class SqliteRelayStorage(RelayStorage):
                 datetime.now(UTC).isoformat(),
             ),
         )
-        self._connection.commit()
+        if commit:
+            self._connection.commit()
         return snapshot_id
 
     def create_compaction_segment(
@@ -454,9 +462,17 @@ class SqliteRelayStorage(RelayStorage):
         workspace_id: str,
         up_to_hlc: Hlc,
         prune: bool = True,
+        data: bytes = b"",
     ) -> dict[str, Any]:
-        snapshot_id = self.create_snapshot(workspace_id, up_to_hlc)
+        if prune and not data:
+            raise ValueError(
+                "Cannot prune operations without non-empty snapshot data"
+            )
+
         hlc_json = json.dumps(_hlc_to_dict(up_to_hlc))
+        snapshot_id = self.create_snapshot(
+            workspace_id, up_to_hlc, data=data, commit=False
+        )
         count = self._connection.execute(
             """
             SELECT COUNT(*) FROM relay_envelope
@@ -487,9 +503,21 @@ class SqliteRelayStorage(RelayStorage):
                 datetime.now(UTC).isoformat(),
             ),
         )
-        self._connection.commit()
         if prune:
-            self.prune_envelopes(workspace_id, up_to_hlc)
+            self._connection.execute(
+                """
+                DELETE FROM relay_envelope
+                WHERE workspace_id = ?
+                  AND (physical < ? OR (physical = ? AND logical <= ?))
+                """,
+                (
+                    workspace_id,
+                    up_to_hlc.physical,
+                    up_to_hlc.physical,
+                    up_to_hlc.logical,
+                ),
+            )
+        self._connection.commit()
         return {
             "snapshot_id": snapshot_id,
             "segment_id": segment_id,
@@ -679,17 +707,28 @@ class PostgresRelayStorage(RelayStorage):
     ) -> tuple[list[EncryptedEnvelope], str | None]:
         pool = await self._get_pool()
         if after_id is not None:
+            cursor_row = await pool.fetchrow(
+                "SELECT physical, logical, id FROM relay_envelope WHERE id = $1::text",
+                after_id,
+            )
+            if cursor_row is None:
+                raise ValueError(
+                    f"Pagination cursor envelope {after_id} no longer exists"
+                )
             rows = await pool.fetch(
                 """
                 SELECT * FROM relay_envelope
                 WHERE workspace_id = $1
-                  AND (physical, logical, id) > (
-                      SELECT physical, logical, id FROM relay_envelope WHERE id = $2::text
-                  )
+                  AND (physical, logical) > ($2, $3)
+                  AND (physical, logical, id) > ($4, $5, $6)
                 ORDER BY physical ASC, logical ASC, id ASC
-                LIMIT $3
+                LIMIT $7
                 """,
                 workspace_id,
+                hlc.physical,
+                hlc.logical,
+                cursor_row["physical"],
+                cursor_row["logical"],
                 after_id,
                 limit,
             )
@@ -777,14 +816,24 @@ class PostgresRelayStorage(RelayStorage):
         }
 
     async def create_snapshot(
-        self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
+        self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b"", conn: Any | None = None
     ) -> str:
-        pool = await self._get_pool()
+        if not data:
+            executor = conn if conn is not None else (await self._get_pool())
+            segment_count = await executor.fetchval(
+                "SELECT COUNT(*) FROM compacted_operation_segment WHERE workspace_id = $1",
+                workspace_id,
+            )
+            if segment_count:
+                raise ValueError(
+                    "Snapshot data must be non-empty when covering pruned operations"
+                )
         hlc_dict = _hlc_to_dict(up_to_hlc)
         state_hash = hashlib.sha256(
             f"{workspace_id}:{json.dumps(hlc_dict)}:".encode() + data
         ).hexdigest()
-        row = await pool.fetchrow(
+        executor = conn if conn is not None else (await self._get_pool())
+        row = await executor.fetchrow(
             """
             INSERT INTO relay_snapshot (workspace_id, hlc, state_hash, data)
             VALUES ($1, $2, $3, $4)
@@ -802,36 +851,54 @@ class PostgresRelayStorage(RelayStorage):
         workspace_id: str,
         up_to_hlc: Hlc,
         prune: bool = True,
+        data: bytes = b"",
     ) -> dict[str, Any]:
+        if prune and not data:
+            raise ValueError(
+                "Cannot prune operations without non-empty snapshot data"
+            )
+
         pool = await self._get_pool()
-        snapshot_id = await self.create_snapshot(workspace_id, up_to_hlc)
-        count_row = await pool.fetchrow(
-            """
-            SELECT COUNT(*) FROM relay_envelope
-            WHERE workspace_id = $1
-              AND (physical, logical) <= ($2, $3)
-            """,
-            workspace_id,
-            up_to_hlc.physical,
-            up_to_hlc.logical,
-        )
-        count = count_row[0] if count_row else 0
-        segment_row = await pool.fetchrow(
-            """
-            INSERT INTO compacted_operation_segment (
-                workspace_id, from_hlc, to_hlc, snapshot_id, operation_count
-            ) VALUES ($1, $2, $3, $4, $5)
-            RETURNING id
-            """,
-            workspace_id,
-            _hlc_to_dict(Hlc(physical=0, logical=0)),
-            _hlc_to_dict(up_to_hlc),
-            snapshot_id,
-            count,
-        )
-        segment_id = str(segment_row["id"])
-        if prune:
-            await self.prune_envelopes(workspace_id, up_to_hlc)
+        async with pool.acquire() as conn, conn.transaction():
+            snapshot_id = await self.create_snapshot(
+                workspace_id, up_to_hlc, data=data, conn=conn
+            )
+            count_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND (physical, logical) <= ($2, $3)
+                """,
+                workspace_id,
+                up_to_hlc.physical,
+                up_to_hlc.logical,
+            )
+            count = count_row[0] if count_row else 0
+            segment_row = await conn.fetchrow(
+                """
+                INSERT INTO compacted_operation_segment (
+                    workspace_id, from_hlc, to_hlc, snapshot_id, operation_count
+                ) VALUES ($1, $2, $3, $4, $5)
+                RETURNING id
+                """,
+                workspace_id,
+                _hlc_to_dict(Hlc(physical=0, logical=0)),
+                _hlc_to_dict(up_to_hlc),
+                snapshot_id,
+                count,
+            )
+            segment_id = str(segment_row["id"])
+            if prune:
+                await conn.execute(
+                    """
+                    DELETE FROM relay_envelope
+                    WHERE workspace_id = $1
+                      AND (physical, logical) <= ($2, $3)
+                    """,
+                    workspace_id,
+                    up_to_hlc.physical,
+                    up_to_hlc.logical,
+                )
         return {
             "snapshot_id": snapshot_id,
             "segment_id": segment_id,
