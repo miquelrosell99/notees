@@ -8,8 +8,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { nodeKeys } from './queryKeys';
 import { useCurrentWorkspaceUuid } from './useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { projectNode } from '@/core/adapters/nodeProjection';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
 import type { Node } from '@/types/api';
 
 /**
@@ -20,15 +20,15 @@ import type { Node } from '@/types/api';
  */
 export function useBatchedNodeByUuid(nodeUuid: string | null, meta?: Record<string, unknown>) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<Node | null>({
     queryKey: nodeKeys.byUuid(nodeUuid ?? ''),
-    queryFn: () => {
-      if (!nodeUuid || !store) return null;
-      return projectNode(store, nodeUuid) ?? null;
+    queryFn: async () => {
+      if (!nodeUuid || !client) return null;
+      return (await projectNodeFromClient(client, nodeUuid)) ?? null;
     },
-    enabled: !!nodeUuid && !!store,
+    enabled: !!nodeUuid && !!client,
     staleTime: 1000 * 60 * 10, // 10 minutes — metadata is stable
     retry: (failureCount, error) => {
       // Don't retry on "not found"

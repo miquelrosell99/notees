@@ -11,8 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { NodeSelector, useCreateNode, usePageClass } from '@/features/content';
 import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import { getNodeByUuid } from '@/core/query/nodeByUuid';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import type { Node } from '@/types';
 import { generateUUID } from '@/utils/uuid';
@@ -92,9 +91,10 @@ export function CreatePageWithUuidModal({
       // Check whether a node with this UUID already exists
       let exists = false;
       if (workspaceUuid) {
-        const store = getWorkspaceStore(workspaceUuid);
-        if (store) {
-          exists = getNodeByUuid(store, trimmedUuid) !== null;
+        const client = getWorkspaceStoreClient(workspaceUuid);
+        if (client) {
+          const existing = await client.query<Node | null>('getNodeByUuid', [trimmedUuid]);
+          exists = existing !== null;
         }
       }
 

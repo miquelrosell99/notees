@@ -5,6 +5,7 @@
 import type { BreadcrumbItemResponse } from '@/types/api';
 import { projectNode } from '../adapters/nodeProjection';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export function buildBreadcrumbs(store: WorkspaceStore, nodeUuid: string): BreadcrumbItemResponse[] {
   const breadcrumbs: BreadcrumbItemResponse[] = [];
@@ -33,4 +34,11 @@ export function buildBreadcrumbs(store: WorkspaceStore, nodeUuid: string): Bread
   }
 
   return breadcrumbs;
+}
+
+export async function buildBreadcrumbsFromClient(
+  client: IWorkspaceStoreClient,
+  nodeUuid: string
+): Promise<BreadcrumbItemResponse[]> {
+  return client.query<BreadcrumbItemResponse[]>('buildBreadcrumbs', [nodeUuid]);
 }

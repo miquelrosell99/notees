@@ -20,8 +20,7 @@ import { useSaveQueryAsView } from '@/features/queries';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { getNodeByUuid } from '@/core/query/nodeByUuid';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { TextField } from '@/components/ui/TextField';
@@ -52,7 +51,7 @@ export function NodeCollectionView({ title, queryAST, nodeUuids }: NodeCollectio
   const { saveAsView, isSaving } = useSaveQueryAsView();
   const { data: allClasses } = useClasses();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading: isClientLoading } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [resultCount, setResultCount] = useState<number | null>(null);
   const [isSavePromptOpen, setIsSavePromptOpen] = useState(false);
@@ -74,13 +73,13 @@ export function NodeCollectionView({ title, queryAST, nodeUuids }: NodeCollectio
   const nodeResults = useQueries({
     queries: (nodeUuids ?? []).map((uuid) => ({
       queryKey: nodeKeys.detail(uuid),
-      queryFn: () => {
-        if (!store) throw new Error('Workspace store is not ready');
-        const node = getNodeByUuid(store, uuid);
+      queryFn: async () => {
+        if (!client) throw new Error('Workspace store is not ready');
+        const node = await client.query<Node | undefined>('getNodeByUuid', [uuid]);
         if (!node) throw new Error(`Node ${uuid} not found`);
         return node;
       },
-      enabled: !!store,
+      enabled: !!client && !isClientLoading,
     })),
   });
   const resolvedNodes = useMemo(

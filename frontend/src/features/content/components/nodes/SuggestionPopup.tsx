@@ -35,12 +35,12 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { NodeResultItem } from './NodeResultItem';
 import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import {
-  getOrCreateDailyNote,
-  getOrCreateMonthlyNote,
-  getOrCreateYearlyNote,
+  getOrCreateDailyNoteClient,
+  getOrCreateMonthlyNoteClient,
+  getOrCreateYearlyNoteClient,
 } from '@/features/content/hooks/useNodeDateQueries';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { nodeNameToText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -312,8 +312,8 @@ export function SuggestionPopup({
   // Handle date suggestion selection
   const handleDateSelect = useCallback(async () => {
     if (!parsedDate || !onSelectDatePage || !workspaceUuid) return;
-    const store = getWorkspaceStore(workspaceUuid);
-    if (!store) return;
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
     try {
       let dateNode: Node;
       if (existingDateNode) {
@@ -323,11 +323,11 @@ export function SuggestionPopup({
         // Create the date page in the local-first core store
         if (parsedDate.type === 'day' && parsedDate.month && parsedDate.day) {
           const dateStr = `${parsedDate.year}-${String(parsedDate.month).padStart(2, '0')}-${String(parsedDate.day).padStart(2, '0')}`;
-          dateNode = getOrCreateDailyNote(store, dateStr);
+          dateNode = await getOrCreateDailyNoteClient(client, dateStr);
         } else if (parsedDate.type === 'month' && parsedDate.month) {
-          dateNode = getOrCreateMonthlyNote(store, parsedDate.year, parsedDate.month);
+          dateNode = await getOrCreateMonthlyNoteClient(client, parsedDate.year, parsedDate.month);
         } else {
-          dateNode = getOrCreateYearlyNote(store, parsedDate.year);
+          dateNode = await getOrCreateYearlyNoteClient(client, parsedDate.year);
         }
       }
       onSelectDatePage(dateNode.uuid, nodeNameToText(dateNode.name) || parsedDate.label);

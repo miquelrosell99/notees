@@ -8,6 +8,7 @@ import { createEmptyQueryAST, createClassCondition } from '@/types/queryAST';
 import { WorkspaceStore } from '@/core/store';
 import { createTestDatabase } from '@/core/__tests__/helpers';
 import { uuidv7 } from '@/core/uuid';
+import { getNodeByUuid } from '@/core/query/nodeByUuid';
 
 const openNodeMock = vi.fn();
 const closeNodeCollectionMock = vi.fn();
@@ -59,6 +60,20 @@ vi.mock('@/hooks/useCurrentWorkspaceUuid', () => ({
 
 vi.mock('@/core/hooks/useWorkspaceStore', () => ({
   useWorkspaceStore: vi.fn(() => ({ store: testStore, isLoading: false, error: null })),
+}));
+
+vi.mock('@/core/hooks/useWorkspaceStoreClient', () => ({
+  useWorkspaceStoreClient: vi.fn(() => ({
+    client: {
+      query: async <T,>(_method: string, args: unknown[]): Promise<T> => {
+        if (!testStore) throw new Error('Test store not ready');
+        const [uuid] = args as [string];
+        return (getNodeByUuid(testStore, uuid) ?? undefined) as T;
+      },
+    },
+    isLoading: false,
+    error: null,
+  })),
 }));
 
 async function createTestStore(): Promise<WorkspaceStore> {

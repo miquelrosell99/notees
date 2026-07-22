@@ -5,8 +5,8 @@ import { useSetNodeProperty } from '../hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useNavigationStore } from '@/stores';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { getNodeByUuid } from '@/core/query/nodeByUuid';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
 import { NodeSelector } from '@/features/content';
 import { AssetImage } from '@/features/content';
 import { Spinner } from '@/components/ui/Spinner';
@@ -34,7 +34,7 @@ export function NodePropertyCell({
   const setPropertyMutation = useSetNodeProperty();
   const openNode = useNavigationStore(state => state.openNode);
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading: storeLoading } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading: storeLoading } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   // Parse node UUIDs from value
   const isMultiValue = property.multi || Array.isArray(value);
@@ -48,13 +48,13 @@ export function NodePropertyCell({
   const nodeQueries = useQueries({
     queries: nodeUuids.map((nodeUuid) => ({
       queryKey: nodeKeys.byUuid(nodeUuid),
-      queryFn: () => {
-        if (!store) throw new Error('Workspace store is not ready');
-        const node = getNodeByUuid(store, nodeUuid);
+      queryFn: async () => {
+        if (!client) throw new Error('Workspace store is not ready');
+        const node = await projectNodeFromClient(client, nodeUuid);
         if (!node) throw new Error(`Node ${nodeUuid} not found`);
         return node;
       },
-      enabled: !!store,
+      enabled: !!client,
       staleTime: 5 * 60 * 1000,
     })),
   });

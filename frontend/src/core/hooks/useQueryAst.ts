@@ -3,11 +3,7 @@ import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { QueryAST } from '@/types';
 import type { Node } from '@/types/api';
-import { substituteRuntimeParams } from '../query/substituteRuntimeParams';
-import { compileToSqlite } from '../query/compileToSqlite';
-import { queryAll } from '../db/sqlite';
-import { projectNode } from '../adapters/nodeProjection';
-import { useWorkspaceStore } from './useWorkspaceStore';
+import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 
 function createEmptyResult(): UseQueryResult<Node[], Error> {
   return {
@@ -31,13 +27,13 @@ export function useQueryAst(
   runtimeParams?: Record<string, unknown>
 ): UseQueryResult<Node[], Error> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(workspaceId ?? '');
+  const { client, isLoading: storeLoading, error: storeError } = useWorkspaceStoreClient(workspaceId ?? '');
   const [data, setData] = useState<Node[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!store || !workspaceId) {
+    if (!client || !workspaceId) {
       setData([]);
       setIsLoading(false);
       setError(null);
@@ -54,24 +50,19 @@ export function useQueryAst(
     setIsLoading(true);
     setError(null);
 
-    try {
-      const astWithParams = substituteRuntimeParams(ast, runtimeParams ?? {});
-      const compiled = compileToSqlite(astWithParams, workspaceId);
-      const rows = queryAll<{ id: string }>(
-        store.getDb(),
-        compiled.sql,
-        compiled.params as (string | number | null | Uint8Array)[]
-      );
-      const nodes = rows
-        .map((row) => projectNode(store, row.id))
-        .filter((n): n is Node => n !== undefined);
-      setData(nodes);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [store, workspaceId, ast, runtimeParams]);
+    const run = async (): Promise<void> => {
+      try {
+        const nodes = await client.query<Node[]>('queryNodes', [{ ast, runtimeParams }]);
+        setData(nodes);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    run();
+  }, [client, workspaceId, ast, runtimeParams]);
 
   if (!ast) {
     return createEmptyResult();

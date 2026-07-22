@@ -30,7 +30,7 @@ import { type Asset, type AssetCategory, uploadAsset } from '@/features/assets';
 import { useCreateNodeAdapter } from '@/core/adapters';
 import { useInstantiateTemplate } from '../../hooks/useTemplates';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { TableCreationModal, type TableGridSize } from '@/components/ui/TableCreationModal';
 import { TemplateVariableDialog } from '../TemplateVariableDialog';
@@ -148,7 +148,7 @@ export function NodeContent({
   const updateNode = useUpdateNode();
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const createNode = useCreateNodeAdapter();
   const instantiateTemplate = useInstantiateTemplate();
 
@@ -374,22 +374,22 @@ export function NodeContent({
       if (!parentUuid) return;
       // Create header row
       const headerRow = await createNode.mutateAsync({ name: '', parent_uuid: parentUuid, sequence: 0 });
-      if (store) store.moveNode(headerRow.uuid, parentUuid);
+      if (client) await client.mutate<void>('moveNode', [headerRow.uuid, parentUuid]);
       await Promise.all(
         Array.from({ length: size.columns }, (_, i) =>
-          createNode.mutateAsync({ name: `Column ${i + 1}`, parent_uuid: headerRow.uuid, sequence: i }).then((col) => {
-            if (store) store.moveNode(col.uuid, headerRow.uuid);
+          createNode.mutateAsync({ name: `Column ${i + 1}`, parent_uuid: headerRow.uuid, sequence: i }).then(async (col) => {
+            if (client) await client.mutate<void>('moveNode', [col.uuid, headerRow.uuid]);
           })
         )
       );
       // Create data rows
       for (let r = 1; r < size.rows; r++) {
         const row = await createNode.mutateAsync({ name: '', parent_uuid: parentUuid, sequence: r });
-        if (store) store.moveNode(row.uuid, parentUuid);
+        if (client) await client.mutate<void>('moveNode', [row.uuid, parentUuid]);
         await Promise.all(
           Array.from({ length: size.columns }, (_, c) =>
-            createNode.mutateAsync({ name: '', parent_uuid: row.uuid, sequence: c }).then((col) => {
-              if (store) store.moveNode(col.uuid, row.uuid);
+            createNode.mutateAsync({ name: '', parent_uuid: row.uuid, sequence: c }).then(async (col) => {
+              if (client) await client.mutate<void>('moveNode', [col.uuid, row.uuid]);
             })
           )
         );
@@ -399,7 +399,7 @@ export function NodeContent({
     }
     setIsTableModalOpen(false);
     setTableTargetBlockId(null);
-  }, [tableTargetBlockId, systemClassMap, addClass, children, createNode, store]);
+  }, [tableTargetBlockId, systemClassMap, addClass, children, createNode, client]);
 
   // Handle table creation — adapt existing children as columns
   const handleTableAdaptExisting = useCallback(() => {

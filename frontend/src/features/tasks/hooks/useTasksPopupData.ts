@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { executeQuery } from '@/core/query/executeQuery';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { executeQueryFromClient } from '@/core/query/executeQuery';
 import { taskKeys } from '@/hooks/queryKeys';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { compareDayUuids, isDayUuid } from '@/utils/dateUuid';
@@ -57,44 +57,44 @@ function byTaskDateAsc(a: Node, b: Node): number {
 
 export function useTasksPopupData() {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
-  const runQuery = (section: PopupSection): Promise<QueryExecuteResponse> => {
-    if (!store) {
-      return Promise.resolve({ nodes: [], groups: undefined, total_count: 0, metrics: undefined });
+  const runQuery = async (section: PopupSection): Promise<QueryExecuteResponse> => {
+    if (!client) {
+      return { nodes: [], groups: undefined, total_count: 0, metrics: undefined };
     }
-    return Promise.resolve(executeQuery(store, getPopupQueryForSection(section)));
+    return executeQueryFromClient(client, getPopupQueryForSection(section));
   };
 
   const overdue = useQuery({
     queryKey: taskKeys.popup('overdue'),
     queryFn: () => runQuery('overdue'),
     staleTime: 30_000,
-    enabled: !!store,
+    enabled: !!client,
   });
   const today = useQuery({
     queryKey: taskKeys.popup('today'),
     queryFn: () => runQuery('today'),
     staleTime: 30_000,
-    enabled: !!store,
+    enabled: !!client,
   });
   const upcoming = useQuery({
     queryKey: taskKeys.popup('upcoming'),
     queryFn: () => runQuery('upcoming'),
     staleTime: 30_000,
-    enabled: !!store,
+    enabled: !!client,
   });
   const completed = useQuery({
     queryKey: taskKeys.popup('completed'),
     queryFn: () => runQuery('completed'),
     staleTime: 30_000,
-    enabled: !!store,
+    enabled: !!client,
   });
   const unscheduled = useQuery({
     queryKey: taskKeys.popup('unscheduled'),
     queryFn: () => runQuery('unscheduled'),
     staleTime: 30_000,
-    enabled: !!store,
+    enabled: !!client,
   });
 
   const sections = useMemo<Record<PopupSection, PopupSectionData>>(

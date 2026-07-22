@@ -5,8 +5,7 @@ import { useProperties } from '@/features/properties';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useClasses, useRecents } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import { queryNodes } from '@/core/query/queryNodes';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
@@ -22,21 +21,22 @@ import {
   INITIAL_MAX_PROPERTIES,
 } from './CommandPalette.types';
 
-function getWorkspacePages(workspaceUuid: string | null): Node[] {
+async function getWorkspacePages(workspaceUuid: string | null): Promise<Node[]> {
   if (!workspaceUuid) return [];
-  const store = getWorkspaceStore(workspaceUuid);
-  if (!store) return [];
-  return queryNodes(store, { isPage: true, projectionDepth: 0 });
+  const client = getWorkspaceStoreClient(workspaceUuid);
+  if (!client) return [];
+  return client.query<Node[]>('queryNodes', [{ isPage: true, projectionDepth: 0 }]);
 }
 
 async function getRecentlyCreatedPages(limit: number, workspaceUuid: string | null): Promise<Node[]> {
-  return getWorkspacePages(workspaceUuid)
+  const pages = await getWorkspacePages(workspaceUuid);
+  return pages
     .sort((a, b) => new Date(b.create_date).getTime() - new Date(a.create_date).getTime())
     .slice(0, limit);
 }
 
 async function getRandomPages(limit: number, workspaceUuid: string | null): Promise<Node[]> {
-  const pages = getWorkspacePages(workspaceUuid);
+  const pages = await getWorkspacePages(workspaceUuid);
   if (pages.length === 0) return [];
   const shuffled = [...pages];
   for (let i = shuffled.length - 1; i > 0; i--) {

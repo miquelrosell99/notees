@@ -3,28 +3,28 @@
  */
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { queryNodes } from '@/core/query/queryNodes';
 import { useClasses as useCoreClasses } from '@/core/hooks';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 
 function useCoreNodeQuery(
   queryKey: readonly unknown[],
-  filters: Parameters<typeof queryNodes>[1],
+  filters: { isPage?: boolean; classIds?: string[]; query?: string },
   enabled = true,
   projectionDepth = 0,
 ) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(enabled && workspaceUuid ? workspaceUuid : '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(enabled && workspaceUuid ? workspaceUuid : '');
 
   const result = useQuery({
     queryKey: [...queryKey],
-    queryFn: () => {
-      if (!store) return [];
-      return queryNodes(store, { ...filters, projectionDepth });
+    queryFn: async () => {
+      if (!client) return [];
+      return client.query<Node[]>('queryNodes', [{ ...filters, projectionDepth }]);
     },
-    enabled: enabled && !!store,
+    enabled: enabled && !!client,
     placeholderData: [],
   });
 
@@ -58,7 +58,7 @@ export function useSearch(query: string, filters?: {
   isUserPage?: boolean;
 }) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const searchFilters: Record<string, string | boolean | undefined> = {
     classFilters: filters?.classFilters,
@@ -77,21 +77,23 @@ export function useSearch(query: string, filters?: {
     filters?.isDaily !== undefined ||
     filters?.isUserPage !== undefined;
 
-  const enabled = !!store && (query.length > 0 || hasFilters);
+  const enabled = !!client && (query.length > 0 || hasFilters);
 
   const result = useQuery({
     queryKey: nodeKeys.search(query, searchFilters),
-    queryFn: () => {
-      if (!store) return [];
+    queryFn: async () => {
+      if (!client) return [];
       const classIds = filters?.classFilters ? filters.classFilters.split(',') : undefined;
-      return queryNodes(store, {
-        query,
-        isPage: filters?.isPage,
-        isClass: filters?.isClass,
-        isDaily: filters?.isDaily,
-        classIds,
-        projectionDepth: 0,
-      });
+      return client.query<Node[]>('queryNodes', [
+        {
+          query,
+          isPage: filters?.isPage,
+          isClass: filters?.isClass,
+          isDaily: filters?.isDaily,
+          classIds,
+          projectionDepth: 0,
+        },
+      ]);
     },
     enabled,
     placeholderData: keepPreviousData,

@@ -11,8 +11,9 @@ import { useParams } from 'react-router-dom';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseLinkId } from '@/lib/astBuilder';
 import { copyToClipboard } from '@/utils/clipboardManager';
-import { useWorkspaceStore } from '@/core/hooks';
-import type { WorkspaceStore } from '@/core/store';
+import { useWorkspaceStoreClient } from '@/core/hooks';
+import type { NodeRow } from '@/core/store';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 import { nodeNameToText } from '@/features/queries';
 import {
   astToUnits,
@@ -88,7 +89,7 @@ function getSelectedPillNode(state: InlineEditorState, linkId: string): ASTInlin
   return null;
 }
 
-function computeDisplayLabel(node: ASTInlineNode, store: WorkspaceStore | undefined): string {
+async function computeDisplayLabel(node: ASTInlineNode, client: IWorkspaceStoreClient | undefined): Promise<string> {
   if (node.type === 'external_link') {
     const label = node.children.map((c) => ('text' in c ? (c as { text: string }).text : '')).join('');
     if (label && label !== node.url) return label;
@@ -103,8 +104,8 @@ function computeDisplayLabel(node: ASTInlineNode, store: WorkspaceStore | undefi
   if (node.type === 'node_link') {
     const { nodeUuid } = parseLinkId(node.link_id);
     if (node.label) return node.label;
-    if (nodeUuid) {
-      const target = store?.getNode(nodeUuid);
+    if (nodeUuid && client) {
+      const target = await client.query<NodeRow | undefined>('getNode', [nodeUuid]);
       if (target) {
         const name = nodeNameToText(target.content);
         if (name) return name;
@@ -125,7 +126,7 @@ export function InlineNodeLinks({
   onPillClick,
 }: InlineNodeLinksProps): JSX.Element | null {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   const selectedLinkIdRef = useRef(selectedPillLinkId);
   selectedLinkIdRef.current = selectedPillLinkId;
@@ -234,7 +235,7 @@ export function InlineNodeLinks({
   );
 
   const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
+    async (event: KeyboardEvent) => {
       const root = rootRef.current;
       if (!root) return;
       // Ignore keystrokes that originate outside the editable root (e.g. inputs
@@ -266,7 +267,7 @@ export function InlineNodeLinks({
           event.stopPropagation();
 
           const refType = getLinkRefType(node);
-          const displayLabel = computeDisplayLabel(node, store);
+          const displayLabel = await computeDisplayLabel(node, client);
           const linkIdForParse = getLinkId(node);
           const { nodeUuid } = linkIdForParse ? parseLinkId(linkIdForParse) : { nodeUuid: '' };
 
@@ -362,7 +363,7 @@ export function InlineNodeLinks({
         selection.removeAllRanges();
       }
     },
-    [rootRef, stateRef, applyMutation, onPillClick, clearSelection, setSelectedPillLinkId, store],
+    [rootRef, stateRef, applyMutation, onPillClick, clearSelection, setSelectedPillLinkId, client],
   );
 
   useEffect(() => {

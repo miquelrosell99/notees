@@ -6,22 +6,22 @@ import { useQuery } from '@tanstack/react-query';
 
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { buildGraphData } from '@/core/query/graphData';
-import { buildGraphNodes } from '@/core/query/graphNodes';
-import { buildGraphLinks } from '@/core/query/graphLinks';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { buildGraphDataFromClient } from '@/core/query/graphData';
+import { buildGraphNodesFromClient } from '@/core/query/graphNodes';
+import { buildGraphLinksFromClient } from '@/core/query/graphLinks';
 
 export function useGraphData(options?: { enabled?: boolean }) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
-  const result = useQuery<ReturnType<typeof buildGraphData>>({
+  const result = useQuery<Awaited<ReturnType<typeof buildGraphDataFromClient>>>({
     queryKey: nodeKeys.graph(),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      return buildGraphData(store);
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      return buildGraphDataFromClient(client);
     },
-    enabled: (options?.enabled ?? true) && !!store,
+    enabled: (options?.enabled ?? true) && !!client,
   });
 
   return {
@@ -38,15 +38,15 @@ export function useGraphData(options?: { enabled?: boolean }) {
 
 export function useGraphNodes(options?: { enabled?: boolean }) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
-  const result = useQuery<ReturnType<typeof buildGraphNodes>, Error, ReturnType<typeof buildGraphNodes>['items']>({
+  const result = useQuery<Awaited<ReturnType<typeof buildGraphNodesFromClient>>, Error, Awaited<ReturnType<typeof buildGraphNodesFromClient>>['items']>({
     queryKey: nodeKeys.graphNodes(),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      return buildGraphNodes(store);
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      return buildGraphNodesFromClient(client);
     },
-    enabled: (options?.enabled ?? true) && !!store,
+    enabled: (options?.enabled ?? true) && !!client,
     select: (data) => data.items,
   });
 
@@ -69,15 +69,15 @@ export function useGraphLinks(
 ) {
   const scope = options?.scope ?? 'between';
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
-  const result = useQuery<ReturnType<typeof buildGraphLinks>>({
+  const result = useQuery<Awaited<ReturnType<typeof buildGraphLinksFromClient>>>({
     queryKey: nodeKeys.graphLinks(nodeUuids, scope, options?.cooccurrence, options?.contextNodeUuid),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
-      return buildGraphLinks(store, nodeUuids, scope);
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
+      return buildGraphLinksFromClient(client, nodeUuids, scope);
     },
-    enabled: (options?.enabled ?? true) && nodeUuids.length > 0 && !!store,
+    enabled: (options?.enabled ?? true) && nodeUuids.length > 0 && !!client,
   });
 
   return {

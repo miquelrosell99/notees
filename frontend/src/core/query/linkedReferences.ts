@@ -10,6 +10,7 @@ import { createEmptyQueryAST } from '@/types/queryAST';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { nodeNameToText } from '@/features/queries';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { queryNodes } from './queryNodes';
 import { projectNode } from '../adapters/nodeProjection';
 
@@ -91,4 +92,12 @@ export function buildLinkedReferences(
   const paginated = refs.slice(offset, offset + limit);
 
   return { linked_references: paginated, total_count: refs.length };
+}
+
+export async function buildLinkedReferencesFromClient(
+  client: IWorkspaceStoreClient,
+  nodeUuid: string,
+  params?: { limit?: number; offset?: number }
+): Promise<LinkedReferencesResponse> {
+  return client.query<LinkedReferencesResponse>('buildLinkedReferences', [nodeUuid, params]);
 }

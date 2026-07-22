@@ -5,13 +5,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import type { Property, PropertyCreate, PropertyUpdate } from '@/types/api';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { uuidv7 } from '@/core/uuid';
 import type { PropertySchemaCreatePayload, PropertySchemaUpdatePayload } from '@/core/types/operation';
 
-function useStore() {
+function useClient() {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  return useWorkspaceStore(workspaceId ?? '').store;
+  return useWorkspaceStoreClient(workspaceId ?? '').client;
 }
 
 function propertyCreateToPayload(data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }): PropertySchemaCreatePayload {
@@ -56,13 +56,13 @@ function propertyUpdateToPayload(
 
 export function useCreateProperty() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const client = useClient();
 
   return useMutation<Property, Error, PropertyCreate & { selection_options?: { name: string; icon?: string }[] }>({
     mutationFn: async (data) => {
-      if (!store) throw new Error('Workspace store not available');
+      if (!client) throw new Error('Workspace store not available');
       const payload = propertyCreateToPayload(data);
-      store.createPropertySchema(payload);
+      await client.mutate<void>('createPropertySchema', [payload]);
       // Optimistically return a minimal Property so callers can link it immediately.
       return {
         uuid: payload.schemaId,
@@ -78,12 +78,13 @@ export function useCreateProperty() {
 
 export function useUpdateProperty() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const client = useClient();
 
   return useMutation<Property, Error, { id: string; data: PropertyUpdate }>({
     mutationFn: async ({ id, data }) => {
-      if (!store) throw new Error('Workspace store not available');
-      store.updatePropertySchema(propertyUpdateToPayload(id, data));
+      if (!client) throw new Error('Workspace store not available');
+      const payload = propertyUpdateToPayload(id, data);
+      await client.mutate<void>('updatePropertySchema', [payload]);
       return { uuid: id, ...data } as unknown as Property;
     },
     onSuccess: (_, { id }) => {
@@ -98,12 +99,12 @@ export function useUpdateProperty() {
 
 export function useDeleteProperty() {
   const queryClient = useQueryClient();
-  const store = useStore();
+  const client = useClient();
 
   return useMutation<void, Error, string>({
     mutationFn: async (id) => {
-      if (!store) throw new Error('Workspace store not available');
-      store.deletePropertySchema(id);
+      if (!client) throw new Error('Workspace store not available');
+      await client.mutate<void>('deletePropertySchema', [id]);
     },
     onSuccess: (_, id) => {
       queryClient.removeQueries({ queryKey: propertyKeys.detail(id) });

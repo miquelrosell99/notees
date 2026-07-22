@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { useWorkspaceStore, useUndoManager } from '@/core/hooks';
+import { useWorkspaceStoreClient, useUndoManager } from '@/core/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 
@@ -13,7 +13,7 @@ import { nodeViewKeys } from './useNodeViews';
 export function useRemoveClass() {
   const queryClient = useQueryClient();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const manager = useUndoManager(workspaceId ?? '');
 
   return useMutation<void, Error, { nodeUuid: string; classId: string }>({
@@ -21,12 +21,12 @@ export function useRemoveClass() {
       if (!nodeUuid) throw new Error('Node UUID not found');
       const classUuid = classId;
       if (!classUuid) throw new Error('Class UUID not found');
-      if (!store) throw new Error('Workspace store is not ready');
+      if (!client) throw new Error('Workspace store client is not ready');
 
       if (manager) {
         await manager.unassignClass(nodeUuid, classUuid);
       } else {
-        store.unassignClass(nodeUuid, classUuid);
+        await client.mutate('unassignClass', [nodeUuid, classUuid]);
       }
     },
     onSuccess: (_, { nodeUuid, classId }) => {

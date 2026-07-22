@@ -7,6 +7,7 @@ import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { queryAll } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export function buildGraphNodes(store: WorkspaceStore): PaginatedResponse<GraphNode> {
   const db = store.getDb();
@@ -33,6 +34,12 @@ export function buildGraphNodes(store: WorkspaceStore): PaginatedResponse<GraphN
     has_next: false,
     has_prev: false,
   };
+}
+
+export async function buildGraphNodesFromClient(
+  client: IWorkspaceStoreClient,
+): Promise<PaginatedResponse<GraphNode>> {
+  return client.query<PaginatedResponse<GraphNode>>('buildGraphNodes', []);
 }
 
 function nodeToGraphNode(_store: WorkspaceStore, node: ReturnType<typeof projectNode>): GraphNode {

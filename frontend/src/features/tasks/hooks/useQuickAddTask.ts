@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react';
 import { useCreateNode } from '@/features/content';
-import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { useSetNodeProperty } from '@/features/properties';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { getTodayDayUuid } from '@/utils/dateUuid';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { invalidateTaskPopupQueries } from './taskStatusShared';
 
 /** Local ISO date (YYYY-MM-DD), matching the CalendarPopup wrapper's format. */
@@ -27,20 +27,20 @@ export function useQuickAddTask() {
   const createNode = useCreateNode();
   const setProperty = useSetNodeProperty();
   const workspaceUuid = useCurrentWorkspaceUuid();
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const quickAdd = useCallback(
     async (name: string) => {
       const trimmed = name.trim();
       if (!trimmed || isAdding) return;
       if (!workspaceUuid) return;
-      const store = getWorkspaceStore(workspaceUuid);
-      if (!store) {
+      if (!client) {
         useNotificationStore.getState().error('Failed to add task', 'Workspace store not available');
         return;
       }
       setIsAdding(true);
       try {
-        const daily = getOrCreateDailyNote(store, toIsoLocal(new Date()));
+        const daily = await getOrCreateDailyNoteClient(client, toIsoLocal(new Date()));
         const node = await createNode.mutateAsync({
           name: trimmed,
           parent_uuid: daily.uuid,
@@ -66,7 +66,7 @@ export function useQuickAddTask() {
         setIsAdding(false);
       }
     },
-    [createNode, setProperty, isAdding, workspaceUuid],
+    [createNode, setProperty, isAdding, workspaceUuid, client],
   );
 
   return { quickAdd, isAdding };

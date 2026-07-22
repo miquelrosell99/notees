@@ -6,6 +6,7 @@ import type { TextLink } from '@/types/api';
 import { queryAll } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export function buildTextLinks(store: WorkspaceStore, nodeUuid: string): TextLink[] {
   const db = store.getDb();
@@ -40,4 +41,11 @@ export function buildTextLinks(store: WorkspaceStore, nodeUuid: string): TextLin
       name,
     };
   });
+}
+
+export async function buildTextLinksFromClient(
+  client: IWorkspaceStoreClient,
+  nodeUuid: string
+): Promise<TextLink[]> {
+  return client.query<TextLink[]>('buildTextLinks', [nodeUuid]);
 }

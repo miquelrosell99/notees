@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useWorkspaceStore } from './useWorkspaceStore';
+import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 
 export interface UsePropertyResult {
   value: unknown;
@@ -18,17 +18,22 @@ export function useProperty(args: {
 }): UsePropertyResult {
   const { nodeId, schemaId, index } = args;
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceId ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId ?? '');
   const [value, setValue] = useState<unknown>(undefined);
 
   useEffect(() => {
-    if (!store || !nodeId || !schemaId) {
+    if (!client || !nodeId || !schemaId) {
       setValue(undefined);
       return;
     }
 
-    const update = (): void => {
-      const row = store.getProperty({ nodeId, schemaId, index });
+    let cancelled = false;
+
+    const update = async (): Promise<void> => {
+      const row = await client.query<{ value: string } | undefined>('getProperty', [
+        { nodeId, schemaId, index },
+      ]);
+      if (cancelled) return;
       if (!row) {
         setValue(undefined);
         return;
@@ -41,8 +46,12 @@ export function useProperty(args: {
     };
 
     update();
-    return store.subscribe(nodeId, update);
-  }, [store, nodeId, schemaId, index]);
+    const unsubscribe = client.subscribe(nodeId, update);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client, nodeId, schemaId, index]);
 
   return { value, isLoading, error };
 }

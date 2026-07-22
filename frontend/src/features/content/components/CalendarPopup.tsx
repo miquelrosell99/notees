@@ -9,13 +9,13 @@ import { useCallback } from 'react';
 import { CalendarPopup as CalendarPopupBase, type CalendarMode } from '@/components/ui';
 import { useExistingDailyPages } from '@/features/content';
 import {
-  getOrCreateDailyNote,
-  getOrCreateMonthlyNote,
-  getOrCreateYearlyNote,
+  getOrCreateDailyNoteClient,
+  getOrCreateMonthlyNoteClient,
+  getOrCreateYearlyNoteClient,
 } from '@/features/content/hooks/useNodeDateQueries';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 
 export interface CalendarPopupProps {
   isOpen: boolean;
@@ -42,27 +42,27 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal, ini
 
   const handleSelectDay = useCallback(async (date: Date) => {
     if (!workspaceUuid) return;
-    const store = getWorkspaceStore(workspaceUuid);
-    if (!store) return;
-    const node = getOrCreateDailyNote(store, toIsoLocal(date));
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
+    const node = await getOrCreateDailyNoteClient(client, toIsoLocal(date));
     openNode(node.uuid);
     onClose();
   }, [openNode, onClose, workspaceUuid]);
 
   const handleSelectMonth = useCallback(async (year: number, month: number) => {
     if (!workspaceUuid) return;
-    const store = getWorkspaceStore(workspaceUuid);
-    if (!store) return;
-    const node = getOrCreateMonthlyNote(store, year, month + 1);
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
+    const node = await getOrCreateMonthlyNoteClient(client, year, month + 1);
     openNode(node.uuid);
     onClose();
   }, [openNode, onClose, workspaceUuid]);
 
   const handleSelectYear = useCallback(async (year: number) => {
     if (!workspaceUuid) return;
-    const store = getWorkspaceStore(workspaceUuid);
-    if (!store) return;
-    const node = getOrCreateYearlyNote(store, year);
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
+    const node = await getOrCreateYearlyNoteClient(client, year);
     openNode(node.uuid);
     onClose();
   }, [openNode, onClose, workspaceUuid]);

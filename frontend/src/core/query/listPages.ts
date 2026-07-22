@@ -5,12 +5,16 @@
  * page lookups (e.g. hierarchical path resolution).
  */
 
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import { queryNodes } from './queryNodes';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import type { Node } from '@/types/api';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 
-export function listCorePages(workspaceUuid: string): Node[] {
-  const store = getWorkspaceStore(workspaceUuid);
-  if (!store) return [];
-  return queryNodes(store, { isPage: true });
+export async function listCorePagesFromClient(client: IWorkspaceStoreClient): Promise<Node[]> {
+  return client.query<Node[]>('queryNodes', [{ isPage: true }]);
+}
+
+export async function listCorePagesAsync(workspaceUuid: string): Promise<Node[]> {
+  const client = getWorkspaceStoreClient(workspaceUuid);
+  if (!client) return [];
+  return listCorePagesFromClient(client);
 }

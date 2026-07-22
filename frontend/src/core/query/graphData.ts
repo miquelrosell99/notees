@@ -6,6 +6,7 @@ import type { GraphData } from '@/types/api';
 import { buildGraphNodes } from './graphNodes';
 import { buildGraphLinks } from './graphLinks';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export function buildGraphData(store: WorkspaceStore): GraphData {
   const nodesResponse = buildGraphNodes(store);
@@ -21,4 +22,10 @@ export function buildGraphData(store: WorkspaceStore): GraphData {
     has_next: nodesResponse.has_next,
     has_prev: nodesResponse.has_prev,
   };
+}
+
+export async function buildGraphDataFromClient(
+  client: IWorkspaceStoreClient,
+): Promise<GraphData> {
+  return client.query<GraphData>('buildGraphData', []);
 }
