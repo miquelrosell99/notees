@@ -62,20 +62,25 @@ export async function warmFavoritesCache(
  * Subscribe to workspace changes and keep the favorites cache up to date for
  * the lifetime of the client.
  *
- * The returned unsubscribe function should be called when the workspace client
- * is closed or reset.
+ * The returned unsubscribe function cancels any in-flight update and tears down
+ * the underlying subscription. It should be called when the workspace client is
+ * closed or reset.
  */
 export function subscribeFavorites(
   workspaceId: string,
   client: IWorkspaceStoreClient,
   onUpdate?: (favorites: string[]) => void
 ): () => void {
+  let cancelled = false;
+
   const update = async (): Promise<void> => {
     try {
       const list = await client.query<string[]>('getFavorites', []);
+      if (cancelled) return;
       setFavorites(workspaceId, list);
       onUpdate?.(list);
     } catch (err) {
+      if (cancelled) return;
       console.error(
         `Failed to update favorites cache for workspace ${workspaceId}:`,
         err
@@ -83,9 +88,10 @@ export function subscribeFavorites(
     }
   };
 
-  // Prime the cache immediately in case this subscription is set up after the
-  // workspace has already been opened.
-  void update();
+  const unsubscribe = client.subscribe(null, update);
 
-  return client.subscribe(null, update);
+  return () => {
+    cancelled = true;
+    unsubscribe();
+  };
 }

@@ -11,7 +11,7 @@ import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAda
 import {
   getCachedFavorites,
   subscribeFavorites,
-} from './favoritesCache';
+} from '@/core/favoritesCache';
 
 export interface UseFavoritesResult {
   data: string[];
@@ -162,5 +162,5 @@ export async function reorderFavorites(
   return client.query<string[]>('getFavorites', []);
 }
 
-export { isFavorite } from './favoritesCache';
+export { isFavorite } from '@/core/favoritesCache';
 
