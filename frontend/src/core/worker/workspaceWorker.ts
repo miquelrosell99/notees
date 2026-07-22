@@ -22,12 +22,29 @@ import { UndoManager } from '../undo/UndoManager';
 import type { Hlc } from '../clock';
 import type { Operation } from '../types/operation';
 import type { OperationRow } from '../sync';
+import type { Node } from '@/types/api';
+import type { QueryAST } from '@/types/queryAST';
 import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
 import {
+  countQueryResults,
   getArchivedPages,
   getCommentNodes,
+  getDefaultNodeView,
+  getExtendedByClasses,
+  getInheritedProperties,
+  getClassExtends,
+  getNodeByUuid,
+  getNodeKindMap,
+  getNodeView,
+  getNodeViews,
+  getNodeViewsByType,
+  getNodesWithProperty,
+  getNodesWithRawUuidLinks,
   getPageAliases,
+  getPropertySuggestions,
   getTrashedNodes,
+  readViewAst,
+  validateClassExtends,
 } from './queryHelpers';
 
 interface WorkerState {
@@ -325,7 +342,11 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
   }
 
   if (request.method === 'executeQuery') {
-    const result = executeQuery(state.store, request.args[0] as Parameters<typeof executeQuery>[1]);
+    const [req, currentNodeUuid] = request.args as [
+      Parameters<typeof executeQuery>[1],
+      string | undefined,
+    ];
+    const result = executeQuery(state.store, req, currentNodeUuid);
     postResponse({ type: 'query-result', id: request.id, result });
     return;
   }
@@ -402,6 +423,160 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
       type: 'query-result',
       id: request.id,
       result: getCommentNodes(state.store, nodeUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'getNodeByUuid') {
+    const [nodeUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getNodeByUuid(state.store, nodeUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'getNodeKindMap') {
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: Array.from(getNodeKindMap(state.store).entries()),
+    });
+    return;
+  }
+
+  if (request.method === 'getNodeViews') {
+    const [nodeUuid, options] = request.args as [
+      string,
+      { viewType?: string; includeQueryAST?: boolean } | undefined,
+    ];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getNodeViews(state.store, nodeUuid, options),
+    });
+    return;
+  }
+
+  if (request.method === 'getNodeViewsByType') {
+    const [nodeUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getNodeViewsByType(state.store, nodeUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'getNodeView') {
+    const [viewUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getNodeView(state.store, viewUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'getDefaultNodeView') {
+    const [nodeUuid, viewType] = request.args as [string, string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getDefaultNodeView(state.store, nodeUuid, viewType),
+    });
+    return;
+  }
+
+  if (request.method === 'readViewAst') {
+    const [viewUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: readViewAst(state.store, viewUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'countQueryResults') {
+    const [workspaceId, queryRequest] = request.args as [
+      string,
+      { query_ast?: QueryAST; runtime_params?: Record<string, unknown> },
+    ];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: countQueryResults(state.store, workspaceId, queryRequest),
+    });
+    return;
+  }
+
+  if (request.method === 'getClassExtends') {
+    const [classId, classes] = request.args as [string, Node[]];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getClassExtends(state.store, classId, classes),
+    });
+    return;
+  }
+
+  if (request.method === 'getInheritedProperties') {
+    const [classId, classes] = request.args as [string, Node[]];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getInheritedProperties(state.store, classId, classes),
+    });
+    return;
+  }
+
+  if (request.method === 'getExtendedByClasses') {
+    const [classId, classes] = request.args as [string, Node[]];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getExtendedByClasses(state.store, classId, classes),
+    });
+    return;
+  }
+
+  if (request.method === 'getPropertySuggestions') {
+    const [contextNodeUuid] = request.args as [string | undefined];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getPropertySuggestions(state.store, contextNodeUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'getNodesWithProperty') {
+    const [propertyUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getNodesWithProperty(state.store, propertyUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'validateClassExtends') {
+    const [classId, extendsIds] = request.args as [string, string[]];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: validateClassExtends(state.store, classId, extendsIds),
+    });
+    return;
+  }
+
+  if (request.method === 'getNodesWithRawUuidLinks') {
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getNodesWithRawUuidLinks(state.store),
     });
     return;
   }
