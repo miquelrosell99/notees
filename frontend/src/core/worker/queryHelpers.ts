@@ -13,13 +13,16 @@ import { queryAll } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 
-export function getTrashedNodes(store: WorkspaceStore): Node[] {
+export function getTrashedNodes(
+  store: WorkspaceStore,
+  projectionDepth?: number
+): Node[] {
   const rows = queryAll<{ id: string }>(
     store.getDb(),
     'SELECT id FROM node WHERE active = 0 ORDER BY updated_at DESC'
   );
   return rows
-    .map((row) => projectNode(store, row.id))
+    .map((row) => projectNode(store, row.id, projectionDepth))
     .filter((n): n is Node => n !== undefined);
 }
 

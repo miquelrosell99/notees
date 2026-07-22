@@ -15,7 +15,7 @@ export function useEmptyTrash() {
   return useMutation({
     mutationFn: async () => {
       if (!client) throw new Error('Workspace store is not ready');
-      const archived = await client.query<Node[]>('getTrashedNodes', []);
+      const archived = await client.query<Node[]>('getTrashedNodes', [0]);
       for (const node of archived) {
         await client.mutate<void>('permanentDeleteNode', [node.uuid]);
       }

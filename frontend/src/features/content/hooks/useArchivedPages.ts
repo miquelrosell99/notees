@@ -18,7 +18,7 @@ function invalidateArchived(queryClient: ReturnType<typeof useQueryClient>) {
 
 async function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
   const workspaceId = workspaceUuid ?? undefined;
-  if (nodeUuid && (await isFavorite(workspaceId, nodeUuid))) {
+  if (nodeUuid && isFavorite(workspaceId, nodeUuid)) {
     removeFavorite(workspaceId, nodeUuid).catch(() => {});
   }
   removeRecent(nodeUuid);

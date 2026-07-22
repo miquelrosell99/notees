@@ -372,7 +372,12 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
   }
 
   if (request.method === 'getTrashedNodes') {
-    postResponse({ type: 'query-result', id: request.id, result: getTrashedNodes(state.store) });
+    const [projectionDepth] = request.args as [number | undefined];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getTrashedNodes(state.store, projectionDepth),
+    });
     return;
   }
 

@@ -26,6 +26,42 @@ interface DateNoteResult {
   refetch: () => { data: Node | undefined };
 }
 
+interface DateNoteIdentity {
+  nodeId: string;
+  label: string;
+  classId: string;
+}
+
+const DAILY_PAGES_QUERY = { classIds: [SYSTEM_CLASS_UUIDS.day], projectionDepth: 0 };
+
+function dailyNoteIdentity(dateStr: string): DateNoteIdentity {
+  return {
+    nodeId: dateStrToDayUuid(dateStr),
+    label: dateStr,
+    classId: SYSTEM_CLASS_UUIDS.day,
+  };
+}
+
+function monthlyNoteIdentity(year: number, month: number): DateNoteIdentity {
+  return {
+    nodeId: yearMonthToMonthUuid(year, month),
+    label: `${year}-${String(month).padStart(2, '0')}`,
+    classId: SYSTEM_CLASS_UUIDS.month,
+  };
+}
+
+function yearlyNoteIdentity(year: number): DateNoteIdentity {
+  return {
+    nodeId: yearToYearUuid(year),
+    label: `${year}`,
+    classId: SYSTEM_CLASS_UUIDS.year,
+  };
+}
+
+function findDateNoteByName(nodes: Node[], targetName: string): Node | undefined {
+  return nodes.find((n) => nodeNameToText(n.name) === targetName);
+}
+
 // ─── Synchronous helpers (kept for legacy callers that still hold a WorkspaceStore) ───
 
 function setDatePageContent(store: WorkspaceStore, nodeId: string, name: string): void {
@@ -40,70 +76,56 @@ function setDatePageContent(store: WorkspaceStore, nodeId: string, name: string)
 
 function findDayNoteByName(store: WorkspaceStore, dateStr: string): Node | undefined {
   const dayNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.day], query: dateStr, projectionDepth: 0 });
-  return dayNodes.find((n) => nodeNameToText(n.name) === dateStr);
+  return findDateNoteByName(dayNodes, dateStr);
 }
 
 function findMonthlyNoteByName(store: WorkspaceStore, label: string): Node | undefined {
   const monthNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.month], query: label, projectionDepth: 0 });
-  return monthNodes.find((n) => nodeNameToText(n.name) === label);
+  return findDateNoteByName(monthNodes, label);
 }
 
 function findYearlyNoteByName(store: WorkspaceStore, label: string): Node | undefined {
   const yearNodes = queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.year], query: label, projectionDepth: 0 });
-  return yearNodes.find((n) => nodeNameToText(n.name) === label);
+  return findDateNoteByName(yearNodes, label);
+}
+
+function getOrCreateDateNote(
+  store: WorkspaceStore,
+  identity: DateNoteIdentity,
+  findByName: () => Node | undefined
+): Node {
+  const { nodeId, label, classId } = identity;
+  const existingRow = store.getNode(nodeId);
+  if (existingRow?.classIds.includes(classId)) {
+    return projectNode(store, nodeId)!;
+  }
+  const existingByName = findByName();
+  if (existingByName) return existingByName;
+
+  store.createNode({ nodeId, kind: 'page', parentId: null, classIds: [classId] });
+  setDatePageContent(store, nodeId, label);
+  return projectNode(store, nodeId)!;
 }
 
 /**
  * Get or create a daily journal page in the local-first core store.
  */
 export function getOrCreateDailyNote(store: WorkspaceStore, dateStr: string): Node {
-  const nodeId = dateStrToDayUuid(dateStr);
-  const existingRow = store.getNode(nodeId);
-  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.day)) {
-    return projectNode(store, nodeId)!;
-  }
-  const existingByName = findDayNoteByName(store, dateStr);
-  if (existingByName) return existingByName;
-
-  store.createNode({ nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.day] });
-  setDatePageContent(store, nodeId, dateStr);
-  return projectNode(store, nodeId)!;
+  return getOrCreateDateNote(store, dailyNoteIdentity(dateStr), () => findDayNoteByName(store, dateStr));
 }
 
 /**
  * Get or create a monthly journal page in the local-first core store.
  */
 export function getOrCreateMonthlyNote(store: WorkspaceStore, year: number, month: number): Node {
-  const label = `${year}-${String(month).padStart(2, '0')}`;
-  const nodeId = yearMonthToMonthUuid(year, month);
-  const existingRow = store.getNode(nodeId);
-  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.month)) {
-    return projectNode(store, nodeId)!;
-  }
-  const existingByName = findMonthlyNoteByName(store, label);
-  if (existingByName) return existingByName;
-
-  store.createNode({ nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.month] });
-  setDatePageContent(store, nodeId, label);
-  return projectNode(store, nodeId)!;
+  return getOrCreateDateNote(store, monthlyNoteIdentity(year, month), () => findMonthlyNoteByName(store, `${year}-${String(month).padStart(2, '0')}`));
 }
 
 /**
  * Get or create a yearly journal page in the local-first core store.
  */
 export function getOrCreateYearlyNote(store: WorkspaceStore, year: number): Node {
-  const label = `${year}`;
-  const nodeId = yearToYearUuid(year);
-  const existingRow = store.getNode(nodeId);
-  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.year)) {
-    return projectNode(store, nodeId)!;
-  }
-  const existingByName = findYearlyNoteByName(store, label);
-  if (existingByName) return existingByName;
-
-  store.createNode({ nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.year] });
-  setDatePageContent(store, nodeId, label);
-  return projectNode(store, nodeId)!;
+  return getOrCreateDateNote(store, yearlyNoteIdentity(year), () => findYearlyNoteByName(store, `${year}`));
 }
 
 /**
@@ -130,7 +152,7 @@ export function batchGetOrCreateDailyNotes(store: WorkspaceStore, dates: string[
  * List all existing daily journal pages in the local-first core store.
  */
 export function listDailyPagesFromStore(store: WorkspaceStore): Node[] {
-  return queryNodes(store, { classIds: [SYSTEM_CLASS_UUIDS.day], projectionDepth: 0 });
+  return queryNodes(store, DAILY_PAGES_QUERY);
 }
 
 // ─── Asynchronous helpers for worker-backed hooks ───
@@ -142,7 +164,7 @@ async function findDayNoteByNameClient(
   const dayNodes = await client.query<Node[]>('queryNodes', [
     { classIds: [SYSTEM_CLASS_UUIDS.day], query: dateStr, projectionDepth: 0 },
   ]);
-  return dayNodes.find((n) => nodeNameToText(n.name) === dateStr);
+  return findDateNoteByName(dayNodes, dateStr);
 }
 
 async function findMonthlyNoteByNameClient(
@@ -152,7 +174,7 @@ async function findMonthlyNoteByNameClient(
   const monthNodes = await client.query<Node[]>('queryNodes', [
     { classIds: [SYSTEM_CLASS_UUIDS.month], query: label, projectionDepth: 0 },
   ]);
-  return monthNodes.find((n) => nodeNameToText(n.name) === label);
+  return findDateNoteByName(monthNodes, label);
 }
 
 async function findYearlyNoteByNameClient(
@@ -162,29 +184,39 @@ async function findYearlyNoteByNameClient(
   const yearNodes = await client.query<Node[]>('queryNodes', [
     { classIds: [SYSTEM_CLASS_UUIDS.year], query: label, projectionDepth: 0 },
   ]);
-  return yearNodes.find((n) => nodeNameToText(n.name) === label);
+  return findDateNoteByName(yearNodes, label);
+}
+
+async function getOrCreateDateNoteClient(
+  client: IWorkspaceStoreClient,
+  identity: DateNoteIdentity,
+  findByName: () => Promise<Node | undefined>
+): Promise<Node> {
+  const { nodeId, label, classId } = identity;
+  const existingRow = await client.query<NodeRow | undefined>('getNode', [nodeId]);
+  if (existingRow?.classIds.includes(classId)) {
+    const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
+    if (projected) return projected;
+  }
+  const existingByName = await findByName();
+  if (existingByName) return existingByName;
+
+  await client.mutate<void>('createNode', [
+    { nodeId, kind: 'page', parentId: null, classIds: [classId] },
+  ]);
+  await client.mutate<void>('setNodeText', [nodeId, label]);
+  const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
+  if (!projected) throw new Error(`Failed to project ${classId} note ${nodeId}`);
+  return projected;
 }
 
 async function getOrCreateDailyNoteClient(
   client: IWorkspaceStoreClient,
   dateStr: string
 ): Promise<Node> {
-  const nodeId = dateStrToDayUuid(dateStr);
-  const existingRow = await client.query<NodeRow | undefined>('getNode', [nodeId]);
-  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.day)) {
-    const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
-    if (projected) return projected;
-  }
-  const existingByName = await findDayNoteByNameClient(client, dateStr);
-  if (existingByName) return existingByName;
-
-  await client.mutate<void>('createNode', [
-    { nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.day] },
-  ]);
-  await client.mutate<void>('setNodeText', [nodeId, dateStr]);
-  const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
-  if (!projected) throw new Error(`Failed to project daily note ${nodeId}`);
-  return projected;
+  return getOrCreateDateNoteClient(client, dailyNoteIdentity(dateStr), () =>
+    findDayNoteByNameClient(client, dateStr)
+  );
 }
 
 async function getOrCreateMonthlyNoteClient(
@@ -192,52 +224,22 @@ async function getOrCreateMonthlyNoteClient(
   year: number,
   month: number
 ): Promise<Node> {
-  const label = `${year}-${String(month).padStart(2, '0')}`;
-  const nodeId = yearMonthToMonthUuid(year, month);
-  const existingRow = await client.query<NodeRow | undefined>('getNode', [nodeId]);
-  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.month)) {
-    const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
-    if (projected) return projected;
-  }
-  const existingByName = await findMonthlyNoteByNameClient(client, label);
-  if (existingByName) return existingByName;
-
-  await client.mutate<void>('createNode', [
-    { nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.month] },
-  ]);
-  await client.mutate<void>('setNodeText', [nodeId, label]);
-  const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
-  if (!projected) throw new Error(`Failed to project monthly note ${nodeId}`);
-  return projected;
+  return getOrCreateDateNoteClient(client, monthlyNoteIdentity(year, month), () =>
+    findMonthlyNoteByNameClient(client, `${year}-${String(month).padStart(2, '0')}`)
+  );
 }
 
 async function getOrCreateYearlyNoteClient(
   client: IWorkspaceStoreClient,
   year: number
 ): Promise<Node> {
-  const label = `${year}`;
-  const nodeId = yearToYearUuid(year);
-  const existingRow = await client.query<NodeRow | undefined>('getNode', [nodeId]);
-  if (existingRow?.classIds.includes(SYSTEM_CLASS_UUIDS.year)) {
-    const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
-    if (projected) return projected;
-  }
-  const existingByName = await findYearlyNoteByNameClient(client, label);
-  if (existingByName) return existingByName;
-
-  await client.mutate<void>('createNode', [
-    { nodeId, kind: 'page', parentId: null, classIds: [SYSTEM_CLASS_UUIDS.year] },
-  ]);
-  await client.mutate<void>('setNodeText', [nodeId, label]);
-  const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
-  if (!projected) throw new Error(`Failed to project yearly note ${nodeId}`);
-  return projected;
+  return getOrCreateDateNoteClient(client, yearlyNoteIdentity(year), () =>
+    findYearlyNoteByNameClient(client, `${year}`)
+  );
 }
 
 async function listDailyPagesFromStoreClient(client: IWorkspaceStoreClient): Promise<Node[]> {
-  return client.query<Node[]>('queryNodes', [
-    { classIds: [SYSTEM_CLASS_UUIDS.day], projectionDepth: 0 },
-  ]);
+  return client.query<Node[]>('queryNodes', [DAILY_PAGES_QUERY]);
 }
 
 // ─── Hooks ───
