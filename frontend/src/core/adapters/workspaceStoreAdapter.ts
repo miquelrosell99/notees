@@ -3,7 +3,6 @@ import { saveWorkspaceDatabase, deleteWorkspaceDatabase } from '../persistence/i
 import { SyncEngine, type SyncEngineCallbacks } from '../sync';
 import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
-import { UndoManager } from '../undo';
 
 interface RegistryEntry {
   store: WorkspaceStore;
@@ -65,7 +64,6 @@ async function openWorkspaceStore(
     }
     existing.syncEngine.stopAutoSync();
     registry.delete(workspaceId);
-    UndoManager.removeUndoManager(workspaceId);
     await deleteWorkspaceDatabase(workspaceId);
   }
 
@@ -75,7 +73,6 @@ async function openWorkspaceStore(
       await saveWorkspaceDatabase(workspaceId, data);
     },
   });
-  UndoManager.getOrCreateUndoManager(workspaceId, store);
   const syncEngine = new SyncEngine(store, transport, options.syncCallbacks);
   registry.set(workspaceId, { store, syncEngine });
 
@@ -149,6 +146,5 @@ export async function resetWorkspaceStore(workspaceId: string): Promise<void> {
     entry.syncEngine.stopAutoSync();
     registry.delete(workspaceId);
   }
-  UndoManager.removeUndoManager(workspaceId);
   await deleteWorkspaceDatabase(workspaceId);
 }
