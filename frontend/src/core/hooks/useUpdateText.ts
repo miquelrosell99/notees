@@ -27,6 +27,10 @@ export function useUpdateText(workspaceId: string): UseUpdateTextResult {
       setError(null);
       try {
         if (manager) {
+          // TODO(D3): This reads from the main-thread sync store, which will
+          // diverge from the worker-owned store once the Web Worker path is
+          // primary in the browser. Replace with a serializable text-edit
+          // operation sent to the worker before enabling the worker there.
           const currentState = store.getTextState(args.nodeId);
           const text = new TextCrdt(currentState);
           args.editor(text);
