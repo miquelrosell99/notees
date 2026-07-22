@@ -251,22 +251,13 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
 
 /**
  * Async projection helper for the worker-backed store client.
- *
- * TODO: This fetches the underlying sql.js Database via `client.query('getDb')`,
- * which works in the jsdom test shim (where the client shares the same store)
- * but cannot work in a real Web Worker because sql.js Database instances are
- * not transferable. For production worker support, projection must either be
- * implemented as a worker-side query method or receive serializable node data
- * from the worker.
+ * Projection runs inside the worker; the client only receives the serialisable
+ * Node result.
  */
 export async function projectNodeFromClient(
   client: IWorkspaceStoreClient,
   nodeId: string,
   depth = MAX_CHILDREN_DEPTH
 ): Promise<Node | undefined> {
-  const [db, workspaceId] = await Promise.all([
-    client.query<Database>('getDb', []),
-    client.query<string>('getWorkspaceId', []),
-  ]);
-  return projectNodeFromDb(db, workspaceId, nodeId, depth);
+  return client.query<Node | undefined>('projectNode', [nodeId, depth]);
 }
