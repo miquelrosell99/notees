@@ -442,9 +442,7 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
-  updateText(nodeId: string, editor: (text: TextCrdt) => void): void {
-    const text = loadTextCrdt(this.db, nodeId);
-    editor(text);
+  private applyTextUpdate(nodeId: string, text: TextCrdt): void {
     const op = createOperation(
       {
         workspaceId: this.workspaceId,
@@ -456,6 +454,12 @@ export class WorkspaceStore {
       { nodeId, textUpdate: Array.from(text.getState()) }
     );
     this.apply(op);
+  }
+
+  updateText(nodeId: string, editor: (text: TextCrdt) => void): void {
+    const text = loadTextCrdt(this.db, nodeId);
+    editor(text);
+    this.applyTextUpdate(nodeId, text);
   }
 
   /**
@@ -467,17 +471,7 @@ export class WorkspaceStore {
     const current = text.toPlaintext();
     text.delete(0, current.length);
     text.insert(0, value);
-    const op = createOperation(
-      {
-        workspaceId: this.workspaceId,
-        actorId: this.actorId,
-        hlc: this.clock.advance(Date.now()),
-        affectedNodeIds: [nodeId],
-        opType: 'node.updateContent',
-      },
-      { nodeId, textUpdate: Array.from(text.getState()) }
-    );
-    this.apply(op);
+    this.applyTextUpdate(nodeId, text);
   }
 
   /**
@@ -487,17 +481,7 @@ export class WorkspaceStore {
   insertNodeText(nodeId: string, index: number, value: string): void {
     const text = loadTextCrdt(this.db, nodeId);
     text.insert(index, value);
-    const op = createOperation(
-      {
-        workspaceId: this.workspaceId,
-        actorId: this.actorId,
-        hlc: this.clock.advance(Date.now()),
-        affectedNodeIds: [nodeId],
-        opType: 'node.updateContent',
-      },
-      { nodeId, textUpdate: Array.from(text.getState()) }
-    );
-    this.apply(op);
+    this.applyTextUpdate(nodeId, text);
   }
 
   /**
@@ -507,17 +491,7 @@ export class WorkspaceStore {
   deleteNodeText(nodeId: string, index: number, length: number): void {
     const text = loadTextCrdt(this.db, nodeId);
     text.delete(index, length);
-    const op = createOperation(
-      {
-        workspaceId: this.workspaceId,
-        actorId: this.actorId,
-        hlc: this.clock.advance(Date.now()),
-        affectedNodeIds: [nodeId],
-        opType: 'node.updateContent',
-      },
-      { nodeId, textUpdate: Array.from(text.getState()) }
-    );
-    this.apply(op);
+    this.applyTextUpdate(nodeId, text);
   }
 
   /**
