@@ -1,15 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Property, BatchPropertiesResult } from '@/types/api';
 import { usePropertySchemas } from '../hooks/usePropertySchemas';
-import { useWorkspaceStore } from '../hooks/useWorkspaceStore';
-import { queryAll } from '../db/sqlite';
-
-// TODO: Migrate to the async WorkspaceStoreClient. This adapter depends on
-// `usePropertySchemas` (blocked by raw SQL) and on `store.getDb()` for batch
-// property values, neither of which is transferable from a Web Worker. Add
-// worker-side query methods before switching to `useWorkspaceStoreClient`.
+import { useWorkspaceStoreClient } from '../hooks/useWorkspaceStoreClient';
 
 function toQueryResult<TData>(
   data: TData | undefined,
@@ -76,14 +70,6 @@ function useMemoizedAvailableProperties(
   }, [schemas, contextNodeId, contextClassIds]);
 }
 
-function parseValue(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-}
-
 /**
  * Adapter for fetching a single property schema by UUID.
  */
@@ -100,23 +86,39 @@ export function useBatchPropertyValuesAdapter(
   nodeUuids: string[]
 ): UseQueryResult<BatchPropertiesResult, Error> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceId ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId);
+  const [data, setData] = useState<BatchPropertiesResult>({});
+  const nodeUuidsKey = nodeUuids.join(',');
 
-  const result: BatchPropertiesResult = {};
-  if (store && nodeUuids.length > 0) {
-    for (const nodeId of nodeUuids) {
-      const rows = queryAll<{ property_schema_id: string; value: string }>(
-        store.getDb(),
-        'SELECT property_schema_id, value FROM property_value WHERE node_id = ?',
-        [nodeId]
-      );
-      const map: Record<string, unknown> = {};
-      for (const row of rows) {
-        map[row.property_schema_id] = parseValue(row.value);
-      }
-      result[nodeId] = map;
+  useEffect(() => {
+    if (!client || nodeUuidsKey === '') {
+      setData({});
+      return;
     }
-  }
 
-  return toQueryResult(result, isLoading, error);
+    const ids = nodeUuidsKey.split(',');
+    let cancelled = false;
+    const update = (): void => {
+      client
+        .query<BatchPropertiesResult>('getBatchPropertyValues', [ids])
+        .then((result) => {
+          if (!cancelled) {
+            setData(result);
+          }
+        })
+        .catch((err) => {
+          console.error('[useBatchPropertyValuesAdapter] query failed:', err);
+        });
+    };
+
+    update();
+    const unsubscribe = client.subscribe(null, update);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client, nodeUuidsKey]);
+
+  return toQueryResult(data, isLoading, error);
 }

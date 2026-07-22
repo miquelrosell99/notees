@@ -10,6 +10,13 @@ import { WorkspaceStore } from '../store';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
 import { projectNode } from '../adapters/nodeProjection';
+import {
+  getNodeProperties,
+  getPropertySchemas,
+  getBatchPropertyValues,
+  getClassProperties,
+  getNodeClassPropertyEdges,
+} from '../adapters/propertyQueries';
 import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
 
 interface WorkerState {
@@ -103,6 +110,40 @@ function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): void {
   if (request.method === 'projectNode') {
     const [nodeId, depth] = request.args as [string, number | undefined];
     const result = projectNode(state.store, nodeId, depth);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getNodeProperties') {
+    const [nodeId] = request.args as [string];
+    const result = getNodeProperties(state.store, nodeId);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getPropertySchemas') {
+    const result = getPropertySchemas(state.store);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getBatchPropertyValues') {
+    const [nodeUuids] = request.args as [string[]];
+    const result = getBatchPropertyValues(state.store, nodeUuids);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getClassProperties') {
+    const [classId, includeInherited] = request.args as [string, boolean];
+    const result = getClassProperties(state.store, classId, includeInherited);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getNodeClassPropertyEdges') {
+    const [classUuids] = request.args as [string[]];
+    const result = getNodeClassPropertyEdges(state.store, classUuids);
     postResponse({ type: 'query-result', id: request.id, result });
     return;
   }

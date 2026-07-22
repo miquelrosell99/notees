@@ -12,6 +12,13 @@ import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
 import { projectNode } from '../adapters/nodeProjection';
 import {
+  getNodeProperties,
+  getPropertySchemas,
+  getBatchPropertyValues,
+  getClassProperties,
+  getNodeClassPropertyEdges,
+} from '../adapters/propertyQueries';
+import {
   type IWorkspaceStoreClient,
   type WorkerRequest,
   type WorkerMessage,
@@ -229,6 +236,26 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       const [nodeId, depth] = args as [string, number | undefined];
       return Promise.resolve(projectNode(this.store, nodeId, depth) as T);
     }
+    if (method === 'getNodeProperties') {
+      const [nodeId] = args as [string];
+      return Promise.resolve(getNodeProperties(this.store, nodeId) as T);
+    }
+    if (method === 'getPropertySchemas') {
+      return Promise.resolve(getPropertySchemas(this.store) as T);
+    }
+    if (method === 'getBatchPropertyValues') {
+      const [nodeUuids] = args as [string[]];
+      return Promise.resolve(getBatchPropertyValues(this.store, nodeUuids) as T);
+    }
+    if (method === 'getClassProperties') {
+      const [classId, includeInherited] = args as [string, boolean];
+      return Promise.resolve(getClassProperties(this.store, classId, includeInherited) as T);
+    }
+    if (method === 'getNodeClassPropertyEdges') {
+      const [classUuids] = args as [string[]];
+      return Promise.resolve(getNodeClassPropertyEdges(this.store, classUuids) as T);
+    }
+
     const fn = (this.store as unknown as Record<string, unknown>)[method];
     if (typeof fn !== 'function') {
       return Promise.reject(new Error(`Unknown query method: ${method}`));

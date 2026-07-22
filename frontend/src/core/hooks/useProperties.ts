@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { queryAll } from '../db/sqlite';
-import { useWorkspaceStore } from './useWorkspaceStore';
+import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 
 export interface UsePropertiesResult {
   properties: Record<string, unknown[]>;
@@ -9,55 +8,42 @@ export interface UsePropertiesResult {
   error: Error | null;
 }
 
-function parseValue(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-}
-
 /**
  * Aggregate all property values for a node, keyed by property schema UUID.
- *
- * TODO: Migrate to the async WorkspaceStoreClient. This hook runs raw SQL
- * against `store.getDb()`, which is not transferable from a Web Worker.
- * Either add worker-side query methods for property aggregation or expose a
- * serializable API before switching to `useWorkspaceStoreClient`.
  */
 export function useProperties(nodeId: string): UsePropertiesResult {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceId ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceId);
   const [properties, setProperties] = useState<Record<string, unknown[]>>({});
 
   useEffect(() => {
-    if (!store || !nodeId) {
+    if (!client || !nodeId) {
       setProperties({});
       return;
     }
 
+    let cancelled = false;
     const update = (): void => {
-      const rows = queryAll<{
-        property_schema_id: string;
-        value: string;
-        idx: number;
-      }>(
-        store.getDb(),
-        'SELECT property_schema_id, value, idx FROM property_value WHERE node_id = ? ORDER BY idx',
-        [nodeId]
-      );
-
-      const map: Record<string, unknown[]> = {};
-      for (const row of rows) {
-        const list = (map[row.property_schema_id] ??= []);
-        list[row.idx] = parseValue(row.value);
-      }
-      setProperties(map);
+      client
+        .query<Record<string, unknown[]>>('getNodeProperties', [nodeId])
+        .then((result) => {
+          if (!cancelled) {
+            setProperties(result);
+          }
+        })
+        .catch((err) => {
+          console.error('[useProperties] query failed:', err);
+        });
     };
 
     update();
-    return store.subscribe(nodeId, update);
-  }, [store, nodeId]);
+    const unsubscribe = client.subscribe(nodeId, update);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [client, nodeId]);
 
   return { properties, isLoading, error };
 }
