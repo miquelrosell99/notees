@@ -22,11 +22,25 @@ function isWorker(): boolean {
   );
 }
 
+const WASM_FETCH_TIMEOUT_MS = 20_000;
+const SQL_INIT_TIMEOUT_MS = 30_000;
+const SQL_INIT_MAX_RETRIES = 3;
+
+async function fetchWithTimeout(url: string, timeoutMs: number, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchWasmBinary(): Promise<ArrayBuffer> {
   // Bypass the service worker when fetching the wasm binary so we always hit
   // the network/Vite dev server. Service workers (especially in dev) can
   // return a stale HTML fallback for URLs they do not recognize.
-  const response = await fetch('/sql-wasm.wasm', {
+  const response = await fetchWithTimeout('/sql-wasm.wasm', WASM_FETCH_TIMEOUT_MS, {
     cache: 'no-store',
     headers: { 'Service-Worker': 'script' },
   });
@@ -43,7 +57,21 @@ async function fetchWasmBinary(): Promise<ArrayBuffer> {
   return response.arrayBuffer();
 }
 
-async function getSqlModule(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
+async function initSqlJsWithTimeout(
+  config: Parameters<typeof initSqlJs>[0]
+): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
+  return Promise.race([
+    initSqlJs(config),
+    new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error('sql.js module initialization timed out')),
+        SQL_INIT_TIMEOUT_MS
+      );
+    }),
+  ]);
+}
+
+async function getSqlModule(attempt = 1): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
   if (sqlInitError) {
     throw sqlInitError;
   }
@@ -61,12 +89,17 @@ async function getSqlModule(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
           config.locateFile = () => `/sql-wasm.wasm`;
         }
       }
-      sqlModule = await initSqlJs(config);
+      sqlModule = await initSqlJsWithTimeout(config);
     } catch (err) {
+      if (attempt < SQL_INIT_MAX_RETRIES) {
+        const delayMs = 2 ** attempt * 500;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        return getSqlModule(attempt + 1);
+      }
       const message = err instanceof Error ? err.message : String(err);
       sqlInitError = new Error(
         `Failed to load sql.js (SQLite wasm): ${message}. ` +
-          'Your workspace database cannot be opened. Try refreshing the page.`'
+          'Your workspace database cannot be opened. Try refreshing the page.'
       );
       throw sqlInitError;
     }

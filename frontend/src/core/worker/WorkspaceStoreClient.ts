@@ -75,7 +75,12 @@ export interface WorkspaceStoreClientOptions {
 interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
 }
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const INIT_TIMEOUT_MS = 60_000;
+const EXPORT_TIMEOUT_MS = 60_000;
 
 function isWorkerSupported(): boolean {
   if (typeof Worker === 'undefined') return false;
@@ -84,23 +89,43 @@ function isWorkerSupported(): boolean {
   return !navigator.userAgent.includes('jsdom');
 }
 
-class WorkerStoreClient implements IWorkspaceStoreClient {
+export class WorkerStoreClient implements IWorkspaceStoreClient {
   private worker: Worker;
   private pending = new Map<number, PendingRequest>();
   private listeners = new Map<string | null, Set<() => void>>();
+  private closed = false;
 
   constructor(worker: Worker) {
     this.worker = worker;
     this.worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
       this.handleMessage(event.data);
     };
+    this.worker.onmessageerror = () => {
+      // Reject all pending requests when the worker fails to deserialize a
+      // message; the worker is no longer trustworthy.
+      this.rejectAllPending(new Error('Worker message deserialization error'));
+      this.terminate();
+    };
     this.worker.onerror = (err) => {
       // Reject all pending requests on a catastrophic worker error.
-      for (const { reject } of this.pending.values()) {
-        reject(new Error(`Worker error: ${err.message}`));
-      }
-      this.pending.clear();
+      this.rejectAllPending(new Error(`Worker error: ${err.message}`));
+      this.terminate();
     };
+  }
+
+  private rejectAllPending(error: Error): void {
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pending.clear();
+  }
+
+  private terminate(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.worker.terminate();
+    this.listeners.clear();
   }
 
   private handleMessage(msg: WorkerMessage): void {
@@ -111,6 +136,7 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
 
     const pending = this.pending.get(msg.id);
     if (!pending) return;
+    clearTimeout(pending.timer);
     this.pending.delete(msg.id);
 
     if (msg.type === 'error') {
@@ -134,32 +160,52 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
     }
   }
 
-  private send<T>(request: WorkerRequest): Promise<T> {
+  private send<T>(request: WorkerRequest, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<T> {
     return new Promise<T>((resolve, reject) => {
+      if (this.closed) {
+        reject(new Error('Worker is closed'));
+        return;
+      }
       if (!('id' in request)) {
         reject(new Error('Request must have an id'));
         return;
       }
-      this.pending.set(request.id, { resolve: resolve as (value: unknown) => void, reject });
+      const id = request.id;
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        this.terminate();
+        reject(
+          new Error(
+            `Worker request ${request.type}:${id} timed out after ${timeoutMs}ms`
+          )
+        );
+      }, timeoutMs);
+      this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
       this.worker.postMessage(request);
     });
   }
 
   async init(workspaceId: string, actorId: string, options: WorkspaceStoreClientOptions = {}): Promise<void> {
-    await this.send<void>({
-      type: 'init',
-      id: generateRequestId(),
-      workspaceId,
-      actorId,
-      dbBytes: options.dbBytes,
-    });
+    await this.send<void>(
+      {
+        type: 'init',
+        id: generateRequestId(),
+        workspaceId,
+        actorId,
+        dbBytes: options.dbBytes,
+      },
+      INIT_TIMEOUT_MS
+    );
   }
 
   async export(): Promise<Uint8Array> {
-    return this.send<Uint8Array>({
-      type: 'export',
-      id: generateRequestId(),
-    });
+    return this.send<Uint8Array>(
+      {
+        type: 'export',
+        id: generateRequestId(),
+      },
+      EXPORT_TIMEOUT_MS
+    );
   }
 
   mutate<T>(method: string, args: unknown[]): Promise<T> {
@@ -219,13 +265,20 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
   }
 
   close(): void {
+    if (this.closed) return;
+    this.closed = true;
     this.worker.postMessage({ type: 'close' });
     this.worker.terminate();
-    for (const { reject } of this.pending.values()) {
-      reject(new Error('Worker closed'));
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Worker closed'));
     }
     this.pending.clear();
     this.listeners.clear();
+  }
+
+  isClosed(): boolean {
+    return this.closed;
   }
 }
 
@@ -236,6 +289,7 @@ class WorkerStoreClient implements IWorkspaceStoreClient {
 class InlineStoreClient implements IWorkspaceStoreClient {
   private store: WorkspaceStore | null = null;
   private undoManager: UndoManager | null = null;
+  private closed = false;
 
   async init(workspaceId: string, actorId: string, options: WorkspaceStoreClientOptions = {}): Promise<void> {
     if (options.store) {
@@ -701,8 +755,13 @@ class InlineStoreClient implements IWorkspaceStoreClient {
   }
 
   close(): void {
+    this.closed = true;
     this.store = null;
     this.undoManager = null;
+  }
+
+  isClosed(): boolean {
+    return this.closed;
   }
 }
 

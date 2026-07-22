@@ -5,7 +5,10 @@ import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
-import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
+import {
+  closeWorkspaceStoreClient,
+  getOrCreateWorkspaceStoreClient,
+} from './workspaceStoreClientAdapter';
 import {
   clearFavoritesCache,
   subscribeFavorites,
@@ -115,13 +118,9 @@ async function openWorkspaceStore(
 
   // Initialize performs a one-time version check and may trigger a hard rebuild
   // of derived state when the applier version has changed. It then runs the
-  // first sync. Opening a workspace should not fail just because the network is
-  // unavailable, so initialization errors are caught and logged rather than
-  // rejecting the open promise. Awaiting initialization lets callers (e.g. the
-  // workspace loading overlay) know exactly when the first sync is complete.
-  await syncEngine.initialize().catch((err) => {
-    console.error(`Initial sync failed for workspace ${workspaceId}:`, err);
-  });
+  // first sync. Initialization errors are propagated so the workspace loading
+  // overlay can show the error overlay and let the user retry.
+  await syncEngine.initialize();
 
   return store;
 }
@@ -158,6 +157,7 @@ export async function closeWorkspaceStore(workspaceId: string): Promise<void> {
   await persistWorkspace(workspaceId, entry.client);
   entry.client.close();
   registry.delete(workspaceId);
+  await closeWorkspaceStoreClient(workspaceId);
 }
 
 export async function syncWorkspace(workspaceId: string): Promise<void> {
@@ -195,5 +195,6 @@ export async function resetWorkspaceStore(workspaceId: string): Promise<void> {
     entry.client.close();
     registry.delete(workspaceId);
   }
+  await closeWorkspaceStoreClient(workspaceId);
   await deleteWorkspaceDatabase(workspaceId);
 }

@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   createWorkspaceStoreClient,
   resetSharedWorkspaceStoreClient,
+  WorkerStoreClient,
 } from '../WorkspaceStoreClient';
 import type { IWorkspaceStoreClient } from '../workerProtocol';
 import { uuidv7 } from '../../uuid';
@@ -198,5 +199,107 @@ describe('WorkspaceStoreClient', () => {
     expect(node).toBeDefined();
     const content = JSON.parse((node as { content: string }).content);
     expect(content[0].text).toBe('Hello');
+  });
+
+  describe('WorkerStoreClient main-thread timeout behavior', () => {
+    function createMockWorker(): Worker {
+      return {
+        postMessage: vi.fn(),
+        terminate: vi.fn(),
+        onmessage: null,
+        onmessageerror: null,
+        onerror: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as Worker;
+    }
+
+    function getLastRequestId(worker: Worker): number {
+      const calls = (worker.postMessage as ReturnType<typeof vi.fn>).mock.calls;
+      const lastCall = calls[calls.length - 1];
+      return (lastCall[0] as { id: number }).id;
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('rejects pending requests that time out and terminates the worker', async () => {
+      const worker = createMockWorker();
+      const mainClient = new WorkerStoreClient(worker);
+      const promise = mainClient
+        .query('getNode', ['node-1'])
+        .catch((err: Error) => err);
+
+      vi.advanceTimersByTime(31_000);
+
+      const err = await promise;
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toContain('timed out after 30000ms');
+      expect(worker.terminate).toHaveBeenCalled();
+      expect(mainClient.isClosed()).toBe(true);
+      mainClient.close();
+    });
+
+    it('rejects all pending requests on worker error', async () => {
+      const worker = createMockWorker();
+      const mainClient = new WorkerStoreClient(worker);
+      const p1 = mainClient.query('getNode', ['node-1']);
+      const p2 = mainClient.mutate('createNode', [
+        { nodeId: 'node-2', kind: 'page', parentId: null, classIds: [] },
+      ]);
+
+      if (worker.onerror) {
+        worker.onerror(new ErrorEvent('error', { message: 'boom' }));
+      }
+
+      await expect(p1).rejects.toThrow('Worker error: boom');
+      await expect(p2).rejects.toThrow('Worker error: boom');
+      expect(worker.terminate).toHaveBeenCalled();
+      mainClient.close();
+    });
+
+    it('uses a longer timeout for init requests', async () => {
+      const worker = createMockWorker();
+      const mainClient = new WorkerStoreClient(worker);
+      const promise = mainClient.init('ws-1', 'actor-1').catch((err: Error) => err);
+
+      vi.advanceTimersByTime(35_000);
+      // Should still be pending at 35s; reject by advancing to 65s.
+      vi.advanceTimersByTime(30_000);
+
+      const err = await promise;
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toContain('timed out after 60000ms');
+      mainClient.close();
+    });
+
+    it('clears the timeout when a response arrives', async () => {
+      const worker = createMockWorker();
+      const mainClient = new WorkerStoreClient(worker);
+      const promise = mainClient.query('getNode', ['node-1']);
+      const requestId = getLastRequestId(worker);
+
+      if (worker.onmessage) {
+        worker.onmessage(
+          new MessageEvent('message', {
+            data: { type: 'query-result', id: requestId, result: { id: 'node-1' } },
+          })
+        );
+      }
+
+      const result = await promise;
+      expect(result).toEqual({ id: 'node-1' });
+
+      // Ensure the timeout timer was cleared and the worker is still alive.
+      await vi.advanceTimersByTimeAsync(35_000);
+      expect(worker.terminate).not.toHaveBeenCalled();
+      mainClient.close();
+    });
   });
 });

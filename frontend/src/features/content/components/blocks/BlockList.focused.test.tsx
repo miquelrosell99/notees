@@ -164,6 +164,7 @@ const {
     },
     subscribe: () => () => {},
     close: () => {},
+    isClosed: () => false,
   };
 
   return {
