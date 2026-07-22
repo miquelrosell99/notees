@@ -11,7 +11,8 @@ import { renderHook } from '@testing-library/react';
 import { WorkspaceStore } from '@/core/store';
 import { uuidv7 } from '@/core/uuid';
 import { createTestDatabase } from '@/core/__tests__/helpers';
-import { flattenNodes, buildFlatNodesFromStore, isGhostId, buildGhostId, parseGhostParentUuid } from './useBlockTree';
+import { flattenNodes, isGhostId, buildGhostId, parseGhostParentUuid } from './useBlockTree';
+import { buildFlatNodesFromStore } from './useBlockTree.store';
 import { useBlockTree } from './useBlockTree';
 import type { Node } from '@/types/api';
 
