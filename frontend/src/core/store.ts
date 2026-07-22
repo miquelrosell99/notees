@@ -86,6 +86,8 @@ export class WorkspaceStore {
   private onPersist?: (data: Uint8Array) => void | Promise<void>;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
   private persistDebounceMs: number;
+  private batchDepth = 0;
+  private batchDirty = false;
 
   constructor(
     db: Database,
@@ -138,6 +140,31 @@ export class WorkspaceStore {
       this.persistTimer = null;
     }
     void this.onPersist(this.export());
+  }
+
+  /**
+   * Begin a batch of operations. While the batch is open, listeners are not
+   * notified and persistence is deferred. This prevents the UI from re-rendering
+   * on every operation during a large sync or import. Call `endBatch()` when the
+   * batch is complete to emit a single collective notification and schedule
+   * persistence.
+   */
+  startBatch(): void {
+    this.batchDepth++;
+  }
+
+  /**
+   * End a batch started with `startBatch()`. If any operations were applied
+   * during the batch, all listeners are notified once and persistence is
+   * scheduled.
+   */
+  endBatch(): void {
+    this.batchDepth--;
+    if (this.batchDepth === 0 && this.batchDirty) {
+      this.batchDirty = false;
+      this.emitAll();
+      this.schedulePersist();
+    }
   }
 
   /**
@@ -316,7 +343,9 @@ export class WorkspaceStore {
       for (const nodeId of affectedNodeIds) {
         this.notify(nodeId);
       }
-      this.schedulePersist();
+      if (this.batchDepth === 0) {
+        this.schedulePersist();
+      }
     }
   }
 
@@ -347,6 +376,10 @@ export class WorkspaceStore {
   }
 
   private notify(nodeId: string): void {
+    if (this.batchDepth > 0) {
+      this.batchDirty = true;
+      return;
+    }
     const set = this.listeners.get(nodeId);
     if (set) {
       for (const callback of set) {
@@ -368,6 +401,10 @@ export class WorkspaceStore {
   }
 
   private emitAll(): void {
+    if (this.batchDepth > 0) {
+      this.batchDirty = true;
+      return;
+    }
     for (const callback of this.allListeners) {
       try {
         callback();

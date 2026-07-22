@@ -53,7 +53,7 @@ export function useNodesWithClass(classUuid: string | null) {
     queryKey: nodeKeys.byClass(classUuid ?? ''),
     queryFn: () => {
       if (!store) throw new Error('Workspace store is not ready');
-      const items = queryNodes(store, { classIds: classUuid ? [classUuid] : [] });
+      const items = queryNodes(store, { classIds: classUuid ? [classUuid] : [], projectionDepth: 0 });
       return {
         items,
         total: items.length,

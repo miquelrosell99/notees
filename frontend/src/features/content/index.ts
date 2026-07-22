@@ -12,6 +12,7 @@
 export { NodeView, NodeViewContent, NodeViewWrapper } from './pages/NodeView';
 export { NodeCollectionView } from './pages/NodeCollectionView';
 export { PagesView } from './pages/PagesView';
+export { ClassesView } from './pages/ClassesView';
 export { ArchivedPagesView } from './pages/ArchivedPagesView';
 export { TrashView } from './pages/TrashView';
 export { AllPagesView } from './pages/AllPagesView';

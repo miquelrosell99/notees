@@ -2,13 +2,12 @@
  * Pages View - hub for all pages with view mode switching
  *
  * Uses NodeCollection directly with multiple view modes (list, document, card,
- * table, graph, timeline). List view shows the full pages tree hierarchy.
+ * table, graph, timeline). Only page nodes are shown; child blocks are never
+ * rendered in this view.
  */
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useCallback, useMemo } from 'react';
 import { usePages } from '@/features/content';
 import { useContentSave } from '@/features/editor';
-import { nodeKeys } from '@/hooks/queryKeys';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
@@ -36,7 +35,6 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
   const openNode = useNavigationStore((state) => state.openNode);
   const setCommandPaletteOpen = useModalStore((state) => state.setCommandPaletteOpen);
   const { handleContentChange: saveContent } = useContentSave();
-  const queryClient = useQueryClient();
 
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(initialViewMode ?? 'list');
 
@@ -50,43 +48,22 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
     setViewMode(mode);
   }, []);
 
-  // Force fresh fetch of the pages tree when this view mounts.
-  // The backend now returns has_children and nested children correctly,
-  // but old TanStack Query cache may hold stale flat data.
-  useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: nodeKeys.pages({ includeChildren: true, rootOnly: true }) });
-  }, [queryClient]);
+  const { data: pages, isLoading, isPlaceholderData, error, refetch } = usePages();
 
-  const { data: pages, isLoading, isPlaceholderData, error, refetch } = usePages({
-    includeChildren: true,
-    rootOnly: true,
-  });
-
-  // Flatten the tree for non-list views (graph, timeline, card, table)
-  // so they receive all pages including child pages, not just root pages.
-  const flatAllPages = useMemo(() => {
+  // All pages view modes operate on a flat list of page nodes only.
+  // Strip children so block contents are never rendered here.
+  const displayNodes = useMemo<Node[]>(() => {
     if (!pages) return [];
     const seen = new Set<string>();
     const result: Node[] = [];
-    const collect = (n: Node) => {
-      if (n.is_page && !seen.has(n.uuid)) {
-        seen.add(n.uuid);
-        result.push(n);
-      }
-      if (n.children) {
-        for (const child of n.children) {
-          collect(child);
-        }
-      }
-    };
-    for (const n of pages) collect(n);
+    for (const n of pages) {
+      if (!n.is_page || seen.has(n.uuid)) continue;
+      seen.add(n.uuid);
+      // Prevent any view from recursing into page contents.
+      result.push({ ...n, children: undefined, has_children: false });
+    }
     return result;
   }, [pages]);
-
-  // List view needs the tree structure; other views need a flat list of all pages.
-  const displayNodes = useMemo(() => {
-    return viewMode === 'list' ? (pages || []) : flatAllPages;
-  }, [viewMode, pages, flatAllPages]);
 
   const handleSearchSelect = useCallback((node: Node) => {
     openNode(node.uuid);
@@ -177,6 +154,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             cardLayout={cardLayout}
             onCardLayoutChange={setCardLayout}
             showNewBlock={false}
+            maxDepth={0}
           />
         </DataStateView>
       </div>

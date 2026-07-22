@@ -74,6 +74,7 @@ export function executeQuery(
   const nodes = queryNodes(store, {
     ast,
     runtimeParams: request.runtime_params,
+    projectionDepth: 0,
   });
 
   const offset = request.offset ?? 0;

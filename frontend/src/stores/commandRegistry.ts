@@ -213,6 +213,7 @@ export const COMMAND_IDS = {
   OPEN_TASKS_VIEW: 'view.tasks',
   OPEN_ALL_PAGES: 'view.allPages',
   OPEN_PAGES: 'view.pages',
+  OPEN_CLASSES: 'view.classes',
   OPEN_INBOX: 'view.inbox',
   OPEN_TEMPLATES: 'view.templates',
   OPEN_WHITEBOARDS: 'view.whiteboards',

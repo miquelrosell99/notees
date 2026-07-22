@@ -81,6 +81,7 @@ export function buildLinkedReferences(
   const matches = queryNodes(store, {
     ast,
     runtimeParams: { current_node_uuid: nodeUuid, current_node_id: nodeUuid },
+    projectionDepth: 0,
   });
 
   const refs = matches.map((sourceNode) => buildSyntheticRef(store, sourceNode.uuid));

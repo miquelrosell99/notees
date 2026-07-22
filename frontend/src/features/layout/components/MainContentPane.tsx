@@ -8,7 +8,7 @@
 import React, { useMemo, Suspense } from 'react';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useNode, useClasses } from '@/features/content';
-import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ArchivedPagesView, TrashView, TemplateGallery } from '@/features/content';
+import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ClassesView, ArchivedPagesView, TrashView, TemplateGallery } from '@/features/content';
 import { WhiteboardsView } from '@/features/whiteboard';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
@@ -54,6 +54,14 @@ export function MainContentPane({
     return (
       <div className="main-content">
         <PagesView />
+      </div>
+    );
+  }
+
+  if (viewType === 'classes') {
+    return (
+      <div className="main-content">
+        <ClassesView />
       </div>
     );
   }
