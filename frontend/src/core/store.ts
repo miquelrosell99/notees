@@ -459,6 +459,68 @@ export class WorkspaceStore {
   }
 
   /**
+   * Replace the entire text content of a node with a plain string.
+   * Serializable worker-compatible alternative to updateText callbacks.
+   */
+  setNodeText(nodeId: string, value: string): void {
+    const text = loadTextCrdt(this.db, nodeId);
+    const current = text.toPlaintext();
+    text.delete(0, current.length);
+    text.insert(0, value);
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.updateContent',
+      },
+      { nodeId, textUpdate: Array.from(text.getState()) }
+    );
+    this.apply(op);
+  }
+
+  /**
+   * Insert plain text at the given index in a node's text CRDT.
+   * Serializable worker-compatible alternative to updateText callbacks.
+   */
+  insertNodeText(nodeId: string, index: number, value: string): void {
+    const text = loadTextCrdt(this.db, nodeId);
+    text.insert(index, value);
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.updateContent',
+      },
+      { nodeId, textUpdate: Array.from(text.getState()) }
+    );
+    this.apply(op);
+  }
+
+  /**
+   * Delete a range of text from a node's text CRDT.
+   * Serializable worker-compatible alternative to updateText callbacks.
+   */
+  deleteNodeText(nodeId: string, index: number, length: number): void {
+    const text = loadTextCrdt(this.db, nodeId);
+    text.delete(index, length);
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.updateContent',
+      },
+      { nodeId, textUpdate: Array.from(text.getState()) }
+    );
+    this.apply(op);
+  }
+
+  /**
    * Replace a node's content AST directly. Used by maintenance tools that need
    * to perform structural AST transformations (e.g. converting raw [[uuid]]
    * text into node_link nodes) without going through the text CRDT.
