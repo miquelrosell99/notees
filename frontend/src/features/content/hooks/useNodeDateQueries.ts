@@ -225,7 +225,7 @@ export async function getOrCreateDailyNoteClient(
   );
 }
 
-async function getOrCreateMonthlyNoteClient(
+export async function getOrCreateMonthlyNoteClient(
   client: IWorkspaceStoreClient,
   year: number,
   month: number
@@ -235,7 +235,7 @@ async function getOrCreateMonthlyNoteClient(
   );
 }
 
-async function getOrCreateYearlyNoteClient(
+export async function getOrCreateYearlyNoteClient(
   client: IWorkspaceStoreClient,
   year: number
 ): Promise<Node> {
@@ -244,7 +244,7 @@ async function getOrCreateYearlyNoteClient(
   );
 }
 
-async function listDailyPagesFromStoreClient(client: IWorkspaceStoreClient): Promise<Node[]> {
+export async function listDailyPagesFromStoreClient(client: IWorkspaceStoreClient): Promise<Node[]> {
   return client.query<Node[]>('queryNodes', [DAILY_PAGES_QUERY]);
 }
 

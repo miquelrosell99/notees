@@ -9,12 +9,11 @@ import { useMemo, useState, useCallback, memo, lazy, Suspense } from 'react';
 import type { JSX } from 'react';
 import type { Node, Property } from '@/types';
 import type { NodePivotViewProps } from '@/types/nodeCollection';
-import type { QueryGroupResult } from '@/types/nodeView';
+import type { QueryExecuteResponse, QueryGroupResult } from '@/types/nodeView';
 import type { QueryAST, PropertyCondition, ConditionNode } from '@/types/queryAST';
 import { useProperties } from '@/features/properties';
 import { usePivotAggregate } from '@/features/views';
-import { executeQuery } from '@/core/query/executeQuery';
-import { getActiveWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getActiveWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { Icon } from '@/components/ui/icons';
@@ -325,20 +324,19 @@ export const PivotView = memo(function PivotView({
     setDrilldownOpen(true);
     setDrilldownLoading(true);
     try {
-      const store = getActiveWorkspaceStore();
-      if (!store) {
+      const client = getActiveWorkspaceStoreClient();
+      if (!client) {
         setDrilldownNodes([]);
         return;
       }
-      const result = executeQuery(
-        store,
+      const result = await client.query<QueryExecuteResponse>('executeQuery', [
         {
           query_ast: ast,
           runtime_params: { current_node_uuid: nodeUuid },
           include_properties: true,
         },
-        nodeUuid
-      );
+        nodeUuid,
+      ]);
       setDrilldownNodes(result.nodes);
     } catch (e) {
       console.error('Drill-down query failed', e);

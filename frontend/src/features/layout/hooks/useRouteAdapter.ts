@@ -14,6 +14,8 @@
 import { useEffect, useCallback, useRef, useContext, type MutableRefObject } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Node } from '@/types/api';
+import type { Property } from '@/types/api';
 import { useNavigationStore, useSettingsStore, useAuthStore, useRecentsStore, type MainViewType, type DefaultView } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useTodayNote } from '@/features/content';
@@ -21,9 +23,7 @@ import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace';
 import { invalidateWorkspaceQueries } from '@/lib/queryClient';
 import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
-import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import { getNodeByUuid } from '@/core/query/nodeByUuid';
-import { getPropertySchemaByUuid } from '@/core/query/propertySchema';
+import { getOrCreateWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { SPECIAL_VIEWS } from './url';
 import { isUuid } from '@/utils/uuid';
 import { workspaceKeys } from '@/hooks/queryKeys';
@@ -140,7 +140,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
 
       if (!isLatestGeneration()) return;
 
-      const store = await getOrCreateWorkspaceStore(
+      const client = await getOrCreateWorkspaceStoreClient(
         workspaceId,
         ctx.actorId,
         ctx.transport,
@@ -174,7 +174,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
 
         // Pages/nodes are the common case; try them first to avoid spurious
         // property 404s on every page navigation.
-        const node = getNodeByUuid(store, uuid);
+        const node = await client.query<Node | undefined>('getNodeByUuid', [uuid]);
         if (node) {
           if (!isLatestGeneration()) return;
           log.debug('UUID resolved to node', { uuid, id: node.uuid, is_page: node.is_page });
@@ -184,7 +184,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         if (!isLatestGeneration()) return;
 
         if (!isDateUuid) {
-          const property = getPropertySchemaByUuid(store, uuid);
+          const property = await client.query<Property | undefined>('getPropertySchemaByUuid', [uuid]);
           if (!isLatestGeneration()) return;
           if (property) {
             log.debug('UUID resolved to property', { uuid, id: property.uuid });

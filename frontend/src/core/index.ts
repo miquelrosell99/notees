@@ -21,6 +21,7 @@ export {
   WorkspaceStoreProvider,
   WorkspaceStoreContext,
   useWorkspaceStore,
+  useWorkspaceStoreClient,
   useNode,
   useNodes,
   useChildren,
@@ -34,6 +35,7 @@ export type {
   WorkspaceStoreProviderProps,
   WorkspaceStoreContextValue,
   UseWorkspaceStoreResult,
+  UseWorkspaceStoreClientResult,
   UseNodeResult,
   UseNodesResult,
   UseChildrenResult,
@@ -51,6 +53,12 @@ export {
   closeWorkspaceStore,
   syncWorkspace,
 } from './adapters/workspaceStoreAdapter';
+export {
+  getOrCreateWorkspaceStoreClient,
+  getWorkspaceStoreClient,
+  getActiveWorkspaceStoreClient,
+  closeWorkspaceStoreClient,
+} from './adapters/workspaceStoreClientAdapter';
 export {
   saveWorkspaceDatabase,
   loadWorkspaceDatabase,

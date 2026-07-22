@@ -58,6 +58,49 @@ function safeIconVisibility(value: string | null): PropertyIconVisibility {
   return 'hidden';
 }
 
+interface PropertySchemaRow {
+  id: string;
+  name: string;
+  icon: string | null;
+  type: string;
+  multi: number;
+  scope: string;
+  node_id: string | null;
+  icon_visibility: string | null;
+  validation_rules: string | null;
+  required: number;
+  readonly: number;
+  hide_when_empty: number;
+  default_value: string | null;
+  class_filter_uuids: string;
+  options: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+function rowToProperty(row: PropertySchemaRow): Property {
+  return {
+    uuid: row.id,
+    name: row.name,
+    icon: row.icon,
+    type: safePropertyType(row.type),
+    multi: row.multi !== 0,
+    is_system: false,
+    scope: (row.scope as PropertyScope) ?? 'global',
+    node_uuid: row.node_id,
+    icon_visibility: safeIconVisibility(row.icon_visibility),
+    validation_rules: parseJson<Record<string, unknown> | null>(row.validation_rules, null),
+    required: row.required !== 0,
+    readonly: row.readonly !== 0,
+    hide_when_empty: row.hide_when_empty !== 0,
+    default_value: parseJson<unknown | null>(row.default_value, null),
+    create_date: row.created_at ?? new Date().toISOString(),
+    write_date: row.updated_at ?? new Date().toISOString(),
+    class_filter_uuids: parseJson<string[]>(row.class_filter_uuids, []),
+    options: parseJson<SelectionOption[]>(row.options, []),
+  };
+}
+
 /**
  * Aggregate all property values for a node, keyed by property schema UUID.
  */
@@ -81,28 +124,43 @@ export function getNodeProperties(store: WorkspaceStore, nodeId: string): Record
 }
 
 /**
+ * Return a property schema by UUID, or undefined if not found.
+ */
+export function getPropertySchemaByUuid(store: WorkspaceStore, schemaId: string): Property | undefined {
+  const rows = queryAll<PropertySchemaRow>(
+    store.getDb(),
+    `SELECT
+       id,
+       name,
+       icon,
+       type,
+       multi,
+       scope,
+       node_id AS node_id,
+       icon_visibility AS icon_visibility,
+       validation_rules,
+       required,
+       readonly,
+       hide_when_empty,
+       default_value,
+       class_filter_uuids,
+       options,
+       created_at,
+       updated_at
+     FROM property_schema
+     WHERE id = ? AND workspace_id = ? AND active = 1`,
+    [schemaId, store.getWorkspaceId()]
+  );
+
+  if (rows.length === 0) return undefined;
+  return rowToProperty(rows[0]);
+}
+
+/**
  * Read active property schema definitions for the current workspace.
  */
 export function getPropertySchemas(store: WorkspaceStore): Property[] {
-  const rows = queryAll<{
-    id: string;
-    name: string;
-    icon: string | null;
-    type: string;
-    multi: number;
-    scope: string;
-    node_id: string | null;
-    icon_visibility: string | null;
-    validation_rules: string | null;
-    required: number;
-    readonly: number;
-    hide_when_empty: number;
-    default_value: string | null;
-    class_filter_uuids: string;
-    options: string;
-    created_at: string | null;
-    updated_at: string | null;
-  }>(
+  const rows = queryAll<PropertySchemaRow>(
     store.getDb(),
     `SELECT
        id,
@@ -128,26 +186,7 @@ export function getPropertySchemas(store: WorkspaceStore): Property[] {
     [store.getWorkspaceId()]
   );
 
-  return rows.map((row) => ({
-    uuid: row.id,
-    name: row.name,
-    icon: row.icon,
-    type: safePropertyType(row.type),
-    multi: row.multi !== 0,
-    is_system: false,
-    scope: (row.scope as PropertyScope) ?? 'global',
-    node_uuid: row.node_id,
-    icon_visibility: safeIconVisibility(row.icon_visibility),
-    validation_rules: parseJson<Record<string, unknown> | null>(row.validation_rules, null),
-    required: row.required !== 0,
-    readonly: row.readonly !== 0,
-    hide_when_empty: row.hide_when_empty !== 0,
-    default_value: parseJson<unknown | null>(row.default_value, null),
-    create_date: row.created_at ?? new Date().toISOString(),
-    write_date: row.updated_at ?? new Date().toISOString(),
-    class_filter_uuids: parseJson<string[]>(row.class_filter_uuids, []),
-    options: parseJson<SelectionOption[]>(row.options, []),
-  }));
+  return rows.map(rowToProperty);
 }
 
 /**

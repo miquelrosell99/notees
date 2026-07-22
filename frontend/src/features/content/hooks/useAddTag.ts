@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import type { Node } from '@/types/api';
-import { useWorkspaceStore, useUndoManager } from '@/core/hooks';
+import { useWorkspaceStoreClient, useUndoManager } from '@/core/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { findNodeInCache } from './useNodeMutations.utils';
@@ -15,7 +15,7 @@ import { findNodeInCache } from './useNodeMutations.utils';
 export function useAddTag() {
   const queryClient = useQueryClient();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const manager = useUndoManager(workspaceId ?? '');
 
   return useMutation<Node | null, Error, { nodeUuid: string; tagId: string }>({
@@ -23,7 +23,7 @@ export function useAddTag() {
       if (!nodeUuid) throw new Error('Node UUID not found');
       const tagUuid = tagId;
       if (!tagUuid) throw new Error('Tag UUID not found');
-      if (!store || !manager) {
+      if (!client || !manager) {
         throw new Error(`Node ${nodeUuid} is not available in the workspace store`);
       }
 

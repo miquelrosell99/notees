@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { QueryAST } from '@/types';
-import type { QueryExecuteResponse, QueryGroupResult } from '@/types/nodeView';
+import type { Node } from '@/types/api';
+import type { QueryExecuteResponse } from '@/types/nodeView';
 import { substituteRuntimeParams } from '../query/substituteRuntimeParams';
-import { compileToSqlite } from '../query/compileToSqlite';
-import { queryAll } from '../db/sqlite';
-import { queryNodes } from '../query/queryNodes';
-import { useWorkspaceStore } from './useWorkspaceStore';
+import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
 
 function createEmptyResult(): UseQueryResult<QueryExecuteResponse, Error> {
   return {
@@ -22,19 +20,6 @@ function createEmptyResult(): UseQueryResult<QueryExecuteResponse, Error> {
   } as unknown as UseQueryResult<QueryExecuteResponse, Error>;
 }
 
-function mapAggregateRows(rows: Record<string, unknown>[]): QueryGroupResult[] {
-  return rows.map((row) => {
-    const result: QueryGroupResult = {
-      value: Number(row.value ?? 0),
-    };
-    for (const key of Object.keys(row)) {
-      if (key === 'value') continue;
-      result[key] = row[key] as string | number | null | undefined;
-    }
-    return result;
-  });
-}
-
 /**
  * Execute a QueryAST against the SQLite derived tables and return either
  * projected Node objects or aggregation groups when `ast.aggregation` is set.
@@ -44,7 +29,7 @@ export function useQueryAstAggregate(
   runtimeParams?: Record<string, unknown>
 ): UseQueryResult<QueryExecuteResponse, Error> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store, isLoading: storeLoading, error: storeError } = useWorkspaceStore(workspaceId ?? '');
+  const { client, isLoading: storeLoading, error: storeError } = useWorkspaceStoreClient(workspaceId ?? '');
   const [data, setData] = useState<QueryExecuteResponse>({
     nodes: [],
     groups: undefined,
@@ -55,7 +40,7 @@ export function useQueryAstAggregate(
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!store || !workspaceId) {
+    if (!client || !workspaceId) {
       setData({ nodes: [], groups: undefined, total_count: 0, metrics: undefined });
       setIsLoading(false);
       setError(null);
@@ -72,27 +57,30 @@ export function useQueryAstAggregate(
     setIsLoading(true);
     setError(null);
 
-    try {
-      const astWithParams = substituteRuntimeParams(ast, runtimeParams ?? {});
-      if (astWithParams.aggregation) {
-        const compiled = compileToSqlite(astWithParams, workspaceId);
-        const rows = queryAll<Record<string, unknown>>(
-          store.getDb(),
-          compiled.sql,
-          compiled.params as (string | number | null | Uint8Array)[]
-        );
-        const groups = mapAggregateRows(rows);
-        setData({ nodes: [], groups, total_count: groups.length, metrics: undefined });
-      } else {
-        const nodes = queryNodes(store, { ast: astWithParams, runtimeParams, projectionDepth: 0 });
-        setData({ nodes, groups: undefined, total_count: nodes.length, metrics: undefined });
+    const run = async (): Promise<void> => {
+      try {
+        const astWithParams = substituteRuntimeParams(ast, runtimeParams ?? {});
+        if (astWithParams.aggregation) {
+          const response = await client.query<QueryExecuteResponse>('executeQuery', [
+            { query_ast: astWithParams, runtime_params: {}, aggregation: astWithParams.aggregation },
+            undefined,
+          ]);
+          setData(response);
+        } else {
+          const nodes = await client.query<Node[]>('queryNodes', [
+            { ast, runtimeParams, projectionDepth: 0 },
+          ]);
+          setData({ nodes, groups: undefined, total_count: nodes.length, metrics: undefined });
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [store, workspaceId, ast, runtimeParams]);
+    };
+
+    run();
+  }, [client, workspaceId, ast, runtimeParams]);
 
   if (!ast) {
     return createEmptyResult();

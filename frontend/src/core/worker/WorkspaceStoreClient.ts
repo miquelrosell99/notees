@@ -11,10 +11,14 @@ import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
+import { buildGraphData } from '../query/graphData';
+import { buildGraphNodes } from '../query/graphNodes';
+import { buildGraphLinks } from '../query/graphLinks';
 import { projectNode } from '../adapters/nodeProjection';
 import {
   getNodeProperties,
   getPropertySchemas,
+  getPropertySchemaByUuid,
   getBatchPropertyValues,
   getClassProperties,
   getNodeClassPropertyEdges,
@@ -32,6 +36,13 @@ import {
   generateRequestId,
 } from './workerProtocol';
 import {
+  buildBacklinks,
+  buildBreadcrumbs,
+  buildLinkedReferences,
+  buildPropertyBacklinks,
+  buildSuggestions,
+  buildTasks,
+  buildTextLinks,
   countQueryResults,
   getArchivedPages,
   getCommentNodes,
@@ -420,6 +431,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'getPropertySchemas') {
       return Promise.resolve(getPropertySchemas(this.store) as T);
     }
+    if (method === 'getPropertySchemaByUuid') {
+      const [schemaUuid] = args as [string];
+      return Promise.resolve(getPropertySchemaByUuid(this.store, schemaUuid) as T);
+    }
     if (method === 'getBatchPropertyValues') {
       const [nodeUuids] = args as [string[]];
       return Promise.resolve(getBatchPropertyValues(this.store, nodeUuids) as T);
@@ -459,6 +474,54 @@ class InlineStoreClient implements IWorkspaceStoreClient {
 
     if (method === 'getNodeKindMap') {
       return Promise.resolve(Array.from(getNodeKindMap(this.store).entries()) as T);
+    }
+
+    if (method === 'buildBreadcrumbs') {
+      const [nodeUuid] = args as [string];
+      return Promise.resolve(buildBreadcrumbs(this.store, nodeUuid) as T);
+    }
+
+    if (method === 'buildBacklinks') {
+      const [nodeUuid] = args as [string];
+      return Promise.resolve(buildBacklinks(this.store, nodeUuid) as T);
+    }
+
+    if (method === 'buildLinkedReferences') {
+      const [nodeUuid, params] = args as [string, { limit?: number; offset?: number } | undefined];
+      return Promise.resolve(buildLinkedReferences(this.store, nodeUuid, params) as T);
+    }
+
+    if (method === 'buildPropertyBacklinks') {
+      const [nodeUuid] = args as [string];
+      return Promise.resolve(buildPropertyBacklinks(this.store, nodeUuid) as T);
+    }
+
+    if (method === 'buildTasks') {
+      const [includeComplete] = args as [boolean | undefined];
+      return Promise.resolve(buildTasks(this.store, includeComplete) as T);
+    }
+
+    if (method === 'buildTextLinks') {
+      const [nodeUuid] = args as [string];
+      return Promise.resolve(buildTextLinks(this.store, nodeUuid) as T);
+    }
+
+    if (method === 'buildSuggestions') {
+      const [classFilters] = args as [string | undefined];
+      return Promise.resolve(buildSuggestions(this.store, classFilters) as T);
+    }
+
+    if (method === 'buildGraphData') {
+      return Promise.resolve(buildGraphData(this.store) as T);
+    }
+
+    if (method === 'buildGraphNodes') {
+      return Promise.resolve(buildGraphNodes(this.store) as T);
+    }
+
+    if (method === 'buildGraphLinks') {
+      const [nodeUuids, scope] = args as [string[], 'between' | 'touching' | undefined];
+      return Promise.resolve(buildGraphLinks(this.store, nodeUuids, scope) as T);
     }
 
     if (method === 'getNodeViews') {

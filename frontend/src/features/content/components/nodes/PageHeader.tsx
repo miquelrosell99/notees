@@ -15,7 +15,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
-import { listCorePages } from '@/core/query/listPages';
+import { listCorePagesAsync } from '@/core/query/listPages';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
@@ -225,7 +225,7 @@ export function PageHeader({
       if (parsed.parentSegments.length > 0 && parsed.parentSegments[0] === originalName) {
         try {
           // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
+          const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
           // The child hierarchy starts after the original name
           const childSegments = parsed.parentSegments.slice(1);
           
@@ -279,8 +279,8 @@ export function PageHeader({
       if (parsed.leaf === originalName && parsed.parentSegments.length > 0) {
         try {
           // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
-          
+          const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
+
           // Resolve or create parent pages (supports multiple levels)
           const parentUuid = await resolveHierarchicalParentUuid(
             parsed.parentSegments,
@@ -314,8 +314,8 @@ export function PageHeader({
       if (parsed.leaf !== originalName) {
         try {
           // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
-          
+          const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
+
           // Resolve or create parent pages (supports multiple levels)
           const parentUuid = await resolveHierarchicalParentUuid(
             parsed.parentSegments,

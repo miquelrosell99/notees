@@ -5,24 +5,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { buildLinkedReferences } from '@/core/query/linkedReferences';
-import { buildBacklinks } from '@/core/query/backlinks';
-import { buildPropertyBacklinks } from '@/core/query/propertyBacklinks';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { buildLinkedReferencesFromClient } from '@/core/query/linkedReferences';
+import { buildBacklinksFromClient } from '@/core/query/backlinks';
+import { buildPropertyBacklinksFromClient } from '@/core/query/propertyBacklinks';
 import type { Backlink, LinkedReference, Mention, PropertyBacklink } from '@/types/api';
 
 export function useBacklinks(nodeUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<Backlink[]>({
     queryKey: nodeKeys.backlinks(nodeUuid ?? ''),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
       if (!nodeUuid) throw new Error('Node UUID not found');
-      return buildBacklinks(store, nodeUuid);
+      return buildBacklinksFromClient(client, nodeUuid);
     },
-    enabled: !!store && !!nodeUuid,
+    enabled: !!client && !!nodeUuid,
     placeholderData: [],
   });
 
@@ -42,16 +42,16 @@ export function useLinkedReferences(
   params?: { limit?: number; offset?: number }
 ) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<{ linked_references: LinkedReference[]; total_count: number }>({
     queryKey: nodeKeys.linkedRefs(nodeUuid ?? '', params),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
       if (!nodeUuid) throw new Error('Node UUID not found');
-      return buildLinkedReferences(store, nodeUuid, params);
+      return buildLinkedReferencesFromClient(client, nodeUuid, params);
     },
-    enabled: !!store && !!nodeUuid,
+    enabled: !!client && !!nodeUuid,
     placeholderData: (previousData) => previousData,
   });
 
@@ -68,16 +68,16 @@ export function useLinkedReferences(
 
 export function usePropertyBacklinks(nodeUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<PropertyBacklink[]>({
     queryKey: nodeKeys.propertyBacklinks(nodeUuid ?? ''),
-    queryFn: () => {
-      if (!store) throw new Error('Workspace store is not ready');
+    queryFn: async () => {
+      if (!client) throw new Error('Workspace store is not ready');
       if (!nodeUuid) throw new Error('Node UUID not found');
-      return buildPropertyBacklinks(store, nodeUuid);
+      return buildPropertyBacklinksFromClient(client, nodeUuid);
     },
-    enabled: !!store && !!nodeUuid,
+    enabled: !!client && !!nodeUuid,
     placeholderData: [],
   });
 

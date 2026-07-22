@@ -6,6 +6,7 @@ import type { Node } from '@/types/api';
 import { queryAll } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 const SUGGESTION_LIMIT = 20;
 const RECENT_MINUTES = 15;
@@ -71,4 +72,11 @@ export function buildSuggestions(store: WorkspaceStore, classFilters?: string): 
   }
 
   return suggestions.slice(0, SUGGESTION_LIMIT);
+}
+
+export async function buildSuggestionsFromClient(
+  client: IWorkspaceStoreClient,
+  classFilters?: string
+): Promise<Node[]> {
+  return client.query<Node[]>('buildSuggestions', [classFilters]);
 }

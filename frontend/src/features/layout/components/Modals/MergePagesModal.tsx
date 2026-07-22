@@ -16,7 +16,7 @@ import { useCurrentNodeUuid, useOpenNode } from '@/features/layout';
 import { nodeNameToText } from '@/features/queries';
 import { useNode } from '@/features/content';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import type { Node } from '@/types';
 import './MergePagesModal.css';
 
@@ -31,7 +31,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
   const { data: currentNode } = useNode(currentNodeUuid);
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const [sourceNode, setSourceNode] = useState<Node | null>(null);
   const [targetNode, setTargetNode] = useState<Node | null>(null);
@@ -56,7 +56,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
   }, [onClose]);
 
   const handleProceed = useCallback(async () => {
-    if (!sourceNode || !targetNode || !store) return;
+    if (!sourceNode || !targetNode || !client) return;
     if (sourceNode.uuid === targetNode.uuid) {
       setError('Source and target must be different pages.');
       return;
@@ -64,7 +64,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     setIsMerging(true);
     setError(null);
     try {
-      store.mergePages(sourceNode.uuid, targetNode.uuid);
+      await client.mutate<void>('mergePages', [sourceNode.uuid, targetNode.uuid]);
 
       // Switch to the target page before invalidating so the old view
       // unmounts and doesn't try to refetch the deleted source.
@@ -88,7 +88,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     } finally {
       setIsMerging(false);
     }
-  }, [sourceNode, targetNode, store, queryClient, openNode, handleClose]);
+  }, [sourceNode, targetNode, client, queryClient, openNode, handleClose]);
 
   const handleAskConfirm = useCallback(() => {
     setShowConfirm(true);
