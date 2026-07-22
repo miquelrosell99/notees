@@ -17,7 +17,7 @@ import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { parseIconField } from '@/utils/iconDom';
 import { useUpdateProperty } from '../hooks';
 import { useClasses } from '@/features/content';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { useParams } from 'react-router-dom';
 import { uuidv7 } from '@/core/uuid';
 import { useNavigationStore } from '@/stores';
@@ -57,7 +57,7 @@ export function PropertyConfigSection({
   const [error, setError] = useState<string | null>(null);
 
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const { store } = useWorkspaceStore(workspaceId ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   // Mutations
   const updatePropertyMutation = useUpdateProperty();
@@ -92,7 +92,7 @@ export function PropertyConfigSection({
   
   // Selection option handlers
   const handleAddSelectionOption = useCallback(async () => {
-    if (!newOptionName.trim() || !store) return;
+    if (!newOptionName.trim() || !client) return;
 
     const { icon: parsedIcon, color: parsedColor } = parseIconField(newOptionIcon || '');
     const newOption: SelectionOption = {
@@ -105,10 +105,10 @@ export function PropertyConfigSection({
     const updatedOptions = [...property.options, newOption];
 
     try {
-      store.updatePropertySchema({
+      await client.mutate<void>('updatePropertySchema', [{
         schemaId: property.uuid,
         options: updatedOptions,
-      });
+      }]);
 
       const updatedProperty: Property = {
         ...property,
@@ -124,17 +124,17 @@ export function PropertyConfigSection({
       setError('Failed to add selection option');
       console.error(err);
     }
-  }, [property, newOptionName, newOptionIcon, onUpdate, store]);
+  }, [property, newOptionName, newOptionIcon, onUpdate, client]);
 
   const handleRemoveSelectionOption = useCallback(async (id: string) => {
-    if (!store) return;
+    if (!client) return;
 
     const updatedOptions = property.options.filter(o => o.uuid !== id);
     try {
-      store.updatePropertySchema({
+      await client.mutate<void>('updatePropertySchema', [{
         schemaId: property.uuid,
         options: updatedOptions,
-      });
+      }]);
 
       const updatedProperty: Property = {
         ...property,
@@ -146,20 +146,20 @@ export function PropertyConfigSection({
       setError('Failed to remove selection option');
       console.error(err);
     }
-  }, [property, onUpdate, store]);
+  }, [property, onUpdate, client]);
 
   const handleUpdateSelectionOptionIcon = useCallback(async (id: string, iconField: string) => {
-    if (!store) return;
+    if (!client) return;
 
     const { icon: parsedIcon, color: parsedColor } = parseIconField(iconField);
     const updatedOptions = property.options.map(o =>
       o.uuid === id ? { ...o, icon: parsedIcon || null, color: parsedColor || null } : o
     );
     try {
-      store.updatePropertySchema({
+      await client.mutate<void>('updatePropertySchema', [{
         schemaId: property.uuid,
         options: updatedOptions,
-      });
+      }]);
 
       const updatedProperty: Property = {
         ...property,
@@ -171,10 +171,10 @@ export function PropertyConfigSection({
       setError('Failed to update option icon');
       console.error(err);
     }
-  }, [property, onUpdate, store]);
+  }, [property, onUpdate, client]);
 
   const handleReorderSelectionOptions = useCallback(async (reordered: SelectionOptionWithId[]) => {
-    if (!store) return;
+    if (!client) return;
 
     const updatedOptions: SelectionOption[] = reordered.map((opt, index) => ({
       uuid: opt.id,
@@ -184,10 +184,10 @@ export function PropertyConfigSection({
       sequence: index,
     }));
     try {
-      store.updatePropertySchema({
+      await client.mutate<void>('updatePropertySchema', [{
         schemaId: property.uuid,
         options: updatedOptions,
-      });
+      }]);
 
       const updatedProperty: Property = {
         ...property,
@@ -198,18 +198,18 @@ export function PropertyConfigSection({
       setError('Failed to reorder options');
       console.error(err);
     }
-  }, [property, onUpdate, store]);
+  }, [property, onUpdate, client]);
 
   // Allowed class handlers
   const handleAddAllowedClass = useCallback(async (node: Node) => {
-    if (!store || allowedClasses.some(c => c.uuid === node.uuid)) return;
+    if (!client || allowedClasses.some(c => c.uuid === node.uuid)) return;
 
     const updatedClassFilterUuids = [...(property.class_filter_uuids ?? []), node.uuid];
     try {
-      store.updatePropertySchema({
+      await client.mutate<void>('updatePropertySchema', [{
         schemaId: property.uuid,
         classFilterUuids: updatedClassFilterUuids,
-      });
+      }]);
 
       setAllowedClasses(prev => [...prev, node]);
 
@@ -223,17 +223,17 @@ export function PropertyConfigSection({
       setError('Failed to add class filter');
       console.error(err);
     }
-  }, [property, allowedClasses, onUpdate, store]);
+  }, [property, allowedClasses, onUpdate, client]);
 
   const handleRemoveAllowedClass = useCallback(async (nodeUuid: string) => {
-    if (!store) return;
+    if (!client) return;
 
     const updatedClassFilterUuids = (property.class_filter_uuids ?? []).filter(uuid => uuid !== nodeUuid);
     try {
-      store.updatePropertySchema({
+      await client.mutate<void>('updatePropertySchema', [{
         schemaId: property.uuid,
         classFilterUuids: updatedClassFilterUuids,
-      });
+      }]);
 
       setAllowedClasses(prev => prev.filter(c => c.uuid !== nodeUuid));
 
@@ -247,7 +247,7 @@ export function PropertyConfigSection({
       setError('Failed to remove class filter');
       console.error(err);
     }
-  }, [property, allowedClasses, onUpdate, store]);
+  }, [property, allowedClasses, onUpdate, client]);
   
   // Handle multi-value change
   const handleMultiValueChange = useCallback(async (newIsMulti: boolean) => {

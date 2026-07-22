@@ -17,7 +17,7 @@ import { useState, useCallback } from 'react';
 import { useCreateNode, usePageClass } from '@/features/content';
 import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types';
-import { listCorePages } from '@/core/query/listPages';
+import { listCorePagesAsync } from '@/core/query/listPages';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useOpenNode } from '@/features/layout';
 import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
@@ -173,7 +173,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       // If hierarchical path, resolve parent (creating intermediate pages if needed)
       if (parsed.isHierarchical) {
         // Fetch fresh pages from the local-first store to resolve hierarchy.
-        const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
+        const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
         parentUuid = await resolveHierarchicalParentUuid(
           parsed.parentSegments,
           freshPages,

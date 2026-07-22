@@ -7,6 +7,7 @@
 
 import type { QueryAST, QueryExecuteRequest, QueryExecuteResponse, QueryGroupResult } from '@/types/nodeView';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { compileToSqlite } from './compileToSqlite';
 import { substituteRuntimeParams } from './substituteRuntimeParams';
 import { queryNodes } from './queryNodes';
@@ -90,4 +91,12 @@ export function executeQuery(
     total_count: nodes.length,
     metrics: undefined,
   };
+}
+
+export async function executeQueryFromClient(
+  client: IWorkspaceStoreClient,
+  request: QueryExecuteRequest,
+  currentNodeUuid?: string,
+): Promise<QueryExecuteResponse> {
+  return client.query<QueryExecuteResponse>('executeQuery', [request, currentNodeUuid]);
 }

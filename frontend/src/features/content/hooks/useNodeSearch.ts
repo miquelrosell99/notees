@@ -19,11 +19,11 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggestions } from './useNodes';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { queryNodes } from '@/core/query/queryNodes';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { parseHierarchicalPath } from '@/utils/hierarchicalPath';
 import { nodeNameToText } from '@/features/queries';
 import type { NodeSearchMode, NodeSearchFilters, NodeSearchItem, UseNodeSearchReturn } from './useNodeSearch.types';
+import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 
 import {
@@ -83,15 +83,15 @@ export function useNodeSearch(
   );
   // Filtered pages query for when class_filters are present (empty-query case)
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const { data: filteredPages } = useQuery({
     queryKey: nodeKeys.filteredPages(classFiltersParam),
-    queryFn: () => {
-      if (!store) return [];
+    queryFn: async () => {
+      if (!client) return [];
       const classIds = classFiltersParam ? classFiltersParam.split(',').filter(Boolean) : undefined;
-      return queryNodes(store, { isPage: true, classIds, projectionDepth: 0 });
+      return client.query<Node[]>('queryNodes', [{ isPage: true, classIds, projectionDepth: 0 }]);
     },
-    enabled: !!classFiltersParam && !!store,
+    enabled: !!classFiltersParam && !!client,
     placeholderData: keepPreviousData,
   });
   const { data: allNodes } = useNodes(

@@ -10,10 +10,14 @@ import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
+import { buildGraphData } from '../query/graphData';
+import { buildGraphNodes } from '../query/graphNodes';
+import { buildGraphLinks } from '../query/graphLinks';
 import { projectNode } from '../adapters/nodeProjection';
 import {
   getNodeProperties,
   getPropertySchemas,
+  getPropertySchemaByUuid,
   getBatchPropertyValues,
   getClassProperties,
   getNodeClassPropertyEdges,
@@ -26,6 +30,13 @@ import type { Node } from '@/types/api';
 import type { QueryAST } from '@/types/queryAST';
 import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
 import {
+  buildBacklinks,
+  buildBreadcrumbs,
+  buildLinkedReferences,
+  buildPropertyBacklinks,
+  buildSuggestions,
+  buildTasks,
+  buildTextLinks,
   countQueryResults,
   getArchivedPages,
   getCommentNodes,
@@ -372,6 +383,13 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
     return;
   }
 
+  if (request.method === 'getPropertySchemaByUuid') {
+    const [schemaUuid] = request.args as [string];
+    const result = getPropertySchemaByUuid(state.store, schemaUuid);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
   if (request.method === 'getBatchPropertyValues') {
     const [nodeUuids] = request.args as [string[]];
     const result = getBatchPropertyValues(state.store, nodeUuids);
@@ -443,6 +461,104 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
       type: 'query-result',
       id: request.id,
       result: Array.from(getNodeKindMap(state.store).entries()),
+    });
+    return;
+  }
+
+  if (request.method === 'buildBreadcrumbs') {
+    const [nodeUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildBreadcrumbs(state.store, nodeUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'buildBacklinks') {
+    const [nodeUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildBacklinks(state.store, nodeUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'buildLinkedReferences') {
+    const [nodeUuid, params] = request.args as [string, { limit?: number; offset?: number } | undefined];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildLinkedReferences(state.store, nodeUuid, params),
+    });
+    return;
+  }
+
+  if (request.method === 'buildPropertyBacklinks') {
+    const [nodeUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildPropertyBacklinks(state.store, nodeUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'buildTasks') {
+    const [includeComplete] = request.args as [boolean | undefined];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildTasks(state.store, includeComplete),
+    });
+    return;
+  }
+
+  if (request.method === 'buildTextLinks') {
+    const [nodeUuid] = request.args as [string];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildTextLinks(state.store, nodeUuid),
+    });
+    return;
+  }
+
+  if (request.method === 'buildSuggestions') {
+    const [classFilters] = request.args as [string | undefined];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildSuggestions(state.store, classFilters),
+    });
+    return;
+  }
+
+  if (request.method === 'buildGraphData') {
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildGraphData(state.store),
+    });
+    return;
+  }
+
+  if (request.method === 'buildGraphNodes') {
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildGraphNodes(state.store),
+    });
+    return;
+  }
+
+  if (request.method === 'buildGraphLinks') {
+    const [nodeUuids, scope] = request.args as [string[], 'between' | 'touching' | undefined];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: buildGraphLinks(state.store, nodeUuids, scope),
     });
     return;
   }

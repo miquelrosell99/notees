@@ -7,8 +7,7 @@
 import { registerCommand, COMMAND_IDS } from '@/stores/commandRegistry';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
-import { queryNodes } from '@/core/query/queryNodes';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import type { Node } from '@/types/api';
 import { buildTodayQueryAST } from '@/utils/taskQueries';
 import { createEmptyQueryAST } from '@/types/queryAST';
@@ -23,9 +22,9 @@ function getCurrentWorkspaceUuid(): string | null {
 async function getRandomPages(limit: number): Promise<Node[]> {
   const workspaceUuid = getCurrentWorkspaceUuid();
   if (!workspaceUuid) return [];
-  const store = getWorkspaceStore(workspaceUuid);
-  if (!store) return [];
-  const pages = queryNodes(store, { isPage: true, projectionDepth: 0 });
+  const client = getWorkspaceStoreClient(workspaceUuid);
+  if (!client) return [];
+  const pages = await client.query<Node[]>('queryNodes', [{ isPage: true, projectionDepth: 0 }]);
   if (pages.length === 0) return [];
   const shuffled = [...pages];
   for (let i = shuffled.length - 1; i > 0; i--) {

@@ -28,8 +28,8 @@ import { SelectTrigger, type SelectTriggerSize } from '@/components/ui/SelectTri
 import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/features/content';
 import { parseQueryWithFilters, type AppliedFilter } from '@/utils/searchFilters';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { getNodeByUuid } from '@/core/query/nodeByUuid';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
 import { nodeNameToText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
@@ -161,15 +161,15 @@ export function NodeSelector({
   }, [value]);
 
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   // Fetch each node by ID individually - reliable regardless of pagination
   const nodeQueries = useQueries({
     queries: nodesProp ? [] : valueIds.map((nodeUuid) => ({
       queryKey: nodeKeys.detail(nodeUuid, { include_children: false }),
-      queryFn: () => (store ? getNodeByUuid(store, nodeUuid) : null),
+      queryFn: async () => (client ? await projectNodeFromClient(client, nodeUuid) : null),
       staleTime: 5 * 60 * 1000,
-      enabled: !!nodeUuid && !!store,
+      enabled: !!nodeUuid && !!client,
     })),
   });
 

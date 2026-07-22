@@ -3,9 +3,9 @@
  */
 import { useMutation } from '@tanstack/react-query';
 import { useSetNodePropertyAdapter } from '@/core/adapters/useSetNodePropertyAdapter';
-import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { formatDateForApi } from '../renderers/GanttRenderer';
 import type { Property } from '@/types/api';
 
@@ -30,14 +30,14 @@ export function useGanttDateMutation(
   return useMutation({
     mutationFn: async ({ nodeUuid, mode, newStart, newEnd }: PersistGanttDatesInput) => {
       if (!startDateProperty || !workspaceUuid) return;
-      const store = getWorkspaceStore(workspaceUuid);
-      if (!store) return;
+      const client = getWorkspaceStoreClient(workspaceUuid);
+      if (!client) return;
       if (mode === 'move') {
-        const startDayNode = getOrCreateDailyNote(store, formatDateForApi(newStart));
+        const startDayNode = await getOrCreateDailyNoteClient(client, formatDateForApi(newStart));
         await setProperty.mutateAsync({ nodeUuid, propertyId: startDateProperty.uuid, value: startDayNode.uuid });
       }
       if (newEnd && endDateProperty) {
-        const endDayNode = getOrCreateDailyNote(store, formatDateForApi(newEnd));
+        const endDayNode = await getOrCreateDailyNoteClient(client, formatDateForApi(newEnd));
         await setProperty.mutateAsync({ nodeUuid, propertyId: endDateProperty.uuid, value: endDayNode.uuid });
       }
     },

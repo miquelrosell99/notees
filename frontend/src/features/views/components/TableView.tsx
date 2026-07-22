@@ -22,9 +22,9 @@ import { getPropertyValueRenderer } from '@/features/properties';
 import '@/features/properties';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
-import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { useProperties } from '@/features/properties';
 import { useClasses, useAddClass, useRemoveClass } from '@/features/content';
 import type { TableColumn, ExpandableConfig, ReorderableConfig, SortEntry } from './NodeTable';
@@ -163,14 +163,14 @@ export const TableView = memo(function TableView({
   const openDailyPage = useCallback(async (dateStr: string, inSidebar: boolean) => {
     if (!dateStr || dateStr === '') return;
     if (!workspaceUuid) return;
-    const store = getWorkspaceStore(workspaceUuid);
-    if (!store) return;
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return;
     const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
     try {
-      const dailyNode = getOrCreateDailyNote(store, formattedDate);
+      const dailyNode = await getOrCreateDailyNoteClient(client, formattedDate);
       if (inSidebar) {
         addSidebarCard(dailyNode.uuid, 'page');
       } else {

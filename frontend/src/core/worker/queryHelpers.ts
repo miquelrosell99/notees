@@ -8,15 +8,31 @@
  */
 
 import type { WorkspaceStore } from '../store';
-import type { Node, ClassExtends, InheritedProperty, ExtendedByClass } from '@/types/api';
+import type {
+  Node,
+  ClassExtends,
+  InheritedProperty,
+  ExtendedByClass,
+  BreadcrumbItemResponse,
+  Backlink,
+  LinkType,
+  LinkedReference,
+  LinkedReferencesResponse,
+  BreadcrumbSegment,
+  PropertyBacklink,
+  TextLink,
+} from '@/types/api';
 import type { NodeView } from '@/types/nodeView';
 import type { QueryAST } from '@/types/queryAST';
 import { queryAll, queryOne } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';
-import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, TASK_CLOSED_STATUSES } from '@/constants/systemProperties';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { substituteRuntimeParams } from '../query/substituteRuntimeParams';
 import { compileToSqlite } from '../query/compileToSqlite';
+import { queryNodes } from '../query/queryNodes';
+import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
+import { nodeNameToText } from '@/features/queries';
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (raw === null || raw === undefined || raw === '') return fallback;
@@ -517,4 +533,311 @@ export function getCommentNodes(
         n.active !== false &&
         !!n.classes_uuid?.includes(SYSTEM_CLASS_UUIDS.comment)
     );
+}
+
+// ─── Breadcrumbs ────────────────────────────────────────────────────────────
+
+export function buildBreadcrumbs(store: WorkspaceStore, nodeUuid: string): BreadcrumbItemResponse[] {
+  const breadcrumbs: BreadcrumbItemResponse[] = [];
+  const visited = new Set<string>();
+  let currentId: string | null | undefined = nodeUuid;
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const node = projectNode(store, currentId);
+    if (!node) break;
+
+    currentId = node.parent_uuid;
+    if (!currentId) break;
+
+    const parent = projectNode(store, currentId);
+    if (!parent) break;
+
+    breadcrumbs.push({
+      uuid: parent.uuid,
+      name: parent.name,
+      display_name: parent.display_name ?? parent.name,
+      icon: parent.icon ?? null,
+      is_page: parent.is_page,
+      parent_locked: parent.parent_locked ?? false,
+    });
+  }
+
+  return breadcrumbs;
+}
+
+// ─── Backlinks ──────────────────────────────────────────────────────────────
+
+export function buildBacklinks(store: WorkspaceStore, nodeUuid: string): Backlink[] {
+  const sourceIds = store.getBacklinks(nodeUuid);
+  const backlinks: Backlink[] = [];
+
+  for (const sourceId of sourceIds) {
+    const sourceNode = projectNode(store, sourceId);
+    if (!sourceNode) continue;
+
+    const sourcePage = sourceNode.is_page ? sourceNode : findSourcePage(store, sourceId);
+    const linkType: LinkType = sourceNode.is_page ? 'page' : 'block';
+
+    backlinks.push({
+      source_node_uuid: sourceNode.uuid,
+      source_node_name: sourceNode.name,
+      source_page_uuid: sourcePage?.uuid ?? null,
+      source_page_name: sourcePage?.name ?? null,
+      link_type: linkType,
+      position: 0,
+    });
+  }
+
+  return backlinks;
+}
+
+// ─── Linked references ──────────────────────────────────────────────────────
+
+function findSourcePage(store: WorkspaceStore, sourceNodeId: string): Node | undefined {
+  const sourceNode = projectNode(store, sourceNodeId);
+  if (!sourceNode) return undefined;
+  if (sourceNode.is_page) return sourceNode;
+
+  const visited = new Set<string>();
+  let currentId: string | null | undefined = sourceNode.parent_uuid;
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const parent = projectNode(store, currentId);
+    if (!parent) break;
+    if (parent.is_page) return parent;
+    currentId = parent.parent_uuid;
+  }
+  return undefined;
+}
+
+function buildBreadcrumbPath(store: WorkspaceStore, sourceNodeId: string): BreadcrumbSegment[] {
+  const path: BreadcrumbSegment[] = [];
+  const visited = new Set<string>();
+  let currentId: string | null | undefined = sourceNodeId;
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const node = projectNode(store, currentId);
+    if (!node) break;
+    const parentId = node.parent_uuid;
+    if (!parentId) break;
+    const parent = projectNode(store, parentId);
+    if (!parent) break;
+    path.unshift({
+      node_uuid: parent.uuid,
+      name: nodeNameToText(parent.name) || parent.uuid,
+      is_property: false,
+    });
+    currentId = parentId;
+  }
+
+  return path;
+}
+
+function buildSyntheticRef(store: WorkspaceStore, sourceNodeId: string): LinkedReference {
+  const sourceNode = projectNode(store, sourceNodeId)!;
+  const sourcePage = findSourcePage(store, sourceNodeId);
+  const breadcrumbPath = buildBreadcrumbPath(store, sourceNodeId);
+
+  return {
+    source_node: sourceNode as Node,
+    source_page: (sourcePage as Node | undefined) ?? null,
+    link_type: 'text',
+    context: nodeNameToText(sourceNode.name) || '',
+    breadcrumb_path: breadcrumbPath,
+  };
+}
+
+export function buildLinkedReferences(
+  store: WorkspaceStore,
+  nodeUuid: string,
+  params?: { limit?: number; offset?: number }
+): LinkedReferencesResponse {
+  const baseAst = createEmptyQueryAST();
+  const ast = autoFixSystemQuery(baseAst, 'linked_references', { nodeUuid });
+  const matches = queryNodes(store, {
+    ast,
+    runtimeParams: { current_node_uuid: nodeUuid, current_node_id: nodeUuid },
+    projectionDepth: 0,
+  });
+
+  const refs = matches.map((sourceNode) => buildSyntheticRef(store, sourceNode.uuid));
+
+  const offset = params?.offset ?? 0;
+  const limit = params?.limit ?? refs.length;
+  const paginated = refs.slice(offset, offset + limit);
+
+  return { linked_references: paginated, total_count: refs.length };
+}
+
+// ─── Property backlinks ─────────────────────────────────────────────────────
+
+export function buildPropertyBacklinks(store: WorkspaceStore, nodeUuid: string): PropertyBacklink[] {
+  const db = store.getDb();
+
+  const rows = queryAll<{ node_id: string; property_schema_id: string }>(
+    db,
+    `SELECT DISTINCT pv.node_id, pv.property_schema_id
+     FROM property_value pv
+     JOIN node n ON n.id = pv.node_id
+     WHERE json_extract(pv.value, '$') = ?`,
+    [nodeUuid]
+  );
+
+  const backlinks: PropertyBacklink[] = [];
+
+  for (const row of rows) {
+    const sourcePage = findSourcePage(store, row.node_id);
+    if (!sourcePage) continue;
+
+    const propertySchema = projectNode(store, row.property_schema_id);
+
+    backlinks.push({
+      source_page: sourcePage,
+      property_uuid: row.property_schema_id,
+      property_name: propertySchema?.name ?? row.property_schema_id,
+    });
+  }
+
+  return backlinks;
+}
+
+// ─── Tasks ──────────────────────────────────────────────────────────────────
+
+export function buildTasks(store: WorkspaceStore, includeComplete = false): Node[] {
+  const db = store.getDb();
+
+  const rows = queryAll<{ id: string }>(
+    db,
+    `SELECT n.id
+     FROM node n
+     WHERE EXISTS (
+       SELECT 1 FROM json_each(n.class_ids)
+       WHERE value = ?
+     )
+     ORDER BY n.id`,
+    [SYSTEM_CLASS_UUIDS.task]
+  );
+
+  const tasks: Node[] = [];
+
+  for (const row of rows) {
+    const node = projectNode(store, row.id);
+    if (!node) continue;
+
+    if (!includeComplete) {
+      const status = node.properties_uuid?.[SYSTEM_PROPERTY_UUIDS.task_status];
+      if (typeof status === 'string' && TASK_CLOSED_STATUSES.has(status)) {
+        continue;
+      }
+    }
+
+    tasks.push(node);
+  }
+
+  return tasks;
+}
+
+// ─── Text links ───────────────────────────────────────────────────────────────
+
+export function buildTextLinks(store: WorkspaceStore, nodeUuid: string): TextLink[] {
+  const db = store.getDb();
+
+  const rows = queryAll<{ id: string; target_id: string; metadata: string | null }>(
+    db,
+    `SELECT id, target_id, metadata
+     FROM edge
+     WHERE source_id = ? AND type = ?
+     ORDER BY created_at`,
+    [nodeUuid, 'reference']
+  );
+
+  return rows.map((row, index) => {
+    const targetNode = projectNode(store, row.target_id);
+    let name: string | null = targetNode?.name ?? null;
+
+    if (!name && row.metadata) {
+      try {
+        const parsed = JSON.parse(row.metadata) as { label?: string | null };
+        name = parsed.label ?? null;
+      } catch {
+        // ignore malformed metadata
+      }
+    }
+
+    return {
+      uuid: row.id,
+      source_node_uuid: nodeUuid,
+      target_node_uuid: row.target_id,
+      position: index,
+      name,
+    };
+  });
+}
+
+// ─── Suggestions ────────────────────────────────────────────────────────────
+
+const SUGGESTION_LIMIT = 20;
+const RECENT_MINUTES = 15;
+
+export function buildSuggestions(store: WorkspaceStore, classFilters?: string): Node[] {
+  const db = store.getDb();
+  const classFilterSet = classFilters ? new Set(classFilters.split(',').filter(Boolean)) : null;
+
+  const recentCutoff = new Date(Date.now() - RECENT_MINUTES * 60 * 1000).toISOString();
+
+  const recentRows = queryAll<{ id: string }>(
+    db,
+    `SELECT id FROM node
+     WHERE kind = 'page'
+       AND created_at >= ?
+     ORDER BY created_at DESC`,
+    [recentCutoff]
+  );
+
+  const linkedRows = queryAll<{ id: string }>(
+    db,
+    `SELECT id FROM (
+       SELECT n.id, MAX(lc.last_clicked_at) AS last_at
+       FROM node n
+       JOIN link_click lc ON lc.target_id = n.id
+       WHERE n.kind = 'page'
+       GROUP BY n.id
+
+       UNION ALL
+
+       SELECT n.id, MAX(e.created_at) AS last_at
+       FROM node n
+       JOIN edge e ON e.target_id = n.id
+       WHERE n.kind = 'page'
+         AND e.type = 'reference'
+       GROUP BY n.id
+     )
+     ORDER BY last_at DESC`,
+    []
+  );
+
+  const seen = new Set<string>();
+  const suggestions: Node[] = [];
+
+  const addNode = (node: Node) => {
+    if (seen.has(node.uuid)) return;
+    if (classFilterSet && !(node.classes_uuid ?? []).some((id) => classFilterSet!.has(id))) return;
+    seen.add(node.uuid);
+    suggestions.push(node);
+  };
+
+  for (const row of recentRows) {
+    const node = projectNode(store, row.id);
+    if (node) addNode(node);
+  }
+
+  for (const row of linkedRows) {
+    const node = projectNode(store, row.id);
+    if (node) addNode(node);
+    if (suggestions.length >= SUGGESTION_LIMIT) break;
+  }
+
+  return suggestions.slice(0, SUGGESTION_LIMIT);
 }

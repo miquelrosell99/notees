@@ -5,6 +5,7 @@
 import type { GraphLink } from '@/types/api';
 import { queryAll } from '../db/sqlite';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 type LinkScope = 'between' | 'touching';
 
@@ -92,4 +93,12 @@ export function buildGraphLinks(
   }
 
   return links;
+}
+
+export async function buildGraphLinksFromClient(
+  client: IWorkspaceStoreClient,
+  nodeUuids: string[],
+  scope: LinkScope = 'between',
+): Promise<GraphLink[]> {
+  return client.query<GraphLink[]>('buildGraphLinks', [nodeUuids, scope]);
 }

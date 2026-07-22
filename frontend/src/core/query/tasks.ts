@@ -7,6 +7,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, TASK_CLOSED_STATUSES } from 
 import { queryAll } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';
 import type { WorkspaceStore } from '../store';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export function buildTasks(store: WorkspaceStore, includeComplete = false): Node[] {
   const db = store.getDb();
@@ -40,4 +41,11 @@ export function buildTasks(store: WorkspaceStore, includeComplete = false): Node
   }
 
   return tasks;
+}
+
+export async function buildTasksFromClient(
+  client: IWorkspaceStoreClient,
+  includeComplete = false
+): Promise<Node[]> {
+  return client.query<Node[]>('buildTasks', [includeComplete]);
 }

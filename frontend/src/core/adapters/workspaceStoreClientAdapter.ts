@@ -23,6 +23,7 @@ const clientRegistry = new Map<string, ClientEntry>();
 function isWorkerSupported(): boolean {
   if (typeof Worker === 'undefined') return false;
   if (typeof navigator === 'undefined') return false;
+  // jsdom does not implement Web Workers reliably.
   return !navigator.userAgent.includes('jsdom');
 }
 

@@ -8,9 +8,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { nodeKeys } from './queryKeys';
 import { useCurrentWorkspaceUuid } from './useCurrentWorkspaceUuid';
-import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
-import { projectNode } from '@/core/adapters/nodeProjection';
-import { buildBreadcrumbs } from '@/core/query/breadcrumbs';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
+import { buildBreadcrumbsFromClient } from '@/core/query/breadcrumbs';
 import type { Node, BreadcrumbItemResponse } from '@/types/api';
 
 /**
@@ -21,15 +21,15 @@ import type { Node, BreadcrumbItemResponse } from '@/types/api';
  */
 export function useBatchedNode(nodeUuid: string | null, meta?: Record<string, unknown>) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<Node | null>({
     queryKey: nodeKeys.byUuid(nodeUuid ?? '__unresolved__'),
-    queryFn: () => {
-      if (!nodeUuid || !store) return null;
-      return projectNode(store, nodeUuid) ?? null;
+    queryFn: async () => {
+      if (!nodeUuid || !client) return null;
+      return (await projectNodeFromClient(client, nodeUuid)) ?? null;
     },
-    enabled: !!nodeUuid && !!store,
+    enabled: !!nodeUuid && !!client,
     staleTime: 1000 * 60 * 10, // 10 minutes — metadata is stable
     retry: (failureCount, error) => {
       // Don't retry on "not found"
@@ -55,15 +55,15 @@ export function useBatchedNode(nodeUuid: string | null, meta?: Record<string, un
  */
 export function useBreadcrumbs(nodeUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
-  const { store, isLoading, error } = useWorkspaceStore(workspaceUuid ?? '');
+  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
 
   const result = useQuery<BreadcrumbItemResponse[]>({
     queryKey: nodeKeys.breadcrumbsByUuid(nodeUuid ?? '__unresolved__'),
-    queryFn: () => {
-      if (!nodeUuid || !store) return [];
-      return buildBreadcrumbs(store, nodeUuid);
+    queryFn: async () => {
+      if (!nodeUuid || !client) return [];
+      return buildBreadcrumbsFromClient(client, nodeUuid);
     },
-    enabled: !!nodeUuid && !!store,
+    enabled: !!nodeUuid && !!client,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 

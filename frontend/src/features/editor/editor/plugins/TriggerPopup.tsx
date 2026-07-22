@@ -19,7 +19,8 @@ import { useNodeSearch, type NodeSearchItem } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useClasses, usePages } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
-import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import type { NodeRow } from '@/core/store';
 import { NodeResultItem } from '@/features/content';
 import { useCreateNode } from '@/features/content';
 import { usePageClass, useClassClass } from '@/features/content';
@@ -246,14 +247,38 @@ export function TriggerPopup({
   const { data: allClasses = [] } = useClasses();
   const { data: allPages = [] } = usePages();
 
-  const parentIsCard = useMemo(() => {
-    if (contextBlockServerId == null || workspaceId == null) return false;
-    const store = getWorkspaceStore(workspaceId);
-    if (!store) return false;
-    const blockNode = store.getNode(contextBlockServerId);
-    if (!blockNode?.parentId) return false;
-    const parentNode = store.getNode(blockNode.parentId);
-    return parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
+  const [parentIsCard, setParentIsCard] = useState(false);
+
+  useEffect(() => {
+    if (contextBlockServerId == null || workspaceId == null) {
+      setParentIsCard(false);
+      return;
+    }
+    const client = getWorkspaceStoreClient(workspaceId);
+    if (!client) {
+      setParentIsCard(false);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const blockNode = await client.query<NodeRow | undefined>('getNode', [contextBlockServerId]);
+        if (!blockNode?.parentId) {
+          if (!cancelled) setParentIsCard(false);
+          return;
+        }
+        const parentNode = await client.query<NodeRow | undefined>('getNode', [blockNode.parentId]);
+        if (!cancelled) {
+          setParentIsCard(parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false);
+        }
+      } catch {
+        if (!cancelled) setParentIsCard(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, [contextBlockServerId, workspaceId]);
 
   // Determine search mode and filter props from active filters
