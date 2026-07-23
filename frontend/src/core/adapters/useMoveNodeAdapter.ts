@@ -37,7 +37,7 @@ export function useMoveNodeAdapter(): UseMutationResult<
       );
 
       if (position !== undefined) {
-        // TODO(D2): Positioned insertion is not supported in the prototype slice.
+        // NOTE(D2): Positioned insertion is not supported in the prototype slice.
         console.warn(
           '[useMoveNodeAdapter] explicit position not yet supported in SQLite store; inserting at end'
         );

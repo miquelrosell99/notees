@@ -64,9 +64,4 @@ export {
   loadWorkspaceDatabase,
   deleteWorkspaceDatabase,
 } from './persistence/indexedDb';
-export {
-  queueOperation,
-  drainQueuedOperations,
-  clearQueuedOperations,
-} from './persistence/operationQueue';
 export { ENABLE_SQLITE_STORE } from './utils/featureFlags';

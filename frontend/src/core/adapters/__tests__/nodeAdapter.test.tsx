@@ -169,5 +169,92 @@ describe('nodeAdapter', () => {
       await waitFor(() => expect(childResult.current.data).toBeDefined());
       expect(childResult.current.data!.parent_uuid).toBe(parentB);
     });
+
+    it('useNodeAdapter refreshes when the node changes', async () => {
+      const props = createProviderProps();
+      const Wrapper = sqliteWrapper(props);
+      const nodeId = uuidv7();
+
+      const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
+        wrapper: Wrapper,
+      });
+      await waitFor(() => expect(storeResult.current.store).toBeDefined());
+      const store = storeResult.current.store!;
+
+      act(() => {
+        store.createNode({ nodeId, kind: 'page', parentId: null });
+        store.updateText(nodeId, (text) => text.insert(0, 'Initial'));
+      });
+
+      const { result } = renderHook(() => useNodeAdapter(nodeId), { wrapper: Wrapper });
+      await waitFor(() => expect(result.current.data?.name).toBe('Initial'));
+
+      act(() => {
+        store.setNodeText(nodeId, 'Updated');
+      });
+
+      await waitFor(() => expect(result.current.data?.name).toBe('Updated'));
+    });
+
+    it('useNodesAdapter refreshes when a new page is created', async () => {
+      const props = createProviderProps();
+      const Wrapper = sqliteWrapper(props);
+
+      const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
+        wrapper: Wrapper,
+      });
+      await waitFor(() => expect(storeResult.current.store).toBeDefined());
+      const store = storeResult.current.store!;
+
+      const firstPageId = uuidv7();
+      act(() => {
+        store.createNode({ nodeId: firstPageId, kind: 'page', parentId: null });
+      });
+
+      const { result } = renderHook(() => useNodesAdapter({ pages_only: true }), {
+        wrapper: Wrapper,
+      });
+      await waitFor(() => expect(result.current.data?.some((n) => n.uuid === firstPageId)).toBe(true));
+
+      const secondPageId = uuidv7();
+      act(() => {
+        store.createNode({ nodeId: secondPageId, kind: 'page', parentId: null });
+      });
+
+      await waitFor(() => expect(result.current.data?.some((n) => n.uuid === secondPageId)).toBe(true));
+    });
+
+    it('useNodeChildrenAdapter refreshes when children change', async () => {
+      const props = createProviderProps();
+      const Wrapper = sqliteWrapper(props);
+
+      const { result: storeResult } = renderHook(() => useWorkspaceStore('ws-test'), {
+        wrapper: Wrapper,
+      });
+      await waitFor(() => expect(storeResult.current.store).toBeDefined());
+      const store = storeResult.current.store!;
+
+      const parentId = uuidv7();
+      const childA = uuidv7();
+      act(() => {
+        store.createNode({ nodeId: parentId, kind: 'page', parentId: null });
+        store.createNode({ nodeId: childA, kind: 'block', parentId: null });
+        store.moveNode(childA, parentId);
+      });
+
+      const { result } = renderHook(() => useNodeChildrenAdapter(parentId), {
+        wrapper: Wrapper,
+      });
+      await waitFor(() => expect(result.current.data?.some((n) => n.uuid === childA)).toBe(true));
+
+      const childB = uuidv7();
+      act(() => {
+        store.createNode({ nodeId: childB, kind: 'block', parentId: null });
+        store.moveNode(childB, parentId);
+      });
+
+      await waitFor(() => expect(result.current.data?.some((n) => n.uuid === childB)).toBe(true));
+      await waitFor(() => expect(result.current.data).toHaveLength(2));
+    });
   });
 });

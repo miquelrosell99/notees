@@ -5,14 +5,13 @@ import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
 import { projectNodeFromClient } from './nodeProjection';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 /**
  * Adapter hook that reads direct children through the async worker-backed store client.
  *
- * TODO: This uses `projectNodeFromClient`, which fetches the underlying sql.js
- * Database via `client.query('getDb')`. That works in the jsdom test shim but
- * cannot work in a real Web Worker. Replace with a worker-side projection query
- * before enabling the Web Worker path in production.
+ * Projection runs inside the worker via `getChildren` and `projectNode`; the raw
+ * sql.js Database is never transferred to the main thread.
  */
 export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<Node[], Error> {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
@@ -30,35 +29,58 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
       return;
     }
 
+    const effectWorkspaceId = workspaceId;
+    const effectCtx = ctx;
+    const effectParentId = parentId;
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
     setIsLoading(true);
     setError(null);
 
-    getOrCreateWorkspaceStoreClient(workspaceId, ctx.actorId, ctx.transport)
-      .then(async (client) => {
+    async function fetchChildren(client?: IWorkspaceStoreClient) {
+      if (cancelled) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const c =
+          client ??
+          (await getOrCreateWorkspaceStoreClient(
+            effectWorkspaceId,
+            effectCtx.actorId,
+            effectCtx.transport
+          ));
         if (cancelled) return;
-
-        const childIds = await client.query<string[]>('getChildren', [parentId]);
+        if (!unsubscribe) {
+          unsubscribe = c.subscribe(null, () => {
+            if (!c.isClosed() && !cancelled) {
+              void fetchChildren(c);
+            }
+          });
+        }
+        const childIds = await c.query<string[]>('getChildren', [effectParentId]);
         if (cancelled) return;
 
         const nodes = (
           await Promise.all(
-            childIds.map((childId) => projectNodeFromClient(client, childId, 1))
+            childIds.map((childId) => projectNodeFromClient(c, childId, 1))
           )
         ).filter((n): n is Node => n !== undefined);
         if (cancelled) return;
 
         setData(nodes);
         setIsLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err : new Error(String(err)));
         setIsLoading(false);
-      });
+      }
+    }
+
+    void fetchChildren();
 
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   }, [ctx, workspaceId, parentId]);
 
