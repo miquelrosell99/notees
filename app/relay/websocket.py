@@ -28,9 +28,10 @@ async def websocket_endpoint(
 ) -> None:
     """Accept WebSocket connections and forward encrypted operation batches.
 
-    Clients must supply an actor id via the ``X-Actor-Id`` header and have read
-    access to the workspace. Accepted connections receive a real-time copy of
-    every operation envelope saved by any client in the same workspace.
+    Clients must authenticate with the same JWT cookie or Bearer token used by
+    the HTTP relay endpoints and have read access to the workspace. Accepted
+    connections receive a real-time copy of every operation envelope saved by
+    any client in the same workspace.
 
     Message protocol (JSON):
       Client -> Server:

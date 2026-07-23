@@ -350,3 +350,58 @@ async def test_revoked_share_immediately_loses_write_access(db_pool, test_user) 
     )
     with pytest.raises(PermissionDeniedError):
         await service.receive_batch(BatchRequest(envelopes=[envelope_after]), editor["uuid"])
+
+
+async def test_public_share_catch_up_is_node_scoped(db_pool, test_user) -> None:
+    """A public share token only returns envelopes affecting the shared node."""
+    checker = PostgresPermissionChecker(db_pool)
+    storage = SqliteRelayStorage()
+    service = RelayService(storage, checker)
+    workspace_id = test_user["workspace_id"]
+    workspace_uuid = test_user["workspace_uuid"]
+    owner_id = int(test_user["id"])
+
+    async with db_pool.acquire() as conn:
+        shared_node_uuid = await _create_node(conn, workspace_id, owner_id)
+        other_node_uuid = await _create_node(conn, workspace_id, owner_id)
+        share_token = await _create_public_share(
+            conn, shared_node_uuid, workspace_id, owner_id
+        )
+
+    shared_envelope = EncryptedEnvelope(
+        id="env-shared",
+        workspace_id=workspace_uuid,
+        actor_id=test_user["uuid"],
+        hlc=Hlc(1, 0),
+        affected_node_ids=[shared_node_uuid],
+        op_type="node.updateContent",
+        payload={"nodeId": shared_node_uuid, "content": []},
+    )
+    other_envelope = EncryptedEnvelope(
+        id="env-other",
+        workspace_id=workspace_uuid,
+        actor_id=test_user["uuid"],
+        hlc=Hlc(2, 0),
+        affected_node_ids=[other_node_uuid],
+        op_type="node.updateContent",
+        payload={"nodeId": other_node_uuid, "content": []},
+    )
+    await service.receive_batch(
+        BatchRequest(envelopes=[shared_envelope, other_envelope]), test_user["uuid"]
+    )
+
+    share_node_id = await service.get_public_share_node_id(
+        workspace_uuid, share_token
+    )
+    assert share_node_id == shared_node_uuid
+
+    result = await service.catch_up(
+        workspace_uuid,
+        "anonymous",
+        Hlc(0, 0),
+        share_token=share_token,
+        share_node_id=share_node_id,
+    )
+    assert len(result) == 1
+    assert result[0].id == "env-shared"
+    assert result[0].affected_node_ids == [shared_node_uuid]

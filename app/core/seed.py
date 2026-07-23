@@ -140,9 +140,10 @@ async def _save_envelopes(
     envelopes: list[EncryptedEnvelope],
 ) -> None:
     """Persist envelopes, awaiting the call if the adapter is async."""
-    result = storage.save_envelopes(envelopes)
-    if asyncio.iscoroutine(result):
-        await result
+    coro_or_result = storage.save_envelopes(envelopes)
+    if asyncio.iscoroutine(coro_or_result):
+        await coro_or_result
+    # The return value (list of inserted ids) is intentionally ignored here.
 
 
 async def seed_workspace_relay(

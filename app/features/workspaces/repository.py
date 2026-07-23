@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import shutil
 import uuid
@@ -1471,6 +1472,13 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                 cleaned += 1
         return cleaned
 
+    @staticmethod
+    async def _maybe_await(value: Any) -> Any:
+        """Await coroutine results from async adapters, pass through sync ones."""
+        if asyncio.iscoroutine(value):
+            return await value
+        return value
+
     async def delete_all_workspace_data(self, workspace_id: int) -> None:
         """Delete all relay and derived data for a workspace."""
         workspace_uuid = await self._workspace_uuid(workspace_id)
@@ -1478,9 +1486,9 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
             return
 
         relay = self._relay()
-        max_hlc = await relay.get_max_hlc(workspace_uuid)
+        max_hlc = await self._maybe_await(relay.get_max_hlc(workspace_uuid))
         if max_hlc.physical > 0 or max_hlc.logical > 0:
-            await relay.prune_envelopes(workspace_uuid, max_hlc)
+            await self._maybe_await(relay.prune_envelopes(workspace_uuid, max_hlc))
 
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
@@ -1506,13 +1514,14 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
         dump_data: dict,
         cleanup_invalid_cloze: bool = False,
     ) -> dict:
-        """Delete all data, bump restore epoch, then import with remap_uuids=False."""
+        """Validate dump, delete all data, import, then bump restore epoch atomically.
+
+        The restore_epoch is incremented only after the import succeeds so that
+        a failed import does not trigger a full local-state wipe on clients.
+        """
+        _validate_dump_schema(dump_data)
+
         await self.delete_all_workspace_data(workspace_id)
-        async with acquire_connection(self._pool) as conn:
-            await conn.execute(
-                "UPDATE workspace SET restore_epoch = restore_epoch + 1, write_date = NOW() WHERE id = $1",
-                workspace_id,
-            )
         stats, _ = await self.import_dump(
             workspace_id,
             user_id,
@@ -1520,6 +1529,12 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
             remap_uuids=False,
             cleanup_invalid_cloze=cleanup_invalid_cloze,
         )
+
+        async with acquire_connection(self._pool) as conn, conn.transaction():
+            await conn.execute(
+                "UPDATE workspace SET restore_epoch = restore_epoch + 1, write_date = NOW() WHERE id = $1",
+                workspace_id,
+            )
         return stats
 
     async def list_page_uuids(self, workspace_id: int) -> list[dict]:
@@ -1706,3 +1721,33 @@ def _load_json(value: Any, default: Any) -> Any:
         except (json.JSONDecodeError, TypeError):
             return default
     return value
+
+
+def _validate_dump_schema(dump_data: dict) -> None:
+    """Validate a workspace dump schema before importing it.
+
+    Raises:
+        ValueError: If the dump is missing required fields or has an
+            unsupported version.
+    """
+    if not isinstance(dump_data, dict):
+        raise ValueError("Dump data must be a JSON object")
+
+    version = dump_data.get("version")
+    if version != 3:
+        raise ValueError(f"Unsupported dump version: {version!r}")
+
+    workspace = dump_data.get("workspace")
+    if not isinstance(workspace, dict):
+        raise ValueError("Dump is missing 'workspace' object")
+    if not _is_valid_uuid(workspace.get("uuid")):
+        raise ValueError("Dump workspace is missing a valid uuid")
+
+    nodes = dump_data.get("nodes")
+    if not isinstance(nodes, list):
+        raise ValueError("Dump is missing 'nodes' list")
+
+    for key in ("links", "properties", "property_selection_lines", "node_views"):
+        value = dump_data.get(key)
+        if value is not None and not isinstance(value, list):
+            raise ValueError(f"Dump '{key}' must be a list")

@@ -57,34 +57,43 @@ class RelayService:
 
         Raises:
             PermissionDeniedError: If the actor is not authorized to submit any
-                envelope in the batch or if an envelope's ``actor_id`` does not
-                match the authenticated actor.
-            ValueError: If the batch or an individual envelope fails validation.
+                envelope in the batch.
+            ValueError: If the batch or an individual envelope fails validation,
+                or if envelopes target more than one workspace.
         """
         if len(batch.envelopes) > MAX_BATCH_SIZE:
             raise ValueError(f"Batch exceeds maximum of {MAX_BATCH_SIZE} envelopes")
+        if not batch.envelopes:
+            return []
 
-        saved: list[EncryptedEnvelope] = []
+        workspace_ids = {envelope.workspace_id for envelope in batch.envelopes}
+        if len(workspace_ids) != 1:
+            raise ValueError("All envelopes in a batch must belong to the same workspace")
+        workspace_id = workspace_ids.pop()
+
+        validated: list[EncryptedEnvelope] = []
         for envelope in batch.envelopes:
             self._validate_envelope(envelope)
-            # Permissions are checked against the authenticated actor (user), not
-            # the device actor id embedded in the envelope. The envelope actor id
-            # is a CRDT device identifier and may differ from the user's UUID.
+            # The authenticated user is the only trustworthy actor identity.
+            # Overwrite any client-provided actor_id to prevent impersonation.
+            if envelope.actor_id != actor_id:
+                envelope = envelope.model_copy(update={"actor_id": actor_id})
+            validated.append(envelope)
+
+        for envelope in validated:
             can_write = await self._permissions.can_write(
-                envelope.workspace_id,
+                workspace_id,
                 actor_id,
                 envelope.affected_node_ids,
             )
             if not can_write:
                 raise PermissionDeniedError(
-                    f"Write denied for actor {actor_id} in workspace {envelope.workspace_id}"
+                    f"Write denied for actor {actor_id} in workspace {workspace_id}"
                 )
-            exists = await self._maybe_await(self._storage.envelope_exists(envelope.id))
-            if exists:
-                continue
-            await self._maybe_await(self._storage.save_envelope(envelope))
-            saved.append(envelope)
-        return saved
+
+        saved_ids = await self._maybe_await(self._storage.save_envelopes(validated))
+        saved_map = {envelope.id: envelope for envelope in validated}
+        return [saved_map[saved_id] for saved_id in saved_ids]
 
     async def catch_up(
         self,
@@ -92,6 +101,7 @@ class RelayService:
         actor_id: str,
         hlc: Hlc,
         share_token: str | None = None,
+        share_node_id: str | None = None,
     ) -> list[EncryptedEnvelope]:
         """Return all operations newer than ``hlc`` that ``actor_id`` may read.
 
@@ -101,7 +111,9 @@ class RelayService:
         """
         if not await self._may_read(workspace_id, actor_id, share_token):
             raise PermissionDeniedError(f"Read denied for actor {actor_id} in workspace {workspace_id}")
-        return await self._maybe_await(self._storage.get_catch_up(workspace_id, hlc))
+        return await self._maybe_await(
+            self._storage.get_catch_up(workspace_id, hlc, node_id=share_node_id)
+        )
 
     async def catch_up_paginated(
         self,
@@ -111,6 +123,7 @@ class RelayService:
         limit: int = 1000,
         after_id: str | None = None,
         share_token: str | None = None,
+        share_node_id: str | None = None,
     ) -> tuple[list[EncryptedEnvelope], str | None]:
         """Return a paginated page of operations newer than ``hlc``.
 
@@ -126,6 +139,7 @@ class RelayService:
                 hlc,
                 limit=limit,
                 after_id=after_id,
+                node_id=share_node_id,
             )
         )
 
@@ -154,6 +168,17 @@ class RelayService:
             workspace_id,
             share_token,
             node_id=node_id,
+        )
+
+    async def get_public_share_node_id(
+        self,
+        workspace_id: str,
+        share_token: str,
+    ) -> str | None:
+        """Return the node id that ``share_token`` grants access to, if any."""
+        return await self._permissions.get_public_share_node_id(
+            workspace_id,
+            share_token,
         )
 
     async def get_max_hlc(self, workspace_id: str) -> Hlc:
