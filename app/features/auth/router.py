@@ -134,13 +134,23 @@ async def auth_status():
     }
 
 
+def _is_cookie_secure() -> bool:
+    """Return whether auth cookies should be marked Secure.
+
+    In production we always require HTTPS. In development we never mark them
+    Secure, even if PUBLIC_URL uses https, because the dev server runs on plain
+    HTTP and browsers reject Secure cookies over HTTP.
+    """
+    return settings.environment.lower() == "production"
+
+
 def _cookie_samesite() -> str:
     """Return the appropriate SameSite policy for auth cookies.
 
-    Strict in production prevents CSRF, but in development the frontend Vite
-    proxy and common cross-port workflows (e.g. http://host:5173 -> :8001)
-    are still same-site; Lax avoids silent cookie drops on redirects while
-    keeping CSRF protection enabled.
+    Strict in production prevents CSRF. In development the frontend Vite proxy
+    and common cross-port workflows (e.g. http://host:5173 -> :8001) are still
+    same-site; Lax avoids silent cookie drops on redirects while keeping CSRF
+    protection enabled.
     """
     return "strict" if settings.environment.lower() == "production" else "lax"
 
@@ -149,14 +159,11 @@ def _set_refresh_cookie(response: Response, token: str, remember_me: bool = Fals
     """Set the refresh token HTTPOnly cookie."""
     lifetime_days = settings.refresh_token_remember_me_days if remember_me else settings.refresh_token_expire_days
     max_age = lifetime_days * 24 * 60 * 60
-    # In production, require HTTPS for the refresh token cookie regardless of
-    # PUBLIC_URL configuration, and use Strict SameSite to prevent CSRF.
-    is_production = settings.environment.lower() == "production"
     response.set_cookie(
         key="refresh_token",
         value=token,
         httponly=True,
-        secure=is_production or settings.public_url.startswith("https://"),
+        secure=_is_cookie_secure(),
         samesite=_cookie_samesite(),
         max_age=max_age,
         path="/api/auth/refresh",
@@ -166,12 +173,11 @@ def _set_refresh_cookie(response: Response, token: str, remember_me: bool = Fals
 def _set_access_cookie(response: Response, token: str) -> None:
     """Set the short-lived access token HTTPOnly cookie."""
     max_age = int(settings.access_token_expire_hours * 60 * 60)
-    is_production = settings.environment.lower() == "production"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        secure=is_production or settings.public_url.startswith("https://"),
+        secure=_is_cookie_secure(),
         samesite=_cookie_samesite(),
         max_age=max_age,
         path="/api",
