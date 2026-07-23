@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi_limiter.depends import RateLimiter
@@ -49,26 +48,27 @@ _relay_batch_limiter = Limiter(PerKeyBucketFactory([Rate(30_000, Duration.MINUTE
 _relay_catchup_limiter = Limiter(PerKeyBucketFactory([Rate(600, Duration.MINUTE)]))
 
 
+def _workspace_id_from_path_or_query(request: Request) -> str | None:
+    """Return a workspace id from the request path/query parameters, if any."""
+    return request.path_params.get("workspace_id") or request.query_params.get("workspace_id")
+
+
 async def relay_batch_identifier(request: Request) -> str:
-    """Rate-limit key combining actor and target workspace."""
+    """Rate-limit key combining actor and target workspace.
+
+    The workspace id is taken from path or query parameters only; the request
+    body is never reparsed, avoiding stream-consumption races and JSON errors.
+    """
     actor = await user_identifier(request)
-    workspace_id: str | None = None
-    try:
-        body = await request.body()
-        if body:
-            data = json.loads(body)
-            workspace_id = data.get("workspace_id")
-            if not workspace_id and data.get("envelopes"):
-                workspace_id = data["envelopes"][0].get("workspace_id")
-    except Exception:
-        workspace_id = None
+    workspace_id = _workspace_id_from_path_or_query(request)
     return f"relay:batch:{actor}:{workspace_id or 'unknown'}"
 
 
 async def relay_catchup_identifier(request: Request) -> str:
-    """Rate-limit key for catch-up requests (per actor)."""
+    """Rate-limit key for catch-up requests (per actor and workspace)."""
     actor = await user_identifier(request)
-    return f"relay:catchup:{actor}"
+    workspace_id = _workspace_id_from_path_or_query(request)
+    return f"relay:catchup:{actor}:{workspace_id or 'unknown'}"
 
 
 @router.post(
@@ -138,6 +138,17 @@ async def catch_up(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication or a valid share token is required to catch up.",
         )
+    share_node_id: str | None = None
+    if share_token is not None:
+        share_node_id = await service.get_public_share_node_id(
+            request.workspace_id,
+            share_token,
+        )
+        if share_node_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid or expired share token.",
+            )
     try:
         limit = min(request.limit, 10_000)
         if limit < 1:
@@ -149,6 +160,7 @@ async def catch_up(
             limit=limit,
             after_id=request.after_id,
             share_token=share_token,
+            share_node_id=share_node_id,
         )
     except PermissionDeniedError as exc:
         raise HTTPException(

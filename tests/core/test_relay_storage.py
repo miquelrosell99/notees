@@ -214,3 +214,58 @@ class TestSqliteRelayStoragePagination:
                 limit=2,
                 after_id="missing",
             )
+
+
+class TestSqliteRelayStorageCatchUp:
+    def test_get_catch_up_filters_by_hlc_in_sql(self) -> None:
+        """The HLC filter is pushed into SQL, not applied in Python."""
+        storage = SqliteRelayStorage(":memory:")
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-old", workspace_id="ws-1", hlc=Hlc(physical=1, logical=0)
+            )
+        )
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-new", workspace_id="ws-1", hlc=Hlc(physical=2, logical=0)
+            )
+        )
+
+        results = storage.get_catch_up("ws-1", Hlc(physical=1, logical=0))
+        assert [envelope.id for envelope in results] == ["env-new"]
+
+    def test_get_catch_up_paginated_filters_by_hlc_in_sql(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-old", workspace_id="ws-1", hlc=Hlc(physical=1, logical=0)
+            )
+        )
+        storage.save_envelope(
+            _envelope(
+                envelope_id="env-new", workspace_id="ws-1", hlc=Hlc(physical=2, logical=0)
+            )
+        )
+
+        results, next_after_id = storage.get_catch_up_paginated(
+            "ws-1", Hlc(physical=1, logical=0), limit=10
+        )
+        assert [envelope.id for envelope in results] == ["env-new"]
+        assert next_after_id is None
+
+
+class TestSqliteRelayStorageBulkSave:
+    def test_save_envelopes_returns_inserted_ids_and_skips_duplicates(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        first = _envelope(
+            envelope_id="env-1", workspace_id="ws-1", hlc=Hlc(physical=1, logical=0)
+        )
+        second = _envelope(
+            envelope_id="env-2", workspace_id="ws-1", hlc=Hlc(physical=2, logical=0)
+        )
+
+        inserted = storage.save_envelopes([first, second])
+        assert inserted == ["env-1", "env-2"]
+
+        inserted_again = storage.save_envelopes([first])
+        assert inserted_again == []
