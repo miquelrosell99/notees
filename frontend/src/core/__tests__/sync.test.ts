@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { CURRENT_DERIVED_STATE_VERSION, WorkspaceStore } from '../store';
 import { SyncEngine } from '../sync';
 import { MemoryRelay, MemoryTransport } from '../transport';
@@ -129,5 +129,34 @@ describe('SyncEngine', () => {
     const contentB = JSON.parse(nodeB!.content);
     expect(contentB[0].text).toBe('world');
     expect(storeB.getDerivedStateVersion()).toBe(CURRENT_DERIVED_STATE_VERSION);
+  });
+
+  it('shares a single in-flight promise across concurrent syncOnce calls', async () => {
+    const workspaceId = uuidv7();
+    const actor = uuidv7();
+    const relay = new MemoryRelay();
+    const transport = new MemoryTransport(relay, workspaceId);
+
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, workspaceId, actor);
+    const client = await createClientFromStore(store);
+    const sync = new SyncEngine(client, transport);
+
+    const pushSpy = vi.spyOn(sync, 'push').mockResolvedValue();
+    const pullSpy = vi.spyOn(sync, 'pull').mockResolvedValue();
+
+    const statusChanges: string[] = [];
+    sync.subscribeStatus((status) => statusChanges.push(status));
+
+    const promiseA = sync.syncOnce();
+    const promiseB = sync.syncOnce();
+
+    expect(promiseA).toBe(promiseB);
+
+    await Promise.all([promiseA, promiseB]);
+
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(pullSpy).toHaveBeenCalledTimes(1);
+    expect(statusChanges).toEqual(['idle', 'syncing', 'idle']);
   });
 });

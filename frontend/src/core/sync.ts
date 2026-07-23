@@ -42,6 +42,8 @@ export class SyncEngine {
   /** HLC of the last snapshot we uploaded this session; avoid re-uploading. */
   private uploadedSnapshotHlc: Hlc | null = null;
   private watermarksLoaded = false;
+  /** In-flight sync promise so concurrent calls (auto-sync + visibility + manual) share one run. */
+  private inFlightSync: Promise<void> | null = null;
 
   constructor(client: IWorkspaceStoreClient, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
     this.client = client;
@@ -328,18 +330,28 @@ export class SyncEngine {
     }
   }
 
-  async syncOnce(): Promise<void> {
-    this.setStatus('syncing');
-    try {
-      await this.push();
-      await this.pull();
-      this.setStatus('idle', null);
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      this.setStatus('error', error);
-      this.callbacks.onError?.(error);
-      throw error;
+  syncOnce(): Promise<void> {
+    if (this.inFlightSync) {
+      return this.inFlightSync;
     }
+
+    this.inFlightSync = (async (): Promise<void> => {
+      this.setStatus('syncing');
+      try {
+        await this.push();
+        await this.pull();
+        this.setStatus('idle', null);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.setStatus('error', error);
+        this.callbacks.onError?.(error);
+        throw error;
+      } finally {
+        this.inFlightSync = null;
+      }
+    })();
+
+    return this.inFlightSync;
   }
 
   /**
