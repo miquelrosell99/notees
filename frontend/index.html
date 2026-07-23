@@ -54,6 +54,58 @@
         const splash = document.getElementById('notees-splash');
         if (splash) splash.remove();
       };
+
+      // Firefox private browsing (and some hardened browser configurations)
+      // expose localStorage but throw NS_ERROR_ABORT when it is accessed.
+      // lib0/yjs reads localStorage at import time, so we polyfill it before
+      // any module code runs.
+      (function () {
+        function makeMemoryStorage() {
+          const store = new Map();
+          return {
+            getItem: function (key) {
+              return store.has(key) ? store.get(key) : null;
+            },
+            setItem: function (key, value) {
+              store.set(key, String(value));
+            },
+            removeItem: function (key) {
+              store.delete(key);
+            },
+            clear: function () {
+              store.clear();
+            },
+            key: function (index) {
+              return Array.from(store.keys())[index] ?? null;
+            },
+            get length() {
+              return store.size;
+            },
+          };
+        }
+
+        function patchIfBroken(name) {
+          try {
+            const storage = window[name];
+            if (!storage) return;
+            storage.getItem('__notees_storage_test__');
+          } catch (err) {
+            console.warn('[Notees] ' + name + ' is inaccessible, using in-memory polyfill:', err);
+            try {
+              Object.defineProperty(window, name, {
+                value: makeMemoryStorage(),
+                writable: true,
+                configurable: true,
+              });
+            } catch (e) {
+              console.error('[Notees] Failed to polyfill ' + name + ':', e);
+            }
+          }
+        }
+
+        patchIfBroken('localStorage');
+        patchIfBroken('sessionStorage');
+      })();
     </script>
 
     <div id="root"></div>
