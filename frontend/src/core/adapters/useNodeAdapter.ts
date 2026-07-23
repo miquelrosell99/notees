@@ -6,7 +6,7 @@ import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
 import { projectNodeFromClient } from './nodeProjection';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
-import { useSync } from '../hooks/useSync';
+import { useSyncStatusStore } from '@/features/sync';
 
 const NOT_FOUND_REDIRECT_DELAY_MS = 1_500;
 
@@ -38,7 +38,7 @@ export function useNodeAdapter(
   const [data, setData] = useState<Node | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const { status: syncStatus } = useSync(workspaceId ?? '');
+  const syncStatus = useSyncStatusStore((s) => s.status);
 
   useEffect(() => {
     if (!ctx || !workspaceId || !id) {

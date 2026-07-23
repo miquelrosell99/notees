@@ -28,6 +28,7 @@ import { useContentSave } from '@/features/editor';
 import { useFoldKeyboardShortcut } from '@/features/sync';
 import { nodeNameToText } from '@/features/queries';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { usePageAliases } from '@/features/content';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useOpenNodeAction } from '@/features/layout';
@@ -280,40 +281,68 @@ export interface NodeViewResult {
   content: React.ReactNode;
 }
 
+const MAX_WORD_COUNT_DEPTH = 8;
+
+interface WordCountResult {
+  words: number;
+  blocks: number;
+  capped: boolean;
+}
+
 /**
- * Counts words across a node and all its children recursively
+ * Counts words across a node and its children recursively.
+ *
+ * Depth is capped to avoid blocking the main thread on huge/deep pages. When
+ * the cap is hit the returned `capped` flag is true and the displayed count is
+ * approximate.
  */
-function countWordsInTree(node: Node, isRoot = true): { words: number; blocks: number } {
+function countWordsInTree(node: Node, depth = 0): WordCountResult {
   let words = 0;
   let blocks = 0;
-  
-  const skipSelf = isRoot && node.is_page;
+  let capped = false;
+
+  if (depth > MAX_WORD_COUNT_DEPTH) {
+    return { words: 0, blocks: 0, capped: true };
+  }
+
+  const skipSelf = depth === 0 && node.is_page;
   if (!skipSelf) {
     const text = nodeNameToText(node.name);
     if (text) {
-      words += text.split(/\s+/).filter(w => w.length > 0).length;
+      words += text.split(/\s+/).filter((w) => w.length > 0).length;
     }
     blocks++;
   }
-  
+
   if (node.children) {
     for (const child of node.children) {
-      const childCounts = countWordsInTree(child, false);
+      const childCounts = countWordsInTree(child, depth + 1);
       words += childCounts.words;
       blocks += childCounts.blocks;
+      capped ||= childCounts.capped;
     }
   }
-  
-  return { words, blocks };
+
+  return { words, blocks, capped };
 }
 
+const WORD_COUNT_DEBOUNCE_MS = 300;
+
 function WordCount({ node }: { node: Node }) {
-  const { words, blocks } = useMemo(() => countWordsInTree(node), [node]);
-  
+  const debouncedNode = useDebouncedValue(node, WORD_COUNT_DEBOUNCE_MS);
+  const { words, blocks, capped } = useMemo(
+    () => countWordsInTree(debouncedNode),
+    [debouncedNode]
+  );
+
   return (
     <div className="node-view-word-count">
-      <span>{words.toLocaleString()} words</span>
-      <span>{blocks.toLocaleString()} blocks</span>
+      <span>
+        {words.toLocaleString()} words{capped && '+'}
+      </span>
+      <span>
+        {blocks.toLocaleString()} blocks{capped && '+'}
+      </span>
     </div>
   );
 }

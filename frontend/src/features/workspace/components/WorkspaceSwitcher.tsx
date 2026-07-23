@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
-import { useNavigationStore, useModalStore, useRecentsStore } from '@/stores';
+import { useNavigationStore, useModalStore, useRecentsStore, useNotificationStore } from '@/stores';
 import { workspaceKeys } from '@/hooks/queryKeys';
 import { invalidateWorkspaceQueries } from '@/lib/queryClient';
 import { Button } from '@/components/ui/Button';
@@ -44,12 +44,16 @@ export function WorkspaceSwitcher() {
 
     // Navigate to new workspace home
     navigate(`/${switchedUuid}`, { replace: true });
-    
+
     // Invalidate workspace-scoped queries to prevent stale data from the
     // previous workspace, while keeping auth/settings/workspace-list caches.
     invalidateWorkspaceQueries(queryClient);
     useNavigationStore.setState({ isSwitchingWorkspace: false });
   }, [queryClient, navigate]);
+
+  const invalidateWorkspaceList = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
+  }, [queryClient]);
 
   const switchMutation = useMutation({
     mutationFn: switchWorkspace,
@@ -58,9 +62,23 @@ export function WorkspaceSwitcher() {
     },
     onSuccess: (_data, switchedUuid) => {
       clearCacheOnSwitch(switchedUuid);
+      invalidateWorkspaceList();
     },
-    onError: () => {
+    onError: (error, switchedUuid) => {
       useNavigationStore.setState({ isSwitchingWorkspace: false });
+      invalidateWorkspaceList();
+
+      const message = error instanceof Error ? error.message : 'Could not switch workspace';
+      useNotificationStore.getState().addNotification({
+        type: 'error',
+        title: 'Failed to switch workspace',
+        message,
+        duration: 0,
+        action: {
+          label: 'Retry',
+          onClick: () => switchMutation.mutate(switchedUuid),
+        },
+      });
     },
   });
 

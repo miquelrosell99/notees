@@ -6,12 +6,18 @@
  * the current view should be, and the rest of the app continues to render
  * from the store.
  *
- * NOTE: processRoute() is async because it validates UUIDs against the API.
+ * The adapter is split into two effects:
+ * 1. One-time route-param processing (workspace switch + entity lookup).
+ *    It is gated by the last processed route so it does not re-run when
+ *    unrelated state (e.g. `todayNote`) changes.
+ * 2. Reactive view selection for the workspace root, which depends only on
+ *    `defaultView` and `todayNote`.
+ *
  * To avoid the stale-closure race that used to live in useNavigationUrlSync,
- * each invocation increments a generation counter; only the most recent
+ * each async invocation increments a generation counter; only the most recent
  * generation is allowed to update the store or clear the isProcessingUrl flag.
  */
-import { useEffect, useCallback, useRef, useContext, type MutableRefObject } from 'react';
+import { useEffect, useCallback, useRef, useContext, useState, type MutableRefObject } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
@@ -48,6 +54,8 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   // It guards against stale async results when the URL changes while a previous
   // lookup is still pending.
   const routeGenerationRef = useRef(0);
+  const lastRouteRef = useRef<{ workspaceId?: string; entityUuid?: string | null }>({});
+  const [routeReady, setRouteReady] = useState(false);
 
   const params = useParams();
   const workspaceId = params.workspaceId;
@@ -128,85 +136,98 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
 
   const ctx = useContext(WorkspaceStoreContext);
 
-  const processRoute = useCallback(async () => {
+  // One-time route-param processing: switch workspace and resolve the entity
+  // segment. Gated by the last processed route so it does not re-run when
+  // `todayNote`, `defaultView`, or other reactive state changes.
+  useEffect(() => {
     if (!workspaceId || isLoadingDbs || !dbData || !ctx) return;
 
+    const sameRoute =
+      lastRouteRef.current.workspaceId === workspaceId &&
+      lastRouteRef.current.entityUuid === entityUuid;
+    if (sameRoute) return;
+
+    lastRouteRef.current = { workspaceId, entityUuid };
     const generation = ++routeGenerationRef.current;
     const isLatestGeneration = () => generation === routeGenerationRef.current;
+    let cancelled = false;
 
     isProcessingUrl.current = true;
-    try {
-      await ensureWorkspace(workspaceId);
 
-      if (!isLatestGeneration()) return;
+    const processRoute = async (): Promise<void> => {
+      try {
+        await ensureWorkspace(workspaceId);
+        if (cancelled || !isLatestGeneration()) return;
 
-      const client = await getOrCreateWorkspaceStoreClient(
-        workspaceId,
-        ctx.actorId,
-        ctx.transport,
-      );
-      if (!isLatestGeneration()) return;
+        // Workspace root view selection is handled by the reactive effect below
+        // because it depends on `defaultView` and `todayNote`.
+        if (!entityUuid) return;
 
-      if (!entityUuid) {
-        // Workspace root: honour the user's "Default view" setting.
-        if (defaultView === 'today') {
-          if (todayNote) {
-            openNode(todayNote.uuid);
-          }
-          // If today's note is still loading, this effect will re-run once it resolves.
-        } else {
-          setMainViewType(DEFAULT_VIEW_TO_MAIN_VIEW[defaultView]);
-        }
-        return;
-      }
+        const client = await getOrCreateWorkspaceStoreClient(
+          workspaceId,
+          ctx.actorId,
+          ctx.transport,
+        );
+        if (cancelled || !isLatestGeneration()) return;
 
-      const rest = entityUuid.toLowerCase();
+        const rest = entityUuid.toLowerCase();
 
-      if (SPECIAL_VIEWS[rest] && SPECIAL_VIEWS[rest] !== 'auth') {
-        log.debug('Route: special view', { viewType: SPECIAL_VIEWS[rest] });
-        setMainViewType(SPECIAL_VIEWS[rest] as MainViewType);
-        return;
-      }
-
-      if (isUuid(entityUuid)) {
-        const uuid = entityUuid;
-        const isDateUuid = isDayUuid(uuid) || isMonthUuid(uuid) || isYearUuid(uuid);
-
-        // Pages/nodes are the common case; try them first to avoid spurious
-        // property 404s on every page navigation.
-        const node = await client.query<Node | undefined>('getNodeByUuid', [uuid]);
-        if (node) {
-          if (!isLatestGeneration()) return;
-          log.debug('UUID resolved to node', { uuid, id: node.uuid, is_page: node.is_page });
-          openNode(node.uuid);
+        if (SPECIAL_VIEWS[rest] && SPECIAL_VIEWS[rest] !== 'auth') {
+          log.debug('Route: special view', { viewType: SPECIAL_VIEWS[rest] });
+          setMainViewType(SPECIAL_VIEWS[rest] as MainViewType);
           return;
         }
-        if (!isLatestGeneration()) return;
 
-        if (!isDateUuid) {
-          const property = await client.query<Property | undefined>('getPropertySchemaByUuid', [uuid]);
-          if (!isLatestGeneration()) return;
-          if (property) {
-            log.debug('UUID resolved to property', { uuid, id: property.uuid });
-            openPropertyView(property.uuid);
+        if (isUuid(entityUuid)) {
+          const uuid = entityUuid;
+          const isDateUuid = isDayUuid(uuid) || isMonthUuid(uuid) || isYearUuid(uuid);
+
+          // Pages/nodes are the common case; try them first to avoid spurious
+          // property 404s on every page navigation.
+          const node = await client.query<Node | undefined>('getNodeByUuid', [uuid]);
+          if (node) {
+            if (cancelled || !isLatestGeneration()) return;
+            log.debug('UUID resolved to node', { uuid, id: node.uuid, is_page: node.is_page });
+            openNode(node.uuid);
             return;
           }
+          if (cancelled || !isLatestGeneration()) return;
+
+          if (!isDateUuid) {
+            const property = await client.query<Property | undefined>('getPropertySchemaByUuid', [uuid]);
+            if (cancelled || !isLatestGeneration()) return;
+            if (property) {
+              log.debug('UUID resolved to property', { uuid, id: property.uuid });
+              openPropertyView(property.uuid);
+              return;
+            }
+          }
+
+          log.warn('UUID not found as node or property, going home', { uuid });
+          useNavigationStore.setState({ currentNodeUuid: null, currentPropertyUuid: null });
+          goHome();
+          return;
         }
 
-        log.warn('UUID not found as node or property, going home', { uuid });
-        useNavigationStore.setState({ currentNodeUuid: null, currentPropertyUuid: null });
+        log.warn('Unknown route segment, going home', { segment: entityUuid });
         goHome();
-        return;
+      } finally {
+        if (isLatestGeneration()) {
+          isProcessingUrl.current = false;
+          hasInitialized.current = true;
+          setRouteReady(true);
+        }
       }
+    };
 
-      log.warn('Unknown route segment, going home', { segment: entityUuid });
-      goHome();
-    } finally {
+    void processRoute();
+
+    return () => {
+      cancelled = true;
       if (isLatestGeneration()) {
         isProcessingUrl.current = false;
       }
-      hasInitialized.current = true;
-    }
+    };
   }, [
     workspaceId,
     entityUuid,
@@ -220,19 +241,26 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     openPropertyView,
     hasInitialized,
     isProcessingUrl,
-    defaultView,
-    todayNote,
   ]);
 
-  // Process the route whenever the workspace or entity segment changes.
+  // Reactive effect for the workspace root: honour the user's default view.
+  // This intentionally re-runs when `defaultView` or `todayNote` resolves.
   useEffect(() => {
-    processRoute();
-  }, [processRoute]);
+    if (!hasInitialized.current || !workspaceId || entityUuid) return;
+
+    if (defaultView === 'today') {
+      if (todayNote) {
+        openNode(todayNote.uuid);
+      }
+    } else {
+      setMainViewType(DEFAULT_VIEW_TO_MAIN_VIEW[defaultView]);
+    }
+  }, [workspaceId, entityUuid, defaultView, todayNote, openNode, setMainViewType, hasInitialized]);
 
   // Keep navigationHistoryStore in sync with browser history length on first init.
   useEffect(() => {
-    if (hasInitialized.current) {
+    if (routeReady) {
       useNavigationHistoryStore.getState().reset();
     }
-  }, [hasInitialized]);
+  }, [routeReady]);
 }
