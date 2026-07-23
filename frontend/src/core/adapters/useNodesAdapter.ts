@@ -4,6 +4,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
+import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
 export interface UseNodesAdapterFilters {
   pages_only?: boolean;
@@ -36,28 +37,50 @@ export function useNodesAdapter(
       return;
     }
 
+    const effectWorkspaceId = workspaceId;
+    const effectCtx = ctx;
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
     setIsLoading(true);
     setError(null);
 
-    getOrCreateWorkspaceStoreClient(workspaceId, ctx.actorId, ctx.transport)
-      .then(async (client) => {
+    async function fetchNodes(client?: IWorkspaceStoreClient) {
+      if (cancelled) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const c =
+          client ??
+          (await getOrCreateWorkspaceStoreClient(
+            effectWorkspaceId,
+            effectCtx.actorId,
+            effectCtx.transport
+          ));
         if (cancelled) return;
-
-        const nodes = await client.query<Node[]>('listNodes', [filters]);
+        if (!unsubscribe) {
+          unsubscribe = c.subscribe(null, () => {
+            if (!c.isClosed() && !cancelled) {
+              void fetchNodes(c);
+            }
+          });
+        }
+        const nodes = await c.query<Node[]>('listNodes', [filters]);
         if (cancelled) return;
 
         setData(nodes);
         setIsLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err : new Error(String(err)));
         setIsLoading(false);
-      });
+      }
+    }
+
+    void fetchNodes();
 
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [

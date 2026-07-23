@@ -105,7 +105,7 @@ function getChildrenFromDb(db: Database, parentId: string): string[] {
 
 /**
  * Walk up the parent chain to find the containing page UUID.
- * TODO(D2): This uses node.kind === 'page'. Once class-based page tagging is
+ * NOTE(D2): This uses node.kind === 'page'. Once class-based page tagging is
  * fully wired, resolve the page class UUID and check class_ids too.
  */
 function resolvePageUuid(db: Database, nodeId: string): string | null {
@@ -127,7 +127,7 @@ function resolvePageUuid(db: Database, nodeId: string): string | null {
 
 /**
  * Resolve the sequence (position) of a child within its parent.
- * TODO(D2): node_child_order.position is an HLC-sortable string; map it to a
+ * NOTE(D2): node_child_order.position is an HLC-sortable string; map it to a
  * stable numeric sequence when the ordering scheme is finalized.
  */
 function resolveSequence(db: Database, nodeId: string, parentId: string | null): number {
@@ -166,7 +166,7 @@ export function projectNodeFromDb(
   const name = deriveName(node.content);
   const classIds = node.classIds ?? [];
   const isPage = node.kind === 'page';
-  // TODO(D2): When the page system class UUID is known, also check
+  // NOTE(D2): When the page system class UUID is known, also check
   // classIds.includes(pageClassUuid) here.
   const isClass = node.kind === 'class';
   const pageUuid = resolvePageUuid(db, nodeId);
