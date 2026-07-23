@@ -171,10 +171,16 @@ function LoginRoute() {
 
 function WorkspaceRedirect() {
   const navigate = useNavigate();
-  const { data: dbData, isLoading } = useQuery({
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const {
+    data: dbData,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 10000,
+    enabled: isAuthenticated,
     select: (data) => ({
       workspaces: data.items,
       active: data.items.find((w) => w.is_active)?.uuid ?? null,
@@ -186,8 +192,10 @@ function WorkspaceRedirect() {
       navigate(`/${dbData.active}`, { replace: true });
     } else if (dbData && !dbData.active) {
       navigate('/workspaces', { replace: true });
+    } else if (isError) {
+      navigate('/workspaces', { replace: true });
     }
-  }, [dbData, navigate]);
+  }, [dbData, isError, navigate]);
 
   if (isLoading) {
     return <LoadingScreen label="Loading workspace…" />;
