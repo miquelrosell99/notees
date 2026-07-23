@@ -44,14 +44,46 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('[main] Unhandled promise rejection:', event.reason);
 });
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+function hideSplash(): void {
+  (window as unknown as { __hideNoteesSplash?: () => void }).__hideNoteesSplash?.();
+}
+
+function showFatalError(message: string): void {
+  hideSplash();
+  const root = document.getElementById('root');
+  if (root) {
+    root.innerHTML = `<div style="padding:24px;color:#fff;background:#121211;min-height:100vh;font-family:system-ui,sans-serif;">
+      <h1 style="font-size:20px;margin-bottom:12px;">Failed to start Notees</h1>
+      <p style="opacity:0.8;margin-bottom:16px;">${message}</p>
+      <button onclick="window.location.reload()" style="padding:8px 16px;background:#fff;color:#121211;border:none;border-radius:4px;cursor:pointer;">Reload page</button>
+    </div>`;
+  }
+}
+
+// Defensive timeout: if the splash is still visible after 8 seconds, something
+// prevented React from mounting (a top-level exception, a hung import, etc.).
+// Hide the splash and show a readable error instead of leaving the user stuck.
+const splashFallbackTimer = window.setTimeout(() => {
+  showFatalError('The app took too long to initialize. Check the browser console for errors and try reloading.');
+}, 8000);
+
+try {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+} catch (err) {
+  window.clearTimeout(splashFallbackTimer);
+  console.error('[main] Fatal error mounting React:', err);
+  showFatalError(
+    `A fatal error prevented the app from starting: ${err instanceof Error ? err.message : String(err)}`
+  );
+}
 
 // Remove the static splash screen once React has mounted so it never outlives
 // a failed workspace load or an auth/onboarding state.
 requestAnimationFrame(() => {
-  (window as unknown as { __hideNoteesSplash?: () => void }).__hideNoteesSplash?.();
+  window.clearTimeout(splashFallbackTimer);
+  hideSplash();
 });
