@@ -134,6 +134,17 @@ async def auth_status():
     }
 
 
+def _cookie_samesite() -> str:
+    """Return the appropriate SameSite policy for auth cookies.
+
+    Strict in production prevents CSRF, but in development the frontend Vite
+    proxy and common cross-port workflows (e.g. http://host:5173 -> :8001)
+    are still same-site; Lax avoids silent cookie drops on redirects while
+    keeping CSRF protection enabled.
+    """
+    return "strict" if settings.environment.lower() == "production" else "lax"
+
+
 def _set_refresh_cookie(response: Response, token: str, remember_me: bool = False) -> None:
     """Set the refresh token HTTPOnly cookie."""
     lifetime_days = settings.refresh_token_remember_me_days if remember_me else settings.refresh_token_expire_days
@@ -146,7 +157,7 @@ def _set_refresh_cookie(response: Response, token: str, remember_me: bool = Fals
         value=token,
         httponly=True,
         secure=is_production or settings.public_url.startswith("https://"),
-        samesite="strict",
+        samesite=_cookie_samesite(),
         max_age=max_age,
         path="/api/auth/refresh",
     )
@@ -161,7 +172,7 @@ def _set_access_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         secure=is_production or settings.public_url.startswith("https://"),
-        samesite="strict",
+        samesite=_cookie_samesite(),
         max_age=max_age,
         path="/api",
     )
