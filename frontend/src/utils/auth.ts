@@ -53,8 +53,14 @@ export function handleAuthFailure(): void {
     // Ignore storage errors (e.g., private mode).
   }
   window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-  if (window.location.pathname !== '/auth') {
+  // Always force a clean auth state. If we are already on /auth we still need
+  // to reload so that any post-login loaders stop and the login form is shown
+  // with a cleared session.
+  const current = window.location.pathname;
+  if (current !== '/auth') {
     window.location.href = '/auth';
+  } else {
+    window.location.reload();
   }
 }
 
