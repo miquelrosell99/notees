@@ -280,8 +280,9 @@ const PERSIST_OPTIONS = {
  * `useWorkspaces`, which in turn uses TanStack Query's useQuery hook.
  */
 function WorkspacePersisterSync() {
+  const user = useAuthStore((s) => s.user);
   const authVerified = useAuthStore((s) => s.authVerified);
-  const { data: workspacesData } = useWorkspaces({ enabled: authVerified });
+  const { data: workspacesData } = useWorkspaces({ enabled: !!user && authVerified });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
     return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
@@ -321,7 +322,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const user = useAuthStore((s) => s.user);
   const authVerified = useAuthStore((s) => s.authVerified);
   const actorId = user?.uuid ?? 'anonymous';
-  const { data: workspacesData } = useWorkspaces({ enabled: authVerified });
+  const { data: workspacesData } = useWorkspaces({ enabled: !!user && authVerified });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
     return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
