@@ -12,6 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 from app.core.clock import Hlc
 from app.features import auth as auth_module
 from app.relay.broadcast import _registry as broadcast_registry
+from app.relay.broadcast import reset_broadcast_backend
 from app.relay.dependencies import (
     get_effective_permission_checker,
     get_permission_checker,
@@ -53,9 +54,9 @@ def client(app: FastAPI) -> TestClient:
 
 @pytest.fixture(autouse=True)
 def clear_broadcast_registry() -> None:
-    broadcast_registry.clear()
+    reset_broadcast_backend()
     yield
-    broadcast_registry.clear()
+    reset_broadcast_backend()
 
 
 @pytest.fixture
