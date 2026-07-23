@@ -161,13 +161,28 @@ async def get_actor_id(
     return _actor_id_from_headers(request.headers)
 
 
-def get_actor_id_ws(websocket: WebSocket) -> str:
+async def get_actor_id_ws(websocket: WebSocket) -> str:
     """Extract the actor id for the relay WebSocket connection.
 
-    WebSocket authentication is header-based in this phase; there is no
-    request state to inspect.
+    Validates the same JWT cookie or Bearer token used by the HTTP relay
+    endpoints. The ``X-Actor-Id`` header is not trusted on its own; without a
+    valid token the connection is treated as anonymous.
     """
-    return _actor_id_from_headers(websocket.headers)
+    jwt_token = websocket.cookies.get("access_token")
+    auth_header = websocket.headers.get("Authorization", "")
+    if not jwt_token and auth_header.lower().startswith("bearer "):
+        jwt_token = auth_header[7:]
+
+    if jwt_token:
+        payload = auth_module.decode_token(jwt_token)
+        if payload and not auth_module.is_preauth_payload(payload):
+            user_id = payload.get("user_id")
+            if user_id:
+                user = await auth_module.get_user_by_id(str(user_id))
+                if user:
+                    return str(user["uuid"])
+
+    return "anonymous"
 
 
 async def get_relay_service(

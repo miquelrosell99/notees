@@ -39,6 +39,12 @@ class TestOperationEnvelope:
     @pytest.mark.parametrize(
         "op_type",
         [
+            "node.addAlias",
+            "node.removeAlias",
+            "node.archive",
+            "node.restore",
+            "node.permanentDelete",
+            "node.convert",
             "task.recordCompletion",
             "task.deleteCompletion",
             "task.setRecurrence",
@@ -54,7 +60,7 @@ class TestOperationEnvelope:
             "plugin.op",
         ],
     )
-    def test_new_island_op_types_are_valid(self, op_type: str) -> None:
+    def test_frontend_op_types_are_valid(self, op_type: str) -> None:
         envelope = OperationEnvelope(
             workspace_id="ws-1",
             actor_id="actor-1",

@@ -139,3 +139,26 @@ class PostgresPermissionChecker(PermissionChecker):
                 workspace_id,
             )
             return row is not None
+
+    async def get_public_share_node_id(
+        self,
+        workspace_id: str,
+        share_token: str,
+    ) -> str | None:
+        """Return the node UUID that an active public share token references."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT s.node_uuid::text as node_uuid
+                FROM node_public_share s
+                JOIN workspace w ON w.id = s.workspace_id
+                WHERE s.uuid::text = $1
+                  AND w.uuid::text = $2
+                  AND s.active = TRUE
+                  AND (s.expiry_date IS NULL OR s.expiry_date > NOW())
+                LIMIT 1
+                """,
+                share_token,
+                workspace_id,
+            )
+            return row["node_uuid"] if row else None

@@ -39,6 +39,18 @@ class PermissionChecker(ABC):
         """
         return False
 
+    async def get_public_share_node_id(
+        self,
+        workspace_id: str,
+        share_token: str,
+    ) -> str | None:
+        """Return the node id a public share token grants access to, if any.
+
+        Default implementation returns ``None``. Concrete adapters that support
+        public-share tokens override this with a real database lookup.
+        """
+        return None
+
 
 class StubPermissionChecker(PermissionChecker):
     """Permission checker that always allows.

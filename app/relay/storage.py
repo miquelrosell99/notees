@@ -20,7 +20,7 @@ from typing import Any
 
 import asyncpg
 
-from app.core.clock import Hlc, compare_hlc
+from app.core.clock import Hlc
 from app.db.connection import get_pool
 from app.relay.models import EncryptedEnvelope
 
@@ -33,12 +33,24 @@ class RelayStorage(ABC):
         """Persist ``envelope``. Callers should dedupe via ``envelope_exists``."""
 
     @abstractmethod
-    def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> None:
-        """Persist many envelopes efficiently."""
+    def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> list[str]:
+        """Persist many envelopes efficiently.
+
+        Returns the ids of envelopes that were actually inserted; duplicates
+        that already existed are omitted from the result.
+        """
 
     @abstractmethod
-    def get_catch_up(self, workspace_id: str, hlc: Hlc) -> list[EncryptedEnvelope]:
+    def get_catch_up(
+        self,
+        workspace_id: str,
+        hlc: Hlc,
+        node_id: str | None = None,
+    ) -> list[EncryptedEnvelope]:
         """Return envelopes for ``workspace_id`` with HLC greater than ``hlc``.
+
+        When ``node_id`` is provided, only envelopes whose ``affected_node_ids``
+        include that node are returned.
 
         Results are sorted lexicographically by HLC, then by envelope id.
         """
@@ -50,8 +62,12 @@ class RelayStorage(ABC):
         hlc: Hlc,
         limit: int = 1000,
         after_id: str | None = None,
+        node_id: str | None = None,
     ) -> tuple[list[EncryptedEnvelope], str | None]:
         """Return a page of envelopes newer than ``hlc`` for ``workspace_id``.
+
+        When ``node_id`` is provided, only envelopes whose ``affected_node_ids``
+        include that node are returned.
 
         Results are sorted lexicographically by HLC, then by envelope id.
         The returned ``next_after_id`` is the id of the last envelope when the
@@ -255,13 +271,30 @@ class SqliteRelayStorage(RelayStorage):
         )
         self._connection.commit()
 
-    def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> None:
+    def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> list[str]:
         """Persist many envelopes in a single transaction.
 
         This is much faster than calling :meth:`save_envelope` in a loop for
         bulk seeding/migration, where thousands of individual commits would
         otherwise fsync the WAL on every insert.
+
+        Returns the ids of envelopes that were actually inserted; duplicates
+        that already existed are omitted from the result.
         """
+        if not envelopes:
+            return []
+
+        ids = [envelope.id for envelope in envelopes]
+        placeholders = ",".join("?" for _ in ids)
+        cursor = self._connection.execute(
+            f"SELECT id FROM relay_envelope WHERE id IN ({placeholders})",
+            tuple(ids),
+        )
+        existing = {row["id"] for row in cursor.fetchall()}
+        new_envelopes = [env for env in envelopes if env.id not in existing]
+        if not new_envelopes:
+            return []
+
         rows = [
             (
                 envelope.id,
@@ -274,7 +307,7 @@ class SqliteRelayStorage(RelayStorage):
                 json.dumps(envelope.payload),
                 envelope.timestamp.isoformat() if envelope.timestamp else None,
             )
-            for envelope in envelopes
+            for envelope in new_envelopes
         ]
         self._connection.executemany(
             """
@@ -286,22 +319,30 @@ class SqliteRelayStorage(RelayStorage):
             rows,
         )
         self._connection.commit()
+        return [envelope.id for envelope in new_envelopes]
 
-    def get_catch_up(self, workspace_id: str, hlc: Hlc) -> list[EncryptedEnvelope]:
+    def get_catch_up(
+        self,
+        workspace_id: str,
+        hlc: Hlc,
+        node_id: str | None = None,
+    ) -> list[EncryptedEnvelope]:
+        params: list[Any] = [workspace_id, hlc.physical, hlc.logical]
+        node_filter = ""
+        if node_id is not None:
+            node_filter = "AND affected_node_ids LIKE ?"
+            params.append(f'%"{node_id}"%')
         cursor = self._connection.execute(
-            """
+            f"""
             SELECT * FROM relay_envelope
             WHERE workspace_id = ?
+              AND (physical, logical) > (?, ?)
+              {node_filter}
             ORDER BY physical ASC, logical ASC, id ASC
             """,
-            (workspace_id,),
+            tuple(params),
         )
-        results: list[EncryptedEnvelope] = []
-        for row in cursor.fetchall():
-            envelope = self._row_to_envelope(row)
-            if compare_hlc(envelope.hlc, hlc) > 0:
-                results.append(envelope)
-        return results
+        return [self._row_to_envelope(row) for row in cursor.fetchall()]
 
     def get_catch_up_paginated(
         self,
@@ -309,7 +350,14 @@ class SqliteRelayStorage(RelayStorage):
         hlc: Hlc,
         limit: int = 1000,
         after_id: str | None = None,
+        node_id: str | None = None,
     ) -> tuple[list[EncryptedEnvelope], str | None]:
+        node_filter = ""
+        node_param: tuple[Any, ...] = ()
+        if node_id is not None:
+            node_filter = "AND affected_node_ids LIKE ?"
+            node_param = (f'%"{node_id}"%',)
+
         if after_id is not None:
             cursor_row = self._connection.execute(
                 "SELECT physical, logical FROM relay_envelope WHERE id = ?",
@@ -320,11 +368,12 @@ class SqliteRelayStorage(RelayStorage):
                     f"Pagination cursor envelope {after_id} no longer exists"
                 )
             cursor = self._connection.execute(
-                """
+                f"""
                 SELECT * FROM relay_envelope
                 WHERE workspace_id = ?
                   AND (physical, logical) > (?, ?)
                   AND (physical, logical, id) > (?, ?, ?)
+                  {node_filter}
                 ORDER BY physical ASC, logical ASC, id ASC
                 LIMIT ?
                 """,
@@ -335,19 +384,21 @@ class SqliteRelayStorage(RelayStorage):
                     cursor_row["physical"],
                     cursor_row["logical"],
                     after_id,
+                    *node_param,
                     limit,
                 ),
             )
         else:
             cursor = self._connection.execute(
-                """
+                f"""
                 SELECT * FROM relay_envelope
                 WHERE workspace_id = ?
                   AND (physical, logical) > (?, ?)
+                  {node_filter}
                 ORDER BY physical ASC, logical ASC, id ASC
                 LIMIT ?
                 """,
-                (workspace_id, hlc.physical, hlc.logical, limit),
+                (workspace_id, hlc.physical, hlc.logical, *node_param, limit),
             )
         results = [self._row_to_envelope(row) for row in cursor.fetchall()]
         next_after_id = results[-1].id if len(results) == limit else None
@@ -655,47 +706,89 @@ class PostgresRelayStorage(RelayStorage):
             envelope.timestamp,
         )
 
-    async def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> None:
+    async def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> list[str]:
         pool = await self._get_pool()
-        rows = [
-            (
-                envelope.id,
-                envelope.workspace_id,
-                envelope.actor_id,
-                envelope.hlc.physical,
-                envelope.hlc.logical,
-                envelope.affected_node_ids,
-                envelope.op_type,
-                envelope.payload,
-                envelope.timestamp,
-            )
+        if not envelopes:
+            return []
+        ids = [envelope.id for envelope in envelopes]
+        workspace_ids = [envelope.workspace_id for envelope in envelopes]
+        actor_ids = [envelope.actor_id for envelope in envelopes]
+        physicals = [envelope.hlc.physical for envelope in envelopes]
+        logicals = [envelope.hlc.logical for envelope in envelopes]
+        affected_node_ids = [json.dumps(envelope.affected_node_ids) for envelope in envelopes]
+        op_types = [envelope.op_type for envelope in envelopes]
+        payloads = [json.dumps(envelope.payload) for envelope in envelopes]
+        timestamps = [
+            envelope.timestamp.isoformat() if envelope.timestamp else None
             for envelope in envelopes
         ]
         async with pool.acquire() as conn:
-            await conn.executemany(
+            rows = await conn.fetch(
                 """
                 INSERT INTO relay_envelope (
                     id, workspace_id, actor_id, physical, logical,
                     affected_node_ids, op_type, payload, timestamp
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                )
+                SELECT
+                    id, workspace_id, actor_id, physical, logical,
+                    affected_node_ids::jsonb,
+                    op_type,
+                    payload::jsonb,
+                    timestamp::timestamptz
+                FROM unnest(
+                    $1::text[], $2::text[], $3::text[],
+                    $4::bigint[], $5::bigint[], $6::text[],
+                    $7::text[], $8::text[], $9::text[]
+                )
+                AS t(id, workspace_id, actor_id, physical, logical, affected_node_ids, op_type, payload, timestamp)
                 ON CONFLICT (id) DO NOTHING
+                RETURNING id
                 """,
-                rows,
+                ids,
+                workspace_ids,
+                actor_ids,
+                physicals,
+                logicals,
+                affected_node_ids,
+                op_types,
+                payloads,
+                timestamps,
             )
+        return [str(row["id"]) for row in rows]
 
-    async def get_catch_up(self, workspace_id: str, hlc: Hlc) -> list[EncryptedEnvelope]:
+    async def get_catch_up(
+        self,
+        workspace_id: str,
+        hlc: Hlc,
+        node_id: str | None = None,
+    ) -> list[EncryptedEnvelope]:
         pool = await self._get_pool()
-        rows = await pool.fetch(
-            """
-            SELECT * FROM relay_envelope
-            WHERE workspace_id = $1
-              AND (physical, logical) > ($2, $3)
-            ORDER BY physical ASC, logical ASC, id ASC
-            """,
-            workspace_id,
-            hlc.physical,
-            hlc.logical,
-        )
+        if node_id is not None:
+            rows = await pool.fetch(
+                """
+                SELECT * FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND (physical, logical) > ($2, $3)
+                  AND affected_node_ids @> $4::jsonb
+                ORDER BY physical ASC, logical ASC, id ASC
+                """,
+                workspace_id,
+                hlc.physical,
+                hlc.logical,
+                json.dumps([node_id]),
+            )
+        else:
+            rows = await pool.fetch(
+                """
+                SELECT * FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND (physical, logical) > ($2, $3)
+                ORDER BY physical ASC, logical ASC, id ASC
+                """,
+                workspace_id,
+                hlc.physical,
+                hlc.logical,
+            )
         return [self._row_to_envelope(row) for row in rows]
 
     async def get_catch_up_paginated(
@@ -704,8 +797,16 @@ class PostgresRelayStorage(RelayStorage):
         hlc: Hlc,
         limit: int = 1000,
         after_id: str | None = None,
+        node_id: str | None = None,
     ) -> tuple[list[EncryptedEnvelope], str | None]:
         pool = await self._get_pool()
+        node_filter_sql = ""
+        node_filter_arg: Any | None = None
+        node_param_index = 8 if after_id is not None else 5
+        if node_id is not None:
+            node_filter_sql = f"AND affected_node_ids @> ${node_param_index}::jsonb"
+            node_filter_arg = json.dumps([node_id])
+
         if after_id is not None:
             cursor_row = await pool.fetchrow(
                 "SELECT physical, logical, id FROM relay_envelope WHERE id = $1::text",
@@ -715,15 +816,7 @@ class PostgresRelayStorage(RelayStorage):
                 raise ValueError(
                     f"Pagination cursor envelope {after_id} no longer exists"
                 )
-            rows = await pool.fetch(
-                """
-                SELECT * FROM relay_envelope
-                WHERE workspace_id = $1
-                  AND (physical, logical) > ($2, $3)
-                  AND (physical, logical, id) > ($4, $5, $6)
-                ORDER BY physical ASC, logical ASC, id ASC
-                LIMIT $7
-                """,
+            args = [
                 workspace_id,
                 hlc.physical,
                 hlc.logical,
@@ -731,20 +824,40 @@ class PostgresRelayStorage(RelayStorage):
                 cursor_row["logical"],
                 after_id,
                 limit,
-            )
-        else:
+            ]
+            if node_filter_arg is not None:
+                args.append(node_filter_arg)
             rows = await pool.fetch(
-                """
+                f"""
                 SELECT * FROM relay_envelope
                 WHERE workspace_id = $1
                   AND (physical, logical) > ($2, $3)
+                  AND (physical, logical, id) > ($4, $5, $6)
+                  {node_filter_sql}
                 ORDER BY physical ASC, logical ASC, id ASC
-                LIMIT $4
+                LIMIT $7
                 """,
+                *args,
+            )
+        else:
+            args = [
                 workspace_id,
                 hlc.physical,
                 hlc.logical,
                 limit,
+            ]
+            if node_filter_arg is not None:
+                args.append(node_filter_arg)
+            rows = await pool.fetch(
+                f"""
+                SELECT * FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND (physical, logical) > ($2, $3)
+                  {node_filter_sql}
+                ORDER BY physical ASC, logical ASC, id ASC
+                LIMIT $4
+                """,
+                *args,
             )
         results = [self._row_to_envelope(row) for row in rows]
         next_after_id = results[-1].id if len(results) == limit else None
