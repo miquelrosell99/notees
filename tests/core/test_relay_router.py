@@ -131,12 +131,11 @@ def test_receive_batch(client: TestClient) -> None:
     assert data["saved_ids"] == ["op-1"]
 
 
-def test_receive_batch_allows_device_actor_id_different_from_authenticated_actor(
+def test_receive_batch_overwrites_client_actor_id(
     client: TestClient,
+    storage: RelayStorage,
 ) -> None:
-    """Envelope actor ids are CRDT device identifiers and may differ from the
-    authenticated actor supplied by the relay endpoint.
-    """
+    """Envelope actor_id is overwritten with the authenticated actor to prevent impersonation."""
     envelope = _envelope("op-1", actor_id="device-actor-1")
     response = client.post(
         "/api/relay/batch",
@@ -147,6 +146,27 @@ def test_receive_batch_allows_device_actor_id_different_from_authenticated_actor
     data = response.json()
     assert data["saved_count"] == 1
     assert data["saved_ids"] == ["op-1"]
+
+    saved = storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))
+    assert len(saved) == 1
+    assert saved[0].actor_id == "user-actor-1"
+
+
+def test_receive_batch_rejects_cross_workspace_envelopes(client: TestClient) -> None:
+    """All envelopes in a batch must belong to the same workspace."""
+    first = _envelope("op-1", workspace_id="ws-1")
+    second = _envelope("op-2", workspace_id="ws-2")
+    response = client.post(
+        "/api/relay/batch",
+        json={
+            "envelopes": [
+                first.model_dump(by_alias=True, mode="json"),
+                second.model_dump(by_alias=True, mode="json"),
+            ]
+        },
+        headers={"x-actor-id": "actor-1"},
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
