@@ -49,13 +49,13 @@ export function useUpdateNodeAdapter(): UseMutationResult<
       }
 
       if (data.is_page !== undefined) {
-        // TODO(D2): Apply class assignment/unassignment once the page system
+        // NOTE(D2): Apply class assignment/unassignment once the page system
         // class UUID is exposed by the new core.
         console.warn('[useUpdateNodeAdapter] is_page toggle not yet supported in SQLite store');
       }
 
       if (data.icon !== undefined || data.color !== undefined) {
-        // TODO(D2): Persist icon/color when the new core supports metadata fields.
+        // NOTE(D2): Persist icon/color when the new core supports metadata fields.
         console.warn('[useUpdateNodeAdapter] icon/color updates not yet supported in SQLite store');
       }
 

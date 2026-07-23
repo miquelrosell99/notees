@@ -26,9 +26,6 @@ function openPersistenceDb(): Promise<IDBDatabase> {
         if (!db.objectStoreNames.contains('databases')) {
           db.createObjectStore('databases', { keyPath: 'workspaceId' });
         }
-        if (!db.objectStoreNames.contains('operationQueue')) {
-          db.createObjectStore('operationQueue', { keyPath: 'workspaceId' });
-        }
         // Silence the unused parameter warning while keeping event in signature.
         void event;
       };
