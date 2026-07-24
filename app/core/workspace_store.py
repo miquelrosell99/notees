@@ -34,6 +34,10 @@ class WorkspaceStore:
     operations from the relay into the derived database idempotently.
     """
 
+    # Serialize sync() calls per workspace so concurrent requests do not race
+    # while restoring the derived database from a snapshot.
+    _sync_locks: dict[str, asyncio.Lock] = {}
+
     def __init__(
         self,
         workspace_id: str,
@@ -67,6 +71,7 @@ class WorkspaceStore:
 
         self._clock = Clock(device_id=actor_id)
         self._conn: sqlite3.Connection | None = None
+        self._sync_lock = self._sync_locks.setdefault(workspace_id, asyncio.Lock())
 
     async def _ensure_connection(self) -> sqlite3.Connection:
         """Open the derived SQLite database and create the schema if needed."""
@@ -300,48 +305,52 @@ class WorkspaceStore:
 
         Skips operations already recorded in the ``applied_operation_id`` table.
         This is important for increment-only appliers such as ``link.click``.
+
+        Sync is serialized per workspace so concurrent requests do not race
+        while restoring the derived database from a snapshot.
         """
-        snapshot = await self._maybe_await(
-            self._relay_storage.get_latest_snapshot(self.workspace_id)
-        )
-        if snapshot is not None:
-            conn = self._restore_from_snapshot(snapshot["data"])
-            catch_up_hlc = snapshot["hlc"]
-        else:
-            conn = await self._ensure_connection()
-            catch_up_hlc = Hlc(physical=0, logical=0)
-
-        envelopes = await self._maybe_await(
-            self._relay_storage.get_catch_up(self.workspace_id, catch_up_hlc)
-        )
-        max_seen_hlc = catch_up_hlc
-
-        for envelope in envelopes:
-            if self._is_applied(conn, envelope.id):
-                continue
-
-            operation = Operation(
-                envelope=OperationEnvelope(
-                    id=envelope.id,
-                    workspace_id=envelope.workspace_id,
-                    actor_id=envelope.actor_id,
-                    hlc=envelope.hlc,
-                    affected_node_ids=envelope.affected_node_ids,
-                    op_type=envelope.op_type,
-                    timestamp=envelope.timestamp,
-                ),
-                payload=envelope.payload,
+        async with self._sync_lock:
+            snapshot = await self._maybe_await(
+                self._relay_storage.get_latest_snapshot(self.workspace_id)
             )
-            apply_operation(conn, operation)
-            conn.execute(
-                "INSERT OR IGNORE INTO applied_operation_id (id) VALUES (?)",
-                (operation.id,),
-            )
-            if compare_hlc(envelope.hlc, max_seen_hlc) > 0:
-                max_seen_hlc = envelope.hlc
+            if snapshot is not None:
+                conn = self._restore_from_snapshot(snapshot["data"])
+                catch_up_hlc = snapshot["hlc"]
+            else:
+                conn = await self._ensure_connection()
+                catch_up_hlc = Hlc(physical=0, logical=0)
 
-        self._clock.update(max_seen_hlc, int(datetime.now(UTC).timestamp() * 1000))
-        conn.commit()
+            envelopes = await self._maybe_await(
+                self._relay_storage.get_catch_up(self.workspace_id, catch_up_hlc)
+            )
+            max_seen_hlc = catch_up_hlc
+
+            for envelope in envelopes:
+                if self._is_applied(conn, envelope.id):
+                    continue
+
+                operation = Operation(
+                    envelope=OperationEnvelope(
+                        id=envelope.id,
+                        workspace_id=envelope.workspace_id,
+                        actor_id=envelope.actor_id,
+                        hlc=envelope.hlc,
+                        affected_node_ids=envelope.affected_node_ids,
+                        op_type=envelope.op_type,
+                        timestamp=envelope.timestamp,
+                    ),
+                    payload=envelope.payload,
+                )
+                apply_operation(conn, operation)
+                conn.execute(
+                    "INSERT OR IGNORE INTO applied_operation_id (id) VALUES (?)",
+                    (operation.id,),
+                )
+                if compare_hlc(envelope.hlc, max_seen_hlc) > 0:
+                    max_seen_hlc = envelope.hlc
+
+            self._clock.update(max_seen_hlc, int(datetime.now(UTC).timestamp() * 1000))
+            conn.commit()
 
     def _is_applied(self, conn: sqlite3.Connection, operation_id: str) -> bool:
         row = conn.execute("SELECT 1 FROM applied_operation_id WHERE id = ?", (operation_id,)).fetchone()

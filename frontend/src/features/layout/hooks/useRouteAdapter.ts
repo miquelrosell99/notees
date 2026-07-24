@@ -131,7 +131,10 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
 
   const goHome = useCallback(() => {
     log.debug('Going to home');
-    useNavigationStore.setState({ currentNodeUuid: null, mainViewType: 'node' });
+    const state = useNavigationStore.getState();
+    if (state.currentNodeUuid !== null || state.mainViewType !== 'node') {
+      useNavigationStore.setState({ currentNodeUuid: null, mainViewType: 'node' });
+    }
   }, []);
 
   const ctx = useContext(WorkspaceStoreContext);
@@ -173,8 +176,11 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         const rest = entityUuid.toLowerCase();
 
         if (SPECIAL_VIEWS[rest] && SPECIAL_VIEWS[rest] !== 'auth') {
-          log.debug('Route: special view', { viewType: SPECIAL_VIEWS[rest] });
-          setMainViewType(SPECIAL_VIEWS[rest] as MainViewType);
+          const targetView = SPECIAL_VIEWS[rest] as MainViewType;
+          log.debug('Route: special view', { viewType: targetView });
+          if (useNavigationStore.getState().mainViewType !== targetView) {
+            setMainViewType(targetView);
+          }
           return;
         }
 
@@ -188,7 +194,10 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
           if (node) {
             if (cancelled || !isLatestGeneration()) return;
             log.debug('UUID resolved to node', { uuid, id: node.uuid, is_page: node.is_page });
-            openNode(node.uuid);
+            const state = useNavigationStore.getState();
+            if (state.currentNodeUuid !== node.uuid || state.mainViewType !== 'node') {
+              openNode(node.uuid);
+            }
             return;
           }
           if (cancelled || !isLatestGeneration()) return;
@@ -198,13 +207,19 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
             if (cancelled || !isLatestGeneration()) return;
             if (property) {
               log.debug('UUID resolved to property', { uuid, id: property.uuid });
-              openPropertyView(property.uuid);
+              const state = useNavigationStore.getState();
+              if (state.currentPropertyUuid !== property.uuid || state.mainViewType !== 'property') {
+                openPropertyView(property.uuid);
+              }
               return;
             }
           }
 
           log.warn('UUID not found as node or property, going home', { uuid });
-          useNavigationStore.setState({ currentNodeUuid: null, currentPropertyUuid: null });
+          const missingState = useNavigationStore.getState();
+          if (missingState.currentNodeUuid !== null || missingState.currentPropertyUuid !== null) {
+            useNavigationStore.setState({ currentNodeUuid: null, currentPropertyUuid: null });
+          }
           goHome();
           return;
         }
@@ -215,7 +230,9 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         if (isLatestGeneration()) {
           isProcessingUrl.current = false;
           hasInitialized.current = true;
-          setRouteReady(true);
+          if (!routeReady) {
+            setRouteReady(true);
+          }
         }
       }
     };
@@ -241,6 +258,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     openPropertyView,
     hasInitialized,
     isProcessingUrl,
+    routeReady,
   ]);
 
   // Reactive effect for the workspace root: honour the user's default view.
@@ -250,10 +268,16 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
 
     if (defaultView === 'today') {
       if (todayNote) {
-        openNode(todayNote.uuid);
+        const state = useNavigationStore.getState();
+        if (state.currentNodeUuid !== todayNote.uuid || state.mainViewType !== 'node') {
+          openNode(todayNote.uuid);
+        }
       }
     } else {
-      setMainViewType(DEFAULT_VIEW_TO_MAIN_VIEW[defaultView]);
+      const targetView = DEFAULT_VIEW_TO_MAIN_VIEW[defaultView];
+      if (useNavigationStore.getState().mainViewType !== targetView) {
+        setMainViewType(targetView);
+      }
     }
   }, [workspaceId, entityUuid, defaultView, todayNote, openNode, setMainViewType, hasInitialized]);
 
