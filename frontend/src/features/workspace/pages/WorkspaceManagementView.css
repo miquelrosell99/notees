@@ -201,6 +201,16 @@
   color: var(--color-on-surface-variant);
 }
 
+.workspace-management__error {
+  padding: var(--spacing-2) var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-error);
+  border-radius: var(--shape-small);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  color: var(--color-error);
+  font: var(--font-body-small);
+}
+
 /* Restore confirmation */
 .workspace-management__restore-confirm {
   padding: var(--spacing-2) var(--spacing-3);

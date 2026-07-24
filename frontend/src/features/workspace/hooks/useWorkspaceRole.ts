@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { listWorkspaces } from '@/features/workspace/api/workspaces';
 import { workspaceKeys } from '@/hooks/queryKeys';
+import { useAuthStore } from '@/stores';
 
 
 export type WorkspaceRole = 'owner' | 'admin' | 'editor' | 'viewer';
@@ -25,11 +26,13 @@ const PERMS_BY_ROLE: Record<WorkspaceRole, WorkspacePermissions> = {
   viewer: { canRead: true, canWrite: false, canCreate: false, canDelete: false, isOwner: false },
 };
 
-export function useWorkspaceRole() {
+export function useWorkspaceRole(options?: { enabled?: boolean }) {
+  const authVerified = useAuthStore((s) => s.authVerified);
   const { data } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 30000,
+    enabled: (options?.enabled ?? true) && authVerified,
     select: (d) => ({
       workspaces: d.items,
       active: d.items.find((w) => w.is_active)?.uuid ?? null,

@@ -13,7 +13,12 @@ from pyrate_limiter import Duration
 
 from app.config import settings
 from app.db.connection import get_pool
-from app.dependencies import get_current_user, get_push_device_repository, get_settings_repository
+from app.dependencies import (
+    get_current_user,
+    get_current_user_optional,
+    get_push_device_repository,
+    get_settings_repository,
+)
 from app.domain.errors import PasswordRequiredError, RegistrationDisabledError
 from app.domain.repositories.factories import make_user_repository
 from app.domain.repositories.interfaces import SettingsRepository
@@ -102,20 +107,6 @@ async def _resolve_user_from_auth(
     return None
 
 
-async def get_current_user_optional(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
-) -> User | None:
-    """Get the current authenticated user, or None if not authenticated."""
-    api_key = request.headers.get("X-API-Key")
-    user_dict = await _resolve_user_from_auth(credentials, api_key)
-
-    if not user_dict:
-        return None
-
-    return User(**user_dict)
-
-
 async def require_admin(user: User = Depends(get_current_user)) -> User:  # noqa: B008
     """Require admin role."""
     if user.role != "admin":
@@ -124,12 +115,12 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:  # noqa
 
 
 @router.get("/status", response_model=AuthStatusResponse)
-async def auth_status():
+async def auth_status(user: User | None = Depends(get_current_user_optional)) -> AuthStatusResponse:
     """Get authentication system status (for onboarding gate)."""
     needs_onboarding = await auth_module.is_first_boot()
     return {
         "needs_onboarding": needs_onboarding,
-        "authenticated": False,
+        "authenticated": user is not None,
         "registration_enabled": settings.registration_enabled,
     }
 

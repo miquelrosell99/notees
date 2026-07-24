@@ -37,6 +37,8 @@ interface AuthState {
   disableTwoFactor: (opts: { current_password?: string; code?: string }) => Promise<void>;
   regenerateBackupCodes: (code: string) => Promise<void>;
   logout: () => void;
+  /** Clear local session state without calling the server. */
+  clearSession: () => void;
   setUser: (user: User | null) => void;
   setAuthVerified: (verified: boolean) => void;
   clearError: () => void;
@@ -244,6 +246,17 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         authApi.logout();
+        cancelProactiveRefresh();
+        set({
+          user: null,
+          isAuthenticated: false,
+          authVerified: false,
+        });
+      },
+
+      /** Clear local session state without calling the server. Used when the API
+       * client detects an irrecoverable 401 and is about to redirect. */
+      clearSession: () => {
         cancelProactiveRefresh();
         set({
           user: null,

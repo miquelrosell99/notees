@@ -82,6 +82,22 @@ interface PendingRequest {
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const INIT_TIMEOUT_MS = 60_000;
 const EXPORT_TIMEOUT_MS = 60_000;
+/** Long timeout for bulk apply operations. Large operation logs can take several
+ * minutes to replay on first sync; terminating the worker mid-apply would force
+ * a full restart. */
+const APPLY_TIMEOUT_MS = 10 * 60_000;
+
+function getTimeoutForMethod(method: string): number {
+  switch (method) {
+    case 'applyMany':
+      return APPLY_TIMEOUT_MS;
+    case 'restoreSnapshot':
+    case 'exportSnapshot':
+      return EXPORT_TIMEOUT_MS;
+    default:
+      return DEFAULT_REQUEST_TIMEOUT_MS;
+  }
+}
 
 function isWorkerSupported(): boolean {
   if (typeof Worker === 'undefined') return false;
@@ -210,21 +226,27 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
   }
 
   mutate<T>(method: string, args: unknown[]): Promise<T> {
-    return this.send<T>({
-      type: 'mutate',
-      id: generateRequestId(),
-      method,
-      args,
-    });
+    return this.send<T>(
+      {
+        type: 'mutate',
+        id: generateRequestId(),
+        method,
+        args,
+      },
+      getTimeoutForMethod(method)
+    );
   }
 
   query<T>(method: string, args: unknown[]): Promise<T> {
-    return this.send<T>({
-      type: 'query',
-      id: generateRequestId(),
-      method,
-      args,
-    });
+    return this.send<T>(
+      {
+        type: 'query',
+        id: generateRequestId(),
+        method,
+        args,
+      },
+      getTimeoutForMethod(method)
+    );
   }
 
   subscribe(nodeId: string | null, callback: () => void): () => void {
