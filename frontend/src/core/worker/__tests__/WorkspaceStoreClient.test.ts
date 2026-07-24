@@ -229,7 +229,7 @@ describe('WorkspaceStoreClient', () => {
       vi.useRealTimers();
     });
 
-    it('rejects pending requests that time out and terminates the worker', async () => {
+    it('rejects pending requests that time out without terminating the worker', async () => {
       const worker = createMockWorker();
       const mainClient = new WorkerStoreClient(worker);
       const promise = mainClient
@@ -241,8 +241,10 @@ describe('WorkspaceStoreClient', () => {
       const err = await promise;
       expect(err).toBeInstanceOf(Error);
       expect((err as Error).message).toContain('timed out after 30000ms');
-      expect(worker.terminate).toHaveBeenCalled();
-      expect(mainClient.isClosed()).toBe(true);
+      // The worker must stay alive so a long sync can continue; only genuine
+      // worker errors (onerror/onmessageerror) should terminate it.
+      expect(worker.terminate).not.toHaveBeenCalled();
+      expect(mainClient.isClosed()).toBe(false);
       mainClient.close();
     });
 
