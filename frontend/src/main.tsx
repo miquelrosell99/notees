@@ -44,33 +44,6 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('[main] Unhandled promise rejection:', event.reason);
 });
 
-// Temporary instrumentation to identify the component causing the
-// "Maximum update depth exceeded" loop. It monkey-patches console.error
-// so the JS call stack at the first occurrence is captured, and adds
-// React 19 root error callbacks so we get the React component stack too.
-function installReactLoopInstrumentation(): void {
-  const originalError = console.error;
-  let alreadyLogged = false;
-
-  console.error = (...args: unknown[]) => {
-    originalError(...args);
-
-    const text = args
-      .map((a) => (a instanceof Error ? a.message : typeof a === 'string' ? a : ''))
-      .join(' ');
-
-    if (text.includes('Maximum update depth exceeded') && !alreadyLogged) {
-      alreadyLogged = true;
-      originalError(
-        '[main] Maximum update depth exceeded call stack:',
-        new Error('Maximum update depth exceeded').stack,
-      );
-    }
-  };
-}
-
-installReactLoopInstrumentation();
-
 function hideSplash(): void {
   (window as unknown as { __hideNoteesSplash?: () => void }).__hideNoteesSplash?.();
 }
@@ -95,19 +68,7 @@ const splashFallbackTimer = window.setTimeout(() => {
 }, 8000);
 
 try {
-  const root = createRoot(
-    document.getElementById('root')!,
-    // Temporary instrumentation: capture component stacks for React errors.
-    {
-      onUncaughtError(error: Error, errorInfo: { componentStack?: string }) {
-        console.error('[main] React uncaught error:', error, errorInfo.componentStack);
-      },
-      onCaughtError(error: Error, errorInfo: { componentStack?: string }) {
-        console.error('[main] React caught error:', error, errorInfo.componentStack);
-      },
-    } as unknown as Parameters<typeof createRoot>[1],
-  );
-  root.render(
+  createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App />
     </StrictMode>,
