@@ -1,5 +1,5 @@
-import { openWorkspaceDatabase } from '../db/connection';
-import { saveWorkspaceDatabase, deleteWorkspaceDatabase } from '../persistence/indexedDb';
+import { createDatabase } from '../db/connection';
+import { loadWorkspaceDatabase, saveWorkspaceDatabase, deleteWorkspaceDatabase } from '../persistence/indexedDb';
 import { SyncEngine, type SyncEngineCallbacks } from '../sync';
 import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
@@ -39,6 +39,11 @@ function isWorkerSupported(): boolean {
   if (typeof Worker === 'undefined') return false;
   if (typeof navigator === 'undefined') return false;
   // jsdom does not implement Web Workers reliably.
+  return !navigator.userAgent.includes('jsdom');
+}
+
+function isRealBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
   return !navigator.userAgent.includes('jsdom');
 }
 
@@ -102,7 +107,11 @@ async function openWorkspaceStore(
   }
 
   report('loading-persisted-db', 'Loading local workspace data…');
-  const db = await openWorkspaceDatabase(workspaceId);
+  // Load the persisted database once and reuse the bytes for both the legacy
+  // synchronous store and the new worker-backed client. This avoids two
+  // concurrent/sequential IndexedDB reads, which can timeout on large workspaces.
+  const savedBytes = isRealBrowser() ? await loadWorkspaceDatabase(workspaceId) : undefined;
+  const db = await createDatabase(savedBytes);
   const store = new WorkspaceStore(db, workspaceId, actorId, {
     onPersist: async (data) => {
       await saveWorkspaceDatabase(workspaceId, data);
@@ -115,7 +124,9 @@ async function openWorkspaceStore(
   report('worker-init', 'Starting database engine…');
   let client: IWorkspaceStoreClient;
   if (isWorkerSupported()) {
-    client = await getOrCreateWorkspaceStoreClient(workspaceId, actorId, transport);
+    client = await getOrCreateWorkspaceStoreClient(workspaceId, actorId, transport, {
+      dbBytes: savedBytes,
+    });
   } else {
     client = createWorkspaceStoreClient();
     await client.init(workspaceId, actorId, { store });
