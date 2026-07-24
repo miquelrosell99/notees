@@ -46,6 +46,17 @@ export function clearUserData(): void {
 export function handleAuthFailure(): void {
   clearUserData();
   localStorage.removeItem('auth-storage');
+  // Drop the in-memory Zustand session immediately so the UI does not keep
+  // rendering authenticated routes/loading overlays while the redirect happens.
+  try {
+    // Dynamic import avoids a circular dependency between api/client and the
+    // auth store (the store imports api/client for refresh helpers).
+    import('@/features/auth/stores/authStore').then(({ useAuthStore }) => {
+      useAuthStore.getState().clearSession();
+    });
+  } catch {
+    // Ignore import errors; localStorage removal + redirect is the fallback.
+  }
   // Notify other tabs / listeners that this session has ended.
   try {
     localStorage.setItem('auth:logout', Date.now().toString());

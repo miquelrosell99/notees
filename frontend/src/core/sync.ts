@@ -13,9 +13,14 @@ export interface SyncPullProgress {
 export interface SyncEngineCallbacks {
   onPush?: (envelopeCount: number) => void;
   onPull?: (envelopeCount: number) => void;
-  onPullProgress?: (progress: SyncPullProgress) => void;
+  onPullProgress?: (progress: SyncPullProgress | null) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: SyncStatus, error: Error | null) => void;
+  /**
+   * Called when the sync engine enters a new high-level phase. Useful for
+   * showing descriptive progress during initial workspace open.
+   */
+  onSyncPhase?: (phase: string, message: string) => void;
 }
 
 export interface OperationRow {
@@ -49,6 +54,10 @@ export class SyncEngine {
     this.client = client;
     this.transport = transport;
     this.callbacks = callbacks;
+  }
+
+  private reportPhase(phase: string, message: string): void {
+    this.callbacks.onSyncPhase?.(phase, message);
   }
 
   private async ensureWatermarksLoaded(): Promise<void> {
@@ -154,9 +163,10 @@ export class SyncEngine {
     this.callbacks.onPush?.(totalPushed);
   }
 
-  async pull(options: { ignoreSnapshot?: boolean } = {}): Promise<void> {
+  async pull(options: { ignoreSnapshot?: boolean; skipSnapshotUpload?: boolean } = {}): Promise<void> {
     await this.ensureWatermarksLoaded();
 
+    this.reportPhase('fetching-snapshot', 'Fetching latest snapshot…');
     const snapshot = await this.transport.getLatestSnapshot();
     const localEpoch = await this.loadRestoreEpoch();
 
@@ -191,7 +201,12 @@ export class SyncEngine {
         'restoreSnapshot',
         [snapshot.data]
       );
-      this.lastReceivedHlc = restoredHlc;
+      // The snapshot metadata HLC is the authoritative watermark the server used
+      // when it created the snapshot. Some snapshots (e.g. uploaded after local
+      // compaction or from clients that don't keep the operation log) report a
+      // lower HLC from their operation table than their metadata claims. Using the
+      // metadata HLC ensures we don't re-fetch and re-apply the entire log.
+      this.lastReceivedHlc = maxHlc(restoredHlc, snapshot.hlc);
       await this.saveWatermark(this.lastReceivedHlc, 'received');
     }
 
@@ -199,6 +214,7 @@ export class SyncEngine {
     // lets us apply the full batch in sorted order. Memory use is modest:
     // 115k envelopes is a few megabytes of JSON.
     const envelopes = await this.transport.catchUp(this.lastReceivedHlc, (_page, totalSoFar) => {
+      this.reportPhase('catching-up', `Catching up with server… ${totalSoFar} operations`);
       this.callbacks.onPullProgress?.({ applied: 0, total: totalSoFar });
     });
 
@@ -225,6 +241,12 @@ export class SyncEngine {
 
     // Apply the full batch in the worker. The worker runs off the main thread,
     // so we no longer need to chunk and yield to keep the UI responsive.
+    this.reportPhase('applying-operations', `Applying ${ops.length.toLocaleString()} operations…`);
+    // Clear the determinate progress during a single bulk apply so the UI shows
+    // a spinner instead of a progress bar frozen at 0%. The worker applies the
+    // whole batch synchronously and can only report completion, not incremental
+    // progress. The final completion count is reported right after applyMany.
+    this.callbacks.onPullProgress?.(null);
     await this.client.mutate('startBatch', []);
     try {
       const applied = await this.client.mutate<number>('applyMany', [ops]);
@@ -239,36 +261,42 @@ export class SyncEngine {
 
     await this.saveWatermark(this.lastReceivedHlc, 'received');
     await this.saveRestoreEpoch(snapshot.restoreEpoch);
+    this.reportPhase('synced', 'Synced');
     this.callbacks.onPull?.(envelopes.length);
 
     // Upload a snapshot when the server has no snapshot or an older one.
     // This helps the next device open quickly. Keep it best-effort.
-    const uploadSnapshot = this.transport.uploadSnapshot;
+    const uploadSnapshot = this.transport.uploadSnapshot?.bind(this.transport);
     const shouldUploadSnapshot =
       uploadSnapshot &&
       (!snapshot.hasSnapshot || compareHlc(this.lastReceivedHlc, snapshot.hlc) > 0) &&
       (!this.uploadedSnapshotHlc ||
         compareHlc(this.lastReceivedHlc, this.uploadedSnapshotHlc) > 0);
 
-    if (shouldUploadSnapshot && uploadSnapshot) {
-      try {
-        const { hlc, data } = await this.client.query<{ hlc: Hlc; data: Uint8Array }>(
-          'exportSnapshot',
-          [this.lastReceivedHlc]
-        );
-        await uploadSnapshot({
-          snapshotId: '',
-          workspaceId,
-          hlc,
-          data,
-          restoreEpoch: snapshot.restoreEpoch,
-          hasSnapshot: true,
-        });
-        this.uploadedSnapshotHlc = hlc;
-      } catch (err) {
-        // Snapshot upload is best-effort; don't fail sync if upload errors.
-        console.error('Failed to upload workspace snapshot', err);
-      }
+    if (!options.skipSnapshotUpload && shouldUploadSnapshot && uploadSnapshot) {
+      // Snapshot upload is best-effort and can take a long time for large
+      // workspaces. Don't block the initial sync / workspace open on it; run it
+      // in the background so the UI becomes interactive immediately.
+      void (async () => {
+        try {
+          const { hlc, data } = await this.client.query<{ hlc: Hlc; data: Uint8Array }>(
+            'exportSnapshot',
+            [this.lastReceivedHlc]
+          );
+          await uploadSnapshot({
+            snapshotId: '',
+            workspaceId,
+            hlc,
+            data,
+            restoreEpoch: snapshot.restoreEpoch,
+            hasSnapshot: true,
+          });
+          this.uploadedSnapshotHlc = hlc;
+        } catch (err) {
+          // Snapshot upload is best-effort; don't fail sync if upload errors.
+          console.error('Failed to upload workspace snapshot', err);
+        }
+      })();
     }
 
   }
@@ -288,7 +316,10 @@ export class SyncEngine {
 
     const isStale = await this.client.query<boolean>('isDerivedStateStale', []);
     if (!isStale) {
-      await this.syncOnce();
+      // Skip snapshot upload during initial open: exporting and uploading a large
+      // derived database while the user is waiting can freeze lower-powered
+      // machines. Uploads happen later during background auto-sync.
+      await this.syncOnce({ skipSnapshotUpload: true });
       return;
     }
 
@@ -299,6 +330,7 @@ export class SyncEngine {
       // must not push potentially stale local operations back upstream. In the
       // normal case (applier update only), preserve local offline edits by
       // pushing them first.
+      this.reportPhase('fetching-snapshot', 'Fetching latest snapshot…');
       const serverSnapshot = await this.transport.getLatestSnapshot();
       const localEpoch = await this.loadRestoreEpoch();
       const serverRestored = serverSnapshot.restoreEpoch !== localEpoch;
@@ -309,9 +341,11 @@ export class SyncEngine {
             'skipping local push and rebuilding from server.'
         );
       } else {
+        this.reportPhase('pushing-local', 'Sending local changes…');
         await this.push();
       }
 
+      this.reportPhase('rebuilding-state', 'Rebuilding local state…');
       await this.client.mutate('resetDerivedState', []);
       await this.client.mutate('clearOperationLog', []);
       this.lastReceivedHlc = { physical: 0, logical: 0 };
@@ -320,6 +354,7 @@ export class SyncEngine {
       await this.saveWatermark(this.lastPushedHlc, 'pushed');
       await this.saveRestoreEpoch(serverSnapshot.restoreEpoch);
       this.uploadedSnapshotHlc = null;
+      this.reportPhase('pulling-operations', 'Pulling operations from server…');
       await this.pull({ ignoreSnapshot: true });
       this.setStatus('idle', null);
     } catch (err) {
@@ -330,7 +365,7 @@ export class SyncEngine {
     }
   }
 
-  syncOnce(): Promise<void> {
+  syncOnce(options: { skipSnapshotUpload?: boolean } = {}): Promise<void> {
     if (this.inFlightSync) {
       return this.inFlightSync;
     }
@@ -339,7 +374,7 @@ export class SyncEngine {
       this.setStatus('syncing');
       try {
         await this.push();
-        await this.pull();
+        await this.pull({ skipSnapshotUpload: options.skipSnapshotUpload });
         this.setStatus('idle', null);
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));

@@ -52,7 +52,7 @@ export function SyncProgress({
   return (
     <div className={`sync-progress ${className}`} role="status" aria-busy="true" aria-label={label}>
       <div className="sync-progress__content">
-        <Spinner size="lg" />
+        {progressPercent === null && <Spinner size="lg" />}
         {label && <span className="sync-progress__label">{label}</span>}
         {rotatingMessage && (
           <span className="sync-progress__message" aria-hidden="true">
