@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { QueryAST } from '@/types';
@@ -32,6 +32,11 @@ export function useQueryAst(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  // Stabilise object-shaped deps so callers that create a new AST/params object
+  // on every render do not restart the query every render and trigger a loop.
+  const astKey = useMemo(() => (ast ? JSON.stringify(ast) : ''), [ast]);
+  const paramsKey = useMemo(() => JSON.stringify(runtimeParams ?? {}), [runtimeParams]);
+
   useEffect(() => {
     if (!client || !workspaceId) {
       setData([]);
@@ -62,7 +67,9 @@ export function useQueryAst(
     };
 
     run();
-  }, [client, workspaceId, ast, runtimeParams]);
+    // ast/runtimeParams are intentionally replaced by their stable string keys.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, workspaceId, astKey, paramsKey]);
 
   if (!ast) {
     return createEmptyResult();
