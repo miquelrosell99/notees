@@ -245,6 +245,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         isProcessingUrl.current = false;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     workspaceId,
     entityUuid,
@@ -258,7 +259,6 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     openPropertyView,
     hasInitialized,
     isProcessingUrl,
-    routeReady,
   ]);
 
   // Reactive effect for the workspace root: honour the user's default view.

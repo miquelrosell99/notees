@@ -190,7 +190,11 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
       const id = request.id;
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        this.terminate();
+        // Do not terminate the worker on a single request timeout. A long
+        // sync (e.g. replaying a large operation log) can keep the worker
+        // busy for minutes; killing it would abort the sync and force a
+        // restart loop. If the worker is genuinely dead, onerror/onmessageerror
+        // will terminate it and reject all pending requests.
         reject(
           new Error(
             `Worker request ${request.type}:${id} timed out after ${timeoutMs}ms`
