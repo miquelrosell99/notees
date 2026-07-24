@@ -53,7 +53,8 @@ function isRealBrowser(): boolean {
 export async function getOrCreateWorkspaceStoreClient(
   workspaceId: string,
   actorId: string,
-  transport?: Transport
+  transport?: Transport,
+  options?: { dbBytes?: Uint8Array }
 ): Promise<IWorkspaceStoreClient> {
   const existing = clientRegistry.get(workspaceId);
   if (existing && existing.actorId === actorId && !existing.client.isClosed()) {
@@ -76,7 +77,7 @@ export async function getOrCreateWorkspaceStoreClient(
         // Ignore previous failure; proceed with a fresh open.
       }
     }
-    return openWorkspaceStoreClient(workspaceId, actorId, transport);
+    return openWorkspaceStoreClient(workspaceId, actorId, transport, options);
   })();
   pendingOpens.set(workspaceId, current);
   try {
@@ -91,13 +92,14 @@ export async function getOrCreateWorkspaceStoreClient(
 async function openWorkspaceStoreClient(
   workspaceId: string,
   actorId: string,
-  transport?: Transport
+  transport?: Transport,
+  options?: { dbBytes?: Uint8Array }
 ): Promise<IWorkspaceStoreClient> {
   const client = createWorkspaceStoreClient();
 
   if (isWorkerSupported()) {
-    let dbBytes: Uint8Array | undefined;
-    if (isRealBrowser()) {
+    let dbBytes = options?.dbBytes;
+    if (isRealBrowser() && !dbBytes) {
       // Loading a large or corrupted IndexedDB record can hang the main thread
       // indefinitely. Time it out and fall back to a fresh local database; the
       // server operation log is the source of truth so data is not lost.
