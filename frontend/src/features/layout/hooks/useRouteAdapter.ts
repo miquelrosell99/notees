@@ -89,18 +89,27 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     }),
   });
 
+  // Hold the latest workspaces data in a ref so workspace auto-switching does
+  // not make the route-processing effect re-run on every render when the
+  // selected data object changes reference but its contents are unchanged.
+  const dbDataRef = useRef(dbData);
+  useEffect(() => {
+    dbDataRef.current = dbData;
+  }, [dbData]);
+
   const ensureWorkspace = useCallback(
     async (targetWsUuid: string): Promise<boolean> => {
-      if (!dbData) return false;
-      if (dbData.active === targetWsUuid) return false;
+      const latest = dbDataRef.current;
+      if (!latest) return false;
+      if (latest.active === targetWsUuid) return false;
 
-      const ws = dbData.workspaces.find((w) => w.uuid === targetWsUuid);
+      const ws = latest.workspaces.find((w) => w.uuid === targetWsUuid);
       if (!ws) {
         log.warn('Workspace not found or no access', { targetWsUuid });
         return false;
       }
 
-      log.info('Auto-switching workspace for URL', { from: dbData.active, to: targetWsUuid });
+      log.info('Auto-switching workspace for URL', { from: latest.active, to: targetWsUuid });
       useNavigationStore.setState({ isSwitchingWorkspace: true });
       try {
         await switchWorkspace(targetWsUuid);
@@ -126,7 +135,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         useNavigationStore.setState({ isSwitchingWorkspace: false });
       }
     },
-    [dbData, queryClient]
+    [queryClient]
   );
 
   const goHome = useCallback(() => {
@@ -143,7 +152,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   // segment. Gated by the last processed route so it does not re-run when
   // `todayNote`, `defaultView`, or other reactive state changes.
   useEffect(() => {
-    if (!workspaceId || isLoadingDbs || !dbData || !ctx) return;
+    if (!workspaceId || isLoadingDbs || !dbDataRef.current || !ctx) return;
 
     const sameRoute =
       lastRouteRef.current.workspaceId === workspaceId &&
@@ -250,7 +259,6 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     workspaceId,
     entityUuid,
     isLoadingDbs,
-    dbData,
     ctx,
     ensureWorkspace,
     goHome,
