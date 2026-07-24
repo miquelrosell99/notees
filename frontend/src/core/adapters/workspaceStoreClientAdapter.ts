@@ -17,6 +17,11 @@ import type { Transport } from '../transport';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { loadWorkspaceDatabase } from '../persistence/indexedDb';
+import { getLogger } from '@/utils/logger';
+
+const log = getLogger('workspaceStoreClientAdapter');
+
+const LOAD_PERSISTED_DB_TIMEOUT_MS = 10_000;
 
 interface ClientEntry {
   client: IWorkspaceStoreClient;
@@ -93,7 +98,18 @@ async function openWorkspaceStoreClient(
   if (isWorkerSupported()) {
     let dbBytes: Uint8Array | undefined;
     if (isRealBrowser()) {
-      const saved = await loadWorkspaceDatabase(workspaceId);
+      // Loading a large or corrupted IndexedDB record can hang the main thread
+      // indefinitely. Time it out and fall back to a fresh local database; the
+      // server operation log is the source of truth so data is not lost.
+      const saved = await Promise.race([
+        loadWorkspaceDatabase(workspaceId),
+        new Promise<undefined>((resolve) =>
+          setTimeout(() => {
+            log.warn(`Loading persisted DB for ${workspaceId} timed out; falling back to fresh local DB`);
+            resolve(undefined);
+          }, LOAD_PERSISTED_DB_TIMEOUT_MS)
+        ),
+      ]);
       if (saved) {
         dbBytes = saved;
       }

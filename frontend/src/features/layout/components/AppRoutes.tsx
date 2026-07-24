@@ -237,34 +237,28 @@ function AuthenticatedShell() {
     enabled: authRestored,
   });
 
-  // If the server says the session is no longer valid, clear the persisted
-  // auth state and redirect to the login screen before rendering the workspace
-  // UI. This prevents users with stale cookies from landing on a broken shell.
-  useEffect(() => {
-    if (authStatus && authStatus.authenticated === false) {
-      useAuthStore.getState().logout();
-      navigate('/auth', { replace: true });
-    }
-  }, [authStatus, navigate]);
+
 
   const needsOnboarding = authStatus?.needs_onboarding ?? false;
 
-  // Verify the access token is fresh before firing any other authenticated
-  // queries. When a user is restored from persisted storage the cookie may be
-  // expired; this query triggers the API client's refresh flow if needed and
-  // acts as the canonical auth-ready signal for the rest of the app.
+  // Verify the access token on every mount of the authenticated shell. This
+  // catches expired/stolen sessions, triggers the refresh flow when needed, and
+  // is the canonical signal that authenticated routes can render. We no longer
+  // rely on /auth/status's boolean field for logout decisions because it can
+  // race with post-login state updates.
   const { data: verifiedUser, isLoading: isVerifyingAuth } = useQuery({
     queryKey: ['auth', 'verify'],
     queryFn: () => getMe(),
-    enabled: isAuthenticated && authRestored && !authVerified,
-    staleTime: Infinity,
+    enabled: isAuthenticated && authRestored,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: false,
   });
 
   useEffect(() => {
-    if (verifiedUser && !authVerified) {
+    if (verifiedUser) {
       setAuthVerified(true);
     }
-  }, [verifiedUser, authVerified, setAuthVerified]);
+  }, [verifiedUser, setAuthVerified]);
 
   const { data: dbData, isLoading: isLoadingWorkspaces } = useQuery({
     queryKey: workspaceKeys.all,

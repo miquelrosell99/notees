@@ -117,10 +117,12 @@ export default defineConfig(({ mode }) => ({
     // Docker Compose dev sets VITE_API_PROXY_TARGET to the backend service.
     // For local development outside Docker, the default is localhost:8001.
     proxy: {
-      // Proxy API requests (including WebSockets) to the FastAPI backend
+      // Proxy API requests (including WebSockets) to the FastAPI backend.
+      // Do NOT use changeOrigin: the backend must see the frontend's host so
+      // HTTPOnly auth cookies are scoped to the browser origin instead of the
+      // internal backend container hostname.
       '/api': {
         target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8001',
-        changeOrigin: true,
         ws: true,
       },
     },

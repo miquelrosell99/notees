@@ -6,20 +6,11 @@ let sqlModule: Awaited<ReturnType<typeof initSqlJs>> | null = null;
 let sqlInitError: Error | null = null;
 
 function isRealBrowser(): boolean {
-  if (typeof window === 'undefined') return false;
   if (typeof navigator === 'undefined') return false;
   // jsdom (used in tests) identifies itself in the user agent; use the default
-  // Node wasm loader there instead of a browser-relative URL.
+  // Node wasm loader there instead of a browser-relative URL. Dedicated web
+  // workers are real browsers even though they lack window/document.
   return !navigator.userAgent.includes('jsdom');
-}
-
-function isWorker(): boolean {
-  // Web Workers expose importScripts and do not have a window object.
-  return (
-    typeof self !== 'undefined' &&
-    typeof (self as { importScripts?: unknown }).importScripts === 'function' &&
-    typeof window === 'undefined'
-  );
 }
 
 const WASM_FETCH_TIMEOUT_MS = 20_000;
@@ -80,14 +71,10 @@ async function getSqlModule(attempt = 1): Promise<Awaited<ReturnType<typeof init
     try {
       const config: Parameters<typeof initSqlJs>[0] = {};
       if (isRealBrowser()) {
-        if (isWorker()) {
-          // In a Web Worker, fetch the wasm binary ourselves and pass it as an
-          // ArrayBuffer. This avoids sql.js' streaming compile path, which can
-          // fail in dev when the service worker returns an HTML fallback.
-          config.wasmBinary = await fetchWasmBinary();
-        } else {
-          config.locateFile = () => `/sql-wasm.wasm`;
-        }
+        // Fetch the wasm binary ourselves and pass it as an ArrayBuffer. This
+        // avoids sql.js' streaming compile path, which can fail when a stale
+        // service worker or dev server fallback returns HTML instead of wasm.
+        config.wasmBinary = await fetchWasmBinary();
       }
       sqlModule = await initSqlJsWithTimeout(config);
     } catch (err) {

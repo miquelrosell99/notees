@@ -25,8 +25,14 @@ interface RegistryEntry {
 const registry = new Map<string, RegistryEntry>();
 const pendingOpens = new Map<string, Promise<WorkspaceStore>>();
 
+export interface WorkspaceOpenProgress {
+  phase: string;
+  message: string;
+}
+
 export interface WorkspaceStoreInitOptions {
   syncCallbacks?: SyncEngineCallbacks;
+  onOpenProgress?: (progress: WorkspaceOpenProgress) => void;
 }
 
 function isWorkerSupported(): boolean {
@@ -73,6 +79,11 @@ async function openWorkspaceStore(
   transport: Transport,
   options: WorkspaceStoreInitOptions = {}
 ): Promise<WorkspaceStore> {
+  const { onOpenProgress } = options;
+  const report = (phase: string, message: string) => {
+    onOpenProgress?.({ phase, message });
+  };
+
   const existing = registry.get(workspaceId);
   if (existing) {
     // If the same workspace is being opened for a different actor, the persisted
@@ -90,6 +101,7 @@ async function openWorkspaceStore(
     await deleteWorkspaceDatabase(workspaceId);
   }
 
+  report('loading-persisted-db', 'Loading local workspace data…');
   const db = await openWorkspaceDatabase(workspaceId);
   const store = new WorkspaceStore(db, workspaceId, actorId, {
     onPersist: async (data) => {
@@ -100,6 +112,7 @@ async function openWorkspaceStore(
   // The SyncEngine operates on the worker-owned database in real browsers. In
   // jsdom/tests the inline client wraps this same synchronous store so legacy
   // and migrated callers observe the same data.
+  report('worker-init', 'Starting database engine…');
   let client: IWorkspaceStoreClient;
   if (isWorkerSupported()) {
     client = await getOrCreateWorkspaceStoreClient(workspaceId, actorId, transport);
@@ -108,20 +121,24 @@ async function openWorkspaceStore(
     await client.init(workspaceId, actorId, { store });
   }
 
+  report('opening-store', 'Preparing workspace…');
   const syncEngine = new SyncEngine(client, transport, options.syncCallbacks);
   const unsubscribeFavorites = subscribeFavorites(workspaceId, client);
   registry.set(workspaceId, { store, syncEngine, client, unsubscribeFavorites });
 
   // Prime the synchronous favorites cache before the workspace is considered
   // fully opened. Failures are logged but must not block workspace open.
+  report('warming-cache', 'Loading favorites…');
   await warmFavoritesCache(workspaceId, client);
 
   // Initialize performs a one-time version check and may trigger a hard rebuild
   // of derived state when the applier version has changed. It then runs the
   // first sync. Initialization errors are propagated so the workspace loading
   // overlay can show the error overlay and let the user retry.
+  report('sync-initialize', 'Connecting to server…');
   await syncEngine.initialize();
 
+  report('ready', 'Ready');
   return store;
 }
 
