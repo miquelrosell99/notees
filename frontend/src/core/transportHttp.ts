@@ -2,6 +2,8 @@ import type { Hlc } from './clock';
 import type { OperationEnvelope } from './crypto';
 import type { SnapshotEnvelope, Transport } from './transport';
 
+const REQUEST_TIMEOUT_MS = 60_000;
+
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   // Avoid spreading large arrays into String.fromCharCode, which throws
   // "too many function arguments" for snapshots > ~100 KB.
@@ -12,6 +14,21 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
     result += String.fromCharCode(...chunk);
   }
   return btoa(result);
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -47,7 +64,7 @@ export class HttpTransport implements Transport {
   async sendBatch(envelopes: OperationEnvelope[]): Promise<void> {
     if (envelopes.length === 0) return;
 
-    const response = await fetch(`${this.baseUrl}/api/relay/batch`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -78,7 +95,7 @@ export class HttpTransport implements Transport {
     let hasMore = true;
 
     while (hasMore) {
-      const response = await fetch(`${this.baseUrl}/api/relay/catch-up`, {
+      const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/catch-up`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -121,7 +138,7 @@ export class HttpTransport implements Transport {
   }
 
   async getLatestSnapshot(): Promise<SnapshotEnvelope> {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${this.baseUrl}/api/relay/snapshot?workspace_id=${encodeURIComponent(this.workspaceId)}`,
       {
         method: 'GET',
@@ -163,7 +180,7 @@ export class HttpTransport implements Transport {
   }
 
   async uploadSnapshot(snapshot: SnapshotEnvelope): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/relay/snapshot`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/snapshot`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

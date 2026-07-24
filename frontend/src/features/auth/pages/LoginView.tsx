@@ -2,6 +2,8 @@
  * Login view component
  */
 import { useId, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+
 import { Spinner } from '@/components/ui/Spinner';
 import './LoginView.css';
 import { useAuthStore } from '@/stores';
@@ -9,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { TwoFactorChallenge } from '@/features/auth/components/TwoFactorChallenge';
+import { authKeys } from '@/hooks/queryKeys';
 
 interface LoginViewProps {
   registrationEnabled?: boolean;
@@ -32,6 +35,7 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
   const [isRegister, setIsRegister] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const login = useAuthStore((s) => s.login);
   const register = useAuthStore((s) => s.register);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -49,7 +53,6 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
     e.preventDefault();
     clearError();
     setLocalError(null);
-
     if (isRegister) {
       if (password !== confirmPassword) {
         setLocalError('Passwords do not match');
@@ -68,6 +71,9 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
       } else {
         await login(email, password, rememberMe);
       }
+      // Ensure any pre-login cached auth status (e.g. authenticated: false) is
+      // cleared so the post-login shell reads the current session.
+      queryClient.invalidateQueries({ queryKey: authKeys.status() });
     } catch {
       // Error is handled by store
     }

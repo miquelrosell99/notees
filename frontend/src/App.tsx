@@ -153,6 +153,8 @@ function ConnectedNotificationToast() {
 let appInitialized = false;
 
 function App() {
+  const authVerified = useAuthStore((s) => s.authVerified);
+
   useEffect(() => {
     if (appInitialized) return;
     appInitialized = true;
@@ -187,13 +189,18 @@ function App() {
         sqlError?.message ?? 'SQLite could not start. Some offline features may not work until you refresh the page.'
       );
     });
+  }, []);
 
-    // Load frontend plugins. Built-in plugins are bundled; user plugins are
-    // fetched from the backend and imported dynamically.
+  // Load frontend plugins once the session is verified. Built-in plugins are
+  // bundled; user plugins are fetched from the backend and imported dynamically.
+  // Loading before authentication would hit the protected /plugins endpoint and
+  // trigger a failing token refresh on every unauthenticated visit.
+  useEffect(() => {
+    if (!authVerified) return;
     pluginManager.loadPlugins().catch((err) => {
       log.error('Failed to load plugins', err);
     });
-  }, []);
+  }, [authVerified]);
 
   return (
     <>
@@ -285,7 +292,7 @@ function WorkspacePersisterSync() {
   const { data: workspacesData } = useWorkspaces({ enabled: !!user && authVerified });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
-    return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
+    return workspacesData.items.find((ws) => ws.is_active) ?? null;
   }, [workspacesData]);
   const workspaceUuid = activeWorkspace?.uuid ?? null;
 
@@ -322,18 +329,35 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const user = useAuthStore((s) => s.user);
   const authVerified = useAuthStore((s) => s.authVerified);
   const actorId = user?.uuid ?? 'anonymous';
-  const { data: workspacesData } = useWorkspaces({ enabled: !!user && authVerified });
+  const {
+    data: workspacesData,
+    isLoading: isLoadingWorkspaces,
+    isError: isWorkspacesError,
+    error: workspacesError,
+    refetch: refetchWorkspaces,
+  } = useWorkspaces({ enabled: !!user && authVerified });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
-    return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
+    return workspacesData.items.find((ws) => ws.is_active) ?? null;
   }, [workspacesData]);
   const workspaceId = activeWorkspace?.uuid ?? null;
+  const [showWorkspaceTimeout, setShowWorkspaceTimeout] = useState(false);
+
+  useEffect(() => {
+    if (!isLoadingWorkspaces) {
+      setShowWorkspaceTimeout(false);
+      return;
+    }
+    const id = setTimeout(() => setShowWorkspaceTimeout(true), 10000);
+    return () => clearTimeout(id);
+  }, [isLoadingWorkspaces, workspaceId]);
   const [ctx, setCtx] = useState<
     { actorId: string; transport: ReturnType<typeof createHttpTransport> } | undefined
   >();
   const [readyWorkspaceId, setReadyWorkspaceId] = useState<string | null>(null);
   const [initError, setInitError] = useState<Error | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [phaseMessage, setPhaseMessage] = useState<string>('Loading workspaces…');
   const unregisterVisibilityRef = useRef<(() => void) | null>(null);
   const progress = useSyncStatusStore((s) =>
     workspaceId ? s.getWorkspaceProgress(workspaceId) : DEFAULT_PROGRESS
@@ -349,7 +373,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId || !authVerified || !user) {
+    if (!workspaceId || !authVerified || actorId === 'anonymous') {
       setCtx(undefined);
       setReadyWorkspaceId(null);
       setInitError(null);
@@ -359,11 +383,18 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
 
     let cancelled = false;
     setInitError(null);
+    setPhaseMessage('Loading workspaces…');
     const transport = createHttpTransport(workspaceId, actorId);
 
     useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, true);
     getOrCreateWorkspaceStore(workspaceId, actorId, transport, {
+      onOpenProgress: ({ message }) => {
+        if (!cancelled) setPhaseMessage(message);
+      },
       syncCallbacks: {
+        onSyncPhase: (_phase, message) => {
+          if (!cancelled) setPhaseMessage(message);
+        },
         onStatusChange: (status, error) => {
           const s = useSyncStatusStore.getState();
           if (status === 'syncing') {
@@ -426,11 +457,12 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         });
       }
     };
-  }, [workspaceId, actorId, workspaceResetNonce, retryNonce, authVerified, user]);
+  }, [workspaceId, actorId, workspaceResetNonce, retryNonce, authVerified]);
 
+  const isWaitingForWorkspaces = !!user && authVerified && isLoadingWorkspaces;
   const isReady =
     !!workspaceId && readyWorkspaceId === workspaceId && !progress.isInitializing && !initError;
-  const showOverlay = !!workspaceId && !isReady;
+  const showOverlay = (!!workspaceId && !isReady) || isWaitingForWorkspaces || isWorkspacesError;
 
   const { pullProgress } = progress;
   const progressPercent = showOverlay && pullProgress
@@ -438,8 +470,15 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       ? Math.round((pullProgress.applied / pullProgress.total) * 100)
       : 0
     : undefined;
+  const workspaceLoadingLabel = showWorkspaceTimeout
+    ? 'Loading workspaces is taking longer than expected…'
+    : 'Loading workspaces…';
   const progressLabel =
-    progressPercent !== undefined ? `Syncing workspace… ${progressPercent}%` : 'Loading workspace…';
+    progressPercent !== undefined
+      ? `${phaseMessage} (${progressPercent}%)`
+      : isWaitingForWorkspaces
+        ? workspaceLoadingLabel
+        : phaseMessage;
   const progressValue = showOverlay && pullProgress
     ? pullProgress.total > 0
       ? pullProgress.applied / pullProgress.total
@@ -458,7 +497,22 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   if (showOverlay) {
     return (
       <>
-        {initError ? (
+        {isWorkspacesError ? (
+          <div className="workspace-init-overlay workspace-init-overlay--error" role="alert">
+            <h1 className="workspace-init-error__title">Failed to load workspaces</h1>
+            <p className="workspace-init-error__message">
+              {workspacesError instanceof Error ? workspacesError.message : 'Could not fetch workspaces'}
+            </p>
+            <Button
+              onClick={() => {
+                setShowWorkspaceTimeout(false);
+                void refetchWorkspaces();
+              }}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : initError ? (
           <div className="workspace-init-overlay workspace-init-overlay--error" role="alert">
             <h1 className="workspace-init-error__title">Failed to load workspace</h1>
             <p className="workspace-init-error__message">{initError.message}</p>

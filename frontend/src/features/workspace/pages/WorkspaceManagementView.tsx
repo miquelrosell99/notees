@@ -136,10 +136,18 @@ export function WorkspaceManagementView({
     setRenameError(null);
   };
 
-  const handleSelectWorkspace = (workspace: WorkspaceInfo) => {
+  const [switchError, setSwitchError] = useState<string | null>(null);
+
+  const handleSelectWorkspace = async (workspace: WorkspaceInfo) => {
     if (switchMutation.isPending) return;
+    setSwitchError(null);
     if (workspace.uuid !== data?.active) {
-      switchMutation.mutate(workspace.uuid);
+      try {
+        await switchMutation.mutateAsync(workspace.uuid);
+        onWorkspaceSelected?.();
+      } catch (err) {
+        setSwitchError(err instanceof Error ? err.message : 'Failed to open workspace');
+      }
     } else {
       onWorkspaceSelected?.();
     }
@@ -251,6 +259,12 @@ export function WorkspaceManagementView({
               Import Workspace
             </Button>
           </div>
+
+          {switchError && (
+            <div className="workspace-management__error" role="alert">
+              {switchError}
+            </div>
+          )}
 
           {/* Database list */}
           <DataStateView
