@@ -99,4 +99,41 @@ describe('HttpTransport', () => {
       'Relay read denied'
     );
   });
+
+  it('skips snapshot upload when data exceeds the client size limit', async () => {
+    const transport = createHttpTransport('ws-1', 'actor-1');
+    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ snapshot_id: 'snap-1' }), { status: 200 }));
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+    await transport.uploadSnapshot({
+      snapshotId: '',
+      workspaceId: 'ws-1',
+      hlc: { physical: 1, logical: 0 },
+      data: new Uint8Array(11 * 1024 * 1024),
+      restoreEpoch: 0,
+      hasSnapshot: true,
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('uploads snapshots below the client size limit', async () => {
+    const transport = createHttpTransport('ws-1', 'actor-1');
+    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ snapshot_id: 'snap-1' }), { status: 200 }));
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+    await transport.uploadSnapshot({
+      snapshotId: '',
+      workspaceId: 'ws-1',
+      hlc: { physical: 1, logical: 0 },
+      data: new Uint8Array(1024),
+      restoreEpoch: 0,
+      hasSnapshot: true,
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/api/relay/snapshot');
+    expect(init?.method).toBe('POST');
+  });
 });

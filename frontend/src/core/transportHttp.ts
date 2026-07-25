@@ -4,6 +4,12 @@ import type { SnapshotEnvelope, Transport } from './transport';
 
 const REQUEST_TIMEOUT_MS = 60_000;
 
+// Snapshot upload is best-effort and uses JSON-in-base64. Very large snapshots
+// can exceed browser string allocation limits during JSON.stringify, so skip
+// client uploads above this threshold. Servers can create their own snapshots
+// from the operation log for large workspaces.
+const MAX_SNAPSHOT_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   // Avoid spreading large arrays into String.fromCharCode, which throws
   // "too many function arguments" for snapshots > ~100 KB.
@@ -180,6 +186,12 @@ export class HttpTransport implements Transport {
   }
 
   async uploadSnapshot(snapshot: SnapshotEnvelope): Promise<void> {
+    if (snapshot.data.length > MAX_SNAPSHOT_UPLOAD_BYTES) {
+      // Avoid "allocation size overflow" and similar errors when the derived
+      // database is too large to serialize into a JSON body in this browser.
+      return;
+    }
+
     const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/snapshot`, {
       method: 'POST',
       headers: {
