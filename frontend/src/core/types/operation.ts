@@ -218,6 +218,30 @@ export interface ClassPropertyEdgeReorderPayload {
   orderedPropertySchemaIds: string[];
 }
 
+export interface ClassCreatePayload {
+  classId: string;
+  name: string;
+  icon?: string | null;
+  color?: string | null;
+}
+
+export interface ClassUpdatePayload {
+  classId: string;
+  name?: string;
+  icon?: string | null;
+  color?: string | null;
+  description?: string | null;
+}
+
+export interface ClassDeletePayload {
+  classId: string;
+}
+
+export interface ClassSetExtendsPayload {
+  classId: string;
+  extendsClassIds: string[];
+}
+
 export interface NodeViewCreatePayload {
   viewId: string;
   nodeId: string;
