@@ -1,47 +1,50 @@
 /**
  * Hooks to get system classes
- * 
+ *
  * These are used when creating nodes with specific system classes.
  * Instead of setting flags like is_page=true, is_class=true, etc.,
  * we assign the appropriate class which causes the flags to be computed by the backend.
  */
 import { useMemo } from 'react';
-import { useClasses } from './useNodeQueries';
+import { useClasses } from '@/core/hooks';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import type { ClassRow } from '@/core/query/classes';
+
+function findClassByUuid(classes: ClassRow[] | undefined, uuid: string): ClassRow | null {
+  return classes?.find((c) => c.id === uuid) ?? null;
+}
 
 /**
- * Get the Page class node and its ID
+ * Get the Page class row and its ID
  * Returns null if classes haven't loaded yet
  */
 export function usePageClass() {
   const { data: allClasses, isLoading } = useClasses();
-  
+
   const pageClass = useMemo(() => {
-    if (!allClasses) return null;
-    return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.page) ?? null;
+    return findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.page);
   }, [allClasses]);
-  
+
   return {
     pageClass,
-    pageClassUuid: pageClass?.uuid ?? null,
+    pageClassUuid: pageClass?.id ?? null,
     isLoading,
   };
 }
 
 /**
- * Get the Class class node and its ID (for creating new class definitions)
+ * Get the Class class row and its ID (for creating new class definitions)
  */
 export function useClassClass() {
   const { data: allClasses, isLoading } = useClasses();
-  
+
   const classClass = useMemo(() => {
-    if (!allClasses) return null;
-    return allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.class) ?? null;
+    return findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.class);
   }, [allClasses]);
-  
+
   return {
     classClass,
-    classClassUuid: classClass?.uuid ?? null,
+    classClassUuid: classClass?.id ?? null,
     isLoading,
   };
 }
@@ -52,48 +55,48 @@ export function useClassClass() {
  */
 export function useSystemClasses() {
   const { data: allClasses, isLoading } = useClasses();
-  
+
   const systemClasses = useMemo(() => {
     if (!allClasses) return null;
-    
+
     return {
-      page: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.page) ?? null,
-      class: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.class) ?? null,
-      day: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.day) ?? null,
-      month: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.month) ?? null,
-      year: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.year) ?? null,
-      comment: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.comment) ?? null,
-      task: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.task) ?? null,
-      template: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.template) ?? null,
-      asset: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.asset) ?? null,
-      quote: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.quote) ?? null,
-      query: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.query) ?? null,
-      code: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.code) ?? null,
-      whiteboard: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.whiteboard) ?? null,
-      card: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.card) ?? null,
-      cloze: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.cloze) ?? null,
+      page: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.page),
+      class: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.class),
+      day: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.day),
+      month: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.month),
+      year: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.year),
+      comment: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.comment),
+      task: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.task),
+      template: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.template),
+      asset: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.asset),
+      quote: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.quote),
+      query: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.query),
+      code: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.code),
+      whiteboard: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.whiteboard),
+      card: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.card),
+      cloze: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.cloze),
     };
   }, [allClasses]);
-  
+
   const systemClassUuids = useMemo(() => {
     if (!systemClasses) return null;
 
     return {
-      page: systemClasses.page?.uuid ?? null,
-      class: systemClasses.class?.uuid ?? null,
-      day: systemClasses.day?.uuid ?? null,
-      month: systemClasses.month?.uuid ?? null,
-      year: systemClasses.year?.uuid ?? null,
-      comment: systemClasses.comment?.uuid ?? null,
-      task: systemClasses.task?.uuid ?? null,
-      template: systemClasses.template?.uuid ?? null,
-      asset: systemClasses.asset?.uuid ?? null,
-      quote: systemClasses.quote?.uuid ?? null,
-      query: systemClasses.query?.uuid ?? null,
-      code: systemClasses.code?.uuid ?? null,
-      whiteboard: systemClasses.whiteboard?.uuid ?? null,
-      card: systemClasses.card?.uuid ?? null,
-      cloze: systemClasses.cloze?.uuid ?? null,
+      page: systemClasses.page?.id ?? null,
+      class: systemClasses.class?.id ?? null,
+      day: systemClasses.day?.id ?? null,
+      month: systemClasses.month?.id ?? null,
+      year: systemClasses.year?.id ?? null,
+      comment: systemClasses.comment?.id ?? null,
+      task: systemClasses.task?.id ?? null,
+      template: systemClasses.template?.id ?? null,
+      asset: systemClasses.asset?.id ?? null,
+      quote: systemClasses.quote?.id ?? null,
+      query: systemClasses.query?.id ?? null,
+      code: systemClasses.code?.id ?? null,
+      whiteboard: systemClasses.whiteboard?.id ?? null,
+      card: systemClasses.card?.id ?? null,
+      cloze: systemClasses.cloze?.id ?? null,
     };
   }, [systemClasses]);
 

@@ -57,11 +57,7 @@ describe('useQueryAst', () => {
     const store = storeResult.current.store!;
 
     act(() => {
-      store.createNode({ nodeId: classId, kind: 'class', parentId: null });
-      store.getDb().run(
-        'INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)',
-        [classId, classId]
-      );
+      store.createClass({ classId, name: 'Test class' });
       store.createNode({ nodeId: pageId, kind: 'page', parentId: null, classIds: [classId] });
     });
 

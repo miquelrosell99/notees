@@ -73,7 +73,7 @@ import { BlockPresenceOverlay } from '@/features/collab';
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '@/components/ui/SelectionButton';
 
-import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
+import { SYSTEM_PROPERTY_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
 import { buildScheduledForDayQueryAST, buildOverdueQueryAST } from '@/utils/taskQueries';
 import { isDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
 import { ReferencedNodesProvider } from '@/features/content';
@@ -83,6 +83,7 @@ import { uploadAsset } from '@/features/assets';
 import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import { uuidv7 } from '@/core/uuid';
 
 import './NodeView.css';
 import { Icon } from '@/components/ui/icons';
@@ -460,44 +461,38 @@ export function NodeView({
   }, [node, addClass]);
   
   // Handle creating a new class via NodeSelector
-  const handleCreateClass = useCallback((name: string) => {
-    if (!node) return;
-    const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
-    const pageClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.page);
-    
-    // Create with Page and Class classes - backend will compute is_page and is_class flags
-    const classUuids = [];
-    if (pageClass) classUuids.push(pageClass.uuid);
-    if (classClass) classUuids.push(classClass.uuid);
+  const handleCreateClass = useCallback(async (name: string) => {
+    if (!node || !workspaceUuid) return;
+    const nodeUuid = node.uuid;
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
+    const classId = uuidv7();
+    await client.mutate<void>('createClass', [{ classId, name: nodeNameToText(name) || name }]);
+    addClass.mutate({ nodeUuid, classId });
+  }, [node, workspaceUuid, addClass]);
 
-    createNode.mutate({ name, class_uuids: classUuids }, {
-      onSuccess: (newPage) => {
-        // Add the new class to the current node
-        addClass.mutate({ nodeUuid: node.uuid, classId: newPage.uuid });
-      }
-    });
-  }, [node, createNode, addClass, allClasses]);
-  
   // Handle removing a class via NodeSelector
   const handleRemoveClass = useCallback((classNode: Node) => {
     if (!node) return;
     removeClass.mutate({ nodeUuid: node.uuid, classId: classNode.uuid });
   }, [node, removeClass]);
 
-  // Handle converting an existing page to a class by changing its kind to 'class'
+  // Handle converting an existing page to a class.
+  // The page node keeps its UUID; a matching class row is created/updated in the
+  // dedicated class table so existing class assignments continue to resolve.
   const handleConvertToClass = useCallback(async (pageNode: Node) => {
     if (!node || !workspaceUuid) return;
+    if (pageNode.children && pageNode.children.length > 0) return;
     const client = getWorkspaceStoreClient(workspaceUuid);
     if (!client) return;
-    await client.mutate<void>('convertNode', [
-      {
-        nodeId: pageNode.uuid,
-        kind: 'class',
-        parentId: null,
-        classIds: pageNode.classes_uuid ?? [],
-      },
-    ]);
-    // Assign the newly-converted class to the current node
+    const existing = await client.query<{ id: string } | undefined>('getClass', [pageNode.uuid]);
+    const className = nodeNameToText(pageNode.name) || 'Untitled class';
+    if (existing) {
+      await client.mutate<void>('updateClass', [{ classId: pageNode.uuid, name: className }]);
+    } else {
+      await client.mutate<void>('createClass', [{ classId: pageNode.uuid, name: className }]);
+    }
+    // Assign the class to the current node
     addClass.mutate({ nodeUuid: node.uuid, classId: pageNode.uuid });
   }, [node, workspaceUuid, addClass]);
   
@@ -657,22 +652,15 @@ export function NodeView({
   }, [node, addClassExtends]);
 
   // Handle creating a new class and adding it as extends
-  const handleCreateExtends = useCallback((name: string) => {
-    if (!node) return;
-    const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
-    const pageClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.page);
-    
-    // Create with Page and Class classes
-    const classUuids = [];
-    if (pageClass) classUuids.push(pageClass.uuid);
-    if (classClass) classUuids.push(classClass.uuid);
-
-    createNode.mutate({ name, class_uuids: classUuids }, {
-      onSuccess: (newClass) => {
-        addClassExtends.mutate({ classId: node.uuid, extendsClassId: newClass.uuid });
-      }
-    });
-  }, [node, createNode, addClassExtends, allClasses]);
+  const handleCreateExtends = useCallback(async (name: string) => {
+    if (!node || !workspaceUuid) return;
+    const nodeUuid = node.uuid;
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
+    const classId = uuidv7();
+    await client.mutate<void>('createClass', [{ classId, name: nodeNameToText(name) || name }]);
+    addClassExtends.mutate({ classId: nodeUuid, extendsClassId: classId });
+  }, [node, workspaceUuid, addClassExtends]);
 
   // Handle removing an extends relationship
   const removeClassExtends = useRemoveClassExtends();
@@ -682,7 +670,9 @@ export function NodeView({
   }, [node, removeClassExtends]);
 
   // Fetch class extends (inheritance) data for classes
-  const { data: extendsData } = useClassExtends(node?.is_class ? node.uuid : null);
+  const { data: extendsData } = useClassExtends(
+    node && allClasses?.some((c) => c.uuid === node.uuid) ? node.uuid : null,
+  );
 
   // Resolve extends details from IDs.
   // allClasses is unpaginated and contains all class nodes.
@@ -1260,6 +1250,7 @@ export function NodeView({
             pageAliasDetails={pageAliasDetails}
             aliasedNode={aliasedNode}
             isAlias={isAlias}
+            isClassNode={isClassNode}
             onNavigateToNode={handleNavigateToNode}
             onNavigateToAlias={handleNavigateToAlias}
             onRemoveClass={handleRemoveClass}

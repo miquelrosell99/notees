@@ -59,7 +59,7 @@ function getNodeFromDb(db: Database, nodeId: string): NodeRow | undefined {
   const row = queryOne<{
     id: string;
     workspaceId: string;
-    kind: 'page' | 'block' | 'class';
+    kind: 'page' | 'block';
     parentId: string | null;
     classIds: string;
     content: string;
@@ -168,7 +168,7 @@ export function projectNodeFromDb(
   const isPage = node.kind === 'page';
   // NOTE(D2): When the page system class UUID is known, also check
   // classIds.includes(pageClassUuid) here.
-  const isClass = node.kind === 'class';
+  const isClass = false;
   const pageUuid = resolvePageUuid(db, nodeId);
   const childIds = getChildrenFromDb(db, nodeId);
 

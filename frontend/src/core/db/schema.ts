@@ -42,7 +42,7 @@ export function createSchema(db: Database): void {
     CREATE TABLE IF NOT EXISTS node (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('page', 'block', 'class')),
+      kind TEXT NOT NULL CHECK (kind IN ('page', 'block')),
       class_ids TEXT NOT NULL DEFAULT '[]',
       parent_id TEXT,
       content TEXT NOT NULL DEFAULT '[]',

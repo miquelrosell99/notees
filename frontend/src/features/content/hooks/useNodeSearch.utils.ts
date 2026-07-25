@@ -2,10 +2,6 @@ import type { Node } from '@/types';
 import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';
 import type { NodeSearchItem } from './useNodeSearch.types';
 
-function isClassDef(node: Node): boolean {
-  return node.is_class === true;
-}
-
 export function getClassesResults(
   debouncedQuery: string,
   query: string,
@@ -81,10 +77,9 @@ export function getTagsResults(
   const parsed = parseHierarchicalPath(debouncedQuery);
   const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
 
-  let results = (searchQuery.length > 0
+  let results = searchQuery.length > 0
     ? (searchResults ?? []).filter(n => n.is_page)
-    : (allPages ?? []).slice(0, maxResults * 3)
-  ).filter(n => !isClassDef(n));
+    : (allPages ?? []).slice(0, maxResults * 3);
 
   if (parsed.isHierarchical && allPages) {
     results = filterNodesByHierarchy(query, results, allPages);
@@ -130,7 +125,7 @@ export function getAliasesResults(
   let results = (searchQuery.length > 0
     ? (searchResults ?? []).filter(n => n.is_page)
     : (allPages ?? []).slice(0, maxResults * 3)
-  ).filter(n => !isClassDef(n) && !n.aliased_uuid && (!n.aliases_uuid || n.aliases_uuid.length === 0));
+  ).filter(n => !n.aliased_uuid && (!n.aliases_uuid || n.aliases_uuid.length === 0));
 
   if (parsed.isHierarchical && allPages) {
     results = filterNodesByHierarchy(query, results, allPages);
@@ -170,13 +165,13 @@ export function getPagesResults(
 
   let results: Node[];
   if (searchQuery.length > 0) {
-    results = (searchResults ?? []).filter(n => (n.is_page || n.parent_uuid === null) && !isClassDef(n));
+    results = (searchResults ?? []).filter(n => n.is_page || n.parent_uuid === null);
   } else if (suggestions && suggestions.length > 0) {
-    results = suggestions.filter(n => !isClassDef(n));
+    results = suggestions;
   } else if (classFilters.length > 0) {
     results = (filteredPages ?? []).slice(0, maxResults * 3);
   } else {
-    results = (allPages ?? []).filter(n => !isClassDef(n)).slice(0, maxResults * 3);
+    results = (allPages ?? []).slice(0, maxResults * 3);
   }
 
   if (parsed.isHierarchical && allPages) {
@@ -247,15 +242,15 @@ export function getAllResults(
   const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
 
   let baseResults = searchQuery.length > 0
-    ? (searchResults ?? []).filter(n => !isClassDef(n))
+    ? (searchResults ?? [])
     : suggestions && suggestions.length > 0
       ? [
-          ...suggestions.filter(n => !isClassDef(n)).slice(0, Math.floor(maxResults / 2)),
-          ...(allNodes ?? []).filter(n => n.parent_uuid !== null && !isClassDef(n)).slice(0, Math.floor(maxResults / 2)),
+          ...suggestions.slice(0, Math.floor(maxResults / 2)),
+          ...(allNodes ?? []).filter(n => n.parent_uuid !== null).slice(0, Math.floor(maxResults / 2)),
         ]
       : [
-          ...(allPages ?? []).filter(n => !isClassDef(n)).slice(0, Math.floor(maxResults / 2)),
-          ...(allNodes ?? []).filter(n => n.parent_uuid !== null && !isClassDef(n)).slice(0, Math.floor(maxResults / 2)),
+          ...(allPages ?? []).slice(0, Math.floor(maxResults / 2)),
+          ...(allNodes ?? []).filter(n => n.parent_uuid !== null).slice(0, Math.floor(maxResults / 2)),
         ];
 
   if (parsed.isHierarchical && allPages) {

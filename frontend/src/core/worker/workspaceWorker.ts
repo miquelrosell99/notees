@@ -8,7 +8,6 @@
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { listNodes } from '../query/listNodes';
 import { queryNodes } from '../query/queryNodes';
 import { listClasses, getClass } from '../query/classes';
@@ -390,9 +389,6 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
 
   if (request.method === 'queryNodes') {
     const filters = request.args[0] as Parameters<typeof queryNodes>[1];
-    if (filters.isClass) {
-      filters.classClassUuid = SYSTEM_CLASS_UUIDS.class;
-    }
     const result = queryNodes(state.store, filters);
     postResponse({ type: 'query-result', id: request.id, result });
     return;

@@ -103,7 +103,7 @@ async def fetch_nodes(
     ``only_deleted=True`` to fetch only soft-deleted rows.
     """
     query = """
-        SELECT id, uuid, workspace_id, name, parent_id, sequence,
+        SELECT id, uuid, workspace_id, name, icon, color, parent_id, sequence,
                is_deleted, deleted_at,
                is_class, is_page, is_day, is_month, is_year,
                is_asset, is_template, is_comment, is_task, is_table,
@@ -146,10 +146,12 @@ def _build_id_map(nodes: list[asyncpg.Record]) -> dict[int, str]:
 
 
 def _node_kind(row: asyncpg.Record) -> str:
-    """Derive the ideal node kind from legacy boolean flags."""
-    if row["is_class"]:
-        return "class"
-    if row["is_page"] or row["is_day"] or row["is_month"] or row["is_year"] or row["is_template"]:
+    """Derive the ideal node kind from legacy boolean flags.
+
+    Legacy class nodes become regular pages; the separate ``class`` table holds
+    class metadata via ``class.create`` operations.
+    """
+    if row["is_page"] or row["is_class"] or row["is_day"] or row["is_month"] or row["is_year"] or row["is_template"]:
         return "page"
     return "block"
 
@@ -238,6 +240,38 @@ def _move_ops(ctx: MigrationContext, nodes: list[asyncpg.Record]) -> list[Operat
     return ops
 
 
+def _class_create_ops(
+    ctx: MigrationContext,
+    nodes: list[asyncpg.Record],
+) -> list[Operation]:
+    """Emit ``class.create`` operations for legacy class nodes."""
+    ops: list[Operation] = []
+    for row in nodes:
+        if not row["is_class"]:
+            continue
+        class_id = ctx.map_node_id(row["id"])
+        if class_id is None:
+            continue
+        ops.append(
+            create_operation(
+                envelope={
+                    "workspace_id": ctx.workspace_uuid,
+                    "actor_id": ctx.actor_id,
+                    "hlc": ctx.next_hlc(),
+                    "affected_node_ids": [class_id],
+                    "op_type": "class.create",
+                },
+                payload={
+                    "classId": class_id,
+                    "name": (row.get("name") or "").strip() or "Untitled class",
+                    "icon": row.get("icon"),
+                    "color": row.get("color"),
+                },
+            )
+        )
+    return ops
+
+
 def _class_assign_ops(
     ctx: MigrationContext,
     nodes: list[asyncpg.Record],
@@ -248,6 +282,21 @@ def _class_assign_ops(
         node_id = ctx.map_node_id(row["id"])
         if node_id is None:
             continue
+
+        # Legacy class nodes are themselves instances of the class they define.
+        if row["is_class"]:
+            ops.append(
+                create_operation(
+                    envelope={
+                        "workspace_id": ctx.workspace_uuid,
+                        "actor_id": ctx.actor_id,
+                        "hlc": ctx.next_hlc(),
+                        "affected_node_ids": [node_id, node_id],
+                        "op_type": "class.assign",
+                    },
+                    payload={"nodeId": node_id, "classId": node_id},
+                )
+            )
 
         # Boolean flags → system classes.
         for flag in SYSTEM_CLASS_FLAGS:
@@ -422,6 +471,8 @@ async def migrate_nodes_for_workspace(
     operations: list[Operation] = []
     operations.extend(_create_ops(ctx, live_nodes))
     operations.extend(_create_ops(ctx, deleted_nodes))
+    operations.extend(_class_create_ops(ctx, live_nodes))
+    operations.extend(_class_create_ops(ctx, deleted_nodes))
     operations.extend(_move_ops(ctx, live_nodes))
     operations.extend(_class_assign_ops(ctx, live_nodes))
     operations.extend(_update_content_ops(ctx, live_nodes))

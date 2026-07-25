@@ -19,6 +19,7 @@ interface NodeMetadataSectionProps {
   pageAliasDetails: Node[];
   aliasedNode: Node | null;
   isAlias: boolean;
+  isClassNode?: boolean;
   onNavigateToNode: (nodeUuid: string) => void;
   onNavigateToAlias: (node: Node) => void;
   onRemoveClass?: (node: Node) => void;
@@ -51,6 +52,7 @@ export function NodeMetadataSection({
   pageAliasDetails,
   aliasedNode,
   isAlias,
+  isClassNode = false,
   onNavigateToNode,
   onNavigateToAlias,
   onRemoveClass,
@@ -73,7 +75,7 @@ export function NodeMetadataSection({
   variant = 'default',
 }: NodeMetadataSectionProps) {
   const count =
-    (node.is_class ? 0 : pageClassDetails.length) +
+    pageClassDetails.length +
     pageTagDetails.length +
     extendsDetails.length +
     pageAliasDetails.length +
@@ -90,27 +92,25 @@ export function NodeMetadataSection({
       variant={variant}
     >
       <div className="node-metadata-content">
-        {/* Classes — classes are themselves kinds, so they don't receive class assignments. */}
-        {!node.is_class && (
-          <div className="node-metadata-row">
-            <div className="section-label">Classes{isAlias ? ' (inherited)' : ''}:</div>
-            <NodeSelector
-              nodes={pageClassDetails}
-              searchMode="classes"
-              emptyText={isAlias ? '' : 'Add class'}
-              searchPlaceholder="Search classes..."
-              onNodeClick={(n) => onNavigateToNode(n.uuid)}
-              onRemove={isAlias ? undefined : onRemoveClass}
-              onColorChange={isAlias ? undefined : onNodeColorChange}
-              onAdd={isAlias ? undefined : onAddClass}
-              onCreateNew={isAlias ? undefined : onCreateClass}
-              onConvertToClass={isAlias ? undefined : onConvertToClass}
-              canRemove={canRemoveClass}
-              canAdd={canAddClass}
-              rightIconHoverReveal={true}
-            />
-          </div>
-        )}
+        {/* Classes */}
+        <div className="node-metadata-row">
+          <div className="section-label">Classes{isAlias ? ' (inherited)' : ''}:</div>
+          <NodeSelector
+            nodes={pageClassDetails}
+            searchMode="classes"
+            emptyText={isAlias ? '' : 'Add class'}
+            searchPlaceholder="Search classes..."
+            onNodeClick={(n) => onNavigateToNode(n.uuid)}
+            onRemove={isAlias ? undefined : onRemoveClass}
+            onColorChange={isAlias ? undefined : onNodeColorChange}
+            onAdd={isAlias ? undefined : onAddClass}
+            onCreateNew={isAlias ? undefined : onCreateClass}
+            onConvertToClass={isAlias ? undefined : onConvertToClass}
+            canRemove={canRemoveClass}
+            canAdd={canAddClass}
+            rightIconHoverReveal={true}
+          />
+        </div>
 
         {/* Tags */}
         <div className="node-metadata-row">
@@ -160,7 +160,7 @@ export function NodeMetadataSection({
         )}
 
         {/* Extends */}
-        {node.is_class && (
+        {isClassNode && (
           <div className="node-metadata-row">
             <div className="section-label">Extends:</div>
             <NodeSelector

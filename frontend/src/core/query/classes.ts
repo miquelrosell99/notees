@@ -1,5 +1,6 @@
 import { type Database } from 'sql.js';
 import { queryAll, queryOne } from '../db/sqlite';
+import type { Node } from '@/types/api';
 
 export interface ClassRow {
   id: string;
@@ -12,6 +13,48 @@ export interface ClassRow {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Project a class table row into the legacy Node shape.
+ *
+ * The UI still renders classes as if they were a kind of node (icon, color,
+ * name, uuid). This adapter lets components keep using Node-based primitives
+ * while the underlying source of truth is the dedicated `class` table.
+ */
+export function classRowToNode(row: ClassRow): Node {
+  const now = new Date().toISOString();
+  return {
+    uuid: row.id,
+    name: row.name,
+    content: JSON.stringify([{ type: 'text', text: row.name }]),
+    icon: row.icon,
+    color: row.color,
+    parent_uuid: null,
+    page_uuid: null,
+    sequence: 0,
+    active: row.active,
+    is_page: false,
+    is_class: true,
+    create_date: row.createdAt ?? now,
+    write_date: row.updatedAt ?? now,
+    open_date: null,
+    tags_uuid: [],
+    classes_uuid: [],
+    classes_path_uuid: [],
+    properties_uuid: {},
+    children: undefined,
+    has_children: false,
+    backlinks: [],
+    linked_references: [],
+    backlink_count: 0,
+    comment_count: 0,
+    aliases_uuid: [],
+    aliased_uuid: null,
+    extends_uuid: row.extendsClassIds,
+    is_private: false,
+    parent_locked: false,
+  };
 }
 
 const SELECT_COLUMNS = `

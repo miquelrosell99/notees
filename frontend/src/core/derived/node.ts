@@ -3,7 +3,7 @@ import type { Operation } from '../types/operation';
 import { loadTextCrdt, saveTextCrdt } from './crdtState';
 import { reindexNode } from './search';
 import { deleteNodeViewsForNode } from './nodeView';
-import { queryAll, queryOne } from '../db/sqlite';
+import { queryOne } from '../db/sqlite';
 
 function recordNodeVersion(
   db: Database,
@@ -17,34 +17,6 @@ function recordNodeVersion(
     'INSERT OR REPLACE INTO node_version (id, node_id, content, actor_id, created_at) VALUES (?, ?, ?, ?, ?)',
     [opId, nodeId, contentJson, actorId, createdAt]
   );
-}
-
-function recomputeClassHierarchy(
-  db: Database,
-  classId: string,
-  extendsUuids: unknown[] | undefined
-): void {
-  db.run('DELETE FROM class_hierarchy WHERE class_id = ?', [classId]);
-  db.run('INSERT INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)', [classId, classId]);
-
-  const parents = (extendsUuids ?? []).filter((u): u is string => typeof u === 'string' && u.length > 0);
-  for (const parentId of parents) {
-    db.run('INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)', [
-      classId,
-      parentId,
-    ]);
-    const ancestors = queryAll<{ ancestor_id: string }>(
-      db,
-      'SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?',
-      [parentId]
-    );
-    for (const row of ancestors) {
-      db.run('INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)', [
-        classId,
-        row.ancestor_id,
-      ]);
-    }
-  }
 }
 
 export function applyNodeOperation(db: Database, op: Operation): void {
@@ -112,28 +84,6 @@ export function applyNodeOperation(db: Database, op: Operation): void {
     db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_version WHERE node_id = ?', [nodeId]);
     deleteNodeViewsForNode(db, nodeId);
-  } else if (opType === 'class.create') {
-    const classId = payload.classId as string;
-    db.run(
-      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, active, created_at, updated_at, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        classId,
-        op.envelope.workspaceId,
-        'class',
-        '[]',
-        null,
-        '[]',
-        1,
-        new Date().toISOString(),
-        new Date().toISOString(),
-        op.envelope.actorId,
-        op.envelope.actorId,
-      ]
-    );
-    recomputeClassHierarchy(db, classId, payload.extends as unknown[] | undefined);
-  } else if (opType === 'class.update') {
-    recomputeClassHierarchy(db, payload.classId as string, payload.extends as unknown[] | undefined);
   } else if (opType === 'node.addAlias') {
     db.run('INSERT OR REPLACE INTO node_alias (alias_node_id, canonical_node_id) VALUES (?, ?)', [
       payload.aliasNodeId as string,
