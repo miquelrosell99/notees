@@ -114,8 +114,12 @@ def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:
         apply_class_property_edge_reorder(conn, op)
     elif op_type == "class.create":
         apply_class_create(conn, op)
+        apply_class_operation(conn, op)
     elif op_type == "class.update":
         apply_class_update(conn, op)
+        apply_class_operation(conn, op)
+    elif op_type in {"class.delete", "class.setExtends"}:
+        apply_class_operation(conn, op)
     elif op_type == "nodeView.create":
         apply_node_view_create(conn, op)
     elif op_type == "nodeView.update":

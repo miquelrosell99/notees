@@ -428,13 +428,56 @@ class WorkspaceStore:
         self,
         class_id: str,
         name: str,
-        extends: list[str] | None = None,
+        icon: str | None = None,
+        color: str | None = None,
     ) -> None:
         """Emit a ``class.create`` operation."""
         payload: dict[str, Any] = {"classId": class_id, "name": name}
-        if extends is not None:
-            payload["extends"] = extends
+        if icon is not None:
+            payload["icon"] = icon
+        if color is not None:
+            payload["color"] = color
         await self.apply(self._build_operation("class.create", payload, [class_id]))
+
+    async def update_class(
+        self,
+        class_id: str,
+        name: str | None = None,
+        icon: str | None = None,
+        color: str | None = None,
+        description: str | None = None,
+    ) -> None:
+        """Emit a ``class.update`` operation."""
+        payload: dict[str, Any] = {"classId": class_id}
+        if name is not None:
+            payload["name"] = name
+        if icon is not None:
+            payload["icon"] = icon
+        if color is not None:
+            payload["color"] = color
+        if description is not None:
+            payload["description"] = description
+        await self.apply(self._build_operation("class.update", payload, [class_id]))
+
+    async def delete_class(self, class_id: str) -> None:
+        """Emit a ``class.delete`` operation."""
+        await self.apply(
+            self._build_operation("class.delete", {"classId": class_id}, [class_id])
+        )
+
+    async def set_class_extends(
+        self,
+        class_id: str,
+        extends_class_ids: list[str],
+    ) -> None:
+        """Emit a ``class.setExtends`` operation."""
+        await self.apply(
+            self._build_operation(
+                "class.setExtends",
+                {"classId": class_id, "extendsClassIds": extends_class_ids},
+                [class_id, *extends_class_ids],
+            )
+        )
 
     async def create_property_schema(
         self,

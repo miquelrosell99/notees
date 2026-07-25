@@ -3,6 +3,7 @@ import { webcrypto } from 'node:crypto';
 import { WorkspaceStore } from '../store';
 import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
+import { getClass } from '../query/classes';
 
 describe('WorkspaceStore', () => {
   beforeAll(() => {
@@ -227,5 +228,67 @@ describe('WorkspaceStore', () => {
     expect(() =>
       store.convertNode({ nodeId: pageId, kind: 'class', parentId: null }),
     ).toThrow('Cannot convert a node with children to a class');
+  });
+
+  it('creates a class via createClass', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Project', icon: 'folder', color: '#ff0000' });
+
+    const row = getClass(db, classId);
+    expect(row).toBeDefined();
+    expect(row!.name).toBe('Project');
+    expect(row!.icon).toBe('folder');
+    expect(row!.color).toBe('#ff0000');
+    expect(row!.active).toBe(true);
+  });
+
+  it('updates a class name', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Project' });
+    store.updateClass({ classId, name: 'Area' });
+
+    const row = getClass(db, classId);
+    expect(row!.name).toBe('Area');
+  });
+
+  it('deletes a class', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Project' });
+    store.deleteClass(classId);
+
+    const row = getClass(db, classId);
+    expect(row).toBeDefined();
+    expect(row!.active).toBe(false);
+  });
+
+  it('sets class extends', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const parentId = uuidv7();
+    const childId = uuidv7();
+    store.createClass({ classId: parentId, name: 'Parent' });
+    store.createClass({ classId: childId, name: 'Child' });
+    store.setClassExtends({ classId: childId, extendsClassIds: [parentId] });
+
+    const row = getClass(db, childId);
+    expect(row!.extendsClassIds).toEqual([parentId]);
   });
 });
