@@ -125,6 +125,21 @@ CREATE TABLE IF NOT EXISTS crdt_state (
     tree_state BLOB
 );
 
+CREATE TABLE IF NOT EXISTS class (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    icon TEXT,
+    color TEXT,
+    description TEXT,
+    extends_class_ids TEXT NOT NULL DEFAULT '[]',
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT,
+    updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_class_workspace ON class (workspace_id);
+
 CREATE TABLE IF NOT EXISTS class_hierarchy (
     class_id TEXT NOT NULL,
     ancestor_id TEXT NOT NULL,
