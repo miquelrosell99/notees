@@ -1,21 +1,23 @@
 /**
  * useResolvedClassDetails Hook
- * 
+ *
  * Resolves a node's class IDs into full Node objects.
  * Consolidates the repeated class resolution pattern from NodeView, SidebarNodeView,
  * NodeCardView, Block, and NodeTableView.
- * 
+ *
  * Looks up each class ID in allClasses first, then falls back to allNodes.
  * Filters out the implicit "page" system class by default.
  */
 import { useMemo } from 'react';
-import { useClasses, useNodes } from './useNodes';
+import { useNodes } from './useNodes';
+import { useClasses as useCoreClasses } from '@/core/hooks';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
+import { classRowToNode } from '@/core/query/classes';
 
 /**
  * Resolve a node's class IDs into full Node objects.
- * 
+ *
  * @param classIds - Array of class IDs to resolve (typically from node.classes)
  * @param options.includePageClass - If true, includes the implicit "page" class (default: false)
  * @param options.skipNodesFallback - If true, only searches allClasses, not allNodes (default: false)
@@ -25,7 +27,7 @@ export function useResolvedClassDetails(
   classIds: string[] | undefined | null,
   options?: { includePageClass?: boolean; skipNodesFallback?: boolean }
 ): Node[] {
-  const { data: allClasses } = useClasses();
+  const { data: allClasses } = useCoreClasses();
   const { data: allNodes } = useNodes(
     options?.skipNodesFallback ? null : { pages_only: true }
   );
@@ -35,7 +37,7 @@ export function useResolvedClassDetails(
 
     // Build O(1) lookup maps once instead of O(n) .find() per classId
     const classMap = new Map<string, Node>();
-    for (const c of allClasses ?? []) classMap.set(c.uuid, c);
+    for (const c of allClasses ?? []) classMap.set(c.id, classRowToNode(c));
 
     const nodeMap = options?.skipNodesFallback ? null : (() => {
       const m = new Map<string, Node>();

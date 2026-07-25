@@ -141,29 +141,29 @@ class ImportService:
         if not entries:
             return []
         class_rows = await self._store.query(
-            "SELECT id, content FROM node WHERE kind = 'class'"
+            "SELECT id, name FROM class WHERE active = 1"
         )
         by_uuid: dict[str, str] = {row["id"]: row["id"] for row in class_rows}
         by_name: dict[str, str] = {}
         for row in class_rows:
-            plain = self._node_content_to_text(row["content"])
-            if plain:
-                by_name[plain.lower()] = row["id"]
+            name = row["name"]
+            if name:
+                by_name[name.lower()] = row["id"]
 
         resolved: list[str] = []
         for entry in entries:
-            node_uuid: str | None = None
+            class_id: str | None = None
             if isinstance(entry, str):
-                node_uuid = by_uuid.get(entry) or by_name.get(entry.lower())
+                class_id = by_uuid.get(entry) or by_name.get(entry.lower())
             elif isinstance(entry, dict):
                 uuid = entry.get("uuid")
                 name = entry.get("name")
-                node_uuid = by_uuid.get(uuid) if uuid else None
-                if node_uuid is None and name:
-                    node_uuid = by_name.get(str(name).lower())
-            if node_uuid is None:
+                class_id = by_uuid.get(uuid) if uuid else None
+                if class_id is None and name:
+                    class_id = by_name.get(str(name).lower())
+            if class_id is None:
                 raise ValueError(f"Class not found: {entry}")
-            resolved.append(node_uuid)
+            resolved.append(class_id)
         return resolved
 
     async def _resolve_tags(self, entries: list[Any], user_id: int | None = None) -> list[str]:

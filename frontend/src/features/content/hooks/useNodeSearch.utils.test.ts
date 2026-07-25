@@ -12,7 +12,6 @@ function makeNode(overrides: Partial<Node> & { uuid: string }): Node {
     name = 'Node',
     parent_uuid = null,
     is_page = true,
-    is_class = false,
     ...rest
   } = overrides;
   return {
@@ -25,7 +24,6 @@ function makeNode(overrides: Partial<Node> & { uuid: string }): Node {
     sequence: 0,
     active: true,
     is_page,
-    is_class,
     create_date: new Date().toISOString(),
     write_date: new Date().toISOString(),
     ...rest,
@@ -33,9 +31,8 @@ function makeNode(overrides: Partial<Node> & { uuid: string }): Node {
 }
 
 describe('getPagesResults', () => {
-  it('excludes class nodes from page search results', () => {
+  it('returns pages for empty query', () => {
     const page = makeNode({ uuid: 'page-1', name: 'Regular page', is_page: true });
-    const classNode = makeNode({ uuid: 'class-1', name: 'Meeting', is_page: false, is_class: true });
 
     const { pageResults } = getPagesResults(
       '',
@@ -43,7 +40,7 @@ describe('getPagesResults', () => {
       undefined,
       undefined,
       undefined,
-      [page, classNode],
+      [page],
       [],
       undefined,
       undefined,
@@ -53,14 +50,13 @@ describe('getPagesResults', () => {
     expect(pageResults.map(r => r.node.uuid)).toEqual(['page-1']);
   });
 
-  it('excludes class nodes from API search results', () => {
+  it('returns pages from API search results', () => {
     const page = makeNode({ uuid: 'page-1', name: 'Regular page', is_page: true });
-    const classNode = makeNode({ uuid: 'class-1', name: 'Meeting', is_page: false, is_class: true, parent_uuid: null });
 
     const { pageResults } = getPagesResults(
-      'Meeting',
-      'Meeting',
-      [page, classNode],
+      'Regular',
+      'Regular',
+      [page],
       undefined,
       undefined,
       undefined,
@@ -75,17 +71,16 @@ describe('getPagesResults', () => {
 });
 
 describe('getAllResults', () => {
-  it('excludes class nodes from combined results', () => {
+  it('returns pages and blocks for empty query', () => {
     const page = makeNode({ uuid: 'page-1', name: 'Regular page', is_page: true });
     const block = makeNode({ uuid: 'block-1', name: 'Block', is_page: false, parent_uuid: 'page-1' });
-    const classNode = makeNode({ uuid: 'class-1', name: 'Meeting', is_page: false, is_class: true });
 
     const { pageResults, blockResults } = getAllResults(
       '',
       '',
       undefined,
       undefined,
-      [page, classNode],
+      [page],
       [block],
       [],
       undefined,
@@ -97,14 +92,13 @@ describe('getAllResults', () => {
     expect(blockResults.map(r => r.node.uuid)).toEqual(['block-1']);
   });
 
-  it('excludes class nodes from API search results', () => {
+  it('returns pages from API search results', () => {
     const page = makeNode({ uuid: 'page-1', name: 'Regular page', is_page: true });
-    const classNode = makeNode({ uuid: 'class-1', name: 'Meeting', is_page: false, is_class: true });
 
     const { pageResults } = getAllResults(
-      'Meeting',
-      'Meeting',
-      [page, classNode],
+      'Regular',
+      'Regular',
+      [page],
       undefined,
       undefined,
       undefined,

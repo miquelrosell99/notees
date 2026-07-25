@@ -3,11 +3,13 @@
  */
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useClasses as useCoreClasses } from '@/core/hooks';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { classRowToNode } from '@/core/query/classes';
 
 function useCoreNodeQuery(
   queryKey: readonly unknown[],
@@ -117,16 +119,24 @@ export function useTags() {
 }
 
 /**
- * Hook to fetch all classes (nodes that can be used as classes)
- * Classes are essentially pages that can categorize other nodes
+ * Hook to fetch all class definitions as legacy Node objects.
+ *
+ * Classes now live in the dedicated `class` table, but most UI primitives still
+ * consume Node-shaped data. This hook projects ClassRow rows to Node so callers
+ * don't need to know about the schema separation.
  */
 
 export function useClasses(options?: { enabled?: boolean }) {
-  return useCoreClasses(options);
+  const result = useCoreClasses(options);
+  const nodes = useMemo(() => result.data?.map(classRowToNode) ?? [], [result.data]);
+  return {
+    ...result,
+    data: nodes,
+  };
 }
 
 /**
- * Hook to search for classes
+ * Hook to search for classes, returning Node-shaped results.
  */
 
 export function useSearchClasses(query: string) {
@@ -138,7 +148,7 @@ export function useSearchClasses(query: string) {
         (typeof cls.name === 'string' ? cls.name : '').toLowerCase().includes(normalizedQuery),
       );
   return {
-    data: filtered,
+    data: useMemo(() => filtered?.map(classRowToNode) ?? [], [filtered]),
     isLoading,
     error,
   };

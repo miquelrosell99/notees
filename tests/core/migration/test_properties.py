@@ -42,7 +42,6 @@ class _FakeConnection:
         selection_values: list[dict[str, Any]] | None = None,
         class_properties: list[dict[str, Any]] | None = None,
         class_extends: list[dict[str, Any]] | None = None,
-        class_node_names: dict[int, str] | None = None,
     ) -> None:
         self._workspace_uuid = workspace_uuid
         self._properties = [_FakeRecord(p) for p in (properties or [])]
@@ -53,7 +52,6 @@ class _FakeConnection:
         self._selection_values = [_FakeRecord(p) for p in (selection_values or [])]
         self._class_properties = [_FakeRecord(p) for p in (class_properties or [])]
         self._class_extends = [_FakeRecord(p) for p in (class_extends or [])]
-        self._class_node_names = class_node_names or {}
 
     async def fetch(self, query: str, *args: Any) -> list[_FakeRecord]:
         if "property_selection_line" in query:
@@ -72,12 +70,6 @@ class _FakeConnection:
             return self._class_properties
         if "class_extend ce" in query:
             return self._class_extends
-        if "FROM node\n" in query and "id = ANY" in query:
-            ids = args[0] if args else []
-            return [
-                _FakeRecord({"id": i, "name": self._class_node_names.get(i, "")})
-                for i in ids
-            ]
         return []
 
     async def fetchrow(self, query: str, *args: Any) -> _FakeRecord | None:
@@ -484,7 +476,7 @@ async def test_values_without_node_property_assignment_are_skipped() -> None:
 
 @pytest.mark.unit
 async def test_class_property_schema_assignment() -> None:
-    """class.create carries the property schemas assigned via class_property."""
+    """classPropertyEdge.create operations carry class_property assignments."""
     workspace_uuid = str(uuid4())
     class_uuid = str(uuid4())
     prop_uuid = str(uuid4())
@@ -498,23 +490,21 @@ async def test_class_property_schema_assignment() -> None:
         workspace_uuid,
         properties=properties,
         class_properties=class_properties,
-        class_node_names={100: "Task"},
     )
     ctx = _make_context(workspace_uuid, {100: class_uuid})
 
     ops = await migrate_properties_for_workspace(conn, 1, ctx)
-    creates = _find_ops(ops, "class.create")
+    creates = _find_ops(ops, "classPropertyEdge.create")
     assert len(creates) == 1
     payload = creates[0].payload
     assert payload["classId"] == class_uuid
-    assert payload["name"] == "Task"
-    assert payload["propertySchemaIds"] == [prop_uuid]
-    assert payload["extends"] == []
+    assert payload["propertySchemaId"] == prop_uuid
+    assert payload["sequence"] == 1
 
 
 @pytest.mark.unit
 async def test_class_inheritance_via_extends() -> None:
-    """class.create carries parent classes from class_extend."""
+    """class.setExtends operations carry parent classes from class_extend."""
     workspace_uuid = str(uuid4())
     child_uuid = str(uuid4())
     parent_uuid = str(uuid4())
@@ -526,18 +516,15 @@ async def test_class_inheritance_via_extends() -> None:
     conn = _FakeConnection(
         workspace_uuid,
         class_extends=class_extends,
-        class_node_names={200: "Child", 201: "Parent"},
     )
     ctx = _make_context(workspace_uuid, {200: child_uuid, 201: parent_uuid})
 
     ops = await migrate_properties_for_workspace(conn, 1, ctx)
-    creates = _find_ops(ops, "class.create")
-    assert len(creates) == 1
-    payload = creates[0].payload
+    extends_ops = _find_ops(ops, "class.setExtends")
+    assert len(extends_ops) == 1
+    payload = extends_ops[0].payload
     assert payload["classId"] == child_uuid
-    assert payload["name"] == "Child"
-    assert payload["propertySchemaIds"] == []
-    assert payload["extends"] == [parent_uuid]
+    assert payload["extendsClassIds"] == [parent_uuid]
 
 
 @pytest.mark.unit

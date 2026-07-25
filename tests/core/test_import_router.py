@@ -182,11 +182,7 @@ class TestMarkdownImport:
     async def test_import_assigns_classes(self, import_client: AsyncClient) -> None:
         store = _store(import_client)
         class_uuid = "class-uuid-1"
-        await store.create_node(class_uuid, "class")
-        await store.update_content(
-            class_uuid,
-            [{"type": "paragraph", "children": [{"type": "text", "text": "MyClass"}]}],
-        )
+        await store.create_class(class_uuid, "MyClass")
         await store.sync()
 
         response = await import_client.post(

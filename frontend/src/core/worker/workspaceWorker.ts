@@ -8,9 +8,9 @@
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { listNodes } from '../query/listNodes';
 import { queryNodes } from '../query/queryNodes';
+import { listClasses, getClass } from '../query/classes';
 import { executeQuery } from '../query/executeQuery';
 import { buildGraphData } from '../query/graphData';
 import { buildGraphNodes } from '../query/graphNodes';
@@ -373,11 +373,22 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
     return;
   }
 
+  if (request.method === 'listClasses') {
+    const workspaceId = request.args[0] as string;
+    const result = listClasses(state.store.getDb(), workspaceId);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getClass') {
+    const classId = request.args[0] as string;
+    const result = getClass(state.store.getDb(), classId);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
   if (request.method === 'queryNodes') {
     const filters = request.args[0] as Parameters<typeof queryNodes>[1];
-    if (filters.isClass) {
-      filters.classClassUuid = SYSTEM_CLASS_UUIDS.class;
-    }
     const result = queryNodes(state.store, filters);
     postResponse({ type: 'query-result', id: request.id, result });
     return;
