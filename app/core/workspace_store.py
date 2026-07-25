@@ -395,6 +395,10 @@ class WorkspaceStore:
         class_ids: list[str] | None = None,
     ) -> None:
         """Emit a ``node.create`` operation."""
+        if kind == "class":
+            raise ValueError(
+                "kind='class' is no longer supported; use create_class() instead"
+            )
         payload: dict[str, Any] = {"nodeId": node_id, "kind": kind}
         if parent_id is not None:
             payload["parentId"] = parent_id
@@ -405,6 +409,21 @@ class WorkspaceStore:
         if class_ids is not None:
             payload["classIds"] = class_ids
         await self.apply(self._build_operation("node.create", payload, [node_id]))
+
+    async def create_class(
+        self,
+        class_id: str,
+        name: str,
+        icon: str | None = None,
+        color: str | None = None,
+    ) -> None:
+        """Emit a ``class.create`` operation."""
+        payload: dict[str, Any] = {"classId": class_id, "name": name}
+        if icon is not None:
+            payload["icon"] = icon
+        if color is not None:
+            payload["color"] = color
+        await self.apply(self._build_operation("class.create", payload, [class_id]))
 
     async def delete_node(self, node_id: str) -> None:
         """Emit a ``node.delete`` operation."""
@@ -423,21 +442,6 @@ class WorkspaceStore:
         if new_index != 0:
             payload["newIndex"] = new_index
         await self.apply(self._build_operation("node.move", payload, [node_id]))
-
-    async def create_class(
-        self,
-        class_id: str,
-        name: str,
-        icon: str | None = None,
-        color: str | None = None,
-    ) -> None:
-        """Emit a ``class.create`` operation."""
-        payload: dict[str, Any] = {"classId": class_id, "name": name}
-        if icon is not None:
-            payload["icon"] = icon
-        if color is not None:
-            payload["color"] = color
-        await self.apply(self._build_operation("class.create", payload, [class_id]))
 
     async def update_class(
         self,

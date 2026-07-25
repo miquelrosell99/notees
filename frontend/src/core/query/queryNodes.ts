@@ -14,7 +14,7 @@ import { substituteRuntimeParams } from './substituteRuntimeParams';
 import { searchNodes, type SearchFilters } from './search';
 import { projectNode } from '../adapters/nodeProjection';
 import { queryAll } from '../db/sqlite';
-import { listClasses, type ClassRow } from './classes';
+import { listClasses, classRowToNode } from './classes';
 
 const LOCAL_QUERY_RESULT_LIMIT = 500;
 
@@ -29,12 +29,6 @@ export interface QueryNodesFilters {
   isDaily?: boolean;
   includeArchived?: boolean;
   /**
-   * UUID of the meta "class" system class. When provided, `isClass: true`
-   * includes legacy class-page nodes that still carry this class assignment
-   * while the data model transitions to kind='class' as the sole discriminator.
-   */
-  classClassUuid?: string;
-  /**
    * How many levels of children to project for each result. List/collection
    * views should pass 0 to avoid the huge cost of recursively fetching children
    * that they never render.
@@ -48,42 +42,6 @@ function buildSearchFilters(filters: QueryNodesFilters): SearchFilters {
     isClass: filters.isClass,
     isDaily: filters.isDaily,
     classUuids: filters.classIds,
-    classClassUuid: filters.classClassUuid,
-  };
-}
-
-function projectClassRow(row: ClassRow): Node {
-  const now = new Date().toISOString();
-  return {
-    uuid: row.id,
-    name: row.name,
-    content: JSON.stringify([{ type: 'text', text: row.name }]),
-    icon: row.icon,
-    color: row.color,
-    parent_uuid: null,
-    page_uuid: null,
-    sequence: 0,
-    active: row.active,
-    is_page: false,
-    is_class: true,
-    create_date: row.createdAt ?? now,
-    write_date: row.updatedAt ?? now,
-    open_date: null,
-    tags_uuid: [],
-    classes_uuid: [],
-    classes_path_uuid: [],
-    properties_uuid: {},
-    children: undefined,
-    has_children: false,
-    backlinks: [],
-    linked_references: [],
-    backlink_count: 0,
-    comment_count: 0,
-    aliases_uuid: [],
-    aliased_uuid: null,
-    extends_uuid: row.extendsClassIds,
-    is_private: false,
-    parent_locked: false,
   };
 }
 
@@ -104,14 +62,10 @@ export function queryNodes(
 
   if (filters.isClass) {
     const classRows = listClasses(store.getDb(), store.getWorkspaceId());
-    if (classRows.length > 0) {
-      return classRows
-        .map(projectClassRow)
-        .filter(isActiveMatch)
-        .slice(0, LOCAL_QUERY_RESULT_LIMIT);
-    }
-    // Fall back to the legacy node.kind = 'class' filter while the class table
-    // is still being populated during the transition.
+    return classRows
+      .map(classRowToNode)
+      .filter(isActiveMatch)
+      .slice(0, LOCAL_QUERY_RESULT_LIMIT);
   }
 
   if (filters.ast) {
@@ -170,21 +124,6 @@ function listNodesSql(workspaceId: string, filters: QueryNodesFilters): { sql: s
   if (filters.isPage !== undefined) {
     where.push('n.kind = ?');
     params.push(filters.isPage ? 'page' : 'block');
-  }
-
-  if (filters.isClass !== undefined) {
-    if (filters.isClass) {
-      if (filters.classClassUuid) {
-        where.push(
-          "(n.kind = 'class' OR (n.kind = 'page' AND EXISTS (SELECT 1 FROM json_each(n.class_ids) WHERE value = ?)))"
-        );
-        params.push(filters.classClassUuid);
-      } else {
-        where.push("n.kind = 'class'");
-      }
-    } else {
-      where.push("n.kind != 'class'");
-    }
   }
 
   if (filters.classIds !== undefined && filters.classIds.length > 0) {

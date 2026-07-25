@@ -2,7 +2,6 @@ import { useMutation, type UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { useContext } from 'react';
 import type { Node, NodeCreate } from '@/types/api';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { WorkspaceStoreContext } from '../hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from './workspaceStoreClientAdapter';
 import { projectNodeFromClient } from './nodeProjection';
@@ -28,17 +27,8 @@ export function useCreateNodeAdapter(): UseMutationResult<Node, Error, NodeCreat
       );
 
       const nodeId = data.uuid ?? uuidv7();
-      const classClassUuid = SYSTEM_CLASS_UUIDS.class;
-      const rawClassIds = data.class_uuids ?? [];
-      const isClass = rawClassIds.includes(classClassUuid);
-      const kind: 'page' | 'block' | 'class' = data.parent_uuid
-        ? 'block'
-        : isClass
-          ? 'class'
-          : 'page';
-      // The class system class is redundant once kind='class' is the source of
-      // truth; strip it so class nodes are not self-referential members of Class.
-      const classIds = rawClassIds.filter((id) => id !== classClassUuid);
+      const kind: 'page' | 'block' = data.parent_uuid ? 'block' : 'page';
+      const classIds = data.class_uuids ?? [];
 
       await client.mutate<void>('createNode', [
         {

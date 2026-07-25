@@ -3,7 +3,7 @@ import { useUndoManager } from './useUndoManager';
 
 export interface CreateNodeArgs {
   nodeId: string;
-  kind: 'page' | 'block' | 'class';
+  kind: 'page' | 'block';
   parentId: string | null;
   classIds?: string[];
 }

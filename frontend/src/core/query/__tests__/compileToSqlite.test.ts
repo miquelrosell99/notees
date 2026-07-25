@@ -179,9 +179,22 @@ describe('compileToSqlite', () => {
         affectedNodeIds: [classId],
         opType: 'class.create',
       },
-      { classId, name, propertySchemaIds: [], extends: extendsUuids }
+      { classId, name }
     );
     store.apply(op);
+    if (extendsUuids.length > 0) {
+      const setExtendsOp: Operation = createOperation(
+        {
+          workspaceId: store.getWorkspaceId(),
+          actorId: 'actor',
+          hlc: { physical: Date.now() + 1, logical: 0 },
+          affectedNodeIds: [classId, ...extendsUuids],
+          opType: 'class.setExtends',
+        },
+        { classId, extendsClassIds: extendsUuids }
+      );
+      store.apply(setExtendsOp);
+    }
   }
 
   function applyClassAssign(store: WorkspaceStore, nodeId: string, classId: string): void {
@@ -238,8 +251,13 @@ describe('compileToSqlite', () => {
     applyClassCreate(store, 'class-b', 'B', ['class-a']);
     applyClassCreate(store, 'class-c', 'C', ['class-a']);
 
+    store.createNode({ nodeId: 'node-b', kind: 'block', parentId: null });
+    store.createNode({ nodeId: 'node-c', kind: 'block', parentId: null });
+    applyClassAssign(store, 'node-b', 'class-b');
+    applyClassAssign(store, 'node-c', 'class-c');
+
     const rows = execute(db, query(scope('entire_workspace'), andGroup([extendsCondition('class-a')])), workspaceId);
-    expect([...rows.map((r) => r.id)].sort()).toEqual(['class-b', 'class-c']);
+    expect([...rows.map((r) => r.id)].sort()).toEqual(['node-b', 'node-c']);
   });
 
   it('filters by tag condition as class assignment', async () => {
@@ -257,7 +275,7 @@ describe('compileToSqlite', () => {
       query(scope('entire_workspace'), andGroup([tagCondition('tag-a', 'is_not')])),
       workspaceId
     );
-    expect([...notRows.map((r) => r.id)].sort()).toEqual(['node-untagged', 'tag-a']);
+    expect([...notRows.map((r) => r.id)].sort()).toEqual(['node-untagged']);
 
     const anyRows = execute(
       db,
@@ -271,7 +289,7 @@ describe('compileToSqlite', () => {
       query(scope('entire_workspace'), andGroup([tagCondition('tag-a', 'has_no_tag')])),
       workspaceId
     );
-    expect([...noRows.map((r) => r.id)].sort()).toEqual(['node-untagged', 'tag-a']);
+    expect([...noRows.map((r) => r.id)].sort()).toEqual(['node-untagged']);
   });
 
   it('filters by builtin name property and content text', async () => {

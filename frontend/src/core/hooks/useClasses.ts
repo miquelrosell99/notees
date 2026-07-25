@@ -1,16 +1,16 @@
 /**
- * useClasses — local-first class list from the core workspace store.
+ * useClasses — local-first class list from the dedicated class table.
  *
- * Replaces the legacy `/api/nodes/classes` TanStack Query hook. Classes are
- * nodes with the `isClass` flag derived from the operation log.
+ * Replaces the legacy queryNodes-based class lookup. Classes are no longer
+ * nodes with kind='class'; they live in the `class` derived table.
  */
 import { useEffect, useState } from 'react';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
-import type { Node } from '@/types/api';
+import type { ClassRow } from '@/core/query/classes';
 
 export interface UseClassesResult {
-  data: Node[] | undefined;
+  data: ClassRow[] | undefined;
   isLoading: boolean;
   error: Error | null;
 }
@@ -22,10 +22,10 @@ export function useClasses(options?: { enabled?: boolean }): UseClassesResult {
     enabled && workspaceUuid ? workspaceUuid : undefined
   );
 
-  const [data, setData] = useState<Node[] | undefined>(undefined);
+  const [data, setData] = useState<ClassRow[] | undefined>(undefined);
 
   useEffect(() => {
-    if (!client) {
+    if (!client || !workspaceUuid) {
       setData(undefined);
       return;
     }
@@ -33,7 +33,7 @@ export function useClasses(options?: { enabled?: boolean }): UseClassesResult {
     let cancelled = false;
     const update = (): void => {
       client
-        .query<Node[]>('queryNodes', [{ isClass: true, projectionDepth: 0 }])
+        .query<ClassRow[]>('listClasses', [workspaceUuid])
         .then((result) => {
           if (!cancelled) {
             setData(result);
@@ -51,7 +51,7 @@ export function useClasses(options?: { enabled?: boolean }): UseClassesResult {
       cancelled = true;
       unsubscribe();
     };
-  }, [client]);
+  }, [client, workspaceUuid]);
 
   return {
     data,

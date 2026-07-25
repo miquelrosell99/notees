@@ -3,12 +3,13 @@
  */
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useClasses as useCoreClasses } from '@/core/hooks';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
-import type { ClassRow } from '@/core/query/classes';
+import { classRowToNode } from '@/core/query/classes';
 
 function useCoreNodeQuery(
   queryKey: readonly unknown[],
@@ -118,35 +119,24 @@ export function useTags() {
 }
 
 /**
- * Hook to fetch all class definitions from the dedicated class table.
+ * Hook to fetch all class definitions as legacy Node objects.
+ *
+ * Classes now live in the dedicated `class` table, but most UI primitives still
+ * consume Node-shaped data. This hook projects ClassRow rows to Node so callers
+ * don't need to know about the schema separation.
  */
 
 export function useClasses(options?: { enabled?: boolean }) {
-  const workspaceUuid = useCurrentWorkspaceUuid();
-  const enabled = options?.enabled ?? true;
-  const { client, isLoading, error } = useWorkspaceStoreClient(
-    enabled && workspaceUuid ? workspaceUuid : '',
-  );
-
-  const result = useQuery<ClassRow[]>({
-    queryKey: nodeKeys.classes(),
-    queryFn: async () => {
-      if (!client || !workspaceUuid) return [];
-      return client.query<ClassRow[]>('listClasses', [workspaceUuid]);
-    },
-    enabled: enabled && !!client && !!workspaceUuid,
-    placeholderData: [],
-  });
-
+  const result = useCoreClasses(options);
+  const nodes = useMemo(() => result.data?.map(classRowToNode) ?? [], [result.data]);
   return {
     ...result,
-    isLoading: result.isLoading || isLoading,
-    error: result.error ?? error,
+    data: nodes,
   };
 }
 
 /**
- * Hook to search for classes
+ * Hook to search for classes, returning Node-shaped results.
  */
 
 export function useSearchClasses(query: string) {
@@ -158,7 +148,7 @@ export function useSearchClasses(query: string) {
         (typeof cls.name === 'string' ? cls.name : '').toLowerCase().includes(normalizedQuery),
       );
   return {
-    data: filtered,
+    data: useMemo(() => filtered?.map(classRowToNode) ?? [], [filtered]),
     isLoading,
     error,
   };
