@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any
 from uuid import uuid4
@@ -283,6 +284,42 @@ async def test_update_content_ast() -> None:
     assert updates[0].payload["content"] == [
         {"type": "paragraph", "children": [{"type": "text", "text": "Hello world"}]}
     ]
+
+
+@pytest.mark.unit
+async def test_update_content_reuses_existing_ast_name() -> None:
+    workspace_uuid = str(uuid4())
+    ast_name = json.dumps([{"type": "paragraph", "children": [{"type": "text", "text": "From AST"}]}])
+    nodes = [_base_node(1, name=ast_name)]
+    conn = _FakeConnection(nodes, workspace_uuid)
+    writer = InMemoryOperationWriter()
+
+    await migrate_nodes_for_workspace(
+        conn, 1, "actor-1", writer, physical_time=1_000
+    )
+
+    updates = _find_ops(writer.operations, "node.updateContent")
+    assert len(updates) == 1
+    assert updates[0].payload["content"] == [
+        {"type": "paragraph", "children": [{"type": "text", "text": "From AST"}]}
+    ]
+
+
+@pytest.mark.unit
+async def test_class_create_extracts_name_from_ast() -> None:
+    workspace_uuid = str(uuid4())
+    ast_name = json.dumps([{"type": "paragraph", "children": [{"type": "text", "text": "Meeting"}]}])
+    nodes = [_base_node(1, name=ast_name, is_class=True)]
+    conn = _FakeConnection(nodes, workspace_uuid)
+    writer = InMemoryOperationWriter()
+
+    await migrate_nodes_for_workspace(
+        conn, 1, "actor-1", writer, physical_time=1_000
+    )
+
+    class_creates = _find_ops(writer.operations, "class.create")
+    assert len(class_creates) == 1
+    assert class_creates[0].payload["name"] == "Meeting"
 
 
 @pytest.mark.unit
