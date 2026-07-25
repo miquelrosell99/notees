@@ -8,6 +8,7 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { useClasses as useCoreClasses } from '@/core/hooks';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import type { ClassRow } from '@/core/query/classes';
 
 function useCoreNodeQuery(
   queryKey: readonly unknown[],
@@ -117,12 +118,31 @@ export function useTags() {
 }
 
 /**
- * Hook to fetch all classes (nodes that can be used as classes)
- * Classes are essentially pages that can categorize other nodes
+ * Hook to fetch all class definitions from the dedicated class table.
  */
 
 export function useClasses(options?: { enabled?: boolean }) {
-  return useCoreClasses(options);
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const enabled = options?.enabled ?? true;
+  const { client, isLoading, error } = useWorkspaceStoreClient(
+    enabled && workspaceUuid ? workspaceUuid : '',
+  );
+
+  const result = useQuery<ClassRow[]>({
+    queryKey: nodeKeys.classes(),
+    queryFn: async () => {
+      if (!client || !workspaceUuid) return [];
+      return client.query<ClassRow[]>('listClasses', [workspaceUuid]);
+    },
+    enabled: enabled && !!client && !!workspaceUuid,
+    placeholderData: [],
+  });
+
+  return {
+    ...result,
+    isLoading: result.isLoading || isLoading,
+    error: result.error ?? error,
+  };
 }
 
 /**
