@@ -10,10 +10,14 @@ import { rewriteLinksToTarget } from './query/mergePages';
 import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from './derived/crdtState';
 import {
   createOperation,
+  type ClassCreatePayload,
+  type ClassDeletePayload,
   type ClassPropertyEdgeCreatePayload,
   type ClassPropertyEdgeDeletePayload,
   type ClassPropertyEdgeReorderPayload,
   type ClassPropertyEdgeUpdatePayload,
+  type ClassSetExtendsPayload,
+  type ClassUpdatePayload,
   type NodeViewCreatePayload,
   type NodeViewDeletePayload,
   type NodeViewReorderPayload,
@@ -692,6 +696,68 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
+  createClass(args: ClassCreatePayload): void {
+    const payload: ClassCreatePayload = {
+      classId: args.classId,
+      name: args.name,
+    };
+    if (args.icon !== undefined) payload.icon = args.icon;
+    if (args.color !== undefined) payload.color = args.color;
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId],
+        opType: 'class.create',
+      },
+      payload
+    );
+    this.apply(op);
+  }
+
+  updateClass(args: ClassUpdatePayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId],
+        opType: 'class.update',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
+  deleteClass(classId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [classId],
+        opType: 'class.delete',
+      },
+      { classId } satisfies ClassDeletePayload
+    );
+    this.apply(op);
+  }
+
+  setClassExtends(args: ClassSetExtendsPayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId, ...args.extendsClassIds],
+        opType: 'class.setExtends',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
   setProperty(args: {
     propertyValueId: string;
     nodeId: string;
@@ -1055,20 +1121,6 @@ export class WorkspaceStore {
         opType: 'class.unassign',
       },
       { nodeId, classId }
-    );
-    this.apply(op);
-  }
-
-  updateClass(classId: string, extendsIds: string[]): void {
-    const op = createOperation(
-      {
-        workspaceId: this.workspaceId,
-        actorId: this.actorId,
-        hlc: this.clock.advance(Date.now()),
-        affectedNodeIds: [classId, ...extendsIds],
-        opType: 'class.update',
-      },
-      { classId, extends: extendsIds }
     );
     this.apply(op);
   }

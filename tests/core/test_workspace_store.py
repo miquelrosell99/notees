@@ -256,3 +256,59 @@ class TestWorkspaceStore:
         assert new_rows[0][0] == 3
 
         await reader.close()
+
+    async def test_create_class_inserts_class_row(self) -> None:
+        store = await _make_store()
+        await store.create_class("class-1", "Project", icon="folder", color="#ff0000")
+
+        rows = await store.query("SELECT * FROM class WHERE id = ?", ("class-1",))
+        assert len(rows) == 1
+        assert rows[0]["name"] == "Project"
+        assert rows[0]["icon"] == "folder"
+        assert rows[0]["color"] == "#ff0000"
+        assert rows[0]["active"] == 1
+
+        await store.close()
+
+    async def test_update_class_updates_name(self) -> None:
+        store = await _make_store()
+        await store.create_class("class-1", "Project")
+        await store.update_class("class-1", name="Area")
+
+        rows = await store.query("SELECT name FROM class WHERE id = ?", ("class-1",))
+        assert len(rows) == 1
+        assert rows[0]["name"] == "Area"
+
+        await store.close()
+
+    async def test_delete_class_marks_inactive(self) -> None:
+        store = await _make_store()
+        await store.create_class("class-1", "Project")
+        await store.delete_class("class-1")
+
+        rows = await store.query("SELECT active FROM class WHERE id = ?", ("class-1",))
+        assert len(rows) == 1
+        assert rows[0]["active"] == 0
+
+        await store.close()
+
+    async def test_set_class_extends_updates_extends_and_hierarchy(self) -> None:
+        store = await _make_store()
+        await store.create_class("parent-1", "Parent")
+        await store.create_class("child-1", "Child")
+        await store.set_class_extends("child-1", ["parent-1"])
+
+        rows = await store.query(
+            "SELECT extends_class_ids FROM class WHERE id = ?", ("child-1",)
+        )
+        assert len(rows) == 1
+        assert json.loads(rows[0]["extends_class_ids"]) == ["parent-1"]
+
+        hierarchy_rows = await store.query(
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?",
+            ("child-1",),
+        )
+        ancestors = {row["ancestor_id"] for row in hierarchy_rows}
+        assert ancestors == {"child-1", "parent-1"}
+
+        await store.close()
