@@ -1,7 +1,7 @@
 /**
  * Class Properties Hooks
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ClassProperty, ClassExtends, InheritedProperty, ExtendedByClass, Node } from '@/types/api';
@@ -11,10 +11,11 @@ import {
 } from '@/core/adapters/useClassPropertiesAdapter';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { useClasses } from '@/core/hooks';
+import { classRowToNode } from '@/core/query/classes';
 
 function useClassRows(): Node[] {
   const { data: classes } = useClasses();
-  return classes ?? [];
+  return useMemo(() => classes?.map(classRowToNode) ?? [], [classes]);
 }
 
 function toQueryResult<TData>(

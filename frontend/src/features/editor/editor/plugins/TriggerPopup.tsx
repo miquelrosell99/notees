@@ -21,9 +21,11 @@ import { useClasses, usePages } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import type { NodeRow } from '@/core/store';
+import { classRowToNode, type ClassRow } from '@/core/query/classes';
+import { uuidv7 } from '@/core/uuid';
 import { NodeResultItem } from '@/features/content';
 import { useCreateNode } from '@/features/content';
-import { usePageClass, useClassClass } from '@/features/content';
+import { usePageClass } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { AddIcon, Icon } from '@/components/ui/icons';
@@ -244,7 +246,7 @@ export function TriggerPopup({
   }, [query]);
 
   // Context-aware filtering: only show the cloze class when the block's parent is a card.
-  const { data: allClasses = [] } = useClasses();
+  const { data: allClasses = [], isLoading: classesLoading } = useClasses();
   const { data: allPages = [] } = usePages();
 
   const [parentIsCard, setParentIsCard] = useState(false);
@@ -298,7 +300,7 @@ export function TriggerPopup({
 
   const isUserMention = activeFilters.some(f => f.key === 'user');
 
-  const { pageResults, blockResults, isLoading, showCreateOption } = useNodeSearch(
+  const { pageResults, blockResults, isLoading: searchLoading, showCreateOption: searchShowCreate } = useNodeSearch(
     cleanQuery,
     {
       mode: searchMode,
@@ -309,14 +311,27 @@ export function TriggerPopup({
 
   const nodeItems: NodeSearchItem[] = useMemo(
     () => {
-      const items = [...pageResults, ...blockResults];
-      if (type !== 'class' || parentIsCard) {
-        return items;
+      if (type === 'class') {
+        const normalized = cleanQuery.toLowerCase().trim();
+        let items = allClasses;
+        if (normalized) {
+          items = items.filter((c) => c.name.toLowerCase().includes(normalized));
+        }
+        if (!parentIsCard) {
+          items = items.filter((c) => c.uuid !== SYSTEM_CLASS_UUIDS.cloze);
+        }
+        return items.slice(0, 10).map((node) => ({ node, section: 'class' as const }));
       }
-      return items.filter((item) => item.node.uuid !== SYSTEM_CLASS_UUIDS.cloze);
+      const items = [...pageResults, ...blockResults];
+      return items;
     },
-    [pageResults, blockResults, type, parentIsCard],
+    [allClasses, pageResults, blockResults, type, parentIsCard, cleanQuery],
   );
+
+  const isLoading = type === 'class' ? classesLoading : searchLoading;
+  const showCreateOption = type === 'class'
+    ? cleanQuery.trim().length > 0 && !nodeItems.some((item) => nodeNameToText(item.node.name) === cleanQuery.trim())
+    : searchShowCreate;
 
   // Value picker data (for user filter)
   const { pageResults: userPickerResults } = useNodeSearch(
@@ -469,7 +484,6 @@ export function TriggerPopup({
   // Create new node
   const createNode = useCreateNode();
   const { pageClassUuid } = usePageClass();
-  const { classClassUuid } = useClassClass();
 
   const pageById = useMemo(() => {
     const m = new Map<string, Node>();
@@ -509,13 +523,22 @@ export function TriggerPopup({
   }, [commandUsage]);
 
   const handleCreate = useCallback(
-    (name: string, mode: 'default' | 'alternative' = 'default') => {
+    async (name: string, mode: 'default' | 'alternative' = 'default') => {
+      const plainName = nodeNameToText(name) || name;
+      if (type === 'class') {
+        if (!workspaceId) return;
+        const client = getWorkspaceStoreClient(workspaceId);
+        if (!client) return;
+        const classId = uuidv7();
+        await client.mutate<void>('createClass', [{ classId, name: plainName }]);
+        const classRow = await client.query<ClassRow | undefined>('getClass', [classId]);
+        onSelectNode?.(classRowToNode(classRow!), mode, false);
+        return;
+      }
       if (!pageClassUuid) return;
-      const classUuids: string[] = [pageClassUuid];
-      if (type === 'class' && classClassUuid) classUuids.push(classClassUuid);
 
       createNode.mutate(
-        { name, class_uuids: classUuids },
+        { name, class_uuids: [pageClassUuid] },
         {
           onSuccess: (newNode) => {
             onSelectNode?.(newNode, mode, false);
@@ -523,7 +546,7 @@ export function TriggerPopup({
         }
       );
     },
-    [createNode, pageClassUuid, classClassUuid, type, onSelectNode]
+    [createNode, pageClassUuid, type, onSelectNode, workspaceId]
   );
 
   const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {

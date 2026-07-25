@@ -311,3 +311,29 @@ def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
     )
     reindex_node(conn, node_id)
     rebuild_edges_for_node(conn, op)
+
+
+def apply_node_convert(conn: sqlite3.Connection, op: Operation) -> None:
+    """Apply a ``node.convert`` operation, changing the node's kind and parent."""
+    payload = op.payload
+    node_id = payload["nodeId"]
+    kind = payload["kind"]
+    parent_id = payload.get("parentId")
+    class_ids = payload.get("classIds") or []
+    ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
+
+    conn.execute(
+        """
+        UPDATE node
+        SET kind = ?, parent_id = ?, class_ids = ?, updated_at = ?, updated_by = ?
+        WHERE id = ?
+        """,
+        (
+            kind,
+            parent_id,
+            json.dumps(class_ids),
+            ts,
+            op.envelope.actor_id,
+            node_id,
+        ),
+    )

@@ -3,6 +3,7 @@ import { webcrypto } from 'node:crypto';
 import { WorkspaceStore } from '../store';
 import { uuidv7 } from '../uuid';
 import { createTestDatabase } from './helpers';
+import { getClass } from '../query/classes';
 
 describe('WorkspaceStore', () => {
   beforeAll(() => {
@@ -179,53 +180,65 @@ describe('WorkspaceStore', () => {
     expect(ops.length).toBe(0);
   });
 
-  it('rejects creating block children under a class node', async () => {
+  it('creates a class via createClass', async () => {
     const db = await createTestDatabase();
     const workspaceId = uuidv7();
     const actorId = uuidv7();
     const store = new WorkspaceStore(db, workspaceId, actorId);
 
     const classId = uuidv7();
-    const blockId = uuidv7();
-    store.createNode({ nodeId: classId, kind: 'class', parentId: null });
+    store.createClass({ classId, name: 'Project', icon: 'folder', color: '#ff0000' });
 
-    expect(() =>
-      store.createNode({ nodeId: blockId, kind: 'block', parentId: classId }),
-    ).toThrow('Class nodes cannot contain block children');
+    const row = getClass(db, classId);
+    expect(row).toBeDefined();
+    expect(row!.name).toBe('Project');
+    expect(row!.icon).toBe('folder');
+    expect(row!.color).toBe('#ff0000');
+    expect(row!.active).toBe(true);
   });
 
-  it('rejects moving a block under a class node', async () => {
+  it('updates a class name', async () => {
     const db = await createTestDatabase();
     const workspaceId = uuidv7();
     const actorId = uuidv7();
     const store = new WorkspaceStore(db, workspaceId, actorId);
 
     const classId = uuidv7();
-    const pageId = uuidv7();
-    const blockId = uuidv7();
-    store.createNode({ nodeId: classId, kind: 'class', parentId: null });
-    store.createNode({ nodeId: pageId, kind: 'page', parentId: null });
-    store.createNode({ nodeId: blockId, kind: 'block', parentId: pageId });
+    store.createClass({ classId, name: 'Project' });
+    store.updateClass({ classId, name: 'Area' });
 
-    expect(() => store.moveNode(blockId, classId)).toThrow(
-      'Class nodes cannot contain block children',
-    );
+    const row = getClass(db, classId);
+    expect(row!.name).toBe('Area');
   });
 
-  it('rejects converting a page with children to a class', async () => {
+  it('deletes a class', async () => {
     const db = await createTestDatabase();
     const workspaceId = uuidv7();
     const actorId = uuidv7();
     const store = new WorkspaceStore(db, workspaceId, actorId);
 
-    const pageId = uuidv7();
-    const blockId = uuidv7();
-    store.createNode({ nodeId: pageId, kind: 'page', parentId: null });
-    store.createNode({ nodeId: blockId, kind: 'block', parentId: null });
-    store.moveNode(blockId, pageId);
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Project' });
+    store.deleteClass(classId);
 
-    expect(() =>
-      store.convertNode({ nodeId: pageId, kind: 'class', parentId: null }),
-    ).toThrow('Cannot convert a node with children to a class');
+    const row = getClass(db, classId);
+    expect(row).toBeDefined();
+    expect(row!.active).toBe(false);
+  });
+
+  it('sets class extends', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const parentId = uuidv7();
+    const childId = uuidv7();
+    store.createClass({ classId: parentId, name: 'Parent' });
+    store.createClass({ classId: childId, name: 'Child' });
+    store.setClassExtends({ classId: childId, extendsClassIds: [parentId] });
+
+    const row = getClass(db, childId);
+    expect(row!.extendsClassIds).toEqual([parentId]);
   });
 });
