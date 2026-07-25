@@ -7,6 +7,7 @@ It reads the legacy ``node`` table and emits ``node.create``, ``node.move``,
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -49,6 +50,42 @@ SYSTEM_CLASS_UUIDS: dict[str, str] = {
     "is_cloze": "00000000-0000-0000-0001-000000000022",
     "is_comment": "00000000-0000-0000-0001-000000000014",
 }
+
+
+def _extract_text_from_name(name: str | None) -> tuple[str, list[dict[str, Any]] | None]:
+    """Return plain text and optional parsed content AST from a legacy name.
+
+    The pre-ideal backup stores ``name`` as either plain text or a JSON-encoded
+    AST. When the value parses as an AST, return the concatenated plain text
+    and the parsed AST so it can be reused as node content. Otherwise return the
+    raw string and no AST.
+    """
+    if not name:
+        return ("", None)
+    stripped = name.strip()
+    if not stripped:
+        return ("", None)
+    if stripped.startswith("["):
+        try:
+            ast = json.loads(stripped)
+            if isinstance(ast, list):
+                texts: list[str] = []
+
+                def _collect(node: Any) -> None:
+                    if isinstance(node, dict):
+                        if node.get("type") == "text" and isinstance(node.get("text"), str):
+                            texts.append(node["text"])
+                        for child in node.get("children", []):
+                            _collect(child)
+                    elif isinstance(node, list):
+                        for child in node:
+                            _collect(child)
+
+                _collect(ast)
+                return ("".join(texts).strip() or "", ast)
+        except json.JSONDecodeError:
+            pass
+    return (stripped, None)
 
 
 @dataclass
@@ -252,6 +289,7 @@ def _class_create_ops(
         class_id = ctx.map_node_id(row["id"])
         if class_id is None:
             continue
+        plain_name, _ = _extract_text_from_name(row.get("name"))
         ops.append(
             create_operation(
                 envelope={
@@ -263,7 +301,7 @@ def _class_create_ops(
                 },
                 payload={
                     "classId": class_id,
-                    "name": (row.get("name") or "").strip() or "Untitled class",
+                    "name": plain_name or "Untitled class",
                     "icon": row.get("icon"),
                     "color": row.get("color"),
                 },
@@ -343,12 +381,20 @@ def _update_content_ops(
     """Emit ``node.updateContent`` operations for non-empty node names."""
     ops: list[Operation] = []
     for row in nodes:
-        name = (row.get("name") or "").strip()
-        if not name:
+        plain_name, ast = _extract_text_from_name(row.get("name"))
+        if not plain_name and not ast:
             continue
         node_id = ctx.map_node_id(row["id"])
         if node_id is None:
             continue
+        # Pre-ideal backups store names as JSON ASTs; reuse the AST directly
+        # when available, otherwise wrap the plain text in a paragraph.
+        content = ast if ast is not None else [
+            {
+                "type": "paragraph",
+                "children": [{"type": "text", "text": plain_name}],
+            }
+        ]
         ops.append(
             create_operation(
                 envelope={
@@ -360,12 +406,7 @@ def _update_content_ops(
                 },
                 payload={
                     "nodeId": node_id,
-                    "content": [
-                        {
-                            "type": "paragraph",
-                            "children": [{"type": "text", "text": name}],
-                        }
-                    ],
+                    "content": content,
                 },
             )
         )
