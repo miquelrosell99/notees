@@ -178,4 +178,54 @@ describe('WorkspaceStore', () => {
     );
     expect(ops.length).toBe(0);
   });
+
+  it('rejects creating block children under a class node', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const classId = uuidv7();
+    const blockId = uuidv7();
+    store.createNode({ nodeId: classId, kind: 'class', parentId: null });
+
+    expect(() =>
+      store.createNode({ nodeId: blockId, kind: 'block', parentId: classId }),
+    ).toThrow('Class nodes cannot contain block children');
+  });
+
+  it('rejects moving a block under a class node', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const classId = uuidv7();
+    const pageId = uuidv7();
+    const blockId = uuidv7();
+    store.createNode({ nodeId: classId, kind: 'class', parentId: null });
+    store.createNode({ nodeId: pageId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: blockId, kind: 'block', parentId: pageId });
+
+    expect(() => store.moveNode(blockId, classId)).toThrow(
+      'Class nodes cannot contain block children',
+    );
+  });
+
+  it('rejects converting a page with children to a class', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const pageId = uuidv7();
+    const blockId = uuidv7();
+    store.createNode({ nodeId: pageId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: blockId, kind: 'block', parentId: null });
+    store.moveNode(blockId, pageId);
+
+    expect(() =>
+      store.convertNode({ nodeId: pageId, kind: 'class', parentId: null }),
+    ).toThrow('Cannot convert a node with children to a class');
+  });
 });

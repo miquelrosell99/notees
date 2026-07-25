@@ -264,7 +264,9 @@ async def test_update_content_ast() -> None:
 
     updates = _find_ops(writer.operations, "node.updateContent")
     assert len(updates) == 1
-    assert updates[0].payload["content"] == [{"type": "text", "text": "Hello world"}]
+    assert updates[0].payload["content"] == [
+        {"type": "paragraph", "children": [{"type": "text", "text": "Hello world"}]}
+    ]
 
 
 @pytest.mark.unit

@@ -18,6 +18,11 @@ export interface SearchFilters {
   isUserPage?: boolean;
   classUuids?: string[];
   tagUuids?: string[];
+  /**
+   * UUID of the meta "class" system class. When provided, `isClass: true`
+   * includes legacy class-page nodes that still carry this class assignment.
+   */
+  classClassUuid?: string;
 }
 
 export interface SearchResult {
@@ -121,7 +126,18 @@ export function searchNodes(
   }
 
   if (filters.isClass !== undefined) {
-    where.push(filters.isClass ? "n.kind = 'class'" : "n.kind != 'class'");
+    if (filters.isClass) {
+      if (filters.classClassUuid) {
+        where.push(
+          "(n.kind = 'class' OR (n.kind = 'page' AND EXISTS (SELECT 1 FROM json_each(n.class_ids) WHERE value = ?)))"
+        );
+        params.push(filters.classClassUuid);
+      } else {
+        where.push("n.kind = 'class'");
+      }
+    } else {
+      where.push("n.kind != 'class'");
+    }
   }
 
   if (filters.classUuids && filters.classUuids.length > 0) {

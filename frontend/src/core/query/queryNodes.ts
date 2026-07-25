@@ -28,6 +28,12 @@ export interface QueryNodesFilters {
   isDaily?: boolean;
   includeArchived?: boolean;
   /**
+   * UUID of the meta "class" system class. When provided, `isClass: true`
+   * includes legacy class-page nodes that still carry this class assignment
+   * while the data model transitions to kind='class' as the sole discriminator.
+   */
+  classClassUuid?: string;
+  /**
    * How many levels of children to project for each result. List/collection
    * views should pass 0 to avoid the huge cost of recursively fetching children
    * that they never render.
@@ -41,6 +47,7 @@ function buildSearchFilters(filters: QueryNodesFilters): SearchFilters {
     isClass: filters.isClass,
     isDaily: filters.isDaily,
     classUuids: filters.classIds,
+    classClassUuid: filters.classClassUuid,
   };
 }
 
@@ -118,7 +125,18 @@ function listNodesSql(workspaceId: string, filters: QueryNodesFilters): { sql: s
   }
 
   if (filters.isClass !== undefined) {
-    where.push(filters.isClass ? "n.kind = 'class'" : "n.kind != 'class'");
+    if (filters.isClass) {
+      if (filters.classClassUuid) {
+        where.push(
+          "(n.kind = 'class' OR (n.kind = 'page' AND EXISTS (SELECT 1 FROM json_each(n.class_ids) WHERE value = ?)))"
+        );
+        params.push(filters.classClassUuid);
+      } else {
+        where.push("n.kind = 'class'");
+      }
+    } else {
+      where.push("n.kind != 'class'");
+    }
   }
 
   if (filters.classIds !== undefined && filters.classIds.length > 0) {

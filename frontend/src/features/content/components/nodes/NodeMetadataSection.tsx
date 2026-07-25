@@ -73,7 +73,7 @@ export function NodeMetadataSection({
   variant = 'default',
 }: NodeMetadataSectionProps) {
   const count =
-    pageClassDetails.length +
+    (node.is_class ? 0 : pageClassDetails.length) +
     pageTagDetails.length +
     extendsDetails.length +
     pageAliasDetails.length +
@@ -90,25 +90,27 @@ export function NodeMetadataSection({
       variant={variant}
     >
       <div className="node-metadata-content">
-        {/* Classes */}
-        <div className="node-metadata-row">
-          <div className="section-label">Classes{isAlias ? ' (inherited)' : ''}:</div>
-          <NodeSelector
-            nodes={pageClassDetails}
-            searchMode="classes"
-            emptyText={isAlias ? '' : 'Add class'}
-            searchPlaceholder="Search classes..."
-            onNodeClick={(n) => onNavigateToNode(n.uuid)}
-            onRemove={isAlias ? undefined : onRemoveClass}
-            onColorChange={isAlias ? undefined : onNodeColorChange}
-            onAdd={isAlias ? undefined : onAddClass}
-            onCreateNew={isAlias ? undefined : onCreateClass}
-            onConvertToClass={isAlias ? undefined : onConvertToClass}
-            canRemove={canRemoveClass}
-            canAdd={canAddClass}
-            rightIconHoverReveal={true}
-          />
-        </div>
+        {/* Classes — classes are themselves kinds, so they don't receive class assignments. */}
+        {!node.is_class && (
+          <div className="node-metadata-row">
+            <div className="section-label">Classes{isAlias ? ' (inherited)' : ''}:</div>
+            <NodeSelector
+              nodes={pageClassDetails}
+              searchMode="classes"
+              emptyText={isAlias ? '' : 'Add class'}
+              searchPlaceholder="Search classes..."
+              onNodeClick={(n) => onNavigateToNode(n.uuid)}
+              onRemove={isAlias ? undefined : onRemoveClass}
+              onColorChange={isAlias ? undefined : onNodeColorChange}
+              onAdd={isAlias ? undefined : onAddClass}
+              onCreateNew={isAlias ? undefined : onCreateClass}
+              onConvertToClass={isAlias ? undefined : onConvertToClass}
+              canRemove={canRemoveClass}
+              canAdd={canAddClass}
+              rightIconHoverReveal={true}
+            />
+          </div>
+        )}
 
         {/* Tags */}
         <div className="node-metadata-row">

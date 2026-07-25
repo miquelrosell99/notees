@@ -76,9 +76,11 @@ export function useNodeDisplay(
     // differs from the raw AST stored in name). This happens for nodes in the
     // referenced_nodes map whose names contain [[nodeId]] links — those links
     // are resolved to plain text by the backend so they don't render as "…".
+    // Fall back to the API node's name when the live core content is empty or
+    // malformed (e.g. legacy migration wrote inline text nodes at document level).
     const text = (node.display_name && node.display_name !== node.name)
       ? node.display_name
-      : nodeNameToText(liveName);
+      : (nodeNameToText(liveName) || nodeNameToText(node.name || ''));
     if (!text || text.trim() === '') {
       return node.is_page ? '[Untitled Page]' : '[Empty Block]';
     }

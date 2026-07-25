@@ -8,6 +8,7 @@
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { listNodes } from '../query/listNodes';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
@@ -132,162 +133,170 @@ async function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>)
 
   const { method } = request;
 
-  // Sync-engine helpers. These run directly on the worker-owned store.
-  if (method === 'applyMany') {
-    const [ops] = request.args as [Operation[]];
-    const count = state.store.applyMany(ops);
-    postResponse({ type: 'mutate-done', id: request.id, result: count });
-    postNotify();
-    return;
-  }
-  if (method === 'startBatch') {
-    state.store.startBatch();
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    return;
-  }
-  if (method === 'endBatch') {
-    state.store.endBatch();
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'restoreSnapshot') {
-    const [data] = request.args as [Uint8Array];
-    const hlc = await state.store.restoreSnapshot(data);
-    postResponse({ type: 'mutate-done', id: request.id, result: hlc });
-    postNotify();
-    return;
-  }
-  if (method === 'clearOperationLog') {
-    state.store.clearOperationLog();
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'resetDerivedState') {
-    state.store.resetDerivedState();
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'saveWatermark') {
-    const [kind, hlc] = request.args as ['received' | 'pushed', Hlc];
-    saveWatermark(state.store, kind, hlc);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    return;
-  }
-  if (method === 'saveRestoreEpoch') {
-    const [epoch, receivedHlc] = request.args as [number, Hlc];
-    saveRestoreEpoch(state.store, epoch, receivedHlc);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    return;
-  }
+  try {
+    // Sync-engine helpers. These run directly on the worker-owned store.
+    if (method === 'applyMany') {
+      const [ops] = request.args as [Operation[]];
+      const count = state.store.applyMany(ops);
+      postResponse({ type: 'mutate-done', id: request.id, result: count });
+      postNotify();
+      return;
+    }
+    if (method === 'startBatch') {
+      state.store.startBatch();
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
+    if (method === 'endBatch') {
+      state.store.endBatch();
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'restoreSnapshot') {
+      const [data] = request.args as [Uint8Array];
+      const hlc = await state.store.restoreSnapshot(data);
+      postResponse({ type: 'mutate-done', id: request.id, result: hlc });
+      postNotify();
+      return;
+    }
+    if (method === 'clearOperationLog') {
+      state.store.clearOperationLog();
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'resetDerivedState') {
+      state.store.resetDerivedState();
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'saveWatermark') {
+      const [kind, hlc] = request.args as ['received' | 'pushed', Hlc];
+      saveWatermark(state.store, kind, hlc);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
+    if (method === 'saveRestoreEpoch') {
+      const [epoch, receivedHlc] = request.args as [number, Hlc];
+      saveRestoreEpoch(state.store, epoch, receivedHlc);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
 
-  // Undo-manager operations run on the worker-owned store and are addressed
-  // through record-* method names so they can be serialized across the boundary.
-  if (method === 'recordCreateNode') {
-    const [args] = request.args as [Parameters<WorkspaceStore['createNode']>[0]];
-    state.undoManager.createNode(args);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordCreateBlock') {
-    const [args] = request.args as [(Parameters<WorkspaceStore['createNode']>[0] & { content?: string })];
-    state.undoManager.createBlock(args);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordSetNodeText') {
-    const [nodeId, value] = request.args as [string, string];
-    state.undoManager.recordSetNodeText(nodeId, value);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordDeleteNode') {
-    const [nodeId] = request.args as [string];
-    state.undoManager.deleteNode(nodeId);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordMoveNode') {
-    const [nodeId, newParentId] = request.args as [string, string | null];
-    state.undoManager.moveNode(nodeId, newParentId);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordMergeBlocks') {
-    const [sourceBlockId, targetBlockId] = request.args as [string, string];
-    state.undoManager.mergeBlocks(sourceBlockId, targetBlockId);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordSetProperty') {
-    const [args] = request.args as [Parameters<WorkspaceStore['setProperty']>[0]];
-    state.undoManager.setProperty(args);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordUnsetProperty') {
-    const [args] = request.args as [Parameters<WorkspaceStore['unsetProperty']>[0]];
-    state.undoManager.unsetProperty(args);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordAssignClass') {
-    const [nodeId, classId] = request.args as [string, string];
-    state.undoManager.assignClass(nodeId, classId);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'recordUnassignClass') {
-    const [nodeId, classId] = request.args as [string, string];
-    state.undoManager.unassignClass(nodeId, classId);
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-  if (method === 'undo') {
-    const entry = state.undoManager.undo();
-    const result = entry ? { label: entry.label, timestamp: entry.timestamp } : null;
+    // Undo-manager operations run on the worker-owned store and are addressed
+    // through record-* method names so they can be serialized across the boundary.
+    if (method === 'recordCreateNode') {
+      const [args] = request.args as [Parameters<WorkspaceStore['createNode']>[0]];
+      state.undoManager.createNode(args);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordCreateBlock') {
+      const [args] = request.args as [(Parameters<WorkspaceStore['createNode']>[0] & { content?: string })];
+      state.undoManager.createBlock(args);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordSetNodeText') {
+      const [nodeId, value] = request.args as [string, string];
+      state.undoManager.recordSetNodeText(nodeId, value);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordDeleteNode') {
+      const [nodeId] = request.args as [string];
+      state.undoManager.deleteNode(nodeId);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordMoveNode') {
+      const [nodeId, newParentId] = request.args as [string, string | null];
+      state.undoManager.moveNode(nodeId, newParentId);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordMergeBlocks') {
+      const [sourceBlockId, targetBlockId] = request.args as [string, string];
+      state.undoManager.mergeBlocks(sourceBlockId, targetBlockId);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordSetProperty') {
+      const [args] = request.args as [Parameters<WorkspaceStore['setProperty']>[0]];
+      state.undoManager.setProperty(args);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordUnsetProperty') {
+      const [args] = request.args as [Parameters<WorkspaceStore['unsetProperty']>[0]];
+      state.undoManager.unsetProperty(args);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordAssignClass') {
+      const [nodeId, classId] = request.args as [string, string];
+      state.undoManager.assignClass(nodeId, classId);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'recordUnassignClass') {
+      const [nodeId, classId] = request.args as [string, string];
+      state.undoManager.unassignClass(nodeId, classId);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+    if (method === 'undo') {
+      const entry = state.undoManager.undo();
+      const result = entry ? { label: entry.label, timestamp: entry.timestamp } : null;
+      postResponse({ type: 'mutate-done', id: request.id, result });
+      postNotify();
+      return;
+    }
+    if (method === 'redo') {
+      const entry = state.undoManager.redo();
+      const result = entry ? { label: entry.label, timestamp: entry.timestamp } : null;
+      postResponse({ type: 'mutate-done', id: request.id, result });
+      postNotify();
+      return;
+    }
+    if (method === 'clearUndoHistory') {
+      state.undoManager.clear();
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      postNotify();
+      return;
+    }
+
+    const storeMethod = (state.store as unknown as Record<string, unknown>)[request.method];
+    if (typeof storeMethod !== 'function') {
+      postResponse({
+        type: 'error',
+        id: request.id,
+        message: `Unknown mutation method: ${request.method}`,
+      });
+      return;
+    }
+    const result = await (storeMethod as (...args: unknown[]) => unknown).apply(state.store, request.args);
     postResponse({ type: 'mutate-done', id: request.id, result });
     postNotify();
-    return;
-  }
-  if (method === 'redo') {
-    const entry = state.undoManager.redo();
-    const result = entry ? { label: entry.label, timestamp: entry.timestamp } : null;
-    postResponse({ type: 'mutate-done', id: request.id, result });
-    postNotify();
-    return;
-  }
-  if (method === 'clearUndoHistory') {
-    state.undoManager.clear();
-    postResponse({ type: 'mutate-done', id: request.id, result: undefined });
-    postNotify();
-    return;
-  }
-
-  const storeMethod = (state.store as unknown as Record<string, unknown>)[request.method];
-  if (typeof storeMethod !== 'function') {
+  } catch (error) {
     postResponse({
       type: 'error',
       id: request.id,
-      message: `Unknown mutation method: ${request.method}`,
+      message: error instanceof Error ? error.message : String(error),
     });
-    return;
   }
-  const result = await (storeMethod as (...args: unknown[]) => unknown).apply(state.store, request.args);
-  postResponse({ type: 'mutate-done', id: request.id, result });
-  postNotify();
 }
 
 async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): Promise<void> {
@@ -365,7 +374,11 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
   }
 
   if (request.method === 'queryNodes') {
-    const result = queryNodes(state.store, request.args[0] as Parameters<typeof queryNodes>[1]);
+    const filters = request.args[0] as Parameters<typeof queryNodes>[1];
+    if (filters.isClass) {
+      filters.classClassUuid = SYSTEM_CLASS_UUIDS.class;
+    }
+    const result = queryNodes(state.store, filters);
     postResponse({ type: 'query-result', id: request.id, result });
     return;
   }

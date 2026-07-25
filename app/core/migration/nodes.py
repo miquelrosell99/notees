@@ -311,7 +311,12 @@ def _update_content_ops(
                 },
                 payload={
                     "nodeId": node_id,
-                    "content": [{"type": "text", "text": name}],
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "children": [{"type": "text", "text": name}],
+                        }
+                    ],
                 },
             )
         )
