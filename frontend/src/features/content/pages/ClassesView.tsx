@@ -13,7 +13,6 @@ import { useContentSave } from '@/features/editor';
 import { useNavigationStore } from '@/stores';
 import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
 import { getOrCreateWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
-import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
 import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
@@ -56,7 +55,7 @@ export function ClassesView({ initialViewMode }: ClassesViewProps) {
     setViewMode(mode);
   }, []);
 
-  // All classes view modes operate on a flat list of class nodes only.
+  // All classes view modes operate on a flat list of class definitions.
   // Strip children so member nodes are never rendered here.
   // Hide the meta "class" class — it only marks other nodes as classes and is
   // not a meaningful entry in the class catalogue.
@@ -65,7 +64,7 @@ export function ClassesView({ initialViewMode }: ClassesViewProps) {
     const seen = new Set<string>();
     const result: Node[] = [];
     for (const n of classes) {
-      if (!n.is_class || seen.has(n.uuid) || n.uuid === SYSTEM_CLASS_UUIDS.class) continue;
+      if (seen.has(n.uuid) || n.uuid === SYSTEM_CLASS_UUIDS.class) continue;
       seen.add(n.uuid);
       result.push({ ...n, children: undefined, has_children: false });
     }
@@ -76,17 +75,8 @@ export function ClassesView({ initialViewMode }: ClassesViewProps) {
     if (!ctx || !workspaceId) return;
     const client = await getOrCreateWorkspaceStoreClient(workspaceId, ctx.actorId, ctx.transport);
     const classId = uuidv7();
-    await client.mutate<void>('createNode', [{
-      nodeId: classId,
-      kind: 'class',
-      parentId: null,
-      classIds: [],
-    }]);
-    await client.mutate<void>('setNodeText', [classId, 'New class']);
-    const projected = await projectNodeFromClient(client, classId);
-    if (projected) {
-      openNode(projected.uuid);
-    }
+    await client.mutate<void>('createClass', [{ classId, name: 'New class' }]);
+    openNode(classId);
   }, [ctx, workspaceId, openNode]);
 
   const handleSearchSelect = useCallback((node: Node) => {

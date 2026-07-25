@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any
 from uuid import uuid4
@@ -70,6 +71,8 @@ def _base_node(
     *,
     name: str = "Node",
     uuid: str | object = _MISSING_UUID,
+    icon: str | None = None,
+    color: str | None = None,
     parent_id: int | None = None,
     sequence: float = 0.0,
     is_deleted: bool = False,
@@ -83,6 +86,8 @@ def _base_node(
         "uuid": node_uuid,
         "workspace_id": workspace_id,
         "name": name,
+        "icon": icon,
+        "color": color,
         "parent_id": parent_id,
         "sequence": sequence,
         "is_deleted": is_deleted,
@@ -139,11 +144,16 @@ async def test_maps_node_kinds() -> None:
     creates = _find_ops(writer.operations, "node.create")
     kinds = {op.payload["nodeId"]: op.payload["kind"] for op in creates}
     ids = list(kinds.keys())
-    assert kinds[ids[0]] == "class"
+    assert kinds[ids[0]] == "page"
     assert kinds[ids[1]] == "page"
     assert kinds[ids[2]] == "page"
     assert kinds[ids[3]] == "page"
     assert kinds[ids[4]] == "block"
+
+    class_creates = _find_ops(writer.operations, "class.create")
+    assert len(class_creates) == 1
+    assert class_creates[0].payload["classId"] == ids[0]
+    assert class_creates[0].payload["name"] == "Class node"
 
 
 @pytest.mark.unit
@@ -244,6 +254,13 @@ async def test_class_assign_for_legacy_class_ids() -> None:
     )
 
     assigns = _find_ops(writer.operations, "class.assign")
+    # Legacy class nodes become instances of the class they define.
+    self_assigns = [
+        op for op in assigns if op.payload["nodeId"] == class_uuid
+    ]
+    assert len(self_assigns) == 1
+    assert self_assigns[0].payload["classId"] == class_uuid
+
     instance_assigns = [
         op for op in assigns if op.payload["nodeId"] != class_uuid
     ]
@@ -267,6 +284,42 @@ async def test_update_content_ast() -> None:
     assert updates[0].payload["content"] == [
         {"type": "paragraph", "children": [{"type": "text", "text": "Hello world"}]}
     ]
+
+
+@pytest.mark.unit
+async def test_update_content_reuses_existing_ast_name() -> None:
+    workspace_uuid = str(uuid4())
+    ast_name = json.dumps([{"type": "paragraph", "children": [{"type": "text", "text": "From AST"}]}])
+    nodes = [_base_node(1, name=ast_name)]
+    conn = _FakeConnection(nodes, workspace_uuid)
+    writer = InMemoryOperationWriter()
+
+    await migrate_nodes_for_workspace(
+        conn, 1, "actor-1", writer, physical_time=1_000
+    )
+
+    updates = _find_ops(writer.operations, "node.updateContent")
+    assert len(updates) == 1
+    assert updates[0].payload["content"] == [
+        {"type": "paragraph", "children": [{"type": "text", "text": "From AST"}]}
+    ]
+
+
+@pytest.mark.unit
+async def test_class_create_extracts_name_from_ast() -> None:
+    workspace_uuid = str(uuid4())
+    ast_name = json.dumps([{"type": "paragraph", "children": [{"type": "text", "text": "Meeting"}]}])
+    nodes = [_base_node(1, name=ast_name, is_class=True)]
+    conn = _FakeConnection(nodes, workspace_uuid)
+    writer = InMemoryOperationWriter()
+
+    await migrate_nodes_for_workspace(
+        conn, 1, "actor-1", writer, physical_time=1_000
+    )
+
+    class_creates = _find_ops(writer.operations, "class.create")
+    assert len(class_creates) == 1
+    assert class_creates[0].payload["name"] == "Meeting"
 
 
 @pytest.mark.unit

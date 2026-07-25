@@ -395,6 +395,10 @@ class WorkspaceStore:
         class_ids: list[str] | None = None,
     ) -> None:
         """Emit a ``node.create`` operation."""
+        if kind == "class":
+            raise ValueError(
+                "kind='class' is no longer supported; use create_class() instead"
+            )
         payload: dict[str, Any] = {"nodeId": node_id, "kind": kind}
         if parent_id is not None:
             payload["parentId"] = parent_id
@@ -405,6 +409,21 @@ class WorkspaceStore:
         if class_ids is not None:
             payload["classIds"] = class_ids
         await self.apply(self._build_operation("node.create", payload, [node_id]))
+
+    async def create_class(
+        self,
+        class_id: str,
+        name: str,
+        icon: str | None = None,
+        color: str | None = None,
+    ) -> None:
+        """Emit a ``class.create`` operation."""
+        payload: dict[str, Any] = {"classId": class_id, "name": name}
+        if icon is not None:
+            payload["icon"] = icon
+        if color is not None:
+            payload["color"] = color
+        await self.apply(self._build_operation("class.create", payload, [class_id]))
 
     async def delete_node(self, node_id: str) -> None:
         """Emit a ``node.delete`` operation."""
@@ -424,17 +443,45 @@ class WorkspaceStore:
             payload["newIndex"] = new_index
         await self.apply(self._build_operation("node.move", payload, [node_id]))
 
-    async def create_class(
+    async def update_class(
         self,
         class_id: str,
-        name: str,
-        extends: list[str] | None = None,
+        name: str | None = None,
+        icon: str | None = None,
+        color: str | None = None,
+        description: str | None = None,
     ) -> None:
-        """Emit a ``class.create`` operation."""
-        payload: dict[str, Any] = {"classId": class_id, "name": name}
-        if extends is not None:
-            payload["extends"] = extends
-        await self.apply(self._build_operation("class.create", payload, [class_id]))
+        """Emit a ``class.update`` operation."""
+        payload: dict[str, Any] = {"classId": class_id}
+        if name is not None:
+            payload["name"] = name
+        if icon is not None:
+            payload["icon"] = icon
+        if color is not None:
+            payload["color"] = color
+        if description is not None:
+            payload["description"] = description
+        await self.apply(self._build_operation("class.update", payload, [class_id]))
+
+    async def delete_class(self, class_id: str) -> None:
+        """Emit a ``class.delete`` operation."""
+        await self.apply(
+            self._build_operation("class.delete", {"classId": class_id}, [class_id])
+        )
+
+    async def set_class_extends(
+        self,
+        class_id: str,
+        extends_class_ids: list[str],
+    ) -> None:
+        """Emit a ``class.setExtends`` operation."""
+        await self.apply(
+            self._build_operation(
+                "class.setExtends",
+                {"classId": class_id, "extendsClassIds": extends_class_ids},
+                [class_id, *extends_class_ids],
+            )
+        )
 
     async def create_property_schema(
         self,

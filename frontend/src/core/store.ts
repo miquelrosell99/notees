@@ -3,27 +3,21 @@ import { Clock } from './clock';
 import { type TextCrdt } from './crdt/text';
 import { createSchema } from './db/schema';
 import { queryAll, queryOne, transaction } from './db/sqlite';
-import { applyNodeOperation } from './derived/node';
-import { applyChildOrderOperation } from './derived/childOrder';
-import { applyPropertyOperation } from './derived/property';
-import { applyNodeViewOperation } from './derived/nodeView';
-import { applyAssetOperation } from './derived/asset';
-import { applyTaskOperation } from './derived/task';
-import { applyActivityOperation } from './derived/activity';
-import { applyLinkOperation } from './derived/link';
-import { applyShareOperation } from './derived/share';
-import { applyPluginOperation } from './derived/plugin';
-import { applyFavoriteOperation } from './derived/favorite';
+import { applyOperation } from './derived';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { rewriteLinksToTarget } from './query/mergePages';
 import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from './derived/crdtState';
 import {
   createOperation,
+  type ClassCreatePayload,
+  type ClassDeletePayload,
   type ClassPropertyEdgeCreatePayload,
   type ClassPropertyEdgeDeletePayload,
   type ClassPropertyEdgeReorderPayload,
   type ClassPropertyEdgeUpdatePayload,
+  type ClassSetExtendsPayload,
+  type ClassUpdatePayload,
   type NodeViewCreatePayload,
   type NodeViewDeletePayload,
   type NodeViewReorderPayload,
@@ -40,7 +34,7 @@ import { createDatabase } from './db/connection';
 export interface NodeRow {
   id: string;
   workspaceId: string;
-  kind: 'page' | 'block' | 'class';
+  kind: 'page' | 'block';
   parentId: string | null;
   classIds: string[];
   content: string;
@@ -74,7 +68,7 @@ const DEFAULT_VIEW_NAMES: Record<string, string> = {
  * a workspace with a stale version triggers a hard rebuild: derived tables are
  * cleared and the full server operation log is replayed with the new applier.
  */
-export const CURRENT_DERIVED_STATE_VERSION = 2;
+export const CURRENT_DERIVED_STATE_VERSION = 3;
 
 export class WorkspaceStore {
   private clock: Clock;
@@ -310,17 +304,7 @@ export class WorkspaceStore {
             new Date().toISOString(),
           ]
         );
-        applyNodeOperation(db, op);
-        applyChildOrderOperation(db, op);
-        applyPropertyOperation(db, op);
-        applyNodeViewOperation(db, op);
-        applyAssetOperation(db, op);
-        applyTaskOperation(db, op);
-        applyActivityOperation(db, op);
-        applyLinkOperation(db, op);
-        applyShareOperation(db, op);
-        applyPluginOperation(db, op);
-        applyFavoriteOperation(db, op);
+        applyOperation(db, op);
 
         for (const nodeId of op.envelope.affectedNodeIds) {
           affectedNodeIds.add(nodeId);
@@ -427,16 +411,10 @@ export class WorkspaceStore {
 
   createNode(args: {
     nodeId: string;
-    kind: 'page' | 'block' | 'class';
+    kind: 'page' | 'block';
     parentId: string | null;
     classIds?: string[];
   }): void {
-    if (args.parentId !== null) {
-      const parent = this.getNode(args.parentId);
-      if (parent?.kind === 'class') {
-        throw new Error('Class nodes cannot contain block children');
-      }
-    }
     const op = createOperation(
       {
         workspaceId: this.workspaceId,
@@ -547,10 +525,6 @@ export class WorkspaceStore {
     }
 
     if (newParentId !== null) {
-      const newParent = this.getNode(newParentId);
-      if (newParent?.kind === 'class') {
-        throw new Error('Class nodes cannot contain block children');
-      }
       const newTree = loadTreeCrdt(this.db, newParentId);
       newTree.insert(nodeId, newTree.toArray().length);
       saveTreeCrdt(this.db, newParentId, newTree);
@@ -684,16 +658,10 @@ export class WorkspaceStore {
 
   convertNode(args: {
     nodeId: string;
-    kind: 'page' | 'block' | 'class';
+    kind: 'page' | 'block';
     parentId?: string | null;
     classIds?: string[];
   }): void {
-    if (args.kind === 'class') {
-      const children = this.getChildren(args.nodeId);
-      if (children.length > 0) {
-        throw new Error('Cannot convert a node with children to a class');
-      }
-    }
     const op = createOperation(
       {
         workspaceId: this.workspaceId,
@@ -708,6 +676,68 @@ export class WorkspaceStore {
         parentId: args.parentId ?? null,
         classIds: args.classIds ?? [],
       }
+    );
+    this.apply(op);
+  }
+
+  createClass(args: ClassCreatePayload): void {
+    const payload: ClassCreatePayload = {
+      classId: args.classId,
+      name: args.name,
+    };
+    if (args.icon !== undefined) payload.icon = args.icon;
+    if (args.color !== undefined) payload.color = args.color;
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId],
+        opType: 'class.create',
+      },
+      payload
+    );
+    this.apply(op);
+  }
+
+  updateClass(args: ClassUpdatePayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId],
+        opType: 'class.update',
+      },
+      args
+    );
+    this.apply(op);
+  }
+
+  deleteClass(classId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [classId],
+        opType: 'class.delete',
+      },
+      { classId } satisfies ClassDeletePayload
+    );
+    this.apply(op);
+  }
+
+  setClassExtends(args: ClassSetExtendsPayload): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.classId, ...args.extendsClassIds],
+        opType: 'class.setExtends',
+      },
+      args
     );
     this.apply(op);
   }
@@ -968,7 +998,7 @@ export class WorkspaceStore {
     const row = queryOne<{
       id: string;
       workspaceId: string;
-      kind: 'page' | 'block' | 'class';
+      kind: 'page' | 'block';
       parentId: string | null;
       classIds: string;
       content: string;
@@ -1075,20 +1105,6 @@ export class WorkspaceStore {
         opType: 'class.unassign',
       },
       { nodeId, classId }
-    );
-    this.apply(op);
-  }
-
-  updateClass(classId: string, extendsIds: string[]): void {
-    const op = createOperation(
-      {
-        workspaceId: this.workspaceId,
-        actorId: this.actorId,
-        hlc: this.clock.advance(Date.now()),
-        affectedNodeIds: [classId, ...extendsIds],
-        opType: 'class.update',
-      },
-      { classId, extends: extendsIds }
     );
     this.apply(op);
   }

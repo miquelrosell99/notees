@@ -42,7 +42,7 @@ export function createSchema(db: Database): void {
     CREATE TABLE IF NOT EXISTS node (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('page', 'block', 'class')),
+      kind TEXT NOT NULL CHECK (kind IN ('page', 'block')),
       class_ids TEXT NOT NULL DEFAULT '[]',
       parent_id TEXT,
       content TEXT NOT NULL DEFAULT '[]',
@@ -102,6 +102,20 @@ export function createSchema(db: Database): void {
     -- sql.js ships with the FTS4 extension, which is sufficient for ranked
     -- full-text search. If we ever switch to a custom SQLite build with FTS5,
     -- only this schema statement and the ranking formula need to change.
+    CREATE TABLE IF NOT EXISTS class (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      icon TEXT,
+      color TEXT,
+      description TEXT,
+      extends_class_ids TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT,
+      updated_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_class_workspace ON class (workspace_id);
+
     CREATE TABLE IF NOT EXISTS class_hierarchy (
       class_id TEXT NOT NULL,
       ancestor_id TEXT NOT NULL,

@@ -7,6 +7,7 @@ It reads the legacy ``node`` table and emits ``node.create``, ``node.move``,
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -49,6 +50,42 @@ SYSTEM_CLASS_UUIDS: dict[str, str] = {
     "is_cloze": "00000000-0000-0000-0001-000000000022",
     "is_comment": "00000000-0000-0000-0001-000000000014",
 }
+
+
+def _extract_text_from_name(name: str | None) -> tuple[str, list[dict[str, Any]] | None]:
+    """Return plain text and optional parsed content AST from a legacy name.
+
+    The pre-ideal backup stores ``name`` as either plain text or a JSON-encoded
+    AST. When the value parses as an AST, return the concatenated plain text
+    and the parsed AST so it can be reused as node content. Otherwise return the
+    raw string and no AST.
+    """
+    if not name:
+        return ("", None)
+    stripped = name.strip()
+    if not stripped:
+        return ("", None)
+    if stripped.startswith("["):
+        try:
+            ast = json.loads(stripped)
+            if isinstance(ast, list):
+                texts: list[str] = []
+
+                def _collect(node: Any) -> None:
+                    if isinstance(node, dict):
+                        if node.get("type") == "text" and isinstance(node.get("text"), str):
+                            texts.append(node["text"])
+                        for child in node.get("children", []):
+                            _collect(child)
+                    elif isinstance(node, list):
+                        for child in node:
+                            _collect(child)
+
+                _collect(ast)
+                return ("".join(texts).strip() or "", ast)
+        except json.JSONDecodeError:
+            pass
+    return (stripped, None)
 
 
 @dataclass
@@ -103,7 +140,7 @@ async def fetch_nodes(
     ``only_deleted=True`` to fetch only soft-deleted rows.
     """
     query = """
-        SELECT id, uuid, workspace_id, name, parent_id, sequence,
+        SELECT id, uuid, workspace_id, name, icon, color, parent_id, sequence,
                is_deleted, deleted_at,
                is_class, is_page, is_day, is_month, is_year,
                is_asset, is_template, is_comment, is_task, is_table,
@@ -146,10 +183,12 @@ def _build_id_map(nodes: list[asyncpg.Record]) -> dict[int, str]:
 
 
 def _node_kind(row: asyncpg.Record) -> str:
-    """Derive the ideal node kind from legacy boolean flags."""
-    if row["is_class"]:
-        return "class"
-    if row["is_page"] or row["is_day"] or row["is_month"] or row["is_year"] or row["is_template"]:
+    """Derive the ideal node kind from legacy boolean flags.
+
+    Legacy class nodes become regular pages; the separate ``class`` table holds
+    class metadata via ``class.create`` operations.
+    """
+    if row["is_page"] or row["is_class"] or row["is_day"] or row["is_month"] or row["is_year"] or row["is_template"]:
         return "page"
     return "block"
 
@@ -238,6 +277,39 @@ def _move_ops(ctx: MigrationContext, nodes: list[asyncpg.Record]) -> list[Operat
     return ops
 
 
+def _class_create_ops(
+    ctx: MigrationContext,
+    nodes: list[asyncpg.Record],
+) -> list[Operation]:
+    """Emit ``class.create`` operations for legacy class nodes."""
+    ops: list[Operation] = []
+    for row in nodes:
+        if not row["is_class"]:
+            continue
+        class_id = ctx.map_node_id(row["id"])
+        if class_id is None:
+            continue
+        plain_name, _ = _extract_text_from_name(row.get("name"))
+        ops.append(
+            create_operation(
+                envelope={
+                    "workspace_id": ctx.workspace_uuid,
+                    "actor_id": ctx.actor_id,
+                    "hlc": ctx.next_hlc(),
+                    "affected_node_ids": [class_id],
+                    "op_type": "class.create",
+                },
+                payload={
+                    "classId": class_id,
+                    "name": plain_name or "Untitled class",
+                    "icon": row.get("icon"),
+                    "color": row.get("color"),
+                },
+            )
+        )
+    return ops
+
+
 def _class_assign_ops(
     ctx: MigrationContext,
     nodes: list[asyncpg.Record],
@@ -248,6 +320,21 @@ def _class_assign_ops(
         node_id = ctx.map_node_id(row["id"])
         if node_id is None:
             continue
+
+        # Legacy class nodes are themselves instances of the class they define.
+        if row["is_class"]:
+            ops.append(
+                create_operation(
+                    envelope={
+                        "workspace_id": ctx.workspace_uuid,
+                        "actor_id": ctx.actor_id,
+                        "hlc": ctx.next_hlc(),
+                        "affected_node_ids": [node_id, node_id],
+                        "op_type": "class.assign",
+                    },
+                    payload={"nodeId": node_id, "classId": node_id},
+                )
+            )
 
         # Boolean flags → system classes.
         for flag in SYSTEM_CLASS_FLAGS:
@@ -294,12 +381,20 @@ def _update_content_ops(
     """Emit ``node.updateContent`` operations for non-empty node names."""
     ops: list[Operation] = []
     for row in nodes:
-        name = (row.get("name") or "").strip()
-        if not name:
+        plain_name, ast = _extract_text_from_name(row.get("name"))
+        if not plain_name and not ast:
             continue
         node_id = ctx.map_node_id(row["id"])
         if node_id is None:
             continue
+        # Pre-ideal backups store names as JSON ASTs; reuse the AST directly
+        # when available, otherwise wrap the plain text in a paragraph.
+        content = ast if ast is not None else [
+            {
+                "type": "paragraph",
+                "children": [{"type": "text", "text": plain_name}],
+            }
+        ]
         ops.append(
             create_operation(
                 envelope={
@@ -311,12 +406,7 @@ def _update_content_ops(
                 },
                 payload={
                     "nodeId": node_id,
-                    "content": [
-                        {
-                            "type": "paragraph",
-                            "children": [{"type": "text", "text": name}],
-                        }
-                    ],
+                    "content": content,
                 },
             )
         )
@@ -422,6 +512,8 @@ async def migrate_nodes_for_workspace(
     operations: list[Operation] = []
     operations.extend(_create_ops(ctx, live_nodes))
     operations.extend(_create_ops(ctx, deleted_nodes))
+    operations.extend(_class_create_ops(ctx, live_nodes))
+    operations.extend(_class_create_ops(ctx, deleted_nodes))
     operations.extend(_move_ops(ctx, live_nodes))
     operations.extend(_class_assign_ops(ctx, live_nodes))
     operations.extend(_update_content_ops(ctx, live_nodes))

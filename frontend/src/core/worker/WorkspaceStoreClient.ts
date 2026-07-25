@@ -9,7 +9,6 @@
 import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { listNodes } from '../query/listNodes';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
@@ -500,9 +499,6 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     }
     if (method === 'queryNodes') {
       const filters = args[0] as Parameters<typeof queryNodes>[1];
-      if (filters.isClass) {
-        filters.classClassUuid = SYSTEM_CLASS_UUIDS.class;
-      }
       return Promise.resolve(queryNodes(this.store, filters) as T);
     }
     if (method === 'executeQuery') {

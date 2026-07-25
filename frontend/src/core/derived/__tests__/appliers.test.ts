@@ -786,7 +786,8 @@ describe('class property edge applier', () => {
     store.apply(makeOp('classPropertyEdge.create', { classId: 'parent', propertySchemaId: 's-1', sequence: 0 }));
 
     // Child class extends parent.
-    store.apply(makeOp('class.create', { classId: 'child', extends: ['parent'] }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+    store.apply(makeOp('class.create', { classId: 'child' }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+    store.apply(makeOp('class.setExtends', { classId: 'child', extendsClassIds: ['parent'] }, { hlc: { physical: Date.now() + 2, logical: 0 } }));
 
     const rows = queryAll<{ ancestor_id: string }>(
       store.getDb(),
@@ -1000,7 +1001,7 @@ describe('node view applier', () => {
 describe('property schema cleanup on node permanent delete', () => {
   it('deletes schema rows bound to the node and edge rows owned by the node', async () => {
     const { store } = await createStore();
-    store.createNode({ nodeId: 'n-1', kind: 'class', parentId: null });
+    store.createClass({ classId: 'n-1', name: 'Local' });
     store.apply(makeOp('propertySchema.create', { schemaId: 's-1', name: 'Local', nodeId: 'n-1' }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
     store.apply(makeOp('classPropertyEdge.create', { classId: 'n-1', propertySchemaId: 's-1' }, { hlc: { physical: Date.now() + 2, logical: 0 } }));
 
@@ -1018,6 +1019,106 @@ describe('property schema cleanup on node permanent delete', () => {
     );
     expect(schemaCount?.count).toBe(0);
     expect(edgeCount?.count).toBe(0);
+  });
+});
+
+describe('class schema', () => {
+  it('creates the class derived table', async () => {
+    const db = await createTestDatabase();
+    const row = queryOne<{ name: string }>(
+      db,
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'class'"
+    );
+    expect(row?.name).toBe('class');
+  });
+
+  it('can insert and retrieve a class row', async () => {
+    const db = await createTestDatabase();
+    const classId = uuidv7();
+    const workspaceId = uuidv7();
+    db.run(
+      `INSERT INTO class (id, workspace_id, name, icon, color, description, extends_class_ids, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        classId,
+        workspaceId,
+        'Project',
+        'icon',
+        '#ffffff',
+        'A class description',
+        '[]',
+        1,
+        '2026-07-25T00:00:00.000Z',
+        '2026-07-25T00:00:00.000Z',
+      ]
+    );
+    const row = queryOne<{ id: string; workspace_id: string; name: string }>(
+      db,
+      'SELECT id, workspace_id, name FROM class WHERE id = ?',
+      [classId]
+    );
+    expect(row?.id).toBe(classId);
+    expect(row?.workspace_id).toBe(workspaceId);
+    expect(row?.name).toBe('Project');
+  });
+});
+
+describe('class applier', () => {
+  it('creating a class inserts a class row', async () => {
+    const { store, workspaceId } = await createStore();
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Untitled class' });
+
+    const row = queryOne<{ id: string; workspace_id: string; name: string; active: number }>(
+      store.getDb(),
+      'SELECT id, workspace_id, name, active FROM class WHERE id = ?',
+      [classId]
+    );
+    expect(row?.id).toBe(classId);
+    expect(row?.workspace_id).toBe(workspaceId);
+    expect(row?.name).toBe('Untitled class');
+    expect(row?.active).toBe(1);
+  });
+
+  it('creating a class with a name stores it', async () => {
+    const { store } = await createStore();
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Project' });
+
+    const row = queryOne<{ name: string }>(
+      store.getDb(),
+      'SELECT name FROM class WHERE id = ?',
+      [classId]
+    );
+    expect(row?.name).toBe('Project');
+  });
+
+  it('updating a class updates class.name', async () => {
+    const { store } = await createStore();
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Untitled class' });
+    store.updateClass({ classId, name: 'Updated class name' });
+
+    const row = queryOne<{ name: string }>(
+      store.getDb(),
+      'SELECT name FROM class WHERE id = ?',
+      [classId]
+    );
+    expect(row?.name).toBe('Updated class name');
+  });
+
+  it('deleting a class marks it inactive', async () => {
+    const { store } = await createStore();
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Untitled class' });
+    store.deleteClass(classId);
+
+    const row = queryOne<{ active: number }>(
+      store.getDb(),
+      'SELECT active FROM class WHERE id = ?',
+      [classId]
+    );
+    expect(row?.active).toBe(0);
   });
 });
 
