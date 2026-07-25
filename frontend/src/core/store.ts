@@ -34,7 +34,7 @@ import { createDatabase } from './db/connection';
 export interface NodeRow {
   id: string;
   workspaceId: string;
-  kind: 'page' | 'block' | 'class';
+  kind: 'page' | 'block';
   parentId: string | null;
   classIds: string[];
   content: string;
@@ -68,7 +68,7 @@ const DEFAULT_VIEW_NAMES: Record<string, string> = {
  * a workspace with a stale version triggers a hard rebuild: derived tables are
  * cleared and the full server operation log is replayed with the new applier.
  */
-export const CURRENT_DERIVED_STATE_VERSION = 2;
+export const CURRENT_DERIVED_STATE_VERSION = 3;
 
 export class WorkspaceStore {
   private clock: Clock;
@@ -411,16 +411,10 @@ export class WorkspaceStore {
 
   createNode(args: {
     nodeId: string;
-    kind: 'page' | 'block' | 'class';
+    kind: 'page' | 'block';
     parentId: string | null;
     classIds?: string[];
   }): void {
-    if (args.parentId !== null) {
-      const parent = this.getNode(args.parentId);
-      if (parent?.kind === 'class') {
-        throw new Error('Class nodes cannot contain block children');
-      }
-    }
     const op = createOperation(
       {
         workspaceId: this.workspaceId,
@@ -531,10 +525,6 @@ export class WorkspaceStore {
     }
 
     if (newParentId !== null) {
-      const newParent = this.getNode(newParentId);
-      if (newParent?.kind === 'class') {
-        throw new Error('Class nodes cannot contain block children');
-      }
       const newTree = loadTreeCrdt(this.db, newParentId);
       newTree.insert(nodeId, newTree.toArray().length);
       saveTreeCrdt(this.db, newParentId, newTree);
@@ -668,16 +658,10 @@ export class WorkspaceStore {
 
   convertNode(args: {
     nodeId: string;
-    kind: 'page' | 'block' | 'class';
+    kind: 'page' | 'block';
     parentId?: string | null;
     classIds?: string[];
   }): void {
-    if (args.kind === 'class') {
-      const children = this.getChildren(args.nodeId);
-      if (children.length > 0) {
-        throw new Error('Cannot convert a node with children to a class');
-      }
-    }
     const op = createOperation(
       {
         workspaceId: this.workspaceId,
@@ -1014,7 +998,7 @@ export class WorkspaceStore {
     const row = queryOne<{
       id: string;
       workspaceId: string;
-      kind: 'page' | 'block' | 'class';
+      kind: 'page' | 'block';
       parentId: string | null;
       classIds: string;
       content: string;

@@ -70,6 +70,8 @@ def _base_node(
     *,
     name: str = "Node",
     uuid: str | object = _MISSING_UUID,
+    icon: str | None = None,
+    color: str | None = None,
     parent_id: int | None = None,
     sequence: float = 0.0,
     is_deleted: bool = False,
@@ -83,6 +85,8 @@ def _base_node(
         "uuid": node_uuid,
         "workspace_id": workspace_id,
         "name": name,
+        "icon": icon,
+        "color": color,
         "parent_id": parent_id,
         "sequence": sequence,
         "is_deleted": is_deleted,
@@ -139,11 +143,16 @@ async def test_maps_node_kinds() -> None:
     creates = _find_ops(writer.operations, "node.create")
     kinds = {op.payload["nodeId"]: op.payload["kind"] for op in creates}
     ids = list(kinds.keys())
-    assert kinds[ids[0]] == "class"
+    assert kinds[ids[0]] == "page"
     assert kinds[ids[1]] == "page"
     assert kinds[ids[2]] == "page"
     assert kinds[ids[3]] == "page"
     assert kinds[ids[4]] == "block"
+
+    class_creates = _find_ops(writer.operations, "class.create")
+    assert len(class_creates) == 1
+    assert class_creates[0].payload["classId"] == ids[0]
+    assert class_creates[0].payload["name"] == "Class node"
 
 
 @pytest.mark.unit
@@ -244,6 +253,13 @@ async def test_class_assign_for_legacy_class_ids() -> None:
     )
 
     assigns = _find_ops(writer.operations, "class.assign")
+    # Legacy class nodes become instances of the class they define.
+    self_assigns = [
+        op for op in assigns if op.payload["nodeId"] == class_uuid
+    ]
+    assert len(self_assigns) == 1
+    assert self_assigns[0].payload["classId"] == class_uuid
+
     instance_assigns = [
         op for op in assigns if op.payload["nodeId"] != class_uuid
     ]
