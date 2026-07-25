@@ -484,15 +484,22 @@ export function NodeView({
     removeClass.mutate({ nodeUuid: node.uuid, classId: classNode.uuid });
   }, [node, removeClass]);
 
-  // Handle converting an existing page to a class by adding the "class" class to it
+  // Handle converting an existing page to a class by changing its kind to 'class'
   const handleConvertToClass = useCallback(async (pageNode: Node) => {
-    if (!node) return;
-    const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
-    if (!classClass) return;
-    // Add the "class" class to the target page, then add it to the current node
-    await addClass.mutateAsync({ nodeUuid: pageNode.uuid, classId: classClass.uuid });
+    if (!node || !workspaceUuid) return;
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
+    await client.mutate<void>('convertNode', [
+      {
+        nodeId: pageNode.uuid,
+        kind: 'class',
+        parentId: null,
+        classIds: pageNode.classes_uuid ?? [],
+      },
+    ]);
+    // Assign the newly-converted class to the current node
     addClass.mutate({ nodeUuid: node.uuid, classId: pageNode.uuid });
-  }, [node, addClass, allClasses]);
+  }, [node, workspaceUuid, addClass]);
   
   // Navigate to the destination page after a page has been converted to a block
   const handleConvertedToBlock = useCallback((parentId: string) => {
@@ -1325,8 +1332,9 @@ export function NodeView({
         <ClassPropertiesEditor classNodeUuid={node.uuid} defaultExpanded={false} />
       )}
       
-      {/* Node Content - Children blocks (pages only, blocks use focused block view) */}
-      {resolvedType === 'page' ? (
+      {/* Node Content - Children blocks (pages only, blocks use focused block view).
+          Class nodes are schema definitions and cannot own block children. */}
+      {resolvedType === 'page' && !node.is_class ? (
         <>
           <BlockPresenceOverlay nodeUuid={node.uuid} />
           <NodeContent
@@ -1390,8 +1398,8 @@ export function NodeView({
             />
           )}
           
-          {/* Child pages section - shows pages that have this node as parent (pages only) */}
-          {resolvedType === 'page' && (
+          {/* Child pages section - shows pages that have this node as parent (pages only, not classes) */}
+          {resolvedType === 'page' && !node.is_class && (
             <QuerySection
               nodeUuid={node.uuid}
               nodeName={node.name}

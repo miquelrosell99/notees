@@ -59,9 +59,11 @@ def _class_operations(
     workspace_id: str,
     actor_id: str,
 ) -> list[Operation]:
-    """Operations that create every system class and tag it as class+page."""
-    class_class = SYSTEM_CLASS_UUIDS["class"]
-    page_class = SYSTEM_CLASS_UUIDS["page"]
+    """Operations that create every system class.
+
+    System classes are identified by kind='class' (via class.create); they do
+    not need the meta "class" system class assigned to themselves.
+    """
     operations: list[Operation] = []
 
     for class_name, class_uuid in SYSTEM_CLASS_UUIDS.items():
@@ -85,17 +87,6 @@ def _class_operations(
                 [class_uuid],
             )
         )
-        for target_class in {class_class, page_class}:
-            operations.append(
-                _build_operation(
-                    clock,
-                    workspace_id,
-                    actor_id,
-                    "class.assign",
-                    {"nodeId": class_uuid, "classId": target_class},
-                    [class_uuid],
-                )
-            )
 
     return operations
 

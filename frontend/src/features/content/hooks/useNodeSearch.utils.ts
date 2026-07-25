@@ -170,13 +170,13 @@ export function getPagesResults(
 
   let results: Node[];
   if (searchQuery.length > 0) {
-    results = (searchResults ?? []).filter(n => n.is_page || n.parent_uuid === null);
+    results = (searchResults ?? []).filter(n => (n.is_page || n.parent_uuid === null) && !isClassDef(n));
   } else if (suggestions && suggestions.length > 0) {
-    results = suggestions;
+    results = suggestions.filter(n => !isClassDef(n));
   } else if (classFilters.length > 0) {
     results = (filteredPages ?? []).slice(0, maxResults * 3);
   } else {
-    results = (allPages ?? []).slice(0, maxResults * 3);
+    results = (allPages ?? []).filter(n => !isClassDef(n)).slice(0, maxResults * 3);
   }
 
   if (parsed.isHierarchical && allPages) {
@@ -247,15 +247,15 @@ export function getAllResults(
   const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
 
   let baseResults = searchQuery.length > 0
-    ? (searchResults ?? [])
+    ? (searchResults ?? []).filter(n => !isClassDef(n))
     : suggestions && suggestions.length > 0
       ? [
-          ...suggestions.slice(0, Math.floor(maxResults / 2)),
-          ...(allNodes ?? []).filter(n => n.parent_uuid !== null).slice(0, Math.floor(maxResults / 2)),
+          ...suggestions.filter(n => !isClassDef(n)).slice(0, Math.floor(maxResults / 2)),
+          ...(allNodes ?? []).filter(n => n.parent_uuid !== null && !isClassDef(n)).slice(0, Math.floor(maxResults / 2)),
         ]
       : [
-          ...(allPages ?? []).slice(0, Math.floor(maxResults / 2)),
-          ...(allNodes ?? []).filter(n => n.parent_uuid !== null).slice(0, Math.floor(maxResults / 2)),
+          ...(allPages ?? []).filter(n => !isClassDef(n)).slice(0, Math.floor(maxResults / 2)),
+          ...(allNodes ?? []).filter(n => n.parent_uuid !== null && !isClassDef(n)).slice(0, Math.floor(maxResults / 2)),
         ];
 
   if (parsed.isHierarchical && allPages) {
