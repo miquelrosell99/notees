@@ -8,7 +8,7 @@
 import { useState, useCallback, useMemo, useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { useClasses } from '@/features/content';
-import { useClassClass } from '@/features/content/hooks/usePageClass';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useContentSave } from '@/features/editor';
 import { useNavigationStore } from '@/stores';
 import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
@@ -41,7 +41,6 @@ export function ClassesView({ initialViewMode }: ClassesViewProps) {
   const openNode = useNavigationStore((state) => state.openNode);
   const { handleContentChange: saveContent } = useContentSave();
   const { data: classes, isLoading, error } = useClasses();
-  const { classClassUuid } = useClassClass();
   const ctx = useContext(WorkspaceStoreContext);
   const { workspaceId } = useParams<{ workspaceId?: string }>();
 
@@ -59,12 +58,14 @@ export function ClassesView({ initialViewMode }: ClassesViewProps) {
 
   // All classes view modes operate on a flat list of class nodes only.
   // Strip children so member nodes are never rendered here.
+  // Hide the meta "class" class — it only marks other nodes as classes and is
+  // not a meaningful entry in the class catalogue.
   const displayNodes = useMemo<Node[]>(() => {
     if (!classes) return [];
     const seen = new Set<string>();
     const result: Node[] = [];
     for (const n of classes) {
-      if (!n.is_class || seen.has(n.uuid)) continue;
+      if (!n.is_class || seen.has(n.uuid) || n.uuid === SYSTEM_CLASS_UUIDS.class) continue;
       seen.add(n.uuid);
       result.push({ ...n, children: undefined, has_children: false });
     }
@@ -79,14 +80,14 @@ export function ClassesView({ initialViewMode }: ClassesViewProps) {
       nodeId: classId,
       kind: 'class',
       parentId: null,
-      classIds: classClassUuid ? [classClassUuid] : [],
+      classIds: [],
     }]);
     await client.mutate<void>('setNodeText', [classId, 'New class']);
     const projected = await projectNodeFromClient(client, classId);
     if (projected) {
       openNode(projected.uuid);
     }
-  }, [ctx, workspaceId, classClassUuid, openNode]);
+  }, [ctx, workspaceId, openNode]);
 
   const handleSearchSelect = useCallback((node: Node) => {
     openNode(node.uuid);
