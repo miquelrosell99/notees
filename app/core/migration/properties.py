@@ -164,29 +164,6 @@ async def fetch_class_extends(
     return await conn.fetch(query, workspace_int_id)
 
 
-async def fetch_class_node_metadata(
-    conn: asyncpg.Connection,
-    class_int_ids: list[int],
-) -> dict[int, dict[str, Any]]:
-    """Fetch name/icon/color metadata for class nodes."""
-    if not class_int_ids:
-        return {}
-    query = """
-        SELECT id, name, icon, color
-        FROM node
-        WHERE id = ANY($1::int[])
-    """
-    rows = await conn.fetch(query, class_int_ids)
-    return {
-        row["id"]: {
-            "name": row["name"] or "",
-            "icon": row.get("icon"),
-            "color": row.get("color"),
-        }
-        for row in rows
-    }
-
-
 async def fetch_scalar_values(
     conn: asyncpg.Connection,
     workspace_int_id: int,
@@ -414,22 +391,52 @@ def _property_set_ops(
     return ops
 
 
-def _class_create_ops(
+def _class_property_edge_ops(
     ctx: MigrationContext,
     class_properties: list[asyncpg.Record],
-    class_extends: list[asyncpg.Record],
-    class_node_metadata: dict[int, dict[str, Any]],
     schema_id_map: dict[int, str],
 ) -> list[Operation]:
-    """Emit ``class.create`` operations for class nodes."""
-    schemas_by_class: dict[int, list[str]] = {}
+    """Emit ``classPropertyEdge.create`` operations for class_property rows."""
+    ops: list[Operation] = []
     for row in class_properties:
-        class_id = row["class_node_id"]
+        class_id = ctx.map_node_id(row["class_node_id"])
         schema_uuid = schema_id_map.get(row["property_id"])
-        if schema_uuid is None:
+        if class_id is None or schema_uuid is None:
             continue
-        schemas_by_class.setdefault(class_id, []).append(schema_uuid)
+        payload: dict[str, Any] = {
+            "classId": class_id,
+            "propertySchemaId": schema_uuid,
+        }
+        if row.get("sequence") is not None:
+            payload["sequence"] = row["sequence"]
+        if row.get("hidden") is not None:
+            payload["hidden"] = bool(row["hidden"])
+        if row.get("required") is not None:
+            payload["required"] = bool(row["required"])
+        if row.get("readonly") is not None:
+            payload["readonly"] = bool(row["readonly"])
+        if row.get("hide_when_empty") is not None:
+            payload["hideWhenEmpty"] = bool(row["hide_when_empty"])
+        ops.append(
+            create_operation(
+                envelope={
+                    "workspace_id": ctx.workspace_uuid,
+                    "actor_id": ctx.actor_id,
+                    "hlc": ctx.next_hlc(),
+                    "affected_node_ids": [class_id, schema_uuid],
+                    "op_type": "classPropertyEdge.create",
+                },
+                payload=payload,
+            )
+        )
+    return ops
 
+
+def _class_set_extends_ops(
+    ctx: MigrationContext,
+    class_extends: list[asyncpg.Record],
+) -> list[Operation]:
+    """Emit ``class.setExtends`` operations for class_extend rows."""
     extends_by_class: dict[int, list[str]] = {}
     for row in class_extends:
         target_id = row["target_id"]
@@ -438,30 +445,23 @@ def _class_create_ops(
             continue
         extends_by_class.setdefault(target_id, []).append(source_uuid)
 
-    class_ids = sorted(set(schemas_by_class.keys()) | set(extends_by_class.keys()))
-
     ops: list[Operation] = []
-    for class_id in class_ids:
+    for class_id in sorted(extends_by_class.keys()):
         class_uuid = ctx.map_node_id(class_id)
         if class_uuid is None:
             continue
-        metadata = class_node_metadata.get(class_id, {})
         ops.append(
             create_operation(
                 envelope={
                     "workspace_id": ctx.workspace_uuid,
                     "actor_id": ctx.actor_id,
                     "hlc": ctx.next_hlc(),
-                    "affected_node_ids": [class_uuid],
-                    "op_type": "class.create",
+                    "affected_node_ids": [class_uuid, *extends_by_class[class_id]],
+                    "op_type": "class.setExtends",
                 },
                 payload={
                     "classId": class_uuid,
-                    "name": metadata.get("name", ""),
-                    "icon": metadata.get("icon"),
-                    "color": metadata.get("color"),
-                    "propertySchemaIds": schemas_by_class.get(class_id, []),
-                    "extends": extends_by_class.get(class_id, []),
+                    "extendsClassIds": extends_by_class[class_id],
                 },
             )
         )
@@ -503,11 +503,6 @@ async def migrate_properties_for_workspace(
 
     class_properties = await fetch_class_properties(conn, workspace_int_id)
     class_extends = await fetch_class_extends(conn, workspace_int_id)
-    class_ids = sorted(
-        {row["class_node_id"] for row in class_properties}
-        | {row["target_id"] for row in class_extends}
-    )
-    class_node_metadata = await fetch_class_node_metadata(conn, class_ids)
 
     operations: list[Operation] = []
     operations.extend(
@@ -528,9 +523,8 @@ async def migrate_properties_for_workspace(
         )
     )
     operations.extend(
-        _class_create_ops(
-            ctx, class_properties, class_extends, class_node_metadata, schema_id_map
-        )
+        _class_property_edge_ops(ctx, class_properties, schema_id_map)
     )
+    operations.extend(_class_set_extends_ops(ctx, class_extends))
 
     return operations
