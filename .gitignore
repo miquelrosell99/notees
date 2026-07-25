@@ -61,3 +61,4 @@ frontend/lint-final.txt
 .github/prompts/Base.prompt.md
 .github/copilot-instructions.md
 .coverage
+.worktrees/
