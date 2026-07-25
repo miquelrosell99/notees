@@ -35,6 +35,8 @@ const OP_TYPES = new Set([
   'classPropertyEdge.reorder',
   'class.create',
   'class.update',
+  'class.delete',
+  'class.setExtends',
   'nodeView.create',
   'nodeView.update',
   'nodeView.delete',

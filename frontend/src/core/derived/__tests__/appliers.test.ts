@@ -1021,6 +1021,47 @@ describe('property schema cleanup on node permanent delete', () => {
   });
 });
 
+describe('class schema', () => {
+  it('creates the class derived table', async () => {
+    const db = await createTestDatabase();
+    const row = queryOne<{ name: string }>(
+      db,
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'class'"
+    );
+    expect(row?.name).toBe('class');
+  });
+
+  it('can insert and retrieve a class row', async () => {
+    const db = await createTestDatabase();
+    const classId = uuidv7();
+    const workspaceId = uuidv7();
+    db.run(
+      `INSERT INTO class (id, workspace_id, name, icon, color, description, extends_class_ids, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        classId,
+        workspaceId,
+        'Project',
+        'icon',
+        '#ffffff',
+        'A class description',
+        '[]',
+        1,
+        '2026-07-25T00:00:00.000Z',
+        '2026-07-25T00:00:00.000Z',
+      ]
+    );
+    const row = queryOne<{ id: string; workspace_id: string; name: string }>(
+      db,
+      'SELECT id, workspace_id, name FROM class WHERE id = ?',
+      [classId]
+    );
+    expect(row?.id).toBe(classId);
+    expect(row?.workspace_id).toBe(workspaceId);
+    expect(row?.name).toBe('Project');
+  });
+});
+
 describe('text CRDT formatting', () => {
   it('persists formatting attributes in crdt_state through node.updateContent', async () => {
     const { store } = await createStore();
