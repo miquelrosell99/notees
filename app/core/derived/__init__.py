@@ -7,8 +7,10 @@ by both the migration validation suite and the server-side WorkspaceStore.
 
 from __future__ import annotations
 
+import importlib
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 from app.core.operation import Operation
 
@@ -20,6 +22,7 @@ from .link import apply_link_click
 from .node import (
     apply_class_assign,
     apply_class_unassign,
+    apply_node_convert,
     apply_node_create,
     apply_node_delete,
     apply_node_move,
@@ -57,6 +60,11 @@ from .task import (
     apply_task_set_recurrence,
 )
 
+# ``class`` is a reserved keyword, so the module cannot be imported with a
+# regular ``from .class import ...`` statement. Use importlib instead.
+_class_module: Any = importlib.import_module("app.core.derived.class")
+apply_class_operation = _class_module.apply_class_operation
+
 __all__ = [
     "SCHEMA_SQL",
     "apply_operation",
@@ -70,12 +78,18 @@ def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:
     op_type = op.envelope.op_type
     if op_type == "node.create":
         apply_node_create(conn, op)
+        apply_class_operation(conn, op)
     elif op_type == "node.delete":
+        apply_class_operation(conn, op)
         apply_node_delete(conn, op)
     elif op_type == "node.move":
         apply_node_move(conn, op)
+    elif op_type == "node.convert":
+        apply_node_convert(conn, op)
+        apply_class_operation(conn, op)
     elif op_type == "node.updateContent":
         apply_node_update_content(conn, op)
+        apply_class_operation(conn, op)
     elif op_type == "class.assign":
         apply_class_assign(conn, op)
     elif op_type == "class.unassign":

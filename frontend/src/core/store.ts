@@ -3,17 +3,7 @@ import { Clock } from './clock';
 import { type TextCrdt } from './crdt/text';
 import { createSchema } from './db/schema';
 import { queryAll, queryOne, transaction } from './db/sqlite';
-import { applyNodeOperation } from './derived/node';
-import { applyChildOrderOperation } from './derived/childOrder';
-import { applyPropertyOperation } from './derived/property';
-import { applyNodeViewOperation } from './derived/nodeView';
-import { applyAssetOperation } from './derived/asset';
-import { applyTaskOperation } from './derived/task';
-import { applyActivityOperation } from './derived/activity';
-import { applyLinkOperation } from './derived/link';
-import { applyShareOperation } from './derived/share';
-import { applyPluginOperation } from './derived/plugin';
-import { applyFavoriteOperation } from './derived/favorite';
+import { applyOperation } from './derived';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { rewriteLinksToTarget } from './query/mergePages';
@@ -310,17 +300,7 @@ export class WorkspaceStore {
             new Date().toISOString(),
           ]
         );
-        applyNodeOperation(db, op);
-        applyChildOrderOperation(db, op);
-        applyPropertyOperation(db, op);
-        applyNodeViewOperation(db, op);
-        applyAssetOperation(db, op);
-        applyTaskOperation(db, op);
-        applyActivityOperation(db, op);
-        applyLinkOperation(db, op);
-        applyShareOperation(db, op);
-        applyPluginOperation(db, op);
-        applyFavoriteOperation(db, op);
+        applyOperation(db, op);
 
         for (const nodeId of op.envelope.affectedNodeIds) {
           affectedNodeIds.add(nodeId);

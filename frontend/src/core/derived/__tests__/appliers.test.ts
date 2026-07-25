@@ -1062,6 +1062,72 @@ describe('class schema', () => {
   });
 });
 
+describe('class applier', () => {
+  it('creating a class node inserts a class row', async () => {
+    const { store, workspaceId } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'class', parentId: null });
+
+    const row = queryOne<{ id: string; workspace_id: string; name: string; active: number }>(
+      store.getDb(),
+      'SELECT id, workspace_id, name, active FROM class WHERE id = ?',
+      [nodeId]
+    );
+    expect(row?.id).toBe(nodeId);
+    expect(row?.workspace_id).toBe(workspaceId);
+    expect(row?.name).toBe('Untitled class');
+    expect(row?.active).toBe(1);
+  });
+
+  it('derives class name from initial content', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.apply(
+      makeOp('node.create', {
+        nodeId,
+        kind: 'class',
+        parentId: null,
+        initialContent: [{ type: 'text', text: 'Project' }],
+      })
+    );
+
+    const row = queryOne<{ name: string }>(
+      store.getDb(),
+      'SELECT name FROM class WHERE id = ?',
+      [nodeId]
+    );
+    expect(row?.name).toBe('Project');
+  });
+
+  it('updating class content updates class.name', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'class', parentId: null });
+    store.updateContentAst(nodeId, [{ type: 'text', text: 'Updated class name' }]);
+
+    const row = queryOne<{ name: string }>(
+      store.getDb(),
+      'SELECT name FROM class WHERE id = ?',
+      [nodeId]
+    );
+    expect(row?.name).toBe('Updated class name');
+  });
+
+  it('deleting a class node marks it inactive', async () => {
+    const { store } = await createStore();
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'class', parentId: null });
+    store.deleteNode(nodeId);
+
+    const row = queryOne<{ active: number }>(
+      store.getDb(),
+      'SELECT active FROM class WHERE id = ?',
+      [nodeId]
+    );
+    expect(row?.active).toBe(0);
+  });
+});
+
 describe('text CRDT formatting', () => {
   it('persists formatting attributes in crdt_state through node.updateContent', async () => {
     const { store } = await createStore();
