@@ -13,7 +13,6 @@ import { resolveNodeUuid, resolveNodeViewUuid } from '@/utils/resolveNodeUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { getActiveWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { uuidv7 } from '@/core/uuid';
-import type { NodeRow } from '@/core/store';
 import { nodeViewKeys } from './useNodeViews.queries';
 
 function requireViewUuid(viewId: string | number): string {
@@ -199,8 +198,8 @@ export function useResetNodeViews() {
     mutationFn: async (nodeUuid: string) => {
       if (!client) throw new Error('Workspace store is not ready');
       const nodeId = resolveNodeUuid(nodeUuid);
-      const node = await client.query<NodeRow | undefined>('getNode', [nodeId]);
-      const isClass = node?.kind === 'class';
+      const classRow = await client.query<{ id: string } | undefined>('getClass', [nodeId]);
+      const isClass = classRow !== undefined;
 
       const activeViews = await client.query<NodeView[]>('getNodeViews', [nodeId, { includeQueryAST: false }]);
       for (const view of activeViews) {

@@ -35,6 +35,8 @@ const OP_TYPES = new Set([
   'classPropertyEdge.reorder',
   'class.create',
   'class.update',
+  'class.delete',
+  'class.setExtends',
   'nodeView.create',
   'nodeView.update',
   'nodeView.delete',
@@ -214,6 +216,30 @@ export interface ClassPropertyEdgeDeletePayload {
 export interface ClassPropertyEdgeReorderPayload {
   classId: string;
   orderedPropertySchemaIds: string[];
+}
+
+export interface ClassCreatePayload {
+  classId: string;
+  name: string;
+  icon?: string | null;
+  color?: string | null;
+}
+
+export interface ClassUpdatePayload {
+  classId: string;
+  name?: string;
+  icon?: string | null;
+  color?: string | null;
+  description?: string | null;
+}
+
+export interface ClassDeletePayload {
+  classId: string;
+}
+
+export interface ClassSetExtendsPayload {
+  classId: string;
+  extendsClassIds: string[];
 }
 
 export interface NodeViewCreatePayload {

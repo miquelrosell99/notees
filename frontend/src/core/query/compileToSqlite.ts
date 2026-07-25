@@ -307,7 +307,7 @@ class Compiler {
     const uuid = resolvePlaceholder(condition.extends_class_uuid, this.currentNodeUuid);
     if (!uuid) return undefined;
     this.pushParam(uuid);
-    return `${this.alias}.kind = 'class' AND EXISTS (SELECT 1 FROM class_hierarchy ch WHERE ch.class_id = ${this.alias}.id AND ch.ancestor_id = ? AND ch.class_id != ch.ancestor_id)`;
+    return `EXISTS (SELECT 1 FROM json_each(${this.alias}.class_ids) WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ? AND class_id != ancestor_id))`;
   }
 
   private generatePropertyCondition(condition: PropertyCondition): string | undefined {

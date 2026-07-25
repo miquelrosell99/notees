@@ -4,8 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClassPillsRow } from './ClassPillsRow';
 import { useAuthStore } from '@/stores';
 import type { Node } from '@/types';
+import type { ClassRow } from '@/core/query/classes';
 
-const { classListRef } = vi.hoisted(() => ({ classListRef: { current: [] as Node[] } }));
+const { classListRef } = vi.hoisted(() => ({ classListRef: { current: [] as ClassRow[] } }));
 
 vi.mock('@/core/hooks', () => ({
   useWorkspaceStore: vi.fn(() => ({ store: null, isLoading: false, error: null })),
@@ -15,6 +16,22 @@ vi.mock('@/core/hooks', () => ({
   useUndoManager: vi.fn(() => ({ group: vi.fn(), wrap: vi.fn() })),
   useClasses: vi.fn(() => ({ data: classListRef.current, isLoading: false, error: null })),
 }));
+
+function makeClassRow(overrides: Partial<ClassRow> = {}): ClassRow {
+  return {
+    id: '00000000-0000-0000-0000-000000000000',
+    workspaceId: 'ws-test',
+    name: 'Test Class',
+    icon: null,
+    color: null,
+    description: null,
+    extendsClassIds: [],
+    active: true,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
 
 function makeNode(overrides: Partial<Node> = {}): Node {
   return {
@@ -44,24 +61,29 @@ describe('ClassPillsRow inherited color', () => {
   });
 
   it('renders a class pill with the color inherited from its parent class', () => {
-    const agent = makeNode({
-      uuid: '11111111-1111-1111-1111-111111111111',
+    const agent = makeClassRow({
+      id: '11111111-1111-1111-1111-111111111111',
       name: 'Agent',
       color: '#ff8800',
-      is_class: true,
     });
-    const person = makeNode({
-      uuid: '22222222-2222-2222-2222-222222222222',
+    const person = makeClassRow({
+      id: '22222222-2222-2222-2222-222222222222',
       name: 'Person',
       color: null,
-      is_class: true,
-      extends_uuid: [agent.uuid],
+      extendsClassIds: [agent.id],
     });
 
     classListRef.current = [agent, person];
+    const personNode = makeNode({
+      uuid: person.id,
+      name: person.name,
+      color: person.color,
+      is_class: true,
+      extends_uuid: person.extendsClassIds,
+    });
     render(
       <TestWrapper>
-        <ClassPillsRow classes={[person]} nodeUuid="page-uuid" readOnly />
+        <ClassPillsRow classes={[personNode]} nodeUuid="page-uuid" readOnly />
       </TestWrapper>
     );
 

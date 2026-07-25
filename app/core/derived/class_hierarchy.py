@@ -38,38 +38,17 @@ def apply_class_hierarchy(
 
 
 def apply_class_create(conn: sqlite3.Connection, op: Operation) -> None:
-    """``class.create`` is equivalent to creating a node of kind ``class``."""
+    """Maintain the class hierarchy for a newly created class."""
     payload = op.payload
-    node_id = payload["classId"]
-    ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
-    conn.execute(
-        """
-        INSERT OR IGNORE INTO node (
-            id, workspace_id, kind, class_ids, parent_id, content,
-            created_at, updated_at, created_by, updated_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            node_id,
-            op.envelope.workspace_id,
-            "class",
-            "[]",
-            None,
-            "[]",
-            ts,
-            ts,
-            op.envelope.actor_id,
-            op.envelope.actor_id,
-        ),
-    )
-    apply_class_hierarchy(conn, node_id, payload.get("extends"))
+    class_id = payload["classId"]
+    apply_class_hierarchy(conn, class_id, payload.get("extends"))
 
 
 def apply_class_update(conn: sqlite3.Connection, op: Operation) -> None:
     """Recompute the class hierarchy when the ``extends`` list changes."""
     payload = op.payload
-    node_id = payload["classId"]
-    apply_class_hierarchy(conn, node_id, payload.get("extends"))
+    class_id = payload["classId"]
+    apply_class_hierarchy(conn, class_id, payload.get("extends"))
 
 
 def delete_class_hierarchy_for_node(conn: sqlite3.Connection, node_id: str) -> None:
