@@ -786,7 +786,8 @@ describe('class property edge applier', () => {
     store.apply(makeOp('classPropertyEdge.create', { classId: 'parent', propertySchemaId: 's-1', sequence: 0 }));
 
     // Child class extends parent.
-    store.apply(makeOp('class.create', { classId: 'child', extends: ['parent'] }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+    store.apply(makeOp('class.create', { classId: 'child' }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
+    store.apply(makeOp('class.setExtends', { classId: 'child', extendsClassIds: ['parent'] }, { hlc: { physical: Date.now() + 2, logical: 0 } }));
 
     const rows = queryAll<{ ancestor_id: string }>(
       store.getDb(),
@@ -1000,7 +1001,7 @@ describe('node view applier', () => {
 describe('property schema cleanup on node permanent delete', () => {
   it('deletes schema rows bound to the node and edge rows owned by the node', async () => {
     const { store } = await createStore();
-    store.createNode({ nodeId: 'n-1', kind: 'class', parentId: null });
+    store.createClass({ classId: 'n-1', name: 'Local' });
     store.apply(makeOp('propertySchema.create', { schemaId: 's-1', name: 'Local', nodeId: 'n-1' }, { hlc: { physical: Date.now() + 1, logical: 0 } }));
     store.apply(makeOp('classPropertyEdge.create', { classId: 'n-1', propertySchemaId: 's-1' }, { hlc: { physical: Date.now() + 2, logical: 0 } }));
 
@@ -1063,66 +1064,59 @@ describe('class schema', () => {
 });
 
 describe('class applier', () => {
-  it('creating a class node inserts a class row', async () => {
+  it('creating a class inserts a class row', async () => {
     const { store, workspaceId } = await createStore();
-    const nodeId = uuidv7();
-    store.createNode({ nodeId, kind: 'class', parentId: null });
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Untitled class' });
 
     const row = queryOne<{ id: string; workspace_id: string; name: string; active: number }>(
       store.getDb(),
       'SELECT id, workspace_id, name, active FROM class WHERE id = ?',
-      [nodeId]
+      [classId]
     );
-    expect(row?.id).toBe(nodeId);
+    expect(row?.id).toBe(classId);
     expect(row?.workspace_id).toBe(workspaceId);
     expect(row?.name).toBe('Untitled class');
     expect(row?.active).toBe(1);
   });
 
-  it('derives class name from initial content', async () => {
+  it('creating a class with a name stores it', async () => {
     const { store } = await createStore();
-    const nodeId = uuidv7();
-    store.apply(
-      makeOp('node.create', {
-        nodeId,
-        kind: 'class',
-        parentId: null,
-        initialContent: [{ type: 'text', text: 'Project' }],
-      })
-    );
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Project' });
 
     const row = queryOne<{ name: string }>(
       store.getDb(),
       'SELECT name FROM class WHERE id = ?',
-      [nodeId]
+      [classId]
     );
     expect(row?.name).toBe('Project');
   });
 
-  it('updating class content updates class.name', async () => {
+  it('updating a class updates class.name', async () => {
     const { store } = await createStore();
-    const nodeId = uuidv7();
-    store.createNode({ nodeId, kind: 'class', parentId: null });
-    store.updateContentAst(nodeId, [{ type: 'text', text: 'Updated class name' }]);
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Untitled class' });
+    store.updateClass({ classId, name: 'Updated class name' });
 
     const row = queryOne<{ name: string }>(
       store.getDb(),
       'SELECT name FROM class WHERE id = ?',
-      [nodeId]
+      [classId]
     );
     expect(row?.name).toBe('Updated class name');
   });
 
-  it('deleting a class node marks it inactive', async () => {
+  it('deleting a class marks it inactive', async () => {
     const { store } = await createStore();
-    const nodeId = uuidv7();
-    store.createNode({ nodeId, kind: 'class', parentId: null });
-    store.deleteNode(nodeId);
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Untitled class' });
+    store.deleteClass(classId);
 
     const row = queryOne<{ active: number }>(
       store.getDb(),
       'SELECT active FROM class WHERE id = ?',
-      [nodeId]
+      [classId]
     );
     expect(row?.active).toBe(0);
   });

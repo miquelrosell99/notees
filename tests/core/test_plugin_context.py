@@ -255,10 +255,10 @@ class TestEnsureClass:
         store = await plugin_context._get_workspace_store("ws-1", "actor-1")
         await store.sync()
         rows = await store.query(
-            "SELECT id, kind FROM node WHERE id = ?", (class_uuid,)
+            "SELECT id, name FROM class WHERE id = ?", (class_uuid,)
         )
         assert len(rows) == 1
-        assert rows[0]["kind"] == "class"
+        assert rows[0]["name"] == "custom"
         await store.close()
 
 
