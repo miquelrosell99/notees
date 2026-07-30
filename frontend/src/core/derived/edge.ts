@@ -101,7 +101,6 @@ export function rebuildEdgesForNode(db: Database, nodeId: string): string[] {
   for (const targetId of desired.keys()) {
     affectedIds.add(targetId);
   }
-  rebuildNodeStats(db, Array.from(affectedIds));
   return Array.from(affectedIds);
 }
 
