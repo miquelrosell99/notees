@@ -27,7 +27,7 @@ def _envelope(
         hlc=Hlc(physical=physical, logical=logical),
         affected_node_ids=["node-1"],
         op_type=op_type,
-        payload=payload or {"nodeId": envelope_id},
+        payload=payload or {"nodeId": envelope_id, "kind": "page"},
         timestamp="2026-07-17T00:00:00Z",
     )
 
