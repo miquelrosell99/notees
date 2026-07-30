@@ -27,8 +27,9 @@ describe('HttpTransport', () => {
     );
     globalThis.fetch = mockFetch as unknown as typeof fetch;
 
-    await transport.send(envelope);
+    const result = await transport.send(envelope);
 
+    expect(result.savedIds).toEqual([envelope.id]);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://localhost:8000/api/relay/batch');

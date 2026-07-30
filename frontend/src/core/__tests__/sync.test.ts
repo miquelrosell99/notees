@@ -131,6 +131,58 @@ describe('SyncEngine', () => {
     expect(storeB.getDerivedStateVersion()).toBe(CURRENT_DERIVED_STATE_VERSION);
   });
 
+  it('retries failed operations and only advances watermark on ack', async () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    vi.setSystemTime(now);
+
+    const workspaceId = uuidv7();
+    const actor = uuidv7();
+    const relay = new MemoryRelay();
+
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, workspaceId, actor);
+    const client = await createClientFromStore(store);
+
+    let shouldFail = true;
+    const transport = new MemoryTransport(relay, workspaceId);
+    const originalSendBatch = transport.sendBatch.bind(transport);
+    transport.sendBatch = (envelopes) => {
+      if (shouldFail) {
+        throw new Error('network error');
+      }
+      return originalSendBatch(envelopes);
+    };
+
+    const sync = new SyncEngine(client, transport);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+
+    await expect(sync.push()).rejects.toThrow('network error');
+    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(0);
+
+    const watermarksAfterFailure = await client.query<{ pushed: { physical: number; logical: number } }>(
+      'loadWatermarks',
+      []
+    );
+    expect(watermarksAfterFailure.pushed).toEqual({ physical: 0, logical: 0 });
+
+    shouldFail = false;
+    vi.advanceTimersByTime(6000);
+    await sync.push();
+
+    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(1);
+
+    const watermarksAfterSuccess = await client.query<{ pushed: { physical: number; logical: number } }>(
+      'loadWatermarks',
+      []
+    );
+    expect(watermarksAfterSuccess.pushed.physical).toBeGreaterThan(0);
+
+    vi.useRealTimers();
+  });
+
   it('shares a single in-flight promise across concurrent syncOnce calls', async () => {
     const workspaceId = uuidv7();
     const actor = uuidv7();
