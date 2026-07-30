@@ -20,6 +20,43 @@ def _timestamp_from_op(op: Operation) -> str | None:
     return op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
 
 
+def _normalize_class_name(name: Any) -> str:
+    """Return a plain-text class name.
+
+    Some class.create payloads (especially from imports) store the name as a
+    JSON-encoded AST string like ``'[{"type":"paragraph",...}]'`` instead of
+    plain text. Parse that and extract the text so the class catalogue renders
+    correctly and search/sort work as expected.
+    """
+    if not isinstance(name, str):
+        return "Untitled class"
+    name = name.strip()
+    if not name:
+        return "Untitled class"
+    if name.startswith("["):
+        try:
+            ast = json.loads(name)
+        except json.JSONDecodeError:
+            return name
+        if isinstance(ast, list):
+            parts: list[str] = []
+            _collect_text(ast, parts)
+            return "".join(parts).strip() or "Untitled class"
+    return name
+
+
+def _collect_text(value: Any, parts: list[str]) -> None:
+    """Recursively collect text from an AST document or inline node."""
+    if isinstance(value, list):
+        for item in value:
+            _collect_text(item, parts)
+    elif isinstance(value, dict):
+        if value.get("type") == "text" and isinstance(value.get("text"), str):
+            parts.append(value["text"])
+        for children in value.get("children", []):
+            _collect_text(children, parts)
+
+
 def apply_class_operation(conn: sqlite3.Connection, op: Operation) -> None:
     """Maintain the ``class`` table from class operations."""
     op_type = op.envelope.op_type
@@ -28,7 +65,7 @@ def apply_class_operation(conn: sqlite3.Connection, op: Operation) -> None:
 
     if op_type == "class.create":
         class_id = payload["classId"]
-        name = payload.get("name", "Untitled class")
+        name = _normalize_class_name(payload.get("name", "Untitled class"))
         icon = payload.get("icon")
         color = payload.get("color")
 
@@ -60,7 +97,7 @@ def apply_class_operation(conn: sqlite3.Connection, op: Operation) -> None:
 
         if "name" in payload:
             sets.append("name = ?")
-            values.append(payload["name"])
+            values.append(_normalize_class_name(payload["name"]))
         if "icon" in payload:
             sets.append("icon = ?")
             values.append(payload["icon"])
