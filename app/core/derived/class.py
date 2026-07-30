@@ -68,6 +68,8 @@ def apply_class_operation(conn: sqlite3.Connection, op: Operation) -> None:
         name = _normalize_class_name(payload.get("name", "Untitled class"))
         icon = payload.get("icon")
         color = payload.get("color")
+        extends = payload.get("extends", [])
+        extends_list = extends if isinstance(extends, list) else []
 
         conn.execute(
             """
@@ -83,7 +85,7 @@ def apply_class_operation(conn: sqlite3.Connection, op: Operation) -> None:
                 icon,
                 color,
                 None,
-                "[]",
+                json.dumps(extends_list),
                 1,
                 ts,
                 ts,
@@ -129,7 +131,7 @@ def apply_class_operation(conn: sqlite3.Connection, op: Operation) -> None:
 
     elif op_type == "class.setExtends":
         class_id = payload["classId"]
-        extends = payload.get("extendsClassIds", [])
+        extends = payload.get("extendsClassIds") or payload.get("extends", [])
         extends_list = extends if isinstance(extends, list) else []
 
         conn.execute(

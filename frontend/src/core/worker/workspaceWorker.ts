@@ -99,7 +99,7 @@ const INIT_SQL_TIMEOUT_MS = 60_000;
 const APPLY_MANY_CHUNK_SIZE = 1_000;
 
 /** Log worker operations that take longer than this so future hangs are easy to diagnose. */
-const SLOW_QUERY_MS = 100;
+const SLOW_QUERY_MS = 500;
 
 async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Promise<void> {
   if (state.store) {
