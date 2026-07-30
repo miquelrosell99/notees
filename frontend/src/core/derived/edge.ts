@@ -2,7 +2,6 @@ import { type Database } from 'sql.js';
 import { uuidv7 } from '../uuid';
 import { queryAll, queryOne } from '../db/sqlite';
 import { parseLinkId } from '@/lib/astBuilder';
-import { rebuildNodeStats } from './nodeStats';
 
 const REF_MARK_RE = /\[\[([^\]]+)\]\]/g;
 

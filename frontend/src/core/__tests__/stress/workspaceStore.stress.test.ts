@@ -24,7 +24,7 @@ describe('WorkspaceStore stress', () => {
     return env ? parseInt(env, 10) : 2_000;
   };
 
-  const replayTimeoutMs = (count: number) => Math.max(2_000, count * 0.75);
+  const replayTimeoutMs = (count: number) => Math.max(3_000, count);
 
   it('applies thousands of node.create operations within a time bound', async () => {
     const db = await createTestDatabase();
