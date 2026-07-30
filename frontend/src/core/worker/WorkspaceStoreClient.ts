@@ -115,6 +115,7 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
   private worker: Worker;
   private pending = new Map<number, PendingRequest>();
   private listeners = new Map<string | null, Set<(notification?: NotifyChangeMessage) => void>>();
+  private inFlightQueries = new Map<string, Promise<unknown>>();
   private closed = false;
 
   constructor(worker: Worker) {
@@ -247,7 +248,18 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
   }
 
   query<T>(method: string, args: unknown[]): Promise<T> {
-    return this.send<T>(
+    // Deduplicate identical in-flight queries. Many React components subscribe
+    // to the same worker data (classes, property schemas, node projections) and
+    // can fire identical requests in the same render cycle. Without
+    // deduplication the worker queue explodes and UI queries time out behind a
+    // single expensive projection.
+    const key = `${method}:${JSON.stringify(args)}`;
+    const existing = this.inFlightQueries.get(key);
+    if (existing) {
+      return existing as Promise<T>;
+    }
+
+    const promise = this.send<T>(
       {
         type: 'query',
         id: generateRequestId(),
@@ -255,7 +267,11 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
         args,
       },
       getTimeoutForMethod(method)
-    );
+    ).finally(() => {
+      this.inFlightQueries.delete(key);
+    });
+    this.inFlightQueries.set(key, promise);
+    return promise;
   }
 
   subscribe(
