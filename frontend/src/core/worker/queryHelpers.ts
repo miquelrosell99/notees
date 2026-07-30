@@ -25,13 +25,16 @@ import type {
 import type { NodeView } from '@/types/nodeView';
 import type { QueryAST } from '@/types/queryAST';
 import { queryAll, queryOne } from '../db/sqlite';
-import { projectNode } from '../adapters/nodeProjection';
+import { projectNode, projectNodes } from '../adapters/nodeProjection';
+import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, TASK_CLOSED_STATUSES } from '@/constants/systemProperties';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { substituteRuntimeParams } from '../query/substituteRuntimeParams';
 import { compileToSqlite } from '../query/compileToSqlite';
 import { queryNodes } from '../query/queryNodes';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
+import { executeGraphQuery } from '../graphQueries/queryRegistry';
 import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { isDayUuid, isMonthUuid, isYearUuid, yearMonthToMonthUuid, yearToYearUuid } from '@/utils/dateUuid';
 
@@ -44,10 +47,22 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
+export function runGraphQuery(store: WorkspaceStore, name: string, input: unknown): unknown {
+  return executeGraphQuery(store, name, input);
+}
+
 // ─── Node projection ────────────────────────────────────────────────────────
 
 export function getNodeByUuid(store: WorkspaceStore, nodeUuid: string): Node | null {
   return projectNode(store, nodeUuid) ?? null;
+}
+
+export function getProjectedNodes(
+  store: WorkspaceStore,
+  nodeUuids: string[],
+  depth?: number
+): Node[] {
+  return projectNodes(store, nodeUuids, depth);
 }
 
 export function getNodeKindMap(store: WorkspaceStore): Map<string, 'page' | 'block' | 'class'> {
@@ -542,6 +557,36 @@ export function getCommentNodes(
 
 // ─── Breadcrumbs ────────────────────────────────────────────────────────────
 
+const MAX_RESOLVED_BREADCRUMB_NAME_LENGTH = 200;
+
+/**
+ * Resolve a node's content AST to plain text, expanding node links recursively.
+ *
+ * Links that cannot be resolved (deleted target, missing store entry) fall back
+ * to the AST label or a placeholder. Recursive/cyclic links are rendered as "…"
+ * by stringifyAST's built-in cycle detection.
+ */
+function resolveBreadcrumbNameText(store: WorkspaceStore, content: string | null | undefined): string {
+  if (!content) return '';
+  const ast = parseAST(content);
+  const text = stringifyAST(ast, {
+    mode: StringifyMode.TEXT_ONLY,
+    maxLength: MAX_RESOLVED_BREADCRUMB_NAME_LENGTH,
+    resolveNodeLink: (linkId) => {
+      const { nodeUuid } = parseLinkId(linkId);
+      if (!nodeUuid) return null;
+      const target = projectNode(store, nodeUuid);
+      if (!target) return null;
+      return {
+        targetAST: parseAST(target.content),
+        label: null,
+        targetId: nodeUuid,
+      };
+    },
+  });
+  return text.trim();
+}
+
 export function buildBreadcrumbs(store: WorkspaceStore, nodeUuid: string): BreadcrumbItemResponse[] {
   const breadcrumbs: BreadcrumbItemResponse[] = [];
   const visited = new Set<string>();
@@ -561,7 +606,7 @@ export function buildBreadcrumbs(store: WorkspaceStore, nodeUuid: string): Bread
     breadcrumbs.push({
       uuid: parent.uuid,
       name: parent.name,
-      display_name: parent.display_name ?? parent.name,
+      display_name: resolveBreadcrumbNameText(store, parent.content) || parent.display_name || parent.name,
       icon: parent.icon ?? null,
       is_page: parent.is_page,
       parent_locked: parent.parent_locked ?? false,
