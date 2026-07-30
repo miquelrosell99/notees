@@ -267,6 +267,33 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
 }
 
 /**
+ * Batch project multiple node ids from a raw Database.
+ * Children are projected recursively up to the given depth, so callers that
+ * only need a flat list of summaries should pass depth = 0.
+ */
+export function projectNodesFromDb(
+  db: Database,
+  workspaceId: string,
+  nodeIds: string[],
+  depth = MAX_CHILDREN_DEPTH
+): Node[] {
+  return nodeIds
+    .map((nodeId) => projectNodeFromDb(db, workspaceId, nodeId, depth))
+    .filter((n): n is Node => n !== undefined);
+}
+
+/**
+ * Batch project multiple node ids from a WorkspaceStore.
+ */
+export function projectNodes(
+  store: WorkspaceStore,
+  nodeIds: string[],
+  depth = MAX_CHILDREN_DEPTH
+): Node[] {
+  return projectNodesFromDb(store.getDb(), store.getWorkspaceId(), nodeIds, depth);
+}
+
+/**
  * Async projection helper for the worker-backed store client.
  * Projection runs inside the worker; the client only receives the serialisable
  * Node result.
@@ -277,4 +304,16 @@ export async function projectNodeFromClient(
   depth = MAX_CHILDREN_DEPTH
 ): Promise<Node | undefined> {
   return client.query<Node | undefined>('projectNode', [nodeId, depth]);
+}
+
+/**
+ * Batch async projection helper for the worker-backed store client.
+ * All ids are projected in a single worker round-trip.
+ */
+export async function projectNodesFromClient(
+  client: IWorkspaceStoreClient,
+  nodeIds: string[],
+  depth = MAX_CHILDREN_DEPTH
+): Promise<Node[]> {
+  return client.query<Node[]>('projectNodes', [nodeIds, depth]);
 }
