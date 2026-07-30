@@ -8,7 +8,13 @@
 import { create } from 'zustand';
 import type { Node } from '@/types/api';
 
-export type ConflictType = 'text_edit' | 'tree_conflict' | 'node_deleted' | 'permission_denied';
+export type ConflictType =
+  | 'text_edit'
+  | 'tree_conflict'
+  | 'node_deleted'
+  | 'permission_denied'
+  | 'class_conflict'
+  | 'property_conflict';
 
 export interface SyncConflict {
   workspaceUuid: string;

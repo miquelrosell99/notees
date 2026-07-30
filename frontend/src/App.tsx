@@ -52,7 +52,11 @@ import {
 } from '@/core/adapters/workspaceStoreAdapter';
 import { Button } from '@/components/ui/Button';
 import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
-import { useSyncStatusStore, DEFAULT_PROGRESS } from '@/features/sync/stores/syncStatusStore';
+import {
+  useSyncStatusStore,
+  DEFAULT_PROGRESS,
+  SyncConflictListener,
+} from '@/features/sync';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { SyncProgressModal } from '@/components/ui/SyncProgressModal';
 import './App.css';
@@ -562,6 +566,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       {ctx ? (
         <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>
           {children}
+          {workspaceId && <SyncConflictListener workspaceId={workspaceId} />}
         </WorkspaceStoreProvider>
       ) : (
         children
