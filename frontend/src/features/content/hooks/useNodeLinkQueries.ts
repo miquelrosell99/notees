@@ -6,10 +6,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
-import { buildLinkedReferencesFromClient } from '@/core/query/linkedReferences';
+import { useGraphQuery } from '@/core/graphQueries/hooks/useGraphQuery';
+import { GetLinkedReferencesQuery, HydrateLinkedReferencesQuery } from '@/core/graphQueries/queries';
 import { buildBacklinksFromClient } from '@/core/query/backlinks';
 import { buildPropertyBacklinksFromClient } from '@/core/query/propertyBacklinks';
-import type { Backlink, LinkedReference, Mention, PropertyBacklink } from '@/types/api';
+import type { Backlink, Mention, PropertyBacklink } from '@/types/api';
 
 export function useBacklinks(nodeUuid: string | null) {
   const workspaceUuid = useCurrentWorkspaceUuid();
@@ -34,31 +35,41 @@ export function useBacklinks(nodeUuid: string | null) {
 }
 
 /**
- * Hook to fetch linked references with context
+ * Hook to fetch linked references with context.
+ *
+ * Uses a two-stage graph-query pipeline: first fetch lightweight source IDs,
+ * then hydrate only the visible IDs into full LinkedReference objects.
  */
 
 export function useLinkedReferences(
   nodeUuid: string | null,
-  params?: { limit?: number; offset?: number }
+  params?: { limit?: number; offset?: number },
+  options?: { enabled?: boolean }
 ) {
-  const workspaceUuid = useCurrentWorkspaceUuid();
-  const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
+  const queryEnabled = options?.enabled ?? true;
 
-  const result = useQuery<{ linked_references: LinkedReference[]; total_count: number }>({
-    queryKey: nodeKeys.linkedRefs(nodeUuid ?? '', params),
-    queryFn: async () => {
-      if (!client) throw new Error('Workspace store is not ready');
-      if (!nodeUuid) throw new Error('Node UUID not found');
-      return buildLinkedReferencesFromClient(client, nodeUuid, params);
-    },
-    enabled: !!client && !!nodeUuid,
-    placeholderData: (previousData) => previousData,
-  });
+  const idsQuery = useGraphQuery(
+    GetLinkedReferencesQuery,
+    { nodeUuid: nodeUuid ?? '', limit: params?.limit, offset: params?.offset },
+    { enabled: !!nodeUuid && queryEnabled }
+  );
+
+  const hydrated = useGraphQuery(
+    HydrateLinkedReferencesQuery,
+    { nodeUuid: nodeUuid ?? '', sourceIds: idsQuery.data?.ids ?? [] },
+    { enabled: !!nodeUuid && queryEnabled && (idsQuery.data?.ids.length ?? 0) > 0 }
+  );
 
   return {
-    ...result,
-    isLoading: result.isLoading || isLoading,
-    error: result.error ?? error,
+    data: idsQuery.data
+      ? {
+          linked_references: hydrated.data ?? [],
+          total_count: idsQuery.data.totalCount,
+        }
+      : undefined,
+    isLoading: idsQuery.isLoading || hydrated.isLoading,
+    isFetching: idsQuery.isLoading,
+    error: idsQuery.error ?? hydrated.error,
   };
 }
 
