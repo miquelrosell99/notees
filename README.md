@@ -143,41 +143,14 @@ notees/
 
 ## Architecture
 
-Notees is a **local-first** application:
+Notees is a **local-first**, self-hosted note-taking application:
 
 1. **Client edits** append operations to a local SQLite database.
-2. **Operations** are end-to-end encrypted and relayed through `app/relay/`.
+2. **Operations** are relayed through `app/relay/` and can be end-to-end encrypted.
 3. **Other clients** pull operations and rebuild their derived SQLite state.
-4. **PostgreSQL** persists users, workspace membership, share metadata, and the encrypted operation log.
+4. **PostgreSQL** persists users, workspace membership, share metadata, and the operation log.
 
-The backend still follows hexagonal principles where useful, but the data authority has moved from server-side PostgreSQL rows to the client-side operation log.
-
-### Source of Truth
-
-- **Immutable operation log** (`app/core/operation.py`, `frontend/src/core/types/operation.ts`) is the source of truth.
-- **Client-side SQLite** is a derived view rebuilt by applying operations.
-- **HLC (Hybrid Logical Clock)** ordering and CRDTs handle concurrent edits and offline reconnect.
-
-### The Node Model
-
-The core concept is the **Node** — everything (pages, blocks, tags, properties, journals, tasks) is a row in a single `node` table, differentiated by `kind` and system class assignments. Hierarchy is an adjacency list (`parent_id`). Built-in classes include:
-
-| Class | Description |
-|-------|-------------|
-| `page` | A document/note that can contain blocks |
-| `class` | A type that categorizes other nodes |
-| `day` / `month` / `year` | Journal pages |
-| `task` | Todo item (page or block) with status, priority, and dates |
-| `comment` | A comment attached to a node |
-| `template` | A reusable page/block template |
-| `asset` | An uploaded file or image |
-| `quote` | A quotation block |
-| `query` | A saved query block rendering a live collection |
-| `code` | A syntax-highlighted code block |
-| `whiteboard` | An infinite-canvas drawing |
-| `card` / `cloze` | Flashcards for spaced repetition |
-
-Users can define their own classes and properties on top of these.
+For the full technical architecture — data model, query layer, rendering pipeline, sync protocol, and key source files — see [docs/architecture.md](docs/architecture.md).
 
 ## API
 
