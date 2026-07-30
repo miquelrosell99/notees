@@ -1,4 +1,5 @@
 import { type Database } from 'sql.js';
+import { rebuildNodeStats } from '../derived/nodeStats';
 
 export function createSchema(db: Database): void {
   db.exec(`
@@ -92,6 +93,12 @@ export function createSchema(db: Database): void {
       metadata TEXT,
       created_at TEXT
     );
+
+    CREATE INDEX IF NOT EXISTS idx_edge_source_type
+    ON edge (source_id, type);
+
+    CREATE INDEX IF NOT EXISTS idx_edge_target_type
+    ON edge (target_id, type);
 
     CREATE TABLE IF NOT EXISTS crdt_state (
       node_id TEXT PRIMARY KEY,
@@ -196,6 +203,28 @@ export function createSchema(db: Database): void {
       workspace_id TEXT PRIMARY KEY,
       hlc_physical INTEGER NOT NULL,
       hlc_logical INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sync_outbox (
+      operation_id TEXT PRIMARY KEY,
+      state TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      next_retry_at INTEGER,
+      last_error TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sync_outbox_state
+    ON sync_outbox (state);
+
+    CREATE TABLE IF NOT EXISTS node_stats (
+      node_id TEXT PRIMARY KEY,
+      child_count INTEGER NOT NULL DEFAULT 0,
+      backlink_count INTEGER NOT NULL DEFAULT 0,
+      reference_count INTEGER NOT NULL DEFAULT 0,
+      descendant_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS node_asset (
@@ -503,6 +532,38 @@ function migrateSchema(db: Database): void {
       );
     `);
     db.exec('PRAGMA user_version = 7');
+  }
+
+  if (version < 8) {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_edge_source_type ON edge (source_id, type);
+      CREATE INDEX IF NOT EXISTS idx_edge_target_type ON edge (target_id, type);
+    `);
+    db.exec('PRAGMA user_version = 8');
+  }
+
+  if (version < 9) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS node_stats (
+        node_id TEXT PRIMARY KEY,
+        child_count INTEGER NOT NULL DEFAULT 0,
+        backlink_count INTEGER NOT NULL DEFAULT 0,
+        reference_count INTEGER NOT NULL DEFAULT 0,
+        descendant_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT
+      );
+    `);
+    rebuildNodeStats(db);
+    db.exec('PRAGMA user_version = 9');
+  }
+
+  if (version < 10) {
+    try {
+      db.exec(`ALTER TABLE sync_outbox ADD COLUMN next_retry_at INTEGER`);
+    } catch {
+      // Column may already exist; ignore.
+    }
+    db.exec('PRAGMA user_version = 10');
   }
 }
 

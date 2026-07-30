@@ -1,17 +1,18 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
+import type { ChangeNotification } from './index';
 
-export function applyLinkOperation(db: Database, op: Operation): void {
+export function applyLinkOperation(db: Database, op: Operation): ChangeNotification[] {
   const { opType } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
 
   if (opType === 'node.delete') {
     const nodeId = payload.nodeId as string;
     db.run('DELETE FROM link_click WHERE node_id = ? OR target_id = ?', [nodeId, nodeId]);
-    return;
+    return [{ scope: 'all', nodeId }];
   }
 
-  if (opType !== 'link.click') return;
+  if (opType !== 'link.click') return [];
 
   const nodeId = payload.nodeId as string;
   const targetId = (payload.targetId as string | undefined) ?? '';
@@ -24,4 +25,6 @@ export function applyLinkOperation(db: Database, op: Operation): void {
        last_clicked_at = excluded.last_clicked_at`,
     [nodeId, targetId, new Date().toISOString()]
   );
+
+  return [{ scope: 'node', nodeId, relatedIds: targetId ? [targetId] : undefined }];
 }

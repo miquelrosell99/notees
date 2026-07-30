@@ -3,7 +3,8 @@ import { Clock, compareHlc, type Hlc } from './clock';
 import { type TextCrdt } from './crdt/text';
 import { createSchema } from './db/schema';
 import { queryAll, queryOne, transaction } from './db/sqlite';
-import { applyOperation } from './derived';
+import { applyOperation, type ChangeNotification } from './derived';
+import { rebuildNodeStats } from './derived/nodeStats';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { rewriteLinksToTarget } from './query/mergePages';
@@ -29,6 +30,7 @@ import {
 } from './types/operation';
 import type { OperationRow } from './sync';
 import { uuidv7 } from './uuid';
+import type { NotifyScope, NotifyChangeMessage } from './worker/workerProtocol';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { createDatabase } from './db/connection';
 
@@ -49,6 +51,8 @@ export interface NodeRow {
 export interface WorkspaceStoreOptions {
   /** Called with the exported database bytes after local mutations. */
   onPersist?: (data: Uint8Array) => void | Promise<void>;
+  /** Called with a change notification after each applied operation batch. */
+  onNotify?: (notification: NotifyChangeMessage) => void;
   /** Interval in ms to debounce persistence; defaults to 500. */
   persistDebounceMs?: number;
 }
@@ -76,9 +80,10 @@ export class WorkspaceStore {
   private db: Database;
   private workspaceId: string;
   private actorId: string;
-  private listeners = new Map<string, Set<() => void>>();
-  private allListeners = new Set<() => void>();
+  private listeners = new Map<string, Set<(notification?: NotifyChangeMessage) => void>>();
+  private allListeners = new Set<(notification?: NotifyChangeMessage) => void>();
   private onPersist?: (data: Uint8Array) => void | Promise<void>;
+  private onNotify?: (notification: NotifyChangeMessage) => void;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
   private persistDebounceMs: number;
   private batchDepth = 0;
@@ -94,6 +99,7 @@ export class WorkspaceStore {
     this.workspaceId = workspaceId;
     this.actorId = actorId;
     this.onPersist = options.onPersist;
+    this.onNotify = options.onNotify;
     this.persistDebounceMs = options.persistDebounceMs ?? 500;
     createSchema(db);
 
@@ -283,15 +289,43 @@ export class WorkspaceStore {
     this.applyMany([op]);
   }
 
+  /** Deduplicate and emit a batch of change notifications to subscribers. */
+  private emitNotifications(notifications: ChangeNotification[]): void {
+    if (notifications.length === 0) return;
+
+    // Deduplicate by (scope, nodeId) while preserving order. relatedIds are
+    // merged so listeners see the union of affected ids.
+    const seen = new Map<string, ChangeNotification>();
+    for (const n of notifications) {
+      const key = `${n.scope}:${n.nodeId ?? ''}`;
+      const existing = seen.get(key);
+      if (existing) {
+        if (n.relatedIds) {
+          const merged = new Set([...(existing.relatedIds ?? []), ...n.relatedIds]);
+          existing.relatedIds = Array.from(merged);
+        }
+      } else {
+        seen.set(key, { ...n });
+      }
+    }
+
+    for (const n of seen.values()) {
+      this.notify(n.nodeId ?? '', n.scope, n.relatedIds);
+    }
+  }
+
   /**
    * Apply multiple operations in a single SQLite transaction.
    *
    * This is dramatically faster than calling ``apply()`` in a loop because it
    * avoids one transaction per operation, batches edge rebuilds, batches
    * listener notifications, and persists to IndexedDB only once at the end.
+   *
+   * Returns the count of newly applied operations plus the change notifications
+   * produced so callers (e.g. the Web Worker) can forward them across threads.
    */
-  applyMany(ops: Operation[]): number {
-    if (ops.length === 0) return 0;
+  applyMany(ops: Operation[]): { appliedCount: number; notifications: ChangeNotification[] } {
+    if (ops.length === 0) return { appliedCount: 0, notifications: [] };
 
     const db = this.db;
     const ids = ops.map((op) => op.envelope.id);
@@ -311,6 +345,7 @@ export class WorkspaceStore {
       }
     }
 
+    const notifications: ChangeNotification[] = [];
     const affectedNodeIds = new Set<string>();
     const edgeRebuildNodeIds = new Set<string>();
     let appliedCount = 0;
@@ -354,7 +389,7 @@ export class WorkspaceStore {
           );
         }
 
-        applyOperation(db, op);
+        notifications.push(...applyOperation(db, op));
 
         if (maxAppliedHlc === null || compareHlc(op.envelope.hlc, maxAppliedHlc) > 0) {
           maxAppliedHlc = op.envelope.hlc;
@@ -373,8 +408,16 @@ export class WorkspaceStore {
       }
 
       for (const nodeId of edgeRebuildNodeIds) {
-        rebuildEdgesForNode(db, nodeId);
+        const affectedIds = rebuildEdgesForNode(db, nodeId);
+        if (affectedIds.length > 0) {
+          notifications.push({ scope: 'edge', nodeId, relatedIds: affectedIds.filter((id) => id !== nodeId) });
+          for (const id of affectedIds) {
+            affectedNodeIds.add(id);
+          }
+        }
       }
+
+      rebuildNodeStats(db, Array.from(affectedNodeIds));
     });
 
     if (maxAppliedHlc !== null) {
@@ -382,15 +425,13 @@ export class WorkspaceStore {
     }
 
     if (appliedCount > 0) {
-      for (const nodeId of affectedNodeIds) {
-        this.notify(nodeId);
-      }
+      this.emitNotifications(notifications);
       if (this.batchDepth === 0) {
         this.schedulePersist();
       }
     }
 
-    return appliedCount;
+    return { appliedCount, notifications };
   }
 
   getPendingPushOperations(afterHlc: Hlc, limit: number, now: number): OperationRow[] {
@@ -522,15 +563,18 @@ export class WorkspaceStore {
     return ops;
   }
 
-  subscribe(nodeId: string, callback: () => void): () => void {
+  subscribe(
+    nodeId: string,
+    callback: ((notification?: NotifyChangeMessage) => void) | (() => void)
+  ): () => void {
     let set = this.listeners.get(nodeId);
     if (!set) {
       set = new Set();
       this.listeners.set(nodeId, set);
     }
-    set.add(callback);
+    set.add(callback as (notification?: NotifyChangeMessage) => void);
     return () => {
-      set?.delete(callback);
+      set?.delete(callback as (notification?: NotifyChangeMessage) => void);
       if (set?.size === 0) {
         this.listeners.delete(nodeId);
       }
@@ -541,23 +585,28 @@ export class WorkspaceStore {
    * Subscribe to every store change. Used by collection hooks (classes, node
    * lists, search) that cannot enumerate the individual node ids they depend on.
    */
-  subscribeAll(callback: () => void): () => void {
-    this.allListeners.add(callback);
+  subscribeAll(
+    callback: ((notification?: NotifyChangeMessage) => void) | (() => void)
+  ): () => void {
+    this.allListeners.add(callback as (notification?: NotifyChangeMessage) => void);
     return () => {
-      this.allListeners.delete(callback);
+      this.allListeners.delete(callback as (notification?: NotifyChangeMessage) => void);
     };
   }
 
-  private notify(nodeId: string): void {
+  private notify(nodeId: string, scope: NotifyScope = 'node', relatedIds?: string[]): void {
     if (this.batchDepth > 0) {
       this.batchDirty = true;
       return;
     }
+    const message: NotifyChangeMessage = { type: 'notify', nodeId, scope, relatedIds };
+    this.onNotify?.(message);
+
     const set = this.listeners.get(nodeId);
     if (set) {
       for (const callback of set) {
         try {
-          callback();
+          callback(message);
         } catch (err) {
           // Listener errors should not break store operations.
           console.error('WorkspaceStore listener error:', err);
@@ -566,7 +615,7 @@ export class WorkspaceStore {
     }
     for (const callback of this.allListeners) {
       try {
-        callback();
+        callback(message);
       } catch (err) {
         console.error('WorkspaceStore listener error:', err);
       }
@@ -578,9 +627,11 @@ export class WorkspaceStore {
       this.batchDirty = true;
       return;
     }
+    const message: NotifyChangeMessage = { type: 'notify', scope: 'all' };
+    this.onNotify?.(message);
     for (const callback of this.allListeners) {
       try {
-        callback();
+        callback(message);
       } catch (err) {
         console.error('WorkspaceStore listener error:', err);
       }

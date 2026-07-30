@@ -1,7 +1,8 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
+import type { ChangeNotification } from './index';
 
-export function applyTaskOperation(db: Database, op: Operation): void {
+export function applyTaskOperation(db: Database, op: Operation): ChangeNotification[] {
   const { opType, id, actorId } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
   const nodeId = payload.nodeId as string;
@@ -9,7 +10,7 @@ export function applyTaskOperation(db: Database, op: Operation): void {
   if (opType === 'node.delete') {
     db.run('DELETE FROM task_completion WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM task_recurrence WHERE node_id = ?', [nodeId]);
-    return;
+    return [{ scope: 'all', nodeId }];
   }
 
   if (opType === 'task.recordCompletion') {
@@ -25,22 +26,34 @@ export function applyTaskOperation(db: Database, op: Operation): void {
         new Date().toISOString(),
       ]
     );
-  } else if (opType === 'task.deleteCompletion') {
+    return [{ scope: 'node', nodeId }];
+  }
+
+  if (opType === 'task.deleteCompletion') {
     db.run('DELETE FROM task_completion WHERE node_id = ? AND id = ?', [
       nodeId,
       payload.completionId as string,
     ]);
-  } else if (opType === 'task.setRecurrence') {
+    return [{ scope: 'node', nodeId }];
+  }
+
+  if (opType === 'task.setRecurrence') {
     const recurrenceId = (payload.recurrenceId as string | undefined) ?? id;
     db.run(
       `INSERT OR REPLACE INTO task_recurrence (id, node_id, rule, actor_id, created_at)
        VALUES (?, ?, ?, ?, ?)`,
       [recurrenceId, nodeId, payload.rule as string, actorId, new Date().toISOString()]
     );
-  } else if (opType === 'task.deleteRecurrence') {
+    return [{ scope: 'node', nodeId }];
+  }
+
+  if (opType === 'task.deleteRecurrence') {
     db.run('DELETE FROM task_recurrence WHERE node_id = ? AND id = ?', [
       nodeId,
       payload.recurrenceId as string,
     ]);
+    return [{ scope: 'node', nodeId }];
   }
+
+  return [];
 }

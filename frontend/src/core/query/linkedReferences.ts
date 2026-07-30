@@ -5,69 +5,13 @@
  * `frontend/src/features/sync/local/buildOfflineLinkedReferences.ts`.
  */
 
-import type { LinkedReference, LinkedReferencesResponse, BreadcrumbSegment, Node as ApiNode } from '@/types/api';
+import type { LinkedReferencesResponse } from '@/types/api';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import type { WorkspaceStore } from '../store';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
+import { buildSyntheticRef } from '../projections/LinkedReferenceProjection';
 import { queryNodes } from './queryNodes';
-import { projectNode } from '../adapters/nodeProjection';
-
-function findSourcePage(store: WorkspaceStore, sourceNodeId: string): ApiNode | undefined {
-  const sourceNode = projectNode(store, sourceNodeId);
-  if (!sourceNode) return undefined;
-  if (sourceNode.is_page) return sourceNode;
-
-  const visited = new Set<string>();
-  let currentId: string | null | undefined = sourceNode.parent_uuid;
-  while (currentId && !visited.has(currentId)) {
-    visited.add(currentId);
-    const parent = projectNode(store, currentId);
-    if (!parent) break;
-    if (parent.is_page) return parent;
-    currentId = parent.parent_uuid;
-  }
-  return undefined;
-}
-
-function buildBreadcrumbPath(store: WorkspaceStore, sourceNodeId: string): BreadcrumbSegment[] {
-  const path: BreadcrumbSegment[] = [];
-  const visited = new Set<string>();
-  let currentId: string | null | undefined = sourceNodeId;
-
-  while (currentId && !visited.has(currentId)) {
-    visited.add(currentId);
-    const node = projectNode(store, currentId);
-    if (!node) break;
-    const parentId = node.parent_uuid;
-    if (!parentId) break;
-    const parent = projectNode(store, parentId);
-    if (!parent) break;
-    path.unshift({
-      node_uuid: parent.uuid,
-      name: nodeNameToText(parent.name) || parent.uuid,
-      is_property: false,
-    });
-    currentId = parentId;
-  }
-
-  return path;
-}
-
-function buildSyntheticRef(store: WorkspaceStore, sourceNodeId: string): LinkedReference {
-  const sourceNode = projectNode(store, sourceNodeId)!;
-  const sourcePage = findSourcePage(store, sourceNodeId);
-  const breadcrumbPath = buildBreadcrumbPath(store, sourceNodeId);
-
-  return {
-    source_node: sourceNode as ApiNode,
-    source_page: (sourcePage as ApiNode | undefined) ?? null,
-    link_type: 'text',
-    context: nodeNameToText(sourceNode.name) || '',
-    breadcrumb_path: breadcrumbPath,
-  };
-}
 
 /**
  * Evaluate linked references locally and return the same shape as the server endpoint.
@@ -75,7 +19,7 @@ function buildSyntheticRef(store: WorkspaceStore, sourceNodeId: string): LinkedR
 export function buildLinkedReferences(
   store: WorkspaceStore,
   nodeUuid: string,
-  params?: { limit?: number; offset?: number },
+  params?: { limit?: number; offset?: number }
 ): LinkedReferencesResponse {
   const baseAst = createEmptyQueryAST();
   const ast = autoFixSystemQuery(baseAst, 'linked_references', { nodeUuid });
@@ -85,7 +29,9 @@ export function buildLinkedReferences(
     projectionDepth: 0,
   });
 
-  const refs = matches.map((sourceNode) => buildSyntheticRef(store, sourceNode.uuid));
+  const refs = matches
+    .map((sourceNode) => buildSyntheticRef(store, sourceNode.uuid))
+    .filter((ref): ref is NonNullable<typeof ref> => ref !== undefined);
 
   const offset = params?.offset ?? 0;
   const limit = params?.limit ?? refs.length;

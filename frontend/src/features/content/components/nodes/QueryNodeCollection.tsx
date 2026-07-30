@@ -26,7 +26,7 @@ import {
   batchEnsureDefaults,
 } from '@/features/content/hooks/useNodeViews';
 import { useCreateNode, usePageClass, useAddClass } from '@/features/content/hooks/useNodes';
-import { useClasses, useLinkedReferences } from '@/features/content/hooks/useNodeQueries';
+import { useClasses, useLinkedReferences, useLinkedReferencesCount } from '@/features/content/hooks/useNodeQueries';
 import { nodeNameToText } from '@/features/queries';
 
 import { useContentSave } from '@/features/editor';
@@ -465,6 +465,15 @@ export function QueryNodeCollection({
   // Pagination for linked references
   const LINKED_REFS_PAGE_SIZE = 50;
   const [linkedRefsOffset, setLinkedRefsOffset] = useState(0);
+  const isLinkedRefs = viewType === 'linked_references';
+  // Lazy-load the full linked-references data only when the section is expanded.
+  // The cheap count query (below) runs always so the header badge renders.
+  const linkedRefsExpanded = !hideContent;
+
+  const {
+    count: linkedRefsCount,
+    isLoading: linkedRefsCountLoading,
+  } = useLinkedReferencesCount(isLinkedRefs ? nodeUuid : null);
 
   // For linked_references, use dedicated API to get full metadata
   const {
@@ -472,8 +481,9 @@ export function QueryNodeCollection({
     isLoading: linkedReferencesLoading,
     isFetching: linkedRefsFetching,
   } = useLinkedReferences(
-    viewType === 'linked_references' ? nodeUuid : null,
-    { limit: LINKED_REFS_PAGE_SIZE, offset: linkedRefsOffset }
+    isLinkedRefs ? nodeUuid : null,
+    { limit: LINKED_REFS_PAGE_SIZE, offset: linkedRefsOffset },
+    { enabled: isLinkedRefs && linkedRefsExpanded }
   );
 
   // Get collapse level setting for linked references
@@ -643,8 +653,8 @@ export function QueryNodeCollection({
     const nodes = (activeAST && isEmptyQuery(activeAST)) ? [] : rawResults;
     return dedupeNodesByUuid(nodes, `QueryNodeCollection:${viewType}`);
   }, [activeAST, rawResults, viewType]);
-  const isQueryLoading = viewType === 'linked_references' 
-    ? linkedReferencesLoading 
+  const isQueryLoading = isLinkedRefs
+    ? linkedReferencesLoading || linkedRefsCountLoading
     : isInlineMode ? inlineQueryLoading
     : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 
@@ -965,7 +975,10 @@ export function QueryNodeCollection({
     }
   }, [viewType, nodeUuid, pageClassUuid, createNodeMutation, onNodeClick, onBlockCreated]);
 
-  const resultCount = resultNodes.length;
+  // For linked references the total count (edge backlinks + property backlinks)
+  // must be available even when the section is collapsed and the full hydration
+  // query is disabled. Other view types use the in-memory result set size.
+  const resultCount = isLinkedRefs ? linkedRefsCount : resultNodes.length;
 
   // Notify parent when result count changes
   useEffect(() => {

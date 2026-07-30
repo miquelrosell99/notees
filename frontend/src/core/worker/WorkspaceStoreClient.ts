@@ -34,6 +34,7 @@ import {
   type IWorkspaceStoreClient,
   type WorkerRequest,
   type WorkerMessage,
+  type NotifyChangeMessage,
   generateRequestId,
 } from './workerProtocol';
 import {
@@ -53,6 +54,7 @@ import {
   getClassExtends,
   getClassExtendsAncestors,
   getNodeByUuid,
+  getProjectedNodes,
   getNodeKindMap,
   getChildrenBatch,
   getNodeView,
@@ -65,6 +67,7 @@ import {
   getTrashedNodes,
   readViewAst,
   repairDatePageHierarchy,
+  runGraphQuery,
   validateClassExtends,
 } from './queryHelpers';
 
@@ -111,7 +114,7 @@ function isWorkerSupported(): boolean {
 export class WorkerStoreClient implements IWorkspaceStoreClient {
   private worker: Worker;
   private pending = new Map<number, PendingRequest>();
-  private listeners = new Map<string | null, Set<() => void>>();
+  private listeners = new Map<string | null, Set<(notification?: NotifyChangeMessage) => void>>();
   private closed = false;
 
   constructor(worker: Worker) {
@@ -149,7 +152,7 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
 
   private handleMessage(msg: WorkerMessage): void {
     if (msg.type === 'notify') {
-      this.emit(msg.nodeId ?? null);
+      this.emit(msg.nodeId ?? null, msg);
       return;
     }
 
@@ -255,27 +258,30 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     );
   }
 
-  subscribe(nodeId: string | null, callback: () => void): () => void {
+  subscribe(
+    nodeId: string | null,
+    callback: ((notification?: NotifyChangeMessage) => void) | (() => void)
+  ): () => void {
     let set = this.listeners.get(nodeId);
     if (!set) {
       set = new Set();
       this.listeners.set(nodeId, set);
     }
-    set.add(callback);
+    set.add(callback as (notification?: NotifyChangeMessage) => void);
     return () => {
-      set?.delete(callback);
+      set?.delete(callback as (notification?: NotifyChangeMessage) => void);
       if (set?.size === 0) {
         this.listeners.delete(nodeId);
       }
     };
   }
 
-  private emit(nodeId: string | null): void {
+  private emit(nodeId: string | null, notification?: NotifyChangeMessage): void {
     const specific = this.listeners.get(nodeId);
     if (specific) {
       for (const callback of specific) {
         try {
-          callback();
+          callback(notification);
         } catch (err) {
           console.error('Workspace store listener error:', err);
         }
@@ -285,7 +291,7 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     if (all) {
       for (const callback of all) {
         try {
-          callback();
+          callback(notification);
         } catch (err) {
           console.error('Workspace store listener error:', err);
         }
@@ -346,8 +352,8 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     // Sync-engine helpers.
     if (method === 'applyMany') {
       const [ops] = args as [Operation[]];
-      const count = this.store.applyMany(ops);
-      return Promise.resolve(count as T);
+      const result = this.store.applyMany(ops);
+      return Promise.resolve(result.appliedCount as T);
     }
     if (method === 'startBatch') {
       this.store.startBatch();
@@ -523,6 +529,11 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       return Promise.resolve(result as T);
     }
 
+    if (method === 'executeGraphQuery') {
+      const [name, input] = args as [string, unknown];
+      return Promise.resolve(runGraphQuery(this.store, name, input) as T);
+    }
+
     // Special-case query helpers that are not methods on WorkspaceStore.
     if (method === 'listNodes') {
       return Promise.resolve(listNodes(this.store, args[0] as Parameters<typeof listNodes>[1]) as T);
@@ -538,6 +549,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'projectNode') {
       const [nodeId, depth] = args as [string, number | undefined];
       return Promise.resolve(projectNode(this.store, nodeId, depth) as T);
+    }
+    if (method === 'projectNodes') {
+      const [nodeIds, depth] = args as [string[], number | undefined];
+      return Promise.resolve(getProjectedNodes(this.store, nodeIds, depth) as T);
     }
     if (method === 'getNodeProperties') {
       const [nodeId] = args as [string];
@@ -726,16 +741,23 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     return Promise.resolve(fn.apply(this.store, args) as T);
   }
 
-  subscribe(nodeId: string | null, callback: () => void): () => void {
+  subscribe(
+    nodeId: string | null,
+    callback: (notification?: NotifyChangeMessage) => void
+  ): () => void {
     if (!this.store) {
       return () => {
         // No-op if store was not initialized.
       };
     }
     if (nodeId === null) {
-      return this.store.subscribeAll(callback);
+      return this.store.subscribeAll((notification) =>
+        callback(notification ?? { type: 'notify', scope: 'all' })
+      );
     }
-    return this.store.subscribe(nodeId, callback);
+    return this.store.subscribe(nodeId, (notification) =>
+      callback(notification ?? { type: 'notify', nodeId })
+    );
   }
 
   private loadWatermarks(): { received: Hlc; pushed: Hlc; restoreEpoch: number } {

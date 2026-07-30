@@ -1,14 +1,15 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
+import type { ChangeNotification } from './index';
 
-export function applyAssetOperation(db: Database, op: Operation): void {
+export function applyAssetOperation(db: Database, op: Operation): ChangeNotification[] {
   const { opType } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
   const nodeId = payload.nodeId as string;
 
   if (opType === 'node.delete') {
     db.run('DELETE FROM node_asset WHERE node_id = ?', [nodeId]);
-    return;
+    return [{ scope: 'all', nodeId }];
   }
 
   if (opType === 'asset.upload') {
@@ -24,12 +25,18 @@ export function applyAssetOperation(db: Database, op: Operation): void {
         new Date().toISOString(),
       ]
     );
-  } else if (opType === 'asset.delete') {
+    return [{ scope: 'node', nodeId }];
+  }
+
+  if (opType === 'asset.delete') {
     const assetHash = payload.assetHash as string | undefined;
     if (assetHash) {
       db.run('DELETE FROM node_asset WHERE node_id = ? AND asset_hash = ?', [nodeId, assetHash]);
     } else {
       db.run('DELETE FROM node_asset WHERE node_id = ?', [nodeId]);
     }
+    return [{ scope: 'node', nodeId }];
   }
+
+  return [];
 }
