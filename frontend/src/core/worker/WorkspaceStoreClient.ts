@@ -65,6 +65,7 @@ import {
   getTrashedNodes,
   readViewAst,
   repairDatePageHierarchy,
+  runGraphQuery,
   validateClassExtends,
 } from './queryHelpers';
 
@@ -521,6 +522,11 @@ class InlineStoreClient implements IWorkspaceStoreClient {
         redo: stacks.redo.map((entry) => ({ label: entry.label, timestamp: entry.timestamp })),
       };
       return Promise.resolve(result as T);
+    }
+
+    if (method === 'executeGraphQuery') {
+      const [name, input] = args as [string, unknown];
+      return Promise.resolve(runGraphQuery(this.store, name, input) as T);
     }
 
     // Special-case query helpers that are not methods on WorkspaceStore.
