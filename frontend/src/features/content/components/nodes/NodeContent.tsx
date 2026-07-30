@@ -18,6 +18,8 @@ import { useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNo
 import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 import { nodeNameToText } from '@/features/queries';
+import { parseAST, paragraph, nodeLink } from '@/lib/astBuilder';
+import { generateUUID } from '@/utils/uuid';
 
 import type { Node } from '@/types/api';
 // GraphNode type no longer needed here — projection moved to useBlockTree
@@ -420,17 +422,18 @@ export function NodeContent({
 
   // Handle successful asset upload
   // Strategy:
-  // - If block was NOT converted to asset: insert [[assetNodeId]] link at end
+  // - If block was NOT converted to asset: insert a formal node_link to the asset at the end
   // - If block WAS converted to asset: restore original text content (backend
   //   overwrites name with filename when existing_node_id is passed)
   const handleAssetUploaded = useCallback(async (asset: Asset) => {
     if (targetBlockId && !convertToAsset) {
       const block = children.find(c => c.uuid === targetBlockId);
       if (block) {
-        // Insert asset link
-        const assetLink = `[[${asset.node_id}]]`;
-        const newContent = block.name ? `${block.name}\n${assetLink}` : assetLink;
-        saveImmediate(targetBlockId, newContent);
+        // Insert a formal node_link AST node instead of raw [[uuid]] markdown.
+        const existingAst = parseAST(block.content ?? block.name ?? '');
+        const linkAst = paragraph(nodeLink(`${asset.node_id}:${generateUUID()}`, 'node'));
+        const newAst = existingAst.length > 0 ? [...existingAst, linkAst] : [linkAst];
+        saveImmediate(targetBlockId, JSON.stringify(newAst));
       }
     }
     // When converting to asset (slash command or manual class add), the

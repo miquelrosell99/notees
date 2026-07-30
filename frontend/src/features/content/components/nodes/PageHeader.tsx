@@ -395,8 +395,7 @@ export function PageHeader({
       const hasSelection = input.selectionStart !== input.selectionEnd;
       if (!hasSelection && page.name) {
         e.preventDefault();
-        const pageLink = `[[${page.uuid}]]`;
-        copyToClipboard(pageLink);
+        copyToClipboard(page.uuid);
       }
     }
     // Prevent Enter from creating newlines - treat as blur instead

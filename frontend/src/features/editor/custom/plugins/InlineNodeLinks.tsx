@@ -268,19 +268,19 @@ export function InlineNodeLinks({
 
           const refType = getLinkRefType(node);
           const displayLabel = await computeDisplayLabel(node, client);
-          const linkIdForParse = getLinkId(node);
-          const { nodeUuid } = linkIdForParse ? parseLinkId(linkIdForParse) : { nodeUuid: '' };
+          const linkId = getLinkId(node);
+          const { nodeUuid } = linkId ? parseLinkId(linkId) : { nodeUuid: '' };
 
           if (event.shiftKey && !event.altKey) {
             // Shift+Ctrl+C — copy label
             void copyToClipboard(displayLabel);
           } else if (event.altKey && !event.shiftKey) {
-            // Alt+Ctrl+C — copy markdown link
+            // Alt+Ctrl+C — copy target UUID
             const target = refType === 'url' && node.type === 'external_link' ? node.url : nodeUuid;
-            void copyToClipboard(`[${displayLabel}](${target})`);
+            void copyToClipboard(target);
           } else {
-            // Ctrl+C — copy link reference
-            const text = refType === 'url' && node.type === 'external_link' ? node.url : `[[${nodeUuid}]]`;
+            // Ctrl+C — copy formal link_id
+            const text = refType === 'url' && node.type === 'external_link' ? node.url : (linkId ?? nodeUuid);
             void copyToClipboard(text);
           }
           return;

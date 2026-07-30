@@ -3,7 +3,7 @@
  *
  * Displays page-name occurrences in other nodes' content that have not yet
  * been turned into explicit links. Each mention can be promoted (converted
- * into a [[link]]) or ignored (dismissed).
+ * into a formal node_link AST node) or ignored (dismissed).
  */
 import { useState, useCallback, useMemo } from 'react';
 import { useUnlinkedMentions, usePromoteMention, useIgnoreMention } from '@/features/content';

@@ -14,7 +14,7 @@
  */
 
 import type { Node } from '@/types';
-import { generateUUID } from '@/utils/uuid';
+
 
 // ==================== Runtime Graph Node Interface ====================
 // Minimal structural interface so this module doesn't import from runtime
@@ -747,26 +747,6 @@ export function flattenBlocks(blocks: ParsedBlock[]): ParsedBlock[] {
   }
   
   return result;
-}
-
-// ==================== Link UUID Generation ====================
-
-/**
- * Generate a new link UUID
- */
-export function generateLinkUuid(): string {
-  return generateUUID();
-}
-
-/**
- * Regenerate link UUIDs in content to create new link instances
- * Matches both [[nodeId]] and [[nodeUuid:oldUuid]] formats
- */
-export function regenerateLinkUuids(content: string): string {
-  return content.replace(/\[\[([^\]:\s]+)(?::[a-f0-9-]+)?\]\]/g, (_match, nodeId) => {
-    const newUuid = generateLinkUuid();
-    return `[[${nodeId}:${newUuid}]]`;
-  });
 }
 
 // ==================== Runtime-Based Copy ====================

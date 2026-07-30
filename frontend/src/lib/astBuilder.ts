@@ -122,13 +122,14 @@ export function buildLinkId(nodeUuid: string, linkUuid: string): string {
 }
 
 /**
- * Parse a compound link_id ("nodeUuid:linkUuid") into its parts.
+ * Parse a formal node_link link_id into its parts.
  *
- * Format: "nodeUuid:linkUuid"
- *   - nodeUuid: target node UUID (for display / damage control)
- *   - linkUuid: unique per-link-instance UUID
+ * Supported formats:
+ *   - "nodeUuid" — target node UUID only
+ *   - "nodeUuid:linkUuid" — target node UUID + per-link-instance UUID
  *
- * Legacy format "nodeUuid:linkUuid" (numeric first part) is also handled.
+ * Both parts are UUIDs. Legacy numeric IDs are repaired at workspace startup by
+ * repairLegacyLinkIds; runtime code does not handle them.
  */
 export function parseLinkId(linkId: string): ParsedLinkId {
   const colonIdx = linkId.indexOf(':');
@@ -241,6 +242,8 @@ function parseJSON(input: unknown): ASTDocument {
     if (!input) return [];
     try {
       const parsed = JSON.parse(input);
+      // A JSON string literal is not an AST document; treat it as plain text.
+      if (typeof parsed === 'string') return [paragraph(text(parsed))];
       if (!Array.isArray(parsed)) return [];
       return validateDocument(parsed);
     } catch {

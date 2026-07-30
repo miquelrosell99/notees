@@ -256,7 +256,7 @@ export function NodeLinkContextMenu({
           label: 'Copy link',
           icon: 'mdi-link-variant',
           onClick: () => {
-            void copyToClipboard(`[[${targetUuid}]]`);
+            void copyToClipboard(targetUuid);
             onClose();
           },
         });

@@ -2,7 +2,7 @@
  * InlineCopyPaste — Custom-editor port of InlineCopyPastePlugin.
  *
  * Handles the copy side for a single inline editor:
- *   - copy: [[blockUuid]] when no text is selected
+ *   - copy: the block UUID when no text is selected
  *
  * Paste handling lives in useInlineCopyPaste and is wired to the root's
  * onPaste prop by CustomInlineEditor.
@@ -18,7 +18,7 @@ interface InlineCopyPasteProps {
 }
 
 export function InlineCopyPaste({ rootRef, blockId }: InlineCopyPasteProps): JSX.Element | null {
-  // COPY_COMMAND equivalent: copy [[blockUuid]] when no text is selected.
+  // COPY_COMMAND equivalent: copy the block UUID when no text is selected.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -28,7 +28,7 @@ export function InlineCopyPaste({ rootRef, blockId }: InlineCopyPasteProps): JSX
       if (!selection || !selection.isCollapsed) return;
       if (!root.contains(selection.anchorNode)) return;
 
-      const linkText = `[[${blockId}]]`;
+      const linkText = blockId;
       if (event.clipboardData) {
         event.preventDefault();
         event.clipboardData.setData('text/plain', linkText);
