@@ -87,7 +87,7 @@ export function NodeInline({
       );
       e.dataTransfer.effectAllowed = 'link';
     }
-  }, [nodeUuid, nodeUuid, providedDisplayText, displayText]);
+  }, [nodeUuid, providedDisplayText, displayText]);
 
   const href = onClick && nodeUuid ? `/node/${nodeUuid}` : undefined;
   // Clickable items render as a real link when a target URL exists, otherwise

@@ -37,7 +37,7 @@ This phase creates the missing architectural layer. All later optimizations are 
 
 **Steps:**
 
-- [ ] **Step 1: Write the base contract**
+- [x] **Step 1: Write the base contract**
 
 ```ts
 // frontend/src/core/graphQueries/GraphQuery.ts
@@ -62,7 +62,7 @@ export interface GraphQuery<Input, Output> {
 }
 ```
 
-- [ ] **Step 2: Add shared input/output utility types**
+- [x] **Step 2: Add shared input/output utility types**
 
 ```ts
 // frontend/src/core/graphQueries/QueryInput.ts
@@ -77,7 +77,7 @@ export interface IdPageOutput {
 }
 ```
 
-- [ ] **Step 3: Smoke test**
+- [x] **Step 3: Smoke test**
 
 ```ts
 import { describe, it, expect, vi } from 'vitest';
@@ -98,14 +98,14 @@ describe('GraphQuery contract', () => {
 });
 ```
 
-- [ ] **Step 4: Run test**
+- [x] **Step 4: Run test**
 
 ```bash
 cd frontend
 npm run test:run -- src/core/graphQueries/__tests__/GraphQuery.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/core/graphQueries
@@ -129,7 +129,7 @@ git commit -m "feat(graph-queries): define GraphQuery base contract"
 
 **Steps:**
 
-- [ ] **Step 1: Implement the registry**
+- [x] **Step 1: Implement the registry**
 
 ```ts
 // frontend/src/core/graphQueries/queryRegistry.ts
@@ -153,7 +153,7 @@ export function getRegisteredQueryNames(): string[] {
 }
 ```
 
-- [ ] **Step 2: Wire dispatcher in worker query helpers**
+- [x] **Step 2: Wire dispatcher in worker query helpers**
 
 ```ts
 // frontend/src/core/worker/queryHelpers.ts
@@ -164,7 +164,7 @@ export function runGraphQuery(store: WorkspaceStore, name: string, input: unknow
 }
 ```
 
-- [ ] **Step 3: Add `executeGraphQuery` to inline client dispatch**
+- [x] **Step 3: Add `executeGraphQuery` to inline client dispatch**
 
 In `WorkspaceStoreClient.ts` `query()` method:
 
@@ -175,7 +175,7 @@ if (method === 'executeGraphQuery') {
 }
 ```
 
-- [ ] **Step 4: Add `executeGraphQuery` to real worker dispatch**
+- [x] **Step 4: Add `executeGraphQuery` to real worker dispatch**
 
 In `workspaceWorker.ts` `handleQuery`, add:
 
@@ -188,7 +188,7 @@ if (method === 'executeGraphQuery') {
 }
 ```
 
-- [ ] **Step 5: Test the dispatcher**
+- [x] **Step 5: Test the dispatcher**
 
 ```ts
 import { describe, it, expect } from 'vitest';
@@ -216,14 +216,14 @@ describe('queryRegistry', () => {
 });
 ```
 
-- [ ] **Step 6: Run test**
+- [x] **Step 6: Run test**
 
 ```bash
 cd frontend
 npm run test:run -- src/core/graphQueries/__tests__/queryRegistry.test.ts
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add frontend/src/core/graphQueries frontend/src/core/worker/queryHelpers.ts frontend/src/core/worker/WorkspaceStoreClient.ts frontend/src/core/worker/workspaceWorker.ts
@@ -249,7 +249,7 @@ git commit -m "feat(graph-queries): add worker-side query registry and dispatche
 
 **Steps:**
 
-- [ ] **Step 1: `GetChildrenQuery`**
+- [x] **Step 1: `GetChildrenQuery`**
 
 ```ts
 // frontend/src/core/graphQueries/queries/GetChildrenQuery.ts
@@ -271,7 +271,7 @@ export const GetChildrenQuery: GraphQuery<NodeInput, IdPageOutput> = {
 };
 ```
 
-- [ ] **Step 2: `GetBacklinksQuery`**
+- [x] **Step 2: `GetBacklinksQuery`**
 
 ```ts
 // frontend/src/core/graphQueries/queries/GetBacklinksQuery.ts
@@ -294,7 +294,7 @@ export const GetBacklinksQuery: GraphQuery<NodeInput, IdPageOutput> = {
 };
 ```
 
-- [ ] **Step 3: `GetLinkedReferencesQuery`**
+- [x] **Step 3: `GetLinkedReferencesQuery`**
 
 ```ts
 // frontend/src/core/graphQueries/queries/GetLinkedReferencesQuery.ts
@@ -326,7 +326,7 @@ export const GetLinkedReferencesQuery: GraphQuery<PaginatedInput, IdPageOutput> 
 };
 ```
 
-- [ ] **Step 4: `GetPageQuery`**
+- [x] **Step 4: `GetPageQuery`**
 
 Returns a full Node for now; later tasks introduce `NodeSummary`.
 
@@ -350,7 +350,7 @@ export const GetPageQuery: GraphQuery<NodeInput, { node: Node | undefined }> = {
 };
 ```
 
-- [ ] **Step 5: `SearchQuery`**
+- [x] **Step 5: `SearchQuery`**
 
 ```ts
 // frontend/src/core/graphQueries/queries/SearchQuery.ts
@@ -388,7 +388,7 @@ export const SearchQuery: GraphQuery<SearchInput, IdPageOutput> = {
 };
 ```
 
-- [ ] **Step 6: Register all queries**
+- [x] **Step 6: Register all queries**
 
 ```ts
 // frontend/src/core/graphQueries/queries/index.ts
@@ -416,7 +416,7 @@ export * from './SearchQuery';
 
 Call `registerAllQueries()` in `workspaceWorker.ts` after `handleInit` sets up the store (top-level import is fine; registry is synchronous).
 
-- [ ] **Step 7: Add tests**
+- [x] **Step 7: Add tests**
 
 `GetLinkedReferencesQuery.test.ts`:
 
@@ -436,14 +436,14 @@ it('returns paginated ids', async () => {
 });
 ```
 
-- [ ] **Step 8: Run tests**
+- [x] **Step 8: Run tests**
 
 ```bash
 cd frontend
 npm run test:run -- src/core/graphQueries/queries/__tests__
 ```
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add frontend/src/core/graphQueries
@@ -465,7 +465,7 @@ git commit -m "feat(graph-queries): add GetChildren, GetBacklinks, GetLinkedRefe
 
 **Steps:**
 
-- [ ] **Step 1: Implement the hook**
+- [x] **Step 1: Implement the hook**
 
 ```ts
 // frontend/src/core/graphQueries/hooks/useGraphQuery.ts
@@ -515,24 +515,24 @@ export function useGraphQuery<Input, Output>(
 }
 ```
 
-- [ ] **Step 2: Add import for `useParams`**
+- [x] **Step 2: Add import for `useParams`**
 
 ```ts
 import { useParams } from 'react-router-dom';
 ```
 
-- [ ] **Step 3: Write a component-level test**
+- [x] **Step 3: Write a component-level test**
 
 Mock the workspace client and verify the hook calls `executeGraphQuery` with the right name and invalidates on notifications.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 cd frontend
 npm run test:run -- src/core/graphQueries/hooks/__tests__/useGraphQuery.test.tsx
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/core/graphQueries/hooks
@@ -556,11 +556,11 @@ git commit -m "feat(graph-queries): add useGraphQuery React hook"
 
 **Steps:**
 
-- [ ] **Step 1: Export `deriveName` from nodeProjection**
+- [x] **Step 1: Export `deriveName` from nodeProjection**
 
 Change `deriveName` from a private function to an exported function in `frontend/src/core/adapters/nodeProjection.ts`.
 
-- [ ] **Step 2: Implement projection**
+- [x] **Step 2: Implement projection**
 
 ```ts
 // frontend/src/core/projections/NodeSummaryProjection.ts
@@ -610,7 +610,7 @@ export function hydrateNodeSummaries(db: Database, ids: string[]): NodeSummary[]
 }
 ```
 
-- [ ] **Step 3: Write test**
+- [x] **Step 3: Write test**
 
 ```ts
 it('projects a summary without children or content', async () => {
@@ -622,14 +622,14 @@ it('projects a summary without children or content', async () => {
 });
 ```
 
-- [ ] **Step 4: Run test**
+- [x] **Step 4: Run test**
 
 ```bash
 cd frontend
 npm run test:run -- src/core/projections/__tests__/NodeSummaryProjection.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/core/projections frontend/src/core/adapters/nodeProjection.ts
@@ -652,7 +652,7 @@ git commit -m "feat(projections): add NodeSummaryProjection"
 
 **Steps:**
 
-- [ ] **Step 1: Move synthetic-ref building to a reusable projection**
+- [x] **Step 1: Move synthetic-ref building to a reusable projection**
 
 Create `frontend/src/core/projections/LinkedReferenceProjection.ts` containing `buildSyntheticRef(store, sourceNodeId)` and `hydrateLinkedReferences(store, targetNodeUuid, sourceIds)`.
 
@@ -668,7 +668,7 @@ export function hydrateLinkedReferences(
 }
 ```
 
-- [ ] **Step 2: Create hydration query**
+- [x] **Step 2: Create hydration query**
 
 ```ts
 export const HydrateLinkedReferencesQuery: GraphQuery<{ nodeUuid: string; sourceIds: string[] }, LinkedReference[]> = {
@@ -684,9 +684,9 @@ export const HydrateLinkedReferencesQuery: GraphQuery<{ nodeUuid: string; source
 };
 ```
 
-- [ ] **Step 3: Register and test**
+- [x] **Step 3: Register and test**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/core/projections frontend/src/core/graphQueries/queries
@@ -711,11 +711,11 @@ Same as Tasks 1.1 and 2.1/2.2 from v1, but the `node_stats` table is consumed by
 
 **Steps:**
 
-- [ ] Add `sync_outbox` table, `idx_edge_target_type`, `idx_edge_source_type`, and `node_stats` table.
-- [ ] Add migrations to user_version 9.
-- [ ] Implement `rebuildNodeStats`.
-- [ ] Wire `rebuildNodeStats` into `WorkspaceStore.applyMany` and `rebuildEdgesForNode`.
-- [ ] Commit.
+- [x] Add `sync_outbox` table, `idx_edge_target_type`, `idx_edge_source_type`, and `node_stats` table.
+- [x] Add migrations to user_version 9.
+- [x] Implement `rebuildNodeStats`.
+- [x] Wire `rebuildNodeStats` into `WorkspaceStore.applyMany` and `rebuildEdgesForNode`.
+- [x] Commit.
 
 ---
 
@@ -736,7 +736,7 @@ Same as Tasks 1.1 and 2.1/2.2 from v1, but the `node_stats` table is consumed by
 
 **Steps:**
 
-- [ ] **Step 1: Rewrite `useLinkedReferences`**
+- [x] **Step 1: Rewrite `useLinkedReferences`**
 
 ```ts
 export function useLinkedReferences(nodeUuid: string | null, params?: { limit?: number; offset?: number }) {
@@ -764,7 +764,7 @@ export function useLinkedReferences(nodeUuid: string | null, params?: { limit?: 
 }
 ```
 
-- [ ] **Step 2: Use `GetBacklinksQuery` for the count badge**
+- [x] **Step 2: Use `GetBacklinksQuery` for the count badge**
 
 ```ts
 export function useLinkedReferencesCount(nodeUuid: string | null) {
@@ -775,7 +775,7 @@ export function useLinkedReferencesCount(nodeUuid: string | null) {
 }
 ```
 
-- [ ] **Step 3: Lazy-load in `QueryNodeCollection`**
+- [x] **Step 3: Lazy-load in `QueryNodeCollection`**
 
 Only enable the linked-references ID query when the section is expanded. Keep the count query enabled always.
 
@@ -788,11 +788,11 @@ const idsQuery = useGraphQuery(
 );
 ```
 
-- [ ] **Step 4: Default linked-references sections to collapsed**
+- [x] **Step 4: Default linked-references sections to collapsed**
 
 In `QuerySection`, set `defaultExpanded={viewType === 'linked_references' ? false : defaultExpanded}`.
 
-- [ ] **Step 5: Run tests and type-check**
+- [x] **Step 5: Run tests and type-check**
 
 ```bash
 cd frontend
@@ -800,7 +800,7 @@ npx tsc -b --noEmit
 npm run test:run -- src/features/content/hooks/__tests__/useNodeLinkQueries.test.ts
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/features/content/hooks frontend/src/features/content/components/nodes
@@ -824,7 +824,7 @@ git commit -m "feat(linked-references): lazy-load and hydrate via query objects"
 
 **Steps:**
 
-- [ ] **Step 1: Implement `GetNodeTreeQuery`**
+- [x] **Step 1: Implement `GetNodeTreeQuery`**
 
 ```ts
 export const GetNodeTreeQuery: GraphQuery<{ nodeUuid: string; maxDepth: number }, { rows: TreeNode[] }> = {
@@ -839,7 +839,7 @@ export const GetNodeTreeQuery: GraphQuery<{ nodeUuid: string; maxDepth: number }
 };
 ```
 
-- [ ] **Step 2: Implement `NodeTreeProjection.hydrate`**
+- [x] **Step 2: Implement `NodeTreeProjection.hydrate`**
 
 ```ts
 export function hydrateNodeTree(rows: TreeNode[], visibleIds: Set<string>): Node[] {
@@ -850,9 +850,9 @@ export function hydrateNodeTree(rows: TreeNode[], visibleIds: Set<string>): Node
 }
 ```
 
-- [ ] **Step 3: Wire and test**
+- [x] **Step 3: Wire and test**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m "feat(graph-queries): add GetNodeTreeQuery and NodeTreeProjection"
@@ -872,7 +872,7 @@ git commit -m "feat(graph-queries): add GetNodeTreeQuery and NodeTreeProjection"
 
 **Steps:**
 
-- [ ] **Step 1: Replace recursive `projectNode`/`getChildren` with `GetNodeTreeQuery`**
+- [x] **Step 1: Replace recursive `projectNode`/`getChildren` with `GetNodeTreeQuery`**
 
 When `nodeUuid` is provided and `maxDepth >= 0`:
 
@@ -886,11 +886,11 @@ const treeQuery = useGraphQuery(
 
 Build `FlatNode[]` from the returned rows, applying collapsed state to decide which children are visible. For each visible row call `projectNode(store, id, 0)` to get the legacy `Node` shape needed by `BlockEditor`, but children are already known from the tree query.
 
-- [ ] **Step 2: Add test**
+- [x] **Step 2: Add test**
 
 Mock `useGraphQuery` returning a two-level tree and assert `getChildren` is not called.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git commit -m "perf(block-tree): fetch subtree in one GetNodeTreeQuery round-trip"
@@ -914,7 +914,7 @@ git commit -m "perf(block-tree): fetch subtree in one GetNodeTreeQuery round-tri
 
 **Steps:**
 
-- [ ] **Step 1: Update protocol types**
+- [x] **Step 1: Update protocol types**
 
 ```ts
 export type NotifyScope = 'node' | 'edge' | 'tree' | 'class' | 'property' | 'all';
@@ -927,21 +927,21 @@ export interface NotifyChangeMessage {
 }
 ```
 
-- [ ] **Step 2: Update appliers to return notification metadata**
+- [x] **Step 2: Update appliers to return notification metadata**
 
 Change `applyNodeOperation`, `applyEdgeOperation`, etc. to return `{ scope, nodeId, relatedIds }`.
 
-- [ ] **Step 3: Update dispatcher and worker to emit scoped notifications**
+- [x] **Step 3: Update dispatcher and worker to emit scoped notifications**
 
 `frontend/src/core/derived/index.ts` returns an array of notifications. `workspaceWorker.ts` calls `postNotify` for each.
 
-- [ ] **Step 4: Update `WorkspaceStore.notify` to accept scope**
+- [x] **Step 4: Update `WorkspaceStore.notify` to accept scope**
 
 ```ts
 notify(nodeId: string, scope: NotifyScope = 'node'): void
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(worker): emit scoped change notifications from appliers"
