@@ -1,5 +1,7 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
+import { queryOne } from '../db/sqlite';
+import type { ChangeNotification } from './index';
 
 function jsonOrNull(value: unknown): string | null {
   if (value === undefined || value === null) return null;
@@ -11,9 +13,10 @@ function jsonOrDefault(value: unknown, defaultValue: unknown): string {
   return JSON.stringify(value);
 }
 
-function applyNodeViewCreate(db: Database, op: Operation): void {
+function applyNodeViewCreate(db: Database, op: Operation): ChangeNotification[] {
   const payload = op.payload as Record<string, unknown>;
   const now = new Date().toISOString();
+  const nodeId = payload.nodeId as string;
   db.run(
     `INSERT OR REPLACE INTO node_view (
        id, workspace_id, node_id, name, view_type, order_index, is_default,
@@ -23,7 +26,7 @@ function applyNodeViewCreate(db: Database, op: Operation): void {
     [
       payload.viewId as string,
       op.envelope.workspaceId,
-      payload.nodeId as string,
+      nodeId,
       payload.name as string,
       payload.viewType as string,
       (payload.orderIndex as number | undefined) ?? 0,
@@ -39,9 +42,10 @@ function applyNodeViewCreate(db: Database, op: Operation): void {
       now,
     ]
   );
+  return [{ scope: 'node', nodeId }];
 }
 
-function applyNodeViewUpdate(db: Database, op: Operation): void {
+function applyNodeViewUpdate(db: Database, op: Operation): ChangeNotification[] {
   const payload = op.payload as Record<string, unknown>;
   const viewId = payload.viewId as string;
   const now = new Date().toISOString();
@@ -64,20 +68,26 @@ function applyNodeViewUpdate(db: Database, op: Operation): void {
   if ('settings' in payload) addColumn('settings', jsonOrDefault(payload.settings, {}));
   if ('queryAst' in payload) addColumn('query_ast', jsonOrNull(payload.queryAst));
 
-  if (columns.length === 0) return;
+  if (columns.length === 0) return [];
 
   addColumn('updated_at', now);
   values.push(viewId);
 
   db.run(`UPDATE node_view SET ${columns.join(', ')} WHERE id = ?`, values);
+
+  const row = queryOne<{ node_id: string }>(db, 'SELECT node_id FROM node_view WHERE id = ?', [viewId]);
+  return row ? [{ scope: 'node', nodeId: row.node_id }] : [];
 }
 
-function applyNodeViewDelete(db: Database, op: Operation): void {
+function applyNodeViewDelete(db: Database, op: Operation): ChangeNotification[] {
   const payload = op.payload as Record<string, unknown>;
-  db.run('DELETE FROM node_view WHERE id = ?', [payload.viewId as string]);
+  const viewId = payload.viewId as string;
+  const row = queryOne<{ node_id: string }>(db, 'SELECT node_id FROM node_view WHERE id = ?', [viewId]);
+  db.run('DELETE FROM node_view WHERE id = ?', [viewId]);
+  return row ? [{ scope: 'node', nodeId: row.node_id }] : [];
 }
 
-function applyNodeViewReorder(db: Database, op: Operation): void {
+function applyNodeViewReorder(db: Database, op: Operation): ChangeNotification[] {
   const payload = op.payload as Record<string, unknown>;
   const nodeId = payload.nodeId as string;
   const viewType = payload.viewType as string;
@@ -88,21 +98,26 @@ function applyNodeViewReorder(db: Database, op: Operation): void {
       [i, nodeId, viewType, orderedIds[i]]
     );
   }
+  return [{ scope: 'node', nodeId }];
 }
 
 export function deleteNodeViewsForNode(db: Database, nodeId: string): void {
   db.run('DELETE FROM node_view WHERE node_id = ?', [nodeId]);
 }
 
-export function applyNodeViewOperation(db: Database, op: Operation): void {
+export function applyNodeViewOperation(db: Database, op: Operation): ChangeNotification[] {
   const { opType } = op.envelope;
   if (opType === 'nodeView.create') {
-    applyNodeViewCreate(db, op);
-  } else if (opType === 'nodeView.update') {
-    applyNodeViewUpdate(db, op);
-  } else if (opType === 'nodeView.delete') {
-    applyNodeViewDelete(db, op);
-  } else if (opType === 'nodeView.reorder') {
-    applyNodeViewReorder(db, op);
+    return applyNodeViewCreate(db, op);
   }
+  if (opType === 'nodeView.update') {
+    return applyNodeViewUpdate(db, op);
+  }
+  if (opType === 'nodeView.delete') {
+    return applyNodeViewDelete(db, op);
+  }
+  if (opType === 'nodeView.reorder') {
+    return applyNodeViewReorder(db, op);
+  }
+  return [];
 }

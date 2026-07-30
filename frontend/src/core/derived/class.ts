@@ -1,6 +1,7 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
 import { queryAll } from '../db/sqlite';
+import type { ChangeNotification } from './index';
 
 function applyClassHierarchy(db: Database, classId: string, extendsClassIds: string[]): void {
   db.run('DELETE FROM class_hierarchy WHERE class_id = ?', [classId]);
@@ -27,7 +28,7 @@ function applyClassHierarchy(db: Database, classId: string, extendsClassIds: str
   }
 }
 
-export function applyClassOperation(db: Database, op: Operation): void {
+export function applyClassOperation(db: Database, op: Operation): ChangeNotification[] {
   const { opType } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
   const ts = new Date().toISOString();
@@ -46,7 +47,10 @@ export function applyClassOperation(db: Database, op: Operation): void {
       [classId, op.envelope.workspaceId, name, icon, color, null, '[]', 1, ts, ts]
     );
     applyClassHierarchy(db, classId, []);
-  } else if (opType === 'class.update') {
+    return [{ scope: 'class', nodeId: classId }];
+  }
+
+  if (opType === 'class.update') {
     const classId = payload.classId as string;
     const sets: string[] = [];
     const values: (string | null)[] = [];
@@ -68,16 +72,22 @@ export function applyClassOperation(db: Database, op: Operation): void {
       values.push(payload.description as string | null);
     }
 
-    if (sets.length === 0) return;
+    if (sets.length === 0) return [];
 
     sets.push('updated_at = ?');
     values.push(ts, classId);
 
     db.run(`UPDATE class SET ${sets.join(', ')} WHERE id = ?`, values);
-  } else if (opType === 'class.delete') {
+    return [{ scope: 'class', nodeId: classId }];
+  }
+
+  if (opType === 'class.delete') {
     const classId = payload.classId as string;
     db.run('UPDATE class SET active = 0, updated_at = ? WHERE id = ?', [ts, classId]);
-  } else if (opType === 'class.setExtends') {
+    return [{ scope: 'class', nodeId: classId }];
+  }
+
+  if (opType === 'class.setExtends') {
     const classId = payload.classId as string;
     const extendsClassIds = Array.isArray(payload.extendsClassIds)
       ? (payload.extendsClassIds as string[])
@@ -89,5 +99,8 @@ export function applyClassOperation(db: Database, op: Operation): void {
       classId,
     ]);
     applyClassHierarchy(db, classId, extendsClassIds);
+    return [{ scope: 'class', nodeId: classId, relatedIds: extendsClassIds }];
   }
+
+  return [];
 }

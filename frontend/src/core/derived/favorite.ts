@@ -1,8 +1,9 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
 import { queryOne } from '../db/sqlite';
+import type { ChangeNotification } from './index';
 
-export function applyFavoriteOperation(db: Database, op: Operation): void {
+export function applyFavoriteOperation(db: Database, op: Operation): ChangeNotification[] {
   const { opType, actorId, workspaceId } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
 
@@ -18,13 +19,19 @@ export function applyFavoriteOperation(db: Database, op: Operation): void {
       'INSERT OR IGNORE INTO user_favorite (actor_id, node_id, workspace_id, position) VALUES (?, ?, ?, ?)',
       [actorId, nodeId, workspaceId, nextPosition + 1]
     );
-  } else if (opType === 'user.favorite.remove') {
+    return [{ scope: 'node', nodeId }];
+  }
+
+  if (opType === 'user.favorite.remove') {
     const nodeId = payload.nodeId as string;
     db.run(
       'DELETE FROM user_favorite WHERE actor_id = ? AND node_id = ? AND workspace_id = ?',
       [actorId, nodeId, workspaceId]
     );
-  } else if (opType === 'user.favorite.reorder') {
+    return [{ scope: 'node', nodeId }];
+  }
+
+  if (opType === 'user.favorite.reorder') {
     const nodeIds = (payload.nodeIds as string[]) ?? [];
     db.run(
       'DELETE FROM user_favorite WHERE actor_id = ? AND workspace_id = ? AND node_id NOT IN (' +
@@ -38,5 +45,8 @@ export function applyFavoriteOperation(db: Database, op: Operation): void {
         [actorId, nodeId, workspaceId, index]
       );
     });
+    return [{ scope: 'all' }];
   }
+
+  return [];
 }
