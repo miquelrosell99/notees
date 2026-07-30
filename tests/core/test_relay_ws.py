@@ -11,7 +11,6 @@ from starlette.websockets import WebSocketDisconnect
 
 from app.core.clock import Hlc
 from app.features import auth as auth_module
-from app.relay.broadcast import _registry as broadcast_registry
 from app.relay.broadcast import reset_broadcast_backend
 from app.relay.dependencies import (
     get_effective_permission_checker,
@@ -87,7 +86,7 @@ def _envelope(
         hlc=Hlc(physical=physical, logical=logical),
         affected_node_ids=affected_node_ids or ["node-1"],
         op_type=op_type,
-        payload={"nodeId": envelope_id},
+        payload={"nodeId": envelope_id, "kind": "page"},
         timestamp="2026-07-17T00:00:00Z",
     )
 

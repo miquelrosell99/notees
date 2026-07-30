@@ -15,21 +15,61 @@ from app.core.operation import KNOWN_OP_TYPES, Operation
 # that validation stays permissive; missing optional fields use defaults in
 # the derived-state appliers.
 REQUIRED_PAYLOAD_FIELDS: dict[str, frozenset[str]] = {
-    "node.create": frozenset({"nodeId", "kind", "index"}),
+    # Structural node operations
+    "node.create": frozenset({"nodeId", "kind"}),
     "node.delete": frozenset({"nodeId"}),
-    "node.move": frozenset({"nodeId", "newParentId", "newIndex"}),
+    "node.move": frozenset({"nodeId"}),
     "node.updateContent": frozenset({"nodeId"}),
+    "node.addAlias": frozenset({"canonicalNodeId", "aliasNodeId"}),
+    "node.removeAlias": frozenset({"canonicalNodeId", "aliasNodeId"}),
+    "node.archive": frozenset({"nodeId"}),
+    "node.restore": frozenset({"nodeId"}),
+    "node.permanentDelete": frozenset({"nodeId"}),
+    "node.convert": frozenset({"nodeId", "kind"}),
+    # Class membership
     "class.assign": frozenset({"nodeId", "classId"}),
     "class.unassign": frozenset({"nodeId", "classId"}),
-    "property.set": frozenset({"propertyValueId", "nodeId", "schemaId", "index", "value"}),
-    "property.unset": frozenset({"propertyValueId", "nodeId", "schemaId", "index"}),
-    "propertySchema.create": frozenset({"schemaId", "name", "type", "config"}),
-    "propertySchema.update": frozenset({"schemaId", "configDelta"}),
-    "class.create": frozenset({"classId", "name", "propertySchemaIds", "extends"}),
+    # Properties
+    "property.set": frozenset({"propertyValueId", "nodeId", "schemaId", "value"}),
+    "property.unset": frozenset({"nodeId", "schemaId"}),
+    # Schema
+    "propertySchema.create": frozenset({"schemaId", "name"}),
+    "propertySchema.update": frozenset({"schemaId"}),
+    "propertySchema.delete": frozenset({"schemaId"}),
+    "classPropertyEdge.create": frozenset({"classId", "propertySchemaId"}),
+    "classPropertyEdge.update": frozenset({"classId", "propertySchemaId"}),
+    "classPropertyEdge.delete": frozenset({"classId", "propertySchemaId"}),
+    "classPropertyEdge.reorder": frozenset({"classId", "orderedPropertySchemaIds"}),
+    "class.create": frozenset({"classId", "name"}),
     "class.update": frozenset({"classId"}),
+    "class.delete": frozenset({"classId"}),
+    "class.setExtends": frozenset({"classId", "extendsClassIds"}),
+    # Node views
+    "nodeView.create": frozenset({"viewId", "nodeId", "name", "viewType"}),
+    "nodeView.update": frozenset({"viewId"}),
+    "nodeView.delete": frozenset({"viewId"}),
+    "nodeView.reorder": frozenset({"nodeId", "viewType", "orderedViewIds"}),
+    # Tasks
+    "task.recordCompletion": frozenset({"nodeId"}),
+    "task.deleteCompletion": frozenset({"nodeId", "completionId"}),
+    "task.setRecurrence": frozenset({"nodeId", "rule"}),
+    "task.deleteRecurrence": frozenset({"nodeId", "recurrenceId"}),
+    # Assets
+    "asset.upload": frozenset({"nodeId", "assetHash", "mimeType", "size", "originalName"}),
+    "asset.delete": frozenset({"nodeId"}),
+    # Activity / links / shares
+    "activity.record": frozenset({"activityType"}),
+    "link.click": frozenset({"nodeId"}),
+    "share.public.create": frozenset({"nodeId"}),
+    "share.public.revoke": frozenset({"nodeId"}),
+    "share.user.grant": frozenset({"nodeId", "userId", "role"}),
+    "share.user.revoke": frozenset({"nodeId", "userId"}),
+    # User preferences
     "user.favorite.add": frozenset({"nodeId"}),
     "user.favorite.remove": frozenset({"nodeId"}),
     "user.favorite.reorder": frozenset({"nodeIds"}),
+    # Plugins
+    "plugin.op": frozenset({"pluginId", "opType", "data"}),
 }
 
 

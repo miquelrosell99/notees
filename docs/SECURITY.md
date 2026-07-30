@@ -42,6 +42,10 @@ Dependencies are audited automatically:
 
 See `.github/workflows/security-audit.yml` for the CI schedule and commands.
 
+## Known Limitations
+
+- **Operation payloads are not end-to-end encrypted.** The relay transports operation payloads as plaintext JSON inside the envelope. Transport-layer encryption (TLS) protects data in transit, but the server stores and can read operation contents. Local IndexedDB persistence of the client-side SQLite database is also unencrypted. End-to-end encryption of payloads and local persistence is planned but not yet implemented; do not store highly sensitive information in Notees until that work lands.
+
 ## Operational Security Notes
 
 - Backups and workspace exports are **not encrypted by the application**. Store `data/backups/` and export directories on encrypted volumes, or encrypt files outside the app.

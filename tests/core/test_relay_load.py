@@ -46,7 +46,11 @@ def _generate_envelopes(
                 hlc=Hlc(physical=physical, logical=logical),
                 affected_node_ids=[f"node-{i:08d}"],
                 op_type="node.create",
-                payload={"nodeId": f"node-{i:08d}", "data": "a" * rng.randint(64, 256)},
+                payload={
+                    "nodeId": f"node-{i:08d}",
+                    "kind": "page",
+                    "data": "a" * rng.randint(64, 256),
+                },
             )
         )
     return envelopes

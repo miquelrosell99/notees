@@ -26,14 +26,14 @@ def _make_operation(op_type: str, payload: dict) -> Operation:
 class TestValidatePayload:
     def test_valid_node_create_payload(self) -> None:
         error = validate_payload(
-            "node.create", {"nodeId": "n-1", "kind": "page", "index": 0}
+            "node.create", {"nodeId": "n-1", "kind": "page", "parentId": None}
         )
         assert error is None
 
     def test_node_create_missing_required_field(self) -> None:
-        error = validate_payload("node.create", {"nodeId": "n-1", "kind": "page"})
+        error = validate_payload("node.create", {"nodeId": "n-1"})
         assert error is not None
-        assert "index" in error
+        assert "kind" in error
 
     def test_unknown_op_type(self) -> None:
         error = validate_payload("node.unknown", {"nodeId": "n-1"})
