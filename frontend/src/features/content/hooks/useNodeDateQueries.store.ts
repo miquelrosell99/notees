@@ -97,39 +97,68 @@ function getOrCreateDateNote(
   store: WorkspaceStore,
   identity: DateNoteIdentity,
   findByName: () => Node | undefined,
+  parentId?: string | null,
 ): Node {
   const { nodeId, label, classId } = identity;
   const existingRow = store.getNode(nodeId);
   if (existingRow?.classIds.includes(classId)) {
-    return projectNode(store, nodeId)!;
+    const existing = projectNode(store, nodeId)!;
+    if (parentId !== undefined && existing.parent_uuid !== parentId) {
+      store.moveNode(nodeId, parentId);
+      return projectNode(store, nodeId)!;
+    }
+    return existing;
   }
   const existingByName = findByName();
-  if (existingByName) return existingByName;
+  if (existingByName) {
+    if (parentId !== undefined && existingByName.parent_uuid !== parentId) {
+      store.moveNode(existingByName.uuid, parentId);
+      return projectNode(store, existingByName.uuid)!;
+    }
+    return existingByName;
+  }
 
-  store.createNode({ nodeId, kind: 'page', parentId: null, classIds: [classId] });
+  store.createNode({ nodeId, kind: 'page', parentId: parentId ?? null, classIds: [classId] });
   setDatePageContent(store, nodeId, label);
   return projectNode(store, nodeId)!;
 }
 
 /**
  * Get or create a daily journal page in the local-first core store.
+ * Ensures the full year → month → day hierarchy exists.
  */
 export function getOrCreateDailyNote(store: WorkspaceStore, dateStr: string): Node {
-  return getOrCreateDateNote(store, dailyNoteIdentity(dateStr), () =>
-    findDayNoteByName(store, dateStr),
+  const [yearStr, monthStr] = dateStr.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+
+  getOrCreateYearlyNote(store, year);
+  const monthly = getOrCreateMonthlyNote(store, year, month);
+
+  return getOrCreateDateNote(
+    store,
+    dailyNoteIdentity(dateStr),
+    () => findDayNoteByName(store, dateStr),
+    monthly.uuid,
   );
 }
 
 /**
  * Get or create a monthly journal page in the local-first core store.
+ * Ensures the year parent exists.
  */
 export function getOrCreateMonthlyNote(
   store: WorkspaceStore,
   year: number,
   month: number,
 ): Node {
-  return getOrCreateDateNote(store, monthlyNoteIdentity(year, month), () =>
-    findMonthlyNoteByName(store, `${year}-${String(month).padStart(2, '0')}`),
+  const yearly = getOrCreateYearlyNote(store, year);
+
+  return getOrCreateDateNote(
+    store,
+    monthlyNoteIdentity(year, month),
+    () => findMonthlyNoteByName(store, `${year}-${String(month).padStart(2, '0')}`),
+    yearly.uuid,
   );
 }
 
@@ -137,8 +166,11 @@ export function getOrCreateMonthlyNote(
  * Get or create a yearly journal page in the local-first core store.
  */
 export function getOrCreateYearlyNote(store: WorkspaceStore, year: number): Node {
-  return getOrCreateDateNote(store, yearlyNoteIdentity(year), () =>
-    findYearlyNoteByName(store, `${year}`),
+  return getOrCreateDateNote(
+    store,
+    yearlyNoteIdentity(year),
+    () => findYearlyNoteByName(store, `${year}`),
+    null,
   );
 }
 
