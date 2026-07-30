@@ -10,7 +10,6 @@ import { nodeKeys } from './queryKeys';
 import { useCurrentWorkspaceUuid } from './useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
-import { buildBreadcrumbsFromClient } from '@/core/query/breadcrumbs';
 import type { Node, BreadcrumbItemResponse } from '@/types/api';
 
 /**
@@ -61,7 +60,7 @@ export function useBreadcrumbs(nodeUuid: string | null) {
     queryKey: nodeKeys.breadcrumbsByUuid(nodeUuid ?? '__unresolved__'),
     queryFn: async () => {
       if (!nodeUuid || !client) return [];
-      return buildBreadcrumbsFromClient(client, nodeUuid);
+      return client.query<BreadcrumbItemResponse[]>('buildBreadcrumbs', [nodeUuid]);
     },
     enabled: !!nodeUuid && !!client,
     staleTime: 1000 * 60 * 5, // 5 minutes
