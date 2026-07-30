@@ -202,7 +202,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
           const node = await client.query<Node | undefined>('getNodeByUuid', [uuid]);
           if (node) {
             if (cancelled || !isLatestGeneration()) return;
-            log.debug('UUID resolved to node', { uuid, id: node.uuid, is_page: node.is_page });
+            log.debug('UUID resolved to node', { nodeUuid: node.uuid, is_page: node.is_page });
             const state = useNavigationStore.getState();
             if (state.currentNodeUuid !== node.uuid || state.mainViewType !== 'node') {
               openNode(node.uuid);
@@ -215,7 +215,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
             const property = await client.query<Property | undefined>('getPropertySchemaByUuid', [uuid]);
             if (cancelled || !isLatestGeneration()) return;
             if (property) {
-              log.debug('UUID resolved to property', { uuid, id: property.uuid });
+              log.debug('UUID resolved to property', { propertyUuid: property.uuid });
               const state = useNavigationStore.getState();
               if (state.currentPropertyUuid !== property.uuid || state.mainViewType !== 'property') {
                 openPropertyView(property.uuid);
