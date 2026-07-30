@@ -21,7 +21,7 @@ const MAX_CHILDREN_DEPTH = 2;
  *   (e.g. [{"type":"text","text":"..."}]); fall back to the first text leaf.
  * - Otherwise fall back to the raw content string, truncated to 200 chars.
  */
-function deriveName(content: string): string {
+export function deriveName(content: string): string {
   if (!content) {
     return 'Untitled';
   }
