@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useLinkedReferences } from '../useNodeLinkQueries';
 import { useLinkedReferencesCount } from '../useLinkedReferencesCount';
+import type * as UseNodeLinkQueriesModule from '../useNodeLinkQueries';
 
 const mockUseGraphQuery = vi.fn();
 
@@ -18,7 +19,7 @@ vi.mock('@/core/graphQueries/queries', () => ({
 import { usePropertyBacklinks } from '../useNodeLinkQueries';
 
 vi.mock('../useNodeLinkQueries', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('../useNodeLinkQueries')>();
+  const mod = await importOriginal<typeof UseNodeLinkQueriesModule>();
   return {
     ...mod,
     usePropertyBacklinks: vi.fn(),
