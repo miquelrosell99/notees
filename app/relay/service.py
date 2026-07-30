@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from app.core.clock import Hlc, compare_hlc
+from app.core.validation import validate_payload
 from app.relay.models import BatchRequest, CatchUpRequest, EncryptedEnvelope
 from app.relay.permissions import PermissionChecker, PermissionDeniedError
 from app.relay.storage import RelayStorage
@@ -74,6 +75,9 @@ class RelayService:
         validated: list[EncryptedEnvelope] = []
         for envelope in batch.envelopes:
             self._validate_envelope(envelope)
+            payload_error = validate_payload(envelope.op_type, envelope.payload)
+            if payload_error is not None:
+                raise ValueError(f"Invalid payload for {envelope.op_type}: {payload_error}")
             # The authenticated user is the only trustworthy actor identity.
             # Overwrite any client-provided actor_id to prevent impersonation.
             if envelope.actor_id != actor_id:
