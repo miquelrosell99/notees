@@ -54,6 +54,7 @@ import {
   getClassExtendsAncestors,
   getNodeByUuid,
   getNodeKindMap,
+  getChildrenBatch,
   getNodeView,
   getNodeViews,
   getNodeViewsByType,
@@ -63,6 +64,7 @@ import {
   getPropertySuggestions,
   getTrashedNodes,
   readViewAst,
+  repairDatePageHierarchy,
   validateClassExtends,
 } from './queryHelpers';
 
@@ -330,6 +332,7 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       });
     }
     this.undoManager = new UndoManager(this.store);
+    repairDatePageHierarchy(this.store);
   }
 
   async export(): Promise<Uint8Array> {
@@ -374,6 +377,21 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'saveRestoreEpoch') {
       const [epoch, receivedHlc] = args as [number, Hlc];
       this.saveRestoreEpoch(epoch, receivedHlc);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'markOperationsInFlight') {
+      const [ids] = args as [string[]];
+      this.store.markOperationsInFlight(ids);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'markOperationsAcknowledged') {
+      const [ids] = args as [string[]];
+      this.store.markOperationsAcknowledged(ids);
+      return Promise.resolve(undefined as T);
+    }
+    if (method === 'markOperationsFailed') {
+      const [ids, error, nextRetryAt] = args as [string[], string, number | null];
+      this.store.markOperationsFailed(ids, error, nextRetryAt);
       return Promise.resolve(undefined as T);
     }
 
@@ -463,6 +481,18 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'queryOperationLog') {
       const [afterHlc, limit] = args as [Hlc, number];
       return Promise.resolve(this.queryOperationLog(afterHlc, limit) as T);
+    }
+    if (method === 'getPendingPushOperations') {
+      const [afterHlc, limit, now] = args as [Hlc, number, number];
+      return Promise.resolve(this.store.getPendingPushOperations(afterHlc, limit, now) as T);
+    }
+    if (method === 'getPendingLocalOperations') {
+      const [nodeIds] = args as [string[]];
+      return Promise.resolve(this.store.getPendingLocalOperations(nodeIds) as T);
+    }
+    if (method === 'getOutboxAttemptCounts') {
+      const [ids] = args as [string[]];
+      return Promise.resolve(this.store.getOutboxAttemptCounts(ids) as T);
     }
     if (method === 'getWorkspaceId') {
       return Promise.resolve(this.store.getWorkspaceId() as T);
@@ -559,6 +589,11 @@ class InlineStoreClient implements IWorkspaceStoreClient {
 
     if (method === 'getNodeKindMap') {
       return Promise.resolve(Array.from(getNodeKindMap(this.store).entries()) as T);
+    }
+
+    if (method === 'getChildrenBatch') {
+      const [parentIds] = args as [string[]];
+      return Promise.resolve(getChildrenBatch(this.store, parentIds) as T);
     }
 
     if (method === 'buildBreadcrumbs') {

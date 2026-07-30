@@ -1,5 +1,7 @@
 import { compareHlc, maxHlc, type Hlc } from './clock';
-import { createOperation } from './types/operation';
+import { createOperation, type Operation } from './types/operation';
+import type { OperationEnvelope } from './crypto';
+import { detectConflicts, type SyncConflictInput } from './syncConflicts';
 import type { IWorkspaceStoreClient } from './worker/workerProtocol';
 import type { Transport } from './transport';
 
@@ -16,6 +18,12 @@ export interface SyncEngineCallbacks {
   onPullProgress?: (progress: SyncPullProgress | null) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: SyncStatus, error: Error | null) => void;
+  /**
+   * Called when the sync engine detects a semantic conflict between remote
+   * operations and local pending operations (e.g. concurrent moves of the same
+   * node, or a local edit vs a remote delete).
+   */
+  onConflict?: (conflicts: SyncConflictInput[]) => void;
   /**
    * Called when the sync engine enters a new high-level phase. Useful for
    * showing descriptive progress during initial workspace open.
@@ -44,6 +52,7 @@ export class SyncEngine {
   private lastError: Error | null = null;
   private autoSyncTimer: ReturnType<typeof setInterval> | null = null;
   private statusListeners = new Set<(status: SyncStatus, error: Error | null) => void>();
+  private conflictListeners = new Set<(conflicts: SyncConflictInput[]) => void>();
   /** HLC of the last snapshot we uploaded this session; avoid re-uploading. */
   private uploadedSnapshotHlc: Hlc | null = null;
   private watermarksLoaded = false;
@@ -111,11 +120,27 @@ export class SyncEngine {
     };
   }
 
+  subscribeConflicts(callback: (conflicts: SyncConflictInput[]) => void): () => void {
+    this.conflictListeners.add(callback);
+    return () => {
+      this.conflictListeners.delete(callback);
+    };
+  }
+
+  private emitConflicts(conflicts: SyncConflictInput[]): void {
+    if (conflicts.length === 0) return;
+    this.callbacks.onConflict?.(conflicts);
+    for (const listener of this.conflictListeners) {
+      listener(conflicts);
+    }
+  }
+
   async push(): Promise<void> {
     await this.ensureWatermarksLoaded();
 
     const SEND_BATCH_SIZE = 100;
     const QUERY_BATCH_SIZE = 1000;
+    const RETRY_DELAYS_MS = [5000, 15000, 60000, 300000, 1800000];
     const workspaceId = await this.client.query<string>('getWorkspaceId', []);
     const toEnvelope = (row: OperationRow) => ({
       id: row.id,
@@ -127,7 +152,6 @@ export class SyncEngine {
       payload: JSON.parse(row.payload),
     });
 
-    let pushedMaxHlc = this.lastPushedHlc;
     let totalPushed = 0;
     let hasMore = true;
 
@@ -135,32 +159,74 @@ export class SyncEngine {
     // block the main thread with a single huge SELECT *. Recompute the HLC
     // params each iteration because lastPushedHlc advances after every chunk.
     while (hasMore) {
-      const rows = await this.client.query<OperationRow[]>('queryOperationLog', [
+      const rows = await this.client.query<OperationRow[]>('getPendingPushOperations', [
         this.lastPushedHlc,
         QUERY_BATCH_SIZE,
+        Date.now(),
       ]);
+
+      if (rows.length === 0) return;
 
       hasMore = rows.length === QUERY_BATCH_SIZE;
       totalPushed += rows.length;
 
       for (let i = 0; i < rows.length; i += SEND_BATCH_SIZE) {
-        const chunk = rows.slice(i, i + SEND_BATCH_SIZE).map(toEnvelope);
-        if (this.transport.sendBatch) {
-          await this.transport.sendBatch(chunk);
-        } else {
+        const chunkRows = rows.slice(i, i + SEND_BATCH_SIZE);
+        const chunk = chunkRows.map(toEnvelope);
+        const chunkIds = chunk.map((e) => e.id);
+
+        await this.client.mutate('markOperationsInFlight', [chunkIds]);
+
+        try {
+          const result = this.transport.sendBatch
+            ? await this.transport.sendBatch(chunk)
+            : await this.sendBatchViaSend(chunk);
+
+          const ackIds = new Set(result.savedIds);
+          await this.client.mutate('markOperationsAcknowledged', [Array.from(ackIds)]);
+
+          let ackMaxHlc: Hlc | null = null;
           for (const envelope of chunk) {
-            await this.transport.send(envelope);
+            if (ackIds.has(envelope.id)) {
+              ackMaxHlc = ackMaxHlc === null ? envelope.hlc : maxHlc(ackMaxHlc, envelope.hlc);
+            }
           }
+
+          if (ackMaxHlc !== null) {
+            this.lastPushedHlc = ackMaxHlc;
+            await this.saveWatermark(this.lastPushedHlc, 'pushed');
+          }
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error(String(err));
+          const attemptCounts = await this.client.query<Record<string, number>>(
+            'getOutboxAttemptCounts',
+            [chunkIds]
+          );
+          const maxAttempt = Math.max(0, ...Object.values(attemptCounts));
+          const delayIndex = Math.min(maxAttempt - 1, RETRY_DELAYS_MS.length - 1);
+          const nextRetryAt = delayIndex >= 0 ? Date.now() + RETRY_DELAYS_MS[delayIndex] : null;
+          await this.client.mutate('markOperationsFailed', [
+            chunkIds,
+            error.message,
+            nextRetryAt,
+          ]);
+          this.setStatus('error', error);
+          this.callbacks.onError?.(error);
+          throw error;
         }
-        for (const envelope of chunk) {
-          pushedMaxHlc = maxHlc(pushedMaxHlc, envelope.hlc);
-        }
-        this.lastPushedHlc = pushedMaxHlc;
-        await this.saveWatermark(this.lastPushedHlc, 'pushed');
       }
     }
 
     this.callbacks.onPush?.(totalPushed);
+  }
+
+  private async sendBatchViaSend(envelopes: OperationEnvelope[]): Promise<{ savedIds: string[] }> {
+    const savedIds: string[] = [];
+    for (const envelope of envelopes) {
+      const result = await this.transport.send(envelope);
+      savedIds.push(...result.savedIds);
+    }
+    return { savedIds };
   }
 
   async pull(options: { ignoreSnapshot?: boolean; skipSnapshotUpload?: boolean } = {}): Promise<void> {
@@ -174,6 +240,10 @@ export class SyncEngine {
     // The operation log is the source of truth; re-applying all operations from
     // the restored server converges to the correct state.
     if (snapshot.restoreEpoch !== localEpoch) {
+      // A server restore means the server's derived state may differ from ours.
+      // Clear derived tables as well as the operation log so the next catch-up
+      // rebuilds everything from a clean baseline.
+      await this.client.mutate('resetDerivedState', []);
       await this.client.mutate('clearOperationLog', []);
       this.lastReceivedHlc = { physical: 0, logical: 0 };
       this.lastPushedHlc = { physical: 0, logical: 0 };
@@ -253,6 +323,22 @@ export class SyncEngine {
       this.callbacks.onPullProgress?.({ applied, total: ops.length });
     } finally {
       await this.client.mutate('endBatch', []);
+    }
+
+    // Detect semantic conflicts between the remote operations we just applied
+    // and any local operations that are still pending (not yet acknowledged).
+    const affectedNodeIds = new Set<string>();
+    for (const op of ops) {
+      for (const nodeId of op.envelope.affectedNodeIds) {
+        affectedNodeIds.add(nodeId);
+      }
+    }
+    if (affectedNodeIds.size > 0) {
+      const localPendingOps = await this.client.query<Operation[]>('getPendingLocalOperations', [
+        Array.from(affectedNodeIds),
+      ]);
+      const conflicts = detectConflicts(ops, localPendingOps);
+      this.emitConflicts(conflicts);
     }
 
     for (const op of ops) {

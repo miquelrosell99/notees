@@ -1,5 +1,5 @@
 import { type Database } from 'sql.js';
-import { Clock } from './clock';
+import { Clock, compareHlc, type Hlc } from './clock';
 import { type TextCrdt } from './crdt/text';
 import { createSchema } from './db/schema';
 import { queryAll, queryOne, transaction } from './db/sqlite';
@@ -27,6 +27,7 @@ import {
   type PropertySchemaDeletePayload,
   type PropertySchemaUpdatePayload,
 } from './types/operation';
+import type { OperationRow } from './sync';
 import { uuidv7 } from './uuid';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { createDatabase } from './db/connection';
@@ -109,6 +110,43 @@ export class WorkspaceStore {
     }
 
     this.clock = new Clock(actorId);
+    this.initializeClockFromOperationLog();
+    this.backfillOutboxForLocalOperations();
+  }
+
+  /**
+   * Seed the local clock from the highest HLC already stored in the operation log.
+   * This ensures that local edits made after loading a persisted workspace are
+   * causally after every previously applied operation, even if the wall clock has
+   * moved backwards or the client was offline for a long time.
+   */
+  private initializeClockFromOperationLog(): void {
+    const row = queryOne<{ hlc_physical: number; hlc_logical: number }>(
+      this.db,
+      `SELECT hlc_physical, hlc_logical FROM operation
+       WHERE workspace_id = ?
+       ORDER BY hlc_physical DESC, hlc_logical DESC
+       LIMIT 1`,
+      [this.workspaceId]
+    );
+    if (row) {
+      this.clock.update({ physical: row.hlc_physical, logical: row.hlc_logical }, Date.now());
+    }
+  }
+
+  /**
+   * Backfill pending outbox entries for local operations created before the
+   * sync_outbox table existed. This ensures offline edits made by earlier
+   * versions are still pushed once the new sync engine starts.
+   */
+  private backfillOutboxForLocalOperations(): void {
+    this.db.run(
+      `INSERT OR IGNORE INTO sync_outbox (operation_id, state, attempt_count, created_at, updated_at)
+       SELECT id, 'pending', 0, timestamp, timestamp
+       FROM operation
+       WHERE workspace_id = ? AND actor_id = ?`,
+      [this.workspaceId, this.actorId]
+    );
   }
 
   /** Export the whole database as a Uint8Array for persistence or snapshots. */
@@ -172,6 +210,7 @@ export class WorkspaceStore {
       this.db.run('DELETE FROM operation');
       this.db.run('DELETE FROM sync_watermark');
       this.db.run('DELETE FROM sync_push_watermark');
+      this.db.run('DELETE FROM sync_outbox');
     });
     this.schedulePersist();
   }
@@ -275,6 +314,7 @@ export class WorkspaceStore {
     const affectedNodeIds = new Set<string>();
     const edgeRebuildNodeIds = new Set<string>();
     let appliedCount = 0;
+    let maxAppliedHlc: Hlc | null = null;
 
     transaction(db, () => {
       for (const op of ops) {
@@ -304,7 +344,21 @@ export class WorkspaceStore {
             new Date().toISOString(),
           ]
         );
+
+        if (op.envelope.actorId === this.actorId) {
+          const now = new Date().toISOString();
+          db.run(
+            `INSERT OR IGNORE INTO sync_outbox (operation_id, state, attempt_count, created_at, updated_at)
+             VALUES (?, 'pending', 0, ?, ?)`,
+            [op.envelope.id, now, now]
+          );
+        }
+
         applyOperation(db, op);
+
+        if (maxAppliedHlc === null || compareHlc(op.envelope.hlc, maxAppliedHlc) > 0) {
+          maxAppliedHlc = op.envelope.hlc;
+        }
 
         for (const nodeId of op.envelope.affectedNodeIds) {
           affectedNodeIds.add(nodeId);
@@ -323,6 +377,10 @@ export class WorkspaceStore {
       }
     });
 
+    if (maxAppliedHlc !== null) {
+      this.clock.update(maxAppliedHlc, Date.now());
+    }
+
     if (appliedCount > 0) {
       for (const nodeId of affectedNodeIds) {
         this.notify(nodeId);
@@ -333,6 +391,135 @@ export class WorkspaceStore {
     }
 
     return appliedCount;
+  }
+
+  getPendingPushOperations(afterHlc: Hlc, limit: number, now: number): OperationRow[] {
+    return queryAll<OperationRow>(
+      this.db,
+      `SELECT o.id, o.workspace_id, o.actor_id, o.hlc_physical, o.hlc_logical, o.affected_node_ids, o.op_type, o.payload
+       FROM operation o
+       JOIN sync_outbox ob ON ob.operation_id = o.id
+       WHERE o.workspace_id = ?
+         AND o.actor_id = ?
+         AND (o.hlc_physical > ? OR (o.hlc_physical = ? AND o.hlc_logical > ?))
+         AND ob.state IN ('pending','in_flight','failed')
+         AND (ob.state != 'failed' OR ob.next_retry_at <= ?)
+       ORDER BY o.hlc_physical ASC, o.hlc_logical ASC
+       LIMIT ?`,
+      [
+        this.workspaceId,
+        this.actorId,
+        afterHlc.physical,
+        afterHlc.physical,
+        afterHlc.logical,
+        now,
+        limit,
+      ]
+    );
+  }
+
+  markOperationsInFlight(ids: string[]): void {
+    if (ids.length === 0) return;
+    const now = new Date().toISOString();
+    transaction(this.db, () => {
+      for (const id of ids) {
+        this.db.run(
+          `UPDATE sync_outbox
+           SET state = 'in_flight',
+               attempt_count = attempt_count + 1,
+               next_retry_at = NULL,
+               updated_at = ?
+           WHERE operation_id = ?`,
+          [now, id]
+        );
+      }
+    });
+  }
+
+  markOperationsAcknowledged(ids: string[]): void {
+    if (ids.length === 0) return;
+    transaction(this.db, () => {
+      for (const id of ids) {
+        this.db.run(
+          `UPDATE sync_outbox
+           SET state = 'acknowledged',
+               last_error = NULL,
+               next_retry_at = NULL,
+               updated_at = ?
+           WHERE operation_id = ?`,
+          [new Date().toISOString(), id]
+        );
+      }
+    });
+  }
+
+  markOperationsFailed(ids: string[], error: string, nextRetryAt: number | null): void {
+    if (ids.length === 0) return;
+    const now = new Date().toISOString();
+    const state = nextRetryAt === null ? 'quarantined' : 'failed';
+    transaction(this.db, () => {
+      for (const id of ids) {
+        this.db.run(
+          `UPDATE sync_outbox
+           SET state = CASE WHEN state = 'acknowledged' THEN state ELSE ? END,
+               last_error = CASE WHEN state = 'acknowledged' THEN last_error ELSE ? END,
+               next_retry_at = CASE WHEN state = 'acknowledged' THEN next_retry_at ELSE ? END,
+               updated_at = CASE WHEN state = 'acknowledged' THEN updated_at ELSE ? END
+           WHERE operation_id = ?`,
+          [state, error, nextRetryAt, now, id]
+        );
+      }
+    });
+  }
+
+  getOutboxAttemptCounts(ids: string[]): Record<string, number> {
+    if (ids.length === 0) return {};
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = queryAll<{ operation_id: string; attempt_count: number }>(
+      this.db,
+      `SELECT operation_id, attempt_count FROM sync_outbox WHERE operation_id IN (${placeholders})`,
+      ids
+    );
+    const result: Record<string, number> = {};
+    for (const row of rows) {
+      result[row.operation_id] = row.attempt_count;
+    }
+    return result;
+  }
+
+  /**
+   * Return local operations that are not yet acknowledged by the server and that
+   * affect any of the given node ids. Used by the sync engine to detect semantic
+   * conflicts between remote operations and local pending edits.
+   */
+  getPendingLocalOperations(nodeIds: string[]): Operation[] {
+    if (nodeIds.length === 0) return [];
+    const nodeIdSet = new Set(nodeIds);
+    const rows = queryAll<OperationRow>(
+      this.db,
+      `SELECT o.id, o.workspace_id, o.actor_id, o.hlc_physical, o.hlc_logical, o.affected_node_ids, o.op_type, o.payload
+       FROM operation o
+       JOIN sync_outbox ob ON ob.operation_id = o.id
+       WHERE o.workspace_id = ? AND o.actor_id = ? AND ob.state != 'acknowledged'`,
+      [this.workspaceId, this.actorId]
+    );
+    const ops: Operation[] = [];
+    for (const row of rows) {
+      const affectedNodeIds = JSON.parse(row.affected_node_ids) as string[];
+      if (!affectedNodeIds.some((id) => nodeIdSet.has(id))) continue;
+      ops.push({
+        envelope: {
+          id: row.id,
+          workspaceId: row.workspace_id,
+          actorId: row.actor_id,
+          hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
+          affectedNodeIds,
+          opType: row.op_type,
+        },
+        payload: JSON.parse(row.payload) as unknown,
+      });
+    }
+    return ops;
   }
 
   subscribe(nodeId: string, callback: () => void): () => void {
@@ -1044,6 +1231,28 @@ export class WorkspaceStore {
       [parentId]
     );
     return rows.map((r) => r.child_id);
+  }
+
+  /**
+   * Batch fetch children for multiple parent nodes in a single query.
+   * Returns a map from parent_id to ordered child ids.
+   */
+  getChildrenBatch(parentIds: string[]): Record<string, string[]> {
+    if (parentIds.length === 0) return {};
+    const placeholders = parentIds.map(() => '?').join(',');
+    const rows = queryAll<{ parent_id: string; child_id: string }>(
+      this.db,
+      `SELECT parent_id, child_id FROM node_child_order WHERE parent_id IN (${placeholders}) ORDER BY position`,
+      parentIds
+    );
+    const result: Record<string, string[]> = {};
+    for (const parentId of parentIds) {
+      result[parentId] = [];
+    }
+    for (const row of rows) {
+      result[row.parent_id].push(row.child_id);
+    }
+    return result;
   }
 
   getProperty(args: { nodeId: string; schemaId: string; index?: number }): { value: string } | undefined {

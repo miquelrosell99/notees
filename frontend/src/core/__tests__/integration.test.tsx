@@ -19,8 +19,14 @@ class MockHttpTransport implements Transport {
   sent: OperationEnvelope[] = [];
   catchUpEnvelopes: OperationEnvelope[] = [];
 
-  async send(envelope: OperationEnvelope): Promise<void> {
+  async send(envelope: OperationEnvelope): Promise<{ savedIds: string[] }> {
     this.sent.push(envelope);
+    return { savedIds: [envelope.id] };
+  }
+
+  async sendBatch(envelopes: OperationEnvelope[]): Promise<{ savedIds: string[] }> {
+    this.sent.push(...envelopes);
+    return { savedIds: envelopes.map((e) => e.id) };
   }
 
   async catchUp(_afterHlc: Hlc): Promise<OperationEnvelope[]> {
