@@ -102,19 +102,34 @@ async function findYearlyNoteByNameClient(
 async function getOrCreateDateNoteClient(
   client: IWorkspaceStoreClient,
   identity: DateNoteIdentity,
-  findByName: () => Promise<Node | undefined>
+  findByName: () => Promise<Node | undefined>,
+  parentId?: string | null
 ): Promise<Node> {
   const { nodeId, label, classId } = identity;
   const existingRow = await client.query<NodeRow | undefined>('getNode', [nodeId]);
   if (existingRow?.classIds.includes(classId)) {
     const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
-    if (projected) return projected;
+    if (projected) {
+      if (parentId !== undefined && projected.parent_uuid !== parentId) {
+        await client.mutate<void>('recordMoveNode', [projected.uuid, parentId]);
+        const refreshed = await client.query<Node | undefined>('projectNode', [nodeId]);
+        if (refreshed) return refreshed;
+      }
+      return projected;
+    }
   }
   const existingByName = await findByName();
-  if (existingByName) return existingByName;
+  if (existingByName) {
+    if (parentId !== undefined && existingByName.parent_uuid !== parentId) {
+      await client.mutate<void>('recordMoveNode', [existingByName.uuid, parentId]);
+      const refreshed = await client.query<Node | undefined>('projectNode', [existingByName.uuid]);
+      if (refreshed) return refreshed;
+    }
+    return existingByName;
+  }
 
   await client.mutate<void>('createNode', [
-    { nodeId, kind: 'page', parentId: null, classIds: [classId] },
+    { nodeId, kind: 'page', parentId: parentId ?? null, classIds: [classId] },
   ]);
   await client.mutate<void>('setNodeText', [nodeId, label]);
   const projected = await client.query<Node | undefined>('projectNode', [nodeId]);
@@ -132,8 +147,18 @@ export async function getOrCreateDailyNoteClient(
   client: IWorkspaceStoreClient,
   dateStr: string
 ): Promise<Node> {
-  return getOrCreateDateNoteClient(client, dailyNoteIdentity(dateStr), () =>
-    findDayNoteByNameClient(client, dateStr)
+  const [yearStr, monthStr] = dateStr.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+
+  await getOrCreateYearlyNoteClient(client, year);
+  const monthly = await getOrCreateMonthlyNoteClient(client, year, month);
+
+  return getOrCreateDateNoteClient(
+    client,
+    dailyNoteIdentity(dateStr),
+    () => findDayNoteByNameClient(client, dateStr),
+    monthly.uuid
   );
 }
 
@@ -142,8 +167,13 @@ export async function getOrCreateMonthlyNoteClient(
   year: number,
   month: number
 ): Promise<Node> {
-  return getOrCreateDateNoteClient(client, monthlyNoteIdentity(year, month), () =>
-    findMonthlyNoteByNameClient(client, `${year}-${String(month).padStart(2, '0')}`)
+  const yearly = await getOrCreateYearlyNoteClient(client, year);
+
+  return getOrCreateDateNoteClient(
+    client,
+    monthlyNoteIdentity(year, month),
+    () => findMonthlyNoteByNameClient(client, `${year}-${String(month).padStart(2, '0')}`),
+    yearly.uuid
   );
 }
 
@@ -151,8 +181,11 @@ export async function getOrCreateYearlyNoteClient(
   client: IWorkspaceStoreClient,
   year: number
 ): Promise<Node> {
-  return getOrCreateDateNoteClient(client, yearlyNoteIdentity(year), () =>
-    findYearlyNoteByNameClient(client, `${year}`)
+  return getOrCreateDateNoteClient(
+    client,
+    yearlyNoteIdentity(year),
+    () => findYearlyNoteByNameClient(client, `${year}`),
+    null
   );
 }
 
