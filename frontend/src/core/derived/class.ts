@@ -77,15 +77,18 @@ export function applyClassOperation(db: Database, op: Operation): ChangeNotifica
     const name = normalizeClassName(payload.name);
     const icon = (payload.icon as string | null | undefined) ?? null;
     const color = (payload.color as string | null | undefined) ?? null;
+    const extendsClassIds = Array.isArray(payload.extends)
+      ? (payload.extends as string[])
+      : [];
 
     db.run(
       `INSERT OR REPLACE INTO class (
         id, workspace_id, name, icon, color, description, extends_class_ids,
         active, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [classId, op.envelope.workspaceId, name, icon, color, null, '[]', 1, ts, ts]
+      [classId, op.envelope.workspaceId, name, icon, color, null, JSON.stringify(extendsClassIds), 1, ts, ts]
     );
-    applyClassHierarchy(db, classId, []);
+    applyClassHierarchy(db, classId, extendsClassIds);
     return [{ scope: 'class', nodeId: classId }];
   }
 
@@ -130,7 +133,9 @@ export function applyClassOperation(db: Database, op: Operation): ChangeNotifica
     const classId = payload.classId as string;
     const extendsClassIds = Array.isArray(payload.extendsClassIds)
       ? (payload.extendsClassIds as string[])
-      : [];
+      : Array.isArray(payload.extends)
+        ? (payload.extends as string[])
+        : [];
 
     db.run('UPDATE class SET extends_class_ids = ?, updated_at = ? WHERE id = ?', [
       JSON.stringify(extendsClassIds),
