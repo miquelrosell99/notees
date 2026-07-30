@@ -12,6 +12,7 @@ export {
   useIgnoreMention,
   useUnignoreMention,
 } from './useNodeLinkQueries';
+export { useLinkedReferencesCount } from './useLinkedReferencesCount';
 export { useExistingDailyPages, useDailyNote, useTodayNote, useMonthlyNote, useYearlyNote } from './useNodeDateQueries';
 export { usePages, useSearch, useTags, useClasses, useSearchClasses, useNodesByTag } from './useNodeListQueries';
 export { useTasks, useNodesWithClass, useTextLinks, useSuggestions } from './useNodeMiscQueries';
