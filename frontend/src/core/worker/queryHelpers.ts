@@ -32,6 +32,7 @@ import { substituteRuntimeParams } from '../query/substituteRuntimeParams';
 import { compileToSqlite } from '../query/compileToSqlite';
 import { queryNodes } from '../query/queryNodes';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
+import { executeGraphQuery } from '../graphQueries/queryRegistry';
 import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { isDayUuid, isMonthUuid, isYearUuid, yearMonthToMonthUuid, yearToYearUuid } from '@/utils/dateUuid';
 
@@ -42,6 +43,10 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+export function runGraphQuery(store: WorkspaceStore, name: string, input: unknown): unknown {
+  return executeGraphQuery(store, name, input);
 }
 
 // ─── Node projection ────────────────────────────────────────────────────────
