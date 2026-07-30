@@ -53,13 +53,13 @@ function extractRefTargets(content: unknown[]): RefTarget[] {
   return Array.from(targets.entries()).map(([targetId, label]) => ({ targetId, label }));
 }
 
-export function rebuildEdgesForNode(db: Database, nodeId: string): void {
+export function rebuildEdgesForNode(db: Database, nodeId: string): string[] {
   const node = queryOne<{ workspace_id: string; content: string }>(
     db,
     'SELECT workspace_id, content FROM node WHERE id = ?',
     [nodeId]
   );
-  if (!node) return;
+  if (!node) return [];
 
   const content = JSON.parse(node.content) as unknown[];
   const desired = new Map<string, { label: string | null; metadata: string }>();
@@ -102,6 +102,7 @@ export function rebuildEdgesForNode(db: Database, nodeId: string): void {
     affectedIds.add(targetId);
   }
   rebuildNodeStats(db, Array.from(affectedIds));
+  return Array.from(affectedIds);
 }
 
 export function getBacklinks(db: Database, nodeId: string): string[] {

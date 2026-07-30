@@ -11,7 +11,6 @@ export const GetBacklinksQuery: GraphQuery<NodeInput, IdPageOutput> = {
     return { ids, totalCount: ids.length, hasMore: false };
   },
   shouldInvalidate(i, n) {
-    const scope = (n as { scope?: string }).scope;
-    return scope === 'edge' || scope === 'all' || n.nodeId === i.nodeUuid;
+    return n.scope === 'edge' || n.scope === 'all' || n.nodeId === i.nodeUuid;
   },
 };
