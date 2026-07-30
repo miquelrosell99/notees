@@ -25,7 +25,7 @@ import type {
 import type { NodeView } from '@/types/nodeView';
 import type { QueryAST } from '@/types/queryAST';
 import { queryAll, queryOne } from '../db/sqlite';
-import { projectNode } from '../adapters/nodeProjection';
+import { projectNode, projectNodes } from '../adapters/nodeProjection';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, TASK_CLOSED_STATUSES } from '@/constants/systemProperties';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { substituteRuntimeParams } from '../query/substituteRuntimeParams';
@@ -53,6 +53,14 @@ export function runGraphQuery(store: WorkspaceStore, name: string, input: unknow
 
 export function getNodeByUuid(store: WorkspaceStore, nodeUuid: string): Node | null {
   return projectNode(store, nodeUuid) ?? null;
+}
+
+export function getProjectedNodes(
+  store: WorkspaceStore,
+  nodeUuids: string[],
+  depth?: number
+): Node[] {
+  return projectNodes(store, nodeUuids, depth);
 }
 
 export function getNodeKindMap(store: WorkspaceStore): Map<string, 'page' | 'block' | 'class'> {

@@ -7,10 +7,14 @@
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { webcrypto } from 'node:crypto';
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { WorkspaceStore } from '@/core/store';
 import { uuidv7 } from '@/core/uuid';
 import { createTestDatabase } from '@/core/__tests__/helpers';
+import { createWorkspaceStoreClient } from '@/core/worker/WorkspaceStoreClient';
+import { GetNodeTreeQuery } from '@/core/graphQueries/queries/GetNodeTreeQuery';
+import { useWorkspaceStoreClient } from '@/core/hooks';
+import { useGraphQuery } from '@/core/graphQueries/hooks/useGraphQuery';
 import { flattenNodes, isGhostId, buildGhostId, parseGhostParentUuid } from './useBlockTree';
 import { buildFlatNodesFromStore } from './useBlockTree.store';
 import { useBlockTree } from './useBlockTree';
@@ -26,6 +30,10 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@/core/hooks', () => ({
   useWorkspaceStoreClient: vi.fn(() => ({ client: undefined, isLoading: false, error: null })),
+}));
+
+vi.mock('@/core/graphQueries/hooks/useGraphQuery', () => ({
+  useGraphQuery: vi.fn(() => ({ data: undefined, isLoading: false, error: null, refetch: vi.fn() })),
 }));
 
 const PAGE_UUID = '11111111-1111-1111-1111-111111111111';
@@ -236,5 +244,47 @@ describe('useBlockTree', () => {
     const { result } = renderHook(() => useBlockTree(tree));
 
     expect(result.current.flatNodes.map((n) => n.node.uuid)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('uses GetNodeTreeQuery and does not call getChildren', async () => {
+    const store = await createTestStore();
+    store.createNode({ nodeId: PAGE_UUID, kind: 'page', parentId: null });
+    store.createNode({ nodeId: PARENT_UUID, kind: 'block', parentId: null });
+    store.createNode({ nodeId: NEW_CHILD_UUID, kind: 'block', parentId: null });
+    store.moveNode(PARENT_UUID, PAGE_UUID);
+    store.moveNode(NEW_CHILD_UUID, PARENT_UUID);
+    store.updateText(PARENT_UUID, (text) => text.insert(0, 'Parent'));
+    store.updateText(NEW_CHILD_UUID, (text) => text.insert(0, 'Child'));
+
+    const client = createWorkspaceStoreClient();
+    await client.init(uuidv7(), uuidv7(), { store });
+
+    const mockedUseWorkspaceStoreClient = vi.mocked(useWorkspaceStoreClient);
+    mockedUseWorkspaceStoreClient.mockReturnValue({ client, isLoading: false, error: null });
+
+    const rows = GetNodeTreeQuery.execute(store, { nodeUuid: PAGE_UUID, maxDepth: -1 }).rows;
+    const mockedUseGraphQuery = vi.mocked(useGraphQuery);
+    mockedUseGraphQuery.mockReturnValue({
+      data: { rows },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const querySpy = vi.spyOn(client, 'query');
+
+    const { result } = renderHook(() => useBlockTree([], { nodeUuid: PAGE_UUID, readOnly: true }));
+
+    await waitFor(() => expect(result.current.flatNodes.length).toBeGreaterThan(0));
+
+    const realUuids = result.current.flatNodes.filter((n) => !n.isGhost).map((n) => n.node.uuid);
+    expect(realUuids).toContain(PARENT_UUID);
+    expect(realUuids).toContain(NEW_CHILD_UUID);
+
+    const getChildrenCalls = querySpy.mock.calls.filter((call) => call[0] === 'getChildren');
+    expect(getChildrenCalls).toHaveLength(0);
+
+    querySpy.mockRestore();
+    client.close();
   });
 });

@@ -15,7 +15,7 @@ import {
   isValidServerNodeId,
   type FlatNode,
   type UseBlockTreeOptions,
-} from './useBlockTree';
+} from './useBlockTree.shared';
 
 /** @internal Exported for unit testing and legacy callers. */
 export function buildFlatNodesFromStore(

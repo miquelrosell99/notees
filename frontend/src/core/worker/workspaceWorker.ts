@@ -49,6 +49,7 @@ import {
   getClassExtends,
   getClassExtendsAncestors,
   getNodeByUuid,
+  getProjectedNodes,
   getNodeKindMap,
   getChildrenBatch,
   getNodeView,
@@ -489,6 +490,13 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
   if (request.method === 'projectNode') {
     const [nodeId, depth] = request.args as [string, number | undefined];
     const result = projectNode(state.store, nodeId, depth);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'projectNodes') {
+    const [nodeIds, depth] = request.args as [string[], number | undefined];
+    const result = getProjectedNodes(state.store, nodeIds, depth);
     postResponse({ type: 'query-result', id: request.id, result });
     return;
   }

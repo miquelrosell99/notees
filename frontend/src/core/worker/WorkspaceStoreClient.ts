@@ -54,6 +54,7 @@ import {
   getClassExtends,
   getClassExtendsAncestors,
   getNodeByUuid,
+  getProjectedNodes,
   getNodeKindMap,
   getChildrenBatch,
   getNodeView,
@@ -545,6 +546,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'projectNode') {
       const [nodeId, depth] = args as [string, number | undefined];
       return Promise.resolve(projectNode(this.store, nodeId, depth) as T);
+    }
+    if (method === 'projectNodes') {
+      const [nodeIds, depth] = args as [string[], number | undefined];
+      return Promise.resolve(getProjectedNodes(this.store, nodeIds, depth) as T);
     }
     if (method === 'getNodeProperties') {
       const [nodeId] = args as [string];
