@@ -209,6 +209,7 @@ export function createSchema(db: Database): void {
       operation_id TEXT PRIMARY KEY,
       state TEXT NOT NULL,
       attempt_count INTEGER NOT NULL DEFAULT 0,
+      next_retry_at INTEGER,
       last_error TEXT,
       created_at TEXT,
       updated_at TEXT
@@ -554,6 +555,15 @@ function migrateSchema(db: Database): void {
     `);
     rebuildNodeStats(db);
     db.exec('PRAGMA user_version = 9');
+  }
+
+  if (version < 10) {
+    try {
+      db.exec(`ALTER TABLE sync_outbox ADD COLUMN next_retry_at INTEGER`);
+    } catch {
+      // Column may already exist; ignore.
+    }
+    db.exec('PRAGMA user_version = 10');
   }
 }
 

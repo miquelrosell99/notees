@@ -60,6 +60,10 @@ export function useGraphQuery<Input, Output>(
       cancelled = true;
       unsubscribe();
     };
+    // cacheKey is derived from input via query.cacheKey, so input identity is
+    // already captured; including it here would re-run the effect on every new
+    // object reference even when the cache key is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, query, cacheKey, enabled]);
 
   const refetch = useCallback(() => run(), [run]);

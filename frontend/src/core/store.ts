@@ -411,10 +411,13 @@ export class WorkspaceStore {
         const affectedIds = rebuildEdgesForNode(db, nodeId);
         if (affectedIds.length > 0) {
           notifications.push({ scope: 'edge', nodeId, relatedIds: affectedIds.filter((id) => id !== nodeId) });
+          for (const id of affectedIds) {
+            affectedNodeIds.add(id);
+          }
         }
       }
 
-      rebuildNodeStats(db);
+      rebuildNodeStats(db, Array.from(affectedNodeIds));
     });
 
     if (maxAppliedHlc !== null) {

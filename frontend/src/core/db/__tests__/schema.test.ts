@@ -10,12 +10,12 @@ beforeAll(() => {
 });
 
 describe('schema', () => {
-  it('creates node_stats and edge indexes and migrates to user_version 9', async () => {
+  it('creates node_stats, edge indexes, sync_outbox next_retry_at and migrates to user_version 10', async () => {
     const db = await createTestDatabase();
 
     const versionRow = db.exec('PRAGMA user_version')[0];
     const version = versionRow?.values[0]?.[0] as number;
-    expect(version).toBe(9);
+    expect(version).toBe(10);
 
     const nodeStats = queryOne<{ name: string }>(
       db,
