@@ -53,7 +53,7 @@ export interface QuerySectionProps {
   focusMode?: boolean;
 }
 
-export function QuerySection({ 
+export function QuerySection({
       nodeUuid,
       nodeName,
       viewType,
@@ -71,7 +71,8 @@ export function QuerySection({
       onQueryASTChange,
       variant = 'default',
       focusMode = false }: QuerySectionProps): React.JSX.Element | null {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const effectiveDefaultExpanded = viewType === 'linked_references' ? false : defaultExpanded;
+  const [isExpanded, setIsExpanded] = useState(effectiveDefaultExpanded);
   
   const handleToggle = useCallback(() => {
     setIsExpanded(prev => !prev);
