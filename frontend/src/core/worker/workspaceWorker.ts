@@ -30,6 +30,7 @@ import type { Operation } from '../types/operation';
 import type { OperationRow } from '../sync';
 import type { Node } from '@/types/api';
 import type { QueryAST } from '@/types/queryAST';
+import { registerAllQueries } from '../graphQueries/queries';
 import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
 import {
   buildBacklinks,
@@ -129,6 +130,8 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   // Idempotent cleanup: ensure journal pages have the correct year → month → day
   // hierarchy. This fixes date nodes created before hierarchy enforcement.
   repairDatePageHierarchy(store);
+
+  registerAllQueries();
 
   postResponse({ type: 'init-done', id: request.id });
 }
