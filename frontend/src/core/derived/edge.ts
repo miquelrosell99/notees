@@ -2,6 +2,7 @@ import { type Database } from 'sql.js';
 import { uuidv7 } from '../uuid';
 import { queryAll, queryOne } from '../db/sqlite';
 import { parseLinkId } from '@/lib/astBuilder';
+import { rebuildNodeStats } from './nodeStats';
 
 const REF_MARK_RE = /\[\[([^\]]+)\]\]/g;
 
@@ -92,6 +93,15 @@ export function rebuildEdgesForNode(db: Database, nodeId: string): void {
   } finally {
     stmt.free();
   }
+
+  const affectedIds = new Set<string>([nodeId]);
+  for (const row of existingRows) {
+    affectedIds.add(row.target_id);
+  }
+  for (const targetId of desired.keys()) {
+    affectedIds.add(targetId);
+  }
+  rebuildNodeStats(db, Array.from(affectedIds));
 }
 
 export function getBacklinks(db: Database, nodeId: string): string[] {

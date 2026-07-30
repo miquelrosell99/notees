@@ -4,6 +4,7 @@ import { type TextCrdt } from './crdt/text';
 import { createSchema } from './db/schema';
 import { queryAll, queryOne, transaction } from './db/sqlite';
 import { applyOperation } from './derived';
+import { rebuildNodeStats } from './derived/nodeStats';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { rewriteLinksToTarget } from './query/mergePages';
@@ -375,6 +376,8 @@ export class WorkspaceStore {
       for (const nodeId of edgeRebuildNodeIds) {
         rebuildEdgesForNode(db, nodeId);
       }
+
+      rebuildNodeStats(db);
     });
 
     if (maxAppliedHlc !== null) {

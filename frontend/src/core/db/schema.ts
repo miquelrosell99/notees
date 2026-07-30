@@ -1,4 +1,5 @@
 import { type Database } from 'sql.js';
+import { rebuildNodeStats } from '../derived/nodeStats';
 
 export function createSchema(db: Database): void {
   db.exec(`
@@ -92,6 +93,12 @@ export function createSchema(db: Database): void {
       metadata TEXT,
       created_at TEXT
     );
+
+    CREATE INDEX IF NOT EXISTS idx_edge_source_type
+    ON edge (source_id, type);
+
+    CREATE INDEX IF NOT EXISTS idx_edge_target_type
+    ON edge (target_id, type);
 
     CREATE TABLE IF NOT EXISTS crdt_state (
       node_id TEXT PRIMARY KEY,
@@ -209,6 +216,15 @@ export function createSchema(db: Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_sync_outbox_state
     ON sync_outbox (state);
+
+    CREATE TABLE IF NOT EXISTS node_stats (
+      node_id TEXT PRIMARY KEY,
+      child_count INTEGER NOT NULL DEFAULT 0,
+      backlink_count INTEGER NOT NULL DEFAULT 0,
+      reference_count INTEGER NOT NULL DEFAULT 0,
+      descendant_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT
+    );
 
     CREATE TABLE IF NOT EXISTS node_asset (
       node_id TEXT NOT NULL,
@@ -515,6 +531,29 @@ function migrateSchema(db: Database): void {
       );
     `);
     db.exec('PRAGMA user_version = 7');
+  }
+
+  if (version < 8) {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_edge_source_type ON edge (source_id, type);
+      CREATE INDEX IF NOT EXISTS idx_edge_target_type ON edge (target_id, type);
+    `);
+    db.exec('PRAGMA user_version = 8');
+  }
+
+  if (version < 9) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS node_stats (
+        node_id TEXT PRIMARY KEY,
+        child_count INTEGER NOT NULL DEFAULT 0,
+        backlink_count INTEGER NOT NULL DEFAULT 0,
+        reference_count INTEGER NOT NULL DEFAULT 0,
+        descendant_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT
+      );
+    `);
+    rebuildNodeStats(db);
+    db.exec('PRAGMA user_version = 9');
   }
 }
 
