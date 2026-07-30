@@ -34,6 +34,7 @@ import {
   type IWorkspaceStoreClient,
   type WorkerRequest,
   type WorkerMessage,
+  type NotifyChangeMessage,
   generateRequestId,
 } from './workerProtocol';
 import {
@@ -150,7 +151,7 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
 
   private handleMessage(msg: WorkerMessage): void {
     if (msg.type === 'notify') {
-      this.emit(msg.nodeId ?? null);
+      this.emit(msg.nodeId ?? null, msg);
       return;
     }
 
@@ -271,12 +272,12 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     };
   }
 
-  private emit(nodeId: string | null): void {
+  private emit(nodeId: string | null, notification?: NotifyChangeMessage): void {
     const specific = this.listeners.get(nodeId);
     if (specific) {
       for (const callback of specific) {
         try {
-          callback();
+          callback(notification);
         } catch (err) {
           console.error('Workspace store listener error:', err);
         }
@@ -286,7 +287,7 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     if (all) {
       for (const callback of all) {
         try {
-          callback();
+          callback(notification);
         } catch (err) {
           console.error('Workspace store listener error:', err);
         }
@@ -732,16 +733,16 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     return Promise.resolve(fn.apply(this.store, args) as T);
   }
 
-  subscribe(nodeId: string | null, callback: () => void): () => void {
+  subscribe(nodeId: string | null, callback: (notification?: NotifyChangeMessage) => void): () => void {
     if (!this.store) {
       return () => {
         // No-op if store was not initialized.
       };
     }
     if (nodeId === null) {
-      return this.store.subscribeAll(callback);
+      return this.store.subscribeAll(() => callback({ type: 'notify' }));
     }
-    return this.store.subscribe(nodeId, callback);
+    return this.store.subscribe(nodeId, () => callback({ type: 'notify', nodeId }));
   }
 
   private loadWatermarks(): { received: Hlc; pushed: Hlc; restoreEpoch: number } {

@@ -103,7 +103,7 @@ export interface IWorkspaceStoreClient {
   export(): Promise<Uint8Array>;
   mutate<T>(method: string, args: unknown[]): Promise<T>;
   query<T>(method: string, args: unknown[]): Promise<T>;
-  subscribe(nodeId: string | null, callback: () => void): () => void;
+  subscribe(nodeId: string | null, callback: (notification?: NotifyChangeMessage) => void): () => void;
   close(): void;
   /** True if the client has been closed or the underlying worker terminated. */
   isClosed(): boolean;
