@@ -1,5 +1,4 @@
 import { getBacklinks } from '../../derived/edge';
-import type { WorkspaceStore } from '../../store';
 import type { GraphQuery } from '../GraphQuery';
 import type { NodeInput } from '../QueryInput';
 import type { IdPageOutput } from '../QueryOutput';
