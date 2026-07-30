@@ -1,24 +1,23 @@
-# Notees Technical Architecture
+# Technical Architecture
 
-> **Scope:** This document describes the current implementation of the Notees
-> frontend local-first core, with emphasis on the projection/query-object
-> architecture introduced for linked-reference performance. Backend architecture
-> is summarised only where it touches the client data path.
+This document describes the technical architecture of Notees: the local-first operation log, client-side derived SQLite store, GraphQuery layer, rendering pipeline, sync protocol, and performance considerations.
+
+For installation, configuration, usage, plugin development, and troubleshooting, see the other docs in this directory:
+
+- [Installation](installation.md)
+- [Configuration](configuration.md)
+- [Usage](usage.md)
+- [Developer Guide](developer-guide.md)
+- [API Reference](api.md)
+- [Plugins](plugins.md)
+- [Troubleshooting](troubleshooting.md)
+- [FAQ](faq.md)
 
 ---
 
 ## 1. High-level architecture
 
-### Overall architecture
-
-Notees is a local-first, privacy-first note application. The authoritative
-source of truth is an immutable **operation log** stored on the server as an
-encrypted relay and replayed in the browser. The client builds a derived
-**SQLite** database (via sql.js/WebAssembly) from that log. All reads the UI
-performs run against the local SQLite store; writes append local operations that
-are asynchronously pushed to the server.
-
-The architecture can be drawn as:
+Notees is a local-first, privacy-first note application. The authoritative source of truth is an immutable **operation log** stored on the server as an encrypted relay and replayed in the browser. The client builds a derived **SQLite** database (via `sql.js`/WebAssembly) from that log. All reads the UI performs run against the local SQLite store; writes append local operations that are asynchronously pushed to the server.
 
 ```
 Browser UI (React)
@@ -100,27 +99,19 @@ frontend/src/features/content/
 
 ### Data flow from UI to database
 
-1. A React hook (e.g. `useGraphQuery`) asks the worker client to execute a
-   named GraphQuery.
+1. A React hook (e.g. `useGraphQuery`) asks the worker client to execute a named GraphQuery.
 2. `WorkspaceStoreClient` posts a `query` message to the Web Worker.
-3. The worker dispatcher calls `executeGraphQuery(name, input)`, which looks up
-   the query object and runs it against the in-memory `WorkspaceStore` / SQLite
-   database.
-4. The query returns lightweight IDs or rows; a projection (optionally in a
-   second query) hydrates visible rows into view models.
+3. The worker dispatcher calls `executeGraphQuery(name, input)`, which looks up the query object and runs it against the in-memory `WorkspaceStore` / SQLite database.
+4. The query returns lightweight IDs or rows; a projection (optionally in a second query) hydrates visible rows into view models.
 5. The worker posts the result back to the main thread.
-6. `useGraphQuery` stores the result in local React state and subscribes to
-   worker change notifications. When a matching scoped notification arrives, it
-   re-runs the query.
-7. Writes go through mutations / appliers: an operation is applied inside the
-   worker, derived tables are updated, and scoped notifications are broadcast.
+6. `useGraphQuery` stores the result in local React state and subscribes to worker change notifications. When a matching scoped notification arrives, it re-runs the query.
+7. Writes go through mutations / appliers: an operation is applied inside the worker, derived tables are updated, and scoped notifications are broadcast.
 
 ---
 
 ## 2. Data model
 
-The client-side SQLite database is a derived view of the operation log. It can
-be rebuilt at any time by re-applying operations. The main tables are below.
+The client-side SQLite database is a derived view of the operation log. It can be rebuilt at any time by re-applying operations. The main tables are below.
 
 ### `operation`
 
@@ -139,6 +130,7 @@ Immutable log of every change. The authoritative source of truth.
 | `timestamp` | TEXT | ISO timestamp |
 
 Indexes:
+
 - `idx_operation_workspace_hlc(workspace_id, hlc_physical, hlc_logical)`
 
 ### `snapshot`
@@ -201,6 +193,7 @@ Graph edges, currently used primarily for `[[reference]]` / node-link references
 | `created_at` | TEXT | |
 
 Indexes:
+
 - `idx_edge_source_type(source_id, type)`
 - `idx_edge_target_type(target_id, type)`
 
@@ -223,12 +216,11 @@ Stores typed property values and deletion tombstones for CRDT merge.
 
 ### `class`, `class_hierarchy`, `property_schema`, `class_property_edge`
 
-Type system: classes, class inheritance, property schemas, and the many-to-many
-mapping between classes and properties.
+Type system: classes, class inheritance, property schemas, and the many-to-many mapping between classes and properties.
 
 ### `search_index`
 
-FTS4 virtual table over node plain text. Tokenizer: `unicode61`.
+FTS4 virtual table over node plain text. Tokenizer: `unicode61`. See [SEARCH.md](SEARCH.md) for details.
 
 ### `sync_watermark`, `sync_push_watermark`, `sync_outbox`
 
@@ -240,11 +232,8 @@ UI views, favorites, uploads, activity, task metadata.
 
 ### How the graph is modeled
 
-- **Hierarchy**: adjacency list (`node.parent_id`) plus explicit order table
-  (`node_child_order`). The derived store rebuilds both from tree operations.
-- **References**: `edge` rows with `type = 'reference'`. References are parsed
-  from node content (`[[target]]` wiki-links and `node_link` inline links) by
-  `rebuildEdgesForNode()`.
+- **Hierarchy**: adjacency list (`node.parent_id`) plus explicit order table (`node_child_order`). The derived store rebuilds both from tree operations.
+- **References**: `edge` rows with `type = 'reference'`. References are parsed from node content (`[[target]]` wiki-links and `node_link` inline links) by `rebuildEdgesForNode()`.
 - **Classes**: `node.class_ids` JSON array; hierarchy in `class_hierarchy`.
 - **Properties**: `property_value` rows keyed by `(node_id, property_schema_id, idx)`.
 - **Ordering**: children are ordered by `position` strings.
@@ -255,8 +244,7 @@ UI views, favorites, uploads, activity, task metadata.
 
 The query layer has two tiers:
 
-1. **GraphQuery objects** – named, cache-keyed, invalidatable queries that run
-   inside the worker and return IDs or lightweight rows.
+1. **GraphQuery objects** – named, cache-keyed, invalidatable queries that run inside the worker and return IDs or lightweight rows.
 2. **Projections** – synchronous functions that turn IDs/rows into view models.
 
 ### Base contract
@@ -301,8 +289,7 @@ Complexity: `O(log n)` with `idx_edge_target_type`.
 
 #### `GetLinkedReferencesQuery`
 
-Purpose: return paginated source node ids for the "Linked references" section,
-using the QueryAST runtime.
+Purpose: return paginated source node ids for the "Linked references" section, using the QueryAST runtime.
 
 ```ts
 export const GetLinkedReferencesQuery: GraphQuery<PaginatedInput, IdPageOutput> = {
@@ -324,10 +311,7 @@ export const GetLinkedReferencesQuery: GraphQuery<PaginatedInput, IdPageOutput> 
 };
 ```
 
-The QueryAST is compiled to SQLite by `compileToSqlite()`. The resulting SQL
-joins `node` with the edge/reference conditions defined by the AST. Because the
-query returns only ids with `projectionDepth: 0`, no recursive child projection
-happens at this stage.
+The QueryAST is compiled to SQLite by `compileToSqlite()`. The resulting SQL joins `node` with the edge/reference conditions defined by the AST. Because the query returns only ids with `projectionDepth: 0`, no recursive child projection happens at this stage.
 
 #### `HydrateLinkedReferencesQuery`
 
@@ -344,9 +328,7 @@ export const HydrateLinkedReferencesQuery = {
 };
 ```
 
-This calls `buildSyntheticRef()` per source id, which uses `projectNode()` to
-get the source node, walks up to the containing page, and builds a breadcrumb
-path.
+This calls `buildSyntheticRef()` per source id, which uses `projectNode()` to get the source node, walks up to the containing page, and builds a breadcrumb path.
 
 #### `GetNodeTreeQuery`
 
@@ -408,15 +390,11 @@ Purpose: full-text / metadata search. Delegates to `queryNodes()`.
 
 #### `GetPageQuery`
 
-Purpose: fetch a full `Node` view model for a page. Still uses
-`projectNode(store, id, 2)`.
+Purpose: fetch a full `Node` view model for a page. Still uses `projectNode(store, id, 2)`.
 
 ### Query dispatch
 
-`queryRegistry.ts` holds a map of query name → implementation. The worker
-handles `executeGraphQuery` messages; `WorkspaceStoreClient` exposes the same
-method on the main thread. `registerAllQueries()` is called once when the worker
-initialises.
+`queryRegistry.ts` holds a map of query name → implementation. The worker handles `executeGraphQuery` messages; `WorkspaceStoreClient` exposes the same method on the main thread. `registerAllQueries()` is called once when the worker initialises.
 
 ---
 
@@ -424,29 +402,19 @@ initialises.
 
 ### Opening a page
 
-1. `App.tsx` initialises the workspace store client for the route's
-   `workspaceId`.
-2. The worker loads a persisted SQLite dump from IndexedDB (or falls back to a
-   fresh DB) and replays any pending local operations.
-3. `WorkspaceStoreInitializer` starts the sync engine, which pulls remote
-   operations in a batched `applyMany` call.
+1. `App.tsx` initialises the workspace store client for the route's `workspaceId`.
+2. The worker loads a persisted SQLite dump from IndexedDB (or falls back to a fresh DB) and replays any pending local operations.
+3. `WorkspaceStoreInitializer` starts the sync engine, which pulls remote operations in a batched `applyMany` call.
 4. `PageView` renders. It calls `useNode(nodeUuid)` and `useBlockTree(...)`.
-5. `useBlockTree` uses `GetNodeTreeQuery` to fetch the page subtree in one
-   worker round-trip. `NodeTreeProjection.getVisibleNodeIds()` decides which
-   rows are visible given collapsed state. `projectNodesFromClient()` projects
-   only those visible ids to the legacy `Node` shape.
-6. Linked-references sections render via `QuerySection`, which defaults to
-   collapsed. The count badge comes from `useLinkedReferencesCount()` →
-   `GetBacklinksQuery`, so no heavy reference hydration runs on initial load.
+5. `useBlockTree` uses `GetNodeTreeQuery` to fetch the page subtree in one worker round-trip. `NodeTreeProjection.getVisibleNodeIds()` decides which rows are visible given collapsed state. `projectNodesFromClient()` projects only those visible ids to the legacy `Node` shape.
+6. Linked-references sections render via `QuerySection`, which defaults to collapsed. The count badge comes from `useLinkedReferencesCount()` → `GetBacklinksQuery`, so no heavy reference hydration runs on initial load.
 
 ### Expanding a block
 
 1. The user toggles collapse in the UI.
 2. `useUIStateStore` updates collapsed state.
-3. `useBlockTree` re-computes `getVisibleNodeIds()` from the cached tree rows
-   and re-projects newly visible ids.
-4. `GetNodeTreeQuery` is **not** re-executed unless a structural notification
-   arrives.
+3. `useBlockTree` re-computes `getVisibleNodeIds()` from the cached tree rows and re-projects newly visible ids.
+4. `GetNodeTreeQuery` is **not** re-executed unless a structural notification arrives.
 
 ### Opening backlinks
 
@@ -454,28 +422,22 @@ initialises.
 2. `QuerySection` flips `isExpanded` to true.
 3. `QueryNodeCollection` enables `GetLinkedReferencesQuery`.
 4. The query returns a page of source ids.
-5. `useLinkedReferences` then enables `HydrateLinkedReferencesQuery` for those
-   ids only.
+5. `useLinkedReferences` then enables `HydrateLinkedReferencesQuery` for those ids only.
 6. The hydrated `LinkedReference[]` is rendered as rows.
 
 ### Scrolling
 
-List views render via `NodeCollection` / `ListView`. There is currently no
-windowing/virtualization for large collections; the limit is the local query
-result cap (`LOCAL_QUERY_RESULT_LIMIT = 500`).
+List views render via `NodeCollection` / `ListView`. There is currently no windowing/virtualization for large collections; the limit is the local query result cap (`LOCAL_QUERY_RESULT_LIMIT = 500`).
 
 ### Editing text
 
 1. The block editor emits content changes.
-2. `useContentSave` debounces and calls a mutation that creates/appends an
-   operation.
-3. The operation is applied in the worker (`applyNodeOperation`,
-   `applyLinkOperation`, etc.).
+2. `useContentSave` debounces and calls a mutation that creates/appends an operation.
+3. The operation is applied in the worker (`applyNodeOperation`, `applyLinkOperation`, etc.).
 4. Derived tables update, including `edge`, `search_index`, and `node_stats`.
 5. The applier returns `ChangeNotification[]` with scope `node`/`edge`/`tree`.
 6. The worker broadcasts scoped notifications.
-7. `useGraphQuery` subscribers whose `shouldInvalidate` matches re-run their
-   queries and React re-renders affected components.
+7. `useGraphQuery` subscribers whose `shouldInvalidate` matches re-run their queries and React re-renders affected components.
 
 ---
 
@@ -483,56 +445,40 @@ result cap (`LOCAL_QUERY_RESULT_LIMIT = 500`).
 
 ### Storage
 
-Backlinks are stored as `edge` rows with `type = 'reference'`. When a node's
-content changes, `rebuildEdgesForNode(db, nodeId)`:
+Backlinks are stored as `edge` rows with `type = 'reference'`. When a node's content changes, `rebuildEdgesForNode(db, nodeId)`:
 
 1. Reads the node's `content` JSON.
-2. Extracts `[[target]]` wiki-link references and `node_link` inline link
-   targets.
-3. Compares the desired set of `(source_id, target_id)` pairs with the existing
-   `edge` rows for that source.
+2. Extracts `[[target]]` wiki-link references and `node_link` inline link targets.
+3. Compares the desired set of `(source_id, target_id)` pairs with the existing `edge` rows for that source.
 4. Inserts, updates metadata, or deletes edges to match.
 5. Returns the set of affected node ids (source + all touched targets).
 
 ### Materialized counts
 
-`node_stats` holds `child_count`, `backlink_count`, `reference_count`, and
-`descendant_count`. `rebuildNodeStats(db, nodeIds?)` recomputes these counts:
+`node_stats` holds `child_count`, `backlink_count`, `reference_count`, and `descendant_count`. `rebuildNodeStats(db, nodeIds?)` recomputes these counts:
 
-- Full rebuild: groups `node_child_order`, `edge`, and recursive descendants in
-  a single `INSERT … SELECT`.
-- Incremental rebuild: computes the ancestor closure of the changed ids so
-  descendant counts stay correct up to the roots, then updates only those rows.
+- Full rebuild: groups `node_child_order`, `edge`, and recursive descendants in a single `INSERT … SELECT`.
+- Incremental rebuild: computes the ancestor closure of the changed ids so descendant counts stay correct up to the roots, then updates only those rows.
 
-`rebuildNodeStats()` is called from the operation appliers after batches of
-structural/link changes.
+`rebuildNodeStats()` is called from the operation appliers after batches of structural/link changes.
 
 ### Backlink query timing
 
-- **Count badge**: always enabled via `useLinkedReferencesCount` →
-  `GetBacklinksQuery` (cheap index lookup).
+- **Count badge**: always enabled via `useLinkedReferencesCount` → `GetBacklinksQuery` (cheap index lookup).
 - **ID list**: enabled only when the section is expanded.
 - **Hydration**: enabled only after the ID list returns non-empty results.
 
 ### Children / descendants of backlinked nodes
 
-The new implementation does **not** recursively load children of backlinked
-nodes when computing the backlink list. `GetLinkedReferencesQuery` uses
-`projectionDepth: 0`, so only the matching source node ids are returned.
-`HydrateLinkedReferencesQuery` calls `projectNode(..., 0)` for each visible
-source id and walks ancestors only to build breadcrumbs.
+The implementation does **not** recursively load children of backlinked nodes when computing the backlink list. `GetLinkedReferencesQuery` uses `projectionDepth: 0`, so only the matching source node ids are returned. `HydrateLinkedReferencesQuery` calls `projectNode(..., 0)` for each visible source id and walks ancestors only to build breadcrumbs.
 
 ### Backlink badges
 
-Badges are computed from `node_stats.backlink_count`, not by counting edges at
-render time. They update when edge appliers trigger a `node_stats` rebuild and
-emit a `scope: 'edge'` notification.
+Badges are computed from `node_stats.backlink_count`, not by counting edges at render time. They update when edge appliers trigger a `node_stats` rebuild and emit a `scope: 'edge'` notification.
 
 ### Pagination / virtualization
 
-`GetLinkedReferencesQuery` supports `limit`/`offset`. The UI currently uses a
-page size constant in `QueryNodeCollection` for linked references. There is no
-virtualization; large lists render all hydrated rows.
+`GetLinkedReferencesQuery` supports `limit`/`offset`. The UI currently uses a page size constant in `QueryNodeCollection` for linked references. There is no virtualization; large lists render all hydrated rows.
 
 ---
 
@@ -555,47 +501,28 @@ There is no separate in-memory graph cache beyond the SQLite database itself.
 
 ### Local SQLite
 
-The worker owns one `sql.js` `Database` per workspace. It is serialised to a
-`Uint8Array` and persisted to IndexedDB periodically / on close. On load the
-worker imports the bytes and checks `PRAGMA user_version` to run migrations.
+The worker owns one `sql.js` `Database` per workspace. It is serialised to a `Uint8Array` and persisted to IndexedDB periodically / on close. On load the worker imports the bytes and checks `PRAGMA user_version` to run migrations.
 
 ### Sync protocol
 
-- **Push**: `SyncEngine.push()` queries pending operations from `sync_outbox`
-  (those with HLC greater than the pushed watermark), batches them into
-  encrypted envelopes, sends them via `Transport`, and marks acknowledged ids.
-  Failed operations record `attempt_count` and `next_retry_at`.
-- **Pull**: `SyncEngine.pull()` fetches the latest snapshot. If the server's
-  `restore_epoch` changed, local derived state and the operation log are cleared
-  and rebuilt from the server. Otherwise, or if the snapshot is newer, the
-  snapshot is restored and then newer operations are fetched with `catchUp()`
-  and applied in one `applyMany` worker batch.
-- **Conflict detection**: after pulling, remote operations are compared against
-  still-pending local operations on the same affected nodes via
-  `detectConflicts()`.
+- **Push**: `SyncEngine.push()` queries pending operations from `sync_outbox` (those with HLC greater than the pushed watermark), batches them into encrypted envelopes, sends them via `Transport`, and marks acknowledged ids. Failed operations record `attempt_count` and `next_retry_at`.
+- **Pull**: `SyncEngine.pull()` fetches the latest snapshot. If the server's `restore_epoch` changed, local derived state and the operation log are cleared and rebuilt from the server. Otherwise, or if the snapshot is newer, the snapshot is restored and then newer operations are fetched with `catchUp()` and applied in one `applyMany` worker batch.
+- **Conflict detection**: after pulling, remote operations are compared against still-pending local operations on the same affected nodes via `detectConflicts()`.
 
 ### Operation log
 
-Operations are immutable, ordered by HLC. The backend stores them encrypted and
-serves them in HLC order.
+Operations are immutable, ordered by HLC. The backend stores them encrypted and serves them in HLC order.
 
 ### Batching / optimistic updates
 
-- The worker exposes `startBatch`/`endBatch` so many remote operations can be
-  applied in one transaction, emitting notifications only at the end.
-- Local mutations create operations and apply them immediately in the worker,
-  so the UI sees the change synchronously before sync runs.
+- The worker exposes `startBatch`/`endBatch` so many remote operations can be applied in one transaction, emitting notifications only at the end.
+- Local mutations create operations and apply them immediately in the worker, so the UI sees the change synchronously before sync runs.
 
 ---
 
 ## 8. AI architecture
 
-The frontend local-first core does not currently contain embeddings, vector
-search, or an AI retrieval pipeline. The backend has an `app/features/agents/`
-service, but AI-driven graph access is not part of the client read path
-described here. Any future AI work would likely query the same GraphQuery layer
-and operate on `NodeSummary` / `LinkedReference` projections rather than
-hydrating full subtrees.
+The frontend local-first core does not currently contain embeddings, vector search, or an AI retrieval pipeline. The backend has an `app/features/agents/` service, but AI-driven graph access is not part of the client read path described here. Any future AI work would likely query the same GraphQuery layer and operate on `NodeSummary` / `LinkedReference` projections rather than hydrating full subtrees.
 
 ---
 
@@ -611,30 +538,20 @@ hydrating full subtrees.
 
 ### Slowest / heaviest queries
 
-- **`GetLinkedReferencesQuery`**: still compiles a QueryAST that may scan or
-  join against `edge`. It returns only ids, but for a page with thousands of
-  backlinks the ID list can be large. Hydration is deferred until expansion.
-- **Full `rebuildNodeStats()`**: acceptable because it runs inside SQLite in a
-  single query, but full rebuilds happen only on schema upgrade or hard reset.
-- **Legacy `projectNode(..., depth > 0)`**: recursive child projection is
-  expensive. The new `useBlockTree` path avoids this by using
-  `GetNodeTreeQuery` + batch projection of visible ids only.
+- **`GetLinkedReferencesQuery`**: still compiles a QueryAST that may scan or join against `edge`. It returns only ids, but for a page with thousands of backlinks the ID list can be large. Hydration is deferred until expansion.
+- **Full `rebuildNodeStats()`**: acceptable because it runs inside SQLite in a single query, but full rebuilds happen only on schema upgrade or hard reset.
+- **Legacy `projectNode(..., depth > 0)`**: recursive child projection is expensive. The new `useBlockTree` path avoids this by using `GetNodeTreeQuery` + batch projection of visible ids only.
 
 ### N+1 removed
 
-- `useBlockTree` previously fetched children per node via repeated worker
-  round-trips. It now fetches the whole subtree in one `GetNodeTreeQuery`.
-- `useLinkedReferences` previously hydrated every backlink on page load. It now
-  fetches IDs lazily and hydrates only visible rows.
+- `useBlockTree` previously fetched children per node via repeated worker round-trips. It now fetches the whole subtree in one `GetNodeTreeQuery`.
+- `useLinkedReferences` previously hydrated every backlink on page load. It now fetches IDs lazily and hydrates only visible rows.
 
 ### Remaining bottlenecks
 
-- Large linked-reference lists are not virtualized; rendering thousands of rows
-  can still stress React.
-- `HydrateLinkedReferencesQuery` calls `projectNode()` per source id, which
-  still resolves properties and class metadata.
-- Global TanStack Query invalidations for server-state queries can refetch more
-  than necessary.
+- Large linked-reference lists are not virtualized; rendering thousands of rows can still stress React.
+- `HydrateLinkedReferencesQuery` calls `projectNode()` per source id, which still resolves properties and class metadata.
+- Global TanStack Query invalidations for server-state queries can refetch more than necessary.
 
 ---
 
@@ -672,31 +589,12 @@ hydrating full subtrees.
 
 ## Architecture summary
 
-Notees is a local-first note app where an immutable server-side operation log is
-replayed into a client-side SQLite database inside a Web Worker. The UI reads
-from that derived database through a thin **GraphQuery** layer: named query
-objects (`GetBacklinksQuery`, `GetLinkedReferencesQuery`, `GetNodeTreeQuery`,
-etc.) return lightweight IDs or rows, while separate **projections** hydrate
-only the visible rows into view models. This split, plus a materialized
-`node_stats` table, makes it cheap to show backlink counts and collapse
-linked-reference sections by default. When a user expands a section, only the
-first page of source ids is fetched and then hydrated, rather than projecting
-the entire backlink graph on page load.
+Notees is a local-first note app where an immutable server-side operation log is replayed into a client-side SQLite database inside a Web Worker. The UI reads from that derived database through a thin **GraphQuery** layer: named query objects (`GetBacklinksQuery`, `GetLinkedReferencesQuery`, `GetNodeTreeQuery`, etc.) return lightweight IDs or rows, while separate **projections** hydrate only the visible rows into view models. This split, plus a materialized `node_stats` table, makes it cheap to show backlink counts and collapse linked-reference sections by default. When a user expands a section, only the first page of source ids is fetched and then hydrated, rather than projecting the entire backlink graph on page load.
 
-The block tree rendering path now fetches the whole visible subtree in a single
-recursive `GetNodeTreeQuery` and batch-projects the legacy `Node` shape for
-exactly the visible ids, removing the previous per-child worker round-trip N+1.
+The block tree rendering path now fetches the whole visible subtree in a single recursive `GetNodeTreeQuery` and batch-projects the legacy `Node` shape for exactly the visible ids, removing the previous per-child worker round-trip N+1.
 
-Appliers in `frontend/src/core/derived/` apply operations to SQLite and emit
-scoped change notifications (`node`, `edge`, `tree`, `class`, `property`,
-`all`). `useGraphQuery` subscribes to those notifications and only re-runs
-queries whose `shouldInvalidate` matches, reducing global re-renders.
+Appliers in `frontend/src/core/derived/` apply operations to SQLite and emit scoped change notifications (`node`, `edge`, `tree`, `class`, `property`, `all`). `useGraphQuery` subscribes to those notifications and only re-runs queries whose `shouldInvalidate` matches, reducing global re-renders.
 
-Writes remain optimistic: local operations are applied immediately in the
-worker, then pushed to the FastAPI backend in batches. Pulls apply remote
-operations in a single worker batch, restore snapshots when available, and
-detect semantic conflicts against pending local edits.
+Writes remain optimistic: local operations are applied immediately in the worker, then pushed to the FastAPI backend in batches. Pulls apply remote operations in a single worker batch, restore snapshots when available, and detect semantic conflicts against pending local edits.
 
-The result is a projection-driven read layer on top of the existing
-operation-log foundation, keeping the source of truth unchanged while making
-pages with thousands of linked references open quickly.
+The result is a projection-driven read layer on top of the existing operation-log foundation, keeping the source of truth unchanged while making pages with thousands of linked references open quickly.
