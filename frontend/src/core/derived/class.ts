@@ -3,6 +3,45 @@ import type { Operation } from '../types/operation';
 import { queryAll } from '../db/sqlite';
 import type { ChangeNotification } from './index';
 
+interface AstNode {
+  type: string;
+  text?: string;
+  children?: AstNode[];
+}
+
+function collectText(value: unknown, parts: string[]): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectText(item, parts);
+  } else if (value && typeof value === 'object') {
+    const node = value as AstNode;
+    if (node.type === 'text' && typeof node.text === 'string') {
+      parts.push(node.text);
+    }
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) collectText(child, parts);
+    }
+  }
+}
+
+function normalizeClassName(name: unknown): string {
+  if (typeof name !== 'string') return 'Untitled class';
+  const trimmed = name.trim();
+  if (!trimmed) return 'Untitled class';
+  if (trimmed.startsWith('[')) {
+    try {
+      const ast = JSON.parse(trimmed) as unknown;
+      if (Array.isArray(ast)) {
+        const parts: string[] = [];
+        collectText(ast, parts);
+        return parts.join('').trim() || 'Untitled class';
+      }
+    } catch {
+      // Not valid JSON — fall through to returning the raw string.
+    }
+  }
+  return trimmed;
+}
+
 function applyClassHierarchy(db: Database, classId: string, extendsClassIds: string[]): void {
   db.run('DELETE FROM class_hierarchy WHERE class_id = ?', [classId]);
   db.run(
@@ -35,7 +74,7 @@ export function applyClassOperation(db: Database, op: Operation): ChangeNotifica
 
   if (opType === 'class.create') {
     const classId = payload.classId as string;
-    const name = (payload.name as string) ?? 'Untitled class';
+    const name = normalizeClassName(payload.name);
     const icon = (payload.icon as string | null | undefined) ?? null;
     const color = (payload.color as string | null | undefined) ?? null;
 
@@ -57,7 +96,7 @@ export function applyClassOperation(db: Database, op: Operation): ChangeNotifica
 
     if ('name' in payload) {
       sets.push('name = ?');
-      values.push(payload.name as string);
+      values.push(normalizeClassName(payload.name));
     }
     if ('icon' in payload) {
       sets.push('icon = ?');
