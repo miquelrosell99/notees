@@ -102,7 +102,6 @@ export const GetNodeTreeQuery: GraphQuery<GetNodeTreeInput, GetNodeTreeOutput> =
     return { rows: getNodeTree(store.getDb(), i.nodeUuid, i.maxDepth) };
   },
   shouldInvalidate(i, n) {
-    const scope = (n as { scope?: string }).scope;
-    return scope === 'tree' || scope === 'all' || n.nodeId === i.nodeUuid;
+    return n.scope === 'tree' || n.scope === 'all' || n.nodeId === i.nodeUuid;
   },
 };

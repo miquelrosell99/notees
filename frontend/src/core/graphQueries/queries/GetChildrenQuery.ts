@@ -10,7 +10,6 @@ export const GetChildrenQuery: GraphQuery<NodeInput, IdPageOutput> = {
     return { ids, totalCount: ids.length, hasMore: false };
   },
   shouldInvalidate(i, n) {
-    const scope = (n as { scope?: string }).scope;
-    return scope === 'tree' || scope === 'all' || n.nodeId === i.nodeUuid;
+    return n.scope === 'tree' || n.scope === 'all' || n.nodeId === i.nodeUuid;
   },
 };

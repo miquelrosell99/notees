@@ -21,7 +21,6 @@ export const GetLinkedReferencesQuery: GraphQuery<PaginatedInput, IdPageOutput> 
     return { ids, totalCount: allIds.length, hasMore: offset + limit < allIds.length };
   },
   shouldInvalidate(i, n) {
-    const scope = (n as { scope?: string }).scope;
-    return scope === 'edge' || scope === 'all' || n.nodeId === i.nodeUuid;
+    return n.scope === 'edge' || n.scope === 'all' || n.nodeId === i.nodeUuid;
   },
 };

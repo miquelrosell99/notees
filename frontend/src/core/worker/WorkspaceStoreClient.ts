@@ -258,15 +258,18 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     );
   }
 
-  subscribe(nodeId: string | null, callback: () => void): () => void {
+  subscribe(
+    nodeId: string | null,
+    callback: ((notification?: NotifyChangeMessage) => void) | (() => void)
+  ): () => void {
     let set = this.listeners.get(nodeId);
     if (!set) {
       set = new Set();
       this.listeners.set(nodeId, set);
     }
-    set.add(callback);
+    set.add(callback as (notification?: NotifyChangeMessage) => void);
     return () => {
-      set?.delete(callback);
+      set?.delete(callback as (notification?: NotifyChangeMessage) => void);
       if (set?.size === 0) {
         this.listeners.delete(nodeId);
       }
@@ -349,8 +352,8 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     // Sync-engine helpers.
     if (method === 'applyMany') {
       const [ops] = args as [Operation[]];
-      const count = this.store.applyMany(ops);
-      return Promise.resolve(count as T);
+      const result = this.store.applyMany(ops);
+      return Promise.resolve(result.appliedCount as T);
     }
     if (method === 'startBatch') {
       this.store.startBatch();
@@ -738,16 +741,23 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     return Promise.resolve(fn.apply(this.store, args) as T);
   }
 
-  subscribe(nodeId: string | null, callback: (notification?: NotifyChangeMessage) => void): () => void {
+  subscribe(
+    nodeId: string | null,
+    callback: (notification?: NotifyChangeMessage) => void
+  ): () => void {
     if (!this.store) {
       return () => {
         // No-op if store was not initialized.
       };
     }
     if (nodeId === null) {
-      return this.store.subscribeAll(() => callback({ type: 'notify' }));
+      return this.store.subscribeAll((notification) =>
+        callback(notification ?? { type: 'notify', scope: 'all' })
+      );
     }
-    return this.store.subscribe(nodeId, () => callback({ type: 'notify', nodeId }));
+    return this.store.subscribe(nodeId, (notification) =>
+      callback(notification ?? { type: 'notify', nodeId })
+    );
   }
 
   private loadWatermarks(): { received: Hlc; pushed: Hlc; restoreEpoch: number } {

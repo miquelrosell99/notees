@@ -10,7 +10,6 @@ export const GetPageQuery: GraphQuery<NodeInput, { node: Node | undefined }> = {
     return { node: projectNode(store, i.nodeUuid, 2) };
   },
   shouldInvalidate(i, n) {
-    const scope = (n as { scope?: string }).scope;
-    return scope === 'node' || scope === 'tree' || scope === 'all' || n.nodeId === i.nodeUuid;
+    return n.scope === 'node' || n.scope === 'tree' || n.scope === 'all' || n.nodeId === i.nodeUuid;
   },
 };

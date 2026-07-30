@@ -97,13 +97,13 @@ describe('GetNodeTreeQuery', () => {
     expect(
       GetNodeTreeQuery.shouldInvalidate(
         { nodeUuid: 'page', maxDepth: -1 },
-        { type: 'notify', scope: 'tree' } as { type: 'notify'; scope?: string }
+        { type: 'notify', scope: 'tree' }
       )
     ).toBe(true);
     expect(
       GetNodeTreeQuery.shouldInvalidate(
         { nodeUuid: 'page', maxDepth: -1 },
-        { type: 'notify', scope: 'all' } as { type: 'notify'; scope?: string }
+        { type: 'notify', scope: 'all' }
       )
     ).toBe(true);
     expect(GetNodeTreeQuery.shouldInvalidate({ nodeUuid: 'page', maxDepth: -1 }, { type: 'notify', nodeId: 'page' })).toBe(true);

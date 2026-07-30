@@ -1,17 +1,18 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
+import type { ChangeNotification } from './index';
 
-export function applyActivityOperation(db: Database, op: Operation): void {
+export function applyActivityOperation(db: Database, op: Operation): ChangeNotification[] {
   const { opType, id, workspaceId, actorId } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
 
   if (opType === 'node.delete') {
     const nodeId = payload.nodeId as string;
     db.run('DELETE FROM activity_log WHERE node_id = ?', [nodeId]);
-    return;
+    return [{ scope: 'all', nodeId }];
   }
 
-  if (opType !== 'activity.record') return;
+  if (opType !== 'activity.record') return [];
 
   const activityType = payload.activityType as string | undefined;
   const nodeId = payload.nodeId as string | undefined;
@@ -31,4 +32,6 @@ export function applyActivityOperation(db: Database, op: Operation): void {
       new Date().toISOString(),
     ]
   );
+
+  return nodeId ? [{ scope: 'node', nodeId }] : [];
 }
