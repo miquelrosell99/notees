@@ -1,6 +1,6 @@
 import type { Hlc } from './clock';
 import type { OperationEnvelope } from './crypto';
-import type { SnapshotEnvelope, Transport } from './transport';
+import type { SnapshotEnvelope, SendBatchResult, Transport } from './transport';
 
 const REQUEST_TIMEOUT_MS = 60_000;
 
@@ -63,12 +63,12 @@ export class HttpTransport implements Transport {
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
-  async send(envelope: OperationEnvelope): Promise<void> {
-    await this.sendBatch([envelope]);
+  async send(envelope: OperationEnvelope): Promise<SendBatchResult> {
+    return this.sendBatch([envelope]);
   }
 
-  async sendBatch(envelopes: OperationEnvelope[]): Promise<void> {
-    if (envelopes.length === 0) return;
+  async sendBatch(envelopes: OperationEnvelope[]): Promise<SendBatchResult> {
+    if (envelopes.length === 0) return { savedIds: [] };
 
     const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/batch`, {
       method: 'POST',
@@ -90,6 +90,12 @@ export class HttpTransport implements Transport {
       const text = await response.text().catch(() => 'Unknown error');
       throw new Error(`Relay batch failed (${response.status}): ${text}`);
     }
+
+    const data = (await response.json()) as {
+      saved_count: number;
+      saved_ids: string[];
+    };
+    return { savedIds: data.saved_ids };
   }
 
   async catchUp(

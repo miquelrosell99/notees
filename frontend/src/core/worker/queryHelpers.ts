@@ -33,6 +33,7 @@ import { compileToSqlite } from '../query/compileToSqlite';
 import { queryNodes } from '../query/queryNodes';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { isDayUuid, isMonthUuid, isYearUuid, yearMonthToMonthUuid, yearToYearUuid } from '@/utils/dateUuid';
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (raw === null || raw === undefined || raw === '') return fallback;
@@ -61,6 +62,10 @@ export function getNodeKindMap(store: WorkspaceStore): Map<string, 'page' | 'blo
     }
   }
   return map;
+}
+
+export function getChildrenBatch(store: WorkspaceStore, parentIds: string[]): Record<string, string[]> {
+  return store.getChildrenBatch(parentIds);
 }
 
 // ─── NodeView queries ───────────────────────────────────────────────────────
@@ -563,7 +568,61 @@ export function buildBreadcrumbs(store: WorkspaceStore, nodeUuid: string): Bread
     });
   }
 
-  return breadcrumbs;
+  // Ancestors were collected from immediate parent up to root; the UI expects
+  // root-to-leaf order (e.g., year → month → day for date pages).
+  return breadcrumbs.reverse();
+}
+
+/**
+ * Ensure existing daily/monthly/yearly journal pages form the correct
+ * year → month → day hierarchy.
+ *
+ * This is a one-off idempotent cleanup run at workspace startup. It fixes
+ * journal pages created before the hierarchy was enforced, and is cheap because
+ * there are at most a few hundred date nodes per workspace.
+ */
+export function repairDatePageHierarchy(store: WorkspaceStore): void {
+  const db = store.getDb();
+  const rows = queryAll<{ id: string; class_ids: string }>(
+    db,
+    `SELECT id, class_ids FROM node
+     WHERE EXISTS (
+       SELECT 1 FROM json_each(class_ids)
+       WHERE value IN (?, ?, ?)
+     )`,
+    [SYSTEM_CLASS_UUIDS.day, SYSTEM_CLASS_UUIDS.month, SYSTEM_CLASS_UUIDS.year]
+  );
+
+  for (const row of rows) {
+    const classIds = parseJson<string[]>(row.class_ids, []);
+    const nodeId = row.id;
+    let expectedParentId: string | null = null;
+
+    if (classIds.includes(SYSTEM_CLASS_UUIDS.day) && isDayUuid(nodeId)) {
+      const datePart = nodeId.slice('00000000-0000-0000-00dd-'.length, '00000000-0000-0000-00dd-'.length + 8);
+      const year = datePart.slice(0, 4);
+      const month = datePart.slice(4, 6);
+      expectedParentId = yearMonthToMonthUuid(parseInt(year, 10), parseInt(month, 10));
+    } else if (classIds.includes(SYSTEM_CLASS_UUIDS.month) && isMonthUuid(nodeId)) {
+      const yearPart = nodeId.slice('00000000-0000-0000-00aa-'.length, '00000000-0000-0000-00aa-'.length + 4);
+      expectedParentId = yearToYearUuid(parseInt(yearPart, 10));
+    } else if (classIds.includes(SYSTEM_CLASS_UUIDS.year) && isYearUuid(nodeId)) {
+      expectedParentId = null;
+    } else {
+      continue;
+    }
+
+    const currentRow = queryOne<{ parent_id: string | null }>(
+      db,
+      'SELECT parent_id FROM node WHERE id = ?',
+      [nodeId]
+    );
+    const currentParentId = currentRow?.parent_id ?? null;
+
+    if (currentParentId !== expectedParentId) {
+      store.moveNode(nodeId, expectedParentId);
+    }
+  }
 }
 
 // ─── Backlinks ──────────────────────────────────────────────────────────────
