@@ -1,5 +1,4 @@
 import { projectNode } from '../../adapters/nodeProjection';
-import type { WorkspaceStore } from '../../store';
 import type { Node } from '@/types/api';
 import type { GraphQuery } from '../GraphQuery';
 import type { NodeInput } from '../QueryInput';
