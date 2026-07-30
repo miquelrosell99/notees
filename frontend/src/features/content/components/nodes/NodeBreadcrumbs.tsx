@@ -225,7 +225,7 @@ function useAncestorChain(
       chain.push({
         nodeUuid: item.uuid,
         name: item.name || '',
-        displayName: item.display_name || undefined,
+        displayName: item.display_name ? nodeNameToText(item.display_name) : undefined,
         icon: isProperty ? (item.icon || PROPERTY_TYPE_ICONS.text) : item.icon,
         isPage: item.is_page,
         isProperty,

@@ -4,6 +4,7 @@ import { WorkspaceStore } from '../../store';
 import { uuidv7 } from '../../uuid';
 import { createTestDatabase } from '../../__tests__/helpers';
 import { projectNode } from '../nodeProjection';
+import { inlineDoc, text, nodeLink, buildLinkId } from '@/lib/astBuilder';
 
 describe('projectNode', () => {
   beforeAll(() => {
@@ -93,5 +94,35 @@ describe('projectNode', () => {
     expect(canonical!.aliased_uuid).toBeNull();
     expect(alias!.aliased_uuid).toBe(canonicalId);
     expect(alias!.aliases_uuid).toEqual([]);
+  });
+
+  it('does not leak raw AST when content contains a node link', async () => {
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, uuidv7(), uuidv7());
+    const pageId = uuidv7();
+    const targetId = uuidv7();
+
+    store.createNode({ nodeId: pageId, kind: 'page', parentId: null });
+    const content = JSON.stringify(inlineDoc(nodeLink(buildLinkId(targetId, uuidv7()), 'node')));
+    db.run('UPDATE node SET content = ? WHERE id = ?', [content, pageId]);
+
+    const node = projectNode(store, pageId);
+    expect(node!.name).not.toContain('type');
+    expect(node!.name).not.toContain('node_link');
+    expect(node!.name).toBe('…');
+  });
+
+  it('keeps surrounding text when content mixes text and node links', async () => {
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, uuidv7(), uuidv7());
+    const pageId = uuidv7();
+    const targetId = uuidv7();
+
+    store.createNode({ nodeId: pageId, kind: 'page', parentId: null });
+    const content = JSON.stringify(inlineDoc(text('See '), nodeLink(buildLinkId(targetId, uuidv7()), 'node')));
+    db.run('UPDATE node SET content = ? WHERE id = ?', [content, pageId]);
+
+    const node = projectNode(store, pageId);
+    expect(node!.name).toBe('See …');
   });
 });
