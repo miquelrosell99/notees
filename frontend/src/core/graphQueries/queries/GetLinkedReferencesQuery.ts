@@ -1,7 +1,6 @@
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { queryNodes } from '../../query/queryNodes';
-import type { WorkspaceStore } from '../../store';
 import type { GraphQuery } from '../GraphQuery';
 import type { PaginatedInput } from '../QueryInput';
 import type { IdPageOutput } from '../QueryOutput';
