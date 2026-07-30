@@ -11,9 +11,13 @@ export interface SnapshotEnvelope {
   hasSnapshot: boolean;
 }
 
+export interface SendBatchResult {
+  savedIds: string[];
+}
+
 export interface Transport {
-  send(envelope: OperationEnvelope): Promise<void> | void;
-  sendBatch?(envelopes: OperationEnvelope[]): Promise<void> | void;
+  send(envelope: OperationEnvelope): Promise<SendBatchResult> | SendBatchResult;
+  sendBatch?(envelopes: OperationEnvelope[]): Promise<SendBatchResult> | SendBatchResult;
   catchUp(
     afterHlc: Hlc,
     onPage?: (page: OperationEnvelope[], totalSoFar: number, hasMore: boolean) => void
@@ -56,14 +60,16 @@ export class MemoryTransport implements Transport {
     this.workspaceId = workspaceId;
   }
 
-  send(envelope: OperationEnvelope): void {
+  send(envelope: OperationEnvelope): SendBatchResult {
     this.relay.send(this.workspaceId, envelope);
+    return { savedIds: [envelope.id] };
   }
 
-  sendBatch(envelopes: OperationEnvelope[]): void {
+  sendBatch(envelopes: OperationEnvelope[]): SendBatchResult {
     for (const envelope of envelopes) {
       this.relay.send(this.workspaceId, envelope);
     }
+    return { savedIds: envelopes.map((e) => e.id) };
   }
 
   catchUp(afterHlc: Hlc): OperationEnvelope[] {

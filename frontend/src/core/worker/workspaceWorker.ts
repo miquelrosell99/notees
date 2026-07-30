@@ -49,6 +49,7 @@ import {
   getClassExtendsAncestors,
   getNodeByUuid,
   getNodeKindMap,
+  getChildrenBatch,
   getNodeView,
   getNodeViews,
   getNodeViewsByType,
@@ -58,6 +59,7 @@ import {
   getPropertySuggestions,
   getTrashedNodes,
   readViewAst,
+  repairDatePageHierarchy,
   validateClassExtends,
 } from './queryHelpers';
 
@@ -83,6 +85,16 @@ function postNotify(nodeId?: string): void {
 }
 
 const INIT_SQL_TIMEOUT_MS = 60_000;
+
+/**
+ * Maximum number of operations to apply in a single synchronous chunk inside
+ * `applyMany`. Large initial sync replays can contain 100k+ operations; running
+ * them all in one JS turn blocks the worker's message loop and causes ordinary
+ * UI queries to time out. Each chunk is committed independently (operations are
+ * idempotent thanks to the operation-table duplicate check), and the worker
+ * yields to the event loop between chunks so queued queries can be serviced.
+ */
+const APPLY_MANY_CHUNK_SIZE = 1_000;
 
 async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Promise<void> {
   if (state.store) {
@@ -113,6 +125,10 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   state.undoManager = new UndoManager(store);
   state.workspaceId = request.workspaceId;
 
+  // Idempotent cleanup: ensure journal pages have the correct year → month → day
+  // hierarchy. This fixes date nodes created before hierarchy enforcement.
+  repairDatePageHierarchy(store);
+
   postResponse({ type: 'init-done', id: request.id });
 }
 
@@ -137,7 +153,17 @@ async function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>)
     // Sync-engine helpers. These run directly on the worker-owned store.
     if (method === 'applyMany') {
       const [ops] = request.args as [Operation[]];
-      const count = state.store.applyMany(ops);
+      let count = 0;
+      for (let i = 0; i < ops.length; i += APPLY_MANY_CHUNK_SIZE) {
+        const chunk = ops.slice(i, i + APPLY_MANY_CHUNK_SIZE);
+        count += state.store.applyMany(chunk);
+        // Yield to the event loop between chunks so the worker can process
+        // queued query messages (e.g. UI reads) while a large sync replay is
+        // still in progress.
+        if (i + APPLY_MANY_CHUNK_SIZE < ops.length) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+      }
       postResponse({ type: 'mutate-done', id: request.id, result: count });
       postNotify();
       return;
@@ -182,6 +208,33 @@ async function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>)
       const [epoch, receivedHlc] = request.args as [number, Hlc];
       saveRestoreEpoch(state.store, epoch, receivedHlc);
       postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
+    if (method === 'markOperationsInFlight') {
+      const [ids] = request.args as [string[]];
+      state.store.markOperationsInFlight(ids);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
+    if (method === 'markOperationsAcknowledged') {
+      const [ids] = request.args as [string[]];
+      state.store.markOperationsAcknowledged(ids);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
+    if (method === 'markOperationsFailed') {
+      const [ids, error, nextRetryAt] = request.args as [string[], string, number | null];
+      state.store.markOperationsFailed(ids, error, nextRetryAt);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
+    if (method === 'getOutboxAttemptCounts') {
+      const [ids] = request.args as [string[]];
+      postResponse({
+        type: 'query-result',
+        id: request.id,
+        result: state.store.getOutboxAttemptCounts(ids),
+      });
       return;
     }
 
@@ -324,6 +377,24 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
       type: 'query-result',
       id: request.id,
       result: queryOperationLog(state.store, afterHlc, limit),
+    });
+    return;
+  }
+  if (request.method === 'getPendingPushOperations') {
+    const [afterHlc, limit, now] = request.args as [Hlc, number, number];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: state.store.getPendingPushOperations(afterHlc, limit, now),
+    });
+    return;
+  }
+  if (request.method === 'getPendingLocalOperations') {
+    const [nodeIds] = request.args as [string[]];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: state.store.getPendingLocalOperations(nodeIds),
     });
     return;
   }
@@ -502,6 +573,16 @@ async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): 
       type: 'query-result',
       id: request.id,
       result: Array.from(getNodeKindMap(state.store).entries()),
+    });
+    return;
+  }
+
+  if (request.method === 'getChildrenBatch') {
+    const [parentIds] = request.args as [string[]];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: getChildrenBatch(state.store, parentIds),
     });
     return;
   }
