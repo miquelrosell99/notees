@@ -270,7 +270,7 @@ export function NodeContextMenu({
             label: 'Copy link',
             icon: 'mdi-link-variant',
             shortcut: '⌘C',
-            onClick: () => { copyToClipboard(`[[${node.uuid}]]`); onClose(); },
+            onClick: () => { copyToClipboard(node.uuid); onClose(); },
           });
           break;
 
