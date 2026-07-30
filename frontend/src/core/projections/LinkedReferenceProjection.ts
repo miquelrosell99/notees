@@ -4,7 +4,7 @@ import type { WorkspaceStore } from '../store';
 import { projectNode } from '../adapters/nodeProjection';
 
 function findSourcePage(store: WorkspaceStore, sourceNodeId: string): ApiNode | undefined {
-  const sourceNode = projectNode(store, sourceNodeId);
+  const sourceNode = projectNode(store, sourceNodeId, 0);
   if (!sourceNode) return undefined;
   if (sourceNode.is_page) return sourceNode;
 
@@ -12,7 +12,7 @@ function findSourcePage(store: WorkspaceStore, sourceNodeId: string): ApiNode | 
   let currentId: string | null | undefined = sourceNode.parent_uuid;
   while (currentId && !visited.has(currentId)) {
     visited.add(currentId);
-    const parent = projectNode(store, currentId);
+    const parent = projectNode(store, currentId, 0);
     if (!parent) break;
     if (parent.is_page) return parent;
     currentId = parent.parent_uuid;
@@ -27,11 +27,11 @@ function buildBreadcrumbPath(store: WorkspaceStore, sourceNodeId: string): Bread
 
   while (currentId && !visited.has(currentId)) {
     visited.add(currentId);
-    const node = projectNode(store, currentId);
+    const node = projectNode(store, currentId, 0);
     if (!node) break;
     const parentId = node.parent_uuid;
     if (!parentId) break;
-    const parent = projectNode(store, parentId);
+    const parent = projectNode(store, parentId, 0);
     if (!parent) break;
     path.unshift({
       node_uuid: parent.uuid,
@@ -45,7 +45,7 @@ function buildBreadcrumbPath(store: WorkspaceStore, sourceNodeId: string): Bread
 }
 
 export function buildSyntheticRef(store: WorkspaceStore, sourceNodeId: string): LinkedReference | undefined {
-  const sourceNode = projectNode(store, sourceNodeId);
+  const sourceNode = projectNode(store, sourceNodeId, 0);
   if (!sourceNode) return undefined;
   const sourcePage = findSourcePage(store, sourceNodeId);
   const breadcrumbPath = buildBreadcrumbPath(store, sourceNodeId);
