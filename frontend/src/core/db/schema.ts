@@ -198,6 +198,18 @@ export function createSchema(db: Database): void {
       hlc_logical INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS sync_outbox (
+      operation_id TEXT PRIMARY KEY,
+      state TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sync_outbox_state
+    ON sync_outbox (state);
+
     CREATE TABLE IF NOT EXISTS node_asset (
       node_id TEXT NOT NULL,
       asset_hash TEXT NOT NULL,
