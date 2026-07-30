@@ -7,7 +7,7 @@ import { webcrypto } from 'node:crypto';
 import { WorkspaceStore } from '../../store';
 import { uuidv7 } from '../../uuid';
 import { createTestDatabase } from '../../__tests__/helpers';
-import { buildBreadcrumbs } from '../breadcrumbs';
+import { buildBreadcrumbs } from '../../worker/queryHelpers';
 
 describe('buildBreadcrumbs', () => {
   beforeAll(() => {
@@ -38,8 +38,8 @@ describe('buildBreadcrumbs', () => {
     store.createNode({ nodeId: 'child', kind: 'page', parentId: 'parent' });
 
     const breadcrumbs = buildBreadcrumbs(store, 'child');
-    expect(breadcrumbs.map((b) => b.name)).toEqual(['Parent page', 'Grandparent page']);
-    expect(breadcrumbs.map((b) => b.display_name)).toEqual(['Parent page', 'Grandparent page']);
+    expect(breadcrumbs.map((b) => b.name)).toEqual(['Grandparent page', 'Parent page']);
+    expect(breadcrumbs.map((b) => b.display_name)).toEqual(['Grandparent page', 'Parent page']);
   });
 
   it('resolves node links in ancestor names recursively', async () => {
@@ -63,7 +63,7 @@ describe('buildBreadcrumbs', () => {
     store.createNode({ nodeId: 'child', kind: 'page', parentId: 'middle' });
 
     const breadcrumbs = buildBreadcrumbs(store, 'child');
-    expect(breadcrumbs.map((b) => b.display_name)).toEqual(['See Target page', 'Target page']);
+    expect(breadcrumbs.map((b) => b.display_name)).toEqual(['Target page', 'See Target page']);
   });
 
   it('breaks cycles when a node name links to itself', async () => {
@@ -92,5 +92,40 @@ describe('buildBreadcrumbs', () => {
     const breadcrumbs = buildBreadcrumbs(store, 'child');
     expect(breadcrumbs.map((b) => b.name)).toEqual(['Root']);
     expect(breadcrumbs.map((b) => b.display_name)).toEqual(['Root']);
+  });
+
+  it('returns plain text for date-style ancestors created with setNodeText', async () => {
+    const store = await makeStore();
+    store.createNode({ nodeId: 'year', kind: 'page', parentId: null });
+    store.setNodeText('year', '2024');
+
+    store.createNode({ nodeId: 'month', kind: 'page', parentId: 'year' });
+    store.setNodeText('month', '2024-07');
+
+    store.createNode({ nodeId: 'day', kind: 'page', parentId: 'month' });
+    store.setNodeText('day', '2024-07-30');
+
+    const breadcrumbs = buildBreadcrumbs(store, 'day');
+    expect(breadcrumbs.map((b) => b.name)).toEqual(['2024', '2024-07']);
+    expect(breadcrumbs.map((b) => b.display_name)).toEqual(['2024', '2024-07']);
+  });
+
+  it('resolves a node_link-only ancestor title without raw AST fallback', async () => {
+    const store = await makeStore();
+    store.createNode({ nodeId: 'target', kind: 'page', parentId: null });
+    store.updateContentAst('target', [
+      { type: 'paragraph', children: [{ type: 'text', text: 'Target page' }] },
+    ]);
+
+    store.createNode({ nodeId: 'parent', kind: 'page', parentId: null });
+    store.updateContentAst('parent', [
+      { type: 'paragraph', children: [{ type: 'node_link', link_id: 'target', ref_type: 'node' }] },
+    ]);
+
+    store.createNode({ nodeId: 'child', kind: 'page', parentId: 'parent' });
+
+    const breadcrumbs = buildBreadcrumbs(store, 'child');
+    expect(breadcrumbs[0].display_name).toBe('Target page');
+    expect(breadcrumbs[0].display_name).not.toContain('[');
   });
 });

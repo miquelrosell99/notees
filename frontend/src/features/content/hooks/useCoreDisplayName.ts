@@ -7,9 +7,11 @@
  */
 import { useParams } from 'react-router-dom';
 import { useNode } from '@/core/hooks';
+import { nodeNameToText } from '@/features/queries';
 
 export function useCoreDisplayName(nodeUuid: string | null | undefined, fallback = ''): string {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { node } = useNode(workspaceId ?? '', nodeUuid ?? undefined);
-  return node?.content ?? fallback;
+  if (!node?.content) return fallback;
+  return nodeNameToText(node.content) || fallback;
 }

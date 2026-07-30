@@ -3,6 +3,9 @@ import type { Node } from '@/types/api';
 import { queryAll, queryOne } from '../db/sqlite';
 import type { NodeRow, WorkspaceStore } from '../store';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
+import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
+import { parseAST } from '@/lib/astBuilder';
+import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_CHILDREN_DEPTH = 2;
@@ -10,7 +13,12 @@ const MAX_CHILDREN_DEPTH = 2;
 /**
  * Derive a display name from node content.
  *
- * - If content is parseable AST JSON, return the first non-empty text leaf.
+ * - If content is a valid AST document, stringify it to plain text. Node links
+ *   render as a placeholder ("…") because this helper has no store access to
+ *   resolve them; callers that need resolved link text (e.g. buildBreadcrumbs)
+ *   should compute their own display_name from the content AST.
+ * - Some legacy/crdt content stores bare inline text nodes at document level
+ *   (e.g. [{"type":"text","text":"..."}]); fall back to the first text leaf.
  * - Otherwise fall back to the raw content string, truncated to 200 chars.
  */
 function deriveName(content: string): string {
@@ -18,14 +26,17 @@ function deriveName(content: string): string {
     return 'Untitled';
   }
 
-  try {
-    const ast = JSON.parse(content) as unknown;
-    const text = findFirstText(ast);
-    if (text) {
-      return text.slice(0, MAX_NAME_LENGTH);
+  const ast = parseAST(content);
+  if (ast.length > 0) {
+    const text = stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY, maxLength: MAX_NAME_LENGTH });
+    if (text.trim()) {
+      return text.trim();
     }
-  } catch {
-    // Not JSON — fall through to raw content.
+    // CRDT text updates may store bare inline text nodes at document level.
+    const firstText = findFirstText(ast);
+    if (firstText) {
+      return firstText.slice(0, MAX_NAME_LENGTH);
+    }
   }
 
   const raw = content.slice(0, MAX_NAME_LENGTH).trim();
@@ -169,6 +180,9 @@ export function projectNodeFromDb(
   // NOTE(D2): When the page system class UUID is known, also check
   // classIds.includes(pageClassUuid) here.
   const isClass = false;
+  const isDaily = classIds.includes(SYSTEM_CLASS_UUIDS.day);
+  const isMonthly = classIds.includes(SYSTEM_CLASS_UUIDS.month);
+  const isYearly = classIds.includes(SYSTEM_CLASS_UUIDS.year);
   const pageUuid = resolvePageUuid(db, nodeId);
   const childIds = getChildrenFromDb(db, nodeId);
 
@@ -221,6 +235,9 @@ export function projectNodeFromDb(
     active: node.active,
     is_page: isPage,
     is_class: isClass,
+    is_daily: isDaily,
+    is_monthly: isMonthly,
+    is_yearly: isYearly,
     create_date: node.createdAt ?? now,
     write_date: node.updatedAt ?? now,
     open_date: null,
