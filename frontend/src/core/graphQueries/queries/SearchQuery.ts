@@ -1,5 +1,4 @@
 import { queryNodes } from '../../query/queryNodes';
-import type { WorkspaceStore } from '../../store';
 import type { GraphQuery } from '../GraphQuery';
 import type { IdPageOutput } from '../QueryOutput';
 

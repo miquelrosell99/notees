@@ -113,7 +113,7 @@ function isWorkerSupported(): boolean {
 export class WorkerStoreClient implements IWorkspaceStoreClient {
   private worker: Worker;
   private pending = new Map<number, PendingRequest>();
-  private listeners = new Map<string | null, Set<() => void>>();
+  private listeners = new Map<string | null, Set<(notification?: NotifyChangeMessage) => void>>();
   private closed = false;
 
   constructor(worker: Worker) {

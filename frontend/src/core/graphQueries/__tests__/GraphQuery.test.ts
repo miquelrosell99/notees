@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import type { GraphQuery } from '../GraphQuery';
-import type { WorkspaceStore } from '../../store';
 
 describe('GraphQuery contract', () => {
   it('can be implemented', () => {
