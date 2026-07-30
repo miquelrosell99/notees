@@ -98,6 +98,9 @@ const INIT_SQL_TIMEOUT_MS = 60_000;
  */
 const APPLY_MANY_CHUNK_SIZE = 1_000;
 
+/** Log worker operations that take longer than this so future hangs are easy to diagnose. */
+const SLOW_QUERY_MS = 100;
+
 async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Promise<void> {
   if (state.store) {
     // Close existing store gracefully if re-initializing.
@@ -147,6 +150,21 @@ function handleExport(request: Extract<WorkerRequest, { type: 'export' }>): void
 }
 
 async function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>): Promise<void> {
+  const start = performance.now();
+  try {
+    await handleMutateBody(request);
+  } finally {
+    const elapsed = performance.now() - start;
+    if (elapsed > SLOW_QUERY_MS) {
+      console.warn(
+        `[workspaceWorker] Slow mutation ${request.method} took ${elapsed.toFixed(1)}ms (id=${request.id})`,
+        request.args
+      );
+    }
+  }
+}
+
+async function handleMutateBody(request: Extract<WorkerRequest, { type: 'mutate' }>): Promise<void> {
   if (!state.store || !state.undoManager) {
     postResponse({ type: 'error', id: request.id, message: 'Store not initialized' });
     return;
@@ -365,6 +383,21 @@ async function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>)
 }
 
 async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): Promise<void> {
+  const start = performance.now();
+  try {
+    await handleQueryBody(request);
+  } finally {
+    const elapsed = performance.now() - start;
+    if (elapsed > SLOW_QUERY_MS) {
+      console.warn(
+        `[workspaceWorker] Slow query ${request.method} took ${elapsed.toFixed(1)}ms (id=${request.id})`,
+        request.args
+      );
+    }
+  }
+}
+
+async function handleQueryBody(request: Extract<WorkerRequest, { type: 'query' }>): Promise<void> {
   if (!state.store) {
     postResponse({ type: 'error', id: request.id, message: 'Store not initialized' });
     return;
