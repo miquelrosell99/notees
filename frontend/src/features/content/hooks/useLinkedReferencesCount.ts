@@ -2,19 +2,24 @@
  * Hook to get linked references count for section metadata.
  * Pass null or 0 to disable the queries (e.g. in compact/journal mode).
  */
-import { useLinkedReferences, usePropertyBacklinks } from './useNodes';
+import { GetBacklinksQuery } from '@/core/graphQueries/queries';
+import { useGraphQuery } from '@/core/graphQueries/hooks/useGraphQuery';
+import { usePropertyBacklinks } from './useNodeLinkQueries';
 
 export function useLinkedReferencesCount(nodeUuid: string | null) {
   const effectiveId = nodeUuid || null;
-  const { data: refsData, isLoading: refsLoading } = useLinkedReferences(effectiveId);
+  const backlinks = useGraphQuery(
+    GetBacklinksQuery,
+    { nodeUuid: effectiveId ?? '' },
+    { enabled: !!effectiveId }
+  );
   const { data: propertyBacklinks, isLoading: propLoading } = usePropertyBacklinks(effectiveId);
-  
-  const pageCount = propertyBacklinks?.length ?? 0;
-  const blockCount = refsData?.total_count ?? 0;
-  const totalCount = pageCount + blockCount;
-  
+
+  const totalCount =
+    (backlinks.data?.totalCount ?? 0) + (propertyBacklinks?.length ?? 0);
+
   return {
     count: totalCount,
-    isLoading: refsLoading || propLoading,
+    isLoading: backlinks.isLoading || propLoading,
   };
 }
