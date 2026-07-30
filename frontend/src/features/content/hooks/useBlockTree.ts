@@ -216,13 +216,22 @@ export function useBlockTree(
     const treeData = treeQuery.data;
     let cancelled = false;
     const update = async (): Promise<void> => {
-      const rows = treeData.rows;
-      const visibleIds = getVisibleNodeIds(rows, options, collapsedLookup);
-      const projectedNodes = await projectNodesFromClient(client, Array.from(visibleIds), 0);
-      const nodeMap = new Map(projectedNodes.map((n) => [n.uuid, n]));
-      const flat = buildFlatNodesFromRows(rows, nodeMap, options, collapsedLookup);
-      if (!cancelled) {
-        setProjectedFlatNodes(flat);
+      try {
+        const rows = treeData.rows;
+        const visibleIds = getVisibleNodeIds(rows, options, collapsedLookup);
+        const projectedNodes = await projectNodesFromClient(client, Array.from(visibleIds), 0);
+        const nodeMap = new Map(projectedNodes.map((n) => [n.uuid, n]));
+        const flat = buildFlatNodesFromRows(rows, nodeMap, options, collapsedLookup);
+        if (!cancelled) {
+          setProjectedFlatNodes(flat);
+        }
+      } catch (err) {
+        // Ignore projection errors on unmount or when the store client is not
+        // fully initialised (common in tests). The next query result or
+        // subscription will retry.
+        if (!cancelled && process.env.NODE_ENV === 'development') {
+          console.warn('[useBlockTree] projection failed:', err);
+        }
       }
     };
 
