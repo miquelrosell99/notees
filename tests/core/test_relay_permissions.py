@@ -213,7 +213,7 @@ async def test_public_share_write_rejected_via_service(db_pool, test_user) -> No
         hlc=Hlc(1, 0),
         affected_node_ids=[node_uuid],
         op_type="node.create",
-        payload={"nodeId": "node-1"},
+        payload={"nodeId": "node-1", "kind": "page"},
     )
 
     with pytest.raises(PermissionDeniedError):
@@ -242,7 +242,7 @@ async def test_shared_editor_can_read_and_write_through_relay(db_pool, test_user
         hlc=Hlc(1, 0),
         affected_node_ids=["node-1"],
         op_type="node.create",
-        payload={"nodeId": "node-1"},
+        payload={"nodeId": "node-1", "kind": "page"},
     )
 
     saved = await service.receive_batch(BatchRequest(envelopes=[envelope]), editor["uuid"])
@@ -276,7 +276,7 @@ async def test_shared_viewer_can_read_but_not_write_through_relay(db_pool, test_
         hlc=Hlc(1, 0),
         affected_node_ids=["node-1"],
         op_type="node.create",
-        payload={"nodeId": "node-1"},
+        payload={"nodeId": "node-1", "kind": "page"},
     )
     await service.receive_batch(BatchRequest(envelopes=[owner_envelope]), test_user["uuid"])
 
@@ -290,7 +290,7 @@ async def test_shared_viewer_can_read_but_not_write_through_relay(db_pool, test_
         hlc=Hlc(2, 0),
         affected_node_ids=["node-1"],
         op_type="node.create",
-        payload={"nodeId": "node-1"},
+        payload={"nodeId": "node-1", "kind": "page"},
     )
     with pytest.raises(PermissionDeniedError):
         await service.receive_batch(BatchRequest(envelopes=[viewer_envelope]), viewer["uuid"])
@@ -318,7 +318,7 @@ async def test_revoked_share_immediately_loses_write_access(db_pool, test_user) 
         hlc=Hlc(1, 0),
         affected_node_ids=["node-1"],
         op_type="node.create",
-        payload={"nodeId": "node-1"},
+        payload={"nodeId": "node-1", "kind": "page"},
     )
     saved = await service.receive_batch(
         BatchRequest(envelopes=[envelope_before]), editor["uuid"]
@@ -346,7 +346,7 @@ async def test_revoked_share_immediately_loses_write_access(db_pool, test_user) 
         hlc=Hlc(2, 0),
         affected_node_ids=["node-1"],
         op_type="node.create",
-        payload={"nodeId": "node-1"},
+        payload={"nodeId": "node-1", "kind": "page"},
     )
     with pytest.raises(PermissionDeniedError):
         await service.receive_batch(BatchRequest(envelopes=[envelope_after]), editor["uuid"])
