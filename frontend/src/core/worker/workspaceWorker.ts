@@ -60,6 +60,7 @@ import {
   getTrashedNodes,
   readViewAst,
   repairDatePageHierarchy,
+  runGraphQuery,
   validateClassExtends,
 } from './queryHelpers';
 
@@ -355,6 +356,13 @@ async function handleMutate(request: Extract<WorkerRequest, { type: 'mutate' }>)
 async function handleQuery(request: Extract<WorkerRequest, { type: 'query' }>): Promise<void> {
   if (!state.store) {
     postResponse({ type: 'error', id: request.id, message: 'Store not initialized' });
+    return;
+  }
+
+  if (request.method === 'executeGraphQuery') {
+    const [name, input] = request.args as [string, unknown];
+    const result = runGraphQuery(state.store, name, input);
+    postResponse({ type: 'query-result', id: request.id, result });
     return;
   }
 
