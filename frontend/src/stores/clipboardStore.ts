@@ -8,10 +8,10 @@
  * - 'blocks': Ctrl+C on one or more selected blocks (or "Copy" context menu).
  *             Carries structured BlockCopyData (AST + children + metadata).
  * - 'link':   Ctrl+C in edit mode with no text selected.
- *             System clipboard has [[uuid]]. No block data stored here.
+ *             System clipboard has the formal UUID/link_id. No block data stored here.
  *
  * The system clipboard always contains a serialised copy of the data
- * (JSON for blocks, [[uuid]] for links) so that cross-app paste still
+ * (JSON for blocks, UUID/link_id for links) so that cross-app paste still
  * works. This store exists only to avoid an async clipboard.readText()
  * round-trip in the hot paste path.
  */

@@ -135,13 +135,14 @@ export function useInlineCopyPaste({
 
       const { mode: clipMode } = useClipboardStore.getState();
       if (clipMode === 'link') {
-        const uuidMatch = text.match(/^\[\[([0-9a-f-]{36})\]\]$/i);
-        if (uuidMatch) {
+        const linkIdMatch = text.match(/^([0-9a-f-]{36})(?::([0-9a-f-]{36}))?$/i);
+        if (linkIdMatch) {
           event.preventDefault();
           event.stopPropagation();
-          const targetUuid = uuidMatch[1];
+          const targetUuid = linkIdMatch[1];
+          const linkUuid = linkIdMatch[2] ?? generateUUID();
           applyMutation((prev) =>
-            insertAtomicNode(prev, nodeLink(buildLinkId(targetUuid, generateUUID()), 'node')),
+            insertAtomicNode(prev, nodeLink(buildLinkId(targetUuid, linkUuid), 'node')),
           );
           return;
         }

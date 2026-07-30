@@ -98,8 +98,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       label: 'Copy link',
       icon: 'mdi-link-variant',
       onClick: () => {
-        const link = `[[${node.uuid}]]`;
-        copyToClipboard(link);
+        copyToClipboard(node.uuid);
         onClose();
       }
     },
