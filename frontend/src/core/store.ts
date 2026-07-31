@@ -8,7 +8,7 @@ import { rebuildNodeStats } from './derived/nodeStats';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { rewriteLinksToTarget } from './query/mergePages';
-import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from './derived/crdtState';
+import { loadTextCrdt, loadTreeCrdt, loadTreeCrdtClean, saveTreeCrdt } from './derived/crdtState';
 import {
   createOperation,
   type ClassCreatePayload,
@@ -166,7 +166,8 @@ export class WorkspaceStore {
     if (this.persistTimer) clearTimeout(this.persistTimer);
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null;
-      void this.onPersist?.(this.export());
+      const data = this.export();
+      void this.onPersist?.(new Uint8Array(data));
     }, this.persistDebounceMs);
   }
 
@@ -177,7 +178,7 @@ export class WorkspaceStore {
       clearTimeout(this.persistTimer);
       this.persistTimer = null;
     }
-    void this.onPersist(this.export());
+    void this.onPersist(new Uint8Array(this.export()));
   }
 
   /**
@@ -746,7 +747,7 @@ export class WorkspaceStore {
     const oldParentId = oldParentRow?.parent_id ?? null;
 
     if (oldParentId !== null) {
-      const oldTree = loadTreeCrdt(this.db, oldParentId);
+      const oldTree = loadTreeCrdtClean(this.db, oldParentId);
       oldTree.delete(nodeId);
       saveTreeCrdt(this.db, oldParentId, oldTree);
       const oldUpdateOp = createOperation(
@@ -763,7 +764,7 @@ export class WorkspaceStore {
     }
 
     if (newParentId !== null) {
-      const newTree = loadTreeCrdt(this.db, newParentId);
+      const newTree = loadTreeCrdtClean(this.db, newParentId);
       newTree.insert(nodeId, newTree.toArray().length);
       saveTreeCrdt(this.db, newParentId, newTree);
       const newUpdateOp = createOperation(
@@ -1506,6 +1507,22 @@ export class WorkspaceStore {
     this.db = await createDatabase(data);
     // Ensure the schema is present in case the snapshot predates a schema change.
     createSchema(this.db);
+    // Older server snapshots were generated before the frontend enforced a
+    // PRIMARY KEY on node_child_order, so they may contain duplicate
+    // (parent_id, child_id) rows. Re-create the table with the correct primary
+    // key and ignore duplicates so the snapshot can be loaded.
+    this.db.run(`
+      CREATE TABLE node_child_order_dedup (
+        parent_id TEXT NOT NULL,
+        child_id TEXT NOT NULL,
+        position TEXT NOT NULL,
+        PRIMARY KEY (parent_id, child_id)
+      );
+      INSERT OR IGNORE INTO node_child_order_dedup
+        SELECT parent_id, child_id, position FROM node_child_order;
+      DROP TABLE node_child_order;
+      ALTER TABLE node_child_order_dedup RENAME TO node_child_order;
+    `);
     this.emitAll();
     return this.getLatestHlc();
   }

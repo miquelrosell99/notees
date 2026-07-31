@@ -21,7 +21,7 @@ import { getLogger } from '@/utils/logger';
 
 const log = getLogger('workspaceStoreClientAdapter');
 
-const LOAD_PERSISTED_DB_TIMEOUT_MS = 10_000;
+const LOAD_PERSISTED_DB_TIMEOUT_MS = 60_000;
 
 interface ClientEntry {
   client: IWorkspaceStoreClient;
@@ -103,20 +103,33 @@ async function openWorkspaceStoreClient(
       // Loading a large or corrupted IndexedDB record can hang the main thread
       // indefinitely. Time it out and fall back to a fresh local database; the
       // server operation log is the source of truth so data is not lost.
-      const saved = await Promise.race([
-        loadWorkspaceDatabase(workspaceId),
-        new Promise<undefined>((resolve) =>
-          setTimeout(() => {
-            log.warn(`Loading persisted DB for ${workspaceId} timed out; falling back to fresh local DB`);
-            resolve(undefined);
-          }, LOAD_PERSISTED_DB_TIMEOUT_MS)
-        ),
-      ]);
+      performance.mark('workspace-client:idb-read-start');
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+      const loadPromise = (async () => {
+        const result = await loadWorkspaceDatabase(workspaceId);
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+          timeoutHandle = null;
+        }
+        return result;
+      })();
+      const timeoutPromise = new Promise<undefined>((resolve) => {
+        timeoutHandle = setTimeout(() => {
+          log.warn(`Loading persisted DB for ${workspaceId} timed out; falling back to fresh local DB`);
+          resolve(undefined);
+        }, LOAD_PERSISTED_DB_TIMEOUT_MS);
+      });
+      const saved = await Promise.race([loadPromise, timeoutPromise]);
+      performance.mark('workspace-client:idb-read-end');
+      performance.measure('workspace-client:idb-read', 'workspace-client:idb-read-start', 'workspace-client:idb-read-end');
       if (saved) {
         dbBytes = saved;
       }
     }
+    performance.mark('workspace-client:worker-init-start');
     await client.init(workspaceId, actorId, { dbBytes });
+    performance.mark('workspace-client:worker-init-end');
+    performance.measure('workspace-client:worker-init', 'workspace-client:worker-init-start', 'workspace-client:worker-init-end');
   } else {
     // Test mode: share the synchronous store so legacy and migrated callers
     // observe the same database during the transition.

@@ -86,6 +86,7 @@ async function openWorkspaceStore(
 ): Promise<WorkspaceStore> {
   const { onOpenProgress } = options;
   const report = (phase: string, message: string) => {
+    performance.mark(`workspace-open:${phase}`);
     onOpenProgress?.({ phase, message });
   };
 
@@ -112,10 +113,16 @@ async function openWorkspaceStore(
   // concurrent/sequential IndexedDB reads, which can timeout on large workspaces.
   const savedBytes = isRealBrowser() ? await loadWorkspaceDatabase(workspaceId) : undefined;
   const db = await createDatabase(savedBytes);
+  // In worker mode the worker-owned database is authoritative; do not let the
+  // legacy synchronous store overwrite the persisted copy with its own (stale)
+  // exported bytes. In jsdom/tests there is no worker, so the synchronous store
+  // is the one and only copy and must persist itself.
   const store = new WorkspaceStore(db, workspaceId, actorId, {
-    onPersist: async (data) => {
-      await saveWorkspaceDatabase(workspaceId, data);
-    },
+    onPersist: isWorkerSupported()
+      ? undefined
+      : async (data) => {
+          await saveWorkspaceDatabase(workspaceId, data);
+        },
   });
 
   // The SyncEngine operates on the worker-owned database in real browsers. In
