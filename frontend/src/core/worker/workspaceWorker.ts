@@ -31,7 +31,7 @@ import type { OperationRow } from '../sync';
 import type { Node } from '@/types/api';
 import type { QueryAST } from '@/types/queryAST';
 import { registerAllQueries } from '../graphQueries/queries';
-import type { WorkerRequest, WorkerResponse, NotifyChangeMessage } from './workerProtocol';
+import type { WorkerRequest, WorkerResponse, NotifyChangeMessage, WorkerMessage } from './workerProtocol';
 import {
   buildBacklinks,
   buildBreadcrumbs,
@@ -82,7 +82,7 @@ function postResponse(response: WorkerResponse): void {
   self.postMessage(response);
 }
 
-function postNotify(notification: NotifyChangeMessage): void {
+function postNotify(notification: WorkerMessage): void {
   self.postMessage(notification);
 }
 
@@ -102,6 +102,7 @@ const APPLY_MANY_CHUNK_SIZE = 1_000;
 const SLOW_QUERY_MS = 500;
 
 async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Promise<void> {
+  performance.mark('worker:init-start');
   if (state.store) {
     // Close existing store gracefully if re-initializing.
     state.store = null;
@@ -109,6 +110,7 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
     state.workspaceId = null;
   }
 
+  performance.mark('worker:sqljs-import-start');
   const db = await Promise.race([
     createDatabase(request.dbBytes),
     new Promise<never>((_, reject) => {
@@ -118,11 +120,17 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
       );
     }),
   ]);
+  performance.mark('worker:sqljs-import-end');
+  performance.measure('worker:sqljs-import', 'worker:sqljs-import-start', 'worker:sqljs-import-end');
   const store = new WorkspaceStore(db, request.workspaceId, request.actorId, {
     onPersist: async (data) => {
-      // M5 will send this back to the main thread for IndexedDB persistence.
-      // For now the worker just holds the bytes; the main thread can poll via export.
-      void data;
+      // Send the exported database back to the main thread so it can be persisted
+      // to IndexedDB. The main thread owns IndexedDB access; serialising the full
+      // DB inside the worker and posting it avoids blocking the main thread's UI
+      // work while still keeping persistence off the synchronous mutation path.
+      // Copy the bytes before posting in case sql.js returns a view into WASM
+      // memory that could be mutated by later DB operations.
+      postNotify({ type: 'persist-data', workspaceId: request.workspaceId, data: new Uint8Array(data) });
     },
     onNotify: (notification) => postNotify(notification),
   });
@@ -137,6 +145,8 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
 
   registerAllQueries();
 
+  performance.mark('worker:init-end');
+  performance.measure('worker:init', 'worker:init-start', 'worker:init-end');
   postResponse({ type: 'init-done', id: request.id });
 }
 
@@ -185,6 +195,7 @@ async function handleMutateBody(request: Extract<WorkerRequest, { type: 'mutate'
         for (const n of result.notifications) {
           allNotifications.push({ type: 'notify', ...n });
         }
+        postNotify({ type: 'apply-progress', applied: Math.min(i + APPLY_MANY_CHUNK_SIZE, ops.length), total: ops.length });
         // Yield to the event loop between chunks so the worker can process
         // queued query messages (e.g. UI reads) while a large sync replay is
         // still in progress.
