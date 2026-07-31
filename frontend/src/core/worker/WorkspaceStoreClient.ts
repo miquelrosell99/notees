@@ -7,6 +7,7 @@
  */
 
 import { createDatabase } from '../db/connection';
+import { saveWorkspaceDatabase } from '../persistence/indexedDb';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
 import { listNodes } from '../query/listNodes';
@@ -90,7 +91,7 @@ const EXPORT_TIMEOUT_MS = 60_000;
 /** Long timeout for bulk apply operations. Large operation logs can take several
  * minutes to replay on first sync; terminating the worker mid-apply would force
  * a full restart. */
-const APPLY_TIMEOUT_MS = 10 * 60_000;
+const APPLY_TIMEOUT_MS = 30 * 60_000;
 
 function getTimeoutForMethod(method: string): number {
   switch (method) {
@@ -115,7 +116,10 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
   private worker: Worker;
   private pending = new Map<number, PendingRequest>();
   private listeners = new Map<string | null, Set<(notification?: NotifyChangeMessage) => void>>();
+  private progressListeners = new Set<(applied: number, total: number) => void>();
   private inFlightQueries = new Map<string, Promise<unknown>>();
+  private pendingPersistData = new Map<string, Uint8Array>();
+  private persistPromises = new Map<string, Promise<void>>();
   private closed = false;
 
   constructor(worker: Worker) {
@@ -151,9 +155,51 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     this.listeners.clear();
   }
 
+  private async drainPersist(workspaceId: string): Promise<void> {
+    try {
+      while (this.pendingPersistData.has(workspaceId)) {
+        const data = this.pendingPersistData.get(workspaceId)!;
+        this.pendingPersistData.delete(workspaceId);
+        try {
+          await saveWorkspaceDatabase(workspaceId, data);
+        } catch (err) {
+          console.error(
+            `[WorkspaceStoreClient] Failed to persist workspace ${workspaceId}:`,
+            err
+          );
+        }
+      }
+    } finally {
+      this.persistPromises.delete(workspaceId);
+    }
+  }
+
   private handleMessage(msg: WorkerMessage): void {
     if (msg.type === 'notify') {
       this.emit(msg.nodeId ?? null, msg);
+      return;
+    }
+
+    if (msg.type === 'apply-progress') {
+      for (const cb of this.progressListeners) {
+        try {
+          cb(msg.applied, msg.total);
+        } catch {
+          // ignore listener errors
+        }
+      }
+      return;
+    }
+
+    if (msg.type === 'persist-data') {
+      // Queue the latest bytes and ensure a single drain loop is running per
+      // workspace. Multiple rapid mutations can fire onPersist in quick succession;
+      // coalescing avoids overlapping IndexedDB writes and keeps only the most
+      // recent export.
+      this.pendingPersistData.set(msg.workspaceId, msg.data);
+      if (!this.persistPromises.has(msg.workspaceId)) {
+        this.persistPromises.set(msg.workspaceId, this.drainPersist(msg.workspaceId));
+      }
       return;
     }
 
@@ -289,6 +335,13 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
       if (set?.size === 0) {
         this.listeners.delete(nodeId);
       }
+    };
+  }
+
+  subscribeProgress(callback: (applied: number, total: number) => void): () => void {
+    this.progressListeners.add(callback);
+    return () => {
+      this.progressListeners.delete(callback);
     };
   }
 
@@ -774,6 +827,12 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     return this.store.subscribe(nodeId, (notification) =>
       callback(notification ?? { type: 'notify', nodeId })
     );
+  }
+
+  subscribeProgress(_callback: (applied: number, total: number) => void): () => void {
+    // The synchronous test client applies operations immediately; progress
+    // notifications are only meaningful for the worker-backed client.
+    return () => {};
   }
 
   private loadWatermarks(): { received: Hlc; pushed: Hlc; restoreEpoch: number } {
