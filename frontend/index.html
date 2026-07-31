@@ -110,5 +110,110 @@
 
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Lightweight reload-cause diagnostic. In development this helps capture
+         why a tab reloaded (Vite HMR, programmatic reload, browser discard,
+         WebSocket reconnect, etc.). It is intentionally minimal and does not
+         send data anywhere. -->
+    <script>
+      (function () {
+        if (typeof window === 'undefined') return;
+        var KEY = '__notees_reload_log';
+        var MAX = 32;
+
+        function now() {
+          return new Date().toISOString();
+        }
+
+        function push(type, detail) {
+          try {
+            var log = JSON.parse(window.sessionStorage.getItem(KEY) || '[]');
+            log.push({ t: now(), type: type, detail: detail, url: window.location.href });
+            if (log.length > MAX) log = log.slice(-MAX);
+            window.sessionStorage.setItem(KEY, JSON.stringify(log));
+          } catch (e) {
+            // Ignore private-browsing storage errors.
+          }
+        }
+
+        // Replay previous session's last events on load so they survive reloads.
+        try {
+          var prev = JSON.parse(window.sessionStorage.getItem(KEY) || '[]');
+          if (prev.length > 0) {
+            console.log('[reload-diag] previous session events:', prev);
+          }
+          window.sessionStorage.removeItem(KEY);
+        } catch (e) {
+          // ignore
+        }
+
+        function stack() {
+          try {
+            throw new Error('reload-diag');
+          } catch (e) {
+            return e.stack || '';
+          }
+        }
+
+        ['beforeunload', 'pagehide', 'unload', 'pageshow', 'visibilitychange'].forEach(function (name) {
+          window.addEventListener(name, function () {
+            push(name, { visibilityState: document.visibilityState, hidden: document.hidden });
+          });
+        });
+
+        var origReload = window.location.reload;
+        window.location.reload = function () {
+          push('location.reload', { stack: stack() });
+          return origReload.apply(this, arguments);
+        };
+
+        var origClose = window.close;
+        window.close = function () {
+          push('window.close', { stack: stack() });
+          return origClose.apply(this, arguments);
+        };
+
+        var origWebSocket = window.WebSocket;
+        window.WebSocket = function (url, protocols) {
+          var ws = protocols ? new origWebSocket(url, protocols) : new origWebSocket(url);
+          var label = typeof url === 'string' ? url : String(url);
+          push('ws:open', { url: label });
+          ws.addEventListener('open', function () {
+            push('ws:open-event', { url: label });
+          });
+          ws.addEventListener('close', function (ev) {
+            push('ws:close-event', { url: label, code: ev.code, reason: ev.reason, wasClean: ev.wasClean });
+          });
+          ws.addEventListener('message', function (ev) {
+            var data = typeof ev.data === 'string' ? ev.data : '[binary]';
+            if (label.includes('/@vite/') || label.includes('/api/ws/')) {
+              push('ws:message', { url: label, data: data.slice(0, 200) });
+            }
+          });
+          return ws;
+        };
+        window.WebSocket.prototype = origWebSocket.prototype;
+
+        var origPushState = history.pushState;
+        var origReplaceState = history.replaceState;
+        history.pushState = function () {
+          push('history.pushState', { url: window.location.href, stack: stack() });
+          return origPushState.apply(this, arguments);
+        };
+        history.replaceState = function () {
+          push('history.replaceState', { url: window.location.href, stack: stack() });
+          return origReplaceState.apply(this, arguments);
+        };
+
+        window.addEventListener('error', function (ev) {
+          push('error', { message: ev.message, filename: ev.filename, lineno: ev.lineno, colno: ev.colno });
+        });
+        window.addEventListener('unhandledrejection', function (ev) {
+          push('unhandledrejection', {
+            reason: ev.reason && ev.reason.message ? ev.reason.message : String(ev.reason),
+          });
+        });
+      })();
+    </script>
   </body>
 </html>
