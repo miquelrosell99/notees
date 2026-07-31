@@ -28,6 +28,7 @@ function createMockClient(): IWorkspaceStoreClient & { emit: (n?: NotifyChangeMe
       listeners.add(callback);
       return () => listeners.delete(callback);
     },
+    subscribeProgress: () => () => {},
     close: vi.fn(),
     isClosed: () => false,
     emit: (notification) => {

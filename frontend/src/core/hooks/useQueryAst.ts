@@ -57,7 +57,9 @@ export function useQueryAst(
 
     const run = async (): Promise<void> => {
       try {
-        const nodes = await client.query<Node[]>('queryNodes', [{ ast, runtimeParams }]);
+        const nodes = await client.query<Node[]>('queryNodes', [
+          { ast, runtimeParams, projectionDepth: 0 },
+        ]);
         setData(nodes);
       } catch (err) {
         setError(err instanceof Error ? err : new Error(String(err)));
