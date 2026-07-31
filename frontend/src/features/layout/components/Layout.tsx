@@ -14,6 +14,7 @@
  */
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 
+import { getLogger } from '@/utils/logger';
 import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
@@ -49,9 +50,16 @@ import { PluginManagerModal, PluginCommandRegistrations } from '@/plugins/core';
 import { ConflictResolutionModal } from '@/features/sync';
 import './Layout.css';
 
+const layoutLog = getLogger('Layout');
+
 export function Layout() {
   const hasInitialized = useRef(false);
   const isProcessingUrl = useRef(false);
+
+  useEffect(() => {
+    layoutLog.info('Layout mounted');
+    return () => layoutLog.info('Layout unmounted');
+  }, []);
 
   useDocumentTitle();
 

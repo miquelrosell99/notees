@@ -4,6 +4,9 @@ import type { OperationEnvelope } from './crypto';
 import { detectConflicts, type SyncConflictInput } from './syncConflicts';
 import type { IWorkspaceStoreClient } from './worker/workerProtocol';
 import type { Transport } from './transport';
+import { getLogger } from '@/utils/logger';
+
+const log = getLogger('sync');
 
 export type SyncStatus = 'idle' | 'syncing' | 'error';
 
@@ -235,6 +238,14 @@ export class SyncEngine {
     this.reportPhase('fetching-snapshot', 'Fetching latest snapshot…');
     const snapshot = await this.transport.getLatestSnapshot();
     const localEpoch = await this.loadRestoreEpoch();
+    const localReceivedHlc = this.lastReceivedHlc;
+    log.info('pull snapshot info', {
+      hasSnapshot: snapshot.hasSnapshot,
+      snapshotHlc: snapshot.hlc,
+      localReceivedHlc,
+      localEpoch,
+      snapshotRestoreEpoch: snapshot.restoreEpoch,
+    });
 
     // If the server was restored or rebuilt, clear local state and start over.
     // The operation log is the source of truth; re-applying all operations from
@@ -265,6 +276,13 @@ export class SyncEngine {
       snapshot.hasSnapshot &&
       compareHlc(snapshot.hlc, this.lastReceivedHlc) > 0;
 
+    log.info('pull snapshot decision', {
+      snapshotIsNewer,
+      ignoreSnapshot: options.ignoreSnapshot,
+      localReceivedHlc,
+      snapshotHlc: snapshot.hlc,
+    });
+
     if (snapshotIsNewer) {
       this.callbacks.onPullProgress?.({ applied: 0, total: 0 });
       const restoredHlc = await this.client.mutate<{ physical: number; logical: number }>(
@@ -283,10 +301,14 @@ export class SyncEngine {
     // Paginate through all server pages. This keeps the sync logic simple and
     // lets us apply the full batch in sorted order. Memory use is modest:
     // 115k envelopes is a few megabytes of JSON.
+    log.info('pull catching up', {
+      afterHlc: this.lastReceivedHlc,
+    });
     const envelopes = await this.transport.catchUp(this.lastReceivedHlc, (_page, totalSoFar) => {
       this.reportPhase('catching-up', `Catching up with server… ${totalSoFar} operations`);
       this.callbacks.onPullProgress?.({ applied: 0, total: totalSoFar });
     });
+    log.info('pull catch-up result', { envelopeCount: envelopes.length });
 
     envelopes.sort((a, b) => {
       const cmp = compareHlc(a.hlc, b.hlc);
@@ -312,16 +334,17 @@ export class SyncEngine {
     // Apply the full batch in the worker. The worker runs off the main thread,
     // so we no longer need to chunk and yield to keep the UI responsive.
     this.reportPhase('applying-operations', `Applying ${ops.length.toLocaleString()} operations…`);
-    // Clear the determinate progress during a single bulk apply so the UI shows
-    // a spinner instead of a progress bar frozen at 0%. The worker applies the
-    // whole batch synchronously and can only report completion, not incremental
-    // progress. The final completion count is reported right after applyMany.
-    this.callbacks.onPullProgress?.(null);
+    this.callbacks.onPullProgress?.({ applied: 0, total: ops.length });
+    const unsubscribeProgress = this.client.subscribeProgress((applied, total) => {
+      this.reportPhase('applying-operations', `Applying ${applied.toLocaleString()} / ${total.toLocaleString()} operations…`);
+      this.callbacks.onPullProgress?.({ applied, total });
+    });
     await this.client.mutate('startBatch', []);
     try {
       const applied = await this.client.mutate<number>('applyMany', [ops]);
       this.callbacks.onPullProgress?.({ applied, total: ops.length });
     } finally {
+      unsubscribeProgress();
       await this.client.mutate('endBatch', []);
     }
 

@@ -266,6 +266,306 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
   return projectNodeFromDb(store.getDb(), store.getWorkspaceId(), nodeId, depth);
 }
 
+const MAX_BATCH_PARAMS = 900;
+
+interface NodeSourceRow {
+  id: string;
+  workspaceId: string;
+  kind: 'page' | 'block';
+  parentId: string | null;
+  classIds: string;
+  content: string;
+  active: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+}
+
+function fetchNodeRows(db: Database, nodeIds: string[]): Map<string, NodeSourceRow> {
+  const map = new Map<string, NodeSourceRow>();
+  if (nodeIds.length === 0) return map;
+  for (let i = 0; i < nodeIds.length; i += MAX_BATCH_PARAMS) {
+    const chunk = nodeIds.slice(i, i + MAX_BATCH_PARAMS);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = queryAll<{
+      id: string;
+      workspace_id: string;
+      kind: 'page' | 'block';
+      parent_id: string | null;
+      class_ids: string;
+      content: string;
+      active: number;
+      created_at: string | null;
+      updated_at: string | null;
+      created_by: string | null;
+      updated_by: string | null;
+    }>(
+      db,
+      `SELECT
+         id,
+         workspace_id,
+         kind,
+         parent_id,
+         class_ids,
+         content,
+         active,
+         created_at,
+         updated_at,
+         created_by,
+         updated_by
+       FROM node
+       WHERE id IN (${placeholders})`,
+      chunk
+    );
+    for (const row of rows) {
+      map.set(row.id, {
+        id: row.id,
+        workspaceId: row.workspace_id,
+        kind: row.kind,
+        parentId: row.parent_id,
+        classIds: row.class_ids,
+        content: row.content,
+        active: row.active,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        createdBy: row.created_by,
+        updatedBy: row.updated_by,
+      });
+    }
+  }
+  return map;
+}
+
+function resolvePageUuids(
+  db: Database,
+  nodeRows: Map<string, NodeSourceRow>
+): Map<string, string | null> {
+  const result = new Map<string, string | null>();
+  const idsNeedingResolution: string[] = [];
+  for (const [id, row] of nodeRows) {
+    if (row.kind === 'page') {
+      result.set(id, id);
+    } else {
+      idsNeedingResolution.push(id);
+    }
+  }
+  if (idsNeedingResolution.length === 0) return result;
+
+  // Resolve via recursive CTE in a single query.
+  for (let i = 0; i < idsNeedingResolution.length; i += MAX_BATCH_PARAMS) {
+    const chunk = idsNeedingResolution.slice(i, i + MAX_BATCH_PARAMS);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = queryAll<{ id: string; page_id: string | null }>(
+      db,
+      `WITH RECURSIVE page_chain(id, current_id, kind, depth) AS (
+         SELECT id, id, kind, 0
+         FROM node
+         WHERE id IN (${placeholders})
+         UNION ALL
+         SELECT pc.id, n.id, n.kind, pc.depth + 1
+         FROM page_chain pc
+         JOIN node n ON n.id = pc.current_id
+         WHERE pc.kind != 'page' AND pc.depth < 100
+       )
+       SELECT id, current_id AS page_id
+       FROM page_chain
+       WHERE kind = 'page'`,
+      chunk
+    );
+    for (const id of chunk) {
+      result.set(id, null);
+    }
+    for (const row of rows) {
+      result.set(row.id, row.page_id);
+    }
+  }
+  return result;
+}
+
+function fetchChildrenMap(db: Database, parentIds: string[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  if (parentIds.length === 0) return map;
+  for (let i = 0; i < parentIds.length; i += MAX_BATCH_PARAMS) {
+    const chunk = parentIds.slice(i, i + MAX_BATCH_PARAMS);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = queryAll<{ parent_id: string; child_id: string }>(
+      db,
+      `SELECT parent_id, child_id FROM node_child_order
+       WHERE parent_id IN (${placeholders})
+       ORDER BY position`,
+      chunk
+    );
+    for (const parentId of chunk) {
+      map.set(parentId, []);
+    }
+    for (const row of rows) {
+      const list = map.get(row.parent_id);
+      if (list) list.push(row.child_id);
+    }
+  }
+  return map;
+}
+
+function fetchPropertiesMap(
+  db: Database,
+  nodeIds: string[]
+): Map<string, Record<string, unknown>> {
+  const map = new Map<string, Record<string, unknown>>();
+  if (nodeIds.length === 0) return map;
+  for (let i = 0; i < nodeIds.length; i += MAX_BATCH_PARAMS) {
+    const chunk = nodeIds.slice(i, i + MAX_BATCH_PARAMS);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = queryAll<{ node_id: string; property_schema_id: string; value: string }>(
+      db,
+      `SELECT node_id, property_schema_id, value FROM property_value
+       WHERE node_id IN (${placeholders})`,
+      chunk
+    );
+    for (const nodeId of chunk) {
+      map.set(nodeId, {});
+    }
+    for (const row of rows) {
+      const props = map.get(row.node_id);
+      if (props) {
+        try {
+          props[row.property_schema_id] = JSON.parse(row.value);
+        } catch {
+          props[row.property_schema_id] = row.value;
+        }
+      }
+    }
+  }
+  return map;
+}
+
+function fetchAliasesMaps(
+  db: Database,
+  nodeIds: string[]
+): { aliases: Map<string, string[]>; canonical: Map<string, string | null> } {
+  const aliases = new Map<string, string[]>();
+  const canonical = new Map<string, string | null>();
+  if (nodeIds.length === 0) return { aliases, canonical };
+  for (let i = 0; i < nodeIds.length; i += MAX_BATCH_PARAMS) {
+    const chunk = nodeIds.slice(i, i + MAX_BATCH_PARAMS);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = queryAll<{ alias_node_id: string; canonical_node_id: string }>(
+      db,
+      `SELECT alias_node_id, canonical_node_id FROM node_alias
+       WHERE alias_node_id IN (${placeholders}) OR canonical_node_id IN (${placeholders})`,
+      [...chunk, ...chunk]
+    );
+    for (const nodeId of chunk) {
+      aliases.set(nodeId, []);
+      canonical.set(nodeId, null);
+    }
+    for (const row of rows) {
+      const list = aliases.get(row.canonical_node_id);
+      if (list) list.push(row.alias_node_id);
+      if (chunk.includes(row.alias_node_id)) {
+        canonical.set(row.alias_node_id, row.canonical_node_id);
+      }
+    }
+  }
+  return { aliases, canonical };
+}
+
+function buildNodeFromSource(
+  row: NodeSourceRow,
+  pageUuid: string | null,
+  childIds: string[],
+  properties: Record<string, unknown>,
+  aliasesUuid: string[],
+  aliasedUuid: string | null
+): Node {
+  const now = new Date().toISOString();
+  const name = deriveName(row.content);
+  const classIds = JSON.parse(row.classIds) as string[];
+  const isPage = row.kind === 'page';
+  const isDaily = classIds.includes(SYSTEM_CLASS_UUIDS.day);
+  const isMonthly = classIds.includes(SYSTEM_CLASS_UUIDS.month);
+  const isYearly = classIds.includes(SYSTEM_CLASS_UUIDS.year);
+
+  return {
+    uuid: row.id,
+    name,
+    content: row.content,
+    display_name: name,
+    icon: null,
+    color: null,
+    parent_uuid: row.parentId,
+    page_uuid: pageUuid,
+    sequence: 0,
+    active: row.active !== 0,
+    is_page: isPage,
+    is_class: false,
+    is_daily: isDaily,
+    is_monthly: isMonthly,
+    is_yearly: isYearly,
+    create_date: row.createdAt ?? now,
+    write_date: row.updatedAt ?? now,
+    open_date: null,
+    tags_uuid: [],
+    classes_uuid: classIds,
+    classes_path_uuid: [],
+    properties_uuid: properties,
+    children: undefined,
+    has_children: childIds.length > 0,
+    backlinks: [],
+    linked_references: [],
+    backlink_count: 0,
+    comment_count: 0,
+    aliases_uuid: aliasesUuid,
+    aliased_uuid: aliasedUuid,
+    extends_uuid: [],
+    is_private: false,
+    parent_locked: false,
+  };
+}
+
+/**
+ * Batch project multiple node ids from a raw Database with a minimal number of
+ * SQL round-trips. This is the preferred path for list/collection views that
+ * project many nodes at depth 0.
+ *
+ * Falls back to the recursive per-node projection for depth > 0.
+ */
+export function projectNodesFromDbBatched(
+  db: Database,
+  _workspaceId: string,
+  nodeIds: string[],
+  depth = MAX_CHILDREN_DEPTH
+): Node[] {
+  if (nodeIds.length === 0) return [];
+
+  if (depth !== 0) {
+    return nodeIds
+      .map((nodeId) => projectNodeFromDb(db, _workspaceId, nodeId, depth))
+      .filter((n): n is Node => n !== undefined);
+  }
+
+  const nodeRows = fetchNodeRows(db, nodeIds);
+  const pageUuids = resolvePageUuids(db, nodeRows);
+  const childrenMap = fetchChildrenMap(db, nodeIds);
+  const propertiesMap = fetchPropertiesMap(db, nodeIds);
+  const { aliases, canonical } = fetchAliasesMaps(db, nodeIds);
+
+  return nodeIds
+    .map((nodeId) => {
+      const row = nodeRows.get(nodeId);
+      if (!row) return undefined;
+      return buildNodeFromSource(
+        row,
+        pageUuids.get(nodeId) ?? null,
+        childrenMap.get(nodeId) ?? [],
+        propertiesMap.get(nodeId) ?? {},
+        aliases.get(nodeId) ?? [],
+        canonical.get(nodeId) ?? null
+      );
+    })
+    .filter((n): n is Node => n !== undefined);
+}
+
 /**
  * Batch project multiple node ids from a raw Database.
  * Children are projected recursively up to the given depth, so callers that
@@ -277,9 +577,7 @@ export function projectNodesFromDb(
   nodeIds: string[],
   depth = MAX_CHILDREN_DEPTH
 ): Node[] {
-  return nodeIds
-    .map((nodeId) => projectNodeFromDb(db, workspaceId, nodeId, depth))
-    .filter((n): n is Node => n !== undefined);
+  return projectNodesFromDbBatched(db, workspaceId, nodeIds, depth);
 }
 
 /**
@@ -290,7 +588,7 @@ export function projectNodes(
   nodeIds: string[],
   depth = MAX_CHILDREN_DEPTH
 ): Node[] {
-  return projectNodesFromDb(store.getDb(), store.getWorkspaceId(), nodeIds, depth);
+  return projectNodesFromDbBatched(store.getDb(), store.getWorkspaceId(), nodeIds, depth);
 }
 
 /**
