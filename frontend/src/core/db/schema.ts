@@ -565,6 +565,46 @@ function migrateSchema(db: Database): void {
     }
     db.exec('PRAGMA user_version = 10');
   }
+
+  if (version < 11) {
+    // Enforce PRIMARY KEY (parent_id, child_id) on node_child_order. Older
+    // databases were created before the PK was added and could accumulate
+    // duplicate rows from corrupt tree CRDT state.
+    const master = db.exec(
+      "SELECT sql FROM sqlite_master WHERE name = 'node_child_order' AND type = 'table'",
+    );
+    const createSql = (master[0]?.values[0]?.[0] as string | undefined) ?? '';
+    if (createSql && !createSql.toUpperCase().includes('PRIMARY KEY')) {
+      db.exec(`
+        CREATE TABLE node_child_order_new (
+          parent_id TEXT NOT NULL,
+          child_id TEXT NOT NULL,
+          position TEXT NOT NULL,
+          PRIMARY KEY (parent_id, child_id)
+        );
+        INSERT OR IGNORE INTO node_child_order_new (parent_id, child_id, position)
+        SELECT parent_id, child_id, MIN(position)
+        FROM node_child_order
+        GROUP BY parent_id, child_id;
+        DROP TABLE node_child_order;
+        ALTER TABLE node_child_order_new RENAME TO node_child_order;
+        CREATE INDEX IF NOT EXISTS idx_node_child_order_parent
+        ON node_child_order (parent_id);
+      `);
+    } else {
+      // Table already has the PK; still defensively deduplicate in case the
+      // constraint was added after duplicates already existed.
+      db.exec(`
+        DELETE FROM node_child_order
+        WHERE rowid NOT IN (
+          SELECT MIN(rowid)
+          FROM node_child_order
+          GROUP BY parent_id, child_id
+        );
+      `);
+    }
+    db.exec('PRAGMA user_version = 11');
+  }
 }
 
 function extractSearchPlaintext(contentJson: string): string {

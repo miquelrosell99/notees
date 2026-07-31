@@ -10,6 +10,10 @@ export function loadTreeCrdt(db: Database, nodeId: string): TreeCrdt {
   return new TreeCrdt(row?.tree_state ?? undefined);
 }
 
+// Re-export the clean loader from childOrder so callers can get a tree that is
+// guaranteed to be free of duplicate child IDs before mutating it.
+export { loadTreeCrdtClean } from './childOrder';
+
 export function saveTreeCrdt(db: Database, nodeId: string, crdt: TreeCrdt): void {
   db.run(
     `INSERT INTO crdt_state (node_id, tree_state) VALUES (?, ?)
