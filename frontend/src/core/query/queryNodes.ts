@@ -12,11 +12,49 @@ import type { WorkspaceStore } from '../store';
 import { compileToSqlite } from './compileToSqlite';
 import { substituteRuntimeParams } from './substituteRuntimeParams';
 import { searchNodes, type SearchFilters } from './search';
-import { projectNode } from '../adapters/nodeProjection';
+import { projectNodes } from '../adapters/nodeProjection';
 import { queryAll } from '../db/sqlite';
 import { listClasses, classRowToNode } from './classes';
 
 const LOCAL_QUERY_RESULT_LIMIT = 500;
+const SLOW_QUERY_MS = 500;
+
+interface QueryTiming {
+  sqlMs: number;
+  projectionMs: number;
+  totalMs: number;
+  rowCount: number;
+  resultCount: number;
+  depth: number;
+}
+
+function logQueryTiming(method: string, timing: QueryTiming): void {
+  if (timing.totalMs <= SLOW_QUERY_MS) return;
+  console.warn(
+    `[queryNodes] Slow query ${method} took ${timing.totalMs.toFixed(1)}ms ` +
+      `(sql=${timing.sqlMs.toFixed(1)}ms projection=${timing.projectionMs.toFixed(1)}ms ` +
+      `rows=${timing.rowCount} results=${timing.resultCount} depth=${timing.depth})`
+  );
+}
+
+function projectUntilLimit(
+  store: WorkspaceStore,
+  ids: string[],
+  depth: number | undefined,
+  limit: number,
+  isActiveMatch: (n: Node) => boolean
+): Node[] {
+  const result: Node[] = [];
+  // Project slightly more than the limit in each chunk so a few archived rows
+  // do not force an extra projection round.
+  const chunkSize = limit + 100;
+  for (let i = 0; i < ids.length && result.length < limit; i += chunkSize) {
+    const chunkIds = ids.slice(i, i + chunkSize);
+    const projected = projectNodes(store, chunkIds, depth).filter(isActiveMatch);
+    result.push(...projected);
+  }
+  return result.slice(0, limit);
+}
 
 export interface QueryNodesFilters {
   ast?: QueryAST;
@@ -57,6 +95,7 @@ export function queryNodes(
   store: WorkspaceStore,
   filters: QueryNodesFilters,
 ): Node[] {
+  const start = performance.now();
   const includeArchived = filters.includeArchived ?? false;
   const isActiveMatch = (n: Node): boolean => includeArchived || n.active !== false;
 
@@ -71,16 +110,26 @@ export function queryNodes(
   if (filters.ast) {
     const ast = substituteRuntimeParams(filters.ast, filters.runtimeParams ?? {});
     const compiled = compileToSqlite(ast, store.getWorkspaceId());
+    const sqlStart = performance.now();
     const rows = queryAll<{ id: string }>(
       store.getDb(),
       compiled.sql,
       compiled.params as (string | number | null | Uint8Array)[],
     );
-    return rows
-      .map((row) => projectNode(store, row.id, filters.projectionDepth))
-      .filter((n): n is Node => n !== undefined)
-      .filter(isActiveMatch)
-      .slice(0, LOCAL_QUERY_RESULT_LIMIT);
+    const sqlMs = performance.now() - sqlStart;
+    const ids = rows.map((row) => row.id);
+    const projStart = performance.now();
+    const result = projectUntilLimit(store, ids, filters.projectionDepth, LOCAL_QUERY_RESULT_LIMIT, isActiveMatch);
+    const projectionMs = performance.now() - projStart;
+    logQueryTiming('ast', {
+      sqlMs,
+      projectionMs,
+      totalMs: performance.now() - start,
+      rowCount: rows.length,
+      resultCount: result.length,
+      depth: filters.projectionDepth ?? 2,
+    });
+    return result;
   }
 
   const searchFilters = buildSearchFilters(filters);
@@ -96,21 +145,40 @@ export function queryNodes(
 
   if (query.trim() === '' && hasMetadataFilters) {
     const { sql, params } = listNodesSql(store.getWorkspaceId(), filters);
+    const sqlStart = performance.now();
     const rows = queryAll<{ id: string }>(store.getDb(), sql, params);
-    return rows
-      .map((row) => projectNode(store, row.id, filters.projectionDepth))
-      .filter((n): n is Node => n !== undefined)
-      .filter(isActiveMatch)
-      .slice(0, LOCAL_QUERY_RESULT_LIMIT);
+    const ids = rows.map((row) => row.id);
+    const sqlMs = performance.now() - sqlStart;
+    const projStart = performance.now();
+    const result = projectUntilLimit(store, ids, filters.projectionDepth, LOCAL_QUERY_RESULT_LIMIT, isActiveMatch);
+    const projectionMs = performance.now() - projStart;
+    logQueryTiming('metadata', {
+      sqlMs,
+      projectionMs,
+      totalMs: performance.now() - start,
+      rowCount: rows.length,
+      resultCount: result.length,
+      depth: filters.projectionDepth ?? 2,
+    });
+    return result;
   }
 
+  const sqlStart = performance.now();
   const results = searchNodes(store, query, searchFilters);
-  return results
-    .sort((a, b) => b.score - a.score)
-    .map((r) => projectNode(store, r.id, filters.projectionDepth))
-    .filter((n): n is Node => n !== undefined)
-    .filter(isActiveMatch)
-    .slice(0, LOCAL_QUERY_RESULT_LIMIT);
+  const sqlMs = performance.now() - sqlStart;
+  const sortedIds = results.sort((a, b) => b.score - a.score).map((r) => r.id);
+  const projStart = performance.now();
+  const result = projectUntilLimit(store, sortedIds, filters.projectionDepth, LOCAL_QUERY_RESULT_LIMIT, isActiveMatch);
+  const projectionMs = performance.now() - projStart;
+  logQueryTiming('search', {
+    sqlMs,
+    projectionMs,
+    totalMs: performance.now() - start,
+    rowCount: results.length,
+    resultCount: result.length,
+    depth: filters.projectionDepth ?? 2,
+  });
+  return result;
 }
 
 function listNodesSql(workspaceId: string, filters: QueryNodesFilters): { sql: string; params: (string | number)[] } {

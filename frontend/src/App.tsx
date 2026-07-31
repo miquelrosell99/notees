@@ -385,6 +385,13 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       return;
     }
 
+    log.info('[WorkspaceStoreInitializer] Starting workspace init', {
+      workspaceId,
+      actorId,
+      resetNonce: workspaceResetNonce,
+      retryNonce,
+    });
+
     let cancelled = false;
     setInitError(null);
     setPhaseMessage('Loading workspaces…');
@@ -429,6 +436,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
     })
       .then(() => {
         if (cancelled) return;
+        log.info('[WorkspaceStoreInitializer] Workspace init complete', { workspaceId });
         setCtx({ actorId, transport });
         setReadyWorkspaceId(workspaceId);
         // The open promise now waits for the initial sync to finish (or fail),
@@ -455,6 +463,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       unregisterVisibilityRef.current?.();
       unregisterVisibilityRef.current = null;
       if (workspaceId) {
+        log.info('[WorkspaceStoreInitializer] Cleaning up workspace', { workspaceId });
         useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
         closeWorkspaceStore(workspaceId).catch((err) => {
           log.error(`Failed to close workspace ${workspaceId}`, err);
@@ -467,6 +476,8 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const isReady =
     !!workspaceId && readyWorkspaceId === workspaceId && !progress.isInitializing && !initError;
   const showOverlay = (!!workspaceId && !isReady) || isWaitingForWorkspaces || isWorkspacesError;
+
+
 
   const { pullProgress } = progress;
   const progressPercent = showOverlay && pullProgress
@@ -483,20 +494,27 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       : isWaitingForWorkspaces
         ? workspaceLoadingLabel
         : phaseMessage;
+  const prevShowOverlayRef = useRef(showOverlay);
+  useEffect(() => {
+    if (prevShowOverlayRef.current === showOverlay) return;
+    prevShowOverlayRef.current = showOverlay;
+    if (showOverlay) {
+      log.info('[WorkspaceStoreInitializer] Showing workspace overlay', {
+        workspaceId,
+        phaseMessage,
+        isInitializing: progress.isInitializing,
+        initError: initError?.message,
+      });
+    } else {
+      log.info('[WorkspaceStoreInitializer] Hiding workspace overlay', { workspaceId, readyWorkspaceId });
+    }
+  }, [showOverlay, workspaceId, phaseMessage, progress.isInitializing, initError, readyWorkspaceId]);
+
   const progressValue = showOverlay && pullProgress
     ? pullProgress.total > 0
       ? pullProgress.applied / pullProgress.total
       : 0
     : undefined;
-
-  const syncMessages = [
-    'Replaying the operation log…',
-    'Teaching CRDTs to agree…',
-    'Counting blocks, pages, and links…',
-    'Building your local database…',
-    'This is what local-first looks like.',
-    'Still faster than a cloud round-trip.',
-  ];
 
   if (showOverlay) {
     return (
@@ -533,7 +551,6 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
           <LoadingScreen
             label={progressLabel}
             progress={progressValue}
-            messages={syncMessages}
             className="workspace-init-overlay"
           />
         )}
@@ -554,7 +571,6 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
                 ? forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total
                 : undefined
             }
-            messages={syncMessages}
           />
         )}
       </>
@@ -588,7 +604,6 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
               ? forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total
               : undefined
           }
-          messages={syncMessages}
         />
       )}
     </>

@@ -38,6 +38,7 @@ function createTestWorkspaceStoreClient(store: WorkspaceStore): IWorkspaceStoreC
   return {
     init: async () => {},
     export: async () => store.export(),
+    subscribeProgress: () => () => {},
     async mutate<T>(method: string, args: unknown[]): Promise<T> {
       const fn = (store as unknown as Record<string, unknown>)[method];
       if (typeof fn !== 'function') {
