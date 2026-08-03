@@ -10,6 +10,7 @@
 
 // Pages / top-level views
 export { NodeView, NodeViewContent, NodeViewWrapper } from './pages/NodeView';
+export { ClassView, ClassViewContent, ClassViewWrapper } from './pages/ClassView';
 export { NodeCollectionView } from './pages/NodeCollectionView';
 export { PagesView } from './pages/PagesView';
 export { ClassesView } from './pages/ClassesView';
