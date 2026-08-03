@@ -212,7 +212,6 @@ function App() {
         Skip to main content
       </a>
       <EncryptedPersistProvider>
-        <WorkspacePersisterSync />
         <AppProviders>
           <WorkspaceStoreInitializer>
             <BrowserRouter>
@@ -363,18 +362,58 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const [retryNonce, setRetryNonce] = useState(0);
   const [phaseMessage, setPhaseMessage] = useState<string>('Loading workspaces…');
   const unregisterVisibilityRef = useRef<(() => void) | null>(null);
-  const progress = useSyncStatusStore((s) =>
-    workspaceId ? s.getWorkspaceProgress(workspaceId) : DEFAULT_PROGRESS
+  const isInitializing = useSyncStatusStore((s) =>
+    workspaceId ? s.getWorkspaceProgress(workspaceId).isInitializing : DEFAULT_PROGRESS.isInitializing
+  );
+  const pullProgress = useSyncStatusStore((s) =>
+    workspaceId ? s.getWorkspaceProgress(workspaceId).pullProgress : DEFAULT_PROGRESS.pullProgress
   );
   const forceResyncWorkspaceId = useSyncStatusStore((s) => s.forceResyncWorkspaceId);
-  const forceResyncProgress = useSyncStatusStore((s) =>
-    forceResyncWorkspaceId ? s.getWorkspaceProgress(forceResyncWorkspaceId) : DEFAULT_PROGRESS
+  const forceResyncPullProgress = useSyncStatusStore((s) =>
+    forceResyncWorkspaceId
+      ? s.getWorkspaceProgress(forceResyncWorkspaceId).pullProgress
+      : DEFAULT_PROGRESS.pullProgress
   );
   const workspaceResetNonce = useSyncStatusStore((s) => s.workspaceResetNonce);
+
+  // Diagnostic logging: if the workspace init effect re-runs, this tells us which
+  // dependency changed. Spurious dependency changes are the usual cause of the
+  // blank-reload symptom during sync.
+  const prevDepsRef = useRef({ workspaceId, actorId, workspaceResetNonce, retryNonce, authVerified });
+  useEffect(() => {
+    const prev = prevDepsRef.current;
+    const changes: string[] = [];
+    if (prev.workspaceId !== workspaceId) changes.push(`workspaceId ${prev.workspaceId} -> ${workspaceId}`);
+    if (prev.actorId !== actorId) changes.push(`actorId ${prev.actorId} -> ${actorId}`);
+    if (prev.workspaceResetNonce !== workspaceResetNonce) {
+      changes.push(`workspaceResetNonce ${prev.workspaceResetNonce} -> ${workspaceResetNonce}`);
+    }
+    if (prev.retryNonce !== retryNonce) changes.push(`retryNonce ${prev.retryNonce} -> ${retryNonce}`);
+    if (prev.authVerified !== authVerified) {
+      changes.push(`authVerified ${prev.authVerified} -> ${authVerified}`);
+    }
+    if (changes.length > 0) {
+      log.info(`[WorkspaceStoreInitializer] Init dependencies changed: ${changes.join('; ')}`);
+    }
+    prevDepsRef.current = { workspaceId, actorId, workspaceResetNonce, retryNonce, authVerified };
+  });
 
   useEffect(() => {
     useUndoStore.getState().setWorkspaceId(workspaceId);
   }, [workspaceId]);
+
+  // Diagnostic logging: a force re-sync locks the UI with a modal; log when it
+  // starts/stops so we can tell if the blank reload coincides with one.
+  const prevForceResyncRef = useRef(forceResyncWorkspaceId);
+  useEffect(() => {
+    const prev = prevForceResyncRef.current;
+    if (prev === forceResyncWorkspaceId) return;
+    prevForceResyncRef.current = forceResyncWorkspaceId;
+    log.info('[WorkspaceStoreInitializer] Force resync state changed', {
+      from: prev,
+      to: forceResyncWorkspaceId,
+    });
+  }, [forceResyncWorkspaceId]);
 
   useEffect(() => {
     if (!workspaceId || !authVerified || actorId === 'anonymous') {
@@ -474,12 +513,9 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
 
   const isWaitingForWorkspaces = !!user && authVerified && isLoadingWorkspaces;
   const isReady =
-    !!workspaceId && readyWorkspaceId === workspaceId && !progress.isInitializing && !initError;
+    !!workspaceId && readyWorkspaceId === workspaceId && !isInitializing && !initError;
   const showOverlay = (!!workspaceId && !isReady) || isWaitingForWorkspaces || isWorkspacesError;
 
-
-
-  const { pullProgress } = progress;
   const progressPercent = showOverlay && pullProgress
     ? pullProgress.total > 0
       ? Math.round((pullProgress.applied / pullProgress.total) * 100)
@@ -502,13 +538,14 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       log.info('[WorkspaceStoreInitializer] Showing workspace overlay', {
         workspaceId,
         phaseMessage,
-        isInitializing: progress.isInitializing,
+        isInitializing,
+        isLoadingWorkspaces,
         initError: initError?.message,
       });
     } else {
       log.info('[WorkspaceStoreInitializer] Hiding workspace overlay', { workspaceId, readyWorkspaceId });
     }
-  }, [showOverlay, workspaceId, phaseMessage, progress.isInitializing, initError, readyWorkspaceId]);
+  }, [showOverlay, workspaceId, phaseMessage, isInitializing, isLoadingWorkspaces, initError, readyWorkspaceId]);
 
   const progressValue = showOverlay && pullProgress
     ? pullProgress.total > 0
@@ -516,92 +553,94 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       : 0
     : undefined;
 
-  if (showOverlay) {
-    return (
-      <>
-        {isWorkspacesError ? (
-          <div className="workspace-init-overlay workspace-init-overlay--error" role="alert">
-            <h1 className="workspace-init-error__title">Failed to load workspaces</h1>
-            <p className="workspace-init-error__message">
-              {workspacesError instanceof Error ? workspacesError.message : 'Could not fetch workspaces'}
-            </p>
-            <Button
-              onClick={() => {
-                setShowWorkspaceTimeout(false);
-                void refetchWorkspaces();
-              }}
-            >
-              Retry
-            </Button>
-          </div>
-        ) : initError ? (
-          <div className="workspace-init-overlay workspace-init-overlay--error" role="alert">
-            <h1 className="workspace-init-error__title">Failed to load workspace</h1>
-            <p className="workspace-init-error__message">{initError.message}</p>
-            <Button
-              onClick={() => {
-                clearSqlInitError();
-                setRetryNonce((n) => n + 1);
-              }}
-            >
-              Retry
-            </Button>
-          </div>
-        ) : (
-          <LoadingScreen
-            label={progressLabel}
-            progress={progressValue}
-            className="workspace-init-overlay"
-          />
-        )}
-        {forceResyncWorkspaceId && (
-          <SyncProgressModal
-            isOpen
-            label={`Re-syncing workspace… ${
-              forceResyncProgress.pullProgress && forceResyncProgress.pullProgress.total > 0
-                ? Math.round(
-                    (forceResyncProgress.pullProgress.applied /
-                      forceResyncProgress.pullProgress.total) *
-                      100
-                  ) + '%'
-                : ''
-            }`}
-            progress={
-              forceResyncProgress.pullProgress && forceResyncProgress.pullProgress.total > 0
-                ? forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total
-                : undefined
-            }
-          />
-        )}
-      </>
-    );
-  }
+  // Once the workspace has become ready, keep the children mounted behind any
+  // later loading overlay. This prevents the whole UI from unmounting and
+  // remounting when a brief sync/loading state fires while the workspace is
+  // already open.
+  const [keptChildrenWorkspaceId, setKeptChildrenWorkspaceId] = useState<string | null>(null);
+  useEffect(() => {
+    if (isReady && workspaceId && keptChildrenWorkspaceId !== workspaceId) {
+      setKeptChildrenWorkspaceId(workspaceId);
+    }
+  }, [isReady, workspaceId, keptChildrenWorkspaceId]);
+  useEffect(() => {
+    if (keptChildrenWorkspaceId !== null && keptChildrenWorkspaceId !== workspaceId) {
+      setKeptChildrenWorkspaceId(null);
+    }
+  }, [workspaceId, keptChildrenWorkspaceId]);
+  const keepChildrenMounted = !!workspaceId && keptChildrenWorkspaceId === workspaceId;
+
+  // Render children for non-workspace routes (auth/onboarding) immediately, and
+  // for workspace routes once we've been ready at least once for the current
+  // workspace. The loading overlay is then rendered on top instead of replacing
+  // the children, which stops the blank re-render loop.
+  const shouldRenderChildren = !workspaceId || isReady || keepChildrenMounted;
 
   return (
     <>
-      {ctx ? (
-        <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>
-          {children}
-          {workspaceId && <SyncConflictListener workspaceId={workspaceId} />}
-        </WorkspaceStoreProvider>
-      ) : (
-        children
+      {shouldRenderChildren &&
+        (ctx ? (
+          <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>
+            {children}
+            {workspaceId && <SyncConflictListener workspaceId={workspaceId} />}
+          </WorkspaceStoreProvider>
+        ) : (
+          children
+        ))}
+      {showOverlay && (
+        <>
+          {isWorkspacesError ? (
+            <div className="workspace-init-overlay workspace-init-overlay--error" role="alert">
+              <h1 className="workspace-init-error__title">Failed to load workspaces</h1>
+              <p className="workspace-init-error__message">
+                {workspacesError instanceof Error ? workspacesError.message : 'Could not fetch workspaces'}
+              </p>
+              <Button
+                onClick={() => {
+                  setShowWorkspaceTimeout(false);
+                  void refetchWorkspaces();
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : initError ? (
+            <div className="workspace-init-overlay workspace-init-overlay--error" role="alert">
+              <h1 className="workspace-init-error__title">Failed to load workspace</h1>
+              <p className="workspace-init-error__message">{initError.message}</p>
+              <Button
+                onClick={() => {
+                  clearSqlInitError();
+                  setRetryNonce((n) => n + 1);
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <LoadingScreen
+              label={progressLabel}
+              progress={progressValue}
+              className="workspace-init-overlay"
+            />
+          )}
+        </>
       )}
       {forceResyncWorkspaceId && (
         <SyncProgressModal
           isOpen
           label={`Re-syncing workspace… ${
-            forceResyncProgress.pullProgress && forceResyncProgress.pullProgress.total > 0
+            forceResyncPullProgress && forceResyncPullProgress.total > 0
               ? Math.round(
-                  (forceResyncProgress.pullProgress.applied /
-                    forceResyncProgress.pullProgress.total) *
+                  (forceResyncPullProgress.applied /
+                    forceResyncPullProgress.total) *
                     100
                 ) + '%'
               : ''
           }`}
           progress={
-            forceResyncProgress.pullProgress && forceResyncProgress.pullProgress.total > 0
-              ? forceResyncProgress.pullProgress.applied / forceResyncProgress.pullProgress.total
+            forceResyncPullProgress && forceResyncPullProgress.total > 0
+              ? forceResyncPullProgress.applied / forceResyncPullProgress.total
               : undefined
           }
         />

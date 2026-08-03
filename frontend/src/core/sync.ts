@@ -371,12 +371,16 @@ export class SyncEngine {
 
     await this.saveWatermark(this.lastReceivedHlc, 'received');
     await this.saveRestoreEpoch(snapshot.restoreEpoch);
-    // Flush the SQLite DB to IndexedDB immediately so the watermark and operation
-    // log survive a page reload. Skip the flush when nothing changed: applying 0
-    // envelopes leaves the watermark and operation log unchanged, so rewriting the
-    // entire workspace database (which can be 100+ MB) is wasted work.
-    if (envelopes.length > 0 || compareHlc(this.lastReceivedHlc, previousReceivedHlc) > 0) {
+    // Flush the SQLite DB to IndexedDB so the watermark and operation log survive
+    // a page reload. Large catch-ups need an immediate flush because a lot of state
+    // changed. Tiny catch-ups (e.g. one remote edit) do not need to block the UI
+    // with a 100+ MB IndexedDB write right now; the debounced scheduler will flush
+    // the watermark and the single applied operation within a few hundred ms.
+    const hlcAdvanced = compareHlc(this.lastReceivedHlc, previousReceivedHlc) > 0;
+    if (envelopes.length > 10) {
       await this.client.mutate('persistNow', []);
+    } else if (envelopes.length > 0 || hlcAdvanced) {
+      await this.client.mutate('schedulePersist', []);
     }
     this.reportPhase('synced', 'Synced');
     this.callbacks.onPull?.(envelopes.length);

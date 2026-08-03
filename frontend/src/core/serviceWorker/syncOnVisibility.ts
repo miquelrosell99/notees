@@ -1,5 +1,7 @@
 import type { SyncEngine } from '../sync';
+import { getLogger } from '@/utils/logger';
 
+const log = getLogger('syncOnVisibility');
 const DEBOUNCE_MS = 300;
 /** Ignore visibility changes where the tab was hidden for less than this. */
 const MIN_HIDDEN_MS = 5000;
@@ -22,19 +24,23 @@ export function registerVisibilitySync(syncEngine: SyncEngine): () => void {
   let hiddenAt: number | null = null;
   let lastSyncAt = 0;
 
-  const requestSync = (): void => {
+  const requestSync = (reason: string): void => {
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
       if (syncEngine.getStatus() === 'syncing') {
+        log.debug('Skipping visibility/online sync: already syncing', { reason });
         return;
       }
-      if (Date.now() - lastSyncAt < MIN_SYNC_INTERVAL_MS) {
+      const msSinceLastSync = Date.now() - lastSyncAt;
+      if (msSinceLastSync < MIN_SYNC_INTERVAL_MS) {
+        log.debug('Skipping visibility/online sync: too soon', { reason, msSinceLastSync });
         return;
       }
       lastSyncAt = Date.now();
+      log.info('Triggering sync from visibility/online event', { reason });
       void syncEngine.sync();
     }, DEBOUNCE_MS);
   };
@@ -45,16 +51,24 @@ export function registerVisibilitySync(syncEngine: SyncEngine): () => void {
       return;
     }
     // Tab became visible again.
-    if (hiddenAt !== null && Date.now() - hiddenAt < MIN_HIDDEN_MS) {
-      hiddenAt = null;
+    if (hiddenAt === null) {
+      // Ignore spurious visibilitychange events that fire without the tab having
+      // been hidden (e.g. some browsers emit them on focus). Only sync after an
+      // actual hidden -> visible transition.
+      log.debug('Ignoring visibilitychange: tab was not hidden');
       return;
     }
+    const hiddenMs = Date.now() - hiddenAt;
     hiddenAt = null;
-    requestSync();
+    if (hiddenMs < MIN_HIDDEN_MS) {
+      log.debug('Ignoring brief visibility change', { hiddenMs });
+      return;
+    }
+    requestSync('visibilitychange');
   };
 
   const handleOnline = (): void => {
-    requestSync();
+    requestSync('online');
   };
 
   document.addEventListener('visibilitychange', handleVisibilityChange);

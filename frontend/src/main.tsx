@@ -17,6 +17,7 @@ import './index.css'
 import { App } from './App.tsx'
 import { useSettingsStore, applyTheme, applyAccentColor } from './stores'
 import { useUIStateStore } from './features/sync'
+import { getLogger } from './utils/logger'
 
 // Apply saved theme and accent on startup — wrapped in try/catch so a corrupt
 // store never prevents the app from mounting at all.
@@ -43,6 +44,50 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
   console.error('[main] Unhandled promise rejection:', event.reason);
 });
+
+const mainLog = getLogger('main');
+mainLog.info('main.tsx module executing', {
+  href: window.location.href,
+  userAgent: navigator.userAgent,
+  visibilityState: document.visibilityState,
+});
+
+window.addEventListener('beforeunload', (event) => {
+  mainLog.warn('[main] beforeunload fired', {
+    type: event.type,
+    returnValue: event.returnValue,
+  });
+});
+
+window.addEventListener('pagehide', (event) => {
+  mainLog.warn('[main] pagehide fired', {
+    persisted: event.persisted,
+    type: event.type,
+  });
+});
+
+document.addEventListener('visibilitychange', () => {
+  mainLog.debug('[main] visibilitychange', {
+    visibilityState: document.visibilityState,
+  });
+});
+
+if (import.meta.hot) {
+  import.meta.hot.on('vite:beforeFullReload', () => {
+    mainLog.warn('[main] Vite HMR: full reload requested');
+  });
+  import.meta.hot.on('vite:beforeUpdate', (payload) => {
+    mainLog.debug('[main] Vite HMR: beforeUpdate', {
+      updates: payload.updates?.map((u: { path: string; type: string }) => ({ path: u.path, type: u.type })),
+    });
+  });
+  import.meta.hot.on('vite:error', (payload) => {
+    mainLog.error('[main] Vite HMR: error', {
+      err: payload.err?.message,
+      stack: payload.err?.stack,
+    });
+  });
+}
 
 function hideSplash(): void {
   (window as unknown as { __hideNoteesSplash?: () => void }).__hideNoteesSplash?.();
