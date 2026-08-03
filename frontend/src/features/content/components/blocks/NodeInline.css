@@ -35,6 +35,13 @@ a.node-inline {
   white-space: nowrap;
 }
 
+/* Inline node references (sidebar favorites/recents, breadcrumbs, etc.) center
+   the bullet/icon with the text line. The block-row optical offset nudges the
+   glyph below the visual center in these compact inline contexts, so reset it. */
+.node-inline .bullet-container {
+  transform: none;
+}
+
 /* Group header link: dotted underline that solidifies on hover. */
 .node-inline[data-variant="group-link"] .node-inline__text {
   text-decoration: underline dotted;
