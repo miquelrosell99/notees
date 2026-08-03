@@ -45,6 +45,16 @@
   z-index: var(--z-1);
 }
 
+/* The node-pill wrapper has an ::after hit-area overlay with pointer-events:auto.
+   That overlay can intercept hover events before they reach the inner .pill,
+   so also reveal the right icon when the wrapper itself is hovered/focused. */
+.node-pill:hover .pill--hover-reveal-right .pill__right-button,
+.node-pill:focus-within .pill--hover-reveal-right .pill__right-button {
+  max-width: 1.5rem;
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+}
+
 .node-pill:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: 1px;

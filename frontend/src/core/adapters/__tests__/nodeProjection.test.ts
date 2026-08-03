@@ -3,7 +3,7 @@ import { webcrypto } from 'node:crypto';
 import { WorkspaceStore } from '../../store';
 import { uuidv7 } from '../../uuid';
 import { createTestDatabase } from '../../__tests__/helpers';
-import { projectNode } from '../nodeProjection';
+import { projectNode, projectNodes } from '../nodeProjection';
 import { inlineDoc, text, nodeLink, buildLinkId } from '@/lib/astBuilder';
 
 describe('projectNode', () => {
@@ -124,5 +124,50 @@ describe('projectNode', () => {
 
     const node = projectNode(store, pageId);
     expect(node!.name).toBe('See …');
+  });
+
+  it('projects a class from the class table when the UUID is not a node', async () => {
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, uuidv7(), uuidv7());
+
+    const classId = uuidv7();
+    store.createClass({ classId, name: 'Project', icon: 'folder', color: '#ff0000' });
+
+    const node = projectNode(store, classId);
+    expect(node).toBeDefined();
+    expect(node!.uuid).toBe(classId);
+    expect(node!.name).toBe('Project');
+    expect(node!.is_page).toBe(false);
+    expect(node!.is_class).toBe(true);
+    expect(node!.icon).toBe('folder');
+    expect(node!.color).toBe('#ff0000');
+    expect(node!.active).toBe(true);
+  });
+
+  it('batch projects a mix of nodes and classes', async () => {
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, uuidv7(), uuidv7());
+
+    const pageId = uuidv7();
+    const classId = uuidv7();
+
+    store.createNode({ nodeId: pageId, kind: 'page', parentId: null });
+    store.updateText(pageId, (text) => text.insert(0, 'My page'));
+    store.createClass({ classId, name: 'Task' });
+
+    const nodes = projectNodes(store, [pageId, classId], 0);
+    expect(nodes).toHaveLength(2);
+
+    const page = nodes.find((n) => n.uuid === pageId);
+    const cls = nodes.find((n) => n.uuid === classId);
+
+    expect(page).toBeDefined();
+    expect(page!.is_page).toBe(true);
+    expect(page!.is_class).toBe(false);
+
+    expect(cls).toBeDefined();
+    expect(cls!.is_page).toBe(false);
+    expect(cls!.is_class).toBe(true);
+    expect(cls!.name).toBe('Task');
   });
 });

@@ -133,6 +133,20 @@
   cursor: text;
 }
 
+.block-row__ghost-text {
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  pointer-events: none;
+}
+
+.block-row--ghost:hover .block-row__ghost-text,
+.block-row--ghost:focus-within .block-row__ghost-text,
+.block-row__content-fallback--ghost:focus-visible .block-row__ghost-text {
+  opacity: var(--opacity-100);
+}
+
 /* ─── Selected state (block selection via Escape / keyboard / drag) ─ */
 /* Driven by data-selected on the bullet wrapper (set by useBlockSelection). */
 

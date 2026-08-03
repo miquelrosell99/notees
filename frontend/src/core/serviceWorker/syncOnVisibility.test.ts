@@ -52,6 +52,64 @@ describe('registerVisibilitySync', () => {
     cleanup();
   });
 
+  it('ignores visibility changes when the tab was hidden for less than 5 seconds', () => {
+    const syncEngine = createMockSyncEngine('idle');
+    const cleanup = registerVisibilitySync(syncEngine);
+
+    setVisibilityState('hidden');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(1000);
+
+    setVisibilityState('visible');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(300);
+
+    expect(syncEngine.sync).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
+  it('syncs when the tab becomes visible after being hidden for at least 5 seconds', () => {
+    const syncEngine = createMockSyncEngine('idle');
+    const cleanup = registerVisibilitySync(syncEngine);
+
+    setVisibilityState('hidden');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(5000);
+
+    setVisibilityState('visible');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(300);
+
+    expect(syncEngine.sync).toHaveBeenCalledTimes(1);
+
+    cleanup();
+  });
+
+  it('does not sync more often than every 30 seconds', () => {
+    const syncEngine = createMockSyncEngine('idle');
+    const cleanup = registerVisibilitySync(syncEngine);
+
+    setVisibilityState('hidden');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(5000);
+    setVisibilityState('visible');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(300);
+    expect(syncEngine.sync).toHaveBeenCalledTimes(1);
+
+    // Another long-hidden period, but only 5 seconds after the first sync.
+    setVisibilityState('hidden');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(5000);
+    setVisibilityState('visible');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(300);
+    expect(syncEngine.sync).toHaveBeenCalledTimes(1);
+
+    cleanup();
+  });
+
   it('does not trigger sync while a sync is already running', () => {
     const syncEngine = createMockSyncEngine('syncing');
     const cleanup = registerVisibilitySync(syncEngine);

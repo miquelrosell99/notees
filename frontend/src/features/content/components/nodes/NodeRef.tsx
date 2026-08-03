@@ -197,13 +197,16 @@ function NodeRefInline({
 
   const displayText = customName || nodeDisplayText;
 
-  // When at top depth and the node's name contains inner node links, render
-  // them as live NodeRef components (same approach as the table view's NodeNameContent)
-  // instead of plain text via nodeNameToText (which shows '...' for unresolved links).
-  const hasInnerLinks = depth === 0 && !customName && !!node?.name && node.name.includes('"link_id"');
+  // When at top depth and the node's stored content contains inner node links,
+  // render them as live NodeRef components (same approach as the table view's
+  // NodeNameContent) instead of plain text via nodeNameToText (which shows '...'
+  // for unresolved links). We inspect the raw content AST, not node.name, because
+  // node.name is a derived plain-text string where links already appear as '…'.
+  const nameSource = node?.content ?? node?.name ?? '';
+  const hasInnerLinks = depth === 0 && !customName && !!nameSource && nameSource.includes('"link_id"');
 
-  if (hasInnerLinks && node?.name) {
-    const ast = parseAST(node.name);
+  if (hasInnerLinks && nameSource) {
+    const ast = parseAST(nameSource);
     const inlines = ast.flatMap(b => ('children' in b ? b.children : [])) as ASTInlineNode[];
     const rendered = renderNameInlineNodes(inlines);
     const hasContent = rendered.some(r => r !== null);

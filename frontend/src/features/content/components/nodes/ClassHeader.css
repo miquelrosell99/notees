@@ -1,0 +1,87 @@
+/**
+ * ClassHeader styles
+ *
+ * Mirrors the page header layout but without hierarchical title behaviours
+ * that only apply to real pages.
+ */
+
+.class-header {
+  margin-bottom: var(--spacing-6);
+  padding: var(--spacing-6);
+  background: var(--color-surface-container);
+}
+
+.class-header__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.class-header__icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-2xl);
+  height: var(--height-2xl);
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--shape-medium);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.class-header__icon-btn:hover {
+  background: var(--color-surface-container-high);
+}
+
+.class-header__icon {
+  font-size: var(--font-display-small);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.class-header__icon .node-icon svg {
+  width: var(--icon-size-2xl);
+  height: var(--icon-size-2xl);
+}
+
+.class-header__title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-family-heading);
+  font-size: var(--font-display-medium);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+  color: var(--color-on-surface);
+  background: transparent;
+  border: none;
+  resize: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.class-header__title--medium {
+  font-size: var(--font-display-small);
+}
+
+.class-header__title--compact {
+  font-size: var(--font-headline-large);
+}
+
+.class-header__title:disabled {
+  opacity: var(--opacity-disabled);
+}
+
+/* Focus mode — fade the icon button so only the title remains. */
+.class-header[data-focus-mode="true"] .class-header__icon-btn {
+  opacity: var(--opacity-0);
+  pointer-events: none;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
+}
