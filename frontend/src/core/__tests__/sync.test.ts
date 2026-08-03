@@ -211,4 +211,22 @@ describe('SyncEngine', () => {
     expect(pullSpy).toHaveBeenCalledTimes(1);
     expect(statusChanges).toEqual(['idle', 'syncing', 'idle']);
   });
+
+  it('does not flush IndexedDB when pull applies no envelopes', async () => {
+    const workspaceId = uuidv7();
+    const actor = uuidv7();
+    const relay = new MemoryRelay();
+
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, workspaceId, actor);
+    const client = await createClientFromStore(store);
+    const mutateSpy = vi.spyOn(client, 'mutate');
+
+    const transport = new MemoryTransport(relay, workspaceId);
+    const sync = new SyncEngine(client, transport);
+
+    await sync.pull();
+
+    expect(mutateSpy).not.toHaveBeenCalledWith('persistNow', []);
+  });
 });

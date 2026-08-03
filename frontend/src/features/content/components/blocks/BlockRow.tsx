@@ -445,9 +445,8 @@ export const BlockRow = memo(
         className="block-row__content-fallback block-row__content-fallback--ghost"
         onClick={() => onGhostRealize?.(node.uuid)}
         aria-label="Add block"
-        title="Click to add a block"
       >
-        {'\u00A0'}
+        <span className="block-row__ghost-text">+ Add block</span>
       </button>
     ) : shouldMountEditor ? (
       <CustomInlineEditor
