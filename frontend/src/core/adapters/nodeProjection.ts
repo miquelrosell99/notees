@@ -6,6 +6,7 @@ import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { parseAST } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
+import { classRowToNode, getClasses } from '../query/classes';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_CHILDREN_DEPTH = 2;
@@ -171,7 +172,10 @@ export function projectNodeFromDb(
   depth = MAX_CHILDREN_DEPTH
 ): Node | undefined {
   const node = getNodeFromDb(db, nodeId);
-  if (!node) return undefined;
+  if (!node) {
+    const classRow = getClasses(db, [nodeId])[0];
+    return classRow ? classRowToNode(classRow) : undefined;
+  }
 
   const now = new Date().toISOString();
   const name = deriveName(node.content);
@@ -545,6 +549,10 @@ export function projectNodesFromDbBatched(
   }
 
   const nodeRows = fetchNodeRows(db, nodeIds);
+  const missingIds = nodeIds.filter((id) => !nodeRows.has(id));
+  const classRows = missingIds.length > 0 ? getClasses(db, missingIds) : [];
+  const classRowById = new Map(classRows.map((c) => [c.id, c]));
+
   const pageUuids = resolvePageUuids(db, nodeRows);
   const childrenMap = fetchChildrenMap(db, nodeIds);
   const propertiesMap = fetchPropertiesMap(db, nodeIds);
@@ -553,15 +561,21 @@ export function projectNodesFromDbBatched(
   return nodeIds
     .map((nodeId) => {
       const row = nodeRows.get(nodeId);
-      if (!row) return undefined;
-      return buildNodeFromSource(
-        row,
-        pageUuids.get(nodeId) ?? null,
-        childrenMap.get(nodeId) ?? [],
-        propertiesMap.get(nodeId) ?? {},
-        aliases.get(nodeId) ?? [],
-        canonical.get(nodeId) ?? null
-      );
+      if (row) {
+        return buildNodeFromSource(
+          row,
+          pageUuids.get(nodeId) ?? null,
+          childrenMap.get(nodeId) ?? [],
+          propertiesMap.get(nodeId) ?? {},
+          aliases.get(nodeId) ?? [],
+          canonical.get(nodeId) ?? null
+        );
+      }
+      const classRow = classRowById.get(nodeId);
+      if (classRow) {
+        return classRowToNode(classRow);
+      }
+      return undefined;
     })
     .filter((n): n is Node => n !== undefined);
 }

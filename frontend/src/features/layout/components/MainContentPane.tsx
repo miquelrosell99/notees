@@ -8,7 +8,7 @@
 import React, { useMemo, Suspense } from 'react';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useNode, useClasses } from '@/features/content';
-import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ClassesView, ArchivedPagesView, TrashView, TemplateGallery } from '@/features/content';
+import { useSystemClasses, NodeViewWrapper, NodeViewContent, ClassViewWrapper, ClassViewContent, PagesView, ClassesView, ArchivedPagesView, TrashView, TemplateGallery } from '@/features/content';
 import { WhiteboardsView } from '@/features/whiteboard';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
@@ -199,6 +199,21 @@ export function MainContentPane({
     return (
       <div className="main-content">
         <LoadingScreen fullscreen={false} label="Loading…" />
+      </div>
+    );
+  }
+
+  if (currentNode.is_class) {
+    return (
+      <div className="main-content-wrapper" style={nodeColorStyle}>
+        <ClassViewWrapper nodeUuid={currentNode.uuid} viewMode={viewMode} />
+        <div
+          id="main-content"
+          className={`main-content${nodeColorStyle ? ' has-node-border' : ''}`}
+          style={nodeColorStyle}
+        >
+          <ClassViewContent nodeUuid={currentNode.uuid} viewMode={viewMode} />
+        </div>
       </div>
     );
   }

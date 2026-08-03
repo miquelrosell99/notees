@@ -120,3 +120,23 @@ export function getClass(db: Database, classId: string): ClassRow | undefined {
   );
   return row ? rowToClassRow(row) : undefined;
 }
+
+const MAX_BATCH_PARAMS = 900;
+
+export function getClasses(db: Database, classIds: string[]): ClassRow[] {
+  if (classIds.length === 0) return [];
+  const result: ClassRow[] = [];
+  for (let i = 0; i < classIds.length; i += MAX_BATCH_PARAMS) {
+    const chunk = classIds.slice(i, i + MAX_BATCH_PARAMS);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = queryAll<Record<string, unknown>>(
+      db,
+      `SELECT ${SELECT_COLUMNS} FROM class WHERE id IN (${placeholders})`,
+      chunk
+    );
+    for (const row of rows) {
+      result.push(rowToClassRow(row));
+    }
+  }
+  return result;
+}

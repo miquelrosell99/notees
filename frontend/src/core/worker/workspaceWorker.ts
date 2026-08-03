@@ -278,6 +278,14 @@ async function handleMutateBody(request: Extract<WorkerRequest, { type: 'mutate'
       });
       return;
     }
+    if (method === 'persistNow') {
+      // Flush any pending debounced persist immediately. This is used after a
+      // sync pull finishes so the watermark and operation log survive a page
+      // reload that would otherwise cancel the scheduled debounced persistence.
+      state.store.persistNow();
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
 
     // Undo-manager operations run on the worker-owned store and are addressed
     // through record-* method names so they can be serialized across the boundary.

@@ -364,12 +364,20 @@ export class SyncEngine {
       this.emitConflicts(conflicts);
     }
 
+    const previousReceivedHlc = this.lastReceivedHlc;
     for (const op of ops) {
       this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, op.envelope.hlc);
     }
 
     await this.saveWatermark(this.lastReceivedHlc, 'received');
     await this.saveRestoreEpoch(snapshot.restoreEpoch);
+    // Flush the SQLite DB to IndexedDB immediately so the watermark and operation
+    // log survive a page reload. Skip the flush when nothing changed: applying 0
+    // envelopes leaves the watermark and operation log unchanged, so rewriting the
+    // entire workspace database (which can be 100+ MB) is wasted work.
+    if (envelopes.length > 0 || compareHlc(this.lastReceivedHlc, previousReceivedHlc) > 0) {
+      await this.client.mutate('persistNow', []);
+    }
     this.reportPhase('synced', 'Synced');
     this.callbacks.onPull?.(envelopes.length);
 

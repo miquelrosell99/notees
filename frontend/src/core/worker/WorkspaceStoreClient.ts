@@ -469,6 +469,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       this.store.markOperationsFailed(ids, error, nextRetryAt);
       return Promise.resolve(undefined as T);
     }
+    if (method === 'persistNow') {
+      this.store.persistNow();
+      return Promise.resolve(undefined as T);
+    }
 
     // Undo-manager operations are addressed through record-* method names.
     if (method === 'recordCreateNode') {
