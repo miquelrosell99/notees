@@ -239,9 +239,16 @@ describe('WorkspaceStoreClient', () => {
 
     beforeEach(() => {
       vi.useFakeTimers();
+      vi.stubGlobal(
+        'Worker',
+        function MockWorker() {
+          return createMockWorker();
+        } as unknown as typeof Worker
+      );
     });
 
     afterEach(() => {
+      vi.unstubAllGlobals();
       vi.useRealTimers();
     });
 

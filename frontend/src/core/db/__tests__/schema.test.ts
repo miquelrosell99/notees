@@ -12,12 +12,12 @@ beforeAll(() => {
 });
 
 describe('schema', () => {
-  it('creates node_stats, edge indexes, sync_outbox next_retry_at, node_child_order PK and migrates to user_version 11', async () => {
+  it('creates node_stats, edge indexes, sync_outbox next_retry_at, node_child_order PK and migrates to user_version 12', async () => {
     const db = await createTestDatabase();
 
     const versionRow = db.exec('PRAGMA user_version')[0];
     const version = versionRow?.values[0]?.[0] as number;
-    expect(version).toBe(11);
+    expect(version).toBe(12);
 
     const nodeStats = queryOne<{ name: string }>(
       db,
@@ -36,6 +36,12 @@ describe('schema', () => {
       "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_edge_target_type'"
     );
     expect(targetIndex).toBeDefined();
+
+    const workspaceIndex = queryOne<{ name: string }>(
+      db,
+      "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_node_workspace'"
+    );
+    expect(workspaceIndex).toBeDefined();
 
     const childOrderTable = queryOne<{ sql: string }>(
       db,
