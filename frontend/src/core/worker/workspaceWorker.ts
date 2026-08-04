@@ -78,7 +78,13 @@ const state: WorkerState = {
   workspaceId: null,
 };
 
+const cancelledIds = new Set<number>();
+
 function postResponse(response: WorkerResponse): void {
+  if (cancelledIds.has(response.id)) {
+    cancelledIds.delete(response.id);
+    return;
+  }
   self.postMessage(response);
 }
 
@@ -949,6 +955,9 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         break;
       case 'close':
         handleClose();
+        break;
+      case 'cancel':
+        cancelledIds.add(request.id);
         break;
       default:
         // Exhaustiveness guard; unknown messages are ignored.

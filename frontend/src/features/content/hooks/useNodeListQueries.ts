@@ -83,7 +83,7 @@ export function useSearch(query: string, filters?: {
 
   const result = useQuery({
     queryKey: nodeKeys.search(query, searchFilters),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!client) return [];
       const classIds = filters?.classFilters ? filters.classFilters.split(',') : undefined;
       return client.query<Node[]>('queryNodes', [
@@ -95,7 +95,7 @@ export function useSearch(query: string, filters?: {
           classIds,
           projectionDepth: 0,
         },
-      ]);
+      ], signal);
     },
     enabled,
     placeholderData: keepPreviousData,

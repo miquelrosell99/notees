@@ -284,6 +284,11 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
       return;
     }
 
+    if (this.cancelledIds.has(msg.id)) {
+      this.cancelledIds.delete(msg.id);
+      return;
+    }
+
     const pending = this.pending.get(msg.id);
     if (!pending) return;
     clearTimeout(pending.timer);
@@ -310,7 +315,13 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     }
   }
 
-  private send<T>(request: WorkerRequest, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS): Promise<T> {
+  private cancelledIds = new Set<number>();
+
+  private send<T>(
+    request: WorkerRequest,
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    signal?: AbortSignal
+  ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       if (this.closed) {
         reject(new Error('Worker is closed'));
@@ -321,7 +332,27 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
         return;
       }
       const id = request.id;
+
+      const cleanup = (): void => {
+        signal?.removeEventListener('abort', onAbort);
+      };
+
+      const onAbort = (): void => {
+        this.cancelledIds.add(id);
+        this.pending.delete(id);
+        this.worker.postMessage({ type: 'cancel', id });
+        cleanup();
+        reject(new DOMException('Worker request aborted', 'AbortError'));
+      };
+
+      if (signal?.aborted) {
+        reject(new DOMException('Worker request aborted', 'AbortError'));
+        return;
+      }
+      signal?.addEventListener('abort', onAbort);
+
       const timer = setTimeout(() => {
+        cleanup();
         this.pending.delete(id);
         // Do not terminate the worker on a single request timeout. A long
         // sync (e.g. replaying a large operation log) can keep the worker
@@ -374,7 +405,7 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     );
   }
 
-  query<T>(method: string, args: unknown[]): Promise<T> {
+  query<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T> {
     // Deduplicate identical in-flight queries. Many React components subscribe
     // to the same worker data (classes, property schemas, node projections) and
     // can fire identical requests in the same render cycle. Without
@@ -393,7 +424,8 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
         method,
         args,
       },
-      getTimeoutForMethod(method)
+      getTimeoutForMethod(method),
+      signal
     ).finally(() => {
       this.inFlightQueries.delete(key);
     });
@@ -640,8 +672,11 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     return Promise.resolve(fn.apply(this.store, args) as T);
   }
 
-  query<T>(method: string, args: unknown[]): Promise<T> {
+  query<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T> {
     if (!this.store) return Promise.reject(new Error('Store not initialized'));
+    if (signal?.aborted) {
+      return Promise.reject(new DOMException('Inline store query aborted', 'AbortError'));
+    }
 
     // Sync-engine query helpers.
     if (method === 'isDerivedStateStale') {

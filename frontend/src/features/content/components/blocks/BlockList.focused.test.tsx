@@ -156,7 +156,7 @@ const {
       }
       return fn.apply(mockStore, args) as T;
     },
-    async query<T>(method: string, args: unknown[]): Promise<T> {
+    async query<T>(method: string, args: unknown[], _signal?: AbortSignal): Promise<T> {
       const fn = (mockStore as unknown as Record<string, unknown>)[method];
       if (typeof fn !== 'function') {
         throw new Error(`Unknown query method: ${method}`);

@@ -23,7 +23,11 @@ export interface SearchFilters {
 export interface SearchResult {
   id: string;
   score: number;
+  kind: 'page' | 'block';
 }
+
+/** Maximum number of matching rows to evaluate per kind. */
+export const SEARCH_RESULT_LIMIT = 500;
 
 function tokenise(query: string): string[] {
   return query
@@ -94,26 +98,8 @@ function scoreFromMatchinfo(mi: Uint8Array, totalDocs: number): number {
   return score;
 }
 
-/**
- * Search node plaintext using the FTS4 search_index virtual table.
- *
- * - Empty or whitespace-only queries return no results.
- * - Terms are prefix-matched by default ("proj" matches "project").
- * - Results are ranked by a TF-IDF score derived from matchinfo().
- */
-export function searchNodes(
-  store: WorkspaceStore,
-  query: string,
-  filters: SearchFilters = {},
-): SearchResult[] {
-  const db = store.getDb();
-  const workspaceId = store.getWorkspaceId();
-  const matchExpr = toFtsMatchExpression(query);
-  if (!matchExpr) {
-    return [];
-  }
+function buildSearchWhere(filters: SearchFilters, params: (string | number)[]): string[] {
   const where: string[] = ['n.workspace_id = ?', 'si.content MATCH ?'];
-  const params: (string | number)[] = [workspaceId, matchExpr];
 
   if (filters.isPage !== undefined) {
     where.push('n.kind = ?');
@@ -142,23 +128,79 @@ export function searchNodes(
   // schema yet (tags are not migrated per compileToSqlite docs). They are
   // intentionally ignored here so callers do not get empty result sets.
 
-  const totalDocsRow = db.exec('SELECT COUNT(*) FROM search_index')[0];
-  const totalDocs = (totalDocsRow?.values[0]?.[0] as number | undefined) ?? 0;
+  return where;
+}
+
+interface RawResult {
+  id: string;
+  kind: 'page' | 'block';
+  mi: Uint8Array;
+}
+
+function runSearchForKind(
+  db: ReturnType<WorkspaceStore['getDb']>,
+  workspaceId: string,
+  matchExpr: string,
+  filters: SearchFilters,
+  kind: 'page' | 'block',
+  totalDocs: number,
+  limit: number,
+): SearchResult[] {
+  const params: (string | number)[] = [workspaceId, matchExpr];
+  const kindFilters: SearchFilters = { ...filters, isPage: kind === 'page' };
+  const where = buildSearchWhere(kindFilters, params);
 
   const sql = `
-    SELECT n.id, matchinfo(search_index, 'pcx') AS mi
+    SELECT n.id, n.kind, matchinfo(search_index, 'pcx') AS mi
     FROM search_index si
     JOIN node n ON n.id = si.node_id
     WHERE ${where.join(' AND ')}
+    LIMIT ?
   `;
+  params.push(limit);
 
-  const rows = queryAll<{ id: string; mi: Uint8Array }>(db, sql, params);
-
-  const results: SearchResult[] = rows.map((row) => ({
+  const rows = queryAll<RawResult>(db, sql, params);
+  const results = rows.map((row) => ({
     id: row.id,
     score: scoreFromMatchinfo(row.mi, totalDocs),
+    kind: row.kind,
   }));
-
   results.sort((a, b) => b.score - a.score);
   return results;
+}
+
+/**
+ * Search node plaintext using the FTS4 search_index virtual table.
+ *
+ * - Empty or whitespace-only queries return no results.
+ * - Terms are prefix-matched by default ("proj" matches "project").
+ * - Results are ranked by a TF-IDF score derived from matchinfo().
+ * - Pages are returned before blocks, each group sorted by relevance.
+ * - The raw SQL is capped per kind so typing short prefixes cannot force the
+ *   worker to score an unbounded number of FTS matches.
+ */
+export function searchNodes(
+  store: WorkspaceStore,
+  query: string,
+  filters: SearchFilters = {},
+  limit = SEARCH_RESULT_LIMIT,
+): SearchResult[] {
+  const db = store.getDb();
+  const workspaceId = store.getWorkspaceId();
+  const matchExpr = toFtsMatchExpression(query);
+  if (!matchExpr) {
+    return [];
+  }
+
+  const totalDocsRow = db.exec('SELECT COUNT(*) FROM search_index')[0];
+  const totalDocs = (totalDocsRow?.values[0]?.[0] as number | undefined) ?? 0;
+
+  if (filters.isPage !== undefined) {
+    const kind = filters.isPage ? 'page' : 'block';
+    return runSearchForKind(db, workspaceId, matchExpr, filters, kind, totalDocs, limit);
+  }
+
+  const pages = runSearchForKind(db, workspaceId, matchExpr, filters, 'page', totalDocs, limit);
+  const blocks = runSearchForKind(db, workspaceId, matchExpr, filters, 'block', totalDocs, limit);
+  return [...pages, ...blocks];
 }
