@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
@@ -20,12 +20,14 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
   const [data, setData] = useState<Node[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const hasDataRef = useRef(false);
 
   useEffect(() => {
     if (!ctx || !workspaceId || !parentId) {
       setData([]);
       setIsLoading(false);
       setError(null);
+      hasDataRef.current = false;
       return;
     }
 
@@ -34,12 +36,16 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
     const effectParentId = parentId;
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
-    setIsLoading(true);
+    if (!hasDataRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     async function fetchChildren(client?: IWorkspaceStoreClient) {
       if (cancelled) return;
-      setIsLoading(true);
+      if (!hasDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
       try {
         const c =
@@ -68,11 +74,14 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
         if (cancelled) return;
 
         setData(nodes);
+        hasDataRef.current = true;
         setIsLoading(false);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err : new Error(String(err)));
-        setIsLoading(false);
+        if (!hasDataRef.current) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -81,6 +90,7 @@ export function useNodeChildrenAdapter(parentId: string | null): UseQueryResult<
     return () => {
       cancelled = true;
       unsubscribe?.();
+      hasDataRef.current = false;
     };
   }, [ctx, workspaceId, parentId]);
 

@@ -6,7 +6,7 @@
  * SQLite QueryAST adapters.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { NodeView, QueryExecuteRequest } from '@/types/nodeView';
@@ -279,6 +279,7 @@ export function useQueryCount(
   const [data, setData] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const hasDataRef = useRef(false);
   const runtimeParamsKey = JSON.stringify(request.runtime_params);
 
   useEffect(() => {
@@ -286,16 +287,20 @@ export function useQueryCount(
       setData(0);
       setIsLoading(false);
       setError(null);
+      hasDataRef.current = false;
       return;
     }
 
-    setIsLoading(true);
+    if (!hasDataRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     const run = async (): Promise<void> => {
       try {
         const count = await client.query<number>('countQueryResults', [workspaceId, request]);
         setData(count);
+        hasDataRef.current = true;
       } catch (err) {
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
@@ -314,6 +319,7 @@ export function useQueryCount(
     const unsubscribe = client.subscribe(null, onChange);
     return () => {
       unsubscribe();
+      hasDataRef.current = false;
     };
     // runtimeParamsKey is the stable JSON representation of request.runtime_params.
     // eslint-disable-next-line react-hooks/exhaustive-deps

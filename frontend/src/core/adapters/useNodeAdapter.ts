@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, type NavigateOptions } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
@@ -39,12 +39,14 @@ export function useNodeAdapter(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const syncStatus = useSyncStatusStore((s) => s.status);
+  const hasDataRef = useRef(false);
 
   useEffect(() => {
     if (!ctx || !workspaceId || !id) {
       setData(undefined);
       setIsLoading(false);
       setError(null);
+      hasDataRef.current = false;
       return;
     }
 
@@ -53,12 +55,16 @@ export function useNodeAdapter(
     const effectId = id;
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
-    setIsLoading(true);
+    if (!hasDataRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     async function fetchNode(client?: IWorkspaceStoreClient) {
       if (cancelled) return;
-      setIsLoading(true);
+      if (!hasDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
       try {
         const c =
@@ -79,11 +85,14 @@ export function useNodeAdapter(
         const node = await projectNodeFromClient(c, effectId);
         if (cancelled) return;
         setData(node);
+        hasDataRef.current = true;
         setIsLoading(false);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err : new Error(String(err)));
-        setIsLoading(false);
+        if (!hasDataRef.current) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -92,6 +101,7 @@ export function useNodeAdapter(
     return () => {
       cancelled = true;
       unsubscribe?.();
+      hasDataRef.current = false;
     };
   }, [ctx, workspaceId, id]);
 
