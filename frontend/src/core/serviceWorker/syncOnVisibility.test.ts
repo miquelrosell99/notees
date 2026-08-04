@@ -38,6 +38,11 @@ describe('registerVisibilitySync', () => {
     const syncEngine = createMockSyncEngine('idle');
     const cleanup = registerVisibilitySync(syncEngine);
 
+    // Simulate the tab being hidden long enough, then becoming visible again.
+    setVisibilityState('hidden');
+    dispatchVisibilityChange();
+    vi.advanceTimersByTime(5000);
+
     setVisibilityState('visible');
     dispatchVisibilityChange();
     dispatchVisibilityChange();

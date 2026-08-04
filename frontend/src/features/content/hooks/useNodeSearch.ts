@@ -70,7 +70,7 @@ export function useNodeSearch(
     ...(isUserPage !== undefined ? { isUserPage } : {}),
   };
   const hasSearchFilters = Object.keys(searchFilterOptions).length > 0;
-  const { data: searchResults, isLoading: isSearchLoading } = useSearch(
+  const { data: searchResults, isFetching: isSearchFetching } = useSearch(
     debouncedQuery,
     hasSearchFilters ? searchFilterOptions : undefined
   );
@@ -104,8 +104,10 @@ export function useNodeSearch(
     mode === 'classes' ? debouncedQuery : ''
   );
 
-  // Use debouncedQuery for API-driven filtering, but keep original query for "Create new" detection
-  const isLoading = isSearchLoading || isClassSearchLoading || debouncedQuery !== query;
+  // Use debouncedQuery for API-driven filtering, but keep original query for "Create new" detection.
+  // Show a loading state while the query is debouncing or a new search fetch is in flight,
+  // so stale results from the previous query are not displayed.
+  const isLoading = isSearchFetching || isClassSearchLoading || debouncedQuery !== query;
 
   // Filter and organize results
   const { pageResults, blockResults, truncated } = useMemo(() => {

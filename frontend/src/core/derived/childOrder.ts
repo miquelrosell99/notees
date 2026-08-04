@@ -5,16 +5,34 @@ import { loadTreeCrdt, saveTreeCrdt } from './crdtState';
 import { TreeCrdt } from '../crdt/tree';
 import type { ChangeNotification } from './index';
 
-// Tracks which parent CRDTs have already been logged as repaired this session
+// Tracks which parent CRDTs have already been logged as repaired per database
 // so corrupt server operations don't spam the console on every catch-up sync.
-const loggedRepairParents = new Set<string>();
+const loggedRepairParents = new WeakMap<Database, Set<string>>();
 
-// In-memory cache of clean tree CRDTs for the current session. Repeated corrupt
-// server operations for the same parent (e.g. a journal root with duplicate
-// daily-page inserts) would otherwise rebuild the tree from the derived table on
-// every operation, which is O(n²) for large trees. Caching the clean state avoids
-// the repeated DB reads and CRDT reconstructions.
-const cleanTreeCache = new Map<string, TreeCrdt>();
+// In-memory cache of clean tree CRDTs per database. Repeated corrupt server
+// operations for the same parent (e.g. a journal root with duplicate daily-page
+// inserts) would otherwise rebuild the tree from the derived table on every
+// operation, which is O(n²) for large trees. Caching the clean state avoids the
+// repeated DB reads and CRDT reconstructions.
+const cleanTreeCache = new WeakMap<Database, Map<string, TreeCrdt>>();
+
+function getLoggedSet(db: Database): Set<string> {
+  let set = loggedRepairParents.get(db);
+  if (!set) {
+    set = new Set<string>();
+    loggedRepairParents.set(db, set);
+  }
+  return set;
+}
+
+function getCleanCache(db: Database): Map<string, TreeCrdt> {
+  let map = cleanTreeCache.get(db);
+  if (!map) {
+    map = new Map<string, TreeCrdt>();
+    cleanTreeCache.set(db, map);
+  }
+  return map;
+}
 
 /**
  * Rebuild a tree CRDT from the current node_child_order derived table.
@@ -53,7 +71,9 @@ function collectDuplicates(items: string[]): string[] {
  * don't carry corrupt state into the operation log.
  */
 export function loadTreeCrdtClean(db: Database, nodeId: string): TreeCrdt {
-  const cached = cleanTreeCache.get(nodeId);
+  const cleanCache = getCleanCache(db);
+  const logged = getLoggedSet(db);
+  const cached = cleanCache.get(nodeId);
   if (cached) {
     return new TreeCrdt(cached.getState());
   }
@@ -61,17 +81,17 @@ export function loadTreeCrdtClean(db: Database, nodeId: string): TreeCrdt {
   const tree = loadTreeCrdt(db, nodeId);
   const duplicates = collectDuplicates(tree.toArray());
   if (duplicates.length === 0) {
-    cleanTreeCache.set(nodeId, new TreeCrdt(tree.getState()));
+    cleanCache.set(nodeId, new TreeCrdt(tree.getState()));
     return tree;
   }
-  if (!loggedRepairParents.has(nodeId)) {
-    loggedRepairParents.add(nodeId);
+  if (!logged.has(nodeId)) {
+    logged.add(nodeId);
     console.warn(
       `[childOrder] repairing corrupt CRDT for parent ${nodeId}, duplicates=${duplicates.join(', ')}`
     );
   }
   const clean = buildTreeCrdtFromDerived(db, nodeId);
-  cleanTreeCache.set(nodeId, new TreeCrdt(clean.getState()));
+  cleanCache.set(nodeId, new TreeCrdt(clean.getState()));
   return clean;
 }
 
@@ -84,6 +104,8 @@ export function applyChildOrderOperation(db: Database, op: Operation): ChangeNot
     : (payload.treeUpdate as Uint8Array);
 
   const nodeId = payload.nodeId as string;
+  const cleanCache = getCleanCache(db);
+  const logged = getLoggedSet(db);
   // Start from a clean tree. If this parent was already repaired this session,
   // the cached copy avoids a DB read and a full CRDT rebuild.
   let tree = loadTreeCrdtClean(db, nodeId);
@@ -94,8 +116,8 @@ export function applyChildOrderOperation(db: Database, op: Operation): ChangeNot
   if (duplicates.length > 0) {
     // The persisted CRDT state has duplicates that the derived table does not.
     // Rebuild the CRDT from the clean derived table and replay the update.
-    if (!loggedRepairParents.has(nodeId)) {
-      loggedRepairParents.add(nodeId);
+    if (!logged.has(nodeId)) {
+      logged.add(nodeId);
       console.warn(
         `[childOrder] repairing corrupt CRDT for parent ${nodeId}, duplicates=${duplicates.join(', ')}`
       );
@@ -108,8 +130,8 @@ export function applyChildOrderOperation(db: Database, op: Operation): ChangeNot
       // The update itself introduces duplicates (should not happen). Rebuild
       // the CRDT from the deduplicated derived state so the persisted tree is
       // clean and future operations start from a valid baseline.
-      if (!loggedRepairParents.has(nodeId)) {
-        loggedRepairParents.add(nodeId);
+      if (!logged.has(nodeId)) {
+        logged.add(nodeId);
         console.error(
           `[childOrder] update still produces duplicates for parent ${nodeId} (${remainingDuplicates.join(', ')}); rebuilding clean CRDT`
         );
@@ -119,7 +141,7 @@ export function applyChildOrderOperation(db: Database, op: Operation): ChangeNot
     }
   }
   saveTreeCrdt(db, nodeId, tree);
-  cleanTreeCache.set(nodeId, new TreeCrdt(tree.getState()));
+  cleanCache.set(nodeId, new TreeCrdt(tree.getState()));
 
   db.run('DELETE FROM node_child_order WHERE parent_id = ?', [nodeId]);
   const stmt = db.prepare('INSERT INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)');
