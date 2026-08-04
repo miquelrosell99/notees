@@ -1,5 +1,6 @@
 import { type Database } from 'sql.js';
 import { rebuildNodeStats } from '../derived/nodeStats';
+import { extractPlaintext } from '../derived/search';
 
 export function createSchema(db: Database): void {
   db.exec(`
@@ -53,6 +54,8 @@ export function createSchema(db: Database): void {
       created_by TEXT,
       updated_by TEXT
     );
+    CREATE INDEX IF NOT EXISTS idx_node_workspace
+    ON node (workspace_id);
 
     CREATE TABLE IF NOT EXISTS node_child_order (
       parent_id TEXT NOT NULL,
@@ -415,7 +418,8 @@ function migrateSchema(db: Database): void {
       if (rows[0]?.values) {
         for (const row of rows[0].values) {
           const [nodeId, contentJson] = row as [string, string];
-          const plaintext = extractSearchPlaintext(contentJson);
+          const content = JSON.parse(contentJson) as unknown[];
+          const plaintext = extractPlaintext(content);
           if (plaintext.length > 0) {
             db.run('INSERT INTO search_index (node_id, content) VALUES (?, ?)', [
               nodeId,
@@ -605,19 +609,35 @@ function migrateSchema(db: Database): void {
     }
     db.exec('PRAGMA user_version = 11');
   }
-}
 
-function extractSearchPlaintext(contentJson: string): string {
-  try {
-    const content = JSON.parse(contentJson) as unknown[];
-    return content
-      .map((child: unknown) => {
-        const c = child as { type?: string; text?: string };
-        return c.type === 'text' && typeof c.text === 'string' ? c.text : '';
-      })
-      .join(' ')
-      .trim();
-  } catch {
-    return '';
+  if (version < 12) {
+    // The legacy search extractor only indexed top-level {type:'text'} nodes,
+    // missing headings, links, code, math and whiteboard text. Rebuild the
+    // FTS index with the canonical AST stringifier and add the workspace_id
+    // index that the search query needs for an efficient join.
+    db.exec('BEGIN TRANSACTION');
+    try {
+      db.exec('CREATE INDEX IF NOT EXISTS idx_node_workspace ON node (workspace_id)');
+      db.exec('DELETE FROM search_index');
+      const rows = db.exec('SELECT id, content FROM node WHERE active = 1');
+      if (rows[0]?.values) {
+        for (const row of rows[0].values) {
+          const [nodeId, contentJson] = row as [string, string];
+          const content = JSON.parse(contentJson) as unknown[];
+          const plaintext = extractPlaintext(content);
+          if (plaintext.length > 0) {
+            db.run('INSERT INTO search_index (node_id, content) VALUES (?, ?)', [
+              nodeId,
+              plaintext,
+            ]);
+          }
+        }
+      }
+      db.exec('COMMIT');
+      db.exec('PRAGMA user_version = 12');
+    } catch {
+      db.exec('ROLLBACK');
+      // Leave user_version at 11 so the migration retries on next startup.
+    }
   }
 }

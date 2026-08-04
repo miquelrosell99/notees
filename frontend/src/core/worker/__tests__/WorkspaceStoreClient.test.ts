@@ -201,6 +201,22 @@ describe('WorkspaceStoreClient', () => {
     expect(content[0].text).toBe('Hello');
   });
 
+  it('rejects an aborted query with AbortError', async () => {
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const nodeId = uuidv7();
+
+    await client.init(workspaceId, actorId);
+    await client.mutate('createNode', [
+      { nodeId, kind: 'page', parentId: null, classIds: [] },
+    ]);
+
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(client.query('getNode', [nodeId], controller.signal)).rejects.toThrow('aborted');
+  });
+
   describe('WorkerStoreClient main-thread timeout behavior', () => {
     function createMockWorker(): Worker {
       return {

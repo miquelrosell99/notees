@@ -11,12 +11,11 @@ import type { Node } from '@/types/api';
 import type { WorkspaceStore } from '../store';
 import { compileToSqlite } from './compileToSqlite';
 import { substituteRuntimeParams } from './substituteRuntimeParams';
-import { searchNodes, type SearchFilters } from './search';
+import { searchNodes, SEARCH_RESULT_LIMIT, type SearchFilters } from './search';
 import { projectNodes } from '../adapters/nodeProjection';
 import { queryAll } from '../db/sqlite';
 import { listClasses, classRowToNode } from './classes';
 
-const LOCAL_QUERY_RESULT_LIMIT = 500;
 const SLOW_QUERY_MS = 500;
 
 interface QueryTiming {
@@ -104,7 +103,7 @@ export function queryNodes(
     return classRows
       .map(classRowToNode)
       .filter(isActiveMatch)
-      .slice(0, LOCAL_QUERY_RESULT_LIMIT);
+      .slice(0, SEARCH_RESULT_LIMIT);
   }
 
   if (filters.ast) {
@@ -119,7 +118,7 @@ export function queryNodes(
     const sqlMs = performance.now() - sqlStart;
     const ids = rows.map((row) => row.id);
     const projStart = performance.now();
-    const result = projectUntilLimit(store, ids, filters.projectionDepth, LOCAL_QUERY_RESULT_LIMIT, isActiveMatch);
+    const result = projectUntilLimit(store, ids, filters.projectionDepth, SEARCH_RESULT_LIMIT, isActiveMatch);
     const projectionMs = performance.now() - projStart;
     logQueryTiming('ast', {
       sqlMs,
@@ -150,7 +149,7 @@ export function queryNodes(
     const ids = rows.map((row) => row.id);
     const sqlMs = performance.now() - sqlStart;
     const projStart = performance.now();
-    const result = projectUntilLimit(store, ids, filters.projectionDepth, LOCAL_QUERY_RESULT_LIMIT, isActiveMatch);
+    const result = projectUntilLimit(store, ids, filters.projectionDepth, SEARCH_RESULT_LIMIT, isActiveMatch);
     const projectionMs = performance.now() - projStart;
     logQueryTiming('metadata', {
       sqlMs,
@@ -164,11 +163,11 @@ export function queryNodes(
   }
 
   const sqlStart = performance.now();
-  const results = searchNodes(store, query, searchFilters);
+  const results = searchNodes(store, query, searchFilters, SEARCH_RESULT_LIMIT);
   const sqlMs = performance.now() - sqlStart;
   const sortedIds = results.sort((a, b) => b.score - a.score).map((r) => r.id);
   const projStart = performance.now();
-  const result = projectUntilLimit(store, sortedIds, filters.projectionDepth, LOCAL_QUERY_RESULT_LIMIT, isActiveMatch);
+  const result = projectUntilLimit(store, sortedIds, filters.projectionDepth, SEARCH_RESULT_LIMIT, isActiveMatch);
   const projectionMs = performance.now() - projStart;
   logQueryTiming('search', {
     sqlMs,

@@ -41,12 +41,18 @@ export interface QueryRequest {
   args: unknown[];
 }
 
+export interface CancelRequest {
+  type: 'cancel';
+  id: number;
+}
+
 export type WorkerRequest =
   | InitRequest
   | ExportRequest
   | CloseRequest
   | MutateRequest
-  | QueryRequest;
+  | QueryRequest
+  | CancelRequest;
 
 // ─── Responses (worker → main) ──────────────────────────────────────────────
 
@@ -120,7 +126,7 @@ export interface IWorkspaceStoreClient {
   init(workspaceId: string, actorId: string, options?: { dbBytes?: Uint8Array; store?: WorkspaceStore }): Promise<void>;
   export(): Promise<Uint8Array>;
   mutate<T>(method: string, args: unknown[]): Promise<T>;
-  query<T>(method: string, args: unknown[]): Promise<T>;
+  query<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T>;
   subscribe(nodeId: string | null, callback: ((notification?: NotifyChangeMessage) => void) | (() => void)): () => void;
   subscribeProgress(callback: (applied: number, total: number) => void): () => void;
   close(): void;
