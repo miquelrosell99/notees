@@ -123,6 +123,10 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   performance.mark('worker:sqljs-import-end');
   performance.measure('worker:sqljs-import', 'worker:sqljs-import-start', 'worker:sqljs-import-end');
   const store = new WorkspaceStore(db, request.workspaceId, request.actorId, {
+    // Debounce persistence heavily: a 145 MB workspace should not be rewritten to
+    // IndexedDB after every keystroke. The debounce timer resets on each mutation,
+    // so continuous typing only flushes once the user pauses.
+    persistDebounceMs: 30_000,
     onPersist: async (data) => {
       // Send the exported database back to the main thread so it can be persisted
       // to IndexedDB. The main thread owns IndexedDB access; serialising the full

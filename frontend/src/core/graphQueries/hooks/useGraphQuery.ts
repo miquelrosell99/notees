@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGraphQueryClient } from './useGraphQueryClient';
 import type { GraphQuery } from '../GraphQuery';
 import type { NotifyChangeMessage } from '../../worker/workerProtocol';
@@ -13,14 +13,18 @@ export function useGraphQuery<Input, Output>(
   const [data, setData] = useState<Output | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const hasDataRef = useRef(false);
   const cacheKey = useMemo(() => query.cacheKey(input), [query, input]);
 
   const run = useCallback(async () => {
     if (!client) return;
-    setIsLoading(true);
+    if (!hasDataRef.current) {
+      setIsLoading(true);
+    }
     try {
       const result = await client.query<Output>('executeGraphQuery', [query.name, input]);
       setData(result);
+      hasDataRef.current = true;
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
@@ -34,14 +38,20 @@ export function useGraphQuery<Input, Output>(
       setData(undefined);
       setIsLoading(false);
       setError(null);
+      hasDataRef.current = false;
       return;
     }
     let cancelled = false;
     const runSafe = async () => {
-      setIsLoading(true);
+      if (!hasDataRef.current) {
+        setIsLoading(true);
+      }
       try {
         const result = await client.query<Output>('executeGraphQuery', [query.name, input]);
-        if (!cancelled) setData(result);
+        if (!cancelled) {
+          setData(result);
+          hasDataRef.current = true;
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
@@ -59,6 +69,7 @@ export function useGraphQuery<Input, Output>(
     return () => {
       cancelled = true;
       unsubscribe();
+      hasDataRef.current = false;
     };
     // cacheKey is derived from input via query.cacheKey, so input identity is
     // already captured; including it here would re-run the effect on every new

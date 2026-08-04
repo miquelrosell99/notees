@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
@@ -28,12 +28,14 @@ export function useNodesAdapter(
   const [data, setData] = useState<Node[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const hasDataRef = useRef(false);
 
   useEffect(() => {
     if (!ctx || !workspaceId) {
       setData([]);
       setIsLoading(false);
       setError(null);
+      hasDataRef.current = false;
       return;
     }
 
@@ -41,12 +43,16 @@ export function useNodesAdapter(
     const effectCtx = ctx;
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
-    setIsLoading(true);
+    if (!hasDataRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     async function fetchNodes(client?: IWorkspaceStoreClient) {
       if (cancelled) return;
-      setIsLoading(true);
+      if (!hasDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
       try {
         const c =
@@ -68,11 +74,14 @@ export function useNodesAdapter(
         if (cancelled) return;
 
         setData(nodes);
+        hasDataRef.current = true;
         setIsLoading(false);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err : new Error(String(err)));
-        setIsLoading(false);
+        if (!hasDataRef.current) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -81,6 +90,7 @@ export function useNodesAdapter(
     return () => {
       cancelled = true;
       unsubscribe?.();
+      hasDataRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
