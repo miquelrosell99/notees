@@ -7,7 +7,6 @@
  */
 
 import { createDatabase } from '../db/connection';
-import { saveWorkspaceDatabase } from '../persistence/indexedDb';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
 import { listNodes } from '../query/listNodes';
@@ -115,8 +114,15 @@ function isWorkerSupported(): boolean {
 
 const persistLog = getLogger('persist');
 
+interface PersistRequest {
+  resolve: () => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 export class WorkerStoreClient implements IWorkspaceStoreClient {
   private worker: Worker;
+  private persistWorker: Worker;
   private pending = new Map<number, PendingRequest>();
   private listeners = new Map<string | null, Set<(notification?: NotifyChangeMessage) => void>>();
   private progressListeners = new Set<(applied: number, total: number) => void>();
@@ -124,6 +130,8 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
   private pendingPersistData = new Map<string, Uint8Array>();
   private persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private persistInFlight = new Set<string>();
+  private pendingPersistRequests = new Map<number, PersistRequest>();
+  private persistRequestId = 0;
   private closed = false;
 
   constructor(worker: Worker) {
@@ -142,6 +150,27 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
       this.rejectAllPending(new Error(`Worker error: ${err.message}`));
       this.terminate();
     };
+
+    // Offload IndexedDB persistence to a dedicated worker so the main thread
+    // stays responsive while a 100+ MB SQLite snapshot is written.
+    this.persistWorker = new Worker(new URL('./persistWorker.ts', import.meta.url), {
+      type: 'module',
+    });
+    this.persistWorker.onmessage = (event: MessageEvent<unknown>) => {
+      const msg = event.data as { type: 'persist-done' | 'persist-error'; id: number; message?: string };
+      const pending = this.pendingPersistRequests.get(msg.id);
+      if (!pending) return;
+      this.pendingPersistRequests.delete(msg.id);
+      clearTimeout(pending.timer);
+      if (msg.type === 'persist-error') {
+        pending.reject(new Error(msg.message ?? 'Persist worker error'));
+      } else {
+        pending.resolve();
+      }
+    };
+    this.persistWorker.onerror = (err) => {
+      console.error('[WorkspaceStoreClient] Persist worker error:', err);
+    };
   }
 
   private rejectAllPending(error: Error): void {
@@ -156,6 +185,12 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     if (this.closed) return;
     this.closed = true;
     this.worker.terminate();
+    this.persistWorker.terminate();
+    for (const pending of this.pendingPersistRequests.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Worker closed'));
+    }
+    this.pendingPersistRequests.clear();
     this.listeners.clear();
   }
 
@@ -185,12 +220,25 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     this.persistInFlight.add(workspaceId);
     this.pendingPersistData.delete(workspaceId);
     const start = performance.now();
+    const id = ++this.persistRequestId;
     try {
-      persistLog.debug('[persist] starting IndexedDB save', {
+      persistLog.debug('[persist] offloading IndexedDB save', {
         workspaceId,
         bytes: data.length,
       });
-      await saveWorkspaceDatabase(workspaceId, data);
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          this.pendingPersistRequests.delete(id);
+          reject(new Error('Persist worker timeout'));
+        }, 60_000);
+        this.pendingPersistRequests.set(id, { resolve, reject, timer });
+        // Transfer the underlying buffer so the main thread does not have to
+        // structured-clone 100+ MB on every keystroke.
+        this.persistWorker.postMessage(
+          { type: 'persist', id, workspaceId, data },
+          [data.buffer]
+        );
+      });
       persistLog.debug('[persist] IndexedDB save complete', {
         workspaceId,
         durationMs: Math.round(performance.now() - start),
@@ -406,11 +454,17 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     this.closed = true;
     this.worker.postMessage({ type: 'close' });
     this.worker.terminate();
+    this.persistWorker.terminate();
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(new Error('Worker closed'));
     }
     this.pending.clear();
+    for (const pending of this.pendingPersistRequests.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('Worker closed'));
+    }
+    this.pendingPersistRequests.clear();
     for (const timer of this.persistTimers.values()) {
       clearTimeout(timer);
     }
