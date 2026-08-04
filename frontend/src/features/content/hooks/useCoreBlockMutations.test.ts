@@ -48,7 +48,7 @@ function createTestWorkspaceStoreClient(store: WorkspaceStore): IWorkspaceStoreC
       }
       return fn.apply(store, args) as T;
     },
-    async query<T>(method: string, args: unknown[]): Promise<T> {
+    async query<T>(method: string, args: unknown[], _signal?: AbortSignal): Promise<T> {
       if (method === 'projectNode') {
         const [nodeId, depth] = args as [string, number | undefined];
         return projectNode(store, nodeId, depth) as T;

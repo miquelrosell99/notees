@@ -116,4 +116,17 @@ describe('searchNodes', () => {
     const results = searchNodes(store, '');
     expect(results).toHaveLength(0);
   });
+
+  it('returns pages before blocks when kinds are mixed', async () => {
+    const store = await makeStore();
+    createPage(store, 'page-1', 'project alpha');
+    store.createNode({ nodeId: 'block-1', kind: 'block', parentId: null });
+    store.updateText('block-1', (t) => t.insert(0, 'project beta'));
+
+    const results = searchNodes(store, 'project');
+    const kinds = results.map((r) => r.kind);
+    expect(kinds).toEqual(['page', 'block']);
+    expect(results[0].id).toBe('page-1');
+    expect(results[1].id).toBe('block-1');
+  });
 });
