@@ -68,7 +68,7 @@ describe('date note hierarchy', () => {
     const monthly = getOrCreateMonthlyNote(store, 2024, 7);
 
     expect(monthly.parent_uuid).toBe(yearToYearUuid(2024));
-    expect(monthly.name).toBe('2024-07');
+    expect(monthly.name).toBe('20240700');
   });
 
   it('creates yearly page at root', async () => {
@@ -76,6 +76,6 @@ describe('date note hierarchy', () => {
     const yearly = getOrCreateYearlyNote(store, 2024);
 
     expect(yearly.parent_uuid).toBeNull();
-    expect(yearly.name).toBe('2024');
+    expect(yearly.name).toBe('20240000');
   });
 });

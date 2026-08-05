@@ -11,7 +11,7 @@
  */
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { autoUpdate, computePosition, flip, offset, shift, size as floatingSize } from '@floating-ui/dom';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
@@ -26,7 +26,13 @@ import { Card } from '@/components/ui/Card';
 import { SelectTrigger, type SelectTriggerSize } from '@/components/ui/SelectTrigger';
 
 import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/features/content';
+import {
+  getOrCreateDailyNoteClient,
+  getOrCreateMonthlyNoteClient,
+  getOrCreateYearlyNoteClient,
+} from '@/features/content/hooks/useNodeDateQueries';
 import { parseQueryWithFilters, type AppliedFilter } from '@/utils/searchFilters';
+import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
@@ -193,6 +199,29 @@ export function NodeSelector({
     [searchQuery, appliedFilters]
   );
 
+  // Parse query for date formats and look up existing date page
+  const parsedDate = useMemo(() => {
+    if (searchMode !== 'pages' && searchMode !== 'all') return null;
+    return parseDate(parsedFilters.searchTerm);
+  }, [parsedFilters.searchTerm, searchMode]);
+
+  const datePageUuid = useMemo(
+    () => (parsedDate ? generateDateUuid(parsedDate) : null),
+    [parsedDate]
+  );
+
+  // Project the deterministic date UUID directly from the worker so the
+  // suggestion works even when the full page list query is slow.
+  const { data: existingDateNode = null } = useQuery({
+    queryKey: nodeKeys.detail(datePageUuid ?? '', { include_children: false }),
+    queryFn: async (): Promise<Node | null> => {
+      if (!client || !datePageUuid) return null;
+      return (await client.query<Node | undefined>('projectNode', [datePageUuid])) ?? null;
+    },
+    enabled: !!client && !!datePageUuid,
+    placeholderData: null,
+  });
+
   // Derive class filters from applied class filters + prop classFilters
   const derivedClassFilters = useMemo(() => {
     const appliedClassIds = appliedFilters
@@ -318,7 +347,59 @@ export function NodeSelector({
     }
     return ids;
   }, [nodes, valueIds]);
-  
+
+  const handleAdd = useCallback((node: Node) => {
+    // Prevent adding duplicates
+    if (assignedIds.has(node.uuid)) return;
+
+    if (onChange) {
+      // Value-based API: update value
+      const newValue = multi
+        ? [...(Array.isArray(value) ? value : []), node.uuid]
+        : node.uuid;
+      onChange(newValue);
+    } else {
+      // Node-based API: call onAdd
+      onAdd?.(node);
+    }
+
+    if (!multi || trigger === 'pill-row') {
+      setIsPickerOpen(false);
+      setSearchQuery('');
+      setAppliedFilters([]);
+    }
+  }, [onChange, onAdd, multi, trigger, value, assignedIds]);
+
+  // Date suggestion handling
+  const handleDateSelect = useCallback(async () => {
+    if (!parsedDate || !client) return;
+    try {
+      let dateNode: Node;
+      if (existingDateNode) {
+        dateNode = existingDateNode;
+      } else if (parsedDate.type === 'day' && parsedDate.month && parsedDate.day) {
+        const dateStr = `${parsedDate.year}-${String(parsedDate.month).padStart(2, '0')}-${String(parsedDate.day).padStart(2, '0')}`;
+        dateNode = await getOrCreateDailyNoteClient(client, dateStr);
+      } else if (parsedDate.type === 'month' && parsedDate.month) {
+        dateNode = await getOrCreateMonthlyNoteClient(client, parsedDate.year, parsedDate.month);
+      } else {
+        dateNode = await getOrCreateYearlyNoteClient(client, parsedDate.year);
+      }
+      handleAdd(dateNode);
+    } catch (error) {
+      console.error('Failed to get or create date page:', error);
+    }
+  }, [parsedDate, existingDateNode, client, handleAdd]);
+
+  const dateSuggestion = useMemo(() => {
+    if (!parsedDate) return undefined;
+    const dateTypeLabel = parsedDate.type === 'day' ? 'daily' : parsedDate.type === 'month' ? 'monthly' : 'yearly';
+    const label = existingDateNode
+      ? `Go to ${dateTypeLabel} page: ${parsedDate.label}`
+      : `Create ${dateTypeLabel} page: ${parsedDate.label}`;
+    return { parsedDate, existingNode: existingDateNode, label, onSelect: handleDateSelect };
+  }, [parsedDate, existingDateNode, handleDateSelect]);
+
   const filteredResults = useMemo(() => {
     return searchResults
       .filter(node => !assignedIds.has(node.uuid))
@@ -351,9 +432,10 @@ export function NodeSelector({
 
   // Total selectable items (include "show more" row when results are truncated)
   const showMoreOption = hasMore && !multi && filterSuggestions.length === 0;
+  const dateSuggestionCount = dateSuggestion ? 1 : 0;
   const totalItems = multi
-    ? filterSuggestions.length + multiDropdownItems.length + (showCreateOption ? 1 : 0)
-    : filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) + (showMoreOption ? 1 : 0);
+    ? dateSuggestionCount + filterSuggestions.length + multiDropdownItems.length + (showCreateOption ? 1 : 0)
+    : dateSuggestionCount + filterSuggestions.length + filteredResults.length + convertCandidates.length + (showCreateOption ? 1 : 0) + (showMoreOption ? 1 : 0);
 
   // Position menu for 'select' single mode with viewport flip
   const menuPosition = useViewportFlip(
@@ -481,28 +563,6 @@ export function NodeSelector({
     }
   }, [isPickerOpen, menuPosition]);
 
-  const handleAdd = useCallback((node: Node) => {
-    // Prevent adding duplicates
-    if (assignedIds.has(node.uuid)) return;
-    
-    if (onChange) {
-      // Value-based API: update value
-      const newValue = multi
-        ? [...(Array.isArray(value) ? value : []), node.uuid]
-        : node.uuid;
-      onChange(newValue);
-    } else {
-      // Node-based API: call onAdd
-      onAdd?.(node);
-    }
-    
-    if (!multi || trigger === 'pill-row') {
-      setIsPickerOpen(false);
-      setSearchQuery('');
-      setAppliedFilters([]);
-    }
-  }, [onChange, onAdd, multi, trigger, value, assignedIds]);
-
   const handleRemove = useCallback((node: Node) => {
     if (onChange) {
       // Value-based API: update value
@@ -599,8 +659,14 @@ export function NodeSelector({
 
   // Keyboard list navigation
   const handleSelectByIndex = useCallback((index: number) => {
-    if (index < filterSuggestions.length) {
-      const item = filterSuggestions[index];
+    if (dateSuggestion && index === 0) {
+      dateSuggestion.onSelect();
+      return;
+    }
+
+    const offset = dateSuggestion ? 1 : 0;
+    if (index - offset < filterSuggestions.length) {
+      const item = filterSuggestions[index - offset];
       if (item.type === 'class') {
         handleAddClassFilter(item.node);
       } else if (item.type === 'boolean') {
@@ -611,7 +677,7 @@ export function NodeSelector({
       return;
     }
 
-    const adjustedIndex = index - filterSuggestions.length;
+    const adjustedIndex = index - offset - filterSuggestions.length;
 
     if (multi) {
       if (adjustedIndex < multiDropdownItems.length) {
@@ -634,7 +700,7 @@ export function NodeSelector({
         handleCreateNew();
       }
     }
-  }, [filterSuggestions, multi, multiDropdownItems, filteredResults, convertCandidates, showCreateOption, showMoreOption, handleAdd, handleToggle, handleCreateNew, handleShowMore, onConvertToClass, handleAddClassFilter, handleAddBooleanFilter, handlePrefixSelect]);
+  }, [dateSuggestion, filterSuggestions, multi, multiDropdownItems, filteredResults, convertCandidates, showCreateOption, showMoreOption, handleAdd, handleToggle, handleCreateNew, handleShowMore, onConvertToClass, handleAddClassFilter, handleAddBooleanFilter, handlePrefixSelect]);
 
   const handleClosePicker = useCallback(() => {
     if (isAnchored) {
@@ -847,6 +913,7 @@ export function NodeSelector({
                 searchQuery={searchQuery}
                 showCreateOption={showCreateOption}
                 showMoreOption={false}
+                dateSuggestion={dateSuggestion}
                 buildParentPath={buildParentPath}
                 buildBlockParentPath={buildBlockParentPath}
                 getDisplayClasses={getDisplayClasses}
@@ -924,6 +991,7 @@ export function NodeSelector({
                 showCreateOption={showCreateOption}
                 showMoreOption={showMoreOption}
                 convertCandidates={convertCandidates}
+                dateSuggestion={dateSuggestion}
                 buildParentPath={buildParentPath}
                 buildBlockParentPath={buildBlockParentPath}
                 getDisplayClasses={getDisplayClasses}
@@ -984,6 +1052,7 @@ export function NodeSelector({
             showCreateOption={showCreateOption}
             showMoreOption={showMoreOption}
             convertCandidates={convertCandidates}
+            dateSuggestion={dateSuggestion}
             buildParentPath={buildParentPath}
             buildBlockParentPath={buildBlockParentPath}
             getDisplayClasses={getDisplayClasses}
@@ -1040,6 +1109,7 @@ export function NodeSelector({
             searchQuery={searchQuery}
             showCreateOption={showCreateOption}
             showMoreOption={showMoreOption}
+            dateSuggestion={dateSuggestion}
             buildParentPath={buildParentPath}
             buildBlockParentPath={buildBlockParentPath}
             getDisplayClasses={getDisplayClasses}
@@ -1128,6 +1198,7 @@ export function NodeSelector({
                   showCreateOption={showCreateOption}
                   showMoreOption={showMoreOption}
                   convertCandidates={convertCandidates}
+                  dateSuggestion={dateSuggestion}
                   buildParentPath={buildParentPath}
                   buildBlockParentPath={buildBlockParentPath}
                   getDisplayClasses={getDisplayClasses}
