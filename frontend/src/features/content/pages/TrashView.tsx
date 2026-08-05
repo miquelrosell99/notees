@@ -3,7 +3,7 @@
  * 
  * Fetches directly from the /trash endpoint instead of using query system.
  */
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
 import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
@@ -224,7 +224,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
       <ConfirmationModal
         isOpen={deleteTarget !== null}
         title="Delete Permanently"
-        message={`Permanently delete "${deleteTarget ? nodeNameToText(deleteTarget.name) || 'Untitled' : ''}"?`}
+        message={`Permanently delete "${deleteTarget ? nodeNameToDisplayText(deleteTarget) || 'Untitled' : ''}"?`}
         secondaryMessage="This action cannot be undone."
         confirmLabel="Delete Permanently"
         cancelLabel="Cancel"

@@ -28,7 +28,7 @@ import type {
   ChildPathCondition,
 } from '@/types/queryAST';
 import type { Node } from '@/types/api';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 
 // ==================== Types ====================
 
@@ -362,7 +362,7 @@ function formatNodeReference(uuid: string, nodesMap?: Map<string, Node>): string
     return `"${uuid}"`;
   }
 
-  const displayName = nodeNameToText(node.name) || node.name || 'Untitled';
+  const displayName = nodeNameToDisplayText(node) || node.name || 'Untitled';
   return `"${displayName}"`;
 }
 

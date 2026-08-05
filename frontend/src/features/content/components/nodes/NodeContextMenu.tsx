@@ -17,7 +17,7 @@ import { useClipboardStore } from '@/stores/clipboardStore';
 import { createPortal } from 'react-dom';
 import { autoUpdate, computePosition, flip, shift, type VirtualElement } from '@floating-ui/dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { useSettingsStore, usePresentationStore, useUndoStore } from '@/stores';
 import { useNotificationStore } from '@/stores/notificationStore';
 import {
@@ -598,7 +598,7 @@ export function NodeContextMenu({
       <ConfirmationModal
         isOpen={showDeleteModal}
         title="Delete page"
-        message={`Are you sure you want to delete "${nodeNameToText(node.name) || 'Untitled'}"?`}
+        message={`Are you sure you want to delete "${nodeNameToDisplayText(node) || 'Untitled'}"?`}
         secondaryMessage={linkedRefsCount > 0 ? `This page is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"

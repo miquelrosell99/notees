@@ -11,7 +11,7 @@
 import { useMemo, useCallback } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useComments, useNodeActivity, useNode } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { parseAST } from '@/lib/astBuilder';
 import { isHeadingBlock } from '@/types/ast';
 import type { Node } from '@/types/api';
@@ -36,7 +36,7 @@ function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
       result.push({
         nodeUuid: node.uuid,
         uuid: node.uuid,
-        text: nodeNameToText(node.name, 100) || 'Untitled',
+        text: nodeNameToDisplayText(node, { maxLength: 100 }) || 'Untitled',
         level: Math.min(depth + 1, 6),
       });
     }
