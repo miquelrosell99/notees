@@ -4,7 +4,7 @@ import type { SearchResult } from './CommandPalette.types';
 import { HighlightText } from './CommandPalette.utils';
 import { NodeIcon, BulletIcon, PropertiesIcon } from '@/components/ui/icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToText, nodeNameToDisplayText } from '@/features/queries';
 import './CommandPalette.css';
 
 interface ResultItemProps {
@@ -34,9 +34,10 @@ export function ResultItem({
   const ref = useRef<HTMLButtonElement>(null);
 
   // Resolve aliased node name if this node is an alias
-  const aliasedNodeName = result.node?.aliased_uuid && allNodes
-    ? nodeNameToText(allNodes.find(n => n.uuid === result.node?.aliased_uuid)?.name) || null
+  const aliasedNode = result.node?.aliased_uuid && allNodes
+    ? allNodes.find(n => n.uuid === result.node?.aliased_uuid)
     : null;
+  const aliasedNodeName = aliasedNode ? nodeNameToDisplayText(aliasedNode) || 'Untitled' : null;
 
   // Scroll into view when selected
   useEffect(() => {
@@ -114,7 +115,7 @@ export function ResultItem({
         </span>
         <span className="command-palette__result-content">
           <span className="command-palette__result-name">
-            <HighlightText text={nodeNameToText(result.node.name) || 'Untitled'} highlight={searchTerm} />
+            <HighlightText text={nodeNameToDisplayText(result.node) || 'Untitled'} highlight={searchTerm} />
           </span>
         </span>
         {aliasedNodeName && (
