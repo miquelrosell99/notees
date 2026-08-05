@@ -12,12 +12,19 @@ beforeAll(() => {
 });
 
 describe('schema', () => {
-  it('creates node_stats, edge indexes, sync_outbox next_retry_at, node_child_order PK and migrates to user_version 12', async () => {
+  it('creates node icon/color columns, node_stats, edge indexes, sync_outbox next_retry_at, node_child_order PK and migrates to user_version 13', async () => {
     const db = await createTestDatabase();
 
     const versionRow = db.exec('PRAGMA user_version')[0];
     const version = versionRow?.values[0]?.[0] as number;
-    expect(version).toBe(12);
+    expect(version).toBe(13);
+
+    const nodeTable = queryOne<{ sql: string }>(
+      db,
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'node'"
+    );
+    expect(nodeTable?.sql).toMatch(/icon\s+TEXT/i);
+    expect(nodeTable?.sql).toMatch(/color\s+TEXT/i);
 
     const nodeStats = queryOne<{ name: string }>(
       db,

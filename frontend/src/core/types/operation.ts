@@ -20,6 +20,8 @@ const OP_TYPES = new Set([
   'node.delete',
   'node.move',
   'node.updateContent',
+  'node.updateIcon',
+  'node.updateColor',
   'node.addAlias',
   'node.removeAlias',
   'class.assign',
@@ -136,6 +138,16 @@ export interface ShareUserGrantPayload {
 export interface ShareUserRevokePayload {
   nodeId: string;
   userId: string;
+}
+
+export interface NodeIconUpdatePayload {
+  nodeId: string;
+  icon: string | null;
+}
+
+export interface NodeColorUpdatePayload {
+  nodeId: string;
+  color: string | null;
 }
 
 export interface PluginOpPayload {

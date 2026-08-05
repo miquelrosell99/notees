@@ -75,6 +75,8 @@ function getNodeFromDb(db: Database, nodeId: string): NodeRow | undefined {
     parentId: string | null;
     classIds: string;
     content: string;
+    icon: string | null;
+    color: string | null;
     active: number;
     createdAt: string | null;
     updatedAt: string | null;
@@ -89,6 +91,8 @@ function getNodeFromDb(db: Database, nodeId: string): NodeRow | undefined {
        parent_id AS parentId,
        class_ids AS classIds,
        content,
+       icon,
+       color,
        active,
        created_at AS createdAt,
        updated_at AS updatedAt,
@@ -231,8 +235,8 @@ export function projectNodeFromDb(
     name,
     content: node.content,
     display_name: name,
-    icon: null,
-    color: null,
+    icon: node.icon,
+    color: node.color,
     parent_uuid: node.parentId,
     page_uuid: pageUuid,
     sequence: resolveSequence(db, nodeId, node.parentId),
@@ -279,6 +283,8 @@ interface NodeSourceRow {
   parentId: string | null;
   classIds: string;
   content: string;
+  icon: string | null;
+  color: string | null;
   active: number;
   createdAt: string | null;
   updatedAt: string | null;
@@ -299,6 +305,8 @@ function fetchNodeRows(db: Database, nodeIds: string[]): Map<string, NodeSourceR
       parent_id: string | null;
       class_ids: string;
       content: string;
+      icon: string | null;
+      color: string | null;
       active: number;
       created_at: string | null;
       updated_at: string | null;
@@ -313,6 +321,8 @@ function fetchNodeRows(db: Database, nodeIds: string[]): Map<string, NodeSourceR
          parent_id,
          class_ids,
          content,
+         icon,
+         color,
          active,
          created_at,
          updated_at,
@@ -330,6 +340,8 @@ function fetchNodeRows(db: Database, nodeIds: string[]): Map<string, NodeSourceR
         parentId: row.parent_id,
         classIds: row.class_ids,
         content: row.content,
+        icon: row.icon,
+        color: row.color,
         active: row.active,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -500,8 +512,8 @@ function buildNodeFromSource(
     name,
     content: row.content,
     display_name: name,
-    icon: null,
-    color: null,
+    icon: row.icon,
+    color: row.color,
     parent_uuid: row.parentId,
     page_uuid: pageUuid,
     sequence: 0,
