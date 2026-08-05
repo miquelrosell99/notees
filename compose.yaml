@@ -23,7 +23,7 @@ services:
 
   db:
     image: postgres:17-alpine
-    container_name: notees-postgres
+    container_name: notees-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
