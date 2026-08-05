@@ -320,6 +320,11 @@ function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+function DateContentMigration({ workspaceUuid }: { workspaceUuid: string }) {
+  useDateContentMigration(true, workspaceUuid);
+  return null;
+}
+
 /**
  * Initialize the local-first workspace store for the active workspace and
  * provide it (plus the transport) to the rest of the app.
@@ -516,9 +521,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const isReady =
     !!workspaceId && readyWorkspaceId === workspaceId && !isInitializing && !initError;
 
-  // One-time fix for date pages whose content was appended instead of replaced
-  // by an earlier migration.
-  useDateContentMigration(isReady, workspaceId ?? null);
+
 
   const showOverlay = (!!workspaceId && !isReady) || isWaitingForWorkspaces || isWorkspacesError;
 
@@ -589,6 +592,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
           <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>
             {children}
             {workspaceId && <SyncConflictListener workspaceId={workspaceId} />}
+            {workspaceId && isReady && <DateContentMigration workspaceUuid={workspaceId} />}
           </WorkspaceStoreProvider>
         ) : (
           children
