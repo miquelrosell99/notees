@@ -114,8 +114,6 @@ export function SidebarPinnedPages({ onContextMenu, onItemClick }: SidebarPinned
   const pinnedPages = usePinnedPagesStore((s) => s.pinnedPages);
   const togglePin = usePinnedPagesStore((s) => s.togglePin);
   const unpinPage = usePinnedPagesStore((s) => s.unpinPage);
-
-  if (pinnedPages.length === 0) return null;
   const {
     mainViewType,
     currentNodeUuid,
@@ -160,6 +158,8 @@ export function SidebarPinnedPages({ onContextMenu, onItemClick }: SidebarPinned
       togglePin(currentNodeUuid);
     }
   }, [currentPageIsPinnable, currentNodeUuid, togglePin]);
+
+  if (pinnedPages.length === 0) return null;
 
   return (
     <div className="sidebar-section">
