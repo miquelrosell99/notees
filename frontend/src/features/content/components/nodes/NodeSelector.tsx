@@ -38,6 +38,8 @@ import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
 import { nodeNameToText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { useSettingsStore, type DateFormat } from '@/stores';
+import { formatDatePageContent } from '@/utils/datePageDisplay';
 import type { Node } from '@/types';
 import './NodeSelector.css';
 
@@ -117,6 +119,11 @@ interface NodeSelectorProps {
   rightIconHoverReveal?: boolean;
 }
 
+function formatDisplayName(name: unknown, dateFormat: DateFormat): string {
+  const text = nodeNameToText(name) ?? '';
+  return formatDatePageContent(text, dateFormat) ?? text;
+}
+
 export function NodeSelector({
   nodes: nodesProp,
   value,
@@ -149,6 +156,7 @@ export function NodeSelector({
   rightIconHoverReveal = false,
 }: NodeSelectorProps) {
   const isAnchored = anchorEl != null;
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
@@ -720,7 +728,7 @@ export function NodeSelector({
     while (currentId !== null) {
       const parent = allPages.find(p => p.uuid === currentId && p.is_page);
       if (!parent) break;
-      segments.unshift(nodeNameToText(parent.name) || 'Untitled');
+      segments.unshift(formatDisplayName(parent.name, dateFormat) || 'Untitled');
       currentId = parent.parent_uuid ?? null;
     }
     if (segments.length === 0) return '';
@@ -734,19 +742,19 @@ export function NodeSelector({
     }
     const last = parts[0];
     return '.../ ' + (last.length > 26 ? last.slice(0, 23) + '...' : last) + ' /';
-  }, [allPages]);
+  }, [allPages, dateFormat]);
 
   // Build breadcrumb path for a block node using its page_id
   const buildBlockParentPath = useCallback((node: Node): string => {
     if (!node.page_uuid) return '';
     const page = allPages.find(p => p.uuid === node.page_uuid);
     if (!page) return '';
-    const pageName = nodeNameToText(page.name) || 'Untitled';
+    const pageName = formatDisplayName(page.name, dateFormat) || 'Untitled';
     const ancestors = buildParentPath(page);
     // buildParentPath returns "Parent /" format; strip trailing " /" to combine cleanly
     const trimmed = ancestors.replace(/ \/$/, '');
     return trimmed ? `${trimmed} / ${pageName}` : pageName;
-  }, [allPages, buildParentPath]);
+  }, [allPages, buildParentPath, dateFormat]);
 
   // Get display classes for a node, excluding the system "page" class
   const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {
@@ -755,12 +763,12 @@ export function NodeSelector({
       .map(classUuid => {
         const classNode = allClasses.find(c => c.uuid === classUuid);
         if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
-        const name = nodeNameToText(classNode.name);
+        const name = formatDisplayName(classNode.name, dateFormat);
         if (!name) return null;
         return { nodeUuid: classUuid, name };
       })
       .filter((c): c is { nodeUuid: string; name: string } => c !== null);
-  }, [allClasses]);
+  }, [allClasses, dateFormat]);
 
   // 'inline' mode is always active; other modes are active when picker is open
   const isNavActive = trigger === 'inline' || isPickerOpen;
@@ -789,7 +797,7 @@ export function NodeSelector({
                   onClick={() => onNodeClick?.(node)}
                 >
                   <NodeIcon icon={node.icon} isPage={node.is_page} size="xs" />
-                  <span>{nodeNameToText(node.name) || 'Untitled'}</span>
+                  <span>{formatDisplayName(node.name, dateFormat) || 'Untitled'}</span>
                 </button>
               ))}
             </div>
@@ -852,7 +860,7 @@ export function NodeSelector({
                   <span className="node-selector__single-value">
                     <NodeIcon icon={getEffectiveIcon(node, allClasses) ?? node?.icon} isPage={node?.is_page} size="xs" />
                     <span className="node-selector__single-value-name">
-                      {nodeNameToText(node?.name) || 'Untitled'}
+                      {formatDisplayName(node?.name, dateFormat) || 'Untitled'}
                     </span>
                     {displayCls.length > 0 && (
                       <span className="node-selector__single-value-classes">
