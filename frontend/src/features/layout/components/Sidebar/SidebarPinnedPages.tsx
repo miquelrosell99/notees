@@ -110,10 +110,12 @@ interface SidebarPinnedPagesProps {
 }
 
 export function SidebarPinnedPages({ onContextMenu, onItemClick }: SidebarPinnedPagesProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const pinnedPages = usePinnedPagesStore((s) => s.pinnedPages);
   const togglePin = usePinnedPagesStore((s) => s.togglePin);
   const unpinPage = usePinnedPagesStore((s) => s.unpinPage);
+
+  if (pinnedPages.length === 0) return null;
   const {
     mainViewType,
     currentNodeUuid,
@@ -184,23 +186,17 @@ export function SidebarPinnedPages({ onContextMenu, onItemClick }: SidebarPinned
       </div>
       {expanded && (
         <div className="sidebar-pinned-list">
-          {pinnedPages.length === 0 ? (
-            <div className="sidebar-empty-message">
-              No pinned pages. Open a page and click the pin button to keep it here for this session.
-            </div>
-          ) : (
-            pinnedPages.map((nodeUuid) => (
-              <PinnedItem
-                key={nodeUuid}
-                nodeUuid={nodeUuid}
-                isActive={currentNodeUuid === nodeUuid && mainViewType === 'node'}
-                onClick={() => handleNavigate(nodeUuid)}
-                onNavigate={handleNavigate}
-                onUnpin={handleUnpin}
-                onContextMenu={(e) => onContextMenu(nodeUuid, e)}
-              />
-            ))
-          )}
+          {pinnedPages.map((nodeUuid) => (
+            <PinnedItem
+              key={nodeUuid}
+              nodeUuid={nodeUuid}
+              isActive={currentNodeUuid === nodeUuid && mainViewType === 'node'}
+              onClick={() => handleNavigate(nodeUuid)}
+              onNavigate={handleNavigate}
+              onUnpin={handleUnpin}
+              onContextMenu={(e) => onContextMenu(nodeUuid, e)}
+            />
+          ))}
         </div>
       )}
     </div>
