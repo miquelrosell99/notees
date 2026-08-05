@@ -16,9 +16,10 @@ import { createPortal } from 'react-dom';
 import { autoUpdate, computePosition, flip, offset, shift, type VirtualElement } from '@floating-ui/dom';
 import type { Node } from '@/types';
 import { useNodeSearch, type NodeSearchItem } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToText, nodeNameToDisplayText } from '@/features/queries';
 import { useClasses, usePages } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { useSettingsStore } from '@/stores';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import type { NodeRow } from '@/core/store';
 import { classRowToNode, type ClassRow } from '@/core/query/classes';
@@ -181,6 +182,7 @@ export function TriggerPopup({
 }: TriggerPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const isInlineSlash = inline && type === 'slash';
   // In inline mode the editor block drives the query; otherwise the popup owns it.
@@ -498,20 +500,20 @@ export function TriggerPopup({
     while (currentId !== null) {
       const parent = pageById.get(currentId);
       if (!parent || !parent.is_page) break;
-      segments.unshift(nodeNameToText(parent.name) || 'Untitled');
+      segments.unshift(nodeNameToDisplayText(parent, { dateFormat }) || 'Untitled');
       currentId = parent.parent_uuid ?? null;
     }
     return segments.join(' / ');
-  }, [pageById]);
+  }, [pageById, dateFormat]);
 
   const buildBlockParentPath = useCallback((node: Node): string => {
     if (!node.page_uuid) return '';
     const page = pageById.get(node.page_uuid);
     if (!page) return '';
-    const pageName = nodeNameToText(page.name) || 'Untitled';
+    const pageName = nodeNameToDisplayText(page, { dateFormat }) || 'Untitled';
     const ancestors = buildParentPath(page);
     return ancestors ? `${ancestors} / ${pageName}` : pageName;
-  }, [pageById, buildParentPath]);
+  }, [pageById, buildParentPath, dateFormat]);
 
   const bumpCommandUsage = useCallback((commandId: string) => {
     try {

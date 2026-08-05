@@ -581,7 +581,7 @@ export function NodeTable<T>({
                           ) : (
                             <Icon path="mdi-circle-small" size={0.75} className="table-node-cell__type-icon table-node-cell__type-icon--block" title="Block" />
                           )}
-                          <NodeNameContent name={(cellValue as unknown as Node).name} />
+                          <NodeNameContent name={(cellValue as unknown as Node).name} node={(cellValue as unknown as Node)} />
                         </span>
                       </div>
                     )}

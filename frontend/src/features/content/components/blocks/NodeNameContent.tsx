@@ -7,15 +7,16 @@
  */
 import React, { useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import type { Node } from '@/types';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { NodeLinkContextMenuTrigger } from '@/features/content';
-import { useNavigationStore, useSettingsStore, type DateFormat } from '@/stores';
+import { useNavigationStore, useSettingsStore } from '@/stores';
 import { useReferencedNode } from '@/features/content';
 import { useBatchedNodeByUuid } from '@/hooks';
-import { formatDatePageContent } from '@/utils/datePageDisplay';
+import { nodeNameToText, nodeNameToDisplayText } from '@/features/queries';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import '@/styles/inline-link.css';
@@ -86,16 +87,11 @@ function renderMath(expression: string, displayMode: boolean): string {
   }
 }
 
-function formatInlineText(text: string, dateFormat: DateFormat): string {
-  const formatted = formatDatePageContent(text, dateFormat);
-  return formatted ?? text;
-}
-
-function renderInlineNodes(nodes: ASTInlineNode[], dateFormat: DateFormat): React.ReactNode[] {
+function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
   return nodes.map((node, i) => {
     switch (node.type) {
       case 'text':
-        return formatInlineText(node.text, dateFormat) || null;
+        return node.text || null;
       case 'node_link': {
         const { nodeUuid } = parseLinkId(node.link_id);
         return (
@@ -132,19 +128,19 @@ function renderInlineNodes(nodes: ASTInlineNode[], dateFormat: DateFormat): Reac
         );
       }
       case 'strong':
-        return <strong key={i}>{renderInlineNodes(node.children, dateFormat)}</strong>;
+        return <strong key={i}>{renderInlineNodes(node.children)}</strong>;
       case 'em':
-        return <em key={i}>{renderInlineNodes(node.children, dateFormat)}</em>;
+        return <em key={i}>{renderInlineNodes(node.children)}</em>;
       case 'strikethrough':
-        return <s key={i}>{renderInlineNodes(node.children, dateFormat)}</s>;
+        return <s key={i}>{renderInlineNodes(node.children)}</s>;
       case 'highlight':
-        return <mark key={i}>{renderInlineNodes(node.children, dateFormat)}</mark>;
+        return <mark key={i}>{renderInlineNodes(node.children)}</mark>;
       case 'underline':
-        return <u key={i}>{renderInlineNodes(node.children, dateFormat)}</u>;
+        return <u key={i}>{renderInlineNodes(node.children)}</u>;
       case 'external_link':
         return (
           <a key={i} href={node.url} target="_blank" rel="noreferrer">
-            {renderInlineNodes(node.children, dateFormat)}
+            {renderInlineNodes(node.children)}
           </a>
         );
       case 'hard_break':
@@ -175,11 +171,18 @@ function renderInlineNodes(nodes: ASTInlineNode[], dateFormat: DateFormat): Reac
   });
 }
 
-export function NodeNameContent({ name }: { name: string | null | undefined }) {
+export function NodeNameContent({ name, node }: { name: string | null | undefined; node?: Node }) {
   const dateFormat = useSettingsStore((s) => s.dateFormat);
+  const displayText = node ? nodeNameToDisplayText(node, { dateFormat }) : null;
+  const rawText = node ? nodeNameToText(node.name) : null;
+  // Date-class nodes are stored as compact numeric strings; render the
+  // class-aware formatted display text instead of the raw AST.
+  if (displayText && displayText !== rawText) {
+    return <span>{displayText}</span>;
+  }
   const ast = parseAST(name);
   const inlines = ast.flatMap(block => ('children' in block ? block.children : []));
-  const content = renderInlineNodes(inlines as ASTInlineNode[], dateFormat);
+  const content = renderInlineNodes(inlines as ASTInlineNode[]);
   return <>{content.length > 0 ? content : 'Untitled'}</>;
 }
 
