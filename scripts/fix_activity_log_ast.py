@@ -28,7 +28,7 @@ def _require_database_url() -> None:
     print(
         "Error: DATABASE_URL environment variable is required.\n"
         "Example:\n"
-        "  DATABASE_URL=postgresql://notees:YOUR_PASSWORD@postgres:5432/notees "
+        "  DATABASE_URL=postgresql://notees:YOUR_PASSWORD@db:5432/notees "
         "python scripts/fix_activity_log_ast.py"
     )
     raise SystemExit(1)
