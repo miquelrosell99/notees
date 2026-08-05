@@ -18,7 +18,7 @@ import { createPortal } from 'react-dom';
 import { autoUpdate, computePosition, flip, shift, type VirtualElement } from '@floating-ui/dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/features/content';
 import { nodeNameToDisplayText } from '@/features/queries';
-import { useSettingsStore, usePresentationStore, useUndoStore } from '@/stores';
+import { useSettingsStore, usePresentationStore, useUndoStore, usePinnedPagesStore } from '@/stores';
 import { useNotificationStore } from '@/stores/notificationStore';
 import {
   useCurrentNodeUuid,
@@ -130,6 +130,9 @@ export function NodeContextMenu({
   const isPageFavorited = favorites.some((favoriteUuid) => favoriteUuid === node.uuid);
   const addFavoriteMutation = useAddFavoriteMutation(workspaceId ?? undefined);
   const removeFavoriteMutation = useRemoveFavoriteMutation(workspaceId ?? undefined);
+  const pinnedPages = usePinnedPagesStore((s) => s.pinnedPages);
+  const isPinned = pinnedPages.includes(node.uuid);
+  const togglePin = usePinnedPagesStore((s) => s.togglePin);
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.uuid);
   const clipboardMode = useClipboardStore((state) => state.mode);
   const pluginActions = useNodeActions();
@@ -196,6 +199,19 @@ export function NodeContextMenu({
             onClick: () => {
               if (isPageFavorited) removeFavoriteMutation.mutate(node.uuid);
               else addFavoriteMutation.mutate(node.uuid);
+              onClose();
+            },
+          });
+          break;
+
+        case 'pin':
+          if (!node.is_page) break;
+          items.push({
+            id: 'pin',
+            label: isPinned ? 'Unpin from sidebar' : 'Pin to sidebar',
+            icon: isPinned ? 'mdi mdi-pin' : 'mdi mdi-pin-outline',
+            onClick: () => {
+              togglePin(node.uuid);
               onClose();
             },
           });
@@ -506,12 +522,12 @@ export function NodeContextMenu({
     });
     return composeMenuItems(composed);
   }, [
-    actions, nodeScope, node, isPageFavorited, isHeader, clipboardMode,
+    actions, nodeScope, node, isPageFavorited, isPinned, isHeader, clipboardMode,
     onConvertToPage, onConvertToBlock, onAddBanner, onCopyBlocks, onPasteBlocks, onClose, onParentChange,
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
     addFavoriteMutation, removeFavoriteMutation, currentNodeUuid, sidebarCards,
-    flashSidebarCard, pluginActions,
+    flashSidebarCard, pluginActions, togglePin,
   ]);
 
   const handleColorChange = useCallback((color: string | null) => {

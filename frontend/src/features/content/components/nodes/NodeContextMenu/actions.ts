@@ -2,6 +2,7 @@ export type ActionScope = 'page' | 'block' | 'both';
 
 export type ActionName =
   | 'favorite'
+  | 'pin'
   | 'move-to'
   | 'convert-to-page'
   | 'convert-to-block'
@@ -34,6 +35,7 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['open-main-view',  'both'],
   ['share',           'both'],
   ['open-sidebar',    'both'],
+  ['pin',             'page'],
   ['copy-blocks',     'both'],
   ['paste-blocks',    'both'],
   ['move-to',         'both'],
