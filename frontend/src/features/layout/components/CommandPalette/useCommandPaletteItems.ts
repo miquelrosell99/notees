@@ -4,9 +4,8 @@ import type { Command } from '@/stores/commandRegistry';
 import type { ItemEntry, AppliedFilter, FilterPrefixConfig } from './CommandPalette.types';
 import type { Property } from '@/types';
 
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import type { DateFormat } from '@/stores';
-import { formatDatePageContent } from '@/utils/datePageDisplay';
 import type { ParsedDate } from '@/utils/dateParser';
 
 interface UseCommandPaletteItemsParams {
@@ -38,11 +37,6 @@ interface UseCommandPaletteItemsParams {
   isTypingColon: boolean;
   isLoading: boolean;
   dateFormat: DateFormat;
-}
-
-function formatNodeName(name: unknown, dateFormat: DateFormat): string {
-  const text = nodeNameToText(name) ?? '';
-  return formatDatePageContent(text, dateFormat) ?? text;
 }
 
 export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): ItemEntry[] {
@@ -146,7 +140,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
         const parts: string[] = [];
         let current = pageMap.get(node.parent_uuid);
         while (current) {
-          parts.unshift(formatNodeName(current.name, dateFormat) || 'Untitled');
+          parts.unshift(nodeNameToDisplayText(current, { dateFormat }) || 'Untitled');
           current = current.parent_uuid != null ? pageMap.get(current.parent_uuid) : undefined;
         }
         if (parts.length > 0) breadcrumb = parts.join(' / ');
@@ -159,9 +153,9 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
 
     // Add page option — always show when there's a name to create
     const classLabels = selectedClasses.length > 0
-      ? ` with ${selectedClasses.length === 1 ? `class "${formatNodeName(selectedClasses[0].name, dateFormat)}"` : `${selectedClasses.length} classes`}`
+      ? ` with ${selectedClasses.length === 1 ? `class "${nodeNameToDisplayText(selectedClasses[0], { dateFormat })}"` : `${selectedClasses.length} classes`}`
       : '';
-    const hasExactMatch = displayedPages.some(({ node }) => formatNodeName(node.name, dateFormat).toLowerCase() === pageNameForCreation.toLowerCase());
+    const hasExactMatch = displayedPages.some(({ node }) => nodeNameToDisplayText(node, { dateFormat }).toLowerCase() === pageNameForCreation.toLowerCase());
     if (pageNameForCreation && !isLoading) {
       const label = hasExactMatch
         ? `Create another "${pageNameForCreation}"${classLabels || ' (pick a class to differentiate)'}`

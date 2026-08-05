@@ -36,10 +36,9 @@ import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToText, nodeNameToDisplayText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
-import { useSettingsStore, type DateFormat } from '@/stores';
-import { formatDatePageContent } from '@/utils/datePageDisplay';
+import { useSettingsStore } from '@/stores';
 import type { Node } from '@/types';
 import './NodeSelector.css';
 
@@ -117,11 +116,6 @@ interface NodeSelectorProps {
   id?: string;
   /** When true, the remove icon on pills is hidden until the pill is hovered or focused. */
   rightIconHoverReveal?: boolean;
-}
-
-function formatDisplayName(name: unknown, dateFormat: DateFormat): string {
-  const text = nodeNameToText(name) ?? '';
-  return formatDatePageContent(text, dateFormat) ?? text;
 }
 
 export function NodeSelector({
@@ -728,7 +722,7 @@ export function NodeSelector({
     while (currentId !== null) {
       const parent = allPages.find(p => p.uuid === currentId && p.is_page);
       if (!parent) break;
-      segments.unshift(formatDisplayName(parent.name, dateFormat) || 'Untitled');
+      segments.unshift(nodeNameToDisplayText(parent, { dateFormat }) || 'Untitled');
       currentId = parent.parent_uuid ?? null;
     }
     if (segments.length === 0) return '';
@@ -749,7 +743,7 @@ export function NodeSelector({
     if (!node.page_uuid) return '';
     const page = allPages.find(p => p.uuid === node.page_uuid);
     if (!page) return '';
-    const pageName = formatDisplayName(page.name, dateFormat) || 'Untitled';
+    const pageName = nodeNameToDisplayText(page, { dateFormat }) || 'Untitled';
     const ancestors = buildParentPath(page);
     // buildParentPath returns "Parent /" format; strip trailing " /" to combine cleanly
     const trimmed = ancestors.replace(/ \/$/, '');
@@ -763,7 +757,7 @@ export function NodeSelector({
       .map(classUuid => {
         const classNode = allClasses.find(c => c.uuid === classUuid);
         if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
-        const name = formatDisplayName(classNode.name, dateFormat);
+        const name = nodeNameToDisplayText(classNode, { dateFormat });
         if (!name) return null;
         return { nodeUuid: classUuid, name };
       })
@@ -797,7 +791,7 @@ export function NodeSelector({
                   onClick={() => onNodeClick?.(node)}
                 >
                   <NodeIcon icon={node.icon} isPage={node.is_page} size="xs" />
-                  <span>{formatDisplayName(node.name, dateFormat) || 'Untitled'}</span>
+                  <span>{nodeNameToDisplayText(node, { dateFormat }) || 'Untitled'}</span>
                 </button>
               ))}
             </div>
@@ -860,7 +854,7 @@ export function NodeSelector({
                   <span className="node-selector__single-value">
                     <NodeIcon icon={getEffectiveIcon(node, allClasses) ?? node?.icon} isPage={node?.is_page} size="xs" />
                     <span className="node-selector__single-value-name">
-                      {formatDisplayName(node?.name, dateFormat) || 'Untitled'}
+                      {nodeNameToDisplayText(node, { dateFormat }) || 'Untitled'}
                     </span>
                     {displayCls.length > 0 && (
                       <span className="node-selector__single-value-classes">
