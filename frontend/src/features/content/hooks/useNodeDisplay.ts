@@ -12,11 +12,10 @@
 import { useMemo } from 'react';
 import { useBatchedNode } from '@/hooks/useBatchedNode';
 import { useClasses } from '@/features/content/hooks/useNodes';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 import { useCoreDisplayName } from '@/features/content/hooks/useCoreDisplayName';
 import { useSettingsStore } from '@/stores';
-import { formatDatePageContent } from '@/utils/datePageDisplay';
 import type { Node } from '@/types';
 
 /** Resolve effective class IDs for a node, inheriting from aliased node if needed. */
@@ -76,22 +75,18 @@ export function useNodeDisplay(
 
   const displayText = useMemo(() => {
     if (!node) return fallbackText;
-    // Use display_name when it has been pre-resolved server-side (i.e. it
-    // differs from the raw AST stored in name). This happens for nodes in the
-    // referenced_nodes map whose names contain [[nodeId]] links — those links
-    // are resolved to plain text by the backend so they don't render as "…".
-    // Fall back to the API node's name when the live core content is empty or
-    // malformed (e.g. legacy migration wrote inline text nodes at document level).
-    const text = (node.display_name && node.display_name !== node.name)
-      ? node.display_name
-      : (nodeNameToText(liveName) || nodeNameToText(node.name || ''));
+    const displayNode = {
+      ...node,
+      name:
+        node.display_name && node.display_name !== node.name
+          ? node.display_name
+          : (liveName || node.name || ''),
+    };
+    const text = nodeNameToDisplayText(displayNode, { dateFormat });
     if (!text || text.trim() === '') {
       return node.is_page ? '[Untitled Page]' : '[Empty Block]';
     }
-    // Date pages store compact numeric content; render it according to the
-    // user's date format preference.
-    const formattedDate = formatDatePageContent(text, dateFormat);
-    return formattedDate ?? text;
+    return text;
   }, [node, fallbackText, liveName, dateFormat]);
 
   return {
