@@ -23,7 +23,7 @@ This guide covers common issues when installing, running, or developing Notees.
 **Fixes:**
 
 - Ensure `compose.dev.yaml` services are healthy: `docker compose -f compose.dev.yaml ps`.
-- Verify `.env` values match the container environment. Inside Docker the backend uses `postgres:5432` and `redis://redis:6379/0`; on the host the mapped ports are `5433` and `6380`.
+- Verify `.env` values match the container environment. Inside Docker the backend uses `db:5432` and `redis://redis:6379/0`; on the host the mapped ports are `5433` and `6380`.
 - If you changed `.env` after the first start, recreate the containers: `docker compose -f compose.dev.yaml up -d --force-recreate`.
 
 ### Port already in use
