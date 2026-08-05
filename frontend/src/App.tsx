@@ -38,6 +38,7 @@ import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOve
 import { getLogger } from './utils/logger';
 import { pluginManager } from '@/plugins/core';
 import { WorkspaceStoreProvider } from '@/core/hooks/WorkspaceStoreProvider';
+import { useDateContentMigration } from '@/core/hooks/useDateContentMigration';
 import {
   ensureSqlInitialized,
   getSqlInitError,
@@ -514,6 +515,11 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const isWaitingForWorkspaces = !!user && authVerified && isLoadingWorkspaces;
   const isReady =
     !!workspaceId && readyWorkspaceId === workspaceId && !isInitializing && !initError;
+
+  // One-time fix for date pages whose content was appended instead of replaced
+  // by an earlier migration.
+  useDateContentMigration(isReady);
+
   const showOverlay = (!!workspaceId && !isReady) || isWaitingForWorkspaces || isWorkspacesError;
 
   const progressPercent = showOverlay && pullProgress
