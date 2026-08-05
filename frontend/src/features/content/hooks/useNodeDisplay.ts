@@ -15,6 +15,8 @@ import { useClasses } from '@/features/content/hooks/useNodes';
 import { nodeNameToText } from '@/features/queries';
 import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 import { useCoreDisplayName } from '@/features/content/hooks/useCoreDisplayName';
+import { useSettingsStore } from '@/stores';
+import { formatDatePageContent } from '@/utils/datePageDisplay';
 import type { Node } from '@/types';
 
 /** Resolve effective class IDs for a node, inheriting from aliased node if needed. */
@@ -70,6 +72,8 @@ export function useNodeDisplay(
     [node, allClasses, effectiveClassIds, aliasedNode],
   );
 
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+
   const displayText = useMemo(() => {
     if (!node) return fallbackText;
     // Use display_name when it has been pre-resolved server-side (i.e. it
@@ -84,8 +88,11 @@ export function useNodeDisplay(
     if (!text || text.trim() === '') {
       return node.is_page ? '[Untitled Page]' : '[Empty Block]';
     }
-    return text;
-  }, [node, fallbackText, liveName]);
+    // Date pages store compact numeric content; render it according to the
+    // user's date format preference.
+    const formattedDate = formatDatePageContent(text, dateFormat);
+    return formattedDate ?? text;
+  }, [node, fallbackText, liveName, dateFormat]);
 
   return {
     effectiveIcon,

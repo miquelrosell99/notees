@@ -12,9 +12,10 @@ import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { NodeLinkContextMenuTrigger } from '@/features/content';
-import { useNavigationStore } from '@/stores';
+import { useNavigationStore, useSettingsStore, type DateFormat } from '@/stores';
 import { useReferencedNode } from '@/features/content';
 import { useBatchedNodeByUuid } from '@/hooks';
+import { formatDatePageContent } from '@/utils/datePageDisplay';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import '@/styles/inline-link.css';
@@ -85,11 +86,16 @@ function renderMath(expression: string, displayMode: boolean): string {
   }
 }
 
-function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
+function formatInlineText(text: string, dateFormat: DateFormat): string {
+  const formatted = formatDatePageContent(text, dateFormat);
+  return formatted ?? text;
+}
+
+function renderInlineNodes(nodes: ASTInlineNode[], dateFormat: DateFormat): React.ReactNode[] {
   return nodes.map((node, i) => {
     switch (node.type) {
       case 'text':
-        return node.text || null;
+        return formatInlineText(node.text, dateFormat) || null;
       case 'node_link': {
         const { nodeUuid } = parseLinkId(node.link_id);
         return (
@@ -126,19 +132,19 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
         );
       }
       case 'strong':
-        return <strong key={i}>{renderInlineNodes(node.children)}</strong>;
+        return <strong key={i}>{renderInlineNodes(node.children, dateFormat)}</strong>;
       case 'em':
-        return <em key={i}>{renderInlineNodes(node.children)}</em>;
+        return <em key={i}>{renderInlineNodes(node.children, dateFormat)}</em>;
       case 'strikethrough':
-        return <s key={i}>{renderInlineNodes(node.children)}</s>;
+        return <s key={i}>{renderInlineNodes(node.children, dateFormat)}</s>;
       case 'highlight':
-        return <mark key={i}>{renderInlineNodes(node.children)}</mark>;
+        return <mark key={i}>{renderInlineNodes(node.children, dateFormat)}</mark>;
       case 'underline':
-        return <u key={i}>{renderInlineNodes(node.children)}</u>;
+        return <u key={i}>{renderInlineNodes(node.children, dateFormat)}</u>;
       case 'external_link':
         return (
           <a key={i} href={node.url} target="_blank" rel="noreferrer">
-            {renderInlineNodes(node.children)}
+            {renderInlineNodes(node.children, dateFormat)}
           </a>
         );
       case 'hard_break':
@@ -170,9 +176,10 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
 }
 
 export function NodeNameContent({ name }: { name: string | null | undefined }) {
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
   const ast = parseAST(name);
   const inlines = ast.flatMap(block => ('children' in block ? block.children : []));
-  const content = renderInlineNodes(inlines as ASTInlineNode[]);
+  const content = renderInlineNodes(inlines as ASTInlineNode[], dateFormat);
   return <>{content.length > 0 ? content : 'Untitled'}</>;
 }
 

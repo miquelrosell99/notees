@@ -5,6 +5,8 @@ import type { ItemEntry, AppliedFilter, FilterPrefixConfig } from './CommandPale
 import type { Property } from '@/types';
 
 import { nodeNameToText } from '@/features/queries';
+import type { DateFormat } from '@/stores';
+import { formatDatePageContent } from '@/utils/datePageDisplay';
 import type { ParsedDate } from '@/utils/dateParser';
 
 interface UseCommandPaletteItemsParams {
@@ -35,6 +37,12 @@ interface UseCommandPaletteItemsParams {
   showDevOptions: boolean;
   isTypingColon: boolean;
   isLoading: boolean;
+  dateFormat: DateFormat;
+}
+
+function formatNodeName(name: unknown, dateFormat: DateFormat): string {
+  const text = nodeNameToText(name) ?? '';
+  return formatDatePageContent(text, dateFormat) ?? text;
 }
 
 export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): ItemEntry[] {
@@ -66,6 +74,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     showDevOptions,
     isTypingColon,
     isLoading,
+    dateFormat,
   } = params;
 
   return useMemo<ItemEntry[]>(() => {
@@ -137,7 +146,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
         const parts: string[] = [];
         let current = pageMap.get(node.parent_uuid);
         while (current) {
-          parts.unshift(nodeNameToText(current.name) || 'Untitled');
+          parts.unshift(formatNodeName(current.name, dateFormat) || 'Untitled');
           current = current.parent_uuid != null ? pageMap.get(current.parent_uuid) : undefined;
         }
         if (parts.length > 0) breadcrumb = parts.join(' / ');
@@ -150,9 +159,9 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
 
     // Add page option — always show when there's a name to create
     const classLabels = selectedClasses.length > 0
-      ? ` with ${selectedClasses.length === 1 ? `class "${nodeNameToText(selectedClasses[0].name)}"` : `${selectedClasses.length} classes`}`
+      ? ` with ${selectedClasses.length === 1 ? `class "${formatNodeName(selectedClasses[0].name, dateFormat)}"` : `${selectedClasses.length} classes`}`
       : '';
-    const hasExactMatch = displayedPages.some(({ node }) => nodeNameToText(node.name)?.toLowerCase() === pageNameForCreation.toLowerCase());
+    const hasExactMatch = displayedPages.some(({ node }) => formatNodeName(node.name, dateFormat).toLowerCase() === pageNameForCreation.toLowerCase());
     if (pageNameForCreation && !isLoading) {
       const label = hasExactMatch
         ? `Create another "${pageNameForCreation}"${classLabels || ' (pick a class to differentiate)'}`
@@ -189,6 +198,6 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     parsedDate, existingDateNode, commands, pageMap, recentAccessedPages, recentCreatedPages,
     randomPages, maxPages, maxBlocks, maxProperties, uuidSearch, appliedFilters, isTypingBoolean,
     booleanOptions, suggestedPrefixes, activeFilter, formatParsedDateLabel, currentNodeUuid,
-    showDevOptions, isTypingColon, isLoading,
+    showDevOptions, isTypingColon, isLoading, dateFormat,
   ]);
 }

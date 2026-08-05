@@ -42,7 +42,7 @@ const DAILY_PAGES_QUERY = { classIds: [SYSTEM_CLASS_UUIDS.day], projectionDepth:
 function dailyNoteIdentity(dateStr: string): DateNoteIdentity {
   return {
     nodeId: dateStrToDayUuid(dateStr),
-    label: dateStr,
+    label: dateStr.replace(/-/g, ''),
     classId: SYSTEM_CLASS_UUIDS.day,
   };
 }
@@ -50,7 +50,7 @@ function dailyNoteIdentity(dateStr: string): DateNoteIdentity {
 function monthlyNoteIdentity(year: number, month: number): DateNoteIdentity {
   return {
     nodeId: yearMonthToMonthUuid(year, month),
-    label: `${year}-${String(month).padStart(2, '0')}`,
+    label: `${year}${String(month).padStart(2, '0')}00`,
     classId: SYSTEM_CLASS_UUIDS.month,
   };
 }
@@ -58,7 +58,7 @@ function monthlyNoteIdentity(year: number, month: number): DateNoteIdentity {
 function yearlyNoteIdentity(year: number): DateNoteIdentity {
   return {
     nodeId: yearToYearUuid(year),
-    label: `${year}`,
+    label: `${year}0000`,
     classId: SYSTEM_CLASS_UUIDS.year,
   };
 }
