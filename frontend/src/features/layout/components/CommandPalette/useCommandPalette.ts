@@ -12,6 +12,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
   const state = useCommandPaletteState({ isOpen, onClose });
   const currentNodeUuid = useNavigationStore((s) => s.currentNodeUuid);
   const showDevOptions = useSettingsStore((s) => s.showDevOptions);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const allItems = useCommandPaletteItems({
     rawPages: state.rawPages,
@@ -41,6 +42,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     showDevOptions,
     isTypingColon: state.isTypingColon,
     isLoading: state.isLoading,
+    dateFormat,
   });
 
   const { handleSelect } = useCommandPaletteSelection({
