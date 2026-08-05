@@ -8,13 +8,17 @@
  * No editing, no stores, no legacy code.
  */
 import { useCallback } from 'react';
-import { nodeNameToText } from '@/features/queries';
+import type { Node } from '@/types';
+import { nodeNameToText, nodeNameToDisplayText } from '@/features/queries';
+import { useSettingsStore } from '@/stores';
 import { Bullet } from './Bullet';
 import { NodeIcon } from '@/components/ui/icons';
 import './NodeInline.css';
 
 export interface NodeInlineProps {
-  /** Node name (raw, may contain AST markup) */
+  /** Node object used for class-aware display (e.g. date formatting). */
+  node?: Node | null;
+  /** Node name (raw, may contain AST markup). Used as fallback when `node` is not provided. */
   name?: string | null;
   /** Icon emoji/path */
   icon?: string | null;
@@ -51,6 +55,7 @@ export interface NodeInlineProps {
  * Use for read-only display of a node's name with optional icon/bullet.
  */
 export function NodeInline({
+      node,
       name,
       icon,
       isPage = false,
@@ -65,7 +70,11 @@ export function NodeInline({
       title,
       draggable = false,
       variant = 'default' }: NodeInlineProps) {
-  const displayText = providedDisplayText || propertyName || nodeNameToText(name) || 'Untitled';
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+  const displayText = providedDisplayText
+    || propertyName
+    || (node ? nodeNameToDisplayText(node, { dateFormat }) : nodeNameToText(name))
+    || 'Untitled';
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (e.shiftKey && onShiftClick) {
