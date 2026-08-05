@@ -407,15 +407,17 @@ export function CommandPalette(props: CommandPaletteProps) {
                 </div>
               )}
 
-              {/* Pages section — hidden when date is detected */}
-              {pageItems.length > 0 && !parsedDate && (
+              {/* Pages section — regular results hidden when date is detected, but
+                   the exact-name "Create page" option is still shown. */}
+              {pageItems.length > 0 && (!parsedDate || pageItems.some(item => item.type === 'add-page')) && (
             <div className="command-palette__section">
               <div className="command-palette__section-header">
-                Pages
+                {parsedDate ? 'Exact Name' : 'Pages'}
               </div>
               {pageItems.map((item) => {
                 const globalIndex = indexMap.get(item)!;
                 if (item.type === 'show-more') {
+                  if (parsedDate) return null;
                   return (
                     <button
                       key="show-more-pages"
@@ -450,6 +452,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                     </button>
                   );
                 }
+                if (parsedDate) return null;
                 return (
                   <ResultItem
                     key={item.result?.node?.uuid}

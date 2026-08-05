@@ -1,9 +1,10 @@
 import { Spinner } from '@/components/ui/Spinner';
 import { Checkbox } from '@/components/ui/Checkbox';
-import { AddIcon } from '@/components/ui/icons';
+import { AddIcon, CalendarIcon } from '@/components/ui/icons';
 import { NodeResultItem } from '../NodeResultItem';
 import type { Node } from '@/types';
 import type { FilterPrefixConfig } from '@/utils/searchFilters';
+import type { ParsedDate } from '@/utils/dateParser';
 
 export type FilterSuggestionItem =
   | { type: 'class'; node: Node }
@@ -11,6 +12,13 @@ export type FilterSuggestionItem =
   | { type: 'prefix'; config: FilterPrefixConfig };
 
 export type ResultsListMode = 'single' | 'multi' | 'search';
+
+export interface DateSuggestion {
+  parsedDate: ParsedDate;
+  existingNode: Node | null;
+  label: string;
+  onSelect: () => void;
+}
 
 interface ResultsListProps {
   mode: ResultsListMode;
@@ -24,6 +32,7 @@ interface ResultsListProps {
   showCreateOption?: boolean;
   showMoreOption?: boolean;
   convertCandidates?: Node[];
+  dateSuggestion?: DateSuggestion;
   buildParentPath: (node: Node) => string;
   buildBlockParentPath: (node: Node) => string;
   getDisplayClasses: (node: Node) => Array<{ nodeUuid: string; name: string }>;
@@ -66,6 +75,7 @@ export function ResultsList({
   onShowMore,
   onConvertToClass,
   onClosePicker,
+  dateSuggestion,
   createIconSize = 'sm',
   emptyClassName = 'node-selector__empty',
 }: ResultsListProps) {
@@ -73,6 +83,7 @@ export function ResultsList({
   const showMore = showMoreOption ?? false;
 
   const hasContent =
+    !!dateSuggestion ||
     filterSuggestions.length > 0 ||
     items.length > 0 ||
     convertCandidates.length > 0 ||
@@ -94,11 +105,23 @@ export function ResultsList({
     );
   }
 
-  const createIndex = filterSuggestions.length + items.length + convertCandidates.length;
+  const dateOffset = dateSuggestion ? 1 : 0;
+  const createIndex = dateOffset + filterSuggestions.length + items.length + convertCandidates.length;
   const showMoreIndex = createIndex + (showCreate ? 1 : 0);
 
   return (
     <>
+      {dateSuggestion && (
+        <NodeResultItem
+          key="__date"
+          node={{ name: dateSuggestion.label } as Node}
+          isHighlighted={selectedIndex === 0}
+          onClick={dateSuggestion.onSelect}
+          onMouseEnter={() => setSelectedIndex(0)}
+          className="node-result-item--date"
+          iconOverride={<CalendarIcon size="sm" />}
+        />
+      )}
       {filterSuggestions.map((item, index) => {
         const isHighlighted = index === selectedIndex;
         if (item.type === 'class') {
@@ -136,7 +159,7 @@ export function ResultsList({
       })}
 
       {items.map((node, index) => {
-        const globalIndex = filterSuggestions.length + index;
+        const globalIndex = dateOffset + filterSuggestions.length + index;
         const isAssigned = assignedIds.has(node.uuid);
         return (
           <NodeResultItem
@@ -167,7 +190,7 @@ export function ResultsList({
         <>
           <div className="node-selector__section-label">Convert to class</div>
           {convertCandidates.map((node, index) => {
-            const idx = filterSuggestions.length + items.length + index;
+            const idx = dateOffset + filterSuggestions.length + items.length + index;
             return (
               <NodeResultItem
                 key={`convert-${node.uuid}`}

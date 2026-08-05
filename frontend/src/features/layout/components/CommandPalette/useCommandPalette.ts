@@ -40,6 +40,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     currentNodeUuid,
     showDevOptions,
     isTypingColon: state.isTypingColon,
+    isLoading: state.isLoading,
   });
 
   const { handleSelect } = useCommandPaletteSelection({

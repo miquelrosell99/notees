@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import { useProperties } from '@/features/properties';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useClasses, useRecents } from '@/features/content';
@@ -7,6 +7,7 @@ import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
 
@@ -163,13 +164,24 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
 
   // Parse query for date formats
   const parsedDate = useMemo(() => parseDate(searchTerm), [searchTerm]);
+  const datePageUuid = useMemo(
+    () => (parsedDate ? generateDateUuid(parsedDate) : null),
+    [parsedDate]
+  );
 
-  // Check if the date page already exists by looking up its deterministic UUID
-  const existingDateNode = useMemo(() => {
-    if (!parsedDate || !allPages) return null;
-    const uuid = generateDateUuid(parsedDate);
-    return allPages.find(p => p.uuid === uuid) ?? null;
-  }, [parsedDate, allPages]);
+  // Check if the date page already exists by projecting its deterministic UUID
+  // directly from the worker. This avoids depending on the full allPages list,
+  // which can time out on large workspaces.
+  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
+  const { data: existingDateNode = null } = useQuery({
+    queryKey: nodeKeys.detail(datePageUuid ?? '', { include_children: false }),
+    queryFn: async (): Promise<Node | null> => {
+      if (!client || !datePageUuid) return null;
+      return (await client.query<Node | undefined>('projectNode', [datePageUuid])) ?? null;
+    },
+    enabled: !!client && !!datePageUuid,
+    placeholderData: null,
+  });
 
   // Query client for cache invalidation after date page creation
   const queryClient = useQueryClient();

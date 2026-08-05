@@ -73,26 +73,30 @@ async function findDayNoteByNameClient(
   client: IWorkspaceStoreClient,
   dateStr: string
 ): Promise<Node | undefined> {
+  const compactLabel = dateStr.replace(/-/g, '');
   const dayNodes = await client.query<Node[]>('queryNodes', [
-    { classIds: [SYSTEM_CLASS_UUIDS.day], query: dateStr, projectionDepth: 0 },
+    { classIds: [SYSTEM_CLASS_UUIDS.day], query: compactLabel, projectionDepth: 0 },
   ]);
-  return findDateNoteByName(dayNodes, dateStr);
+  return findDateNoteByName(dayNodes, compactLabel);
 }
 
 async function findMonthlyNoteByNameClient(
   client: IWorkspaceStoreClient,
-  label: string
+  year: number,
+  month: number
 ): Promise<Node | undefined> {
+  const compactLabel = `${year}${String(month).padStart(2, '0')}00`;
   const monthNodes = await client.query<Node[]>('queryNodes', [
-    { classIds: [SYSTEM_CLASS_UUIDS.month], query: label, projectionDepth: 0 },
+    { classIds: [SYSTEM_CLASS_UUIDS.month], query: compactLabel, projectionDepth: 0 },
   ]);
-  return findDateNoteByName(monthNodes, label);
+  return findDateNoteByName(monthNodes, compactLabel);
 }
 
 async function findYearlyNoteByNameClient(
   client: IWorkspaceStoreClient,
-  label: string
+  year: number
 ): Promise<Node | undefined> {
+  const label = `${year}0000`;
   const yearNodes = await client.query<Node[]>('queryNodes', [
     { classIds: [SYSTEM_CLASS_UUIDS.year], query: label, projectionDepth: 0 },
   ]);
@@ -172,7 +176,7 @@ export async function getOrCreateMonthlyNoteClient(
   return getOrCreateDateNoteClient(
     client,
     monthlyNoteIdentity(year, month),
-    () => findMonthlyNoteByNameClient(client, `${year}-${String(month).padStart(2, '0')}`),
+    () => findMonthlyNoteByNameClient(client, year, month),
     yearly.uuid
   );
 }
@@ -184,7 +188,7 @@ export async function getOrCreateYearlyNoteClient(
   return getOrCreateDateNoteClient(
     client,
     yearlyNoteIdentity(year),
-    () => findYearlyNoteByNameClient(client, `${year}`),
+    () => findYearlyNoteByNameClient(client, year),
     null
   );
 }
