@@ -518,7 +518,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
 
   // One-time fix for date pages whose content was appended instead of replaced
   // by an earlier migration.
-  useDateContentMigration(isReady);
+  useDateContentMigration(isReady, workspaceId ?? null);
 
   const showOverlay = (!!workspaceId && !isReady) || isWaitingForWorkspaces || isWorkspacesError;
 
