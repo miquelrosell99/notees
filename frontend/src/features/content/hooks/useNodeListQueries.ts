@@ -58,6 +58,11 @@ export function useSearch(query: string, filters?: {
   isClass?: boolean;
   isDaily?: boolean;
   isUserPage?: boolean;
+  /**
+   * Cap the number of results returned. Smaller limits keep quick-search
+   * surfaces (command palette, pickers) responsive on large workspaces.
+   */
+  limit?: number;
 }) {
   const workspaceUuid = useCurrentWorkspaceUuid();
   const { client, isLoading, error } = useWorkspaceStoreClient(workspaceUuid ?? '');
@@ -69,6 +74,7 @@ export function useSearch(query: string, filters?: {
     isClass: filters?.isClass,
     isDaily: filters?.isDaily,
     isUserPage: filters?.isUserPage,
+    limit: filters?.limit !== undefined ? String(filters.limit) : undefined,
   };
 
   const hasFilters =
@@ -94,6 +100,7 @@ export function useSearch(query: string, filters?: {
           isDaily: filters?.isDaily,
           classIds,
           projectionDepth: 0,
+          limit: filters?.limit,
         },
       ], signal);
     },

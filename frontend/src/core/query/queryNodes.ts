@@ -71,6 +71,11 @@ export interface QueryNodesFilters {
    * that they never render.
    */
   projectionDepth?: number;
+  /**
+   * Maximum number of results to return. Smaller limits keep the command
+   * palette and other quick-search surfaces responsive on large workspaces.
+   */
+  limit?: number;
 }
 
 function buildSearchFilters(filters: QueryNodesFilters): SearchFilters {
@@ -97,13 +102,14 @@ export function queryNodes(
   const start = performance.now();
   const includeArchived = filters.includeArchived ?? false;
   const isActiveMatch = (n: Node): boolean => includeArchived || n.active !== false;
+  const limit = filters.limit ?? SEARCH_RESULT_LIMIT;
 
   if (filters.isClass) {
     const classRows = listClasses(store.getDb(), store.getWorkspaceId());
     return classRows
       .map(classRowToNode)
       .filter(isActiveMatch)
-      .slice(0, SEARCH_RESULT_LIMIT);
+      .slice(0, limit);
   }
 
   if (filters.ast) {
@@ -118,7 +124,7 @@ export function queryNodes(
     const sqlMs = performance.now() - sqlStart;
     const ids = rows.map((row) => row.id);
     const projStart = performance.now();
-    const result = projectUntilLimit(store, ids, filters.projectionDepth, SEARCH_RESULT_LIMIT, isActiveMatch);
+    const result = projectUntilLimit(store, ids, filters.projectionDepth, limit, isActiveMatch);
     const projectionMs = performance.now() - projStart;
     logQueryTiming('ast', {
       sqlMs,
@@ -149,7 +155,7 @@ export function queryNodes(
     const ids = rows.map((row) => row.id);
     const sqlMs = performance.now() - sqlStart;
     const projStart = performance.now();
-    const result = projectUntilLimit(store, ids, filters.projectionDepth, SEARCH_RESULT_LIMIT, isActiveMatch);
+    const result = projectUntilLimit(store, ids, filters.projectionDepth, limit, isActiveMatch);
     const projectionMs = performance.now() - projStart;
     logQueryTiming('metadata', {
       sqlMs,
@@ -163,11 +169,11 @@ export function queryNodes(
   }
 
   const sqlStart = performance.now();
-  const results = searchNodes(store, query, searchFilters, SEARCH_RESULT_LIMIT);
+  const results = searchNodes(store, query, searchFilters, limit);
   const sqlMs = performance.now() - sqlStart;
   const sortedIds = results.sort((a, b) => b.score - a.score).map((r) => r.id);
   const projStart = performance.now();
-  const result = projectUntilLimit(store, sortedIds, filters.projectionDepth, SEARCH_RESULT_LIMIT, isActiveMatch);
+  const result = projectUntilLimit(store, sortedIds, filters.projectionDepth, limit, isActiveMatch);
   const projectionMs = performance.now() - projStart;
   logQueryTiming('search', {
     sqlMs,
