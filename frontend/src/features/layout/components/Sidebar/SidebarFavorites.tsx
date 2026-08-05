@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useIsMobile } from '@/hooks';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useNodeByUuid } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import { useListDragSort } from '@/hooks/useListDragSort';
 import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation, useReorderFavoritesMutation, removeFavorite, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import { isApiError } from '@/api/client';
@@ -42,6 +42,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
       onContextMenu }: SortableFavoriteItemProps) {
   const { data: node, error } = useNodeByUuid(nodeUuid, { meta: { skipGlobalError: true } });
   const { effectiveIcon } = useNodeDisplay(node);
+  const displayName = useNodeDisplayName(node);
 
   // Auto-remove stale favorites for deleted nodes
   useEffect(() => {
@@ -100,7 +101,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     <div
       role="button"
       tabIndex={0}
-      aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading favorite'}
+      aria-label={node ? displayName : 'Loading favorite'}
       className={`sidebar-favorite-item ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
       style={style}
       onClick={handleClick}
@@ -130,6 +131,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
         </div>
         <NodeInline
           name={node.name}
+          displayText={displayName}
           icon={effectiveIcon}
           isPage={node.is_page}
           nodeUuid={node.uuid}

@@ -3,7 +3,7 @@ import { useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useIsMobile } from '@/hooks';
 import { useNodeByUuid } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import { useRecents, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import {
   ClockIcon,
@@ -22,6 +22,7 @@ interface RecentItemProps {
 const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNavigate, onContextMenu }: RecentItemProps) {
   const { data: node } = useNodeByUuid(nodeUuid);
   const { effectiveIcon } = useNodeDisplay(node);
+  const displayName = useNodeDisplayName(node);
 
   const handleClick = useCallback((e: React.MouseEvent | { target?: never }) => {
     // Don't navigate if clicking breadcrumbs
@@ -44,7 +45,7 @@ const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNav
   return (
     <button
       type="button"
-      aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading recent'}
+      aria-label={node ? displayName : 'Loading recent'}
       onClick={handleClick}
       onContextMenu={onContextMenu}
       onKeyDown={handleKeyDown}
@@ -61,6 +62,7 @@ const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNav
         </div>
         <NodeInline
           name={node.name}
+          displayText={displayName}
           icon={effectiveIcon}
           isPage={node.is_page}
           nodeUuid={node.uuid}
