@@ -54,7 +54,8 @@ function getNodeTree(db: Database, nodeUuid: string, maxDepth: number): TreeNode
         n.class_ids AS classIds,
         n.active,
         NULL AS position,
-        '/' || n.id AS sortPath
+        '/' || n.id AS sortPath,
+        '/' || n.id || '/' AS path
       FROM node n
       WHERE n.id = ?
 
@@ -69,11 +70,13 @@ function getNodeTree(db: Database, nodeUuid: string, maxDepth: number): TreeNode
         n.class_ids,
         n.active,
         nco.position,
-        t.sortPath || '/' || nco.position || ':' || n.id
+        t.sortPath || '/' || nco.position || ':' || n.id,
+        t.path || n.id || '/'
       FROM tree t
       JOIN node_child_order nco ON nco.parent_id = t.id
       JOIN node n ON n.id = nco.child_id
-      WHERE ? < 0 OR t.depth < ?
+      WHERE (t.depth < ? OR ? < 0)
+        AND instr(t.path, '/' || n.id || '/') = 0
     )
     SELECT
       id,

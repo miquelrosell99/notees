@@ -93,6 +93,25 @@ describe('GetNodeTreeQuery', () => {
     expect(Array.isArray(row!.classIds)).toBe(true);
   });
 
+  it('terminates when the child graph contains a cycle', async () => {
+    const store = await makeStore();
+    store.createNode({ nodeId: 'page', kind: 'page', parentId: null });
+    store.createNode({ nodeId: 'child-a', kind: 'block', parentId: null });
+    store.createNode({ nodeId: 'child-b', kind: 'block', parentId: null });
+    store.moveNode('child-a', 'page');
+    store.moveNode('child-b', 'child-a');
+    // Introduce a cycle: child-a is also a child of child-b.
+    store.getDb().run(
+      'INSERT OR REPLACE INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)',
+      ['child-b', 'child-a', 'z']
+    );
+
+    const result = GetNodeTreeQuery.execute(store, { nodeUuid: 'page', maxDepth: -1 });
+    const ids = result.rows.map((r) => r.id);
+
+    expect(ids).toEqual(['page', 'child-a', 'child-b']);
+  });
+
   it('invalidates on tree-scoped notifications and the root node id', () => {
     expect(
       GetNodeTreeQuery.shouldInvalidate(

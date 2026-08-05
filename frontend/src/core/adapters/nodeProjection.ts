@@ -364,15 +364,18 @@ function resolvePageUuids(
     const placeholders = chunk.map(() => '?').join(',');
     const rows = queryAll<{ id: string; page_id: string | null }>(
       db,
-      `WITH RECURSIVE page_chain(id, current_id, found_page, depth) AS (
-         SELECT id, id, (kind = 'page'), 0
+      `WITH RECURSIVE page_chain(id, current_id, found_page, depth, path) AS (
+         SELECT id, id, (kind = 'page'), 0, '/' || id || '/'
          FROM node
          WHERE id IN (${placeholders})
          UNION ALL
-         SELECT pc.id, n.parent_id, (n.kind = 'page'), pc.depth + 1
+         SELECT pc.id, n.parent_id, (n.kind = 'page'), pc.depth + 1, pc.path || n.parent_id || '/'
          FROM page_chain pc
          JOIN node n ON n.id = pc.current_id
-         WHERE NOT pc.found_page AND pc.depth < 100 AND pc.current_id IS NOT NULL
+         WHERE NOT pc.found_page
+           AND pc.depth < 100
+           AND pc.current_id IS NOT NULL
+           AND instr(pc.path, '/' || n.parent_id || '/') = 0
        )
        SELECT id, current_id AS page_id
        FROM page_chain
