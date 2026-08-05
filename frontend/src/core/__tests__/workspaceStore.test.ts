@@ -26,6 +26,40 @@ describe('WorkspaceStore', () => {
     expect(node?.kind).toBe('page');
   });
 
+  it('persists node icon and color on create and update', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({
+      nodeId,
+      kind: 'page',
+      parentId: null,
+      icon: JSON.stringify({ icon: 'mdiStar', color: 'var(--color-preset-yellow)' }),
+      color: '#ff0000',
+    });
+
+    const created = store.getNode(nodeId);
+    expect(created?.icon).toBe(JSON.stringify({ icon: 'mdiStar', color: 'var(--color-preset-yellow)' }));
+    expect(created?.color).toBe('#ff0000');
+
+    store.updateNodeIcon(nodeId, JSON.stringify({ icon: 'mdiHeart' }));
+    store.updateNodeColor(nodeId, '#00ff00');
+
+    const updated = store.getNode(nodeId);
+    expect(updated?.icon).toBe(JSON.stringify({ icon: 'mdiHeart' }));
+    expect(updated?.color).toBe('#00ff00');
+
+    store.updateNodeIcon(nodeId, null);
+    store.updateNodeColor(nodeId, null);
+
+    const cleared = store.getNode(nodeId);
+    expect(cleared?.icon).toBeNull();
+    expect(cleared?.color).toBeNull();
+  });
+
   it('updates text content', async () => {
     const db = await createTestDatabase();
     const workspaceId = uuidv7();

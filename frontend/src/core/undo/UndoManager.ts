@@ -369,6 +369,8 @@ export class UndoManager {
       kind: node.kind,
       parentId: node.parentId,
       classIds: node.classIds,
+      icon: node.icon,
+      color: node.color,
     });
 
     this.store.updateText(node.id, (text) => {

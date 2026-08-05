@@ -26,7 +26,9 @@ from .node import (
     apply_node_create,
     apply_node_delete,
     apply_node_move,
+    apply_node_update_color,
     apply_node_update_content,
+    apply_node_update_icon,
 )
 from .node_view import (
     apply_node_view_create,
@@ -90,6 +92,10 @@ def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:
     elif op_type == "node.updateContent":
         apply_node_update_content(conn, op)
         apply_class_operation(conn, op)
+    elif op_type == "node.updateIcon":
+        apply_node_update_icon(conn, op)
+    elif op_type == "node.updateColor":
+        apply_node_update_color(conn, op)
     elif op_type == "class.assign":
         apply_class_assign(conn, op)
     elif op_type == "class.unassign":

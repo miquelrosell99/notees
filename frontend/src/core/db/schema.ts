@@ -48,6 +48,8 @@ export function createSchema(db: Database): void {
       class_ids TEXT NOT NULL DEFAULT '[]',
       parent_id TEXT,
       content TEXT NOT NULL DEFAULT '[]',
+      icon TEXT,
+      color TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT,
       updated_at TEXT,
@@ -639,5 +641,21 @@ function migrateSchema(db: Database): void {
       db.exec('ROLLBACK');
       // Leave user_version at 11 so the migration retries on next startup.
     }
+  }
+
+  if (version < 13) {
+    // Add per-node icon and color so the UI can persist explicit overrides
+    // and fall back to inherited class values via getEffectiveIcon.
+    try {
+      db.exec('ALTER TABLE node ADD COLUMN icon TEXT');
+    } catch {
+      // Column may already exist; ignore.
+    }
+    try {
+      db.exec('ALTER TABLE node ADD COLUMN color TEXT');
+    } catch {
+      // Column may already exist; ignore.
+    }
+    db.exec('PRAGMA user_version = 13');
   }
 }

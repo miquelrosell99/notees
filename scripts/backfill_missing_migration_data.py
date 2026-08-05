@@ -173,6 +173,30 @@ async def _fetch_existing_class_property_edges(
     return result
 
 
+async def _fetch_existing_class_updates(
+    current_conn: asyncpg.Connection, workspace_uuid: str
+) -> dict[str, dict[str, Any]]:
+    """Return the latest icon/color per class from existing class.update ops."""
+    query = """
+        SELECT id, payload
+        FROM relay_envelope
+        WHERE workspace_id = $1 AND op_type = 'class.update'
+    """
+    rows = await current_conn.fetch(query, workspace_uuid)
+    result: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        payload = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
+        class_uuid = payload.get("classId")
+        if not class_uuid:
+            continue
+        current = result.setdefault(class_uuid, {})
+        if "icon" in payload:
+            current["icon"] = payload["icon"]
+        if "color" in payload:
+            current["color"] = payload["color"]
+    return result
+
+
 async def _fetch_max_hlc(
     current_conn: asyncpg.Connection, workspace_uuid: str
 ) -> Hlc:
@@ -314,6 +338,9 @@ async def main(argv: list[str] | None = None) -> int:
         existing_class_creates = await _fetch_existing_class_creates(
             current_conn, args.workspace_uuid
         )
+        existing_class_updates = await _fetch_existing_class_updates(
+            current_conn, args.workspace_uuid
+        )
         existing_edges = await _fetch_existing_class_property_edges(
             current_conn, args.workspace_uuid
         )
@@ -321,6 +348,7 @@ async def main(argv: list[str] | None = None) -> int:
 
         print(f"Legacy classes: {len(legacy_classes)}")
         print(f"Existing class.create operations: {len(existing_class_creates)}")
+        print(f"Existing class.update operations: {len(existing_class_updates)}")
         print(f"Existing classPropertyEdge.create operations: {len(existing_edges)}")
         print(f"Max existing HLC: physical={max_hlc.physical}, logical={max_hlc.logical}")
 
@@ -366,30 +394,46 @@ async def main(argv: list[str] | None = None) -> int:
                 )
             )
 
-        # 2. class.update with color for classes whose color was dropped.
+        # 2. class.update with icon/color for existing classes whose metadata was
+        # dropped. We check both the original class.create and any later
+        # class.update operations to avoid emitting redundant updates when the
+        # script is rerun.
+        icon_update_count = 0
         color_update_count = 0
         for row in legacy_classes:
             class_uuid = str(row["uuid"])
-            legacy_color = row["color"]
-            if legacy_color is None:
-                continue
             existing_payload = existing_class_creates.get(class_uuid)
             if existing_payload is None:
-                # Color was already included in the missing class.create above.
+                # Icon/color were already included in the missing class.create above.
                 continue
-            if existing_payload.get("color") == legacy_color:
-                continue
-            color_update_count += 1
-            operations.append(
-                _build_operation(
-                    workspace_uuid=args.workspace_uuid,
-                    actor_id=args.actor_id,
-                    hlc=next_hlc(),
-                    op_type="class.update",
-                    affected_node_ids=[class_uuid],
-                    payload={"classId": class_uuid, "color": legacy_color},
+
+            latest = {
+                "icon": existing_payload.get("icon"),
+                "color": existing_payload.get("color"),
+            }
+            latest.update(existing_class_updates.get(class_uuid, {}))
+
+            update_payload: dict[str, Any] = {"classId": class_uuid}
+            legacy_icon = row["icon"]
+            if legacy_icon is not None and latest.get("icon") != legacy_icon:
+                update_payload["icon"] = legacy_icon
+                icon_update_count += 1
+            legacy_color = row["color"]
+            if legacy_color is not None and latest.get("color") != legacy_color:
+                update_payload["color"] = legacy_color
+                color_update_count += 1
+
+            if len(update_payload) > 1:
+                operations.append(
+                    _build_operation(
+                        workspace_uuid=args.workspace_uuid,
+                        actor_id=args.actor_id,
+                        hlc=next_hlc(),
+                        op_type="class.update",
+                        affected_node_ids=[class_uuid],
+                        payload=update_payload,
+                    )
                 )
-            )
 
         # 3. classPropertyEdge.create for class_property bindings that were dropped.
         edge_count = 0
@@ -426,6 +470,7 @@ async def main(argv: list[str] | None = None) -> int:
 
         print(
             f"To insert: {missing_class_count} class.create, "
+            f"{icon_update_count} class.update (icon), "
             f"{color_update_count} class.update (color), "
             f"{edge_count} classPropertyEdge.create"
         )

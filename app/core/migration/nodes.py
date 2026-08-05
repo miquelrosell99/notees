@@ -229,6 +229,12 @@ def _create_ops(ctx: MigrationContext, nodes: list[asyncpg.Record]) -> list[Oper
         parent_id_int = row.get("parent_id")
         if parent_id_int is not None and parent_id_int in ctx.id_map:
             payload["parentId"] = ctx.id_map[parent_id_int]
+        icon = row.get("icon")
+        if icon:
+            payload["icon"] = icon
+        color = row.get("color")
+        if color:
+            payload["color"] = color
         ops.append(
             create_operation(
                 envelope={

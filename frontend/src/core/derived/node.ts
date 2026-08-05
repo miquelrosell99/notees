@@ -26,8 +26,8 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
 
   if (opType === 'node.create') {
     db.run(
-      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, active, created_at, updated_at, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, icon, color, active, created_at, updated_at, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payload.nodeId as string,
         op.envelope.workspaceId,
@@ -35,6 +35,8 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
         JSON.stringify((payload.classIds as string[]) ?? []),
         (payload.parentId as string | null) ?? null,
         JSON.stringify((payload.initialContent as unknown[]) ?? []),
+        (payload.icon as string | null) ?? null,
+        (payload.color as string | null) ?? null,
         1,
         new Date().toISOString(),
         new Date().toISOString(),
@@ -43,6 +45,26 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
       ]
     );
     reindexNode(db, payload.nodeId as string);
+    return [{ scope: 'node', nodeId: payload.nodeId as string }];
+  }
+
+  if (opType === 'node.updateIcon') {
+    db.run('UPDATE node SET icon = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+      (payload.icon as string | null) ?? null,
+      new Date().toISOString(),
+      op.envelope.actorId,
+      payload.nodeId as string,
+    ]);
+    return [{ scope: 'node', nodeId: payload.nodeId as string }];
+  }
+
+  if (opType === 'node.updateColor') {
+    db.run('UPDATE node SET color = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+      (payload.color as string | null) ?? null,
+      new Date().toISOString(),
+      op.envelope.actorId,
+      payload.nodeId as string,
+    ]);
     return [{ scope: 'node', nodeId: payload.nodeId as string }];
   }
 

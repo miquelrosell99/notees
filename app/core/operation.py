@@ -21,6 +21,8 @@ KNOWN_OP_TYPES: frozenset[str] = frozenset(
         "node.delete",
         "node.move",
         "node.updateContent",
+        "node.updateIcon",
+        "node.updateColor",
         "node.addAlias",
         "node.removeAlias",
         "node.archive",
