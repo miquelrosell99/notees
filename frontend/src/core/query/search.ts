@@ -29,6 +29,10 @@ export interface SearchResult {
 /** Maximum number of matching rows to evaluate per kind. */
 export const SEARCH_RESULT_LIMIT = 500;
 
+/** How many of the cheap candidate rows get TF-IDF scoring.
+ *  Keeping this small avoids the O(rows) cost of matchinfo('pcx') on large workspaces. */
+const SCORED_RESULT_LIMIT = 100;
+
 function tokenise(query: string): string[] {
   return query
     .toLowerCase()
@@ -137,6 +141,11 @@ interface RawResult {
   mi: Uint8Array;
 }
 
+interface CandidateResult {
+  id: string;
+  kind: 'page' | 'block';
+}
+
 function runSearchForKind(
   db: ReturnType<WorkspaceStore['getDb']>,
   workspaceId: string,
@@ -146,26 +155,56 @@ function runSearchForKind(
   totalDocs: number,
   limit: number,
 ): SearchResult[] {
-  const params: (string | number)[] = [workspaceId, matchExpr];
+  const baseParams: (string | number)[] = [workspaceId, matchExpr];
   const kindFilters: SearchFilters = { ...filters, isPage: kind === 'page' };
-  const where = buildSearchWhere(kindFilters, params);
+  const where = buildSearchWhere(kindFilters, baseParams);
 
-  const sql = `
-    SELECT n.id, n.kind, matchinfo(search_index, 'pcx') AS mi
+  // Step 1: cheaply fetch candidate IDs without the expensive matchinfo() call.
+  const candidateSql = `
+    SELECT n.id, n.kind
     FROM search_index si
     JOIN node n ON n.id = si.node_id
     WHERE ${where.join(' AND ')}
     LIMIT ?
   `;
-  params.push(limit);
+  const candidateParams = [...baseParams, limit];
+  const candidates = queryAll<CandidateResult>(db, candidateSql, candidateParams);
 
-  const rows = queryAll<RawResult>(db, sql, params);
-  const results = rows.map((row) => ({
-    id: row.id,
-    score: scoreFromMatchinfo(row.mi, totalDocs),
-    kind: row.kind,
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  // Step 2: score only the first N candidates. matchinfo('pcx') is the expensive
+  // part, so limiting the scored set keeps large workspaces responsive. The rest
+  // of the candidates keep score 0 and fall back to the cheap candidate order.
+  const scoredCandidates = candidates.slice(0, SCORED_RESULT_LIMIT);
+  const placeholders = scoredCandidates.map(() => '?').join(',');
+  const scoreSql = `
+    SELECT n.id, n.kind, matchinfo(search_index, 'pcx') AS mi
+    FROM search_index si
+    JOIN node n ON n.id = si.node_id
+    WHERE n.id IN (${placeholders}) AND ${where.join(' AND ')}
+  `;
+  const scoreParams = [...scoredCandidates.map((c) => c.id), ...baseParams];
+  const rows = queryAll<RawResult>(db, scoreSql, scoreParams);
+
+  const scores = new Map<string, number>();
+  for (const row of rows) {
+    scores.set(row.id, scoreFromMatchinfo(row.mi, totalDocs));
+  }
+
+  const candidateOrder = new Map(candidates.map((c, i) => [c.id, i]));
+  const results = candidates.map((c) => ({
+    id: c.id,
+    score: scores.get(c.id) ?? 0,
+    kind: c.kind,
   }));
-  results.sort((a, b) => b.score - a.score);
+  results.sort((a, b) => {
+    const scoreDiff = b.score - a.score;
+    if (scoreDiff !== 0) return scoreDiff;
+    // Preserve the cheap candidate order as a stable tie-breaker.
+    return (candidateOrder.get(a.id) ?? 0) - (candidateOrder.get(b.id) ?? 0);
+  });
   return results;
 }
 
@@ -174,7 +213,8 @@ function runSearchForKind(
  *
  * - Empty or whitespace-only queries return no results.
  * - Terms are prefix-matched by default ("proj" matches "project").
- * - Results are ranked by a TF-IDF score derived from matchinfo().
+ * - Results are ranked by a TF-IDF score derived from matchinfo() over a small
+ *   window of cheaply-selected candidates.
  * - Pages are returned before blocks, each group sorted by relevance.
  * - The raw SQL is capped per kind so typing short prefixes cannot force the
  *   worker to score an unbounded number of FTS matches.
