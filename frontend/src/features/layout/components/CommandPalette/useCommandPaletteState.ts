@@ -1,11 +1,11 @@
-import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import { useProperties } from '@/features/properties';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useClasses, useRecents } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
-import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
@@ -22,29 +22,13 @@ import {
   INITIAL_MAX_PROPERTIES,
 } from './CommandPalette.types';
 
-async function getWorkspacePages(workspaceUuid: string | null): Promise<Node[]> {
-  if (!workspaceUuid) return [];
-  const client = getWorkspaceStoreClient(workspaceUuid);
-  if (!client) return [];
-  return client.query<Node[]>('queryNodes', [{ isPage: true, projectionDepth: 0 }]);
-}
-
-async function getRecentlyCreatedPages(limit: number, workspaceUuid: string | null): Promise<Node[]> {
-  const pages = await getWorkspacePages(workspaceUuid);
-  return pages
-    .sort((a, b) => new Date(b.create_date).getTime() - new Date(a.create_date).getTime())
-    .slice(0, limit);
-}
-
-async function getRandomPages(limit: number, workspaceUuid: string | null): Promise<Node[]> {
-  const pages = await getWorkspacePages(workspaceUuid);
-  if (pages.length === 0) return [];
+function shufflePages(pages: Node[]): Node[] {
   const shuffled = [...pages];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  return shuffled.slice(0, limit);
+  return shuffled;
 }
 
 interface UseCommandPaletteStateParams {
@@ -103,7 +87,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     : [];
 
   // Debounce the search term to avoid firing API calls on every keystroke
-  const debouncedSearchTerm = useDeferredValue(isTypingFilter ? '' : searchTerm);
+  const debouncedSearchTerm = useDebouncedValue(isTypingFilter ? '' : searchTerm, 150);
 
   // Build class filter for search from applied class filters
   const classFilter = selectedClasses.length > 0
@@ -123,12 +107,14 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     return filters;
   }, [appliedFilters]);
 
-  // Search with filters (debounced to avoid per-keystroke API calls)
+  // Search with filters (debounced and capped to keep the palette snappy on
+  // large workspaces; only the first page/block pages are ever displayed).
   const { data: searchResults, isLoading: isSearchLoading } = useSearch(
     debouncedSearchTerm,
     {
       classFilters: classFilter,
       nodeUuid: uuidSearch ?? undefined,
+      limit: 50,
       ...booleanFilters,
     }
   );
@@ -229,26 +215,33 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   // Reset section limits when search query changes
   useEffect(() => {
     setMaxPages(INITIAL_MAX_PAGES);
-      setMaxBlocks(INITIAL_MAX_BLOCKS);
-      setMaxProperties(INITIAL_MAX_PROPERTIES);;
+    setMaxBlocks(INITIAL_MAX_BLOCKS);
+    setMaxProperties(INITIAL_MAX_PROPERTIES);
   }, [debouncedSearchTerm]);
 
-  // Focus input when opened; refresh caches that may have gone stale since last open
+  // Focus input when opened and derive empty-state sections from the cached
+  // allPages list. Avoid issuing additional all-pages worker queries here:
+  // usePages already loads the page list, and queueing extra projections on a
+  // large workspace starves the worker and makes palette search feel frozen.
   useEffect(() => {
     if (isOpen) {
       setQuery('');
-        setAppliedFilters([]);
-        setMaxPages(INITIAL_MAX_PAGES);
-        setMaxBlocks(INITIAL_MAX_BLOCKS);
-        setMaxProperties(INITIAL_MAX_PROPERTIES);;
+      setAppliedFilters([]);
+      setMaxPages(INITIAL_MAX_PAGES);
+      setMaxBlocks(INITIAL_MAX_BLOCKS);
+      setMaxProperties(INITIAL_MAX_PROPERTIES);
       inputRef.current?.focus();
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
-      // Fetch empty-state sections (recently accessed is derived from the local store)
-      getRecentlyCreatedPages(5, workspaceUuid).then(setRecentCreatedPages).catch(() => {});
-      getRandomPages(5, workspaceUuid).then(setRandomPages).catch(() => {});
+
+      if (allPages) {
+        const sorted = [...allPages]
+          .sort((a, b) => new Date(b.create_date).getTime() - new Date(a.create_date).getTime())
+          .slice(0, 5);
+        setRecentCreatedPages(sorted);
+        setRandomPages(shufflePages(allPages).slice(0, 5));
+      }
     }
-  }, [isOpen, queryClient, workspaceUuid]);
+  }, [isOpen, queryClient, workspaceUuid, allPages]);
 
   // Handle class selection from popup
   const handleClassSelect = useCallback((classNode: Node) => {
@@ -333,15 +326,12 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     }
   }, [classClassUuid, pageClassUuid, query, createNodeMutation, notifyError]);
 
-  // Refresh random pages
-  const refreshRandomPages = useCallback(async () => {
-    try {
-      const pages = await getRandomPages(5, workspaceUuid);
-      setRandomPages(pages);
-    } catch {
-      // ignore
+  // Refresh random pages from the already-loaded page list
+  const refreshRandomPages = useCallback(() => {
+    if (allPages) {
+      setRandomPages(shufflePages(allPages).slice(0, 5));
     }
-  }, [workspaceUuid]);
+  }, [allPages]);
 
   // Close on backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
