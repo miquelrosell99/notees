@@ -51,10 +51,10 @@ def _expected_content(node_id: str) -> str | None:
     return None
 
 
-def _decode_yjs_update(bytes_list: list[int]) -> str:
-    """Shell out to the JS helper to decode a Yjs text update to plain text."""
+def _decode_yjs_state(bytes_list: list[int]) -> str:
+    """Shell out to the JS helper to decode a full Yjs document state to plain text."""
     result = subprocess.run(
-        ["node", "scripts/_generate_yjs_update.js", "--decode"],
+        ["node", "scripts/_generate_yjs_update.js", "--decode-state"],
         input=json.dumps(bytes_list),
         text=True,
         capture_output=True,
@@ -63,11 +63,11 @@ def _decode_yjs_update(bytes_list: list[int]) -> str:
     return result.stdout
 
 
-def _generate_yjs_replace_update(current: str, new: str) -> list[int]:
-    """Shell out to the JS helper that produces a Yjs text-replacement update."""
+def _generate_yjs_replace_update_from_state(state: list[int], new: str) -> list[int]:
+    """Shell out to the JS helper that produces a real text-replacement update."""
     result = subprocess.run(
-        ["node", "scripts/_generate_yjs_update.js", "--replace"],
-        input=json.dumps({"current": current, "new": new}),
+        ["node", "scripts/_generate_yjs_update.js", "--replace-from-state"],
+        input=json.dumps({"state": state, "new": new}),
         text=True,
         capture_output=True,
         check=True,
@@ -123,7 +123,7 @@ async def _migrate_workspace(
         (workspace_id,),
     ).fetchall()
 
-    to_migrate: list[tuple[str, str | None, str]] = []  # (node_id, old_content, new_content)
+    to_migrate: list[tuple[str, list[int], str]] = []  # (node_id, state_bytes, new_content)
     for row in rows:
         node_id = row["id"]
         expected = _expected_content(node_id)
@@ -135,14 +135,15 @@ async def _migrate_workspace(
         current = ""
         if text_state:
             try:
-                current = _decode_yjs_update(text_state)
+                current = _decode_yjs_state(text_state)
             except Exception:  # noqa: BLE001
                 current = ""
-        # Always emit a replacement update for date pages. The first migration
-        # appended text to existing Yjs state on clients, producing names like
-        # "2026-08-0420260804". A replace update clears all text and inserts the
-        # correct compact format, fixing both server-side and client-side state.
-        to_migrate.append((node_id, current, expected))
+        # Only fix pages whose stored text is not the compact format. The first
+        # migration appended text to existing Yjs state on clients, producing
+        # names like "2026-08-0420260804". A state-based replace update clears
+        # every item and inserts the correct compact format.
+        if current != expected:
+            to_migrate.append((node_id, text_state, expected))
 
     if dry_run:
         return {
@@ -150,16 +151,20 @@ async def _migrate_workspace(
             "migrated": 0,
             "would_migrate": len(to_migrate),
             "samples": [
-                {"node_id": nid, "old": old, "new": new}
-                for nid, old, new in to_migrate[:10]
+                {
+                    "node_id": nid,
+                    "old": _decode_yjs_state(state) if state else "",
+                    "new": new,
+                }
+                for nid, state, new in to_migrate[:10]
             ],
         }
 
     migrated = 0
     failed = 0
-    for node_id, old, new in to_migrate:
+    for node_id, state, new in to_migrate:
         try:
-            yjs_update = _generate_yjs_replace_update(old, new)
+            yjs_update = _generate_yjs_replace_update_from_state(state, new)
             await store.update_text_crdt(node_id, bytes(yjs_update))
             migrated += 1
         except Exception as exc:  # noqa: BLE001
