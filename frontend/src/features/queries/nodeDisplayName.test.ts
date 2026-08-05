@@ -125,6 +125,19 @@ describe('useNodeDisplayName', () => {
     expect(result.current).toBe('2026/08/05');
   });
 
+  it('reacts to dateFormat changes', () => {
+    const node = makeNode({
+      name: '20260805',
+      classes_uuid: [SYSTEM_CLASS_UUIDS.day],
+    });
+    const { result, rerender } = renderHook(() => useNodeDisplayName(node));
+    expect(result.current).toBe('2026/08/05');
+
+    mockDateFormat.mockReturnValue('DD/MM/YYYY');
+    rerender();
+    expect(result.current).toBe('05/08/2026');
+  });
+
   it('returns the fallback for a missing node', () => {
     const { result } = renderHook(() => useNodeDisplayName(null));
     expect(result.current).toBe('Untitled');
