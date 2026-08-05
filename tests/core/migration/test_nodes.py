@@ -157,6 +157,31 @@ async def test_maps_node_kinds() -> None:
 
 
 @pytest.mark.unit
+async def test_preserves_node_icon_and_color() -> None:
+    workspace_uuid = str(uuid4())
+    nodes = [
+        _base_node(
+            1,
+            name="Page node",
+            is_page=True,
+            icon="mdiStar",
+            color="#ff0000",
+        ),
+    ]
+    conn = _FakeConnection(nodes, workspace_uuid)
+    writer = InMemoryOperationWriter()
+
+    await migrate_nodes_for_workspace(
+        conn, 1, "actor-1", writer, physical_time=1_000
+    )
+
+    creates = _find_ops(writer.operations, "node.create")
+    assert len(creates) == 1
+    assert creates[0].payload["icon"] == "mdiStar"
+    assert creates[0].payload["color"] == "#ff0000"
+
+
+@pytest.mark.unit
 async def test_preserves_valid_uuids_and_generates_uuidv7() -> None:
     workspace_uuid = str(uuid4())
     valid_uuid = str(uuid4())

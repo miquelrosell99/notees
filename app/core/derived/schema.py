@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS node (
     class_ids TEXT NOT NULL DEFAULT '[]',
     parent_id TEXT,
     content TEXT NOT NULL DEFAULT '[]',
+    icon TEXT,
+    color TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT,
@@ -459,3 +461,14 @@ def create_derived_schema(conn: sqlite3.Connection) -> None:
     """Create the derived-state tables in ``conn``."""
     conn.executescript(SCHEMA_SQL)
     conn.commit()
+
+    # Lightweight migrations for columns added after initial deployment.
+    # The derived state can be rebuilt from the operation log, but adding
+    # columns in place avoids an expensive full rebuild.
+    for column in ("icon", "color"):
+        try:
+            conn.execute(f"ALTER TABLE node ADD COLUMN {column} TEXT")
+            conn.commit()
+        except sqlite3.OperationalError:
+            # Column already exists; ignore.
+            pass

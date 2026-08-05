@@ -118,3 +118,79 @@ class TestNodeUpdateContentApplier:
         row = conn.execute("SELECT content FROM node WHERE id = ?", ("n-1",)).fetchone()
         assert json.loads(row["content"]) == [{"type": "text", "text": "hi"}]
         conn.close()
+
+
+class TestNodeIconColorApplier:
+    def test_create_persists_icon_and_color(self) -> None:
+        ops = [
+            make_operation(
+                "node.create",
+                {
+                    "nodeId": "n-1",
+                    "kind": "page",
+                    "index": 0,
+                    "icon": "mdiStar",
+                    "color": "#ff0000",
+                },
+            ),
+        ]
+        conn = replay_operations(ops)
+        row = conn.execute(
+            "SELECT icon, color FROM node WHERE id = ?", ("n-1",)
+        ).fetchone()
+        assert row["icon"] == "mdiStar"
+        assert row["color"] == "#ff0000"
+        conn.close()
+
+    def test_update_icon_and_color(self) -> None:
+        ops = [
+            make_operation("node.create", {"nodeId": "n-1", "kind": "page", "index": 0}),
+            make_operation(
+                "node.updateIcon",
+                {"nodeId": "n-1", "icon": "mdiHeart"},
+                physical=2,
+            ),
+            make_operation(
+                "node.updateColor",
+                {"nodeId": "n-1", "color": "#00ff00"},
+                physical=3,
+            ),
+        ]
+        conn = replay_operations(ops)
+        row = conn.execute(
+            "SELECT icon, color FROM node WHERE id = ?", ("n-1",)
+        ).fetchone()
+        assert row["icon"] == "mdiHeart"
+        assert row["color"] == "#00ff00"
+        conn.close()
+
+    def test_update_icon_and_color_can_clear(self) -> None:
+        ops = [
+            make_operation(
+                "node.create",
+                {
+                    "nodeId": "n-1",
+                    "kind": "page",
+                    "index": 0,
+                    "icon": "mdiStar",
+                    "color": "#ff0000",
+                },
+            ),
+            make_operation(
+                "node.updateIcon",
+                {"nodeId": "n-1", "icon": None},
+                physical=2,
+            ),
+            make_operation(
+                "node.updateColor",
+                {"nodeId": "n-1", "color": None},
+                physical=3,
+            ),
+        ]
+        conn = replay_operations(ops)
+        row = conn.execute(
+            "SELECT icon, color FROM node WHERE id = ?", ("n-1",)
+        ).fetchone()
+        assert row["icon"] is None
+        assert row["color"] is None
+        conn.close()

@@ -39,12 +39,14 @@ def apply_node_create(conn: sqlite3.Connection, op: Operation) -> None:
     initial_content = payload.get("initialContent") or []
     ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
 
+    icon = payload.get("icon")
+    color = payload.get("color")
     conn.execute(
         """
         INSERT OR IGNORE INTO node (
             id, workspace_id, kind, class_ids, parent_id, content,
-            created_at, updated_at, created_by, updated_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            icon, color, created_at, updated_at, created_by, updated_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             node_id,
@@ -53,6 +55,8 @@ def apply_node_create(conn: sqlite3.Connection, op: Operation) -> None:
             json.dumps(class_ids),
             parent_id,
             json.dumps(initial_content),
+            icon,
+            color,
             ts,
             ts,
             op.envelope.actor_id,
@@ -65,6 +69,32 @@ def apply_node_create(conn: sqlite3.Connection, op: Operation) -> None:
     if parent_id is not None:
         position = str(payload.get("index", "0"))
         insert_child_order(conn, parent_id, node_id, position)
+
+
+def apply_node_update_icon(conn: sqlite3.Connection, op: Operation) -> None:
+    """Apply a ``node.updateIcon`` operation."""
+    payload = op.payload
+    node_id = payload["nodeId"]
+    icon = payload.get("icon")
+    ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
+
+    conn.execute(
+        "UPDATE node SET icon = ?, updated_at = ?, updated_by = ? WHERE id = ?",
+        (icon, ts, op.envelope.actor_id, node_id),
+    )
+
+
+def apply_node_update_color(conn: sqlite3.Connection, op: Operation) -> None:
+    """Apply a ``node.updateColor`` operation."""
+    payload = op.payload
+    node_id = payload["nodeId"]
+    color = payload.get("color")
+    ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
+
+    conn.execute(
+        "UPDATE node SET color = ?, updated_at = ?, updated_by = ? WHERE id = ?",
+        (color, ts, op.envelope.actor_id, node_id),
+    )
 
 
 def apply_node_delete(conn: sqlite3.Connection, op: Operation) -> None:
