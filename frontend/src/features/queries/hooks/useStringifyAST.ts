@@ -71,19 +71,70 @@ export function useStringifyAST(linkMap: Map<string, LinkMapEntry>) {
   return { stringify, resolver };
 }
 
+function findFirstText(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findFirstText(item);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+
+  if (value !== null && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.text === 'string' && obj.text.length > 0) {
+      return obj.text;
+    }
+    for (const child of Object.values(obj)) {
+      const found = findFirstText(child);
+      if (found !== undefined) return found;
+    }
+  }
+
+  return undefined;
+}
+
+function truncate(str: string, maxLength?: number): string {
+  if (maxLength == null || str.length <= maxLength) return str;
+  return str.slice(0, maxLength);
+}
+
 /**
  * Convenience: stringify a single node's name to plain text.
  * Useful for search, display_name fallback, etc.
+ *
+ * Handles:
+ * - Formal AST documents (paragraph/text blocks).
+ * - Legacy bare inline text nodes at document level (e.g. [{"type":"text","text":"..."}]).
+ * - Plain text names such as compact numeric date content ("20260805").
  *
  * Does NOT resolve node links (no resolver) — links render as "…".
  * Use `useStringifyAST` when you need link resolution.
  */
 export function nodeNameToText(nameValue: unknown, maxLength?: number): string {
   const ast = parseAST(nameValue);
-  return stringifyAST(ast, {
+  let text = stringifyAST(ast, {
     mode: StringifyMode.TEXT_ONLY,
     maxLength,
   });
+
+  if (!text.trim()) {
+    // Some content is stored as bare inline text nodes at document level.
+    const firstText = findFirstText(ast);
+    if (firstText) {
+      text = truncate(firstText, maxLength);
+    } else if (typeof nameValue === 'string') {
+      // Plain text names (e.g. compact numeric date content) are valid JSON
+      // scalars, so parseAST returns an empty document for them. Fall back to
+      // the raw string, but avoid treating JSON arrays/objects as display text.
+      const trimmed = nameValue.trim();
+      if (trimmed && !trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+        text = truncate(trimmed, maxLength);
+      }
+    }
+  }
+
+  return text;
 }
 
 /**
