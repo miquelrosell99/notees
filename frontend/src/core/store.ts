@@ -41,6 +41,8 @@ export interface NodeRow {
   parentId: string | null;
   classIds: string[];
   content: string;
+  icon: string | null;
+  color: string | null;
   active: boolean;
   createdAt: string | null;
   updatedAt: string | null;
@@ -653,6 +655,8 @@ export class WorkspaceStore {
     kind: 'page' | 'block';
     parentId: string | null;
     classIds?: string[];
+    icon?: string | null;
+    color?: string | null;
   }): void {
     const op = createOperation(
       {
@@ -662,7 +666,14 @@ export class WorkspaceStore {
         affectedNodeIds: [args.nodeId],
         opType: 'node.create',
       },
-      { nodeId: args.nodeId, kind: args.kind, parentId: args.parentId, classIds: args.classIds ?? [] }
+      {
+        nodeId: args.nodeId,
+        kind: args.kind,
+        parentId: args.parentId,
+        classIds: args.classIds ?? [],
+        icon: args.icon ?? null,
+        color: args.color ?? null,
+      }
     );
     this.apply(op);
   }
@@ -734,6 +745,34 @@ export class WorkspaceStore {
         opType: 'node.updateContent',
       },
       { nodeId, content }
+    );
+    this.apply(op);
+  }
+
+  updateNodeIcon(nodeId: string, icon: string | null): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.updateIcon',
+      },
+      { nodeId, icon }
+    );
+    this.apply(op);
+  }
+
+  updateNodeColor(nodeId: string, color: string | null): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.updateColor',
+      },
+      { nodeId, color }
     );
     this.apply(op);
   }
@@ -1241,6 +1280,8 @@ export class WorkspaceStore {
       parentId: string | null;
       classIds: string;
       content: string;
+      icon: string | null;
+      color: string | null;
       active: number;
       createdAt: string | null;
       updatedAt: string | null;
@@ -1255,6 +1296,8 @@ export class WorkspaceStore {
          parent_id AS parentId,
          class_ids AS classIds,
          content,
+         icon,
+         color,
          active,
          created_at AS createdAt,
          updated_at AS updatedAt,

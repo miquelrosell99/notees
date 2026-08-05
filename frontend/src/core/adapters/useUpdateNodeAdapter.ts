@@ -54,9 +54,12 @@ export function useUpdateNodeAdapter(): UseMutationResult<
         console.warn('[useUpdateNodeAdapter] is_page toggle not yet supported in SQLite store');
       }
 
-      if (data.icon !== undefined || data.color !== undefined) {
-        // NOTE(D2): Persist icon/color when the new core supports metadata fields.
-        console.warn('[useUpdateNodeAdapter] icon/color updates not yet supported in SQLite store');
+      if (data.icon !== undefined) {
+        await client.mutate<void>('updateNodeIcon', [nodeUuid, data.icon ?? null]);
+      }
+
+      if (data.color !== undefined) {
+        await client.mutate<void>('updateNodeColor', [nodeUuid, data.color ?? null]);
       }
 
       const projected = await projectNodeFromClient(client, nodeUuid);
