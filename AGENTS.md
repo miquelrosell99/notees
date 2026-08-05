@@ -133,6 +133,53 @@ notees/
 
 ---
 
+## Migration Patterns
+
+The operation log is immutable. Migrations must fix bad data by appending new operations, not by editing existing envelopes or adding client-side backward-compatibility shims.
+
+### Where migrations live
+
+One-off data-fix scripts go in `scripts/` and are run against the backend/PostgreSQL directly. Examples:
+
+- `scripts/migrate_date_page_content.py` — rewrites daily/monthly/yearly page content to compact numeric form.
+- `scripts/fix_date_page_content_relay.py` — inserts corrected `node.updateContent` operations for malformed date-page content.
+- `scripts/backfill_missing_migration_data.py`, `scripts/fix_activity_log_ast.py`, `scripts/fix_inline_class_links.py` — other operation-log backfills.
+
+### Operation-log discipline
+
+1. **Append, don't mutate.** Generate new operations (e.g. `node.updateContent`) with a fresh HLC; last-write-wins ordering makes them authoritative for all clients on next sync.
+2. **Use the relay/storage layer.** Migrations that need workspace state should use `WorkspaceStore` + `PostgresRelayStorage`, not raw SQL against derived tables.
+3. **Shell out to JS helpers when necessary.** Yjs state manipulation uses `scripts/_generate_yjs_update.js` (see `migrate_date_page_content.py`).
+4. **Run with `--dry-run` first.** Scripts should print what they would change and support a dry-run flag.
+5. **Coordinate clients.** Close browser tabs / mobile apps during a migration, or be prepared for the migration's operations to be merged with any client-generated operations that sync afterward. If a clean replace is required, plan for a force-replace sync flow rather than relying on hand-edited local state.
+
+### Date-page content conventions
+
+Date pages are system nodes with fixed UUID prefixes and compact numeric content:
+
+| Kind | UUID prefix | Stored content | Example |
+|---|---|---|---|
+| Day | `00000000-0000-0000-00dd-` | `YYYYMMDD` | `20260805` |
+| Month | `00000000-0000-0000-00aa-` | `YYYYMM00` | `20260800` |
+| Year | `00000000-0000-0000-00bb-` | `YYYY0000` | `20260000` |
+
+Display formatting (e.g. `2026/08/05` vs `2026-08-05`) is class-aware and lives in the frontend display layer (`frontend/src/features/queries/nodeDisplayName.ts`), not in the stored content.
+
+### Content vs. display
+
+- **Stored content / search / matching** use raw text extracted by `nodeNameToText`.
+- **Rendered names** use `nodeNameToDisplayText` / `useNodeDisplayName`, which formats only nodes carrying `SYSTEM_CLASS_UUIDS.day`, `.month`, or `.year`.
+- When migrating date content, change only the stored value; the display layer will pick it up automatically.
+
+### Verification
+
+1. Run the migration with `--dry-run`.
+2. Verify against a copy of production data or a staging workspace.
+3. Run `uv run pytest tests/` (backend) and `cd frontend && npm run test:run`.
+4. Rebuild the dev stack for runtime behavior fixes and confirm in the browser.
+
+---
+
 ## Build and Test
 
 The canonical development workflow is Docker Compose: `task dev` (or `docker compose -f compose.dev.yaml up`). Frontend: http://localhost:5173 — Backend API: http://localhost:8001. Dev services use non-default host ports (`8001` backend, `5433` PostgreSQL, `6380` Redis) to coexist with other local services.
