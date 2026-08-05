@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { SearchBox } from '@/components/ui';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearch } from '@/features/content';
-import { nodeNameToDisplayText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import { NodeIcon } from '@/components/ui/icons';
 import type { Node } from '@/types';
 import { searchKeys } from '@/hooks/queryKeys';
@@ -50,16 +50,19 @@ const defaultGetKey = <T,>(item: T): string | number => {
   return String(item);
 };
 
-const defaultRenderNode = (node: Node): ReactNode => (
-  <>
-    <span className="result-icon">
-      <NodeIcon icon={node.icon} isPage={true} />
-    </span>
-    <span className="result-title">
-      {nodeNameToDisplayText(node) || 'Untitled'}
-    </span>
-  </>
-);
+function DefaultNodeItem({ node }: { node: Node }): ReactNode {
+  const displayName = useNodeDisplayName(node);
+  return (
+    <>
+      <span className="result-icon">
+        <NodeIcon icon={node.icon} isPage={true} />
+      </span>
+      <span className="result-title">
+        {displayName}
+      </span>
+    </>
+  );
+}
 
 export function NodeSearchBox<T = Node>({
   placeholder = 'Search...',
@@ -98,7 +101,7 @@ export function NodeSearchBox<T = Node>({
   const effectiveRenderItem = renderItem ?? ((item: T) => {
     const node = item as unknown as Node;
     if ('name' in node) {
-      return defaultRenderNode(node);
+      return <DefaultNodeItem node={node} />;
     }
     return <span>{String(item)}</span>;
   });

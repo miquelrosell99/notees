@@ -9,7 +9,8 @@
  * - Versions: version history with restore
  */
 import { useMemo, useCallback } from 'react';
-import { useNavigationStore } from '@/stores';
+import { useNavigationStore, useSettingsStore } from '@/stores';
+import type { DateFormat } from '@/stores';
 import { useComments, useNodeActivity, useNode } from '@/features/content';
 import { nodeNameToDisplayText } from '@/features/queries';
 import { parseAST } from '@/lib/astBuilder';
@@ -28,7 +29,11 @@ interface TocEntry {
   level: number;
 }
 
-function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
+function extractHeadings(
+  nodes: Node[],
+  dateFormat: DateFormat,
+  depth: number = 0,
+): TocEntry[] {
   const result: TocEntry[] = [];
   for (const node of nodes) {
     const ast = parseAST(node.name);
@@ -36,12 +41,12 @@ function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
       result.push({
         nodeUuid: node.uuid,
         uuid: node.uuid,
-        text: nodeNameToDisplayText(node, { maxLength: 100 }) || 'Untitled',
+        text: nodeNameToDisplayText(node, { maxLength: 100, dateFormat }) || 'Untitled',
         level: Math.min(depth + 1, 6),
       });
     }
     if (node.children?.length) {
-      result.push(...extractHeadings(node.children, depth + 1));
+      result.push(...extractHeadings(node.children, dateFormat, depth + 1));
     }
   }
   return result;
@@ -50,6 +55,7 @@ function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
 export function SidebarContextSections() {
   const currentNodeUuid = useNavigationStore(state => state.currentNodeUuid);
   const mainViewType = useNavigationStore(state => state.mainViewType);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const { data: commentsData, isLoading: commentsLoading } = useComments(
     mainViewType === 'node' ? currentNodeUuid : null
@@ -65,8 +71,8 @@ export function SidebarContextSections() {
 
   const tocEntries = useMemo(() => {
     if (!nodeData?.children) return [];
-    return extractHeadings(nodeData.children);
-  }, [nodeData]);
+    return extractHeadings(nodeData.children, dateFormat);
+  }, [nodeData, dateFormat]);
 
   const handleTocClick = useCallback((blockId: string) => {
     const el = document.querySelector(`[data-block-id="${blockId}"]`);

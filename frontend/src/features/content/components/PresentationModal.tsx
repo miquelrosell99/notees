@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { useNode } from '@/features/content';
 import { useSettingsStore } from '@/stores';
 import { usePresentationState } from '@/features/content/hooks/usePresentationSelectors';
-import { nodeNameToDisplayText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { Button } from '@/components/ui/Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
@@ -23,8 +23,8 @@ import type { Node } from '@/types';
 import './PresentationModal.css';
 
 
-function getSlideTitle(node: Node): string {
-  return nodeNameToDisplayText(node) || 'Untitled';
+function SlideTitle({ node }: { node: Node | undefined }) {
+  return <>{useNodeDisplayName(node)}</>;
 }
 
 export function PresentationModal() {
@@ -156,7 +156,7 @@ export function PresentationModal() {
       ) : slideNode ? (
         <div className="presentation-modal-slide">
           <h2 id="presentation-dialog-title" className="presentation-modal-slide-title">
-            {getSlideTitle(slideNode)}
+            <SlideTitle node={slideNode} />
           </h2>
           <div className="presentation-modal-slide-content">
             {slideNode.children && slideNode.children.length > 0 ? (

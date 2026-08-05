@@ -8,7 +8,7 @@ import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSec
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
 import { MetadataIcon } from '@/components/ui/icons';
 import type { Node } from '@/types/api';
-import { nodeNameToDisplayText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import './NodeMetadataSection.css';
 
 interface NodeMetadataSectionProps {
@@ -74,6 +74,7 @@ export function NodeMetadataSection({
   focusMode = false,
   variant = 'default',
 }: NodeMetadataSectionProps) {
+  const aliasedNodeDisplayName = useNodeDisplayName(aliasedNode);
   const count =
     pageClassDetails.length +
     pageTagDetails.length +
@@ -152,9 +153,9 @@ export function NodeMetadataSection({
               type="button"
               className="alias-of-link"
               onClick={() => onNavigateToNode(aliasedNode.uuid)}
-              title={nodeNameToDisplayText(aliasedNode) || 'Untitled'}
+              title={aliasedNodeDisplayName}
             >
-              {nodeNameToDisplayText(aliasedNode) || 'Untitled'}
+              {aliasedNodeDisplayName}
             </button>
           </div>
         )}
