@@ -75,7 +75,7 @@ export function NodeResultItem({
           {iconOverride ?? <NodeIcon icon={getEffectiveIcon(node, allClasses) ?? node.icon} isPage={node.is_page} size="sm" />}
         </span>
         <span className="node-result-item__name">
-          <NodeNameContent name={node.name} />
+          <NodeNameContent name={node.name} node={node} />
         </span>
         {displayClasses && displayClasses.length > 0 && (
           <span className="node-result-item__class-pills">
