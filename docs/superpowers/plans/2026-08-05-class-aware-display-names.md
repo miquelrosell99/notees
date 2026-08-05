@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- `nodeNameToText` must remain a plain AST/text extractor with no date-formatting side effects.
+- `nodeNameToText` must remain a plain AST/text extractor with no date-formatting side effects. It was amended to correctly extract plain-text and bare-inline-node names (including compact numeric date content such as `"20260805"`) that previously produced empty strings; this is a bugfix and does not change its no-date-formatting contract.
 - Only nodes with `SYSTEM_CLASS_UUIDS.day`, `SYSTEM_CLASS_UUIDS.month`, or `SYSTEM_CLASS_UUIDS.year` are formatted.
 - The implementation must react live to `useSettingsStore.dateFormat` changes.
 - Follow path aliases (`@/...`), co-located CSS, and feature-barrel imports per `agents/frontend.md`.
@@ -559,7 +559,7 @@ git commit -m "chore(ui): clean up redundant date formatting after class-aware m
 
 **Spec coverage:**
 - Class-aware formatting only for date-class nodes → Task 1.
-- `nodeNameToText` unchanged → no task modifies it.
+- `nodeNameToText` amended to extract plain-text and bare-inline-node names → pre-existing bugfix captured in Task 1 tests (non-date numeric names stay raw; search/matching continue to use raw text).
 - React live subscription to `dateFormat` → Task 1 `useNodeDisplayName`.
 - Migration of page header, favorites, recents, breadcrumbs → Task 2.
 - Migration of command palette, node selector, trigger popup, inline displays → Tasks 3 and 4.
