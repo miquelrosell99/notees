@@ -205,8 +205,8 @@ export const COMMAND_IDS = {
   CAPTURE_TASK: 'task.capture',
   NEW_TEMP_QUERY: 'query.newTemporary',
   FORCE_REEXPORT: 'data.forceReexport',
-  FORCE_RESYNC: 'sync.forceResync',
-  RESET_LOCAL_STATE: 'sync.resetLocalState',
+  PUSH_TO_SERVER: 'sync.pushToServer',
+  PULL_FROM_SERVER: 'sync.pullFromServer',
 
   // View navigation (command palette)
   OPEN_JOURNALS: 'view.journals',

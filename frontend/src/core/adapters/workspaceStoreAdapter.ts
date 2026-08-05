@@ -204,24 +204,27 @@ export async function syncWorkspace(workspaceId: string): Promise<void> {
   await persistWorkspace(workspaceId, entry.client);
 }
 
-export async function forceResyncWorkspace(workspaceId: string): Promise<void> {
+/**
+ * Push any pending local operations to the server without pulling.
+ */
+export async function pushWorkspace(workspaceId: string): Promise<void> {
   const entry = registry.get(workspaceId);
   if (!entry) {
     throw new Error(`Workspace ${workspaceId} is not open`);
   }
-  await entry.syncEngine.forceResync();
+  await entry.syncEngine.push();
   await persistWorkspace(workspaceId, entry.client);
 }
 
 /**
- * Discard all local state for a workspace and check out fresh from the server.
+ * Pull the workspace down from the server, discarding local derived state.
  *
- * This is stronger than force re-sync: it wipes the in-browser IndexedDB/OPFS
- * copy of the workspace database, clears the in-memory registry, and re-opens
- * the workspace so it rebuilds from the server operation log. Use it when local
- * derived state is corrupt, stale, or out of sync with the server.
+ * This wipes the in-browser IndexedDB/OPFS copy of the workspace database,
+ * clears the in-memory registry, and re-opens the workspace so it rebuilds from
+ * the server snapshot/operation log. Use it when local state looks corrupt or
+ * out of sync with the server.
  */
-export async function resetWorkspaceStore(workspaceId: string): Promise<void> {
+export async function pullWorkspace(workspaceId: string): Promise<void> {
   const entry = registry.get(workspaceId);
   if (entry) {
     entry.unsubscribeFavorites();

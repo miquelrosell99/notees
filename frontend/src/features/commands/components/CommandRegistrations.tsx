@@ -21,8 +21,8 @@ import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useWorkspaceRole } from '@/features/workspace/hooks/useWorkspaceRole';
 import {
-  forceResyncActiveWorkspace,
-  resetActiveWorkspace,
+  pushActiveWorkspace,
+  pullActiveWorkspace,
 } from '@/core/adapters/workspaceStoreClientAdapter';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useState } from 'react';
@@ -114,49 +114,44 @@ export function CommandRegistrations() {
     }
   );
 
-  // Force a full re-sync of the active workspace from the relay.
+  // Push any pending local operations to the server without pulling.
   useCommand(
-    COMMAND_IDS.FORCE_RESYNC,
+    COMMAND_IDS.PUSH_TO_SERVER,
     () => {
-      const workspaceId = activeWorkspace?.uuid;
-      if (!workspaceId) {
-        notifyWarning('No workspace active', 'Open a workspace before forcing a re-sync.');
+      if (!activeWorkspace?.uuid) {
+        notifyWarning('No workspace active', 'Open a workspace before pushing.');
         return;
       }
-      useSyncStatusStore.getState().setForceResyncWorkspaceId(workspaceId);
-      forceResyncActiveWorkspace()
+      pushActiveWorkspace()
         .then(() => {
-          notifySuccess('Re-sync complete', 'Workspace has been re-synced from the server.');
+          notifySuccess('Push complete', 'Local changes have been pushed to the server.');
         })
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : 'Please try again.';
-          notifyError('Re-sync failed', message);
-        })
-        .finally(() => {
-          useSyncStatusStore.getState().setForceResyncWorkspaceId(null);
+          notifyError('Push failed', message);
         });
     },
     {
-      label: 'Force workspace re-sync',
-      icon: 'mdi mdi-cloud-sync-outline',
-      palette: { category: 'tools', keywords: ['sync', 'refresh', 'reload'] },
+      label: 'Push local changes to server',
+      icon: 'mdi mdi-cloud-upload-outline',
+      palette: { category: 'tools', keywords: ['sync', 'push', 'upload'] },
     }
   );
 
-  // Discard all local state for the active workspace and check out from the server.
+  // Pull the active workspace down from the server, discarding local derived state.
   useCommand(
-    COMMAND_IDS.RESET_LOCAL_STATE,
+    COMMAND_IDS.PULL_FROM_SERVER,
     () => {
       if (!activeWorkspace?.uuid) {
-        notifyWarning('No workspace active', 'Open a workspace before resetting local state.');
+        notifyWarning('No workspace active', 'Open a workspace before pulling.');
         return;
       }
       setShowResetConfirm(true);
     },
     {
-      label: 'Discard local state and check out from server',
-      icon: 'mdi mdi-database-remove-outline',
-      palette: { category: 'tools', keywords: ['reset', 'clear', 'local', 'checkout'] },
+      label: 'Replace local workspace from server',
+      icon: 'mdi mdi-cloud-download-outline',
+      palette: { category: 'tools', keywords: ['sync', 'pull', 'reset', 'local'] },
     }
   );
 
@@ -166,15 +161,15 @@ export function CommandRegistrations() {
       title="Discard local state?"
       message="This will delete the local copy of this workspace and rebuild it from the server. Any offline changes that have not yet synced will be lost."
       secondaryMessage="Use this when local state looks corrupt or out of sync."
-      confirmLabel="Discard and rebuild"
+      confirmLabel="Replace local copy"
       cancelLabel="Cancel"
       variant="danger"
       onConfirm={async () => {
         const workspaceId = activeWorkspace?.uuid;
         if (!workspaceId) return;
-        await resetActiveWorkspace();
+        await pullActiveWorkspace();
         useSyncStatusStore.getState().bumpWorkspaceResetNonce();
-        notifySuccess('Local state discarded', 'Rebuilding workspace from the server…');
+        notifySuccess('Local state replaced', 'Rebuilding workspace from the server…');
         setShowResetConfirm(false);
       }}
       onCancel={() => setShowResetConfirm(false)}

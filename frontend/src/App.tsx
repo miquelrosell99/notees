@@ -58,7 +58,6 @@ import {
   SyncConflictListener,
 } from '@/features/sync';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
-import { SyncProgressModal } from '@/components/ui/SyncProgressModal';
 import './App.css';
 
 const log = getLogger('App');
@@ -368,12 +367,6 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const pullProgress = useSyncStatusStore((s) =>
     workspaceId ? s.getWorkspaceProgress(workspaceId).pullProgress : DEFAULT_PROGRESS.pullProgress
   );
-  const forceResyncWorkspaceId = useSyncStatusStore((s) => s.forceResyncWorkspaceId);
-  const forceResyncPullProgress = useSyncStatusStore((s) =>
-    forceResyncWorkspaceId
-      ? s.getWorkspaceProgress(forceResyncWorkspaceId).pullProgress
-      : DEFAULT_PROGRESS.pullProgress
-  );
   const workspaceResetNonce = useSyncStatusStore((s) => s.workspaceResetNonce);
 
   // Diagnostic logging: if the workspace init effect re-runs, this tells us which
@@ -401,19 +394,6 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     useUndoStore.getState().setWorkspaceId(workspaceId);
   }, [workspaceId]);
-
-  // Diagnostic logging: a force re-sync locks the UI with a modal; log when it
-  // starts/stops so we can tell if the blank reload coincides with one.
-  const prevForceResyncRef = useRef(forceResyncWorkspaceId);
-  useEffect(() => {
-    const prev = prevForceResyncRef.current;
-    if (prev === forceResyncWorkspaceId) return;
-    prevForceResyncRef.current = forceResyncWorkspaceId;
-    log.info('[WorkspaceStoreInitializer] Force resync state changed', {
-      from: prev,
-      to: forceResyncWorkspaceId,
-    });
-  }, [forceResyncWorkspaceId]);
 
   useEffect(() => {
     if (!workspaceId || !authVerified || actorId === 'anonymous') {
@@ -628,25 +608,6 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
             />
           )}
         </>
-      )}
-      {forceResyncWorkspaceId && (
-        <SyncProgressModal
-          isOpen
-          label={`Re-syncing workspace… ${
-            forceResyncPullProgress && forceResyncPullProgress.total > 0
-              ? Math.round(
-                  (forceResyncPullProgress.applied /
-                    forceResyncPullProgress.total) *
-                    100
-                ) + '%'
-              : ''
-          }`}
-          progress={
-            forceResyncPullProgress && forceResyncPullProgress.total > 0
-              ? forceResyncPullProgress.applied / forceResyncPullProgress.total
-              : undefined
-          }
-        />
       )}
     </>
   );
