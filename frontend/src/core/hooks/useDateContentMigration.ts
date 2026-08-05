@@ -10,7 +10,6 @@
 
 import { useEffect, useRef } from 'react';
 import { useWorkspaceStoreClient } from './useWorkspaceStoreClient';
-import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { nodeNameToText } from '@/features/queries';
 import type { Node } from '@/types/api';
@@ -60,8 +59,7 @@ function markWorkspaceMigrated(workspaceUuid: string): void {
   }
 }
 
-export function useDateContentMigration(enabled: boolean): void {
-  const workspaceUuid = useCurrentWorkspaceUuid();
+export function useDateContentMigration(enabled: boolean, workspaceUuid: string | null): void {
   const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const ranRef = useRef(false);
 
