@@ -10,8 +10,8 @@
 import {
   getOrCreateWorkspaceStore,
   getActiveWorkspaceStore,
-  forceResyncWorkspace,
-  resetWorkspaceStore,
+  pushWorkspace,
+  pullWorkspace,
 } from './workspaceStoreAdapter';
 import type { Transport } from '../transport';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
@@ -166,27 +166,26 @@ export async function closeWorkspaceStoreClient(workspaceId: string): Promise<vo
 }
 
 /**
- * Force a full re-sync of the active workspace from the relay.
+ * Push any pending local operations for the active workspace to the server.
  *
  * This is the async-client entry point for the command palette and other
  * production UI. It delegates to the sync adapter which owns the SyncEngine.
  */
-export async function forceResyncActiveWorkspace(): Promise<void> {
+export async function pushActiveWorkspace(): Promise<void> {
   const store = getActiveWorkspaceStore();
   if (!store) {
     throw new Error('No workspace is open');
   }
-  return forceResyncWorkspace(store.getWorkspaceId());
+  return pushWorkspace(store.getWorkspaceId());
 }
 
 /**
- * Discard all local state for the active workspace and check out fresh from the
- * server.
+ * Pull the active workspace down from the server, discarding local derived state.
  */
-export async function resetActiveWorkspace(): Promise<void> {
+export async function pullActiveWorkspace(): Promise<void> {
   const store = getActiveWorkspaceStore();
   if (!store) {
     throw new Error('No workspace is open');
   }
-  return resetWorkspaceStore(store.getWorkspaceId());
+  return pullWorkspace(store.getWorkspaceId());
 }
