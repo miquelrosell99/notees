@@ -9,7 +9,7 @@
 import { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useNode } from '@/features/content';
-import { nodeNameToDisplayText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import { Spinner } from '@/components/ui/Spinner';
 import type { SidebarNodeType } from '@/stores';
@@ -25,6 +25,7 @@ interface SidebarNodeViewProps {
 
 export function SidebarNodeView({ nodeUuid, nodeType }: SidebarNodeViewProps) {
   const { data: node, isLoading, error } = useNode(nodeUuid);
+  const displayName = useNodeDisplayName(node);
   const { openNode, viewMode } = useNavigationStore(
     useShallow((state) => ({ openNode: state.openNode, viewMode: state.viewMode })),
   );
@@ -60,12 +61,12 @@ export function SidebarNodeView({ nodeUuid, nodeType }: SidebarNodeViewProps) {
           {nodeType === 'page' ? (
             <>
               <NodeIcon icon={node.icon} isPage={true} size="sm" className="sidebar-node-view__icon" />
-              <span className="sidebar-node-view__name">{nodeNameToDisplayText(node) || 'Untitled'}</span>
+              <span className="sidebar-node-view__name">{displayName}</span>
             </>
           ) : (
             <>
               <BulletIcon size="xs" className="sidebar-node-view__bullet" />
-              <span className="sidebar-node-view__name">{nodeNameToDisplayText(node) || 'Untitled'}</span>
+              <span className="sidebar-node-view__name">{displayName}</span>
             </>
           )}
         </div>
