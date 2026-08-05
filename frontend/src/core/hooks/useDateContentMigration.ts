@@ -60,11 +60,11 @@ function markWorkspaceMigrated(workspaceUuid: string): void {
 }
 
 export function useDateContentMigration(enabled: boolean, workspaceUuid: string | null): void {
-  const { client } = useWorkspaceStoreClient(workspaceUuid ?? '');
+  const { client, isLoading } = useWorkspaceStoreClient(workspaceUuid ?? '');
   const ranRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || !client || !workspaceUuid || ranRef.current) return;
+    if (!enabled || isLoading || !client || !workspaceUuid || ranRef.current) return;
     const migrated = getMigratedWorkspaces();
     if (migrated.has(workspaceUuid)) return;
 
@@ -101,5 +101,5 @@ export function useDateContentMigration(enabled: boolean, workspaceUuid: string 
     };
 
     void run();
-  }, [enabled, client, workspaceUuid]);
+  }, [enabled, isLoading, client, workspaceUuid]);
 }
