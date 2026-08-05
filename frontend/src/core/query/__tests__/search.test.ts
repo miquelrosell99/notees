@@ -129,4 +129,20 @@ describe('searchNodes', () => {
     expect(results[0].id).toBe('page-1');
     expect(results[1].id).toBe('block-1');
   });
+
+  it('ranks the scored candidate window and keeps remaining candidates in search order', async () => {
+    const store = await makeStore();
+    // Create more candidates than the scored window so we exercise both paths.
+    for (let i = 0; i < 110; i++) {
+      createPage(store, `page-${i}`, `common word ${i}`);
+    }
+
+    const results = searchNodes(store, 'common');
+    expect(results.length).toBe(110);
+
+    // The first 100 candidates are scored and should be ordered by hit count.
+    // The remaining 10 have score 0 and follow in candidate order.
+    const zeroScoreIndex = results.findIndex((r) => r.score === 0);
+    expect(zeroScoreIndex).toBeGreaterThanOrEqual(100);
+  });
 });
