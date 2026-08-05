@@ -24,7 +24,7 @@ import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations
 import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToText, useNodeDisplayName } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -145,6 +145,7 @@ export const NodeCard = memo(function NodeCard({
 }: NodeCardProps): JSX.Element {
   const children = useMemo(() => node.children ?? [], [node.children]);
   const hasChildren = children.length > 0;
+  const displayName = useNodeDisplayName(node);
 
   // Mutations
   const removeClass = useRemoveClass();
@@ -550,7 +551,7 @@ export const NodeCard = memo(function NodeCard({
       >
         <AssetImage
           assetNodeId={coverImageId}
-          alt={`Cover image for ${nodeNameToText(node.name) || 'Untitled'}`}
+          alt={`Cover image for ${displayName}`}
           className="node-card__cover-image"
           assetVariant="card-cover"
           showCard={false}
@@ -617,7 +618,7 @@ export const NodeCard = memo(function NodeCard({
               size="sm"
               checked={isSelected}
               onChange={handleCheckboxChange}
-              aria-label={`Select ${nodeNameToText(node.name) || 'Untitled'}`}
+              aria-label={`Select ${displayName}`}
             />
           </div>
         )}

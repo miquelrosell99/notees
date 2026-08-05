@@ -13,7 +13,7 @@ import { NodeSelector, nodeViewKeys } from '@/features/content';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentNodeUuid, useOpenNode } from '@/features/layout';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { useNode } from '@/features/content';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
@@ -186,7 +186,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
       title="Confirm Merge"
       message={
         sourceNode && targetNode
-          ? `This will move all blocks from "${nodeNameToText(sourceNode.name) || 'source'}" into "${nodeNameToText(targetNode.name) || 'target'}" and delete the source. This cannot be easily undone.`
+          ? `This will move all blocks from "${nodeNameToDisplayText(sourceNode) || 'source'}" into "${nodeNameToDisplayText(targetNode) || 'target'}" and delete the source. This cannot be easily undone.`
           : 'Are you sure you want to merge these pages?'
       }
       onConfirm={handleProceed}
