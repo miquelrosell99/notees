@@ -8,7 +8,7 @@ import type { Node } from '@/types';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { formatDatePageContent } from '@/utils/datePageDisplay';
 import { nodeNameToText } from './hooks/useStringifyAST';
-import { useSettingsStore } from '@/stores';
+import { useSettingsStore, type DateFormat } from '@/stores';
 
 const DATE_CLASS_UUIDS: Set<string> = new Set([
   SYSTEM_CLASS_UUIDS.day,
@@ -18,6 +18,7 @@ const DATE_CLASS_UUIDS: Set<string> = new Set([
 
 export interface NodeDisplayNameOptions {
   maxLength?: number;
+  dateFormat?: DateFormat;
 }
 
 /**
@@ -39,7 +40,7 @@ export function nodeNameToDisplayText(
   const isDatePage = node.classes_uuid?.some((id) => DATE_CLASS_UUIDS.has(id));
   if (!isDatePage) return raw;
 
-  const dateFormat = useSettingsStore.getState().dateFormat;
+  const dateFormat = options?.dateFormat ?? useSettingsStore.getState().dateFormat;
   return formatDatePageContent(raw, dateFormat) ?? raw;
 }
 
@@ -52,8 +53,5 @@ export function useNodeDisplayName(
   fallback = 'Untitled',
 ): string {
   const dateFormat = useSettingsStore((s) => s.dateFormat);
-  // The subscription is what makes the hook reactive to date-format changes;
-  // nodeNameToDisplayText reads the current format from the store itself.
-  void dateFormat;
-  return nodeNameToDisplayText(node) || fallback;
+  return nodeNameToDisplayText(node, { dateFormat }) || fallback;
 }
