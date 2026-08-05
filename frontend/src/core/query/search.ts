@@ -32,6 +32,9 @@ export const SEARCH_RESULT_LIMIT = 500;
 /** How many of the cheap candidate rows get TF-IDF scoring.
  *  Keeping this small avoids the O(rows) cost of matchinfo('pcx') on large workspaces. */
 const SCORED_RESULT_LIMIT = 100;
+/** How many more FTS matches to fetch than the final limit, so post-join
+ *  metadata filters (kind, class) do not starve the result set. */
+const CANDIDATE_OVER_FETCH = 4;
 
 function tokenise(query: string): string[] {
   return query
@@ -155,19 +158,42 @@ function runSearchForKind(
   totalDocs: number,
   limit: number,
 ): SearchResult[] {
-  const baseParams: (string | number)[] = [workspaceId, matchExpr];
-  const kindFilters: SearchFilters = { ...filters, isPage: kind === 'page' };
-  const where = buildSearchWhere(kindFilters, baseParams);
+  // Build the post-join filters (workspace + kind + optional class filters).
+  // The MATCH clause is evaluated inside a FTS-first subquery so SQLite cannot
+  // choose a plan that scans the node table and probes the virtual table for
+  // every row of the workspace.
+  const postFilterParams: (string | number)[] = [workspaceId];
+  const postFilters: string[] = ['n.workspace_id = ?', 'n.kind = ?'];
+  postFilterParams.push(kind === 'page' ? 'page' : 'block');
+
+  if (filters.classUuids && filters.classUuids.length > 0) {
+    const clauses: string[] = [];
+    for (const classUuid of filters.classUuids) {
+      clauses.push(`EXISTS (SELECT 1 FROM json_each(n.class_ids) WHERE value = ?)`);
+      postFilterParams.push(classUuid);
+    }
+    postFilters.push(`(${clauses.join(' OR ')})`);
+  }
 
   // Step 1: cheaply fetch candidate IDs without the expensive matchinfo() call.
+  // The inner SELECT hits the FTS index first, then we join to node and apply
+  // metadata filters. We over-fetch to compensate for rows dropped by those
+  // metadata filters, then apply the final LIMIT.
   const candidateSql = `
     SELECT n.id, n.kind
-    FROM search_index si
+    FROM (
+      SELECT node_id FROM search_index WHERE content MATCH ? LIMIT ?
+    ) si
     JOIN node n ON n.id = si.node_id
-    WHERE ${where.join(' AND ')}
+    WHERE ${postFilters.join(' AND ')}
     LIMIT ?
   `;
-  const candidateParams = [...baseParams, limit];
+  const candidateParams = [
+    matchExpr,
+    limit * CANDIDATE_OVER_FETCH,
+    ...postFilterParams,
+    limit,
+  ];
   const candidates = queryAll<CandidateResult>(db, candidateSql, candidateParams);
 
   if (candidates.length === 0) {
@@ -179,13 +205,15 @@ function runSearchForKind(
   // of the candidates keep score 0 and fall back to the cheap candidate order.
   const scoredCandidates = candidates.slice(0, SCORED_RESULT_LIMIT);
   const placeholders = scoredCandidates.map(() => '?').join(',');
+  const scoreBaseParams: (string | number)[] = [workspaceId, matchExpr];
+  const scoreFilters = buildSearchWhere({ ...filters, isPage: kind === 'page' }, scoreBaseParams);
   const scoreSql = `
     SELECT n.id, n.kind, matchinfo(search_index, 'pcx') AS mi
     FROM search_index si
     JOIN node n ON n.id = si.node_id
-    WHERE n.id IN (${placeholders}) AND ${where.join(' AND ')}
+    WHERE n.id IN (${placeholders}) AND ${scoreFilters.join(' AND ')}
   `;
-  const scoreParams = [...scoredCandidates.map((c) => c.id), ...baseParams];
+  const scoreParams = [...scoredCandidates.map((c) => c.id), ...scoreBaseParams];
   const rows = queryAll<RawResult>(db, scoreSql, scoreParams);
 
   const scores = new Map<string, number>();
