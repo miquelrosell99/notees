@@ -15,7 +15,7 @@ import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { nodeNameToText } from '@/features/queries';
 import type { Node } from '@/types/api';
 
-const MIGRATION_FLAG_KEY = 'notees_date_content_migration_v1';
+const MIGRATION_FLAG_KEY = 'notees_date_content_migration_v2';
 
 function expectedDateContent(node: Node): string | null {
   if (node.is_daily) {
