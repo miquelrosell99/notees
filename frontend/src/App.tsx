@@ -38,7 +38,6 @@ import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOve
 import { getLogger } from './utils/logger';
 import { pluginManager } from '@/plugins/core';
 import { WorkspaceStoreProvider } from '@/core/hooks/WorkspaceStoreProvider';
-import { useDateContentMigration } from '@/core/hooks/useDateContentMigration';
 import {
   ensureSqlInitialized,
   getSqlInitError,
@@ -320,11 +319,6 @@ function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DateContentMigration({ workspaceUuid }: { workspaceUuid: string }) {
-  useDateContentMigration(true, workspaceUuid);
-  return null;
-}
-
 /**
  * Initialize the local-first workspace store for the active workspace and
  * provide it (plus the transport) to the rest of the app.
@@ -592,7 +586,6 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
           <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>
             {children}
             {workspaceId && <SyncConflictListener workspaceId={workspaceId} />}
-            {workspaceId && isReady && <DateContentMigration workspaceUuid={workspaceId} />}
           </WorkspaceStoreProvider>
         ) : (
           children
