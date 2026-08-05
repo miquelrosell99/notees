@@ -56,19 +56,13 @@
 
 - [ ] **Step 2: Add early return for empty pinned list**
 
-  In the `SidebarPinnedPages` function body, after reading `pinnedPages` from the store (around line 114), add:
+  In the `SidebarPinnedPages` function body, add:
 
   ```tsx
   if (pinnedPages.length === 0) return null;
   ```
 
-  Place it immediately after:
-
-  ```tsx
-  const pinnedPages = usePinnedPagesStore((s) => s.pinnedPages);
-  const togglePin = usePinnedPagesStore((s) => s.togglePin);
-  const unpinPage = usePinnedPagesStore((s) => s.unpinPage);
-  ```
+  Place it **after all hook calls** and just before the JSX `return`. In the final component order this means after `useNavigationStore`, `useIsMobile`, `useNodeByUuid`, the `useCallback` hooks (`closeMobileDrawer`, `handleNavigate`, `handleUnpin`, `handleTogglePinCurrent`), and the derived state `currentPageIsPinnable` / `currentPageIsPinned`. The guard appears immediately after `handleTogglePinCurrent` (around line 162) and before the `<div className="sidebar-section">` JSX return. This placement preserves React's Rules of Hooks — an early return is only safe once every hook for the render has already been invoked.
 
 - [ ] **Step 3: Remove the unreachable empty-state branch**
 
