@@ -16,7 +16,7 @@ Display date pages formatted per user preference everywhere a node name is rende
 
 ## Constraints
 
-- `nodeNameToText` is used in 600+ places across the frontend, including search/filter logic, exact-match checks, query evaluation, and display. Its behavior must remain unchanged.
+- `nodeNameToText` is used in 600+ places across the frontend, including search/filter logic, exact-match checks, query evaluation, and display. Its core contract — return the raw text of a node name with no date formatting — must remain unchanged, but it was amended to correctly extract plain-text and bare-inline-node names (e.g. compact numeric date content like `"20260805"`) that previously rendered as empty strings. This amendment is a bugfix, not a behavior change for callers that already expected text.
 - Formatting must be class-aware: only nodes with the system date classes (`day`, `month`, `year`) should be formatted. A user-created page literally named `20260805` must not be reformatted unless it has the date class.
 - The solution must react live to changes in `useSettingsStore.dateFormat`.
 
@@ -85,6 +85,7 @@ The following display surfaces should use the new helper/hook instead of calling
 ### What stays unchanged
 
 - `nodeNameToText` remains a plain AST/text extractor with no date formatting.
+- `nodeNameToText` was amended to fall back to plain text for bare inline text nodes and compact numeric strings that `parseAST` returns as an empty document. This fixes a long-standing bug where date-page content like `"20260805"` produced an empty display/search name.
 - Search/filter/matching code continues to use raw `nodeNameToText`:
   - `useNodeSearch`
   - `useNodeDateQueries` and `useNodeDateQueries.store`
