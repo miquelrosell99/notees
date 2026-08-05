@@ -24,11 +24,12 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useBreadcrumbs } from '@/hooks';
-import { useUpdateNode } from '@/features/content';
+import { useUpdateNode, useBatchNodesByUuid, useNodeByUuid } from '@/features/content';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText, nodeNameToText, useNodeDisplayName } from '@/features/queries';
 import { useClickOutside } from '@/hooks/useClickOutside';
+import { useSettingsStore } from '@/stores';
 import { ChevronRightIcon, NodeIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
@@ -137,10 +138,11 @@ function NodeBreadcrumbsElement({
 /** Single item inside the breadcrumbs overflow popup. Lives in its own
  *  component so it can subscribe to the core store for a fresh name. */
 function BreadcrumbPopupItem({ item, onClick }: { item: BreadcrumbItem; onClick: (item: BreadcrumbItem) => void }) {
-  const liveName = useCoreDisplayName(item.isProperty ? null : item.nodeUuid, item.name);
+  const { data: itemNode } = useNodeByUuid(item.isProperty ? null : item.nodeUuid);
+  const itemDisplayName = useNodeDisplayName(itemNode);
   const label = item.isProperty
     ? item.name
-    : (item.displayName || nodeNameToText(liveName) || 'Untitled');
+    : (item.displayName || itemDisplayName);
   return (
     <button
       className={`node-breadcrumbs-popup-item ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
@@ -215,6 +217,9 @@ function useAncestorChain(
 ): { items: BreadcrumbItem[]; isPending: boolean; unresolved: boolean } {
   const effectiveUuid = nodeUuid ?? null;
   const { data: breadcrumbs, isPending } = useBreadcrumbs(effectiveUuid);
+  const nodeUuids = useMemo(() => breadcrumbs?.map((b) => b.uuid) ?? [], [breadcrumbs]);
+  const { data: batchNodes } = useBatchNodesByUuid(nodeUuids);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const items = useMemo(() => {
     if (!breadcrumbs || breadcrumbs.length === 0) return [];
@@ -222,10 +227,16 @@ function useAncestorChain(
     const chain: BreadcrumbItem[] = [];
     for (const item of breadcrumbs) {
       const isProperty = item.is_property ?? false;
+      const node = batchNodes?.nodes[item.uuid];
+      const displayName = item.display_name
+        ? node
+          ? nodeNameToDisplayText({ ...node, name: item.display_name })
+          : nodeNameToText(item.display_name)
+        : undefined;
       chain.push({
         nodeUuid: item.uuid,
         name: item.name || '',
-        displayName: item.display_name ? nodeNameToText(item.display_name) : undefined,
+        displayName,
         icon: isProperty ? (item.icon || PROPERTY_TYPE_ICONS.text) : item.icon,
         isPage: item.is_page,
         isProperty,
@@ -235,7 +246,10 @@ function useAncestorChain(
     }
 
     return chain;
-  }, [breadcrumbs]);
+    // dateFormat is read inside nodeNameToDisplayText; keep it in deps so the
+    // breadcrumb labels react to date-format preference changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breadcrumbs, batchNodes, dateFormat]);
 
   return { items, isPending: isPending && !!effectiveUuid, unresolved: effectiveUuid === null };
 }

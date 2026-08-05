@@ -14,7 +14,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import { listCorePagesAsync } from '@/core/query/listPages';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
@@ -87,12 +87,12 @@ export function PageHeader({
   const [classQuery, setClassQuery] = useState('');
   
   // Local state for input value (to show preview before committing)
-  const [inputValue, setInputValue] = useState(nodeNameToText(page.name) || '');
-  
-  // Sync with page name when it changes externally
+  const displayName = useNodeDisplayName(page);
+  const [inputValue, setInputValue] = useState(displayName);
+
   useEffect(() => {
-    setInputValue(nodeNameToText(page.name) || '');
-  }, [page.name]);
+    setInputValue(displayName);
+  }, [displayName]);
   
   // Adaptive title scale based on title length
   const titleSizeClass = useMemo(() => {
