@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { SearchBox } from '@/components/ui';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearch } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { NodeIcon } from '@/components/ui/icons';
 import type { Node } from '@/types';
 import { searchKeys } from '@/hooks/queryKeys';
@@ -56,7 +56,7 @@ const defaultRenderNode = (node: Node): ReactNode => (
       <NodeIcon icon={node.icon} isPage={true} />
     </span>
     <span className="result-title">
-      {nodeNameToText(node.name) || 'Untitled'}
+      {nodeNameToDisplayText(node) || 'Untitled'}
     </span>
   </>
 );

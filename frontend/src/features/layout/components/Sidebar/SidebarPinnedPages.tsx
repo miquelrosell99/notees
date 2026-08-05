@@ -3,7 +3,7 @@ import { useNavigationStore, usePinnedPagesStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useIsMobile } from '@/hooks';
 import { useNodeByUuid } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import { useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import { isApiError } from '@/api/client';
 import { Button } from '@/components/ui/Button';
@@ -56,12 +56,14 @@ const PinnedItem = memo(function PinnedItem({ nodeUuid, isActive, onClick, onNav
     }
   }, [nodeUuid, onNavigate]);
 
+  const displayName = useNodeDisplayName(node);
+
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
     <button
       type="button"
-      aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading pinned page'}
+      aria-label={displayName}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
       onKeyDown={handleKeyDown}

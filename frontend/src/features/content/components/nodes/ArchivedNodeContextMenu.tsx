@@ -5,7 +5,7 @@
  */
 import { useCallback, useState } from 'react';
 import { useUnarchiveNode, useDeleteNode, useLinkedReferencesCount } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { ContextMenu } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useAddSidebarCardAction, useOpenLocalGraphAction } from '@/features/layout';
@@ -181,7 +181,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       <ConfirmationModal
         isOpen={showUnarchiveModal}
         title="Unarchive Page"
-        message={`Unarchive "${nodeNameToText(node.name) || 'Untitled'}"? It will be restored to normal view.`}
+        message={`Unarchive "${nodeNameToDisplayText(node) || 'Untitled'}"? It will be restored to normal view.`}
         confirmLabel="Unarchive"
         cancelLabel="Cancel"
         variant="primary"
@@ -191,7 +191,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       <ConfirmationModal
         isOpen={showDeleteModal}
         title={`Delete ${node.is_page ? 'page' : 'block'}`}
-        message={`Are you sure you want to delete "${nodeNameToText(node.name) || 'Untitled'}"? It will be moved to trash.`}
+        message={`Are you sure you want to delete "${nodeNameToDisplayText(node) || 'Untitled'}"? It will be moved to trash.`}
         secondaryMessage={linkedRefsCount > 0 ? `This ${node.is_page ? 'page' : 'block'} is linked in ${linkedRefsCount} other node${linkedRefsCount === 1 ? '' : 's'}.` : undefined}
         confirmLabel="Delete"
         cancelLabel="Cancel"

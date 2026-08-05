@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { useNode } from '@/features/content';
 import { useSettingsStore } from '@/stores';
 import { usePresentationState } from '@/features/content/hooks/usePresentationSelectors';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { Button } from '@/components/ui/Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
@@ -24,7 +24,7 @@ import './PresentationModal.css';
 
 
 function getSlideTitle(node: Node): string {
-  return nodeNameToText(node.name) || 'Untitled';
+  return nodeNameToDisplayText(node) || 'Untitled';
 }
 
 export function PresentationModal() {

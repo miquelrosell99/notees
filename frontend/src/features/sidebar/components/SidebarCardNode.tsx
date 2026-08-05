@@ -7,7 +7,7 @@
  */
 import { useCallback } from 'react';
 import { useNode } from '@/features/content';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import { SidebarCard } from './SidebarCard';
 import { SidebarNodeView } from './SidebarNodeView';
@@ -36,13 +36,13 @@ export function SidebarCardNode({ nodeUuid, cardType, onClose }: SidebarCardNode
       'application/x-notees-node',
       JSON.stringify({
         nodeUuid: node.uuid,
-        name: nodeNameToText(node.name) || 'Untitled',
+        name: nodeNameToDisplayText(node) || 'Untitled',
       })
     );
     e.dataTransfer.effectAllowed = 'link';
   }, [node]);
 
-  const titleText = nodeNameToText(node?.name) || 'Untitled';
+  const titleText = nodeNameToDisplayText(node) || 'Untitled';
 
   const title = (
     <button

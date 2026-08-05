@@ -8,7 +8,7 @@ import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSec
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
 import { MetadataIcon } from '@/components/ui/icons';
 import type { Node } from '@/types/api';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import './NodeMetadataSection.css';
 
 interface NodeMetadataSectionProps {
@@ -152,9 +152,9 @@ export function NodeMetadataSection({
               type="button"
               className="alias-of-link"
               onClick={() => onNavigateToNode(aliasedNode.uuid)}
-              title={nodeNameToText(aliasedNode.name) || 'Untitled'}
+              title={nodeNameToDisplayText(aliasedNode) || 'Untitled'}
             >
-              {nodeNameToText(aliasedNode.name) || 'Untitled'}
+              {nodeNameToDisplayText(aliasedNode) || 'Untitled'}
             </button>
           </div>
         )}

@@ -4,7 +4,7 @@
  * Context menu for nodes in the trash view with restore and permanent delete actions.
  */
 import { useCallback, useState } from 'react';
-import { nodeNameToText } from '@/features/queries';
+import { nodeNameToDisplayText } from '@/features/queries';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import type { Node } from '@/types';
@@ -98,7 +98,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
       <ConfirmationModal
         isOpen={showRestoreModal}
         title="Restore Node"
-        message={`Restore "${nodeNameToText(node.name) || 'Untitled'}" from trash?`}
+        message={`Restore "${nodeNameToDisplayText(node) || 'Untitled'}" from trash?`}
         confirmLabel="Restore"
         cancelLabel="Cancel"
         variant="primary"
@@ -108,7 +108,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
       <ConfirmationModal
         isOpen={showPermanentDeleteModal}
         title="Permanently Delete"
-        message={`Are you sure you want to permanently delete "${nodeNameToText(node.name) || 'Untitled'}"? This cannot be undone!`}
+        message={`Are you sure you want to permanently delete "${nodeNameToDisplayText(node) || 'Untitled'}"? This cannot be undone!`}
         confirmLabel="Delete Permanently"
         cancelLabel="Cancel"
         variant="danger"
