@@ -356,25 +356,27 @@ function resolvePageUuids(
   }
   if (idsNeedingResolution.length === 0) return result;
 
-  // Resolve via recursive CTE in a single query.
+  // Resolve via recursive CTE in a single query. Walk up parent_id until we
+  // hit a page. The CTE stops as soon as a page ancestor is found, and returns
+  // that page's id (not its parent).
   for (let i = 0; i < idsNeedingResolution.length; i += MAX_BATCH_PARAMS) {
     const chunk = idsNeedingResolution.slice(i, i + MAX_BATCH_PARAMS);
     const placeholders = chunk.map(() => '?').join(',');
     const rows = queryAll<{ id: string; page_id: string | null }>(
       db,
-      `WITH RECURSIVE page_chain(id, current_id, kind, depth) AS (
-         SELECT id, id, kind, 0
+      `WITH RECURSIVE page_chain(id, current_id, found_page, depth) AS (
+         SELECT id, id, (kind = 'page'), 0
          FROM node
          WHERE id IN (${placeholders})
          UNION ALL
-         SELECT pc.id, n.id, n.kind, pc.depth + 1
+         SELECT pc.id, n.parent_id, (n.kind = 'page'), pc.depth + 1
          FROM page_chain pc
          JOIN node n ON n.id = pc.current_id
-         WHERE pc.kind != 'page' AND pc.depth < 100
+         WHERE NOT pc.found_page AND pc.depth < 100 AND pc.current_id IS NOT NULL
        )
        SELECT id, current_id AS page_id
        FROM page_chain
-       WHERE kind = 'page'`,
+       WHERE found_page`,
       chunk
     );
     for (const id of chunk) {
@@ -548,17 +550,23 @@ export function projectNodesFromDbBatched(
       .filter((n): n is Node => n !== undefined);
   }
 
+  const totalStart = performance.now();
   const nodeRows = fetchNodeRows(db, nodeIds);
   const missingIds = nodeIds.filter((id) => !nodeRows.has(id));
   const classRows = missingIds.length > 0 ? getClasses(db, missingIds) : [];
   const classRowById = new Map(classRows.map((c) => [c.id, c]));
 
+  const t1 = performance.now();
   const pageUuids = resolvePageUuids(db, nodeRows);
+  const t2 = performance.now();
   const childrenMap = fetchChildrenMap(db, nodeIds);
+  const t3 = performance.now();
   const propertiesMap = fetchPropertiesMap(db, nodeIds);
+  const t4 = performance.now();
   const { aliases, canonical } = fetchAliasesMaps(db, nodeIds);
+  const t5 = performance.now();
 
-  return nodeIds
+  const result = nodeIds
     .map((nodeId) => {
       const row = nodeRows.get(nodeId);
       if (row) {
@@ -578,6 +586,22 @@ export function projectNodesFromDbBatched(
       return undefined;
     })
     .filter((n): n is Node => n !== undefined);
+
+  const totalMs = performance.now() - totalStart;
+  if (totalMs > 500) {
+    console.warn(
+      `[projectNodesFromDbBatched] slow projection for ${nodeIds.length} ids ` +
+        `(${totalMs.toFixed(1)}ms total; ` +
+        `fetch=${(t1 - totalStart).toFixed(1)}ms ` +
+        `pages=${(t2 - t1).toFixed(1)}ms ` +
+        `children=${(t3 - t2).toFixed(1)}ms ` +
+        `props=${(t4 - t3).toFixed(1)}ms ` +
+        `aliases=${(t5 - t4).toFixed(1)}ms ` +
+        `build=${(performance.now() - t5).toFixed(1)}ms)`
+    );
+  }
+
+  return result;
 }
 
 /**
