@@ -22,7 +22,7 @@ services:
       retries: 5
 
   # PostgreSQL database
-  postgres:
+  db:
     image: postgres:17-alpine
     container_name: notees-postgres-dev
     restart: unless-stopped
@@ -67,11 +67,11 @@ services:
       HOST: 0.0.0.0
       PORT: 8000
       TZ: ${TZ:-UTC}
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
-      TEST_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/notees_test
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/notees_test
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
     volumes:
@@ -82,7 +82,7 @@ services:
       - ./.config/notees-backend-dev/data:/app/data
       - ./.config/notees-backend-dev/logs:/app/logs
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy

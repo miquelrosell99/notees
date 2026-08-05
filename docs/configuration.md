@@ -63,7 +63,7 @@ python scripts/promote_user_to_admin.py <email>
 | `POSTGRES_DB` | `notees` | PostgreSQL database name. |
 | `POSTGRES_PASSWORD` | (required) | PostgreSQL password. |
 
-In `compose.dev.yaml`, the backend connects to `postgres:5432` inside the container network and the host exposes `5433`.
+In `compose.dev.yaml`, the backend connects to `db:5432` inside the container network and the host exposes `5433`.
 
 ---
 

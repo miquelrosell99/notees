@@ -21,7 +21,7 @@ services:
       timeout: 5s
       retries: 5
 
-  postgres:
+  db:
     image: postgres:17-alpine
     container_name: notees-postgres
     restart: unless-stopped
@@ -51,7 +51,7 @@ services:
     environment:
       HOST: 0.0.0.0
       TZ: ${TZ:-UTC}
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
@@ -67,7 +67,7 @@ services:
       retries: 3
       start_period: 30s
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy
