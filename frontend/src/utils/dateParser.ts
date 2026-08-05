@@ -7,7 +7,7 @@
  * day/month/year page.
  * 
  * Supported formats:
- * - ISO: 2026-02-09, 2026/02/09
+ * - ISO: 20260804, 202604, 2026-02-09, 2026/02/09
  * - US: 02/09/2026, 02-09-2026
  * - EU: 09.02.2026
  * - Named months: Feb 9, 2026 / February 9 2026 / 9 Feb 2026 / Feb 2026
@@ -154,6 +154,27 @@ export function parseDate(input: string): ParsedDate | null {
     else if (unit === 'month') d.setMonth(d.getMonth() - n);
     else if (unit === 'year') d.setFullYear(d.getFullYear() - n);
     return { type: 'day', year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: formatLabel('day', d.getFullYear(), d.getMonth() + 1, d.getDate()) };
+  }
+
+  // --- ISO basic format: YYYYMMDD ---
+  const isoBasicMatch = trimmed.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (isoBasicMatch) {
+    const year = parseInt(isoBasicMatch[1], 10);
+    const month = parseInt(isoBasicMatch[2], 10);
+    const day = parseInt(isoBasicMatch[3], 10);
+    if (isValidDate(year, month, day)) {
+      return { type: 'day', year, month, day, label: formatLabel('day', year, month, day) };
+    }
+  }
+
+  // --- ISO basic month: YYYYMM ---
+  const isoBasicMonthMatch = trimmed.match(/^(\d{4})(\d{2})$/);
+  if (isoBasicMonthMatch) {
+    const year = parseInt(isoBasicMonthMatch[1], 10);
+    const month = parseInt(isoBasicMonthMatch[2], 10);
+    if (isValidDate(year, month)) {
+      return { type: 'month', year, month, label: formatLabel('month', year, month) };
+    }
   }
 
   // --- ISO format: YYYY-MM-DD or YYYY/MM/DD ---

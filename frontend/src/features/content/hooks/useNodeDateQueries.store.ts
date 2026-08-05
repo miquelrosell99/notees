@@ -31,7 +31,7 @@ const DAILY_PAGES_QUERY = { classIds: [SYSTEM_CLASS_UUIDS.day], projectionDepth:
 function dailyNoteIdentity(dateStr: string): DateNoteIdentity {
   return {
     nodeId: dateStrToDayUuid(dateStr),
-    label: dateStr,
+    label: dateStr.replace(/-/g, ''),
     classId: SYSTEM_CLASS_UUIDS.day,
   };
 }
@@ -39,7 +39,7 @@ function dailyNoteIdentity(dateStr: string): DateNoteIdentity {
 function monthlyNoteIdentity(year: number, month: number): DateNoteIdentity {
   return {
     nodeId: yearMonthToMonthUuid(year, month),
-    label: `${year}-${String(month).padStart(2, '0')}`,
+    label: `${year}${String(month).padStart(2, '0')}00`,
     classId: SYSTEM_CLASS_UUIDS.month,
   };
 }
@@ -47,7 +47,7 @@ function monthlyNoteIdentity(year: number, month: number): DateNoteIdentity {
 function yearlyNoteIdentity(year: number): DateNoteIdentity {
   return {
     nodeId: yearToYearUuid(year),
-    label: `${year}`,
+    label: `${year}0000`,
     classId: SYSTEM_CLASS_UUIDS.year,
   };
 }
@@ -67,24 +67,27 @@ function setDatePageContent(store: WorkspaceStore, nodeId: string, name: string)
 }
 
 function findDayNoteByName(store: WorkspaceStore, dateStr: string): Node | undefined {
+  const compactLabel = dateStr.replace(/-/g, '');
   const dayNodes = queryNodes(store, {
     classIds: [SYSTEM_CLASS_UUIDS.day],
-    query: dateStr,
+    query: compactLabel,
     projectionDepth: 0,
   });
-  return findDateNoteByName(dayNodes, dateStr);
+  return findDateNoteByName(dayNodes, compactLabel);
 }
 
-function findMonthlyNoteByName(store: WorkspaceStore, label: string): Node | undefined {
+function findMonthlyNoteByName(store: WorkspaceStore, year: number, month: number): Node | undefined {
+  const compactLabel = `${year}${String(month).padStart(2, '0')}00`;
   const monthNodes = queryNodes(store, {
     classIds: [SYSTEM_CLASS_UUIDS.month],
-    query: label,
+    query: compactLabel,
     projectionDepth: 0,
   });
-  return findDateNoteByName(monthNodes, label);
+  return findDateNoteByName(monthNodes, compactLabel);
 }
 
-function findYearlyNoteByName(store: WorkspaceStore, label: string): Node | undefined {
+function findYearlyNoteByName(store: WorkspaceStore, year: number): Node | undefined {
+  const label = `${year}0000`;
   const yearNodes = queryNodes(store, {
     classIds: [SYSTEM_CLASS_UUIDS.year],
     query: label,
@@ -157,7 +160,7 @@ export function getOrCreateMonthlyNote(
   return getOrCreateDateNote(
     store,
     monthlyNoteIdentity(year, month),
-    () => findMonthlyNoteByName(store, `${year}-${String(month).padStart(2, '0')}`),
+    () => findMonthlyNoteByName(store, year, month),
     yearly.uuid,
   );
 }
@@ -169,7 +172,7 @@ export function getOrCreateYearlyNote(store: WorkspaceStore, year: number): Node
   return getOrCreateDateNote(
     store,
     yearlyNoteIdentity(year),
-    () => findYearlyNoteByName(store, `${year}`),
+    () => findYearlyNoteByName(store, year),
     null,
   );
 }

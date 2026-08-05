@@ -154,10 +154,10 @@ export function useNodeSearch(
   );
 
   // Determine if "Create new" option should be shown
-  // Don't show while still debouncing to prevent "Create page" flash
+  // Don't show while still debouncing or fetching to prevent "Create page" flash / duplicates
   const showCreateOption = useMemo(() => {
     if (!query.trim()) return false;
-    if (debouncedQuery !== query) return false; // Still debouncing, don't flash "Create"
+    if (isLoading) return false;
 
     const parsed = parseHierarchicalPath(query);
     const searchTerm = parsed.isHierarchical ? parsed.leaf : query;
@@ -186,7 +186,7 @@ export function useNodeSearch(
 
     // No exact match in page results (case-sensitive comparison)
     return !pageResults.some(r => nodeNameToText(r.node.name) === searchTerm);
-  }, [pageResults, query, debouncedQuery, allPages]);
+  }, [pageResults, query, allPages, isLoading]);
 
   return {
     pageResults,
