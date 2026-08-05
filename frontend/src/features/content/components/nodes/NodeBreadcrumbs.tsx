@@ -230,7 +230,7 @@ function useAncestorChain(
       const node = batchNodes?.nodes[item.uuid];
       const displayName = item.display_name
         ? node
-          ? nodeNameToDisplayText({ ...node, name: item.display_name })
+          ? nodeNameToDisplayText({ ...node, name: item.display_name }, { dateFormat })
           : nodeNameToText(item.display_name)
         : undefined;
       chain.push({
@@ -246,9 +246,6 @@ function useAncestorChain(
     }
 
     return chain;
-    // dateFormat is read inside nodeNameToDisplayText; keep it in deps so the
-    // breadcrumb labels react to date-format preference changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [breadcrumbs, batchNodes, dateFormat]);
 
   return { items, isPending: isPending && !!effectiveUuid, unresolved: effectiveUuid === null };
