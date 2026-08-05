@@ -34,6 +34,7 @@ interface UseCommandPaletteItemsParams {
   currentNodeUuid: string | null;
   showDevOptions: boolean;
   isTypingColon: boolean;
+  isLoading: boolean;
 }
 
 export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): ItemEntry[] {
@@ -64,6 +65,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     currentNodeUuid,
     showDevOptions,
     isTypingColon,
+    isLoading,
   } = params;
 
   return useMemo<ItemEntry[]>(() => {
@@ -151,7 +153,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
       ? ` with ${selectedClasses.length === 1 ? `class "${nodeNameToText(selectedClasses[0].name)}"` : `${selectedClasses.length} classes`}`
       : '';
     const hasExactMatch = displayedPages.some(({ node }) => nodeNameToText(node.name)?.toLowerCase() === pageNameForCreation.toLowerCase());
-    if (pageNameForCreation) {
+    if (pageNameForCreation && !isLoading) {
       const label = hasExactMatch
         ? `Create another "${pageNameForCreation}"${classLabels || ' (pick a class to differentiate)'}`
         : `Create page "${pageNameForCreation}"${classLabels}`;
@@ -187,6 +189,6 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     parsedDate, existingDateNode, commands, pageMap, recentAccessedPages, recentCreatedPages,
     randomPages, maxPages, maxBlocks, maxProperties, uuidSearch, appliedFilters, isTypingBoolean,
     booleanOptions, suggestedPrefixes, activeFilter, formatParsedDateLabel, currentNodeUuid,
-    showDevOptions, isTypingColon,
+    showDevOptions, isTypingColon, isLoading,
   ]);
 }
