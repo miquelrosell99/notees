@@ -4,7 +4,7 @@ import type { SearchResult } from './CommandPalette.types';
 import { HighlightText } from './CommandPalette.utils';
 import { NodeIcon, BulletIcon, PropertiesIcon } from '@/components/ui/icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { nodeNameToText, nodeNameToDisplayText } from '@/features/queries';
+import { nodeNameToText, useNodeDisplayName } from '@/features/queries';
 import './CommandPalette.css';
 
 interface ResultItemProps {
@@ -37,7 +37,9 @@ export function ResultItem({
   const aliasedNode = result.node?.aliased_uuid && allNodes
     ? allNodes.find(n => n.uuid === result.node?.aliased_uuid)
     : null;
-  const aliasedNodeName = aliasedNode ? nodeNameToDisplayText(aliasedNode) || 'Untitled' : null;
+  const resultDisplayName = useNodeDisplayName(result.node);
+  const aliasedNodeDisplayName = useNodeDisplayName(aliasedNode, '');
+  const aliasedNodeName = aliasedNodeDisplayName || null;
 
   // Scroll into view when selected
   useEffect(() => {
@@ -115,7 +117,7 @@ export function ResultItem({
         </span>
         <span className="command-palette__result-content">
           <span className="command-palette__result-name">
-            <HighlightText text={nodeNameToDisplayText(result.node) || 'Untitled'} highlight={searchTerm} />
+            <HighlightText text={resultDisplayName} highlight={searchTerm} />
           </span>
         </span>
         {aliasedNodeName && (
