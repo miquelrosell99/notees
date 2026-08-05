@@ -7,7 +7,7 @@
  */
 import { useCallback } from 'react';
 import { useNode } from '@/features/content';
-import { nodeNameToDisplayText } from '@/features/queries';
+import { useNodeDisplayName } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import { SidebarCard } from './SidebarCard';
 import { SidebarNodeView } from './SidebarNodeView';
@@ -25,6 +25,7 @@ interface SidebarCardNodeProps {
 export function SidebarCardNode({ nodeUuid, cardType, onClose }: SidebarCardNodeProps) {
   const { data: node, isLoading, error } = useNode(nodeUuid);
   const openNode = useNavigationStore((state) => state.openNode);
+  const displayName = useNodeDisplayName(node);
 
   const handleOpen = useCallback(() => {
     if (node) openNode(node.uuid);
@@ -36,13 +37,13 @@ export function SidebarCardNode({ nodeUuid, cardType, onClose }: SidebarCardNode
       'application/x-notees-node',
       JSON.stringify({
         nodeUuid: node.uuid,
-        name: nodeNameToDisplayText(node) || 'Untitled',
+        name: displayName,
       })
     );
     e.dataTransfer.effectAllowed = 'link';
-  }, [node]);
+  }, [node, displayName]);
 
-  const titleText = nodeNameToDisplayText(node) || 'Untitled';
+  const titleText = displayName;
 
   const title = (
     <button
