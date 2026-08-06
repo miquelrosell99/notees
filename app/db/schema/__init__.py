@@ -15,6 +15,8 @@ from ...utils.datetime_utils import utc_now_iso
 from .constants import (
     SCHEMA_VERSION,
     SYSTEM_CLASSES,
+    SYSTEM_CLASS_UUIDS,
+    SYSTEM_PROPERTY_UUIDS,
     generate_day_uuid,
     generate_month_uuid,
     generate_year_uuid,
@@ -31,6 +33,8 @@ __all__ = [
     # Constants
     "SCHEMA_VERSION",
     "SYSTEM_CLASSES",
+    "SYSTEM_CLASS_UUIDS",
+    "SYSTEM_PROPERTY_UUIDS",
     # Helper functions
     "utc_now_iso",
     "generate_day_uuid",
