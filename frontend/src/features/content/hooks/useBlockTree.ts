@@ -31,6 +31,7 @@ import {
   type FlatNode,
   type UseBlockTreeOptions,
 } from './useBlockTree.shared';
+import { isUuid } from '@/utils/uuid';
 
 // Re-export shared types and helpers so existing callers keep working.
 export {
@@ -77,6 +78,40 @@ export function flattenNodes(
   }
 
   return result;
+}
+
+/**
+ * Build flat nodes for a local-only tree.
+ *
+ * Walks the provided `nodes` prop statically and appends a single root ghost
+ * block when `nodeUuid` is supplied. No core-store queries are performed, so
+ * callers can render transient trees (e.g. the scratchpad) that do not exist in
+ * the persisted database.
+ */
+function buildLocalFlatNodes(
+  nodes: Node[],
+  options: UseBlockTreeOptions,
+  collapsedLookup: (nodeUuid: string) => boolean | undefined,
+): FlatNode[] {
+  const {
+    maxDepth = -1,
+    pagesOnly = false,
+    skipPages = false,
+    expandAll = false,
+    nodeUuid,
+    readOnly = false,
+    showNewBlock = true,
+    rootIsBlock = false,
+  } = options;
+
+  const flat = flattenNodes(nodes, maxDepth, pagesOnly, skipPages, collapsedLookup, 0, expandAll);
+
+  if (!readOnly && showNewBlock && nodeUuid && isUuid(nodeUuid)) {
+    const rootGhostDepth = rootIsBlock ? 1 : 0;
+    flat.push(createGhostFlatNode(nodeUuid, rootGhostDepth));
+  }
+
+  return flat;
 }
 
 async function buildFlatNodesFromClient(
@@ -183,6 +218,7 @@ export function useBlockTree(
     readOnly = false,
     showNewBlock = true,
     rootIsBlock = false,
+    localOnly = false,
   } = options;
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client, isLoading } = useWorkspaceStoreClient(workspaceId ?? '');
@@ -206,7 +242,7 @@ export function useBlockTree(
   // Query-driven path: fetch the visible subtree in one GetNodeTreeQuery
   // round-trip, then batch-project the legacy Node shape for visible ids.
   useEffect(() => {
-    if (!client || !nodeUuid) {
+    if (localOnly || !client || !nodeUuid) {
       return;
     }
     if (!treeQuery.data) {
@@ -239,24 +275,36 @@ export function useBlockTree(
     return () => {
       cancelled = true;
     };
-  }, [client, nodeUuid, treeQuery.data, options, collapsedLookup]);
+  }, [client, nodeUuid, treeQuery.data, options, collapsedLookup, localOnly]);
 
   // Subscription-driven path for callers that pass a nodes prop without a
   // concrete root nodeUuid. This keeps the legacy static-tree behaviour intact.
+  // In local-only mode we bypass the core store entirely and project from the
+  // nodes prop, which is what transient surfaces like the scratchpad need.
   useEffect(() => {
-    if (!client || nodeUuid) {
+    if (nodeUuid) {
+      return;
+    }
+    if (!localOnly && !client) {
       return;
     }
 
     let cancelled = false;
     const update = async (): Promise<void> => {
-      const flat = await buildFlatNodesFromClient(client, nodes, options, collapsedLookup);
+      const flat = localOnly
+        ? buildLocalFlatNodes(nodes, options, collapsedLookup)
+        : await buildFlatNodesFromClient(client!, nodes, options, collapsedLookup);
       if (!cancelled) {
         setProjectedFlatNodes(flat);
       }
     };
 
     update();
+
+    if (localOnly || !client) {
+      return;
+    }
+
     const unsubscribe = client.subscribe(null, () => {
       setStructureVersion((v) => v + 1);
       void update();
@@ -266,7 +314,7 @@ export function useBlockTree(
       cancelled = true;
       unsubscribe();
     };
-  }, [client, nodeUuid, nodes, options, collapsedLookup]);
+  }, [client, nodeUuid, nodes, options, collapsedLookup, localOnly]);
 
   // Keep structureVersion moving when the batched subtree query refreshes.
   useEffect(() => {
@@ -276,12 +324,24 @@ export function useBlockTree(
   }, [nodeUuid, treeQuery.data]);
 
   const flatNodes = useMemo(() => {
+    if (localOnly) {
+      return buildLocalFlatNodes(nodes, {
+        maxDepth,
+        pagesOnly,
+        skipPages,
+        expandAll,
+        nodeUuid,
+        readOnly,
+        showNewBlock,
+        rootIsBlock,
+      }, collapsedLookup);
+    }
     if (!client || isLoading) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, collapsedLookup, 0, expandAll);
     }
     return projectedFlatNodes;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    localOnly,
     client,
     isLoading,
     nodes,

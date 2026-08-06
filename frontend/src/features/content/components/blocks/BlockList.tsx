@@ -98,6 +98,25 @@ interface BlockListProps {
   /** When true, the root container is a block (focused block view), so the trailing
    *  "new block" pseudo-block is indented one level deeper. */
   rootIsBlock?: boolean;
+  /** When true, render the tree from the `nodes` prop only and append a single
+   *  root ghost block. The core store is never queried, so this is suitable for
+   *  transient surfaces such as the scratchpad. */
+  localOnly?: boolean;
+  /** Called when the trailing ghost block is clicked. Overrides the default
+   *  core-store create-block behavior. */
+  onGhostRealize?: (ghostUuid: string) => void;
+  /** Called when Enter is pressed in a block. Overrides the default core-store
+   *  behavior. Useful for local-only lists. */
+  onEnter?: (blockId: string) => void;
+  /** Called when Backspace is pressed at the start of a block. Overrides the
+   *  default core-store behavior. Useful for local-only lists. */
+  onBackspaceAtStart?: (blockId: string) => void;
+  /** Called when Delete is pressed at the end of a block. Overrides the default
+   *  core-store behavior. Useful for local-only lists. */
+  onDeleteAtEnd?: (blockId: string) => void;
+  /** Called when Escape is pressed in a block. Overrides the default behavior.
+   *  Useful for local-only lists. */
+  onEscape?: (blockId: string) => void;
 }
 
 export function BlockList({
@@ -128,7 +147,13 @@ export function BlockList({
       hideRootBullet = false,
       documentMode = false,
       flush = false,
-      rootIsBlock = false }: BlockListProps): JSX.Element {
+      rootIsBlock = false,
+      localOnly = false,
+      onGhostRealize: onGhostRealizeProp,
+      onEnter: onEnterProp,
+      onBackspaceAtStart: onBackspaceAtStartProp,
+      onDeleteAtEnd: onDeleteAtEndProp,
+      onEscape: onEscapeProp }: BlockListProps): JSX.Element {
   const { flatNodes, structureVersion } = useBlockTree(nodes, {
     maxDepth,
     pagesOnly,
@@ -138,6 +163,7 @@ export function BlockList({
     readOnly,
     showNewBlock,
     rootIsBlock,
+    localOnly,
   });
 
   // Debug duplicate flat node UUIDs before React warns about them.
@@ -179,7 +205,7 @@ export function BlockList({
 
   useTouchIndent({
     containerRef,
-    readOnly,
+    readOnly: readOnly || localOnly,
     onIndent: async (blockId) => {
       await mutations.indentBlock({ blockId });
     },
@@ -223,9 +249,9 @@ export function BlockList({
   useBlockDragDrop({
     containerRef,
     editorId: 'block-list',
-    readOnly,
+    readOnly: readOnly || localOnly,
     excludedIds: ghostIds,
-    onDrop: handleBlockDrop,
+    onDrop: localOnly ? undefined : handleBlockDrop,
   });
 
   // Compute ancestor UUIDs of the active block so each row can know whether it
@@ -233,7 +259,7 @@ export function BlockList({
   // toggling that the old thread-line system used.
   const [activeTrailIds, setActiveTrailIds] = useState<Set<string>>(new Set());
   useEffect(() => {
-    if (!activeBlockId || !client) {
+    if (localOnly || !activeBlockId || !client) {
       setActiveTrailIds(new Set());
       return;
     }
@@ -253,7 +279,7 @@ export function BlockList({
     };
     compute();
     return () => { cancelled = true; };
-  }, [activeBlockId, structureVersion, client]);
+  }, [activeBlockId, structureVersion, client, localOnly]);
 
   const focusPreviousBlock = useEditorFocusStore((s) => s.focusPreviousBlock);
   const focusNextBlock = useEditorFocusStore((s) => s.focusNextBlock);
@@ -294,6 +320,10 @@ export function BlockList({
 
   const handleEnter = useCallback(
     async (blockId: string) => {
+      if (onEnterProp) {
+        onEnterProp(blockId);
+        return;
+      }
       if (!client) return;
       await flushAllContentSaves();
       const row = rowRefs.current.get(blockId);
@@ -334,11 +364,15 @@ export function BlockList({
         setPendingFocus(newBlockId);
       }
     },
-    [setPendingFocus, nodeUuid, client, mutations],
+    [onEnterProp, setPendingFocus, nodeUuid, client, mutations],
   );
 
   const handleBackspaceAtStart = useCallback(
     async (blockId: string) => {
+      if (onBackspaceAtStartProp) {
+        onBackspaceAtStartProp(blockId);
+        return;
+      }
       const idx = blockIdsRef.current.indexOf(blockId);
       if (idx <= 0) return;
       const prevBlockId = blockIdsRef.current[idx - 1];
@@ -354,11 +388,15 @@ export function BlockList({
       });
       setPendingFocus(prevBlockId);
     },
-    [setPendingFocus, canMergeInHierarchy, mutations],
+    [onBackspaceAtStartProp, setPendingFocus, canMergeInHierarchy, mutations],
   );
 
   const handleDeleteAtEnd = useCallback(
     async (blockId: string) => {
+      if (onDeleteAtEndProp) {
+        onDeleteAtEndProp(blockId);
+        return;
+      }
       const idx = blockIdsRef.current.indexOf(blockId);
       if (idx < 0 || idx >= blockIdsRef.current.length - 1) return;
       const nextBlockId = blockIdsRef.current[idx + 1];
@@ -374,10 +412,14 @@ export function BlockList({
       });
       setPendingFocus(blockId);
     },
-    [setPendingFocus, canMergeInHierarchy, mutations],
+    [onDeleteAtEndProp, setPendingFocus, canMergeInHierarchy, mutations],
   );
 
   const handleEscape = useCallback((blockId: string) => {
+    if (onEscapeProp) {
+      onEscapeProp(blockId);
+      return;
+    }
     useEditorFocusStore.getState().blurBlock(blockId);
     const container = containerRef.current;
     if (container) {
@@ -399,7 +441,7 @@ export function BlockList({
       }
     }
     useBlockSelectionStore.getState().selectSingle(blockId);
-  }, []);
+  }, [onEscapeProp]);
 
   const handleCollapseToggle = useCallback((blockId: string) => {
     if (!workspaceId) return;
@@ -412,6 +454,10 @@ export function BlockList({
   }, [readOnly, handleCollapseToggle]);
 
   const handleGhostRealize = useCallback(async (ghostUuid: string) => {
+    if (onGhostRealizeProp) {
+      onGhostRealizeProp(ghostUuid);
+      return;
+    }
     if (!client) return;
     const parentUuid = parseGhostParentUuid(ghostUuid);
     if (!parentUuid) return;
@@ -437,12 +483,12 @@ export function BlockList({
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
     setPendingFocus(newBlockId);
-  }, [setPendingFocus, client, mutations]);
+  }, [onGhostRealizeProp, setPendingFocus, client, mutations]);
 
   const handleIndentOutdentSelected = useCallback(
     async (shiftKey: boolean) => {
       const selectedSet = useBlockSelectionStore.getState().selectedIds;
-      if (selectedSet.size === 0 || !client) return;
+      if (localOnly || selectedSet.size === 0 || !client) return;
 
       const orderedIds = blockIds.filter((id) => selectedSet.has(id));
       const nodes = await Promise.all(
@@ -497,12 +543,14 @@ export function BlockList({
         }
       }
     },
-    [blockIds, client, mutations],
+    [blockIds, client, mutations, localOnly],
   );
 
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'Tab') {
+        if (localOnly) return;
+
         const activeEl = document.activeElement as HTMLElement | null;
         const focusInEditor = activeEl && containerRef.current?.contains(activeEl) && activeBlockId;
 
@@ -542,7 +590,7 @@ export function BlockList({
         }
       }
     },
-    [activeBlockId, blockIds, focusPreviousBlock, focusNextBlock, handleIndentOutdentSelected, mutations],
+    [activeBlockId, blockIds, focusPreviousBlock, focusNextBlock, handleIndentOutdentSelected, mutations, localOnly],
   );
 
   // ─── Virtualization ─────────────────────────────────────────────
