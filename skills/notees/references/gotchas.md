@@ -55,3 +55,13 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 -->
 
 <!-- OPTIONAL: this file starts empty. Entries grow via After-Action Review. Do NOT pre-populate. -->
+
+## **[ast]** Markdown round-trip loses `node_link` pills
+
+**Symptom:** After an import, export, copy/paste, or seed operation, node links render as "…" in breadcrumbs, sidebars, or search; reference/backlink counts are lower than expected.
+
+**Cause:** A `node_link` pill stores its stable identity in `link_id = targetUuid:linkUuid`. Markdown/plain-text serializers only know the target UUID, so the `linkUuid` is dropped on the way out. When the content is parsed back in, the pill becomes a bare target reference (or plain text), breaking the registry lookup that surfaces rely on.
+
+**Fix:** Transport the AST directly across boundaries that need round-trip fidelity. If the AST must be text-encoded, use JSON; do not use Markdown. When re-creating links from external sources, generate a fresh `linkUuid` for each instance and write `targetUuid:linkUuid`.
+
+**Prevent:** See `rules/coding-standards.md` § TypeScript / React → node_link preservation rules. Any importer, exporter, seed, or copy/paste pipeline should be tested with a link-only block and its breadcrumb path.

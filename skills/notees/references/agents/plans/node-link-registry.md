@@ -1,3 +1,10 @@
+---
+status: done
+distilled_to:
+  - rules/coding-standards.md
+  - references/gotchas.md
+---
+
 # Plan: Promote inline links to a real `node_link` registry
 
 ## Goal
@@ -40,7 +47,7 @@ CREATE INDEX idx_node_link_target ON node_link(target_id);
 CREATE INDEX idx_node_link_source_target ON node_link(source_id, target_id);
 ```
 
-The existing `edge` table is removed from the derived schemas. All backlink, reference-count, and graph-view queries read from `node_link` (using `DISTINCT` where a simple graph projection is needed).
+The existing `edge` table is kept as a derived projection of `node_link` for graph-style queries that need a deduplicated source→target relation. All backlink, reference-count, instance-count, and graph-view queries read from `node_link` (using `DISTINCT` where a simple graph projection is needed). `edge` is maintained by the same appliers that populate `node_link`.
 
 `node_link` does **not** contain parent-child relationships or class-extends relationships; those keep their own tables.
 
@@ -52,9 +59,9 @@ The existing `edge` table is removed from the derived schemas. All backlink, ref
 |------|--------|
 | `app/db/schema/sql.py` | Add `node_link` DDL to PostgreSQL schema (for fresh installs). |
 | `app/db/schema/constants.py` | Bump `SCHEMA_VERSION`. |
-| `app/db/schema/init.py` | Add idempotent migration callback that creates `node_link` on existing databases. |
-| `app/core/derived/schema.py` | Add `node_link` table to backend derived SQLite; remove `edge` table. |
-| `app/core/derived/edge.py` | Rename/responsibility: `rebuild_edges_for_node` becomes `rebuild_node_links_for_node`; upserts `node_link` rows from AST link UUIDs. |
+| `app/db/schema/init.py` | Add idempotent migration callback that creates `node_link` on existing databases; register legacy-link normalizer. |
+| `app/core/derived/schema.py` | Add `node_link` table to backend derived SQLite. |
+| `app/core/derived/edge.py` | `rebuild_edges_for_node` now also upserts `node_link` rows from AST link UUIDs; `edge` rows remain as a deduplicated projection. |
 | `app/core/derived/node.py` | `apply_node_delete` deletes `node_link` rows where `source_id` or `target_id` matches. |
 | `app/core/derived/link.py` | `apply_link_click` updates `click_count`/`last_navigated_at` on `node_link` by `linkUuid`, falling back to source+target. |
 | `app/core/derived/nodeStats.py` | Rebuild `backlink_count` and `reference_count` from `node_link`. |
@@ -62,25 +69,30 @@ The existing `edge` table is removed from the derived schemas. All backlink, ref
 | `app/features/activity/router.py` | `LinkClickRequest` accepts `node_link_uuid`; endpoint forwards it; responses include it. |
 | `app/core/operation.py` | Update `link.click` validation to allow `linkUuid`. |
 | `app/core/validation.py` | Allow `linkUuid` in `link.click` payload. |
-| `app/core/migration/links.py` or new `app/db/migrations/normalize_node_link_uuids.py` | One-time migration that scans all operation-log payloads, assigns stable `linkUuid`s to bare `targetUuid` links, and rewrites payloads. |
+| `app/db/migrations/normalize_node_link_uuids.py` | One-time migration that scans all operation-log payloads, assigns stable `linkUuid`s to bare `targetUuid` links, and rewrites payloads. |
 | `app/core/derived/search.py` / `node_projection.py` / `queryHelpers.py` | Migrate any `edge` queries to `node_link`. |
+| `app/features/workspaces/repository.py` | Export query reads from `node_link`. |
 
 ### Frontend
 
 | File | Change |
 |------|--------|
-| `frontend/src/core/db/schema.ts` | Add `node_link` table; remove `edge` table; bump `user_version` to trigger rebuild. |
-| `frontend/src/core/derived/edge.ts` | Rename to `nodeLink.ts`; `rebuildEdgesForNode` becomes `rebuildNodeLinksForNode`; upserts `node_link` rows from AST. |
+| `frontend/src/core/db/schema.ts` | Add `node_link` table; bump `user_version` to trigger rebuild. |
+| `frontend/src/core/derived/edge.ts` | `rebuildEdgesForNode` becomes `rebuildNodeLinksForNode`; upserts `node_link` rows from AST; keeps `edge` projection. |
 | `frontend/src/core/derived/node.ts` | `applyNodeOperation` for `node.delete` deletes `node_link` rows. |
 | `frontend/src/core/derived/link.ts` | `applyLinkOperation` updates `node_link` metadata by `linkUuid`. |
 | `frontend/src/core/derived/nodeStats.ts` | Rebuild stats from `node_link`. |
-| `frontend/src/core/store.ts` | Bump `CURRENT_DERIVED_STATE_VERSION`; update `resetDerivedState` to drop `node_link` instead of `edge`. |
+| `frontend/src/core/store.ts` | Bump `CURRENT_DERIVED_STATE_VERSION`; update `resetDerivedState` to drop `node_link`. |
 | `frontend/src/core/derived/index.ts` | Update imports; ensure ordering still works. |
 | `frontend/src/lib/astBuilder.ts` | Keep `buildLinkId` / `parseLinkId`; ensure legacy bare UUIDs are handled. |
 | `frontend/src/core/worker/queryHelpers.ts` | Migrate `edge` queries to `node_link`. |
 | `frontend/src/core/adapters/nodeProjection.ts` | Migrate `edge` usage to `node_link`. |
+| `frontend/src/core/store.ts` | `resolveAndHealNodeLink` resolves `linkUuid`, queries `node_link`, and triggers AST self-heal if target differs. |
+| `frontend/src/core/derived/linkHealing.ts` | Pure helper for lazy AST self-healing. |
 | `frontend/src/features/views/components/DocumentView.tsx` | Navigation handler resolves `linkUuid`, queries `node_link`, tracks click, triggers AST self-heal if target differs. |
 | `frontend/src/features/views/components/ListView.tsx` | Same navigation/self-heal/tracking logic. |
+| `frontend/src/features/content/components/blocks/BlockRow.tsx` | Same. |
+| `frontend/src/features/content/components/editor/InlineContentStatic.tsx` | Same. |
 | `frontend/src/features/content/components/nodes/NodeCellEditable.tsx` | Same. |
 | `frontend/src/features/content/api/activity.ts` | `trackLinkClick` accepts and sends `nodeLinkUuid`. |
 | `frontend/src/features/content/hooks/useActivity.ts` | Pass through `nodeLinkUuid`. |
@@ -166,10 +178,11 @@ SELECT DISTINCT source_id, target_id FROM node_link WHERE type = 'node';
 ## Tests
 
 - Backend:
-  - `tests/unit/core/derived/test_node_link.py` (new): verify `rebuild_node_links_for_node` creates `node_link` rows with AST link UUIDs.
+  - `tests/core/derived/test_node_link.py` (new): verify `rebuild_node_links_for_node` creates `node_link` rows with AST link UUIDs.
   - Test migration of bare `targetUuid` to `targetUuid:linkUuid`.
   - Test `apply_link_click` updates `node_link` metadata by `linkUuid`.
 - Frontend:
+  - `frontend/src/core/derived/__tests__/linkHealing.test.ts` (new): verify lazy AST healing logic.
   - `frontend/src/core/derived/__tests__/nodeLink.test.ts` (new): verify `rebuildNodeLinksForNode` populates `node_link`.
   - Update existing breadcrumb/display tests if needed.
 
