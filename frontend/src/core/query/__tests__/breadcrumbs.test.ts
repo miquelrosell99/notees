@@ -128,4 +128,36 @@ describe('buildBreadcrumbs', () => {
     expect(breadcrumbs[0].display_name).toBe('Target page');
     expect(breadcrumbs[0].display_name).not.toContain('[');
   });
+
+  it('resolves node links when ancestor content was saved via setNodeText (JSON-wrapped CRDT)', async () => {
+    const store = await makeStore();
+    store.createNode({ nodeId: 'target', kind: 'page', parentId: null });
+    store.updateContentAst('target', [
+      { type: 'paragraph', children: [{ type: 'text', text: 'GMI Dental Implantology, S.L.' }] },
+    ]);
+
+    store.createNode({ nodeId: 'parent', kind: 'block', parentId: null });
+    // This mirrors the inline editor save path: the editor serializes the AST
+    // to JSON, and useContentSave passes that JSON string to setNodeText. The
+    // derived SQLite content column ends up as a single text node wrapping the
+    // JSON string.
+    store.setNodeText(
+      'parent',
+      JSON.stringify([
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'node_link', link_id: 'target', ref_type: 'node' },
+          ],
+        },
+      ])
+    );
+
+    store.createNode({ nodeId: 'child', kind: 'block', parentId: 'parent' });
+
+    const breadcrumbs = buildBreadcrumbs(store, 'child');
+    expect(breadcrumbs[0].display_name).toBe('GMI Dental Implantology, S.L.');
+    expect(breadcrumbs[0].display_name).not.toContain('[');
+    expect(breadcrumbs[0].display_name).not.toBe('…');
+  });
 });
