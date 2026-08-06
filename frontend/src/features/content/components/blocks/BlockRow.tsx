@@ -96,6 +96,9 @@ interface BlockRowProps {
   hideBullet?: boolean;
   /** Document mode: hide bullets and flatten chrome. */
   documentMode?: boolean;
+  /** When true, the list root is a focused block; the root row renders its
+   *  full PropertiesSection after itself instead of the compact inline panel. */
+  rootIsBlock?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -133,7 +136,8 @@ export const BlockRow = memo(
             listSize,
             inPropertyEditor,
             hideBullet,
-            documentMode },
+            documentMode,
+            rootIsBlock = false },
     ref,
   ): JSX.Element {
     const editorRef = useRef<InlineEditorHandle>(null);
@@ -623,8 +627,9 @@ export const BlockRow = memo(
           {/* Inline properties: class-declared properties (even empty) and
               valued ad-hoc ones. Icon-visible properties stay as bullet/content
               icons; hidden and empty-hide-when-empty properties are omitted in
-              rows. */}
-          {!isGhost && (
+              rows. The root focused block renders its full PropertiesSection
+              below the row instead. */}
+          {!isGhost && !(rootIsBlock && depth === 0) && (
             <PropertiesSection
               nodeUuid={node.uuid}
               inline
@@ -644,6 +649,20 @@ export const BlockRow = memo(
           </div>
         )}
       </div>
+      {/* Full properties panel for the root focused block. Placed after the
+          row so the focused block is the first thing visible, with its metadata
+          immediately following and its children rendered underneath. */}
+      {rootIsBlock && depth === 0 && !isGhost && (
+        <PropertiesSection
+          nodeUuid={node.uuid}
+          showHiddenSection={true}
+          showAddProperty={true}
+          isMainNode={true}
+          onNavigateToNode={onNavigate}
+          onOpenInSidebar={onOpenInSidebar}
+          className="block-row__root-properties"
+        />
+      )}
       {!isGhost && contextMenuPos && (
         <NodeContextMenu
           node={node}

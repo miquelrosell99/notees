@@ -110,4 +110,33 @@ describe('BlockRow', () => {
     expect(lastCallProps.onlyWithValues).toBeUndefined();
     expect(lastCallProps.inline).toBe(true);
   });
+
+  it('renders a full properties panel for the root focused block', () => {
+    // In focused block view the root block renders its full PropertiesSection
+    // after the row, not inline, so the focused block is the first thing visible.
+    vi.mocked(PropertiesSection).mockClear();
+    render(<BlockRow node={baseNode} depth={0} rootIsBlock />, { wrapper: Wrapper });
+
+    const calls = vi.mocked(PropertiesSection).mock.calls.map(([props]) => props);
+    const fullPanelCall = calls.find((p) => p.isMainNode === true && p.inline !== true);
+    expect(fullPanelCall).toBeDefined();
+    expect(fullPanelCall?.showHiddenSection).toBe(true);
+    expect(fullPanelCall?.showAddProperty).toBe(true);
+    expect(fullPanelCall?.className).toBe('block-row__root-properties');
+    expect(calls.some((p) => p.inline === true)).toBe(false);
+  });
+
+  it('still renders inline properties for children in focused block view', () => {
+    // Only the root focused block should render the full panel; child blocks
+    // at depth > 0 keep their compact inline section.
+    const childNode: Node = { ...baseNode, uuid: 'block-child', classes_uuid: ['class-1'] };
+    vi.mocked(PropertiesSection).mockClear();
+    render(<BlockRow node={childNode} depth={1} rootIsBlock />, { wrapper: Wrapper });
+
+    const calls = vi.mocked(PropertiesSection).mock.calls.map(([props]) => props);
+    const inlineCall = calls.find((p) => p.inline === true);
+    expect(inlineCall).toBeDefined();
+    expect(inlineCall?.isMainNode).toBe(false);
+    expect(calls.some((p) => p.isMainNode === true)).toBe(false);
+  });
 });
