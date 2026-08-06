@@ -28,6 +28,7 @@ import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { SuggestionPopup } from './SuggestionPopup';
 import { isSystemPage } from '@/utils/systemPages';
 import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
+import { dayUuidToWeekday, monthUuidToMonthName } from '@/utils/dateUuid';
 import './PageHeader.css';
 
 interface PageHeaderProps {
@@ -119,6 +120,13 @@ export function PageHeader({
   
   // Check if page name is editable
   const isNameEditable = !isSystemPage(page);
+
+  // Derive the weekday/month name badge for date pages
+  const dateNameBadge = useMemo(() => {
+    if (page.is_daily) return dayUuidToWeekday(page.uuid);
+    if (page.is_monthly) return monthUuidToMonthName(page.uuid);
+    return null;
+  }, [page.uuid, page.is_daily, page.is_monthly]);
   
   // Parse input to show child page preview (disabled for date pages)
   const renamePreview = useMemo(() => {
@@ -490,6 +498,9 @@ export function PageHeader({
             )}
             {page.is_private && (
               <span className="private-badge">Private</span>
+            )}
+            {dateNameBadge && (
+              <span className="date-name-badge">{dateNameBadge}</span>
             )}
 
           </div>

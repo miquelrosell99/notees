@@ -165,3 +165,52 @@ export function dayUuidToDisplay(uuid: string): string {
     day: 'numeric',
   });
 }
+
+/**
+ * Parse a month UUID into a Date object representing the first day of that month
+ * (local time, midnight). Returns null if the UUID is not a valid month UUID.
+ */
+export function monthUuidToDate(uuid: string | null | undefined): Date | null {
+  if (!isMonthUuid(uuid)) return null;
+
+  const datePart = uuid!.slice(MONTH_PREFIX.length, MONTH_PREFIX.length + 6);
+  const year = parseInt(datePart.slice(0, 4), 10);
+  const month = parseInt(datePart.slice(4, 6), 10);
+
+  if (Number.isNaN(year) || Number.isNaN(month) || month < 1 || month > 12) {
+    return null;
+  }
+
+  const date = new Date(year, month - 1, 1);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1) {
+    return null;
+  }
+
+  return date;
+}
+
+/**
+ * Extract the full weekday name (e.g. "Wednesday") from a day UUID.
+ * Returns null if the UUID is not a valid day UUID.
+ */
+export function dayUuidToWeekday(
+  uuid: string | null | undefined,
+  locale?: string | string[],
+): string | null {
+  const date = dayUuidToDate(uuid);
+  if (!date) return null;
+  return date.toLocaleDateString(locale, { weekday: 'long' });
+}
+
+/**
+ * Extract the full month name (e.g. "June") from a month UUID.
+ * Returns null if the UUID is not a valid month UUID.
+ */
+export function monthUuidToMonthName(
+  uuid: string | null | undefined,
+  locale?: string | string[],
+): string | null {
+  const date = monthUuidToDate(uuid);
+  if (!date) return null;
+  return date.toLocaleDateString(locale, { month: 'long' });
+}
