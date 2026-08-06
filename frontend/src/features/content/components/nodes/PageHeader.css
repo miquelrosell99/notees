@@ -224,6 +224,21 @@
   opacity: var(--opacity-70);
 }
 
+.date-name-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  padding: var(--spacing-1) var(--spacing-2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-large);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-badge);
+}
+
 .aliased-badge {
   display: inline-flex;
   align-items: center;
