@@ -28,8 +28,8 @@ function rewriteRefTargets(node: unknown, sourceId: string, targetId: string): u
 export function getBacklinkSourceIds(store: WorkspaceStore, targetId: string): string[] {
   const rows = queryAll<{ source_id: string }>(
     store.getDb(),
-    'SELECT DISTINCT source_id FROM edge WHERE target_id = ? AND type = ?',
-    [targetId, 'reference']
+    'SELECT DISTINCT source_id FROM node_link WHERE target_id = ?',
+    [targetId]
   );
   return rows.map((r) => r.source_id);
 }

@@ -105,17 +105,17 @@ describe('importLogseqFolderToStore', () => {
     );
     expect(targetRow).toBeDefined();
 
-    const edgeRow = queryOne<{ source_id: string; target_id: string }>(
+    const linkRow = queryOne<{ source_id: string; target_id: string }>(
       store.getDb(),
-      'SELECT source_id, target_id FROM edge WHERE target_id = ?',
+      'SELECT source_id, target_id FROM node_link WHERE target_id = ?',
       [targetRow!.id],
     );
-    expect(edgeRow).toBeDefined();
+    expect(linkRow).toBeDefined();
 
     const sourceRow = queryOne<{ content: string }>(
       store.getDb(),
       'SELECT content FROM node WHERE id = ?',
-      [edgeRow!.source_id],
+      [linkRow!.source_id],
     );
     expect(sourceRow).toBeDefined();
     expect(sourceRow!.content).toContain('node_link');
