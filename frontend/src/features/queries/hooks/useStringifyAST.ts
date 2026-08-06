@@ -8,7 +8,7 @@
 import { useCallback, useMemo } from 'react';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import type { NodeLinkResolver, NodeLinkResolution } from '@/lib/stringifyAST';
-import { parseAST } from '@/lib/astBuilder';
+import { parseAST, unwrapCrdtContentAst, parseLinkId } from '@/lib/astBuilder';
 import type { ASTDocument } from '@/types/ast';
 import type { Node } from '@/types';
 
@@ -94,6 +94,22 @@ function findFirstText(value: unknown): string | undefined {
   return undefined;
 }
 
+function extractFirstLinkFallback(ast: ReturnType<typeof parseAST>): string | undefined {
+  for (const block of ast) {
+    const children = (block as { children?: unknown[] }).children;
+    if (!Array.isArray(children)) continue;
+    for (const inline of children) {
+      const node = inline as { type?: string; link_id?: string; label?: string | null };
+      if (node.type === 'node_link' && node.link_id) {
+        if (node.label) return node.label;
+        const { nodeUuid } = parseLinkId(node.link_id);
+        if (nodeUuid) return nodeUuid;
+      }
+    }
+  }
+  return undefined;
+}
+
 function truncate(str: string, maxLength?: number): string {
   if (maxLength == null || str.length <= maxLength) return str;
   return str.slice(0, maxLength);
@@ -112,11 +128,20 @@ function truncate(str: string, maxLength?: number): string {
  * Use `useStringifyAST` when you need link resolution.
  */
 export function nodeNameToText(nameValue: unknown, maxLength?: number): string {
-  const ast = parseAST(nameValue);
+  const ast = unwrapCrdtContentAst(parseAST(nameValue));
   let text = stringifyAST(ast, {
     mode: StringifyMode.TEXT_ONLY,
     maxLength,
   });
+
+  if (!text.trim() || text.trim() === '…') {
+    // If the only inline content is a node_link, stringifyAST returns "…"
+    // because it has no resolver. Fall back to the link label or target UUID.
+    const linkFallback = extractFirstLinkFallback(ast);
+    if (linkFallback) {
+      text = truncate(linkFallback, maxLength);
+    }
+  }
 
   if (!text.trim()) {
     // Some content is stored as bare inline text nodes at document level.

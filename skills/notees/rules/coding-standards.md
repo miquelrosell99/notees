@@ -18,6 +18,8 @@
 - Formatter: configured via ESLint / project defaults.
 - Hooks rules: follow `eslint-plugin-react-hooks`.
 - Path aliases only — no relative `../../../` imports.
+- **When parsing `node.content` as an AST to resolve `node_link` pills, formatting, or other inline nodes, always run it through `unwrapCrdtContentAst()` first.** The inline editor saves content by serializing the real AST to JSON and storing that JSON string inside the node's text CRDT, so the derived SQLite `content` column can be `[{type:'text',text:'[<real AST>]'}]`. Parsing the wrapper directly makes node links render as raw JSON or "…".
+- **Display helpers that cannot resolve a `node_link` must fall back to the link label or target UUID, never the "…" placeholder.** `deriveName` and `nodeNameToText` are used by many surfaces (breadcrumbs, sidebars, search, command palette, cards). Returning "…" for a link-only node makes those surfaces unusable; returning the target UUID keeps the reference identifiable until a resolver can fetch the target's display name.
 
 ## Tests
 
