@@ -18,6 +18,8 @@ import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { NodeLinkContextMenuTrigger } from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { useReferencedNode } from '@/features/content';
+import { useWorkspaceStoreClient } from '@/core/hooks';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 import { useBatchedNodeByUuid } from '@/hooks';
 import { getLogicalOffsetFromPoint } from './utils/cursorOffsetFromPoint';
 import katex from 'katex';
@@ -123,7 +125,15 @@ function renderMath(expression: string, displayMode: boolean): string {
   }
 }
 
-function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children: React.ReactNode }) {
+interface InlineLinkWrapperProps {
+  nodeUuid: string;
+  linkId?: string;
+  blockId?: string;
+  client?: IWorkspaceStoreClient | undefined;
+  children: React.ReactNode;
+}
+
+function InlineLinkWrapper({ nodeUuid, linkId, blockId, client, children }: InlineLinkWrapperProps) {
   const openNode = useNavigationStore((s) => s.openNode);
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
   const { workspaceId } = useParams<{ workspaceId?: string }>();
@@ -133,17 +143,23 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
   const href = workspaceId ? `/${workspaceId}/${nodeUuid}` : `/node/${nodeUuid}`;
 
   const handleClick = useCallback(
-    (e: React.MouseEvent) => {
+    async (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!node) return;
+      let targetUuid = nodeUuid;
+      if (client && blockId && linkId) {
+        const canonical = await client.mutate<string | null>('resolveAndHealNodeLink', [blockId, linkId]);
+        if (canonical) {
+          targetUuid = canonical;
+        }
+      }
       if (e.shiftKey) {
-        addSidebarCard(node.uuid, node.is_page ? 'page' : 'block');
+        addSidebarCard(targetUuid, node?.is_page ? 'page' : 'block');
       } else {
-        openNode(node.uuid);
+        openNode(targetUuid);
       }
     },
-    [node, openNode, addSidebarCard],
+    [node, nodeUuid, linkId, blockId, client, openNode, addSidebarCard],
   );
 
   // Middle-click opens the target in a new browser tab; preventDefault on
@@ -177,7 +193,12 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
   );
 }
 
-function renderInlineNodes(nodes: ASTInlineNode[], pillActions?: PillActions): React.ReactNode[] {
+function renderInlineNodes(
+  nodes: ASTInlineNode[],
+  pillActions: PillActions | undefined,
+  blockId?: string,
+  client?: IWorkspaceStoreClient | undefined
+): React.ReactNode[] {
   return nodes.map((node, i) => {
     switch (node.type) {
       case 'text':
@@ -191,7 +212,7 @@ function renderInlineNodes(nodes: ASTInlineNode[], pillActions?: PillActions): R
       case 'node_link': {
         const { nodeUuid } = parseLinkId(node.link_id);
         return (
-          <InlineLinkWrapper key={i} nodeUuid={nodeUuid}>
+          <InlineLinkWrapper key={i} nodeUuid={nodeUuid} linkId={node.link_id} blockId={blockId} client={client}>
             <NodeLinkContextMenuTrigger
               linkId={node.link_id}
               refType={node.ref_type}
@@ -303,6 +324,8 @@ export const InlineContentStatic = memo(function InlineContentStatic({
   const inlines = ast.flatMap((block) =>
     block.type === 'paragraph' || block.type === 'heading' ? (block.children as ASTInlineNode[]) : [],
   );
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   const handleDeletePill = useCallback(
     (linkId: string) => {
@@ -321,7 +344,7 @@ export const InlineContentStatic = memo(function InlineContentStatic({
   const pillActions = onContentEdit
     ? { onRemove: handleDeletePill, onUnlink: handleUnlinkPill }
     : undefined;
-  const content = renderInlineNodes(inlines, pillActions);
+  const content = renderInlineNodes(inlines, pillActions, blockId, client);
   const showPlaceholder = isContentEmpty(ast);
 
   const handleClick = useCallback(

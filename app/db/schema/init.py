@@ -86,6 +86,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("add_totp_2fa", conn, _add_totp_2fa)
     await _run_migration("drop_legacy_tables", conn, _run_drop_legacy_tables)
     await _run_migration("add_workspace_restore_epoch", conn, _add_workspace_restore_epoch)
+    await _run_migration("normalize_node_link_uuids", conn, _normalize_node_link_uuids)
 
 
 async def _add_workspace_restore_epoch(conn: asyncpg.Connection) -> None:
@@ -95,6 +96,13 @@ async def _add_workspace_restore_epoch(conn: asyncpg.Connection) -> None:
     )
     if not has_col:
         await conn.execute("ALTER TABLE workspace ADD COLUMN restore_epoch INTEGER NOT NULL DEFAULT 0")
+
+
+async def _normalize_node_link_uuids(conn: asyncpg.Connection) -> None:
+    """Assign stable link-instance UUIDs to legacy bare-target inline links."""
+    from app.db.migrations.normalize_node_link_uuids import run
+
+    await run(conn)
 
 
 async def _run_drop_legacy_tables(conn: asyncpg.Connection) -> None:

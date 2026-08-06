@@ -18,7 +18,7 @@ import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useModalStore } from '@/stores/modalStore';
 import { useUIStateStore } from '@/features/sync';
 import { liveSyncManager, useLivePresenceStore } from '@/features/collab';
-import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import { parseAST, parseLinkId, buildLinkId } from '@/lib/astBuilder';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { ConvertToPageModal } from '@/features/content/components/nodes/ConvertToPageModal';
 import { createBlockCopyData, copyToClipboard } from '@/utils/clipboardManager';
@@ -40,7 +40,7 @@ import { Button } from '@/components/ui/Button';
 import './BlockRow.css';
 import type { Node, Property } from '@/types/api';
 import type { JSX } from 'react';
-import { useNode, useChildren } from '@/core/hooks';
+import { useNode, useChildren, useWorkspaceStoreClient } from '@/core/hooks';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -151,6 +151,7 @@ export const BlockRow = memo(
     const isActive = useEditorFocusStore((s) => s.activeBlockId === node.uuid);
     const isPendingFocus = useEditorFocusStore((s) => s.pendingFocusBlockId === node.uuid);
     const { workspaceId } = useParams<{ workspaceId?: string }>();
+    const { client } = useWorkspaceStoreClient(workspaceId ?? '');
     const mutations = useCoreBlockMutations(workspaceId);
     const { node: coreNode } = useNode(workspaceId ?? '', node.uuid);
     const parentId = coreNode?.parentId ?? node.parent_uuid ?? null;
@@ -221,6 +222,24 @@ export const BlockRow = memo(
         useEditorFocusStore.getState().setPendingFocus(node.uuid);
       },
       [node.uuid, readOnly, isLocked],
+    );
+
+    // Heal inline node_link targets against the canonical node_link row before
+    // navigation. This keeps the AST cache in sync with the link registry when a
+    // link instance's target has drifted (e.g. after a migration or manual fix).
+    const handlePillClick = useCallback(
+      async (linkId: string, refType: 'node' | 'class' | 'url' | 'embed' | 'broken' | 'user') => {
+        if (!client || (refType !== 'node' && refType !== 'class')) {
+          onPillClick?.(linkId, refType);
+          return;
+        }
+
+        const canonical = await client.mutate<string | null>('resolveAndHealNodeLink', [node.uuid, linkId]);
+        const { linkUuid } = parseLinkId(linkId);
+        const healedLinkId = canonical && linkUuid ? buildLinkId(canonical, linkUuid) : linkId;
+        onPillClick?.(healedLinkId, refType);
+      },
+      [client, node.uuid, onPillClick],
     );
 
     // Expose imperative handle for list-level keyboard navigation
@@ -467,7 +486,7 @@ export const BlockRow = memo(
         listSize={listSize}
         inPropertyEditor={inPropertyEditor}
         onContentChange={onContentChange}
-        onPillClick={onPillClick}
+        onPillClick={handlePillClick}
         onPillRemove={onPillRemove}
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import type { Node } from '@/types';
 import { CustomInlineEditor, InlineContentStatic, flushAllContentSaves, useContentSave } from '@/features/editor';
 import type { InlineEditorHandle } from '@/features/editor';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useNavigationStore } from '@/stores';
+import { useWorkspaceStoreClient } from '@/core/hooks';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 
 interface NodeCellEditableProps {
@@ -26,6 +28,8 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
   // the render that mounts it (same pattern as BlockRow).
   const pendingCursorOffsetRef = useRef<number | undefined>(undefined);
   const { handleContentChange } = useContentSave();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
   const isActive = useEditorFocusStore((s) => s.activeBlockId === node.uuid);
   const isPendingFocus = useEditorFocusStore((s) => s.pendingFocusBlockId === node.uuid);
@@ -73,12 +77,24 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
     editorRef.current?.blur();
   }, []);
 
-  const handlePillClick = useCallback((linkId: string) => {
-    const { nodeUuid } = parseLinkId(linkId);
-    if (nodeUuid) {
-      useNavigationStore.getState().openNode(nodeUuid);
-    }
-  }, []);
+  const handlePillClick = useCallback(
+    async (linkId: string) => {
+      let targetUuid = parseLinkId(linkId).nodeUuid;
+      if (client) {
+        const canonical = await client.mutate<string | null>('resolveAndHealNodeLink', [
+          node.uuid,
+          linkId,
+        ]);
+        if (canonical) {
+          targetUuid = canonical;
+        }
+      }
+      if (targetUuid) {
+        useNavigationStore.getState().openNode(targetUuid);
+      }
+    },
+    [client, node.uuid]
+  );
 
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Wrapper solely prevents row selection when interacting with the cell editor; no semantic action.

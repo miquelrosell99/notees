@@ -1,5 +1,6 @@
 import { type Database } from 'sql.js';
 import { uuidv7 } from '../uuid';
+import { queryOne } from '../db/sqlite';
 import type { Operation } from '../types/operation';
 import type { ChangeNotification } from './index';
 
@@ -26,8 +27,8 @@ export function applyLinkOperation(db: Database, op: Operation): ChangeNotificat
   }
 
   if (linkUuid) {
-    const row = db.exec('SELECT click_count FROM node_link WHERE id = ?', [linkUuid])[0];
-    if (row && row.values.length > 0) {
+    const row = queryOne<{ click_count: number }>(db, 'SELECT click_count FROM node_link WHERE id = ?', [linkUuid]);
+    if (row) {
       db.run(
         `UPDATE node_link
          SET click_count = click_count + 1,
@@ -42,20 +43,20 @@ export function applyLinkOperation(db: Database, op: Operation): ChangeNotificat
 
   // Fallback for legacy operations without a linkUuid: update the first
   // node_link row matching (source_id, target_id).
-  const rows = db.exec(
+  const fallbackRow = queryOne<{ id: string }>(
+    db,
     'SELECT id FROM node_link WHERE source_id = ? AND target_id = ? ORDER BY created_at LIMIT 1',
     [sourceId, targetId]
   );
 
-  if (rows[0]?.values.length) {
-    const id = rows[0].values[0][0] as string;
+  if (fallbackRow) {
     db.run(
       `UPDATE node_link
        SET click_count = click_count + 1,
            last_navigated_at = ?,
            updated_at = ?
        WHERE id = ?`,
-      [clickedAt, clickedAt, id]
+      [clickedAt, clickedAt, fallbackRow.id]
     );
   } else {
     db.run(

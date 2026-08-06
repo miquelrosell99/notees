@@ -148,7 +148,7 @@ class TestDerivedCounts:
         assert counts.node_count == 2
         assert counts.hierarchy_edge_count == 1
         assert counts.property_count == 1
-        assert counts.edge_count == 0
+        assert counts.node_link_count == 0
         conn.close()
 
     def test_compare_derived_state(self) -> None:
@@ -219,7 +219,7 @@ class TestReconciliationReport:
             ),
         ]
         report = build_reconciliation_report(
-            ops, expected=DerivedCounts(node_count=2, hierarchy_edge_count=1, property_count=0, edge_count=0)
+            ops, expected=DerivedCounts(node_count=2, hierarchy_edge_count=1, property_count=0, node_link_count=0)
         )
         assert report.operation_count == 2
         assert report.node_count == 2

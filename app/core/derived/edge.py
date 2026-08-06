@@ -11,7 +11,6 @@ from typing import Any
 from app.core.operation import Operation
 from app.core.uuid import uuidv7
 
-
 # Namespace for deterministic link UUIDs generated for legacy bare-target links
 # until the one-time operation-log migration assigns stable UUIDs.
 _LEGACY_LINK_UUID_NAMESPACE = uuid_module.UUID("0194a1b2-3c4d-5e6f-7a8b-9c0d1e2f3a4b")
