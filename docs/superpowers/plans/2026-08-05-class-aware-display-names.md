@@ -13,7 +13,7 @@
 - `nodeNameToText` must remain a plain AST/text extractor with no date-formatting side effects. It was amended to correctly extract plain-text and bare-inline-node names (including compact numeric date content such as `"20260805"`) that previously produced empty strings; this is a bugfix and does not change its no-date-formatting contract.
 - Only nodes with `SYSTEM_CLASS_UUIDS.day`, `SYSTEM_CLASS_UUIDS.month`, or `SYSTEM_CLASS_UUIDS.year` are formatted.
 - The implementation must react live to `useSettingsStore.dateFormat` changes.
-- Follow path aliases (`@/...`), co-located CSS, and feature-barrel imports per `agents/frontend.md`.
+- Follow path aliases (`@/...`), co-located CSS, and feature-barrel imports per `skills/notees/references/agents/frontend.md`.
 - Do not change how date content is stored in the backend or worker.
 - Do not modify search indexing or query evaluation behavior.
 

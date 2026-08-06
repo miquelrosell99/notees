@@ -50,7 +50,7 @@
 ### Developer Notes
 
 - `frontend/src/core/` is the sole path for state, hooks, and sync.
-- `agents/plans/notees-phase7-plus-plan.md` is marked complete.
+- `skills/notees/references/agents/plans/notees-phase7-plus-plan.md` is marked complete.
 
 ## Phase 12 — Cleanup and roadmap
 
@@ -76,7 +76,7 @@
 
 - Added backend stress suite (`tests/core/stress/`): replay, catch-up, storage overhead, multi-client convergence.
 - Added frontend stress suite (`frontend/src/core/__tests__/stress/`): apply latency, snapshot restore, catch-up, convergence burst.
-- Added benchmark report at `agents/plans/phase12-scale-benchmark.md`.
+- Added benchmark report at `skills/notees/references/agents/plans/phase12-scale-benchmark.md`.
 
 ### Dev environment
 

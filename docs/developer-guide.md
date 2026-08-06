@@ -30,7 +30,7 @@ notees/
 │   │   └── types/ utils/   # Shared TypeScript types / utility functions
 │   └── vite.config.ts
 ├── tests/                  # Backend test suite (pytest)
-├── agents/                 # Developer/agent reference docs
+├── skills/notees/          # Developer/agent reference docs and skill routing
 ├── docs/                   # User-facing documentation
 ├── scripts/                # Utility scripts
 └── data/                   # User data (gitignored)

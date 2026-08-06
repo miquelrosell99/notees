@@ -1,0 +1,82 @@
+# Canonical Routing Manifest — Notees
+#
+# Source of truth for Always Read, Common Tasks, and shell bootstraps.
+# Edit this file first, then run `bash skills/notees/scripts/sync-routing.sh notees`.
+
+# This project intentionally omits editor-specific registration shells (Cursor,
+# Claude, Codex, Gemini). AGENTS.md is the single root entry.
+no_editor_entries: true
+
+always_read:
+  - rules/project-rules.md
+  - rules/coding-standards.md
+  - rules/agent-behavior.md
+
+tasks:
+  - id: fix-bug
+    labels:
+      en: Fix bug
+      zh: 修复 bug
+    route: read task-relevant `rules/*.md` + `gotchas/index.md`; follow `workflows/fix-bug.md`
+    workflow: workflows/fix-bug.md
+    trigger_examples:
+      - fix this failing test
+      - this endpoint errors
+      - local change disappears after sync
+  - id: change-managed
+    labels:
+      en: Add / refactor / optimize behavior
+      zh: 新增 / 重构 / 优化
+    route: read task-relevant `rules/*.md` + `conventions/index.md`; follow `workflows/change-managed.md`; for fan-out refactors use `workflows/refactor-fanout.md`
+    workflow: workflows/change-managed.md
+    trigger_examples:
+      - add a feature
+      - refactor this flow
+      - optimize this module
+  - id: refactor-fanout
+    labels:
+      en: Refactor across many usage points
+      zh: 跨多处重构
+    route: follow `workflows/refactor-fanout.md`; fan-out multi-site changes to parallel subagents
+    workflow: workflows/refactor-fanout.md
+    trigger_examples:
+      - rename X across the codebase
+      - change this API signature everywhere
+  - id: plan-feature
+    labels:
+      en: Plan complex feature
+      zh: 规划复杂功能
+    route: follow `workflows/plan-feature.md`
+    workflow: workflows/plan-feature.md
+    trigger_examples:
+      - plan this feature before coding
+      - this is a big change
+  - id: profile-project
+    labels:
+      en: Profile project
+      zh: 梳理项目
+    route: follow `workflows/profile-project.md`; write evidence-labeled conclusions
+    workflow: workflows/profile-project.md
+    trigger_examples:
+      - refresh the project profile
+      - help me understand this codebase
+  - id: update-rules
+    labels:
+      en: Update skill rules
+      zh: 更新 skill 规则
+    route: read `gotchas/index.md`, `references/behavior-failures.md`; follow `workflows/update-rules.md`
+    required_reads:
+      - gotchas/index.md
+      - references/behavior-failures.md
+    workflow: workflows/update-rules.md
+    trigger_examples:
+      - record this rule
+      - update the project skill rules
+  - id: other
+    labels:
+      en: Other
+      zh: 其他
+    route: read `rules/project-rules.md` + `rules/coding-standards.md`; match by workflow filename or proceed with Always Read
+    workflow: Check `workflows/` for closest match
+    trigger_examples:
+      - other unlisted task
