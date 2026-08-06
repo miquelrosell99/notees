@@ -246,6 +246,19 @@ describe('useBlockTree', () => {
     expect(result.current.flatNodes.map((n) => n.node.uuid)).toEqual(['a', 'b', 'c']);
   });
 
+  it('projects local-only nodes and appends a root ghost block', () => {
+    const tree = [makeNode('a'), makeNode('b')];
+    const { result } = renderHook(() =>
+      useBlockTree(tree, { nodeUuid: PAGE_UUID, localOnly: true }),
+    );
+
+    const uuids = result.current.flatNodes.map((n) => n.node.uuid);
+    expect(uuids).toEqual(['a', 'b', buildGhostId(PAGE_UUID)]);
+    const ghost = result.current.flatNodes.find((n) => n.isGhost);
+    expect(ghost).toBeDefined();
+    expect(ghost!.node.uuid).toBe(buildGhostId(PAGE_UUID));
+  });
+
   it('uses GetNodeTreeQuery and does not call getChildren', async () => {
     const store = await createTestStore();
     store.createNode({ nodeId: PAGE_UUID, kind: 'page', parentId: null });
