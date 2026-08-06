@@ -121,6 +121,23 @@ CREATE TABLE IF NOT EXISTS edge (
 CREATE INDEX IF NOT EXISTS idx_edge_source ON edge (source_id);
 CREATE INDEX IF NOT EXISTS idx_edge_target ON edge (target_id);
 
+CREATE TABLE IF NOT EXISTS node_link (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    label TEXT,
+    click_count INTEGER NOT NULL DEFAULT 0,
+    last_navigated_at TEXT,
+    created_at TEXT,
+    updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_link_source ON node_link (source_id);
+CREATE INDEX IF NOT EXISTS idx_node_link_target ON node_link (target_id);
+CREATE INDEX IF NOT EXISTS idx_node_link_source_target ON node_link (source_id, target_id);
+
 CREATE TABLE IF NOT EXISTS crdt_state (
     node_id TEXT PRIMARY KEY,
     text_state BLOB,

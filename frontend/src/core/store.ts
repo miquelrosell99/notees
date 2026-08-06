@@ -75,7 +75,7 @@ const DEFAULT_VIEW_NAMES: Record<string, string> = {
  * a workspace with a stale version triggers a hard rebuild: derived tables are
  * cleared and the full server operation log is replayed with the new applier.
  */
-export const CURRENT_DERIVED_STATE_VERSION = 3;
+export const CURRENT_DERIVED_STATE_VERSION = 4;
 
 export class WorkspaceStore {
   private clock: Clock;
@@ -261,6 +261,7 @@ export class WorkspaceStore {
       this.db.run('DELETE FROM property_value');
       this.db.run('DELETE FROM property_value_tombstone');
       this.db.run('DELETE FROM edge');
+      this.db.run('DELETE FROM node_link');
       this.db.run('DELETE FROM crdt_state');
       this.db.run('DELETE FROM class_hierarchy');
       this.db.run('DELETE FROM property_schema');

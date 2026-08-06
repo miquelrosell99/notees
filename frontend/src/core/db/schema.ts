@@ -105,6 +105,28 @@ export function createSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_edge_target_type
     ON edge (target_id, type);
 
+    CREATE TABLE IF NOT EXISTS node_link (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      label TEXT,
+      click_count INTEGER NOT NULL DEFAULT 0,
+      last_navigated_at TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_node_link_source
+    ON node_link (source_id);
+
+    CREATE INDEX IF NOT EXISTS idx_node_link_target
+    ON node_link (target_id);
+
+    CREATE INDEX IF NOT EXISTS idx_node_link_source_target
+    ON node_link (source_id, target_id);
+
     CREATE TABLE IF NOT EXISTS crdt_state (
       node_id TEXT PRIMARY KEY,
       text_state BLOB,
@@ -657,5 +679,30 @@ function migrateSchema(db: Database): void {
       // Column may already exist; ignore.
     }
     db.exec('PRAGMA user_version = 13');
+  }
+
+  if (version < 14) {
+    // Add the node_link instance registry. The table definition is also
+    // created by createSchema via CREATE TABLE IF NOT EXISTS; this migration
+    // ensures existing databases bump their version and trigger a derived-state
+    // rebuild via CURRENT_DERIVED_STATE_VERSION in the workspace store.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS node_link (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        label TEXT,
+        click_count INTEGER NOT NULL DEFAULT 0,
+        last_navigated_at TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_node_link_source ON node_link (source_id);
+      CREATE INDEX IF NOT EXISTS idx_node_link_target ON node_link (target_id);
+      CREATE INDEX IF NOT EXISTS idx_node_link_source_target ON node_link (source_id, target_id);
+    `);
+    db.exec('PRAGMA user_version = 14');
   }
 }

@@ -39,11 +39,10 @@ export function buildSuggestions(store: WorkspaceStore, classFilters?: string): 
 
        UNION ALL
 
-       SELECT n.id, MAX(e.created_at) AS last_at
+       SELECT n.id, MAX(nl.created_at) AS last_at
        FROM node n
-       JOIN edge e ON e.target_id = n.id
+       JOIN node_link nl ON nl.target_id = n.id
        WHERE n.kind = 'page'
-         AND e.type = 'reference'
        GROUP BY n.id
      )
      ORDER BY last_at DESC`,

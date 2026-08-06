@@ -51,11 +51,10 @@ export function buildGraphLinks(
     addLink(row.parent_id!, row.id, 'parent');
   }
 
-  // Reference edges
+  // Reference edges (deduplicated projection of node_link)
   const edgeRows = queryAll<{ source_id: string; target_id: string }>(
     db,
-    `SELECT source_id, target_id FROM edge WHERE type = ?`,
-    ['reference']
+    `SELECT DISTINCT source_id, target_id FROM node_link`
   );
   for (const row of edgeRows) {
     addLink(row.source_id, row.target_id, 'reference');

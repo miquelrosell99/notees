@@ -11,26 +11,21 @@ import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 export function buildTextLinks(store: WorkspaceStore, nodeUuid: string): TextLink[] {
   const db = store.getDb();
 
-  const rows = queryAll<{ id: string; target_id: string; metadata: string | null }>(
+  const rows = queryAll<{ id: string; target_id: string; label: string | null }>(
     db,
-    `SELECT id, target_id, metadata
-     FROM edge
-     WHERE source_id = ? AND type = ?
+    `SELECT id, target_id, label
+     FROM node_link
+     WHERE source_id = ?
      ORDER BY created_at`,
-    [nodeUuid, 'reference']
+    [nodeUuid]
   );
 
   return rows.map((row, index) => {
     const targetNode = projectNode(store, row.target_id);
     let name: string | null = targetNode?.name ?? null;
 
-    if (!name && row.metadata) {
-      try {
-        const parsed = JSON.parse(row.metadata) as { label?: string | null };
-        name = parsed.label ?? null;
-      } catch {
-        // ignore malformed metadata
-      }
+    if (!name) {
+      name = row.label ?? null;
     }
 
     return {

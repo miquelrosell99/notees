@@ -22,7 +22,7 @@ class DerivedCounts:
     node_count: int
     hierarchy_edge_count: int
     property_count: int
-    edge_count: int
+    node_link_count: int
 
 
 @dataclass
@@ -33,7 +33,7 @@ class ReconciliationReport:
     node_count: int
     hierarchy_edge_count: int
     property_count: int
-    edge_count: int
+    node_link_count: int
     orphan_count: int
     duplicate_count: int
     mismatch_errors: list[str]
@@ -48,12 +48,12 @@ def get_derived_counts(conn: sqlite3.Connection) -> DerivedCounts:
     property_count = conn.execute(
         "SELECT COUNT(*) FROM property_value"
     ).fetchone()[0]
-    edge_count = conn.execute("SELECT COUNT(*) FROM edge").fetchone()[0]
+    node_link_count = conn.execute("SELECT COUNT(*) FROM node_link").fetchone()[0]
     return DerivedCounts(
         node_count=node_count,
         hierarchy_edge_count=hierarchy_edge_count,
         property_count=property_count,
-        edge_count=edge_count,
+        node_link_count=node_link_count,
     )
 
 
@@ -81,9 +81,9 @@ def compare_derived_state(
         errors.append(
             f"property count mismatch: expected {expected.property_count}, got {actual.property_count}"
         )
-    if actual.edge_count != expected.edge_count:
+    if actual.node_link_count != expected.node_link_count:
         errors.append(
-            f"edge count mismatch: expected {expected.edge_count}, got {actual.edge_count}"
+            f"node_link count mismatch: expected {expected.node_link_count}, got {actual.node_link_count}"
         )
     return errors
 
@@ -190,7 +190,7 @@ def build_reconciliation_report(
             node_count=counts.node_count,
             hierarchy_edge_count=counts.hierarchy_edge_count,
             property_count=counts.property_count,
-            edge_count=counts.edge_count,
+            node_link_count=counts.node_link_count,
             orphan_count=len(orphans),
             duplicate_count=len(duplicates),
             mismatch_errors=mismatch_errors,
@@ -208,7 +208,7 @@ def format_report(report: ReconciliationReport) -> str:
         f"Nodes:             {report.node_count}",
         f"Hierarchy edges:   {report.hierarchy_edge_count}",
         f"Properties:        {report.property_count}",
-        f"Edges:             {report.edge_count}",
+        f"Node links:        {report.node_link_count}",
         f"Orphan operations: {report.orphan_count}",
         f"Duplicate ids:     {report.duplicate_count}",
     ]

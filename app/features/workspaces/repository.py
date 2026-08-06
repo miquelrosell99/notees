@@ -795,24 +795,24 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                     }
                 )
 
-            edge_rows = await store.query(
-                "SELECT id, source_id, target_id, type, property_schema_id, metadata, created_at FROM edge WHERE workspace_id = ?",
+            node_link_rows = await store.query(
+                "SELECT id, source_id, target_id, type, label, click_count, last_navigated_at, created_at, updated_at FROM node_link WHERE workspace_id = ?",
                 (workspace_uuid,),
             )
             links = []
-            for row in edge_rows:
-                if row["type"] not in ("inline", "property", "reference"):
-                    continue
+            for row in node_link_rows:
                 links.append(
                     {
                         "id": row["id"],
                         "uuid": row["id"],
                         "source_id": row["source_id"],
                         "target_id": row["target_id"],
-                        "property_id": row["property_schema_id"],
                         "type": row["type"],
-                        "metadata": row["metadata"],
+                        "label": row["label"],
+                        "click_count": row["click_count"],
+                        "last_navigated_at": row["last_navigated_at"],
                         "create_date": row["created_at"],
+                        "write_date": row["updated_at"],
                     }
                 )
 

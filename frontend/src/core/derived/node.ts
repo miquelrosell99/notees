@@ -87,6 +87,7 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
     db.run('DELETE FROM property_schema WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM class_property_edge WHERE class_id = ?', [nodeId]);
     db.run('DELETE FROM edge WHERE source_id = ? OR target_id = ?', [nodeId, nodeId]);
+    db.run('DELETE FROM node_link WHERE source_id = ? OR target_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM crdt_state WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);

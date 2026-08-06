@@ -226,9 +226,9 @@ class AgentService:
 
         ref_rows = await self.store.query(
             """
-            SELECT e.id, e.target_id, e.type
-            FROM edge e
-            WHERE e.source_id = ? AND e.workspace_id = ?
+            SELECT nl.id, nl.target_id, nl.type
+            FROM node_link nl
+            WHERE nl.source_id = ? AND nl.workspace_id = ?
             """,
             (node_id, self.store.workspace_id),
         )
@@ -250,9 +250,9 @@ class AgentService:
 
         backlink_rows = await self.store.query(
             """
-            SELECT e.id, e.source_id, e.type
-            FROM edge e
-            WHERE e.target_id = ? AND e.workspace_id = ?
+            SELECT nl.id, nl.source_id, nl.type
+            FROM node_link nl
+            WHERE nl.target_id = ? AND nl.workspace_id = ?
             """,
             (node_id, self.store.workspace_id),
         )

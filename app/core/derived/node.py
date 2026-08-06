@@ -146,6 +146,10 @@ def apply_node_delete(conn: sqlite3.Connection, op: Operation) -> None:
         "DELETE FROM edge WHERE source_id = ? OR target_id = ?",
         (node_id, node_id),
     )
+    conn.execute(
+        "DELETE FROM node_link WHERE source_id = ? OR target_id = ?",
+        (node_id, node_id),
+    )
     delete_crdt_state_for_node(conn, node_id)
     conn.execute("DELETE FROM search_index WHERE node_id = ?", (node_id,))
     delete_class_hierarchy_for_node(conn, node_id)
