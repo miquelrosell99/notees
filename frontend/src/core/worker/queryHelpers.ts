@@ -22,11 +22,12 @@ import type {
   PropertyBacklink,
   TextLink,
 } from '@/types/api';
+
 import type { NodeView } from '@/types/nodeView';
 import type { QueryAST } from '@/types/queryAST';
 import { queryAll, queryOne } from '../db/sqlite';
 import { projectNode, projectNodes } from '../adapters/nodeProjection';
-import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import { parseAST, parseLinkId, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, TASK_CLOSED_STATUSES } from '@/constants/systemProperties';
 import { createEmptyQueryAST } from '@/types/queryAST';
@@ -568,7 +569,7 @@ const MAX_RESOLVED_BREADCRUMB_NAME_LENGTH = 200;
  */
 function resolveBreadcrumbNameText(store: WorkspaceStore, content: string | null | undefined): string {
   if (!content) return '';
-  const ast = parseAST(content);
+  const ast = unwrapCrdtContentAst(parseAST(content));
   const text = stringifyAST(ast, {
     mode: StringifyMode.TEXT_ONLY,
     maxLength: MAX_RESOLVED_BREADCRUMB_NAME_LENGTH,

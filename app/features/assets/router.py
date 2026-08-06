@@ -203,8 +203,11 @@ async def get_asset(
     Supports HTTP Range requests for seekable media playback.
     Authentication: asset_token query parameter or JWT header.
     """
-    if not await asset_service.asset_exists(asset_uuid):
-        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        if not await asset_service.asset_exists(asset_uuid):
+            raise HTTPException(status_code=404, detail="Asset not found")
+    except AssetPermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
     file_path = await asset_service.get_asset_file_path(asset_uuid)
     if file_path is None:
@@ -265,8 +268,11 @@ async def get_asset_thumbnail(
 
     Authentication: asset_token query parameter or JWT header.
     """
-    if not await asset_service.asset_exists(asset_uuid):
-        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        if not await asset_service.asset_exists(asset_uuid):
+            raise HTTPException(status_code=404, detail="Asset not found")
+    except AssetPermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
     thumbnail_path = asset_service.file_service.get_thumbnail_path(asset_uuid)
     if not thumbnail_path.exists():
@@ -286,6 +292,8 @@ async def get_asset_info(
         result = await asset_service.get_asset_info(asset_uuid)
     except AssetMissingError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except AssetPermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Failed to get asset info: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get asset info: {e}") from e
@@ -304,6 +312,8 @@ async def delete_asset(
         result = await asset_service.delete_asset(asset_uuid)
     except AssetMissingError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except AssetPermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Failed to delete asset: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete asset: {e}") from e

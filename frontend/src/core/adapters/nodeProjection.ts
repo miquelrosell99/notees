@@ -4,7 +4,7 @@ import { queryAll, queryOne } from '../db/sqlite';
 import type { NodeRow, WorkspaceStore } from '../store';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
-import { parseAST } from '@/lib/astBuilder';
+import { parseAST, unwrapCrdtContentAst, parseLinkId } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { classRowToNode, getClasses } from '../query/classes';
 
@@ -22,16 +22,39 @@ const MAX_CHILDREN_DEPTH = 2;
  *   (e.g. [{"type":"text","text":"..."}]); fall back to the first text leaf.
  * - Otherwise fall back to the raw content string, truncated to 200 chars.
  */
+function extractFirstLinkFallback(ast: ReturnType<typeof parseAST>): string | undefined {
+  for (const block of ast) {
+    const children = (block as { children?: unknown[] }).children;
+    if (!Array.isArray(children)) continue;
+    for (const inline of children) {
+      const node = inline as { type?: string; link_id?: string; label?: string | null };
+      if (node.type === 'node_link' && node.link_id) {
+        if (node.label) return node.label;
+        const { nodeUuid } = parseLinkId(node.link_id);
+        if (nodeUuid) return nodeUuid;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function deriveName(content: string): string {
   if (!content) {
     return 'Untitled';
   }
 
-  const ast = parseAST(content);
+  const ast = unwrapCrdtContentAst(parseAST(content));
   if (ast.length > 0) {
     const text = stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY, maxLength: MAX_NAME_LENGTH });
-    if (text.trim()) {
+    if (text.trim() && text.trim() !== '…') {
       return text.trim();
+    }
+    // If the only inline content is a node_link, stringifyAST returns "…" because
+    // it has no resolver. Fall back to the link label or target UUID so the user
+    // sees *something* useful instead of an ellipsis.
+    const linkFallback = extractFirstLinkFallback(ast);
+    if (linkFallback) {
+      return linkFallback.slice(0, MAX_NAME_LENGTH);
     }
     // CRDT text updates may store bare inline text nodes at document level.
     const firstText = findFirstText(ast);

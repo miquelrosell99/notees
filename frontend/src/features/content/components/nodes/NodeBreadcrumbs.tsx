@@ -88,6 +88,13 @@ function NodeBreadcrumbsElement({
     item.isProperty ? null : item.nodeUuid,
     item.name,
   );
+  // The pre-resolved display name from the breadcrumbs API can be stale or
+  // fall back to "…" when a node_link target was not loaded at query time.
+  // Prefer the live resolved name in that case, while keeping date formatting
+  // and other API-level display transformations when they are present.
+  const displayText = item.displayName && item.displayName !== '…'
+    ? item.displayName
+    : liveName;
 
   const handleEditClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -107,7 +114,7 @@ function NodeBreadcrumbsElement({
     <span ref={wrapperRef} className="node-breadcrumb-item" onContextMenu={handleContextMenu}>
       <NodeInline
         name={liveName}
-        displayText={item.displayName}
+        displayText={displayText}
         icon={item.icon}
         showBullet={!!item.icon}
         propertyName={item.isProperty ? item.name : undefined}
@@ -142,7 +149,9 @@ function BreadcrumbPopupItem({ item, onClick }: { item: BreadcrumbItem; onClick:
   const itemDisplayName = useNodeDisplayName(itemNode);
   const label = item.isProperty
     ? item.name
-    : (item.displayName || itemDisplayName);
+    : (item.displayName && item.displayName !== '…'
+        ? item.displayName
+        : (itemDisplayName || item.name));
   return (
     <button
       className={`node-breadcrumbs-popup-item ${item.isProperty ? 'node-breadcrumb-property' : ''}`}

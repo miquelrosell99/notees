@@ -31,6 +31,7 @@ import type {
   ASTUnderline,
   ASTExternalLink,
   ASTInlineNode,
+  ASTBlockNode,
 } from '@/types/ast';
 import { migrateASTDocument } from '@/types/ast';
 import type { WhiteboardData } from '@/features/whiteboard/types/whiteboard';
@@ -518,4 +519,60 @@ function expandInlineNodes(nodes: readonly ASTInlineNode[]): ASTInlineNode[] {
   }
 
   return changed ? result : (nodes as ASTInlineNode[]);
+}
+
+
+// ── CRDT text-update wrapper unwrap ────────────────────────────────
+
+function isTextNode(node: unknown): node is { type: 'text'; text: string } {
+  return (
+    typeof node === 'object' &&
+    node !== null &&
+    'type' in node &&
+    (node as { type: string }).type === 'text' &&
+    typeof (node as { text?: unknown }).text === 'string'
+  );
+}
+
+function tryParseDocumentJson(text: string): ASTDocument | null {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    if (parsed.some((item) => typeof item !== 'object' || item === null || !('type' in item))) {
+      return null;
+    }
+    return parsed as ASTDocument;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Undo the CRDT text-update storage wrapper.
+ *
+ * The local-first core stores inline editor content by serializing the real AST
+ * to JSON and writing that JSON string into the node's text CRDT. The derived
+ * SQLite `content` column therefore becomes `[{type:'text', text:'[<real AST>]'}]`
+ * (or the paragraph-wrapped equivalent). This helper detects that wrapper and
+ * returns the inner AST so callers can resolve node_link pills, formatting, etc.
+ *
+ * If the content is not wrapped, the input is returned unchanged.
+ */
+export function unwrapCrdtContentAst(ast: ASTDocument): ASTDocument {
+  if (ast.length !== 1) return ast;
+  const block = ast[0] as ASTBlockNode | ASTInlineNode;
+  let wrappedText: string | undefined;
+  if (isTextNode(block)) {
+    wrappedText = block.text;
+  } else if (
+    block.type === 'paragraph' &&
+    Array.isArray(block.children) &&
+    block.children.length === 1 &&
+    isTextNode(block.children[0])
+  ) {
+    wrappedText = block.children[0].text;
+  }
+  if (!wrappedText) return ast;
+  const inner = tryParseDocumentJson(wrappedText);
+  return inner && inner.length > 0 ? inner : ast;
 }
