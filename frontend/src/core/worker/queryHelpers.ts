@@ -849,26 +849,21 @@ export function buildTasks(store: WorkspaceStore, includeComplete = false): Node
 export function buildTextLinks(store: WorkspaceStore, nodeUuid: string): TextLink[] {
   const db = store.getDb();
 
-  const rows = queryAll<{ id: string; target_id: string; metadata: string | null }>(
+  const rows = queryAll<{ id: string; target_id: string; label: string | null }>(
     db,
-    `SELECT id, target_id, metadata
-     FROM edge
-     WHERE source_id = ? AND type = ?
+    `SELECT id, target_id, label
+     FROM node_link
+     WHERE source_id = ?
      ORDER BY created_at`,
-    [nodeUuid, 'reference']
+    [nodeUuid]
   );
 
   return rows.map((row, index) => {
     const targetNode = projectNode(store, row.target_id);
     let name: string | null = targetNode?.name ?? null;
 
-    if (!name && row.metadata) {
-      try {
-        const parsed = JSON.parse(row.metadata) as { label?: string | null };
-        name = parsed.label ?? null;
-      } catch {
-        // ignore malformed metadata
-      }
+    if (!name) {
+      name = row.label ?? null;
     }
 
     return {
@@ -912,11 +907,10 @@ export function buildSuggestions(store: WorkspaceStore, classFilters?: string): 
 
        UNION ALL
 
-       SELECT n.id, MAX(e.created_at) AS last_at
+       SELECT n.id, MAX(nl.created_at) AS last_at
        FROM node n
-       JOIN edge e ON e.target_id = n.id
+       JOIN node_link nl ON nl.target_id = n.id
        WHERE n.kind = 'page'
-         AND e.type = 'reference'
        GROUP BY n.id
      )
      ORDER BY last_at DESC`,

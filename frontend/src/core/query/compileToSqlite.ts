@@ -253,7 +253,7 @@ class Compiler {
 
     if (scopeType === 'linked_refs') {
       if (!this.currentNodeUuid) return undefined;
-      return `EXISTS (SELECT 1 FROM edge e WHERE e.source_id = ${this.alias}.id AND e.target_id = ${this.pushParam(
+      return `EXISTS (SELECT 1 FROM node_link nl WHERE nl.source_id = ${this.alias}.id AND nl.target_id = ${this.pushParam(
         this.currentNodeUuid
       )})`;
     }
@@ -476,10 +476,10 @@ class Compiler {
     const op = condition.operator ?? 'references';
 
     if (op === 'has_no_references') {
-      return `NOT EXISTS (SELECT 1 FROM edge e WHERE e.source_id = ${this.alias}.id)`;
+      return `NOT EXISTS (SELECT 1 FROM node_link nl WHERE nl.source_id = ${this.alias}.id)`;
     }
     if (op === 'has_references') {
-      return `EXISTS (SELECT 1 FROM edge e WHERE e.source_id = ${this.alias}.id)`;
+      return `EXISTS (SELECT 1 FROM node_link nl WHERE nl.source_id = ${this.alias}.id)`;
     }
 
     const uuids = validUuids(
@@ -492,7 +492,7 @@ class Compiler {
 
     const list = placeholders(uuids.length);
     uuids.forEach((u: string) => this.pushParam(u));
-    const references = `EXISTS (SELECT 1 FROM edge e WHERE e.source_id = ${this.alias}.id AND e.target_id IN (${list}))`;
+    const references = `EXISTS (SELECT 1 FROM node_link nl WHERE nl.source_id = ${this.alias}.id AND nl.target_id IN (${list}))`;
 
     if (op === 'does_not_reference') return `NOT ${references}`;
     return references;
@@ -512,11 +512,11 @@ class Compiler {
     const workspaceParam = this.pushParam(this.workspaceId);
     const ancestorCte = `WITH RECURSIVE ancestors AS (SELECT id, parent_id, 0 AS depth FROM node WHERE id = ${this.alias}.id UNION ALL SELECT n.id, n.parent_id, a.depth + 1 FROM node n JOIN ancestors a ON n.id = a.parent_id)`;
 
-    const viaEdge = `EXISTS (${ancestorCte} SELECT 1 FROM ancestors a JOIN edge e ON e.source_id = a.id WHERE e.target_id IN (${targetSubquery}) AND e.workspace_id = ${workspaceParam})`;
+    const viaNodeLink = `EXISTS (${ancestorCte} SELECT 1 FROM ancestors a JOIN node_link nl ON nl.source_id = a.id WHERE nl.target_id IN (${targetSubquery}) AND nl.workspace_id = ${workspaceParam})`;
     const viaProperty = `EXISTS (${ancestorCte} SELECT 1 FROM ancestors a JOIN property_value pv ON pv.node_id = a.id WHERE json_extract(pv.value, '$') IN (${targetSubquery}))`;
     const viaAncestor = `EXISTS (${ancestorCte} SELECT 1 FROM ancestors WHERE id IN (${targetSubquery}) AND depth > 0)`;
 
-    return `(${viaEdge} OR ${viaProperty} OR ${viaAncestor})`;
+    return `(${viaNodeLink} OR ${viaProperty} OR ${viaAncestor})`;
   }
 
   private generateParentCondition(condition: ParentCondition): string | undefined {
