@@ -780,6 +780,7 @@ export function BlockList({
                   inPropertyEditor={inPropertyEditor}
                   hideBullet={hideRootBullet && depth === 0}
                   documentMode={documentMode}
+                  rootIsBlock={rootIsBlock}
                   onEnter={handleEnter}
                   onBackspaceAtStart={handleBackspaceAtStart}
                   onDeleteAtEnd={handleDeleteAtEnd}
@@ -810,31 +811,32 @@ export function BlockList({
               isOnActiveTrail={activeTrailIds.has(node.uuid)}
               useOverlayForGuides
               onGhostRealize={handleGhostRealize}
-            readOnly={readOnly}
-            placeholder={placeholder}
-            onContentChange={onContentChange}
-            onPillClick={onPillClick}
-            onPillRemove={onPillRemove}
-            onNavigate={onNavigateToNode}
-            onOpenInSidebar={onOpenInSidebar}
-            onAddClass={onAddClass}
-            onSlashCommand={onSlashCommand}
-            onPasteImage={onPasteImage}
-            onTemplateInstantiate={onTemplateInstantiate}
-            templateClassFilters={templateClassFilters}
-            nodeUuid={nodeUuid}
-            showClasses={showClasses}
-            inCard={inCard}
-            listSize={listSize}
-            inPropertyEditor={inPropertyEditor}
-            hideBullet={hideRootBullet && depth === 0}
-            documentMode={documentMode}
-            onEnter={handleEnter}
-            onBackspaceAtStart={handleBackspaceAtStart}
-            onDeleteAtEnd={handleDeleteAtEnd}
-            onEscape={handleEscape}
-            onCollapseToggle={handleCollapseToggle}
-          />
+              readOnly={readOnly}
+              placeholder={placeholder}
+              onContentChange={onContentChange}
+              onPillClick={onPillClick}
+              onPillRemove={onPillRemove}
+              onNavigate={onNavigateToNode}
+              onOpenInSidebar={onOpenInSidebar}
+              onAddClass={onAddClass}
+              onSlashCommand={onSlashCommand}
+              onPasteImage={onPasteImage}
+              onTemplateInstantiate={onTemplateInstantiate}
+              templateClassFilters={templateClassFilters}
+              nodeUuid={nodeUuid}
+              showClasses={showClasses}
+              inCard={inCard}
+              listSize={listSize}
+              inPropertyEditor={inPropertyEditor}
+              hideBullet={hideRootBullet && depth === 0}
+              documentMode={documentMode}
+              rootIsBlock={rootIsBlock}
+              onEnter={handleEnter}
+              onBackspaceAtStart={handleBackspaceAtStart}
+              onDeleteAtEnd={handleDeleteAtEnd}
+              onEscape={handleEscape}
+              onCollapseToggle={handleCollapseToggle}
+            />
         ))}
       </>
       )}
