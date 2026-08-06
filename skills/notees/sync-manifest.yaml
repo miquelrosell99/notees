@@ -1,0 +1,26 @@
+# Vendor-class files — byte-identical copies of upstream mechanism files.
+# scripts/sync-vendor.sh syncs these mechanically during update-upstream:
+# base = the upstream version at your recorded .upstream-sync synced_sha;
+# a local file matching base is provably unedited and safe to overwrite,
+# a local file differing from base is reported, never overwritten.
+# Project-owned files (rules/, gotchas, routing.yaml, SKILL.md…) NEVER go here.
+# This manifest is itself vendor-class: upstream's copy wins on sync.
+vendor:
+  - sync-manifest.yaml
+  - protocol-blocks/ambiguous-request-gate.md
+  - protocol-blocks/rationalizations-table.md
+  - protocol-blocks/reboot-check.md
+  - protocol-blocks/red-flags-stop.md
+  - protocol-blocks/subagent-contract.md
+  - scripts/_parse_conformance.py
+  - scripts/audit-orphans.sh
+  - scripts/check-cross-references.sh
+  - scripts/check-growth-health.sh
+  - scripts/check-version-conformance.sh
+  - scripts/footprint.sh
+  - scripts/route-health.sh
+  - scripts/route-reachability.sh
+  - scripts/smoke-test.sh
+  - scripts/sync-routing.sh
+  - scripts/sync-vendor.sh
+  - scripts/upstream-status.sh

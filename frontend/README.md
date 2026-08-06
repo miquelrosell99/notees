@@ -21,4 +21,4 @@ npm run test:run                       # Vitest unit tests
 node scripts/validate-design-system.js # design-token validator
 ```
 
-Frontend conventions (path aliases, feature barrels, query keys, UI patterns) live in [`agents/frontend.md`](../agents/frontend.md).
+Frontend conventions (path aliases, feature barrels, query keys, UI patterns) live in [`skills/notees/references/agents/frontend.md`](../skills/notees/references/agents/frontend.md).
