@@ -12,7 +12,6 @@ stable across rebuilds.
 
 from __future__ import annotations
 
-import json
 import uuid as uuid_module
 from typing import Any
 
@@ -131,7 +130,7 @@ async def run(conn: asyncpg.Connection) -> int:
         if changed:
             await conn.execute(
                 "UPDATE relay_envelope SET payload = $1 WHERE id = $2",
-                json.dumps(new_payload),
+                new_payload,
                 row["id"],
             )
             updated += 1
