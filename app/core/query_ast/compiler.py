@@ -274,7 +274,7 @@ ORDER BY {order_by_sql}"""
             self.params.append(self.workspace_id)
             self.params.append(self.current_node_uuid)
             return (
-                f"(EXISTS (SELECT 1 FROM edge WHERE source_id = n.id AND target_id = {target} AND workspace_id = ?) "
+                f"(EXISTS (SELECT 1 FROM node_link WHERE source_id = n.id AND target_id = {target} AND workspace_id = ?) "
                 f"OR EXISTS (SELECT 1 FROM property_value WHERE node_id = n.id AND json_extract(value, '$.value') = ?))"
             )
 
@@ -581,7 +581,7 @@ ORDER BY {order_by_sql}"""
         self.params.append(self.workspace_id)
         self.params.append(condition.target_uuid)
         return (
-            f"(EXISTS (SELECT 1 FROM edge WHERE source_id = n.id AND target_id = {target_ph} AND workspace_id = ?) "
+            f"(EXISTS (SELECT 1 FROM node_link WHERE source_id = n.id AND target_id = {target_ph} AND workspace_id = ?) "
             f"OR EXISTS (SELECT 1 FROM property_value WHERE node_id = n.id AND json_extract(value, '$.value') = ?))"
         )
 
@@ -611,7 +611,7 @@ ORDER BY {order_by_sql}"""
         )
         SELECT 1 FROM ref_ancestors a
         WHERE (
-            EXISTS (SELECT 1 FROM edge WHERE source_id = a.id AND target_id IN {edge_in})
+            EXISTS (SELECT 1 FROM node_link WHERE source_id = a.id AND target_id IN {edge_in})
             OR EXISTS (SELECT 1 FROM property_value WHERE node_id = a.id AND json_extract(value, '$.value') IN {prop_in})
             OR (a.id IN {ancestor_in} AND a.depth > 0)
         )

@@ -579,6 +579,7 @@ class WorkspaceStore:
         source_node_id: str,
         target_node_id: str,
         clicked_at: str | None = None,
+        link_uuid: str | None = None,
     ) -> None:
         """Emit a ``link.click`` operation."""
         payload: dict[str, Any] = {
@@ -587,6 +588,8 @@ class WorkspaceStore:
         }
         if clicked_at is not None:
             payload["clickedAt"] = clicked_at
+        if link_uuid is not None:
+            payload["linkUuid"] = link_uuid
         await self.apply(self._build_operation("link.click", payload, [source_node_id, target_node_id]))
 
     async def update_content(

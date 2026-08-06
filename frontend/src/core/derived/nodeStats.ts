@@ -67,14 +67,12 @@ export function rebuildNodeStats(db: Database, nodeIds?: string[]): void {
       ),
       backlink_counts AS (
         SELECT target_id, COUNT(DISTINCT source_id) AS backlink_count
-        FROM edge
-        WHERE type = 'reference'
+        FROM node_link
         GROUP BY target_id
       ),
       reference_counts AS (
-        SELECT source_id, COUNT(DISTINCT target_id) AS reference_count
-        FROM edge
-        WHERE type = 'reference'
+        SELECT source_id, COUNT(*) AS reference_count
+        FROM node_link
         GROUP BY source_id
       )
       INSERT INTO node_stats (node_id, child_count, backlink_count, reference_count, descendant_count, updated_at)
@@ -134,14 +132,14 @@ export function rebuildNodeStats(db: Database, nodeIds?: string[]): void {
     ),
     backlink_counts AS (
       SELECT target_id, COUNT(DISTINCT source_id) AS backlink_count
-      FROM edge
-      WHERE type = 'reference' AND target_id IN (SELECT id FROM targeted)
+      FROM node_link
+      WHERE target_id IN (SELECT id FROM targeted)
       GROUP BY target_id
     ),
     reference_counts AS (
-      SELECT source_id, COUNT(DISTINCT target_id) AS reference_count
-      FROM edge
-      WHERE type = 'reference' AND source_id IN (SELECT id FROM targeted)
+      SELECT source_id, COUNT(*) AS reference_count
+      FROM node_link
+      WHERE source_id IN (SELECT id FROM targeted)
       GROUP BY source_id
     )
     INSERT INTO node_stats (node_id, child_count, backlink_count, reference_count, descendant_count, updated_at)

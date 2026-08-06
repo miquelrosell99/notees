@@ -244,19 +244,34 @@ async def track_link_click(
         raise HTTPException(404, "Node not found")
 
     now = utc_now_iso()
-    await store.record_link_click(data.source_node_uuid, data.target_node_uuid, clicked_at=now)
+    await store.record_link_click(
+        data.source_node_uuid,
+        data.target_node_uuid,
+        clicked_at=now,
+        link_uuid=data.node_link_uuid,
+    )
     await store.sync()
 
-    rows = await store.query(
-        """
-        SELECT click_count, last_clicked_at
-        FROM link_click
-        WHERE node_id = ? AND target_id = ?
-        """,
-        (data.source_node_uuid, data.target_node_uuid),
-    )
-    click_count = rows[0]["click_count"] if rows else 1
-    last_click_date = rows[0]["last_clicked_at"] if rows else now
+    if data.node_link_uuid:
+        rows = await store.query(
+            """
+            SELECT click_count, last_navigated_at
+            FROM node_link
+            WHERE id = ?
+            """,
+            (data.node_link_uuid,),
+        )
+    else:
+        rows = await store.query(
+            """
+            SELECT SUM(click_count) AS click_count, MAX(last_navigated_at) AS last_navigated_at
+            FROM node_link
+            WHERE source_id = ? AND target_id = ?
+            """,
+            (data.source_node_uuid, data.target_node_uuid),
+        )
+    click_count = rows[0]["click_count"] if rows and rows[0]["click_count"] is not None else 1
+    last_click_date = rows[0]["last_navigated_at"] if rows else now
 
     return LinkClickResponse(
         source_node_id=data.source_node_uuid,
@@ -273,13 +288,16 @@ async def get_link_clicks(
     user: User = Depends(get_current_user),
     store: WorkspaceStore = Depends(get_workspace_store),
 ):
-    """Get all link click counts from a source node (aggregated)."""
+    """Get all link click counts from a source node (aggregated by target)."""
     await store.sync()
     rows = await store.query(
         """
-        SELECT target_id, click_count, last_clicked_at
-        FROM link_click
-        WHERE node_id = ?
+        SELECT target_id,
+               SUM(click_count) AS click_count,
+               MAX(last_navigated_at) AS last_navigated_at
+        FROM node_link
+        WHERE source_id = ?
+        GROUP BY target_id
         """,
         (source_node_uuid,),
     )
@@ -288,8 +306,8 @@ async def get_link_clicks(
         LinkClickResponse(
             source_node_id=source_node_uuid,
             target_node_id=row["target_id"],
-            click_count=row["click_count"],
-            last_click_date=row["last_clicked_at"],
+            click_count=row["click_count"] or 0,
+            last_click_date=row["last_navigated_at"],
         )
         for row in rows
     ]
@@ -302,22 +320,22 @@ async def get_link_click(
     user: User = Depends(get_current_user),
     store: WorkspaceStore = Depends(get_workspace_store),
 ):
-    """Get click count for a specific link."""
+    """Get aggregated click count for all links from source to target."""
     await store.sync()
     rows = await store.query(
         """
-        SELECT click_count, last_clicked_at
-        FROM link_click
-        WHERE node_id = ? AND target_id = ?
+        SELECT SUM(click_count) AS click_count, MAX(last_navigated_at) AS last_navigated_at
+        FROM node_link
+        WHERE source_id = ? AND target_id = ?
         """,
         (source_node_uuid, target_node_uuid),
     )
-    if rows:
+    if rows and rows[0]["click_count"] is not None:
         return LinkClickResponse(
             source_node_id=source_node_uuid,
             target_node_id=target_node_uuid,
             click_count=rows[0]["click_count"],
-            last_click_date=rows[0]["last_clicked_at"],
+            last_click_date=rows[0]["last_navigated_at"],
         )
     return LinkClickResponse(
         source_node_id=source_node_uuid,
@@ -335,17 +353,14 @@ async def get_link_click_history(
     user: User = Depends(get_current_user),
     store: WorkspaceStore = Depends(get_workspace_store),
 ):
-    """Get click history for a specific link.
-
-    The derived store aggregates clicks, so this returns a single summary record.
-    """
+    """Get per-instance click history for links from source to target."""
     await store.sync()
     rows = await store.query(
         """
-        SELECT id, click_count, last_clicked_at
-        FROM link_click
-        WHERE node_id = ? AND target_id = ?
-        ORDER BY last_clicked_at DESC
+        SELECT id, click_count, last_navigated_at
+        FROM node_link
+        WHERE source_id = ? AND target_id = ?
+        ORDER BY last_navigated_at IS NULL, last_navigated_at DESC
         LIMIT ?
         """,
         (source_node_uuid, target_node_uuid, limit),
@@ -356,8 +371,8 @@ async def get_link_click_history(
             link_click_uuid=row["id"] or "",
             source_node_id=source_node_uuid,
             target_node_id=target_node_uuid,
-            node_link_uuid=None,
-            click_date=row["last_clicked_at"],
+            node_link_uuid=row["id"],
+            click_date=row["last_navigated_at"],
         )
         for row in rows
     ]
@@ -370,10 +385,10 @@ async def reset_link_click(
     user: User = Depends(get_current_user),
     store: WorkspaceStore = Depends(get_workspace_store),
 ):
-    """Reset click counter for a specific link (deletes the aggregated row)."""
+    """Reset click counters for all links from source to target."""
     await store.sync()
     await store.execute(
-        "DELETE FROM link_click WHERE node_id = ? AND target_id = ?",
+        "DELETE FROM node_link WHERE source_id = ? AND target_id = ?",
         (source_node_uuid, target_node_uuid),
     )
     return {"success": True}
