@@ -14,8 +14,8 @@ Legacy aliases are provided for backward compatibility.
 from ...utils.datetime_utils import utc_now_iso
 from .constants import (
     SCHEMA_VERSION,
-    SYSTEM_CLASSES,
     SYSTEM_CLASS_UUIDS,
+    SYSTEM_CLASSES,
     SYSTEM_PROPERTY_UUIDS,
     generate_day_uuid,
     generate_month_uuid,
