@@ -199,6 +199,8 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
             pageId={node.uuid}
             nodeUuid={node.uuid}
             maxDepth={0}
+            showNewBlock={false}
+            rootIsBlock
             onAddClass={handleAddClass}
           />
           {/* Children shown as cards */}
@@ -1293,8 +1295,9 @@ export function NodeView({
       ) : null}
 
       {/* Properties Section - full width row below header section.
-          Rendered for pages and for the focused block in focused block view. */}
-      {showProperties && (
+          For focused blocks the section is rendered after the focused block
+          row by BlockRow, so it only appears here for pages. */}
+      {showProperties && resolvedType === 'page' && (
         <div className="page-properties-section">
           <PropertiesSection
             nodeUuid={node.uuid}
@@ -1339,7 +1342,7 @@ export function NodeView({
         </>
       ) : (
         /* Focused Block View - renders the block itself as a top-level list item.
-           The focused block's properties are rendered above by PropertiesSection. */
+           Its properties are rendered after the focused block row by BlockRow. */
         <FocusedBlockContent
           node={node}
           onAddSidebarCard={(id) => addSidebarCard(id, 'block')}

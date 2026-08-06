@@ -68,6 +68,12 @@
   font-size: var(--font-size-sm);
 }
 
+/* Full properties panel rendered below the root focused block row.
+   Sits between the focused block and its children. */
+.block-row__root-properties {
+  margin: var(--spacing-2) 0 var(--spacing-4);
+}
+
 /* Content area — inline editor sits here */
 .block-row__content {
   min-height: 1.5em;
