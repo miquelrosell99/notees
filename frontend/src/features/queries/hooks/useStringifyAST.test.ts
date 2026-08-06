@@ -36,4 +36,23 @@ describe('nodeNameToText', () => {
     expect(nodeNameToText('20260805', 4)).toBe('2026');
     expect(nodeNameToText([{ type: 'text', text: '20260805' }], 4)).toBe('2026');
   });
+
+  it('does not render an unresolved node_link as "…"', () => {
+    const targetId = '00000000-0000-0000-0000-000000000001';
+    const ast = JSON.stringify([
+      { type: 'paragraph', children: [{ type: 'node_link', link_id: targetId, ref_type: 'node' }] },
+    ]);
+    expect(nodeNameToText(ast)).not.toBe('…');
+    expect(nodeNameToText(ast)).toBe(targetId);
+  });
+
+  it('unwraps CRDT-wrapped AST instead of returning raw JSON', () => {
+    const targetId = '00000000-0000-0000-0000-000000000002';
+    const innerAst = JSON.stringify([
+      { type: 'paragraph', children: [{ type: 'node_link', link_id: targetId, ref_type: 'node' }] },
+    ]);
+    const wrapped = JSON.stringify([{ type: 'text', text: innerAst }]);
+    expect(nodeNameToText(wrapped)).not.toContain('type');
+    expect(nodeNameToText(wrapped)).toBe(targetId);
+  });
 });
