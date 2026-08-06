@@ -22,6 +22,10 @@ export interface UseBlockTreeOptions {
    *  root ghost is indented one level deeper and the per-parent child ghost for the
    *  root node is suppressed to avoid a duplicate placeholder. */
   rootIsBlock?: boolean;
+  /** If true, project only the provided `nodes` prop and append a single root
+   *  ghost block (when nodeUuid is provided). The core store is never queried for
+   *  children, so callers can render transient/local trees such as the scratchpad. */
+  localOnly?: boolean;
 }
 
 const GHOST_PREFIX = '__ghost-';
