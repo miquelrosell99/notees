@@ -6,6 +6,7 @@ import { queryAll, queryOne, transaction } from './db/sqlite';
 import { applyOperation, type ChangeNotification } from './derived';
 import { rebuildNodeStats } from './derived/nodeStats';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
+import { healNodeLinkTarget } from './derived/linkHealing';
 import { getNodeVersions, getNodeVersionContent } from './query/versions';
 import { rewriteLinksToTarget } from './query/mergePages';
 import { loadTextCrdt, loadTreeCrdt, loadTreeCrdtClean, saveTreeCrdt } from './derived/crdtState';
@@ -1318,6 +1319,21 @@ export class WorkspaceStore {
 
   getBacklinks(nodeId: string): string[] {
     return getBacklinks(this.db, nodeId);
+  }
+
+  /**
+   * Resolve the canonical target UUID for a link instance and optionally heal
+   * the source node's AST if the cached target UUID has drifted from the
+   * canonical ``node_link.target_id``.
+   *
+   * Returns the canonical target UUID (or the AST target if no link row exists).
+   */
+  resolveAndHealNodeLink(sourceNodeId: string, linkId: string): string | null {
+    const result = healNodeLinkTarget(this.db, sourceNodeId, linkId, { heal: true });
+    if (result.healed && result.newAst) {
+      this.updateContentAst(sourceNodeId, result.newAst as unknown[]);
+    }
+    return result.canonicalTargetUuid;
   }
 
   getChildren(parentId: string): string[] {

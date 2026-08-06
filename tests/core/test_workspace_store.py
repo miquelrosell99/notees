@@ -128,7 +128,7 @@ class TestWorkspaceStore:
         await reader.sync()
 
         rows = await reader.query(
-            "SELECT * FROM link_click WHERE node_id = ? AND target_id = ?",
+            "SELECT * FROM node_link WHERE source_id = ? AND target_id = ?",
             ("source-1", "target-1"),
         )
         assert len(rows) == 1

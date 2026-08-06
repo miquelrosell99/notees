@@ -319,7 +319,7 @@ describe('link applier', () => {
 
     const row = queryOne<{ click_count: number; target_id: string }>(
       db,
-      'SELECT click_count, target_id FROM link_click WHERE node_id = ? AND target_id = ?',
+      'SELECT click_count, target_id FROM node_link WHERE source_id = ? AND target_id = ?',
       [nodeId, targetId]
     );
     expect(row?.click_count).toBe(2);
@@ -337,7 +337,7 @@ describe('link applier', () => {
 
     const row = queryOne<{ count: number }>(
       store.getDb(),
-      'SELECT COUNT(*) AS count FROM link_click WHERE node_id = ? OR target_id = ?',
+      'SELECT COUNT(*) AS count FROM node_link WHERE source_id = ? OR target_id = ?',
       [nodeId, nodeId]
     );
     expect(row?.count).toBe(0);

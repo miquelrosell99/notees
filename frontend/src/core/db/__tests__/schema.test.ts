@@ -12,12 +12,12 @@ beforeAll(() => {
 });
 
 describe('schema', () => {
-  it('creates node icon/color columns, node_stats, edge indexes, sync_outbox next_retry_at, node_child_order PK and migrates to user_version 13', async () => {
+  it('creates node icon/color columns, node_stats, node_link, edge indexes, sync_outbox next_retry_at, node_child_order PK and migrates to user_version 14', async () => {
     const db = await createTestDatabase();
 
     const versionRow = db.exec('PRAGMA user_version')[0];
     const version = versionRow?.values[0]?.[0] as number;
-    expect(version).toBe(13);
+    expect(version).toBe(14);
 
     const nodeTable = queryOne<{ sql: string }>(
       db,
@@ -31,6 +31,12 @@ describe('schema', () => {
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'node_stats'"
     );
     expect(nodeStats).toBeDefined();
+
+    const nodeLink = queryOne<{ name: string }>(
+      db,
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'node_link'"
+    );
+    expect(nodeLink).toBeDefined();
 
     const sourceIndex = queryOne<{ name: string }>(
       db,
