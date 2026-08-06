@@ -1,22 +1,26 @@
 /**
  * Scratchpad Component
  *
- * Floating panel backed by a real system Scratchpad page.
- * Blocks are persisted to the server under the Scratchpad page.
- * "Send all" moves blocks to a chosen destination page.
- * The backend clears all scratchpad blocks on app startup.
+ * Floating panel for transient notes. Blocks live only in component state and
+ * are cleared on every page reload. The trailing ghost block from the normal
+ * list view provides the empty-state entry point, so no real empty block is
+ * created upfront.
+ *
+ * "Send all" realizes the transient blocks by creating them under the chosen
+ * destination page.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { NodeSelector, BlockList } from '@/features/content';
 
-import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode, useCreateNode } from '@/features/content';
-import { useContentSave, flushAllContentSaves } from '@/features/editor';
+import { useTodayNote, usePages, useNodeByUuid, useCreateNode, useDeleteNode } from '@/features/content';
+import { flushAllContentSaves } from '@/features/editor';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import { useSettingsStore } from '@/stores';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import type { Node as ApiNode } from '@/types';
+import { uuidv7 } from '@/core/uuid';
 import './Scratchpad.css';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 
@@ -28,12 +32,37 @@ interface ScratchpadProps {
   onEntryCountChange?: (count: number) => void;
 }
 
+const EMPTY_BLOCK_AST = '[{"type":"paragraph","children":[{"type":"text","text":""}]}]';
+
+function createEmptyTransientBlock(parentUuid: string): ApiNode {
+  return {
+    uuid: uuidv7(),
+    name: EMPTY_BLOCK_AST,
+    icon: null,
+    color: null,
+    parent_uuid: parentUuid,
+    page_uuid: null,
+    sequence: 0,
+    active: true,
+    is_page: false,
+    is_deleted: false,
+    has_children: false,
+    children: [],
+    create_date: new Date().toISOString(),
+    write_date: new Date().toISOString(),
+    classes_uuid: [],
+    tags_uuid: [],
+    properties_uuid: {},
+  } as ApiNode;
+}
+
 export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: ScratchpadProps) {
   const [isPinned, setIsPinned] = useState(() => localStorage.getItem('notees-scratchpad-pinned') === 'true');
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showDestinationPicker, setShowDestinationPicker] = useState(false);
+  const [transientBlocks, setTransientBlocks] = useState<ApiNode[]>([]);
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -54,93 +83,124 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   });
 
   const quickAddDestination = useSettingsStore((s) => s.quickAddDestination);
-  const moveNodeMutation = useMoveNode();
-  const deleteNode = useDeleteNode();
   const createNode = useCreateNode();
-  const { handleContentChange: saveContent } = useContentSave();
+  const deleteNode = useDeleteNode();
 
-  // Fetch the Scratchpad system page by its fixed UUID
-  const { data: scratchpadPage } = useNodeByUuid(
-    SYSTEM_PAGE_UUIDS.scratchpad,
-    { include_children: true }
-  );
+  // Fetch the Scratchpad system page by its fixed UUID. We only need the page
+  // itself (as the parent reference for transient blocks), not its children.
+  const { data: scratchpadPage } = useNodeByUuid(SYSTEM_PAGE_UUIDS.scratchpad);
+
+  // The scratchpad is now transient-only. Any blocks that were previously
+  // persisted under the Scratchpad page are stale and should be removed once
+  // per page load so the popup and the page itself stay empty on reload.
+  const cleanedUpRef = useRef(false);
+  useEffect(() => {
+    if (!scratchpadPage || cleanedUpRef.current) return;
+    const persisted = scratchpadPage.children ?? [];
+    if (persisted.length === 0) return;
+
+    cleanedUpRef.current = true;
+    for (const child of persisted) {
+      deleteNode.mutate(child.uuid);
+    }
+  }, [scratchpadPage, deleteNode]);
 
   // Get destination pages
   const { data: todayNote } = useTodayNote();
   const { data: allPages } = usePages();
-  const inboxPage = allPages?.find(p => p.name === 'Inbox');
+  const inboxPage = allPages?.find((p) => p.name === 'Inbox');
   const defaultDestination = quickAddDestination === 'today' ? todayNote : inboxPage;
 
   // Custom destination override (when user picks via NodeSelector)
   const [customDestination, setCustomDestination] = useState<ApiNode | null>(null);
   const destinationPage = customDestination ?? defaultDestination;
 
-  // Track content count from children
-  const childCount = scratchpadPage?.children?.length ?? 0;
-  // Don't count a single empty block (auto-created placeholder)
-  const meaningfulCount = childCount === 1 && !scratchpadPage?.children?.[0]?.name ? 0 : childCount;
-  const hasContent = childCount > 0;
-
-  // Auto-create an empty block when scratchpad is empty so users can start typing immediately.
-  // The core-backed create node adapter handles local persistence and background sync.
-  const autoCreatedRef = useRef(false);
-  useEffect(() => {
-    if (!scratchpadPage) return;
-    if (childCount > 0) {
-      autoCreatedRef.current = false;
-      return;
-    }
-    if (autoCreatedRef.current) return;
-
-    autoCreatedRef.current = true;
-    createNode.mutate(
-      { name: '', parent_uuid: scratchpadPage.uuid },
-      {
-        onSuccess: (newBlock) => {
-          useEditorFocusStore.getState().setPendingFocus(newBlock.uuid);
-        },
-      }
-    );
-  }, [scratchpadPage, childCount, createNode]);
+  const meaningfulCount = transientBlocks.length;
+  const hasContent = meaningfulCount > 0;
 
   useEffect(() => {
     onEntryCountChange?.(meaningfulCount);
   }, [meaningfulCount, onEntryCountChange]);
 
-  const handleContentChange = useCallback((blockId: string, content: string) => {
-    // Persist via useContentSave.
-    saveContent(blockId, content);
+  const addTransientBlock = useCallback(
+    (parentUuid: string) => {
+      const newBlock = createEmptyTransientBlock(parentUuid);
+      setTransientBlocks((prev) => [...prev, newBlock]);
+      useEditorFocusStore.getState().setPendingFocus(newBlock.uuid);
+      return newBlock;
+    },
+    [setTransientBlocks],
+  );
 
-    // Update entry count from the cached scratchpad page children.
-    const children = scratchpadPage?.children ?? [];
-    const count = children.length === 1 && !children[0]?.name ? 0 : children.length;
-    onEntryCountChange?.(count);
-  }, [onEntryCountChange, scratchpadPage, saveContent]);
+  const handleGhostRealize = useCallback(() => {
+    if (!scratchpadPage) return;
+    addTransientBlock(scratchpadPage.uuid);
+  }, [addTransientBlock, scratchpadPage]);
+
+  const handleContentChange = useCallback(
+    (blockId: string, content: string) => {
+      setTransientBlocks((prev) =>
+        prev.map((block) => (block.uuid === blockId ? { ...block, name: content } : block)),
+      );
+    },
+    [setTransientBlocks],
+  );
+
+  const handleEnter = useCallback(
+    (blockId: string) => {
+      if (!scratchpadPage) return;
+      const idx = transientBlocks.findIndex((b) => b.uuid === blockId);
+      const newBlock = createEmptyTransientBlock(scratchpadPage.uuid);
+      const insertAt = idx >= 0 ? idx + 1 : transientBlocks.length;
+      const next = [...transientBlocks];
+      next.splice(insertAt, 0, newBlock);
+      setTransientBlocks(next);
+      useEditorFocusStore.getState().setPendingFocus(newBlock.uuid);
+    },
+    [scratchpadPage, transientBlocks],
+  );
+
+  const handleBackspaceAtStart = useCallback(
+    (blockId: string) => {
+      const block = transientBlocks.find((b) => b.uuid === blockId);
+      if (!block) return;
+      // Only delete the block if it is empty.
+      if (block.name !== '[]' && block.name !== EMPTY_BLOCK_AST) return;
+
+      const idx = transientBlocks.findIndex((b) => b.uuid === blockId);
+      if (idx <= 0) return;
+
+      const prevId = transientBlocks[idx - 1]!.uuid;
+      setTransientBlocks((prev) => prev.filter((b) => b.uuid !== blockId));
+      useEditorFocusStore.getState().setPendingFocus(prevId);
+    },
+    [transientBlocks],
+  );
 
   const handleSendAll = useCallback(async () => {
     if (!destinationPage || !scratchpadPage || isSending) return;
 
-    // Flush any pending debounced content saves before moving blocks,
-    // so typed content is persisted to the server before the move.
+    // Flush any pending debounced content saves before sending blocks,
+    // so typed content is captured by the transient state.
     await flushAllContentSaves();
 
     setIsSending(true);
     try {
-      const children = scratchpadPage.children ?? [];
-      if (children.length === 0) return;
+      if (transientBlocks.length === 0) return;
 
-      for (const child of children) {
-        await moveNodeMutation.mutateAsync({
-          nodeUuid: child.uuid,
-          parentId: destinationPage.uuid,
+      for (const block of transientBlocks) {
+        await createNode.mutateAsync({
+          name: block.name,
+          parent_uuid: destinationPage.uuid,
         });
       }
 
+      setTransientBlocks([]);
       onEntryCountChange?.(0);
     } finally {
       setIsSending(false);
     }
-  }, [destinationPage, scratchpadPage, isSending, moveNodeMutation, onEntryCountChange]);
+  }, [destinationPage, scratchpadPage, isSending, transientBlocks, createNode, onEntryCountChange]);
 
   const handleSendAllRef = useRef(handleSendAll);
   useEffect(() => {
@@ -148,13 +208,11 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   });
 
   const handleClearAll = useCallback(async () => {
-    if (!scratchpadPage?.children?.length) return;
+    if (transientBlocks.length === 0) return;
     await flushAllContentSaves();
-    for (const child of scratchpadPage.children) {
-      await deleteNode.mutateAsync(child.uuid);
-    }
+    setTransientBlocks([]);
     onEntryCountChange?.(0);
-  }, [scratchpadPage, deleteNode, onEntryCountChange]);
+  }, [transientBlocks, onEntryCountChange]);
 
   // Ctrl+Enter when panel is open and focused sends all blocks
   useEffect(() => {
@@ -174,14 +232,10 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  const handleAddBlock = useCallback(async () => {
+  const handleAddBlock = useCallback(() => {
     if (!scratchpadPage) return;
-    const newBlock = await createNode.mutateAsync({
-      name: '',
-      parent_uuid: scratchpadPage.uuid,
-    });
-    useEditorFocusStore.getState().setPendingFocus(newBlock.uuid);
-  }, [scratchpadPage, createNode]);
+    addTransientBlock(scratchpadPage.uuid);
+  }, [addTransientBlock, scratchpadPage]);
 
   const handleDestinationSelect = useCallback((node: ApiNode) => {
     setCustomDestination(node);
@@ -225,21 +279,24 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   }, [isOpen, isPinned, onClose, anchorRef]);
 
   const handleTogglePin = useCallback(() => {
-    setIsPinned(prev => {
+    setIsPinned((prev) => {
       localStorage.setItem('notees-scratchpad-pinned', String(!prev));
       return !prev;
     });
   }, []);
 
   // Dragging handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!position) return;
-    setIsDragging(true);
-    dragOffset.current = {
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
-    };
-  }, [position]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (!position) return;
+      setIsDragging(true);
+      dragOffset.current = {
+        x: e.clientX - position.x,
+        y: e.clientY - position.y,
+      };
+    },
+    [position],
+  );
 
   useEffect(() => {
     if (!isDragging) return;
@@ -268,8 +325,26 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   if (!position) return null;
 
   const destinationLabel = customDestination
-    ? (customDestination.name ? (() => { try { const ast = JSON.parse(customDestination.name); return Array.isArray(ast) ? ast.map((b: { children?: { text?: string }[] }) => b.children?.map(c => c.text ?? '').join('') ?? '').join('') : customDestination.name; } catch { return customDestination.name; } })() : 'Untitled')
-    : (quickAddDestination === 'today' ? "Today's page" : 'Inbox');
+    ? (customDestination.name
+        ? (() => {
+            try {
+              const ast = JSON.parse(customDestination.name);
+              return Array.isArray(ast)
+                ? ast
+                    .map(
+                      (b: { children?: { text?: string }[] }) =>
+                        b.children?.map((c) => c.text ?? '').join('') ?? '',
+                    )
+                    .join('')
+                : customDestination.name;
+            } catch {
+              return customDestination.name;
+            }
+          })()
+        : 'Untitled')
+    : quickAddDestination === 'today'
+      ? "Today's page"
+      : 'Inbox';
 
   const canSend = destinationPage && hasContent && !isSending;
 
@@ -300,10 +375,13 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             });
           }}
         >
-          <span className="scratchpad-title">Scratchpad{meaningfulCount > 0 ? ` (${meaningfulCount})` : ''}</span>
+          <span className="scratchpad-title">
+            Scratchpad{meaningfulCount > 0 ? ` (${meaningfulCount})` : ''}
+          </span>
         </button>
         <div className="scratchpad-actions">
-          <Button aria-label="Clear all"
+          <Button
+            aria-label="Clear all"
             className="scratchpad-btn"
             icon="mdi mdi-delete-sweep"
             variant="ghost"
@@ -311,9 +389,10 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             onClick={handleClearAll}
             title="Clear all"
           />
-          <Button aria-label={isPinned ? 'Unpin' : 'Pin'}
+          <Button
+            aria-label={isPinned ? 'Unpin' : 'Pin'}
             className="scratchpad-btn"
-            icon={isPinned ? "mdi mdi-pin" : "mdi mdi-pin-off"}
+            icon={isPinned ? 'mdi mdi-pin' : 'mdi mdi-pin-off'}
             variant="ghost"
             size="sm"
             active={isPinned}
@@ -326,14 +405,26 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       <div className="scratchpad-content">
         {scratchpadPage && (
           <BlockList
-            nodes={scratchpadPage.children ?? []}
+            nodes={transientBlocks}
             onContentChange={handleContentChange}
+            onEnter={handleEnter}
+            onBackspaceAtStart={handleBackspaceAtStart}
             nodeUuid={scratchpadPage.uuid}
             showClasses={true}
+            localOnly={true}
+            onGhostRealize={handleGhostRealize}
           />
         )}
         <div className="scratchpad-add-block hover-reveal">
-          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" aria-label="Add block" title="Add block" size="sm" variant="ghost">
+          <Button
+            icon={'mdi mdi-plus'}
+            onClick={handleAddBlock}
+            className="add-block-btn"
+            aria-label="Add block"
+            title="Add block"
+            size="sm"
+            variant="ghost"
+          >
             Add block
           </Button>
         </div>
@@ -348,11 +439,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
               onAdd={handleDestinationSelect}
               searchPlaceholder="Pick destination page..."
             />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowDestinationPicker(false)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setShowDestinationPicker(false)}>
               Cancel
             </Button>
           </div>
@@ -365,8 +452,9 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             >
               → {destinationLabel}
             </button>
-            <Button aria-label="Send all"
-              icon={"mdi mdi-send"}
+            <Button
+              aria-label="Send all"
+              icon={'mdi mdi-send'}
               variant="primary"
               size="sm"
               onClick={handleSendAll}
@@ -379,4 +467,3 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     </div>
   );
 }
-
