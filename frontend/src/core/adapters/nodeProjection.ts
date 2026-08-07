@@ -4,7 +4,7 @@ import { queryAll, queryOne } from '../db/sqlite';
 import type { NodeRow, WorkspaceStore } from '../store';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
-import { parseAST, unwrapCrdtContentAst, parseLinkId } from '@/lib/astBuilder';
+import { parseAST, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { classRowToNode, getClasses } from '../query/classes';
 
@@ -30,8 +30,7 @@ function extractFirstLinkFallback(ast: ReturnType<typeof parseAST>): string | un
       const node = inline as { type?: string; link_id?: string; label?: string | null };
       if (node.type === 'node_link' && node.link_id) {
         if (node.label) return node.label;
-        const { nodeUuid } = parseLinkId(node.link_id);
-        if (nodeUuid) return nodeUuid;
+        return 'Link';
       }
     }
   }

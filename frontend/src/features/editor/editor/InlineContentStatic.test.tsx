@@ -28,6 +28,15 @@ const nameWithLink = JSON.stringify([
   },
 ]);
 
+// The text CRDT stores the real AST as a JSON string inside a text wrapper.
+// InlineContentStatic must unwrap it to render node_link pills correctly.
+const wrappedNameWithLink = JSON.stringify([
+  {
+    type: 'paragraph',
+    children: [{ type: 'text', text: nameWithLink }],
+  },
+]);
+
 function Wrapper({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -66,6 +75,12 @@ describe('InlineContentStatic', () => {
     expect(screen.getByText('See')).toBeInTheDocument();
     // The NodeRef inline variant renders the resolved node name; with no data
     // it falls back to a truncated UUID label.
+    expect(screen.getByText(/node…/i)).toBeInTheDocument();
+  });
+
+  it('unwraps CRDT-wrapped content so node links render as pills', () => {
+    render(<InlineContentStatic name={wrappedNameWithLink} blockId="b1" />, { wrapper: Wrapper });
+    expect(screen.getByText('See')).toBeInTheDocument();
     expect(screen.getByText(/node…/i)).toBeInTheDocument();
   });
 });
