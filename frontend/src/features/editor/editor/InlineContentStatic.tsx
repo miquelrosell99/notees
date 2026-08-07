@@ -12,7 +12,7 @@ import React, { useCallback, useRef, memo, type JSX } from 'react';
 import { useParams } from 'react-router-dom';
 import type { ASTDocument as ContentAST } from '@/types/ast';
 import type { ASTInlineNode } from '@/types/ast';
-import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import { parseAST, parseLinkId, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { NodeLinkContextMenuTrigger } from '@/features/content';
@@ -320,7 +320,7 @@ export const InlineContentStatic = memo(function InlineContentStatic({
   className = '',
 }: InlineContentStaticProps): JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null);
-  const ast = parseAST(name) as ContentAST;
+  const ast = unwrapCrdtContentAst(parseAST(name)) as ContentAST;
   const inlines = ast.flatMap((block) =>
     block.type === 'paragraph' || block.type === 'heading' ? (block.children as ASTInlineNode[]) : [],
   );

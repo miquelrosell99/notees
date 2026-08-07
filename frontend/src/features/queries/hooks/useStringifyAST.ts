@@ -8,7 +8,7 @@
 import { useCallback, useMemo } from 'react';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import type { NodeLinkResolver, NodeLinkResolution } from '@/lib/stringifyAST';
-import { parseAST, unwrapCrdtContentAst, parseLinkId } from '@/lib/astBuilder';
+import { parseAST, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import type { ASTDocument } from '@/types/ast';
 import type { Node } from '@/types';
 
@@ -102,8 +102,7 @@ function extractFirstLinkFallback(ast: ReturnType<typeof parseAST>): string | un
       const node = inline as { type?: string; link_id?: string; label?: string | null };
       if (node.type === 'node_link' && node.link_id) {
         if (node.label) return node.label;
-        const { nodeUuid } = parseLinkId(node.link_id);
-        if (nodeUuid) return nodeUuid;
+        return 'Link';
       }
     }
   }
