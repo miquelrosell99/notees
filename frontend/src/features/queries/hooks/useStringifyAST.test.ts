@@ -37,13 +37,14 @@ describe('nodeNameToText', () => {
     expect(nodeNameToText([{ type: 'text', text: '20260805' }], 4)).toBe('2026');
   });
 
-  it('does not render an unresolved node_link as "…"', () => {
+  it('does not render an unresolved node_link as "…" or raw UUID', () => {
     const targetId = '00000000-0000-0000-0000-000000000001';
     const ast = JSON.stringify([
       { type: 'paragraph', children: [{ type: 'node_link', link_id: targetId, ref_type: 'node' }] },
     ]);
     expect(nodeNameToText(ast)).not.toBe('…');
-    expect(nodeNameToText(ast)).toBe(targetId);
+    expect(nodeNameToText(ast)).not.toBe(targetId);
+    expect(nodeNameToText(ast)).toBe('Link');
   });
 
   it('unwraps CRDT-wrapped AST instead of returning raw JSON', () => {
@@ -53,6 +54,7 @@ describe('nodeNameToText', () => {
     ]);
     const wrapped = JSON.stringify([{ type: 'text', text: innerAst }]);
     expect(nodeNameToText(wrapped)).not.toContain('type');
-    expect(nodeNameToText(wrapped)).toBe(targetId);
+    expect(nodeNameToText(wrapped)).not.toBe(targetId);
+    expect(nodeNameToText(wrapped)).toBe('Link');
   });
 });
