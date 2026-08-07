@@ -13,6 +13,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { SelectionButton } from '@/components/ui/SelectionButton';
 import { autoUpdate, computePosition, flip, offset, shift, type VirtualElement } from '@floating-ui/dom';
 import type { Node } from '@/types';
 import { useNodeSearch, type NodeSearchItem } from '@/features/content';
@@ -182,7 +183,7 @@ export function TriggerPopup({
 }: TriggerPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [linkTab] = useState<'all' | 'pages' | 'blocks'>('all');
+  const [linkTab, setLinkTab] = useState<'all' | 'pages' | 'blocks'>('all');
   const [displayLimit, setDisplayLimit] = useState(10);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
 
@@ -289,13 +290,14 @@ export function TriggerPopup({
   }, [contextBlockServerId, workspaceId]);
 
   // Determine search mode and filter props from active filters
-  const showLinkTabs = type === 'link' && linkSearchMode === 'all';
+  const isLinkModeUnconstrained = type === 'link' && (!linkSearchMode || linkSearchMode === 'all');
+  const showLinkTabs = isLinkModeUnconstrained;
   const effectiveSearchMode = useMemo(() => {
     if (type === 'class') return 'classes';
     if (type === 'tag') return 'tags';
     if (type === 'link') {
-      if (linkSearchMode === 'all') return linkTab;
-      return linkSearchMode ?? 'all';
+      if (!linkSearchMode || linkSearchMode === 'all') return linkTab;
+      return linkSearchMode;
     }
     return 'all';
   }, [type, linkSearchMode, linkTab]);
