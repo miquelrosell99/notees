@@ -1,7 +1,7 @@
 import { type Database } from 'sql.js';
 import { queryOne } from '../db/sqlite';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
-import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import { parseAST, parseLinkId, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import type { ASTDocument } from '@/types/ast';
 
 /**
@@ -69,7 +69,7 @@ export function makeDbNodeLinkResolver(db: Database) {
     const row = queryOne<{ content: string }>(db, 'SELECT content FROM node WHERE id = ?', [nodeUuid]);
     if (!row) return null;
     return {
-      targetAST: parseAST(row.content),
+      targetAST: unwrapCrdtContentAst(parseAST(row.content)),
       label: null,
       targetId: nodeUuid,
     };
