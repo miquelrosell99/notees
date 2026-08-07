@@ -18,7 +18,7 @@ import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useModalStore } from '@/stores/modalStore';
 import { useUIStateStore } from '@/features/sync';
 import { liveSyncManager, useLivePresenceStore } from '@/features/collab';
-import { parseAST, parseLinkId, buildLinkId } from '@/lib/astBuilder';
+import { parseAST, parseLinkId, buildLinkId, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { ConvertToPageModal } from '@/features/content/components/nodes/ConvertToPageModal';
 import { createBlockCopyData, copyToClipboard } from '@/utils/clipboardManager';
@@ -39,6 +39,7 @@ import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import './BlockRow.css';
 import type { Node, Property } from '@/types/api';
+import type { ASTDocument as ContentAST } from '@/types/ast';
 import type { JSX } from 'react';
 import { useNode, useChildren, useWorkspaceStoreClient } from '@/core/hooks';
 
@@ -254,7 +255,10 @@ export const BlockRow = memo(
       [],
     );
 
-    const contentAST = useMemo(() => parseAST(node.name), [node.name]);
+    const contentAST = useMemo(
+      () => unwrapCrdtContentAst(parseAST(node.content ?? node.name)) as ContentAST,
+      [node.content, node.name],
+    );
     const { cycleTaskStatus } = useTaskActions(node);
 
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -503,7 +507,7 @@ export const BlockRow = memo(
       />
     ) : (
       <InlineContentStatic
-        name={node.name}
+        name={node.content ?? node.name}
         placeholder={placeholder}
         blockId={node.uuid}
         onFocus={handleFocusStatic}
