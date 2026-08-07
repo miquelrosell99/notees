@@ -579,7 +579,7 @@ function resolveBreadcrumbNameText(store: WorkspaceStore, content: string | null
       const target = projectNode(store, nodeUuid);
       if (!target) return null;
       return {
-        targetAST: parseAST(target.content),
+        targetAST: unwrapCrdtContentAst(parseAST(target.content)),
         label: null,
         targetId: nodeUuid,
       };
