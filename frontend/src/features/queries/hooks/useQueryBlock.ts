@@ -2,7 +2,7 @@ import { useCallback, useRef, useEffect, useMemo } from 'react';
 import { useNode, useUpdateNode } from '@/features/content';
 import type { Node } from '@/types/api';
 import type { ASTQuery } from '@/types/ast';
-import { parseAST } from '@/lib/astBuilder';
+import { parseAST, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import type { QueryAST } from '@/types/queryAST';
@@ -11,14 +11,14 @@ import type { QueryAST } from '@/types/queryAST';
 
 function parseQueryBlockData(node: Node | undefined): QueryAST {
   if (!node?.content) return createEmptyQueryAST();
-  const ast = parseAST(node.content);
+  const ast = unwrapCrdtContentAst(parseAST(node.content));
   const qb = ast.find(b => b.type === 'query') as ASTQuery | undefined;
   return qb ? qb.data : createEmptyQueryAST();
 }
 
 function parseQueryBlockTitle(node: Node | undefined): string {
   if (!node?.content) return '';
-  const ast = parseAST(node.content);
+  const ast = unwrapCrdtContentAst(parseAST(node.content));
   const para = ast.find(b => b.type === 'paragraph' || b.type === 'heading');
   if (para) {
     return stringifyAST([para], { mode: StringifyMode.TEXT_ONLY });

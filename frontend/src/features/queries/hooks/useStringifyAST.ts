@@ -19,9 +19,9 @@ import type { Node } from '@/types';
  * The caller is responsible for fetching this from useTextLinks or equivalent.
  */
 export interface LinkMapEntry {
-  /** The target node (with its name AST). */
+  /** The target node (with its content AST). */
   targetNode: Node;
-  /** Fallback label (null = use target node's name; AST label takes precedence). */
+  /** Fallback label (null = use target node's content; AST label takes precedence). */
   label: string | null;
 }
 
@@ -36,7 +36,7 @@ export function buildResolver(linkMap: Map<string, LinkMapEntry>): NodeLinkResol
     const entry = linkMap.get(linkId);
     if (!entry) return null;
     return {
-      targetAST: parseAST(entry.targetNode.name),
+      targetAST: unwrapCrdtContentAst(parseAST(entry.targetNode.content)),
       label: entry.label,
       targetId: String(entry.targetNode.uuid),
     };
