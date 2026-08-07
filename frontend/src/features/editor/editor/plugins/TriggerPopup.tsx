@@ -738,8 +738,12 @@ export function TriggerPopup({
   }, [type, isUserMention, valuePickerFilter]);
 
   // ─── Render helpers ──────────────────────────────────────────────
+  // Each section has a stable key because the popup reorders its children
+  // when Floating UI flips placement above/below the caret. Without keys,
+  // React unmounts and remounts the search input in its new position, which
+  // blurs the field every time results load and change the popup's size.
 
-  const header = <div className="trigger-popup__header">{headerText}</div>;
+  const header = <div key="header" className="trigger-popup__header">{headerText}</div>;
 
   const filterPills = activeFilters.length > 0 && (
     <div className="trigger-popup__filter-pills">
@@ -763,7 +767,7 @@ export function TriggerPopup({
   );
 
   const search = (
-    <div className="trigger-popup__search">
+    <div key="search" className="trigger-popup__search">
       {filterPills}
       <input
         ref={inputRef}
@@ -785,7 +789,7 @@ export function TriggerPopup({
     if (!valuePickerFilter) return null;
     if (valuePickerFilter.key === 'user') {
       return (
-        <div className="trigger-popup__list">
+        <div key="value-picker-list" className="trigger-popup__list">
           {userPickerResults.length === 0 ? (
             <div className="trigger-popup__empty">No users found</div>
           ) : (
@@ -809,7 +813,7 @@ export function TriggerPopup({
   }, [valuePickerFilter, userPickerResults, selectedIndex, getDisplayClasses, allClasses, confirmValuePicker, buildParentPath, buildBlockParentPath]);
 
   const mainList = (
-    <div className="trigger-popup__list">
+    <div key="main-list" className="trigger-popup__list">
       {isLoading && cleanQuery.length > 0 ? (
         <div className="trigger-popup__loading">
           <Spinner size="sm" />
@@ -899,7 +903,7 @@ export function TriggerPopup({
   );
 
   const footer = (
-    <div className="trigger-popup__footer">
+    <div key="footer" className="trigger-popup__footer">
       <span className="trigger-popup__hint">{hints.default}</span>
       {hints.alternative && (
         <span className="trigger-popup__hint">{hints.alternative}</span>
