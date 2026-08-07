@@ -56,7 +56,7 @@ function buildContentResolver(linkMap: Map<string, Node>): NodeLinkResolver {
     const targetNode = linkMap.get(linkId);
     if (!targetNode) return null;
     return {
-      targetAST: parseAST(targetNode.content),
+      targetAST: unwrapCrdtContentAst(parseAST(targetNode.content)),
       label: null,
       targetId: String(targetNode.uuid),
     };
