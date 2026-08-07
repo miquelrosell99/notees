@@ -182,6 +182,8 @@ export function TriggerPopup({
 }: TriggerPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [linkTab] = useState<'all' | 'pages' | 'blocks'>('all');
+  const [displayLimit, setDisplayLimit] = useState(10);
   const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const isInlineSlash = inline && type === 'slash';
@@ -206,6 +208,7 @@ export function TriggerPopup({
   const [valuePickerFilter, setValuePickerFilter] = useState<FilterDef | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Register with the global overlay stack so Escape closes this popup even
   // when focus is still in the editor. Internal Escape-consuming states
@@ -286,11 +289,16 @@ export function TriggerPopup({
   }, [contextBlockServerId, workspaceId]);
 
   // Determine search mode and filter props from active filters
-  const searchMode =
-    type === 'class' ? 'classes'
-      : type === 'tag' ? 'tags'
-        : type === 'link' && linkSearchMode ? linkSearchMode
-          : 'all';
+  const showLinkTabs = type === 'link' && linkSearchMode === 'all';
+  const effectiveSearchMode = useMemo(() => {
+    if (type === 'class') return 'classes';
+    if (type === 'tag') return 'tags';
+    if (type === 'link') {
+      if (linkSearchMode === 'all') return linkTab;
+      return linkSearchMode ?? 'all';
+    }
+    return 'all';
+  }, [type, linkSearchMode, linkTab]);
   const filterProps = useMemo(() => {
     const props: { isUserPage?: boolean; isPage?: boolean; isClass?: boolean; isDaily?: boolean } = {};
     for (const f of activeFilters) {
@@ -302,11 +310,17 @@ export function TriggerPopup({
 
   const isUserMention = activeFilters.some(f => f.key === 'user');
 
-  const { pageResults, blockResults, isLoading: searchLoading, showCreateOption: searchShowCreate } = useNodeSearch(
+  const {
+    pageResults,
+    blockResults,
+    isLoading: searchLoading,
+    showCreateOption: searchShowCreate,
+    hasMore,
+  } = useNodeSearch(
     cleanQuery,
     {
-      mode: searchMode,
-      maxResults: 10,
+      mode: effectiveSearchMode,
+      maxResults: displayLimit,
       ...filterProps,
     }
   );
@@ -333,7 +347,9 @@ export function TriggerPopup({
   const isLoading = type === 'class' ? classesLoading : searchLoading;
   const showCreateOption = type === 'class'
     ? cleanQuery.trim().length > 0 && !nodeItems.some((item) => nodeNameToText(item.node.name) === cleanQuery.trim())
-    : searchShowCreate;
+    : showLinkTabs && linkTab === 'blocks'
+      ? false
+      : searchShowCreate;
 
   // Value picker data (for user filter)
   const { pageResults: userPickerResults } = useNodeSearch(
@@ -392,7 +408,8 @@ export function TriggerPopup({
   }, [type, pendingFilter, valuePickerFilter, nodeItems, effectiveQuery, commandUsage, hiddenSlashCommandIds, allSlashCommands]);
 
   const showCreate = isNodeTrigger && showCreateOption && cleanQuery.trim() && !valuePickerFilter;
-  const itemCount = selectableItems.length + (showCreate ? 1 : 0);
+  const showMore = type === 'link' && hasMore && !valuePickerFilter;
+  const itemCount = selectableItems.length + (showCreate ? 1 : 0) + (showMore ? 1 : 0);
 
   // Clamp selected index (parent-owned in inline mode)
   const baseIndex = isInlineSlash ? (controlledSelectedIndex ?? 0) : selectedIndex;
@@ -418,6 +435,16 @@ export function TriggerPopup({
     if (!isInlineSlash) return;
     onActiveCommandChange?.(activeCommandId, itemCount);
   }, [isInlineSlash, activeCommandId, itemCount, onActiveCommandChange]);
+
+  // Keep the keyboard-highlighted list item visible as the selection moves.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const selected = list.querySelector('.trigger-popup__item--selected') as HTMLElement | null;
+    if (selected && typeof selected.scrollIntoView === 'function') {
+      selected.scrollIntoView({ block: 'nearest' });
+    }
+  }, [effectiveSelectedIndex]);
 
   // Close on click outside
   useEffect(() => {
@@ -663,8 +690,10 @@ export function TriggerPopup({
             bumpCommandUsage(cmdId);
             onSelectCommand?.(cmdId);
           }
-        } else if (showCreate) {
+        } else if (showCreate && effectiveSelectedIndex === selectableItems.length) {
           handleCreate(cleanQuery.trim(), mode);
+        } else if (showMore) {
+          setDisplayLimit((prev) => prev + 20);
         }
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
         if (query.length === 0 && activeFilters.length > 0) {
@@ -686,6 +715,7 @@ export function TriggerPopup({
       effectiveSelectedIndex,
       selectableItems,
       showCreate,
+      showMore,
       cleanQuery,
       isUserMention,
       query,
@@ -700,6 +730,7 @@ export function TriggerPopup({
       removeFilter,
       confirmValuePicker,
       closeValuePicker,
+      setDisplayLimit,
     ]
   );
 
@@ -776,6 +807,7 @@ export function TriggerPopup({
         onChange={(e) => {
           setQuery(e.target.value);
           setSelectedIndex(0);
+          setDisplayLimit(10);
         }}
         onKeyDown={handleKeyDown}
         placeholder={type === 'slash' ? 'Search commands...' : 'Search or type filter (user:, page:, class:, daily:)...'}
@@ -784,6 +816,24 @@ export function TriggerPopup({
       />
     </div>
   );
+
+  const linkTabs = showLinkTabs ? (
+    <div key="link-tabs" className="trigger-popup__tabs">
+      <SelectionButton
+        options={[
+          { value: 'all', icon: 'mdi mdi-view-list', label: 'All' },
+          { value: 'pages', icon: 'mdi mdi-file-document', label: 'Pages' },
+          { value: 'blocks', icon: 'mdi mdi-text-box', label: 'Blocks' },
+        ]}
+        value={linkTab}
+        onChange={(v) => {
+          setLinkTab(v as 'all' | 'pages' | 'blocks');
+          setSelectedIndex(0);
+        }}
+        size="sm"
+      />
+    </div>
+  ) : null;
 
   const valuePickerList = useMemo(() => {
     if (!valuePickerFilter) return null;
@@ -813,12 +863,12 @@ export function TriggerPopup({
   }, [valuePickerFilter, userPickerResults, selectedIndex, getDisplayClasses, allClasses, confirmValuePicker, buildParentPath, buildBlockParentPath]);
 
   const mainList = (
-    <div key="main-list" className="trigger-popup__list">
+    <div key="main-list" ref={listRef} className="trigger-popup__list">
       {isLoading && cleanQuery.length > 0 ? (
         <div className="trigger-popup__loading">
           <Spinner size="sm" />
         </div>
-      ) : selectableItems.length === 0 && !showCreate ? (
+      ) : selectableItems.length === 0 && !showCreate && !showMore ? (
         <div className="trigger-popup__empty">
           {cleanQuery || activeFilters.length > 0
             ? 'No matches'
@@ -829,12 +879,13 @@ export function TriggerPopup({
       ) : (
         <>
           {selectableItems.map((item, index) => {
+            const isSelected = index === effectiveSelectedIndex;
             if (item.kind === 'filter') {
               return (
                 <button
                   key={`filter-${item.filter.key}`}
                   className={`trigger-popup__filter-suggestion ${
-                    index === effectiveSelectedIndex ? 'trigger-popup__filter-suggestion--selected' : ''
+                    isSelected ? 'trigger-popup__filter-suggestion--selected trigger-popup__item--selected' : ''
                   }`}
                   onClick={() => addFilter(item.filter)}
                   onMouseEnter={() => setSelectedIndex(index)}
@@ -859,9 +910,10 @@ export function TriggerPopup({
                   parentPath={item.item.node.is_page ? buildParentPath(item.item.node) : buildBlockParentPath(item.item.node)}
                   displayClasses={getDisplayClasses(item.item.node)}
                   allClasses={allClasses}
-                  isHighlighted={index === effectiveSelectedIndex}
+                  isHighlighted={isSelected}
                   onClick={() => onSelectNode?.(item.item.node, 'default', isUserMention)}
                   onMouseEnter={() => setSelectedIndex(index)}
+                  className={isSelected ? 'trigger-popup__item--selected' : ''}
                 />
               );
             }
@@ -869,10 +921,10 @@ export function TriggerPopup({
               <button
                 key={item.cmd.id}
                 className={`trigger-popup__command ${
-                  index === effectiveSelectedIndex ? 'trigger-popup__command--selected' : ''
+                  isSelected ? 'trigger-popup__command--selected trigger-popup__item--selected' : ''
                 }`}
                 role={isInlineSlash ? 'option' : undefined}
-                aria-selected={isInlineSlash ? index === effectiveSelectedIndex : undefined}
+                aria-selected={isInlineSlash ? isSelected : undefined}
                 onClick={() => {
                   bumpCommandUsage(item.cmd.id);
                   onSelectCommand?.(item.cmd.id);
@@ -888,13 +940,27 @@ export function TriggerPopup({
           {showCreate && (
             <button
               className={`trigger-popup__create ${
-                effectiveSelectedIndex === selectableItems.length ? 'trigger-popup__create--selected' : ''
+                effectiveSelectedIndex === selectableItems.length ? 'trigger-popup__create--selected trigger-popup__item--selected' : ''
               }`}
               onClick={() => handleCreate(cleanQuery.trim())}
               onMouseEnter={() => setSelectedIndex(selectableItems.length)}
             >
               <AddIcon size="sm" />
               Create &quot;{cleanQuery.trim()}&quot;
+            </button>
+          )}
+
+          {showMore && (
+            <button
+              className={`trigger-popup__show-more ${
+                effectiveSelectedIndex === selectableItems.length + (showCreate ? 1 : 0)
+                  ? 'trigger-popup__show-more--selected trigger-popup__item--selected'
+                  : ''
+              }`}
+              onClick={() => setDisplayLimit((prev) => prev + 20)}
+              onMouseEnter={() => setSelectedIndex(selectableItems.length + (showCreate ? 1 : 0))}
+            >
+              Show more results
             </button>
           )}
         </>
@@ -934,6 +1000,7 @@ export function TriggerPopup({
         <>
           {header}
           {!isInlineSlash && search}
+          {linkTabs}
           {valuePickerFilter ? valuePickerList : mainList}
           {footer}
         </>
@@ -943,6 +1010,7 @@ export function TriggerPopup({
           {footer}
           {header}
           {!isInlineSlash && search}
+          {linkTabs}
         </>
       )}
     </div>
