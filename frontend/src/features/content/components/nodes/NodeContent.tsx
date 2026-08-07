@@ -18,7 +18,7 @@ import { useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNo
 import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 import { nodeNameToText } from '@/features/queries';
-import { parseAST, paragraph, nodeLink } from '@/lib/astBuilder';
+import { parseAST, paragraph, nodeLink, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import { generateUUID } from '@/utils/uuid';
 
 import type { Node } from '@/types/api';
@@ -430,7 +430,7 @@ export function NodeContent({
       const block = children.find(c => c.uuid === targetBlockId);
       if (block) {
         // Insert a formal node_link AST node instead of raw [[uuid]] markdown.
-        const existingAst = parseAST(block.content ?? block.name ?? '');
+        const existingAst = unwrapCrdtContentAst(parseAST(block.content ?? block.name ?? ''));
         const linkAst = paragraph(nodeLink(`${asset.node_id}:${generateUUID()}`, 'node'));
         const newAst = existingAst.length > 0 ? [...existingAst, linkAst] : [linkAst];
         saveImmediate(targetBlockId, JSON.stringify(newAst));
