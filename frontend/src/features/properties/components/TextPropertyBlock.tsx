@@ -118,6 +118,10 @@ function SingleTextBlock({
 
   if (!blockNode) return null;
 
+  // Only show the trailing child-block ghost when the text block already has
+  // children. An always-visible ghost under every text property looks noisy.
+  const hasChildren = (blockNode.children?.length ?? 0) > 0;
+
   return (
     <div className="text-property-block__editor">
       <div className="text-property-block__nav-actions hover-reveal">
@@ -160,7 +164,7 @@ function SingleTextBlock({
         hideToolbar={true}
         showClasses={true}
         inPropertyEditor={true}
-        showNewBlock={true}
+        showNewBlock={hasChildren}
         hideRootBullet={true}
         rootIsBlock={true}
       />

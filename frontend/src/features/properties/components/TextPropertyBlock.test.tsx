@@ -106,7 +106,7 @@ describe('TextPropertyBlock', () => {
     expect(onPropertyChange).toHaveBeenCalledWith('prop-text', mocks.newBlockUuid);
   });
 
-  it('renders the assigned block as the root block of a normal block list view', () => {
+  it('renders the assigned block as the root block without a child ghost when it has no children', () => {
     mocks.node = {
       uuid: 'block-uuid',
       name: 'Block content',
@@ -114,6 +114,44 @@ describe('TextPropertyBlock', () => {
       parent_uuid: 'owner-uuid',
       is_page: false,
       properties_uuid: {},
+    };
+
+    render(
+      <TextPropertyBlock
+        property={makeProperty()}
+        nodeUuid="owner-uuid"
+        blockNodeId="block-uuid"
+        onPropertyChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('node-collection')).toBeInTheDocument();
+    expect(mocks.nodeCollectionProps).toMatchObject({
+      nodeUuid: 'block-uuid',
+      rootIsBlock: true,
+      showNewBlock: false,
+      hideRootBullet: true,
+    });
+  });
+
+  it('shows the child-block ghost when the assigned block already has children', () => {
+    mocks.node = {
+      uuid: 'block-uuid',
+      name: 'Block content',
+      content: 'Block content',
+      parent_uuid: 'owner-uuid',
+      is_page: false,
+      properties_uuid: {},
+      children: [
+        {
+          uuid: 'child-uuid',
+          name: 'Child block',
+          content: 'Child block',
+          parent_uuid: 'block-uuid',
+          is_page: false,
+          properties_uuid: {},
+        },
+      ],
     };
 
     render(
