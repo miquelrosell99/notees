@@ -1000,7 +1000,7 @@ export function NodeView({
           nodeType={resolvedType}
           onNavigate={(id) => openNode(id)}
           onNavigateToProperty={(id) => openPropertyView(id)}
-          propertyContext={currentPropertyContext as unknown as { propertyId: string; propertyName: string } | null}
+          propertyContext={currentPropertyContext}
           parentLocked={node.parent_locked}
           editable={!isAlias}
           inHeader

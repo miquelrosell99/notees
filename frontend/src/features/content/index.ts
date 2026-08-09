@@ -96,6 +96,7 @@ export * from './hooks/usePageAliases';
 export * from './hooks/useBatchNodesByUuid';
 export * from './hooks/useTemplates';
 export * from './hooks/useConvertNode';
+export * from './hooks/useCoreBlockMutations';
 export * from './hooks/dnd';
 
 // Activity API (moved from src/api)

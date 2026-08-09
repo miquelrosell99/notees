@@ -139,4 +139,13 @@ describe('BlockRow', () => {
     expect(inlineCall?.isMainNode).toBe(false);
     expect(calls.some((p) => p.isMainNode === true)).toBe(false);
   });
+
+  it('suppresses properties sections when rendered inside a property editor', () => {
+    // Text-property value blocks rendered in the property panel should not show
+    // their own properties section (no recursion, no "Add property" button).
+    vi.mocked(PropertiesSection).mockClear();
+    render(<BlockRow node={baseNode} depth={0} rootIsBlock inPropertyEditor />, { wrapper: Wrapper });
+
+    expect(PropertiesSection).not.toHaveBeenCalled();
+  });
 });

@@ -119,7 +119,7 @@ function NodeBreadcrumbsElement({
         showBullet={!!item.icon}
         propertyName={item.isProperty ? item.name : undefined}
         nodeUuid={item.isProperty ? undefined : item.nodeUuid}
-        onClick={() => onClick(item)}
+        onClick={item.isProperty ? undefined : () => onClick(item)}
         className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
       />
       {onEditParent && !item.isProperty && !item.childParentLocked && (
@@ -155,7 +155,8 @@ function BreadcrumbPopupItem({ item, onClick }: { item: BreadcrumbItem; onClick:
   return (
     <button
       className={`node-breadcrumbs-popup-item ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
-      onClick={() => onClick(item)}
+      onClick={item.isProperty ? undefined : () => onClick(item)}
+      disabled={item.isProperty}
     >
       {item.icon && <NodeIcon icon={item.icon} size="xs" className="node-breadcrumb-popup-icon" />}
       <span className="node-breadcrumb-popup-name">{label}</span>
@@ -272,7 +273,7 @@ interface NodeBreadcrumbsProps {
   /** Callback when clicking a property breadcrumb item */
   onNavigateToProperty?: (propertyId: string) => void;
   /** Property context for when viewing a block from a text property */
-  propertyContext?: { propertyId: string; propertyName: string } | null;
+  propertyContext?: { propertyUuid: string; propertyName: string } | null;
   /** When true, only show ancestors below the page level (intermediate blocks) */
   stopAtPageLevel?: boolean;
   /** Additional CSS class */
@@ -350,18 +351,18 @@ export function NodeBreadcrumbs({
     // If we have property context, insert it after the last page (or at the end).
     // Skip if the backend already returned the same property in the ancestor chain.
     if (propertyContext && nodeType === 'block' &&
-        !items.some((b) => b.isProperty && b.propertyUuid === propertyContext.propertyId)) {
+        !items.some((b) => b.isProperty && b.propertyUuid === propertyContext.propertyUuid)) {
       let insertAt = items.length;
       for (let i = items.length - 1; i >= 0; i--) {
         if (items[i].isPage) { insertAt = i + 1; break; }
       }
       items.splice(insertAt, 0, {
-        nodeUuid: propertyContext.propertyId,
+        nodeUuid: propertyContext.propertyUuid,
         name: propertyContext.propertyName,
         icon: PROPERTY_TYPE_ICONS.text,
         isPage: false,
         isProperty: true,
-        propertyUuid: propertyContext.propertyId,
+        propertyUuid: propertyContext.propertyUuid,
       });
     }
 

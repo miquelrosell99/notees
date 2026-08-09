@@ -651,8 +651,12 @@ export const BlockRow = memo(
               valued ad-hoc ones. Icon-visible properties stay as bullet/content
               icons; hidden and empty-hide-when-empty properties are omitted in
               rows. The root focused block renders its full PropertiesSection
-              below the row instead. */}
-          {!isGhost && !(rootIsBlock && depth === 0) && (
+              below the row instead.
+
+              Property-value blocks rendered inside a property editor show their
+              own content only; their own properties section is suppressed so the
+              panel doesn't recurse or offer "Add property" on a property value. */}
+          {!isGhost && !inPropertyEditor && !(rootIsBlock && depth === 0) && (
             <PropertiesSection
               nodeUuid={node.uuid}
               inline
@@ -674,8 +678,11 @@ export const BlockRow = memo(
       </div>
       {/* Full properties panel for the root focused block. Placed after the
           row so the focused block is the first thing visible, with its metadata
-          immediately following and its children rendered underneath. */}
-      {rootIsBlock && depth === 0 && !isGhost && (
+          immediately following and its children rendered underneath.
+
+          Suppressed for blocks rendered inside a property editor (see inline
+          properties comment above). */}
+      {rootIsBlock && depth === 0 && !isGhost && !inPropertyEditor && (
         <PropertiesSection
           nodeUuid={node.uuid}
           showHiddenSection={true}
