@@ -1,30 +1,30 @@
 /**
  * TextPropertyBlock - Component for text-type properties that behave as block nodes
- * 
+ *
  * Text properties are stored as node references (blocks), displayed using a
  * full block editor embedded in the property value section.
- * 
+ *
  * The text property block acts as a miniature "focused block view":
  * - Shows a parent block (the text property value) with its own content
  * - Allows child blocks to be created inside it (nested editing)
  * - Uses NodeCollection → ListView → BlockEditor for consistent UX
  * - Supports drag & drop, shift-click sidebar, and all editor features
- * 
+ *
  * Supports multi-value text properties: renders one row per block node,
- * with an "Add text" button at the end to add more blocks.
- * 
+ * with a trailing ghost block to add more blocks.
+ *
  * NOTE: The bullet for the main text block is rendered by PropertiesSection, not here.
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { Spinner } from '@/components/ui/Spinner';
-import { useNode, useCreateNode, useNodeNavigation } from '@/features/content';
+import { useNode, useNodeNavigation, useCoreBlockMutations } from '@/features/content';
 
-import { useContentSave } from '@/features/editor';
+import { useContentSave, flushAllContentSaves } from '@/features/editor';
 import { isApiError } from '@/api/client';
 import type { Property, Node } from '@/types/api';
 import { NodeCollection } from '@/features/content';
 import { Button } from '@/components/ui/Button';
-
 
 interface TextPropertyBlockProps {
   /** The property definition */
@@ -46,6 +46,36 @@ interface TextPropertyBlockProps {
 }
 
 /**
+ * Ghost placeholder for an empty text property.
+ *
+ * Reuses BlockRow ghost classes so the empty state looks like the trailing
+ * ghost block in the normal block list view.
+ */
+function TextPropertyGhostBlock({
+  onClick,
+  disabled,
+  label,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  label?: string;
+}) {
+  return (
+    <div className="text-property-block__ghost block-row--ghost">
+      <button
+        type="button"
+        className="block-row__content-fallback block-row__content-fallback--ghost"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label ?? 'Add block'}
+      >
+        <span className="block-row__ghost-text">+ {label ?? 'Add block'}</span>
+      </button>
+    </div>
+  );
+}
+
+/**
  * Single text block row - renders one block with its NodeCollection editor
  */
 function SingleTextBlock({
@@ -53,14 +83,12 @@ function SingleTextBlock({
   readOnly,
   onOpenInSidebar,
   onOpenNode,
-  onEnterAtRoot,
   onMissing,
 }: {
   blockNodeId: string;
   readOnly: boolean;
   onOpenInSidebar?: (blockId: string) => void;
   onOpenNode?: (blockId: string) => void;
-  onEnterAtRoot?: () => void;
   onMissing?: (blockId: string) => void;
 }) {
   const { data: blockNode, isLoading, error } = useNode(blockNodeId, {
@@ -80,15 +108,6 @@ function SingleTextBlock({
     onOpenInSidebar?.(clickedNode.uuid);
   }, [onOpenInSidebar]);
 
-  // Detach the property block from its owner before rendering it in its own
-  // NodeCollection. If we kept the real parent_uuid, the runtime would treat
-  // the block as a child of the owning page/block and the main block list
-  // would resurrect it as a runtime-only row.
-  const detachedBlockNode = useMemo<Node | null>(
-    () => (blockNode ? { ...blockNode, parent_uuid: null } : null),
-    [blockNode]
-  );
-
   if (isLoading) {
     return (
       <div className="text-property-block text-property-block--loading">
@@ -97,7 +116,7 @@ function SingleTextBlock({
     );
   }
 
-  if (!detachedBlockNode) return null;
+  if (!blockNode) return null;
 
   return (
     <div className="text-property-block__editor">
@@ -128,7 +147,7 @@ function SingleTextBlock({
         )}
       </div>
       <NodeCollection
-        nodes={[detachedBlockNode]}
+        nodes={[blockNode]}
         viewMode="list"
         availableViewModes={['list']}
         groupBy="none"
@@ -136,14 +155,14 @@ function SingleTextBlock({
         onNodeClick={handleNodeClick}
         onNodeShiftClick={handleNodeShiftClick}
         onContentChange={handleContentChange}
-        pageId={detachedBlockNode.uuid}
-        nodeUuid={detachedBlockNode.uuid}
+        pageId={blockNode.uuid}
+        nodeUuid={blockNode.uuid}
         hideToolbar={true}
         showClasses={true}
-        onEnterAtRoot={onEnterAtRoot}
         inPropertyEditor={true}
-        showNewBlock={false}
+        showNewBlock={true}
         hideRootBullet={true}
+        rootIsBlock={true}
       />
     </div>
   );
@@ -162,6 +181,8 @@ export function TextPropertyBlock({
       onPropertyChange,
       onBulletClick: _onBulletClick }: TextPropertyBlockProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const mutations = useCoreBlockMutations(workspaceId);
 
   const isMulti = property.multi;
   const ids = useMemo(
@@ -169,81 +190,60 @@ export function TextPropertyBlock({
     [isMulti, blockNodeIds, blockNodeId]
   );
 
-  // For single mode, still fetch the node for legacy compatibility
-  const { data: singleBlockNode, isLoading: blockLoading, error: singleBlockError } = useNode(
-    !isMulti ? blockNodeId : null, 
-    { include_children: true, meta: { skipGlobalError: true } }
-  );
+  const { openNode } = useNodeNavigation();
 
-  // Auto-clear the property value when the referenced block has been deleted
-  useEffect(() => {
-    if (
-      singleBlockError &&
-      isApiError(singleBlockError) &&
-      singleBlockError.response?.status === 404 &&
-      blockNodeId != null &&
-      !isMulti &&
-      !readOnly
-    ) {
-      onPropertyChange(property.uuid, null);
-    }
-  }, [singleBlockError, blockNodeId, isMulti, readOnly, property.uuid, onPropertyChange]);
-  
-  const createNode = useCreateNode();
-  const { handleNodeClick } = useNodeNavigation();
-  
-  // Handle creating a new text block
+  // Open the text-property block in focused view, preserving the property
+  // context so breadcrumbs show which property the block came from.
+  const handleOpenNode = useCallback(async (blockId: string) => {
+    await flushAllContentSaves().catch(() => {
+      // Navigation proceeds even if the flush fails.
+    });
+    openNode(blockId, { propertyUuid: property.uuid, propertyName: property.name });
+  }, [openNode, property.uuid, property.name]);
+
+  // Create a new block to back the text property value. It is created as a
+  // child of the owning node so the core store keeps it in the owner's child
+  // order. The main block list then filters it out via filterTextPropertyBlocks
+  // because the owner's properties_uuid references it under a text property.
   const handleAddText = useCallback(async () => {
-    if (readOnly || isCreating) return;
-    
+    if (readOnly || isCreating || !workspaceId) return;
+
     setIsCreating(true);
     try {
-      createNode.mutate({
-        name: '',
-        parent_uuid: nodeUuid,
-      }, {
-        onSuccess: (newBlock) => {
-          if (isMulti) {
-            // Multi: append new block ID to the array
-            const newIds = [...ids, newBlock.uuid];
-            onPropertyChange(property.uuid, newIds);
-          } else {
-            // Single: set the property value to the new block's ID
-            onPropertyChange(property.uuid, newBlock.uuid);
-          }
-          setIsCreating(false);
-        },
-        onError: () => {
-          setIsCreating(false);
-        }
+      const newBlockId = await mutations.createBlock({
+        parentId: nodeUuid,
+        contentAST: [],
       });
+      if (isMulti) {
+        onPropertyChange(property.uuid, [...ids, newBlockId]);
+      } else {
+        onPropertyChange(property.uuid, newBlockId);
+      }
     } catch (error) {
       console.error('Failed to create text block:', error);
+    } finally {
       setIsCreating(false);
     }
-  }, [readOnly, isCreating, createNode, nodeUuid, property.uuid, onPropertyChange, isMulti, ids]);
-  
+  }, [readOnly, isCreating, workspaceId, mutations, nodeUuid, isMulti, ids, property.uuid, onPropertyChange]);
+
   // TODO: Drag-and-drop into text properties was wired through the legacy
   // DragCoordinator, which has been removed. Re-implement with @dnd-kit or
   // local drag state if this feature is still required.
 
   const dropZoneClass = '';
 
+  const ghostLabel = isCreating ? 'Creating…' : 'Add text';
+
   // === Multi mode rendering ===
   if (isMulti) {
     if (ids.length === 0) {
       return (
         <div className={`text-property-block text-property-block--empty${dropZoneClass}`}>
-          <Button
-            className="text-property-block__add-btn"
+          <TextPropertyGhostBlock
             onClick={handleAddText}
             disabled={readOnly || isCreating}
-            title="Add text"
-            size="xs"
-            variant="ghost"
-          >
-            {isCreating ? 'Creating…' : <span className="property-placeholder">Empty</span>}
-          </Button>
+            label={ghostLabel}
+          />
         </div>
       );
     }
@@ -256,8 +256,7 @@ export function TextPropertyBlock({
             blockNodeId={id}
             readOnly={readOnly}
             onOpenInSidebar={onOpenInSidebar}
-            onOpenNode={(blockId) => handleNodeClick({ uuid: blockId } as unknown as Node)}
-            onEnterAtRoot={handleAddText}
+            onOpenNode={handleOpenNode}
             onMissing={(missingId) => {
               if (!readOnly) {
                 onPropertyChange(property.uuid, ids.filter((i) => i !== missingId));
@@ -265,39 +264,30 @@ export function TextPropertyBlock({
             }}
           />
         ))}
-      </div>
-    );
-  }
-
-  // === Single mode rendering (legacy) ===
-
-  // Show loading state
-  if (blockLoading && blockNodeId) {
-    return (
-      <div className="text-property-block text-property-block--loading">
-        <Spinner size="sm" />
-      </div>
-    );
-  }
-  
-  // Show empty state with "Add text" button
-  if (!blockNodeId || !singleBlockNode) {
-    return (
-      <div className={`text-property-block text-property-block--empty${dropZoneClass}`}>
-        <Button
-          className="text-property-block__add-btn"
+        <TextPropertyGhostBlock
           onClick={handleAddText}
           disabled={readOnly || isCreating}
-          title="Add text"
-          size="xs"
-          variant="ghost"
-        >
-          {isCreating ? 'Creating…' : <span className="property-placeholder">Empty</span>}
-        </Button>
+          label={ghostLabel}
+        />
       </div>
     );
   }
-  
+
+  // === Single mode rendering ===
+
+  // Show empty state with a ghost block
+  if (!blockNodeId) {
+    return (
+      <div className={`text-property-block text-property-block--empty${dropZoneClass}`}>
+        <TextPropertyGhostBlock
+          onClick={handleAddText}
+          disabled={readOnly || isCreating}
+          label={ghostLabel}
+        />
+      </div>
+    );
+  }
+
   // Show the block with a full inline editor (like FocusedBlockContent)
   return (
     <div className={`text-property-block text-property-block--has-content${dropZoneClass}`}>
@@ -305,9 +295,13 @@ export function TextPropertyBlock({
         blockNodeId={blockNodeId}
         readOnly={readOnly}
         onOpenInSidebar={onOpenInSidebar}
-        onOpenNode={(blockId) => handleNodeClick({ uuid: blockId } as unknown as Node)}
+        onOpenNode={handleOpenNode}
+        onMissing={() => {
+          if (!readOnly) {
+            onPropertyChange(property.uuid, null);
+          }
+        }}
       />
     </div>
   );
 }
-

@@ -157,7 +157,7 @@ export function PropertyReferencesSection({
           const item = items[index];
           const nodesForPage = flattenNodes([pageNode]);
           const propertyCtx = item.propertyId && item.propertyName
-            ? { propertyId: item.propertyId, propertyName: item.propertyName }
+            ? { propertyUuid: item.propertyId, propertyName: item.propertyName }
             : undefined;
           return (
             <div key={pageNode.uuid} className="property-references-section__entry">
