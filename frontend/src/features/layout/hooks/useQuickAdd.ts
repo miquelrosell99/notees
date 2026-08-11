@@ -14,7 +14,7 @@
  * - Hierarchical page creation support (e.g., "Page1/Page2")
  */
 import { useState, useCallback } from 'react';
-import { useCreateNode, usePageClass } from '@/features/content';
+import { useCreateNode } from '@/features/content';
 import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types';
 import { listCorePagesAsync } from '@/core/query/listPages';
@@ -88,7 +88,6 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
 
   const createNodeMutation = useCreateNode();
   const openNode = useOpenNode();
-  const { pageClassUuid } = usePageClass();
 
   // Reset blocks to initial state
   const resetBlocks = useCallback(() => {
@@ -163,11 +162,11 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
   // Create a new page (supports hierarchical paths like "Page1/Page2")
   const createPage = useCallback(
     async (name: string) => {
-      if (!name.trim() || !pageClassUuid) return undefined;
-      
+      if (!name.trim()) return undefined;
+
       const trimmedName = name.trim();
       const parsed = parseHierarchicalPath(trimmedName);
-      
+
       let parentUuid: string | null = null;
 
       // If hierarchical path, resolve parent (creating intermediate pages if needed)
@@ -180,7 +179,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
           async (segmentName, parentUuidForCreation) => {
             return await createNodeMutation.mutateAsync({
               name: segmentName,
-              class_uuids: [pageClassUuid],
+              kind: 'page',
               parent_uuid: parentUuidForCreation,
             });
           }
@@ -190,19 +189,19 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       // Create the final page with resolved parent
       const newPage = await createNodeMutation.mutateAsync({
         name: parsed.leaf || trimmedName,
-        class_uuids: [pageClassUuid],
+        kind: 'page',
         parent_uuid: parentUuid,
       });
-      
+
       if (navigateOnSuccess) {
         openNode(newPage.uuid);
       }
-      
+
       onSuccess?.();
-      
+
       return newPage;
     },
-    [createNodeMutation, navigateOnSuccess, openNode, onSuccess, pageClassUuid]
+    [createNodeMutation, navigateOnSuccess, openNode, onSuccess]
   );
 
   // Check if there's any content to send

@@ -11,7 +11,6 @@
 import { useMemo } from 'react';
 import { useNodes } from './useNodes';
 import { useClasses as useCoreClasses } from '@/core/hooks';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import { classRowToNode } from '@/core/query/classes';
 
@@ -19,13 +18,12 @@ import { classRowToNode } from '@/core/query/classes';
  * Resolve a node's class IDs into full Node objects.
  *
  * @param classIds - Array of class IDs to resolve (typically from node.classes)
- * @param options.includePageClass - If true, includes the implicit "page" class (default: false)
  * @param options.skipNodesFallback - If true, only searches allClasses, not allNodes (default: false)
  * @returns Array of resolved Node objects for the classes
  */
 export function useResolvedClassDetails(
   classIds: string[] | undefined | null,
-  options?: { includePageClass?: boolean; skipNodesFallback?: boolean }
+  options?: { skipNodesFallback?: boolean }
 ): Node[] {
   const { data: allClasses } = useCoreClasses();
   const { data: allNodes } = useNodes(
@@ -47,9 +45,6 @@ export function useResolvedClassDetails(
 
     return classIds
       .map((classId: string) => classMap.get(classId) ?? nodeMap?.get(classId))
-      .filter((c): c is Node =>
-        c !== undefined &&
-        (options?.includePageClass || c.uuid !== SYSTEM_CLASS_UUIDS.page)
-      );
-  }, [classIds, allClasses, allNodes, options?.includePageClass, options?.skipNodesFallback]);
+      .filter((c): c is Node => c !== undefined);
+  }, [classIds, allClasses, allNodes, options?.skipNodesFallback]);
 }

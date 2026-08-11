@@ -280,6 +280,10 @@ export interface NodeCreate {
   class_uuids?: string[];
   property_uuids?: Record<string, unknown>;
   uuid?: string; // Optional: override auto-generated UUID (e.g. from Logseq import)
+  /** Explicit node kind. Defaults to 'page' for root nodes and 'block' for child nodes. */
+  kind?: 'page' | 'block';
+  /** Legacy flag equivalent to kind === 'page'. Takes precedence over the default parent-based heuristic when set. */
+  is_page?: boolean;
   // For date nodes
   is_daily?: boolean;
   daily_date?: string | null;
