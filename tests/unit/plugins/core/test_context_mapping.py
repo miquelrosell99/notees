@@ -8,7 +8,6 @@ import pytest
 
 from app.core.uuid import uuidv7
 from app.core.workspace_store import WorkspaceStore
-from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
 from app.plugins.core.context import PluginContext
 from app.plugins.core.exceptions import PluginPermissionError
 from app.plugins.core.ports import ImportContext
@@ -136,7 +135,7 @@ async def test_upsert_page_by_external_id_updates_existing_by_property() -> None
 @pytest.mark.unit
 async def test_upsert_page_by_external_id_falls_back_to_name_and_class() -> None:
     context = await _make_context()
-    source_class_uuid = SYSTEM_CLASS_UUIDS.get("page", uuidv7())
+    source_class_uuid = uuidv7()
     existing = await context.create_page(
         "ws-1", "actor-1", "@doe2023", class_uuids=[source_class_uuid]
     )
