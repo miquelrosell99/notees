@@ -49,7 +49,6 @@ vi.mock('./PropertySuggestionPopup', () => ({
 vi.mock('@/features/content', () => ({
   useNode: () => ({ data: mocks.node, isLoading: false }),
   useCreateNode: () => ({ mutate: vi.fn() }),
-  usePageClass: () => ({ pageClassUuid: 'page-class-uuid' }),
   useSystemClasses: () => ({ systemClassUuids: {} }),
   NodeViewSection: ({ children }: { children: ReactNode }) => createElement('div', null, children),
   NodeInline: ({ name }: { name?: string }) => createElement('span', null, name ?? null),

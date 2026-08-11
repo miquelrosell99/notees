@@ -95,4 +95,4 @@ export {
 } from './useActivity';
 
 // ==================== Helper Hooks ====================
-export { usePageClass, useClassClass, useSystemClasses } from './usePageClass';
+// Helper hooks live in ./usePageClass and are exported from the feature barrel.

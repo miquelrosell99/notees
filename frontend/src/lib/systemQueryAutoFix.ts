@@ -253,24 +253,27 @@ const SYSTEM_SECTIONS: SystemSectionRequirement[] = [
     },
   },
 
-  // Unlinked References - exclude pages (class does not contain page)
+  // Unlinked References - exclude pages (kind != 'page')
   {
     viewType: 'unlinked_references',
     requiresCondition: (_ast, _context) => {
       return markAsSystemNode({
         type: 'condition',
-        condition_type: 'class',
-        class_uuid: '00000000-0000-0000-0001-000000000002',  // Page class UUID
-        operator: 'does_not_contain',
-      } as ClassCondition);
+        condition_type: 'property',
+        property_name: 'kind',
+        property_type: 'text',
+        operator: 'not_equals',
+        value: 'page',
+      } as PropertyCondition);
     },
     hasRequiredCondition: (ast, _context) => {
       return ast.root_group.children.some(
         (child) =>
           child.type === 'condition' &&
-          isClassCondition(child as ConditionNode) &&
-          (child as ClassCondition).class_uuid === '00000000-0000-0000-0001-000000000002' &&
-          (child as ClassCondition).operator === 'does_not_contain'
+          isPropertyCondition(child as ConditionNode) &&
+          (child as PropertyCondition).property_name === 'kind' &&
+          (child as PropertyCondition).operator === 'not_equals' &&
+          (child as PropertyCondition).value === 'page'
       );
     },
   },
@@ -365,9 +368,7 @@ export function autoFixSystemQuery(
             if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') {
               return markAsHiddenSystemNode(child);
             }
-          } else if (viewType === 'unlinked_references' && isClassCondition(child as ConditionNode)) {
-            const classCond = child as ClassCondition;
-            if (classCond.class_uuid === '00000000-0000-0000-0001-000000000002' && classCond.operator === 'does_not_contain') {
+            if (propCond.property_name === 'kind' && propCond.operator === 'not_equals' && propCond.value === 'page') {
               return markAsSystemNode(child);
             }
           }
@@ -451,9 +452,7 @@ export function autoFixSystemQuery(
           } else if (viewType === 'unlinked_references' && isPropertyCondition(child as ConditionNode)) {
             const propCond = child as PropertyCondition;
             if (propCond.property_name === 'uuid' && propCond.operator === 'not_equals' && propCond.value === '{current_node_uuid}') return false;
-          } else if (viewType === 'unlinked_references' && isClassCondition(child as ConditionNode)) {
-            const classCond = child as ClassCondition;
-            if (classCond.class_uuid === '00000000-0000-0000-0001-000000000002' && classCond.operator === 'does_not_contain') return false;
+            if (propCond.property_name === 'kind' && propCond.operator === 'not_equals' && propCond.value === 'page') return false;
           }
         }
         // Also remove old-style OR groups for unlinked references that match the content pattern

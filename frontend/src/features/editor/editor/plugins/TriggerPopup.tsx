@@ -27,7 +27,6 @@ import { classRowToNode, type ClassRow } from '@/core/query/classes';
 import { uuidv7 } from '@/core/uuid';
 import { NodeResultItem } from '@/features/content';
 import { useCreateNode } from '@/features/content';
-import { usePageClass } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { AddIcon, Icon } from '@/components/ui/icons';
@@ -514,7 +513,6 @@ export function TriggerPopup({
 
   // Create new node
   const createNode = useCreateNode();
-  const { pageClassUuid } = usePageClass();
 
   const pageById = useMemo(() => {
     const m = new Map<string, Node>();
@@ -566,10 +564,8 @@ export function TriggerPopup({
         onSelectNode?.(classRowToNode(classRow!), mode, false);
         return;
       }
-      if (!pageClassUuid) return;
-
       createNode.mutate(
-        { name, class_uuids: [pageClassUuid] },
+        { name, kind: 'page' },
         {
           onSuccess: (newNode) => {
             onSelectNode?.(newNode, mode, false);
@@ -577,7 +573,7 @@ export function TriggerPopup({
         }
       );
     },
-    [createNode, pageClassUuid, type, onSelectNode, workspaceId]
+    [createNode, type, onSelectNode, workspaceId]
   );
 
   const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {
@@ -585,7 +581,7 @@ export function TriggerPopup({
     return node.classes_uuid
       .map(classId => {
         const classNode = allClasses.find(c => c.uuid === classId);
-        if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
+        if (!classNode) return null;
         const name = nodeNameToText(classNode.name);
         if (!name) return null;
         return { nodeUuid: classId, name };

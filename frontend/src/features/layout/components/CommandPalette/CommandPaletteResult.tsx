@@ -13,7 +13,6 @@ interface ResultItemProps {
   onClick: () => void;
   allNodes?: Node[];
   allClasses?: Node[];
-  pageClassUuid?: string | null;
   searchTerm?: string;
   id?: string;
 }
@@ -27,7 +26,6 @@ export function ResultItem({
   onClick,
   allNodes,
   allClasses,
-  pageClassUuid,
   searchTerm = '',
   id,
 }: ResultItemProps) {
@@ -84,7 +82,6 @@ export function ResultItem({
   if (!result.node) return null;
 
   const displayClasses = (result.node.classes_uuid ?? [])
-    .filter(uuid => uuid !== pageClassUuid)
     .map(uuid => allClasses?.find(c => c.uuid === uuid))
     .filter((c): c is Node => c !== undefined)
     .map(c => ({ id: c.uuid, name: nodeNameToText(c.name) }))

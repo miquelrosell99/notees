@@ -66,7 +66,6 @@ export const TASK_STATUS_CYCLE = [
  */
 export const SYSTEM_CLASS_UUIDS = {
   class: '00000000-0000-0000-0001-000000000001',
-  page: '00000000-0000-0000-0001-000000000002',
   year: '00000000-0000-0000-0001-000000000003',
   month: '00000000-0000-0000-0001-000000000004',
   day: '00000000-0000-0000-0001-000000000005',
@@ -155,7 +154,6 @@ export function isSystemClassUuid(uuid: string | null | undefined): boolean {
  * These are fundamental to the node's identity or system-managed
  */
 export const NON_REMOVABLE_CLASS_UUIDS = [
-  SYSTEM_CLASS_UUIDS.page,
   SYSTEM_CLASS_UUIDS.class,
   SYSTEM_CLASS_UUIDS.day,
   SYSTEM_CLASS_UUIDS.month,

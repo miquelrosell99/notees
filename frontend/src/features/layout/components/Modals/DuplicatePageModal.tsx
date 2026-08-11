@@ -7,7 +7,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { useClasses, useCreateNode, useClassClass, usePageClass } from '@/features/content';
+import { useClasses, useCreateNode, useClassClass } from '@/features/content';
 import type { Node } from '@/types';
 import { NodeIcon } from '@/components/ui/icons';
 import { nodeNameToText } from '@/features/queries';
@@ -52,7 +52,6 @@ export function DuplicatePageModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: allClasses = [] } = useClasses();
   const createNodeMutation = useCreateNode();
-  const { pageClassUuid } = usePageClass();
   const { classClassUuid } = useClassClass();
 
   // Filter classes based on search query, excluding system classes and conflicting ones
@@ -78,17 +77,17 @@ export function DuplicatePageModal({
   }, [isOpen]);
 
   const handleCreate = useCallback(async () => {
-    if (!selectedClass || !pageClassUuid) return;
-    
+    if (!selectedClass) return;
+
     setIsCreating(true);
     setError(null);
-    
+
     try {
-      // Build classes: page class + selected class (excluding any conflicting ones from original)
-      const classUuids = [pageClassUuid, selectedClass.uuid];
-      
+      const classUuids = [selectedClass.uuid];
+
       const newNode = await createNodeMutation.mutateAsync({
         name: pageName,
+        kind: 'page',
         parent_uuid: parentUuid,
         class_uuids: classUuids,
       });
@@ -107,28 +106,30 @@ export function DuplicatePageModal({
     } finally {
       setIsCreating(false);
     }
-  }, [selectedClass, pageClassUuid, pageName, parentUuid, createNodeMutation, onSuccess, onClose]);
+  }, [selectedClass, pageName, parentUuid, createNodeMutation, onSuccess, onClose]);
 
   const handleCreateNewClass = useCallback(async () => {
-    if (!classQuery.trim() || !classClassUuid || !pageClassUuid) return;
-    
+    if (!classQuery.trim() || !classClassUuid) return;
+
     setIsCreating(true);
     setError(null);
-    
+
     try {
       // Create the new class first
       const newClass = await createNodeMutation.mutateAsync({
         name: classQuery.trim(),
-        class_uuids: [classClassUuid, pageClassUuid],
+        kind: 'page',
+        class_uuids: [classClassUuid],
       });
-      
+
       // Then create the page with the new class
       const newNode = await createNodeMutation.mutateAsync({
         name: pageName,
+        kind: 'page',
         parent_uuid: parentUuid,
-        class_uuids: [pageClassUuid, newClass.uuid],
+        class_uuids: [newClass.uuid],
       });
-      
+
       onSuccess(newNode);
       onClose();
     } catch {
@@ -136,7 +137,7 @@ export function DuplicatePageModal({
     } finally {
       setIsCreating(false);
     }
-  }, [classQuery, classClassUuid, pageClassUuid, pageName, parentUuid, createNodeMutation, onSuccess, onClose]);
+  }, [classQuery, classClassUuid, pageName, parentUuid, createNodeMutation, onSuccess, onClose]);
 
   return (
     <Modal

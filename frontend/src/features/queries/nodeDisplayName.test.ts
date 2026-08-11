@@ -91,7 +91,7 @@ describe('nodeNameToDisplayText', () => {
   it('does not format a non-date page with a numeric-looking name', () => {
     const node = makeNode({
       name: '20260805',
-      classes_uuid: [SYSTEM_CLASS_UUIDS.page],
+      classes_uuid: [SYSTEM_CLASS_UUIDS.class],
     });
     expect(nodeNameToDisplayText(node)).toBe('20260805');
   });

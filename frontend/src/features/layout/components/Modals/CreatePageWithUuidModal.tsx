@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import { NodeSelector, useCreateNode, usePageClass } from '@/features/content';
+import { NodeSelector, useCreateNode } from '@/features/content';
 import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
@@ -44,7 +44,6 @@ export function CreatePageWithUuidModal({
   const queryClient = useQueryClient();
   const workspaceUuid = useCurrentWorkspaceUuid();
   const createNodeMutation = useCreateNode();
-  const { pageClassUuid } = usePageClass();
 
   // Reset and generate a fresh UUID each time the modal opens
   useEffect(() => {
@@ -75,10 +74,6 @@ export function CreatePageWithUuidModal({
       setError('UUID must be a valid v4 UUID (e.g. 550e8400-e29b-41d4-a716-446655440000).');
       return;
     }
-    if (isPage && !pageClassUuid) {
-      setError('Page class not available. Please try again.');
-      return;
-    }
     if (!isPage && parentUuid == null) {
       setError('Parent page is required for blocks.');
       return;
@@ -107,16 +102,15 @@ export function CreatePageWithUuidModal({
       const payload: {
         name: string;
         uuid: string;
-        class_uuids?: string[];
+        kind?: 'page' | 'block';
         parent_uuid?: string | null;
       } = {
         name: trimmedName,
         uuid: trimmedUuid,
+        kind: isPage ? 'page' : 'block',
       };
 
-      if (isPage) {
-        payload.class_uuids = [pageClassUuid!];
-      } else {
+      if (!isPage) {
         payload.parent_uuid = parentUuid;
       }
 
@@ -131,7 +125,7 @@ export function CreatePageWithUuidModal({
     } finally {
       setIsCreating(false);
     }
-  }, [nodeName, uuid, isPage, parentUuid, pageClassUuid, isValidUuid, createNodeMutation, onSuccess, onClose, workspaceUuid]);
+  }, [nodeName, uuid, isPage, parentUuid, isValidUuid, createNodeMutation, onSuccess, onClose, workspaceUuid]);
 
   const handleCreate = useCallback(() => doCreate(false), [doCreate]);
   const handleCreateAndOpen = useCallback(() => doCreate(true), [doCreate]);

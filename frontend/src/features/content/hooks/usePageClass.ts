@@ -2,8 +2,6 @@
  * Hooks to get system classes
  *
  * These are used when creating nodes with specific system classes.
- * Instead of setting flags like is_page=true, is_class=true, etc.,
- * we assign the appropriate class which causes the flags to be computed by the backend.
  */
 import { useMemo } from 'react';
 import { useClasses } from '@/core/hooks';
@@ -12,24 +10,6 @@ import type { ClassRow } from '@/core/query/classes';
 
 function findClassByUuid(classes: ClassRow[] | undefined, uuid: string): ClassRow | null {
   return classes?.find((c) => c.id === uuid) ?? null;
-}
-
-/**
- * Get the Page class row and its ID
- * Returns null if classes haven't loaded yet
- */
-export function usePageClass() {
-  const { data: allClasses, isLoading } = useClasses();
-
-  const pageClass = useMemo(() => {
-    return findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.page);
-  }, [allClasses]);
-
-  return {
-    pageClass,
-    pageClassUuid: pageClass?.id ?? null,
-    isLoading,
-  };
 }
 
 /**
@@ -60,7 +40,6 @@ export function useSystemClasses() {
     if (!allClasses) return null;
 
     return {
-      page: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.page),
       class: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.class),
       day: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.day),
       month: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.month),
@@ -82,7 +61,6 @@ export function useSystemClasses() {
     if (!systemClasses) return null;
 
     return {
-      page: systemClasses.page?.id ?? null,
       class: systemClasses.class?.id ?? null,
       day: systemClasses.day?.id ?? null,
       month: systemClasses.month?.id ?? null,

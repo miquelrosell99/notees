@@ -25,7 +25,7 @@ import { ResultsList, type FilterSuggestionItem } from './NodeSelectorParts/Resu
 import { Card } from '@/components/ui/Card';
 import { SelectTrigger, type SelectTriggerSize } from '@/components/ui/SelectTrigger';
 
-import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/features/content';
+import { useNodeSearch, usePages, useClasses, useCreateNode, useClassClass, type NodeSearchMode, nodeKeys } from '@/features/content';
 import {
   getOrCreateDailyNoteClient,
   getOrCreateMonthlyNoteClient,
@@ -37,7 +37,6 @@ import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
 import { nodeNameToText, nodeNameToDisplayText } from '@/features/queries';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { useSettingsStore } from '@/stores';
 import type { Node } from '@/types';
 import './NodeSelector.css';
@@ -312,7 +311,6 @@ export function NodeSelector({
 
   // Built-in create support — hooks must be called unconditionally
   const createNodeMutation = useCreateNode();
-  const { pageClassUuid } = usePageClass();
   const { classClassUuid } = useClassClass();
 
   // Resolve whether create is enabled: default true for page/class/tag modes, false for blocks
@@ -321,15 +319,14 @@ export function NodeSelector({
   // Internal default create handler based on searchMode
   const defaultCreateNew = useCallback(async (name: string): Promise<Node> => {
     const classUuids: string[] = [];
-    if (pageClassUuid) classUuids.push(pageClassUuid);
     if ((searchMode === 'classes') && classClassUuid) classUuids.push(classClassUuid);
     return new Promise((resolve, reject) => {
-      createNodeMutation.mutate({ name, class_uuids: classUuids }, {
+      createNodeMutation.mutate({ name, kind: 'page', class_uuids: classUuids.length > 0 ? classUuids : undefined }, {
         onSuccess: resolve,
         onError: reject,
       });
     });
-  }, [createNodeMutation, pageClassUuid, classClassUuid, searchMode]);
+  }, [createNodeMutation, classClassUuid, searchMode]);
 
   // Effective create handler: external overrides internal
   const effectiveCreateNew = onCreateNew ?? (createEnabled ? defaultCreateNew : undefined);
@@ -750,13 +747,13 @@ export function NodeSelector({
     return trimmed ? `${trimmed} / ${pageName}` : pageName;
   }, [allPages, buildParentPath, dateFormat]);
 
-  // Get display classes for a node, excluding the system "page" class
+  // Get display classes for a node
   const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {
     if (!node.classes_uuid || node.classes_uuid.length === 0) return [];
     return node.classes_uuid
       .map(classUuid => {
         const classNode = allClasses.find(c => c.uuid === classUuid);
-        if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
+        if (!classNode) return null;
         const name = nodeNameToDisplayText(classNode, { dateFormat });
         if (!name) return null;
         return { nodeUuid: classUuid, name };

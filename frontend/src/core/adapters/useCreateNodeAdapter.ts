@@ -27,7 +27,8 @@ export function useCreateNodeAdapter(): UseMutationResult<Node, Error, NodeCreat
       );
 
       const nodeId = data.uuid ?? uuidv7();
-      const kind: 'page' | 'block' = data.parent_uuid ? 'block' : 'page';
+      const explicitKind = data.kind ?? (data.is_page === true ? 'page' : data.is_page === false ? 'block' : undefined);
+      const kind: 'page' | 'block' = explicitKind ?? (data.parent_uuid ? 'block' : 'page');
       const classIds = data.class_uuids ?? [];
 
       await client.mutate<void>('createNode', [

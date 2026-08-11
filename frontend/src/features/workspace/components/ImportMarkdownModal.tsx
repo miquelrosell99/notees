@@ -18,7 +18,7 @@ import {
   type LogseqMdPage,
   type LogseqMdBlock,
 } from '@/plugins/builtin/logseq_importer/utils/logseqMdParser';
-import { useCreateNode, usePageClass } from '@/features/content';
+import { useCreateNode } from '@/features/content';
 import './ImportMarkdownModal.css';
 
 type MdSource = 'logseq' | 'obsidian';
@@ -42,7 +42,6 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createNodeMutation = useCreateNode();
-  const { pageClassUuid } = usePageClass();
 
   const handleReset = useCallback(() => {
     setPages([]);
@@ -82,7 +81,7 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
   );
 
   const handleImport = useCallback(async () => {
-    if (pages.length === 0 || !pageClassUuid) return;
+    if (pages.length === 0) return;
     setImporting(true);
     setError(null);
 
@@ -110,7 +109,7 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
         try {
           const pageNode = await createNodeMutation.mutateAsync({
             name: page.title,
-            class_uuids: [pageClassUuid],
+            kind: 'page',
           });
 
           if (page.blocks.length > 0) {
@@ -131,7 +130,7 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
     } finally {
       setImporting(false);
     }
-  }, [pages, pageClassUuid, createNodeMutation, onClose, handleReset]);
+  }, [pages, createNodeMutation, onClose, handleReset]);
 
   const totalBlocks = pages.reduce((s, p) => s + countMdBlocks(p.blocks), 0);
 

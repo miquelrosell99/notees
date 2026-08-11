@@ -9,7 +9,6 @@
  */
 
 import type { Asset } from '@/features/assets/api/assets';
-import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { uuidv7 } from '@/core/uuid';
 import type { WorkspaceStore } from '@/core/store';
 import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
@@ -283,7 +282,6 @@ export async function importLogseqFolderToStore(
         nodeId: pageId,
         kind: 'page',
         parentId: null,
-        classIds: [SYSTEM_CLASS_UUIDS.page],
       });
       await ops.updateContentAst(pageId, [paragraph(text(title))]);
       report.pagesCreated++;

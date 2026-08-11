@@ -21,17 +21,17 @@ export function useSaveQueryAsView() {
     async (title: string, ast: QueryAST) => {
       const trimmed = title.trim();
       if (!trimmed || isSaving) return;
-      if (!systemClassUuids?.page || !systemClassUuids?.query) {
+      if (!systemClassUuids?.query) {
         useNotificationStore
           .getState()
-          .error('Setup incomplete', 'Page or query class not found. Please reload the app.');
+          .error('Setup incomplete', 'Query class not found. Please reload the app.');
         return;
       }
       setIsSaving(true);
       try {
         const page = await createNode.mutateAsync({
           name: trimmed,
-          class_uuids: [systemClassUuids.page],
+          kind: 'page',
         });
         const nameAST = [
           { type: 'paragraph' as const, children: [{ type: 'text' as const, text: trimmed }] },

@@ -4,7 +4,7 @@ import { queryAll, queryOne } from '../db/sqlite';
 import type { NodeRow, WorkspaceStore } from '../store';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
-import { parseAST, unwrapCrdtContentAst } from '@/lib/astBuilder';
+import { parseAST, parseLinkId, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { classRowToNode, getClasses } from '../query/classes';
 
@@ -30,7 +30,7 @@ function extractFirstLinkFallback(ast: ReturnType<typeof parseAST>): string | un
       const node = inline as { type?: string; link_id?: string; label?: string | null };
       if (node.type === 'node_link' && node.link_id) {
         if (node.label) return node.label;
-        return 'Link';
+        return parseLinkId(node.link_id).nodeUuid;
       }
     }
   }
@@ -143,8 +143,7 @@ function getChildrenFromDb(db: Database, parentId: string): string[] {
 
 /**
  * Walk up the parent chain to find the containing page UUID.
- * NOTE(D2): This uses node.kind === 'page'. Once class-based page tagging is
- * fully wired, resolve the page class UUID and check class_ids too.
+ * A node is a page when node.kind === 'page'.
  */
 function resolvePageUuid(db: Database, nodeId: string): string | null {
   const visited = new Set<string>();
@@ -207,8 +206,6 @@ export function projectNodeFromDb(
   const name = deriveName(node.content);
   const classIds = node.classIds ?? [];
   const isPage = node.kind === 'page';
-  // NOTE(D2): When the page system class UUID is known, also check
-  // classIds.includes(pageClassUuid) here.
   const isClass = false;
   const isDaily = classIds.includes(SYSTEM_CLASS_UUIDS.day);
   const isMonthly = classIds.includes(SYSTEM_CLASS_UUIDS.month);
