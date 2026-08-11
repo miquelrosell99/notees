@@ -23,7 +23,7 @@ import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEffectiveNodePermissions } from '@/hooks';
 import { useProperties, useSetNodeProperty, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty } from '@/features/properties';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useRemoveClass, useRemoveTag, useTags, useLinkedReferencesCount, usePageClass, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync } from '@/features/content';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useRemoveClass, useRemoveTag, useTags, useLinkedReferencesCount, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync } from '@/features/content';
 import { useContentSave } from '@/features/editor';
 import { useFoldKeyboardShortcut } from '@/features/sync';
 import { nodeNameToText } from '@/features/queries';
@@ -388,7 +388,6 @@ export function NodeView({
   const { data: allTags } = useTags();
   const { data: aliasedNodeData } = useNode(node?.aliased_uuid ?? null);
   const { data: allProperties } = useProperties();
-  const { pageClassUuid } = usePageClass();
   const { addSidebarCard, openNode, openPropertyView, currentPropertyContext } = useNavigationStore(
     useShallow((state) => ({
       addSidebarCard: state.addSidebarCard,
@@ -511,14 +510,14 @@ export function NodeView({
   
   // Handle creating a new tag via NodeSelector
   const handleCreateTag = useCallback((name: string) => {
-    if (!node || !pageClassUuid) return;
+    if (!node) return;
     // Create as a page (tags are just pages linked to nodes)
-    createNode.mutate({ name, class_uuids: [pageClassUuid] }, {
+    createNode.mutate({ name, kind: 'page' }, {
       onSuccess: (newPage) => {
         addTag.mutate({ nodeUuid: node.uuid, tagId: newPage.uuid });
       }
     });
-  }, [node, createNode, addTag, pageClassUuid]);
+  }, [node, createNode, addTag]);
   
   // Handle removing a tag via NodeSelector
   const handleRemoveTag = useCallback((tagNode: Node) => {

@@ -42,7 +42,6 @@ import {
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { nodeNameToText } from '@/features/queries';
-import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 
 export type SuggestionType = 'type' | 'class' | 'tag' | 'link';
@@ -274,13 +273,13 @@ export function SuggestionPopup({
     return ancestors ? `${ancestors} / ${pageName}` : pageName;
   }, [allPagesForDate, pageById, buildParentPath]);
 
-  // Helper to get display classes for a node, excluding the system "page" class
+  // Helper to get display classes for a node
   const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {
     if (!node.classes_uuid || node.classes_uuid.length === 0) return [];
     return node.classes_uuid
       .map(classUuid => {
         const classNode = classById.get(classUuid);
-        if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
+        if (!classNode) return null;
         const name = nodeNameToText(classNode.name);
         if (!name) return null;
         return { nodeUuid: classUuid, name };

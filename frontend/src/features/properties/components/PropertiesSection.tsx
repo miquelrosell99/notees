@@ -9,7 +9,7 @@
  */
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useProperties, useSetNodeProperty, useCreateProperty, useNodeClassPropertyEdges } from '../hooks';
-import { useNode, useCreateNode, usePageClass, useSystemClasses } from '@/features/content';
+import { useNode, useCreateNode, useSystemClasses } from '@/features/content';
 import { FlashcardEditor } from '@/plugins/builtin/flashcards';
 import { useNavigationStore } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
@@ -105,7 +105,6 @@ export function PropertiesSection({
   const setPropertyMutation = useSetNodeProperty();
   const createNodeMutation = useCreateNode();
   const createPropertyMutation = useCreateProperty();
-  const { pageClassUuid } = usePageClass();
   const { systemClassUuids } = useSystemClasses();
 
   // Class-property edges for every class of the node (with inheritance),
@@ -269,18 +268,14 @@ export function PropertiesSection({
 
   const handleCreatePage = useCallback(async (name: string, additionalClasses?: string[]): Promise<Node> => {
     return new Promise((resolve, reject) => {
-      if (!pageClassUuid) {
-        reject(new Error('Page class not found'));
-        return;
-      }
-      // Include page class + any additional classes (e.g., from class_filter_uuids)
-      const classUuids = [pageClassUuid, ...(additionalClasses ?? [])];
-      createNodeMutation.mutate({ name, class_uuids: classUuids }, {
+      // Pages are created by kind; additional classes (e.g., from class_filter_uuids) are optional.
+      const classUuids = additionalClasses && additionalClasses.length > 0 ? additionalClasses : undefined;
+      createNodeMutation.mutate({ name, kind: 'page', class_uuids: classUuids }, {
         onSuccess: (newPage) => resolve(newPage),
         onError: (error) => reject(error),
       });
     });
-  }, [createNodeMutation, pageClassUuid]);
+  }, [createNodeMutation]);
 
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {

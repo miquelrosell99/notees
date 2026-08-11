@@ -13,7 +13,7 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
-import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/features/content';
+import { useUpdateNode, useClasses, useCreateNode, useClassClass, useAddClass } from '@/features/content';
 import { useNodeDisplayName } from '@/features/queries';
 import { listCorePagesAsync } from '@/core/query/listPages';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
@@ -75,7 +75,6 @@ export function PageHeader({
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const addClass = useAddClass();
-  const { pageClassUuid } = usePageClass();
   const { classClassUuid } = useClassClass();
   const addSidebarCard = useNavigationStore((state) => state.addSidebarCard);
   const workspaceUuid = useCurrentWorkspaceUuid();
@@ -190,8 +189,8 @@ export function PageHeader({
 
   // Handle creating a new class from + popup
   const handleClassCreate = useCallback((name: string) => {
-    if (!classClassUuid || !pageClassUuid) return;
-    createNode.mutate({ name, class_uuids: [classClassUuid, pageClassUuid] }, {
+    if (!classClassUuid) return;
+    createNode.mutate({ name, kind: 'page', class_uuids: [classClassUuid] }, {
       onSuccess: (newClass) => {
         // Add the new class to this page
         addClass.mutate({ nodeUuid: page.uuid, classId: newClass.uuid });
@@ -202,7 +201,7 @@ export function PageHeader({
     setInputValue(beforeAt.trimEnd());
     setClassPopupOpen(false);
     titleRef.current?.focus();
-  }, [page.uuid, classClassUuid, pageClassUuid, createNode, addClass, inputValue]);
+  }, [page.uuid, classClassUuid, createNode, addClass, inputValue]);
 
   // Close class popup
   const handleClassPopupClose = useCallback(() => {
@@ -223,7 +222,7 @@ export function PageHeader({
     const isDatePage = page.is_daily || page.is_monthly || page.is_yearly;
     
     // Check if the new name contains "/" and this is not a date page
-    if (cleanName.includes('/') && !isDatePage && pageClassUuid) {
+    if (cleanName.includes('/') && !isDatePage) {
       const parsed = parseHierarchicalPath(cleanName);
       const originalName = page.name || '';
       
@@ -253,7 +252,7 @@ export function PageHeader({
             if (!node) {
               node = await createNode.mutateAsync({
                 name: segment,
-                class_uuids: [pageClassUuid],
+                kind: 'page',
                 parent_uuid: currentParent,
               });
               // Add to map so subsequent iterations can find it
@@ -267,7 +266,7 @@ export function PageHeader({
           if (parsed.leaf) {
             createNode.mutate({
               name: parsed.leaf,
-              class_uuids: [pageClassUuid],
+              kind: 'page',
               parent_uuid: currentParent,
             });
           }
@@ -297,7 +296,7 @@ export function PageHeader({
               return await createNode.mutateAsync({
                 name,
                 parent_uuid: parent,
-                class_uuids: [pageClassUuid],
+                kind: 'page',
               });
             }
           );
@@ -332,7 +331,7 @@ export function PageHeader({
               return await createNode.mutateAsync({
                 name,
                 parent_uuid: parent,
-                class_uuids: [pageClassUuid],
+                kind: 'page',
               });
             }
           );
@@ -360,7 +359,7 @@ export function PageHeader({
       const data: NodeUpdate = { name: cleanName };
       updateNode.mutate({ nodeUuid: page.uuid, data });
     }
-  }, [page.uuid, page.name, page.is_daily, page.is_monthly, page.is_yearly, pageClassUuid, updateNode, createNode, onNameChange]);
+  }, [page.uuid, page.name, page.is_daily, page.is_monthly, page.is_yearly, updateNode, createNode, onNameChange]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {

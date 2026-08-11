@@ -12,7 +12,6 @@ import { useNotifyActions } from '@/features/layout';
 import { useSyncStatusStore } from '@/features/sync/stores/syncStatusStore';
 import { queryClient } from '@/lib/queryClient';
 import {
-  usePageClass,
   useClasses,
   useCreateNode,
   useResetNodeViews,
@@ -28,7 +27,6 @@ import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useState } from 'react';
 
 export function CommandRegistrations() {
-  const { pageClassUuid } = usePageClass();
   const { data: allClasses } = useClasses();
   const openNode = useNavigationStore((s) => s.openNode);
   const currentNodeUuid = useNavigationStore((s) => s.currentNodeUuid);
@@ -79,14 +77,10 @@ export function CommandRegistrations() {
     }
   );
 
-  // Capture task — needs pageClassUuid and taskClassUuid from hooks
+  // Capture task — needs taskClassUuid from hooks
   useCommand(
     COMMAND_IDS.CAPTURE_TASK,
     () => {
-      if (!pageClassUuid) {
-        notifyWarning('Setup incomplete', 'Page class not found. Please reload the app.');
-        return;
-      }
       const taskClassUuid = allClasses?.find((c) => c.uuid === SYSTEM_CLASS_UUIDS.task)?.uuid;
       if (!taskClassUuid) {
         notifyWarning('Setup incomplete', 'Task class not found. Please reload the app.');
@@ -95,7 +89,8 @@ export function CommandRegistrations() {
       createNodeMutation.mutate(
         {
           name: 'New Task',
-          class_uuids: [pageClassUuid, taskClassUuid],
+          kind: 'page',
+          class_uuids: [taskClassUuid],
         },
         {
           onSuccess: (newNode) => {
