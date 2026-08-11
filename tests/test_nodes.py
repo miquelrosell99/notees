@@ -130,12 +130,11 @@ class TestNodeRetrieval:
         test_user: dict,
     ):
         """pages_only honors page/page_size and returns bounded slices."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
         names = ["PgTest-A", "PgTest-B", "PgTest-C", "PgTest-D", "PgTest-E"]
         for name in names:
             response = await authenticated_client.post(
                 "/api/nodes/",
-                json={"name": name, "class_uuids": [page_class_uuid]},
+                json={"name": name, "is_page": True},
             )
             assert response.status_code == 200
 
@@ -174,11 +173,10 @@ class TestNodeRetrieval:
         test_user: dict,
     ):
         """Excessive page_size for pages_only is capped at 5000."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
         for name in ("PgTest-One", "PgTest-Two"):
             response = await authenticated_client.post(
                 "/api/nodes/",
-                json={"name": name, "class_uuids": [page_class_uuid]},
+                json={"name": name, "is_page": True},
             )
             assert response.status_code == 200
 
@@ -204,10 +202,9 @@ class TestNodeRetrieval:
         test_user: dict,
     ):
         """pages_only defaults to a bounded result set when page_size is omitted."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
         response = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "PgTest-Solo", "class_uuids": [page_class_uuid]},
+            json={"name": "PgTest-Solo", "is_page": True},
         )
         assert response.status_code == 200
 
@@ -286,14 +283,14 @@ class TestClassListExtends:
     @pytest.mark.asyncio
     async def test_list_classes_populates_extends_uuid(self, authenticated_client: AsyncClient):
         """GET /nodes/classes must return extends_uuid so icon/color inheritance works."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
         class_class_uuid = SYSTEM_CLASS_UUIDS["class"]
 
         parent = await authenticated_client.post(
             "/api/nodes/",
             json={
                 "name": "Parent Class",
-                "class_uuids": [page_class_uuid, class_class_uuid],
+                "is_class": True,
+                "class_uuids": [class_class_uuid],
                 "color": "#ff8800",
             },
         )
@@ -304,7 +301,8 @@ class TestClassListExtends:
             "/api/nodes/",
             json={
                 "name": "Child Class",
-                "class_uuids": [page_class_uuid, class_class_uuid],
+                "is_class": True,
+                "class_uuids": [class_class_uuid],
             },
         )
         assert child.status_code == 200

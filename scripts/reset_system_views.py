@@ -155,9 +155,9 @@ async def reset_system_views():
                     },
                     {
                         'type': 'condition',
-                        'condition_type': 'class',
-                        'class_uuid': '00000000-0000-0000-0001-000000000002',
-                        'operator': 'does_not_contain',
+                        'condition_type': 'flag',
+                        'flag_name': 'is_page',
+                        'value': False,
                         'is_system': True
                     }
                 ]
