@@ -43,6 +43,7 @@ class BibTeXImporter(ImporterAdapter):
             "Source: BibTeX",
             icon="file-document-outline",
         )
+        source_classes = [source_class_uuid] if source_class_uuid else []
 
         for entry in entries:
             name = entry.title or entry.cite_key
@@ -50,7 +51,7 @@ class BibTeXImporter(ImporterAdapter):
                 context.workspace_uuid or str(context.workspace_id),
                 context.actor_uuid or str(context.user_id),
                 name,
-                class_uuids=[source_class_uuid],
+                class_uuids=source_classes,
             )
             result.created_node_ids.append(node_uuid)
 
