@@ -97,6 +97,35 @@ def apply_node_update_color(conn: sqlite3.Connection, op: Operation) -> None:
     )
 
 
+def apply_node_archive(conn: sqlite3.Connection, op: Operation) -> None:
+    """Apply a ``node.archive`` operation.
+
+    Sets ``node.active = 0`` so the node is hidden from default queries while
+    remaining recoverable through ``node.restore``.
+    """
+    node_id = op.payload["nodeId"]
+    ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
+
+    conn.execute(
+        "UPDATE node SET active = 0, updated_at = ?, updated_by = ? WHERE id = ?",
+        (ts, op.envelope.actor_id, node_id),
+    )
+
+
+def apply_node_restore(conn: sqlite3.Connection, op: Operation) -> None:
+    """Apply a ``node.restore`` operation.
+
+    Sets ``node.active = 1`` so the node is visible again in default queries.
+    """
+    node_id = op.payload["nodeId"]
+    ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
+
+    conn.execute(
+        "UPDATE node SET active = 1, updated_at = ?, updated_by = ? WHERE id = ?",
+        (ts, op.envelope.actor_id, node_id),
+    )
+
+
 def apply_node_delete(conn: sqlite3.Connection, op: Operation) -> None:
     """Apply a ``node.delete`` operation.
 

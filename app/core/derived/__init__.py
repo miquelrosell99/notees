@@ -22,10 +22,12 @@ from .link import apply_link_click
 from .node import (
     apply_class_assign,
     apply_class_unassign,
+    apply_node_archive,
     apply_node_convert,
     apply_node_create,
     apply_node_delete,
     apply_node_move,
+    apply_node_restore,
     apply_node_update_color,
     apply_node_update_content,
     apply_node_update_icon,
@@ -80,6 +82,12 @@ def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:
     op_type = op.envelope.op_type
     if op_type == "node.create":
         apply_node_create(conn, op)
+        apply_class_operation(conn, op)
+    elif op_type == "node.archive":
+        apply_node_archive(conn, op)
+        apply_class_operation(conn, op)
+    elif op_type == "node.restore":
+        apply_node_restore(conn, op)
         apply_class_operation(conn, op)
     elif op_type == "node.delete":
         apply_class_operation(conn, op)
