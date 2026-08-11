@@ -120,6 +120,29 @@ class TestNodeUpdateContentApplier:
         conn.close()
 
 
+class TestNodeArchiveRestoreApplier:
+    def test_archive_sets_active_to_zero(self) -> None:
+        ops = [
+            make_operation("node.create", {"nodeId": "n-1", "kind": "page", "index": 0}),
+            make_operation("node.archive", {"nodeId": "n-1"}, physical=2),
+        ]
+        conn = replay_operations(ops)
+        row = conn.execute("SELECT active FROM node WHERE id = ?", ("n-1",)).fetchone()
+        assert row["active"] == 0
+        conn.close()
+
+    def test_restore_sets_active_back_to_one(self) -> None:
+        ops = [
+            make_operation("node.create", {"nodeId": "n-1", "kind": "page", "index": 0}),
+            make_operation("node.archive", {"nodeId": "n-1"}, physical=2),
+            make_operation("node.restore", {"nodeId": "n-1"}, physical=3),
+        ]
+        conn = replay_operations(ops)
+        row = conn.execute("SELECT active FROM node WHERE id = ?", ("n-1",)).fetchone()
+        assert row["active"] == 1
+        conn.close()
+
+
 class TestNodeIconColorApplier:
     def test_create_persists_icon_and_color(self) -> None:
         ops = [
