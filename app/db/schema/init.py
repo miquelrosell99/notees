@@ -88,6 +88,14 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("add_workspace_restore_epoch", conn, _add_workspace_restore_epoch)
     await _run_migration("normalize_node_link_uuids", conn, _normalize_node_link_uuids)
     await _run_migration("repair_node_link_payload_strings", conn, _repair_node_link_payload_strings)
+    await _run_migration("strip_page_class_from_class_ids", conn, _strip_page_class_from_class_ids)
+
+
+async def _strip_page_class_from_class_ids(conn: asyncpg.Connection) -> None:
+    """Strip the legacy page system class UUID from all workspace derived DBs."""
+    from app.db.migrations.strip_page_class_from_class_ids import run
+
+    await run(conn)
 
 
 async def _add_workspace_restore_epoch(conn: asyncpg.Connection) -> None:
