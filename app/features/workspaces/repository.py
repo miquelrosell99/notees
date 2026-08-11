@@ -396,19 +396,16 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
         store = self._store(workspace_uuid, actor_id)
         try:
             class_class_id = SYSTEM_CLASS_UUIDS["class"]
-            page_class_id = SYSTEM_CLASS_UUIDS["page"]
 
             for class_name, class_uuid in SYSTEM_CLASS_UUIDS.items():
                 await store.create_class(class_uuid, class_name)
                 await store.update_content(class_uuid, _name_ast(class_name))
                 await store.assign_class(class_uuid, class_class_id)
-                await store.assign_class(class_uuid, page_class_id)
 
             for page_name, page_uuid in SYSTEM_PAGE_UUIDS.items():
                 await store.create_node(
                     page_uuid,
                     "page",
-                    class_ids=[page_class_id],
                     initial_content=_name_ast(page_name.capitalize()),
                 )
         finally:
@@ -441,7 +438,6 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
                 await store.create_node(
                     user_page_uuid,
                     "page",
-                    class_ids=[SYSTEM_CLASS_UUIDS["page"]],
                     initial_content=_name_ast(display),
                 )
             return user_page_uuid

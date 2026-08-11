@@ -441,6 +441,7 @@ class FakeNodeRepository:
             write_date=utc_now_iso(),
             create_uid=user_id,
             write_uid=user_id,
+            is_page=data.is_page,
         )
         class_nodes = [self._nodes[cid] for cid in node.class_ids if cid in self._nodes]
         flags = compute_node_flags(class_nodes)
@@ -498,8 +499,12 @@ class FakeNodeRepository:
             node.class_ids = list(data.classes)
             class_nodes = [self._nodes[cid] for cid in node.class_ids if cid in self._nodes]
             flags = compute_node_flags(class_nodes)
+            # ``is_page`` is derived from the node kind, not from class
+            # assignments, so preserve its current value across class updates.
+            previous_is_page = node.is_page
             for flag_name, flag_value in flags.items():
                 setattr(node, flag_name, flag_value)
+            node.is_page = previous_is_page
         node.touch(user_id)
         return node
 

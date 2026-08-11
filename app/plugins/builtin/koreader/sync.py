@@ -44,6 +44,7 @@ class KOReaderSyncSource(SyncSource):
             "Source: KOReader",
             icon="book-open-variant",
         )
+        source_classes = [source_class_uuid] if source_class_uuid else []
 
         books: dict[str, str] = {}
         for highlight in highlights:
@@ -53,7 +54,7 @@ class KOReaderSyncSource(SyncSource):
                     workspace_uuid,
                     actor_uuid,
                     book_title,
-                    class_uuids=[source_class_uuid],
+                    class_uuids=source_classes,
                 )
                 books[book_title] = book_uuid
 

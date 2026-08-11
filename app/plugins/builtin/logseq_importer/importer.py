@@ -65,6 +65,7 @@ class LogseqFolderImporter(ImporterAdapter):
             "Source: Logseq",
             icon="file-document-outline",
         )
+        source_classes = [source_class_uuid] if source_class_uuid else []
 
         total_blocks = 0
         created_pages: list[LogseqMdPage] = []
@@ -74,7 +75,7 @@ class LogseqFolderImporter(ImporterAdapter):
                 workspace_uuid,
                 actor_uuid,
                 page.title,
-                class_uuids=[source_class_uuid],
+                class_uuids=source_classes,
             )
             result.created_node_ids.append(page_uuid)
             created_pages.append(page)
@@ -97,7 +98,7 @@ class LogseqFolderImporter(ImporterAdapter):
                     workspace_uuid,
                     actor_uuid,
                     link_target,
-                    class_uuids=[source_class_uuid],
+                    class_uuids=source_classes,
                 )
                 result.created_node_ids.append(stub_uuid)
 

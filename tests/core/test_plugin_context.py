@@ -9,7 +9,6 @@ import pytest
 import pytest_asyncio
 
 from app.core.workspace_store import WorkspaceStore
-from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
 from app.plugins.core.context import PluginContext
 from app.plugins.core.registry import PluginRegistry
 from app.relay.storage import SqliteRelayStorage
@@ -240,12 +239,12 @@ class TestUpsertPageByExternalId:
 
 
 class TestEnsureClass:
-    async def test_ensure_class_returns_system_class_uuid(
+    async def test_ensure_class_returns_none_for_page_kind(
         self, plugin_context: PluginContext
     ) -> None:
-        page_uuid = SYSTEM_CLASS_UUIDS["page"]
+        """``page`` is a structural kind, not a class, so ensure_class returns None."""
         result = await plugin_context.ensure_class("ws-1", "actor-1", "page")
-        assert result == page_uuid
+        assert result is None
 
     async def test_ensure_class_creates_new_class_for_unknown_name(
         self, plugin_context: PluginContext

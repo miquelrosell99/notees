@@ -3,8 +3,6 @@
 import pytest
 from httpx import AsyncClient
 
-from app.db.schema.constants import SYSTEM_CLASS_UUIDS
-
 pytestmark = pytest.mark.integration
 
 
@@ -18,11 +16,10 @@ class TestUnlinkedMentions:
         test_user: dict,
     ):
         """A block containing a page name should produce an unlinked mention."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         target = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "TargetPage", "class_uuids": [page_class_uuid]},
+            json={"name": "TargetPage", "is_page": True},
         )
         assert target.status_code == 200
         target_data = target.json()
@@ -30,7 +27,7 @@ class TestUnlinkedMentions:
 
         source = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "SourcePage", "class_uuids": [page_class_uuid]},
+            json={"name": "SourcePage", "is_page": True},
         )
         assert source.status_code == 200
         source_data = source.json()
@@ -61,17 +58,16 @@ class TestUnlinkedMentions:
         test_user: dict,
     ):
         """Promoting a mention should turn it into a real node link."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         target = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "TargetPage", "class_uuids": [page_class_uuid]},
+            json={"name": "TargetPage", "is_page": True},
         )
         target_uuid = target.json()["uuid"]
 
         source = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "SourcePage", "class_uuids": [page_class_uuid]},
+            json={"name": "SourcePage", "is_page": True},
         )
         source_uuid = source.json()["uuid"]
 
@@ -110,17 +106,16 @@ class TestUnlinkedMentions:
         test_user: dict,
     ):
         """Ignoring a mention should remove it from the unlinked list."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         target = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "TargetPage", "class_uuids": [page_class_uuid]},
+            json={"name": "TargetPage", "is_page": True},
         )
         target_uuid = target.json()["uuid"]
 
         source = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "SourcePage", "class_uuids": [page_class_uuid]},
+            json={"name": "SourcePage", "is_page": True},
         )
         source_uuid = source.json()["uuid"]
 

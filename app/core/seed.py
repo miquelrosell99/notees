@@ -98,7 +98,6 @@ def _page_operations(
     user_display_name: str,
 ) -> list[Operation]:
     """Operations that create default pages (Inbox and the user page)."""
-    page_class = SYSTEM_CLASS_UUIDS["page"]
     operations: list[Operation] = []
 
     pages = [
@@ -116,7 +115,6 @@ def _page_operations(
                 {
                     "nodeId": page_uuid,
                     "kind": "page",
-                    "classIds": [page_class],
                     "initialContent": _name_ast(name),
                 },
                 [page_uuid],

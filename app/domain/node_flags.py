@@ -16,9 +16,10 @@ if TYPE_CHECKING:
     from .entities import Node
 
 # Maps system class UUID -> the boolean flag column it controls.
+# Note: ``is_page`` is intentionally omitted; page status is derived from
+# ``node.kind = 'page'`` rather than a system class assignment.
 CLASS_UUID_TO_FLAG: dict[str, str] = {
     SYSTEM_CLASS_UUIDS["class"]: "is_class",
-    SYSTEM_CLASS_UUIDS["page"]: "is_page",
     SYSTEM_CLASS_UUIDS["day"]: "is_day",
     SYSTEM_CLASS_UUIDS["month"]: "is_month",
     SYSTEM_CLASS_UUIDS["year"]: "is_year",
@@ -31,9 +32,12 @@ CLASS_UUID_TO_FLAG: dict[str, str] = {
     SYSTEM_CLASS_UUIDS["cloze"]: "is_cloze",
 }
 
-# Deterministic, de-duplicated ordering of all class-driven flags. This is used
-# when building SQL updates so the flag list is stable and easy to reason about.
-ALL_CLASS_FLAGS: tuple[str, ...] = tuple(dict.fromkeys(CLASS_UUID_TO_FLAG.values()))
+# Deterministic, de-duplicated ordering of all class-driven flags. ``is_page``
+# is kept because it remains a real node column, but it is derived from
+# ``node.kind`` rather than from a system class UUID.
+ALL_CLASS_FLAGS: tuple[str, ...] = tuple(
+    dict.fromkeys([*CLASS_UUID_TO_FLAG.values(), "is_page"])
+)
 
 
 def compute_node_flags(class_nodes: Iterable[Node]) -> dict[str, bool]:

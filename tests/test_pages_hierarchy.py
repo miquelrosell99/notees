@@ -2,8 +2,6 @@
 import pytest
 from httpx import AsyncClient
 
-from app.db.schema.constants import SYSTEM_CLASS_UUIDS
-
 pytestmark = pytest.mark.integration
 
 
@@ -17,14 +15,13 @@ class TestPagesHierarchy:
         test_user: dict,
     ):
         """When include_children=true and root_only=true, child pages should be nested."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         # Create a root page
         root_response = await authenticated_client.post(
             "/api/nodes/",
             json={
                 "name": "Root Page",
-                "class_uuids": [page_class_uuid],
+                "is_page": True,
             },
         )
         assert root_response.status_code == 200
@@ -37,7 +34,7 @@ class TestPagesHierarchy:
             "/api/nodes/",
             json={
                 "name": "Child Page",
-                "class_uuids": [page_class_uuid],
+                "is_page": True,
                 "parent_uuid": root_uuid,
             },
         )
@@ -81,14 +78,13 @@ class TestPagesHierarchy:
     ):
         """When a child page matches the query but is already nested under a matching parent,
         it should not appear as a separate top-level entry."""
-        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         # Create a root page
         root_response = await authenticated_client.post(
             "/api/nodes/",
             json={
                 "name": "Root Page",
-                "class_uuids": [page_class_uuid],
+                "is_page": True,
             },
         )
         assert root_response.status_code == 200
@@ -101,7 +97,7 @@ class TestPagesHierarchy:
             "/api/nodes/",
             json={
                 "name": "Child Page",
-                "class_uuids": [page_class_uuid],
+                "is_page": True,
                 "parent_uuid": root_uuid,
             },
         )

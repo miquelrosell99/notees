@@ -56,6 +56,7 @@ class ZoteroSyncSource(SyncSource):
             "Source",
             icon="book-open-variant",
         )
+        source_classes = [source_class_uuid] if source_class_uuid else []
         zotero_key_schema_uuid = await plugin_ctx.ensure_property_schema(
             workspace_uuid,
             actor_uuid,
@@ -78,7 +79,7 @@ class ZoteroSyncSource(SyncSource):
                 external_id=item.key,
                 external_id_schema_uuid=zotero_key_schema_uuid,
                 name=name,
-                class_uuids=[source_class_uuid],
+                class_uuids=source_classes,
                 icon="bookshelf",
             )
             if node_uuid not in result.created_node_ids:

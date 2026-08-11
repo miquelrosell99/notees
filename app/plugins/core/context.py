@@ -267,16 +267,18 @@ class PluginContext:
         actor_uuid: str,
         name: str,
         icon: str | None = None,
-    ) -> str:
+    ) -> str | None:
         """Return the UUID of a class with the given name, creating it if needed.
 
-        System classes are resolved from :data:`SYSTEM_CLASS_UUIDS`. For
-        user-created classes the derived state currently does not store class
-        names, so a new ``class.create`` operation is emitted each time. Once
-        the derived schema materialises class names this helper will become
-        fully idempotent.
+        System classes are resolved from :data:`SYSTEM_CLASS_UUIDS`. The
+        structural ``page`` kind is not a class, so requesting ``"page"``
+        returns ``None``; callers should rely on ``kind = 'page'`` instead.
+        For user-created classes the derived state currently does not store
+        class names, so a new ``class.create`` operation is emitted each time.
         """
         self._require("write_nodes")
+        if name == "page":
+            return None
         for class_name, class_uuid in SYSTEM_CLASS_UUIDS.items():
             if class_name == name:
                 return class_uuid
