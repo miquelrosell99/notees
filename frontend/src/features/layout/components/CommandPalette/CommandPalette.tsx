@@ -54,7 +54,6 @@ export function CommandPalette(props: CommandPaletteProps) {
     handleClassCreate,
     handleBackdropClick,
     groupedItems,
-    pageClassUuid,
     allClasses,
     allPages,
     searchResults,
@@ -283,7 +282,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                             onClick={() => handleSelect(globalIndex)}
                             allNodes={allPages}
                             allClasses={allClasses}
-                            pageClassUuid={pageClassUuid}
+
                           />
                         );
                       })}
@@ -303,7 +302,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                             onClick={() => handleSelect(globalIndex)}
                             allNodes={allPages}
                             allClasses={allClasses}
-                            pageClassUuid={pageClassUuid}
+
                           />
                         );
                       })}
@@ -337,7 +336,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                             onClick={() => handleSelect(globalIndex)}
                             allNodes={allPages}
                             allClasses={allClasses}
-                            pageClassUuid={pageClassUuid}
+
                           />
                         );
                       })}
@@ -462,7 +461,6 @@ export function CommandPalette(props: CommandPaletteProps) {
                     onClick={() => handleSelect(globalIndex)}
                     allNodes={searchResults}
                     allClasses={allClasses}
-                    pageClassUuid={pageClassUuid}
                     searchTerm={debouncedSearchTerm}
                   />
                 );
@@ -501,7 +499,6 @@ export function CommandPalette(props: CommandPaletteProps) {
                     onClick={() => handleSelect(globalIndex)}
                     allNodes={searchResults}
                     allClasses={allClasses}
-                    pageClassUuid={pageClassUuid}
                     searchTerm={debouncedSearchTerm}
                   />
                 );

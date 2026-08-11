@@ -25,7 +25,6 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
   const queryClient = useQueryClient();
   const { systemClassUuids, isLoading: classesLoading } = useSystemClasses();
   const whiteboardClassUuid = systemClassUuids?.whiteboard ?? null;
-  const pageClassUuid = systemClassUuids?.page ?? null;
 
   const {
     data: whiteboards = [],
@@ -38,16 +37,12 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('kanban');
 
   const handleCreateWhiteboard = useCallback(async () => {
-    if (!whiteboardClassUuid || !pageClassUuid) return;
-
-    const classes = [pageClassUuid];
-    if (!classes.includes(whiteboardClassUuid)) {
-      classes.push(whiteboardClassUuid);
-    }
+    if (!whiteboardClassUuid) return;
 
     const newNode = await createNode.mutateAsync({
       name: 'New Whiteboard',
-      class_uuids: classes,
+      kind: 'page',
+      class_uuids: [whiteboardClassUuid],
     });
 
     // Invalidate the whiteboards list so the new one appears
@@ -55,7 +50,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
 
     // Open the newly created whiteboard
     openNode(newNode.uuid);
-  }, [whiteboardClassUuid, pageClassUuid, createNode, queryClient, openNode]);
+  }, [whiteboardClassUuid, createNode, queryClient, openNode]);
 
   const handleNodeClick = useCallback(
     (node: Node) => {

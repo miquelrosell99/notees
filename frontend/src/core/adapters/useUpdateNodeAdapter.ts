@@ -49,9 +49,19 @@ export function useUpdateNodeAdapter(): UseMutationResult<
       }
 
       if (data.is_page !== undefined) {
-        // NOTE(D2): Apply class assignment/unassignment once the page system
-        // class UUID is exposed by the new core.
-        console.warn('[useUpdateNodeAdapter] is_page toggle not yet supported in SQLite store');
+        const currentNode = await projectNodeFromClient(client, nodeUuid);
+        if (currentNode && currentNode.is_page !== data.is_page) {
+          const targetKind: 'page' | 'block' = data.is_page ? 'page' : 'block';
+          const parentId =
+            data.parent_uuid !== undefined
+              ? data.parent_uuid
+              : targetKind === 'block'
+                ? currentNode.parent_uuid
+                : null;
+          await client.mutate<void>('convertNode', [
+            { nodeId: nodeUuid, kind: targetKind, parentId },
+          ]);
+        }
       }
 
       if (data.icon !== undefined) {

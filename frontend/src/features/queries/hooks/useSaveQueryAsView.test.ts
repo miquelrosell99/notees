@@ -11,7 +11,7 @@ const notifyErrorMock = vi.fn();
 vi.mock('@/features/content', () => ({
   useCreateNode: () => ({ mutateAsync: mutateAsyncMock }),
   useSystemClasses: () => ({
-    systemClassUuids: { page: 'page-class-uuid', query: 'query-class-uuid' },
+    systemClassUuids: { query: 'query-class-uuid' },
   }),
 }));
 
@@ -42,7 +42,7 @@ describe('useSaveQueryAsView', () => {
     expect(mutateAsyncMock).toHaveBeenCalledTimes(2);
     expect(mutateAsyncMock).toHaveBeenNthCalledWith(1, {
       name: 'My view',
-      class_uuids: ['page-class-uuid'],
+      kind: 'page',
     });
     const secondCall = mutateAsyncMock.mock.calls[1][0];
     expect(secondCall.parent_uuid).toBe('new-page-uuid');

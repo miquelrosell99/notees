@@ -35,7 +35,7 @@ import { NodeSelector } from '@/features/content';
 import { NodeRef } from '@/features/content';
 import { CollapsiblePillRow } from '@/features/content';
 import { Button } from '@/components/ui/Button';
-import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
+import { isNonRemovableClass } from '@/constants';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
 import { VIRTUAL_FIELD_IDS } from '@/types/viewFields';
 import './TableView.css';
@@ -247,7 +247,7 @@ export const TableView = memo(function TableView({
             render: (node: Node): ReactNode => {
               const classNodes = (node.classes_uuid || [])
                 .map(classId => allClasses.find(c => c.uuid === classId))
-                .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
+                .filter((c): c is Node => c !== undefined);
 
               return (
                 <CollapsiblePillRow

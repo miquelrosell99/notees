@@ -25,7 +25,7 @@ import {
   useResetNodeViews,
   batchEnsureDefaults,
 } from '@/features/content/hooks/useNodeViews';
-import { useCreateNode, usePageClass, useAddClass } from '@/features/content/hooks/useNodes';
+import { useCreateNode, useAddClass } from '@/features/content/hooks/useNodes';
 import { useClasses, useLinkedReferences, useLinkedReferencesCount } from '@/features/content/hooks/useNodeQueries';
 import { nodeNameToText } from '@/features/queries';
 
@@ -278,7 +278,6 @@ export function QueryNodeCollection({
   const reorderViewsMutation = useReorderNodeViews();
   const resetNodeViewsMutation = useResetNodeViews();
   const createNodeMutation = useCreateNode();
-  const { pageClassUuid } = usePageClass();
   
   // Fetch all classes for prose rendering
   const { data: allClasses = [] } = useClasses();
@@ -926,12 +925,7 @@ export function QueryNodeCollection({
 
   const handleAddNode = useCallback(async () => {
     try {
-      if (!pageClassUuid) {
-        console.error('Page class not found');
-        return;
-      }
-
-      let nodeData: { name: string; class_uuids?: string[]; parent_uuid?: string } = {
+      let nodeData: { name: string; kind?: 'page' | 'block'; class_uuids?: string[]; parent_uuid?: string } = {
         name: '',
       };
 
@@ -939,7 +933,7 @@ export function QueryNodeCollection({
         case 'child_pages':
           nodeData = {
             name: '',
-            class_uuids: [pageClassUuid],
+            kind: 'page',
             parent_uuid: nodeUuid,
           };
           break;
@@ -951,20 +945,20 @@ export function QueryNodeCollection({
             class_uuids: [nodeUuid],
           };
           break;
-        
+
         case 'all_pages':
           nodeData = {
             name: '',
-            class_uuids: [pageClassUuid],
+            kind: 'page',
           };
           break;
-        
+
         default:
-          nodeData = { name: '' };
+          nodeData = { name: '', kind: 'page' };
       }
 
       const newNode = await createNodeMutation.mutateAsync(nodeData);
-      
+
       if (newNode.is_page) {
         onNodeClick?.(newNode.uuid, true);
       } else {
@@ -973,7 +967,7 @@ export function QueryNodeCollection({
     } catch (error) {
       console.error('Failed to create node:', error);
     }
-  }, [viewType, nodeUuid, pageClassUuid, createNodeMutation, onNodeClick, onBlockCreated]);
+  }, [viewType, nodeUuid, createNodeMutation, onNodeClick, onBlockCreated]);
 
   // For linked references the total count (edge backlinks + property backlinks)
   // must be available even when the section is collapsed and the full hydration

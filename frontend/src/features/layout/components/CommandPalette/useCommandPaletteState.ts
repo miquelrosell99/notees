@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import { useProperties } from '@/features/properties';
-import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useClasses, useRecents } from '@/features/content';
+import { useSearch, useCreateNode, useTodayNote, usePages, useHierarchicalPath, useClassClass, useClasses, useRecents } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -58,7 +58,6 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
 
   const { error: notifyError } = useNotifications();
   const createNodeMutation = useCreateNode();
-  const { pageClassUuid } = usePageClass();
   const { classClassUuid } = useClassClass();
   const { data: allClasses } = useClasses();
 
@@ -309,11 +308,12 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
 
   // Handle creating a new class from popup
   const handleClassCreate = useCallback(async (name: string) => {
-    if (!classClassUuid || !pageClassUuid) return;
+    if (!classClassUuid) return;
     try {
       const newClass = await createNodeMutation.mutateAsync({
         name,
-        class_uuids: [classClassUuid, pageClassUuid],
+        kind: 'page',
+        class_uuids: [classClassUuid],
       });
       // Add the new class to applied filters
       setAppliedFilters(prev => [...prev, { type: 'class', classNode: newClass }]);
@@ -324,7 +324,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     } catch {
       notifyError('Failed to create class', 'Please try again.');
     }
-  }, [classClassUuid, pageClassUuid, query, createNodeMutation, notifyError]);
+  }, [classClassUuid, query, createNodeMutation, notifyError]);
 
   // Refresh random pages from the already-loaded page list
   const refreshRandomPages = useCallback(() => {
@@ -398,7 +398,6 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     handleFilterPrefixClose,
     handleClassCreate,
     handleBackdropClick,
-    pageClassUuid,
     allClasses,
     classClassUuid,
     createNodeMutation,
