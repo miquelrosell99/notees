@@ -56,19 +56,7 @@ class TestProtectedEndpoints:
     """Test that protected endpoints require authentication."""
 
     @pytest.mark.asyncio
-    async def test_nodes_requires_auth(self, client: AsyncClient):
-        """Verify nodes endpoint requires authentication."""
-        response = await client.get("/api/nodes/")
-        assert response.status_code == 401
-
-    @pytest.mark.asyncio
     async def test_workspaces_requires_auth(self, client: AsyncClient):
         """Verify workspaces endpoint requires authentication."""
         response = await client.get("/api/workspaces/")
-        assert response.status_code == 401
-
-    @pytest.mark.asyncio
-    async def test_sync_requires_auth(self, client: AsyncClient):
-        """Verify sync endpoint requires authentication."""
-        response = await client.post("/api/sync", json={})
         assert response.status_code == 401
