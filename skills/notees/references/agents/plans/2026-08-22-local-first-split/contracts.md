@@ -37,8 +37,12 @@ local sessions to this uuid, not anonymous.
 
 ## Local assets (Task 5)
 
-- New IndexedDB object store `assetBlobs` in the existing local DB:
-  key = asset hash (`assetHash` from the `asset.upload` op), value = Blob.
+- New IndexedDB object store `assetBlobs` in the existing local DB
+  (`notees-workspaces`, DB v3): key = asset hash (`assetHash` from the
+  `asset.upload` op), value = raw bytes (`Uint8Array`; the MIME type comes from
+  the derived `node_asset` row — bytes are stored instead of `Blob` because the
+  structured clone used by fake-indexeddb in tests cannot clone jsdom Blobs;
+  browsers treat them equivalently for this use).
 - Node identity stays the byte reference (uuid → hash via the op payload), so
   content survives adoption unchanged; on connect, blobs upload to the server
   and URLs switch from object URLs to `/api/assets/{uuid}` transparently.

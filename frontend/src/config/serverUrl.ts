@@ -31,14 +31,33 @@ export const SERVER_URL_STORAGE_KEY = 'notees.serverUrl';
 /** Raw stored value: `null` = absent (same-origin default), `''` = explicit local mode. */
 let storedServerUrl: string | null = readStoredServerUrl();
 
+declare global {
+  interface Window {
+    /**
+     * Optional runtime default injected by static deployments via
+     * `/config.js` (see Dockerfile.web). Used only when no localStorage
+     * setting exists; an explicit setting always wins.
+     */
+    __NOTEES_SERVER_URL__?: string;
+  }
+}
+
 function readStoredServerUrl(): string | null {
   try {
-    return localStorage.getItem(SERVER_URL_STORAGE_KEY);
+    const stored = localStorage.getItem(SERVER_URL_STORAGE_KEY);
+    if (stored !== null) {
+      return stored;
+    }
   } catch {
-    // localStorage unavailable (worker context, disabled storage) — fall back
-    // to the same-origin default.
-    return null;
+    // localStorage unavailable (worker context, disabled storage) — fall
+    // through to the bootstrap default.
   }
+  // Static web-only image: /config.js sets the deployment default
+  // (`''` = local mode, a URL = preconfigured server).
+  if (typeof window !== 'undefined' && typeof window.__NOTEES_SERVER_URL__ === 'string') {
+    return window.__NOTEES_SERVER_URL__;
+  }
+  return null;
 }
 
 /**
