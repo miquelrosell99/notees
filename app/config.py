@@ -146,6 +146,20 @@ class Settings(BaseSettings):
             )
         return v
 
+    # Trusted proxies — X-Forwarded-For is honored for rate limiting only when the
+    # direct peer is in this list. Empty (default) means the header is never trusted.
+    trusted_proxy_ips: list[str] | str = []
+
+    @field_validator("trusted_proxy_ips", mode="before")
+    @classmethod
+    def parse_trusted_proxy_ips(cls, v: object) -> object:
+        """Parse trusted proxy IPs from a comma-separated string or list; drop empty entries."""
+        if isinstance(v, str):
+            return [ip.strip() for ip in v.split(",") if ip.strip()]
+        if isinstance(v, list):
+            return [ip.strip() for ip in v if ip and ip.strip()]
+        return v
+
     # Email / SMTP (optional — invitations work without SMTP by returning links)
     smtp_host: str | None = None
     smtp_port: int = 587

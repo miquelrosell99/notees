@@ -73,6 +73,7 @@ In `compose.dev.yaml`, the backend connects to `db:5432` inside the container ne
 |----------|---------|-------------|
 | `ENVIRONMENT` | `development` | Set to `production` to enable HSTS/HTTPS redirect and short-lived tokens. |
 | `CORS_ORIGINS` | (unset) | Comma-separated allowed origins. CORS is disabled by default. Wildcard origins with credentials are rejected. |
+| `TRUSTED_PROXY_IPS` | (unset) | Comma-separated IPs of trusted reverse proxies. `X-Forwarded-For` is honored for rate limiting only when the direct peer is in this list; empty means the header is never trusted. |
 | `ACCESS_TOKEN_EXPIRE_HOURS` | `1` / `8` (dev) | Access token lifetime in hours. |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` / `30` (dev) | Refresh token lifetime in days. |
 | `REFRESH_TOKEN_REMEMBER_ME_DAYS` | `90` | Refresh token lifetime when "remember me" is selected. |
