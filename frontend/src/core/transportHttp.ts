@@ -1,6 +1,7 @@
 import type { Hlc } from './clock';
 import type { OperationEnvelope } from './crypto';
 import type { CatchUpPage, SnapshotEnvelope, SendBatchResult, Transport } from './transport';
+import { getServerUrl } from '@/config/serverUrl';
 
 const REQUEST_TIMEOUT_MS = 60_000;
 
@@ -49,6 +50,11 @@ function base64ToUint8Array(base64: string): Uint8Array {
 export interface HttpTransportOptions {
   workspaceId: string;
   actorId: string;
+  /**
+   * Server origin override (tests, custom endpoints). Defaults to the
+   * configured server URL (`getServerUrl()`), falling back to same-origin
+   * when none is set.
+   */
   baseUrl?: string;
 }
 
@@ -57,10 +63,10 @@ export class HttpTransport implements Transport {
   private actorId: string;
   private baseUrl: string;
 
-  constructor({ workspaceId, actorId, baseUrl = '' }: HttpTransportOptions) {
+  constructor({ workspaceId, actorId, baseUrl }: HttpTransportOptions) {
     this.workspaceId = workspaceId;
     this.actorId = actorId;
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.baseUrl = (baseUrl ?? getServerUrl() ?? '').replace(/\/$/, '');
   }
 
   async send(envelope: OperationEnvelope): Promise<SendBatchResult> {
