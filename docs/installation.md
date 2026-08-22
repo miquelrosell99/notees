@@ -102,6 +102,32 @@ Production defaults:
 
 See [Configuration](configuration.md) for the full environment variable reference and security checklist.
 
+### Web-only deployment (no server)
+
+`Dockerfile.web` builds a static frontend image (nginx) that runs **local-only**:
+all data stays in the browser (IndexedDB), no login, no sync. Useful for trying
+Notees or for single-device use.
+
+```bash
+docker build -f Dockerfile.web -t notees-web .
+docker run -p 8080:80 notees-web
+```
+
+Or with Compose:
+
+```bash
+docker compose -f compose.web.yaml up -d
+```
+
+To attach a sync server later, either set it at container start:
+
+```bash
+docker run -p 8080:80 -e NOTEES_SERVER_URL=https://notes.example.com notees-web
+```
+
+or configure the server URL in the app's settings (a full reload applies it).
+The all-in-one image above remains the default and is unchanged.
+
 ---
 
 ## Local development (alternative)
