@@ -28,7 +28,7 @@ async def websocket_endpoint(
     service: RelayService = Depends(get_relay_service),
     restore_epoch: int = Depends(get_workspace_restore_epoch),
 ) -> None:
-    """Accept WebSocket connections and forward encrypted operation batches.
+    """Accept WebSocket connections and forward relay operation batches.
 
     Clients must authenticate with the same JWT cookie or Bearer token used by
     the HTTP relay endpoints and have read access to the workspace. Accepted
@@ -37,7 +37,11 @@ async def websocket_endpoint(
 
     Message protocol (JSON):
       Server -> Client (immediately after connect):
-        { "type": "hello", "protocolVersion": 2, "restoreEpoch": N }
+        { "type": "hello", "protocolVersion": 2, "restoreEpoch": N,
+          "latestSeq": S }
+          — S is the highest server-assigned seq for the workspace; clients
+          compare it against their stored seq cursor and run HTTP catch-up
+          before accepting live ops when they are behind.
       Client -> Server:
         { "type": "batch", "envelopes": [...] }
       Server -> Client:
@@ -54,8 +58,11 @@ async def websocket_endpoint(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    latest_seq = await service.get_latest_seq(workspace_id)
     await websocket.accept()
-    await websocket.send_text(WsHelloMessage(restore_epoch=restore_epoch).model_dump_json(by_alias=True))
+    await websocket.send_text(
+        WsHelloMessage(restore_epoch=restore_epoch, latest_seq=latest_seq).model_dump_json(by_alias=True)
+    )
     await subscribe(workspace_id, websocket)
 
     try:

@@ -10,7 +10,6 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from app.core.clock import Hlc
 from app.core.workspace_store import WorkspaceStore
 from app.dependencies import (
     get_current_user,
@@ -146,7 +145,7 @@ class TestNodeActivity:
 
         # Deletion flows through the operation log so it syncs to other
         # clients and survives derived-state rebuilds.
-        envelopes = await store.get_envelopes(Hlc(physical=0, logical=0))
+        envelopes = await store.get_envelopes(0)
         delete_ops = [e for e in envelopes if e.op_type == "activity.delete"]
         assert len(delete_ops) == 1
         assert delete_ops[0].payload["activityId"] == activity_id

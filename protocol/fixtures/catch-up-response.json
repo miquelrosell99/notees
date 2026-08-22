@@ -20,7 +20,7 @@
       }
     }
   ],
-  "next_after_id": null,
+  "next_after_seq": null,
   "has_more": false,
   "restore_epoch": 0
 }

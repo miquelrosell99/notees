@@ -28,7 +28,7 @@ from app.core.clock import Hlc
 from app.core.operation import Operation, create_operation
 from app.core.uuid import uuidv7
 from app.db.connection import get_pool, setup_jsonb_codec
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.storage import PostgresRelayStorage
 
 _COPY_RE = re.compile(
@@ -92,8 +92,8 @@ def _hlc_now() -> Hlc:
     return Hlc(physical=int(datetime.now(UTC).timestamp() * 1000), logical=0)
 
 
-def _to_envelope(operation: Operation) -> EncryptedEnvelope:
-    return EncryptedEnvelope(
+def _to_envelope(operation: Operation) -> RelayEnvelope:
+    return RelayEnvelope(
         id=operation.envelope.id,
         workspace_id=operation.envelope.workspace_id,
         actor_id=operation.envelope.actor_id,
@@ -137,7 +137,7 @@ async def main(argv: list[str] | None = None) -> int:
         await setup_jsonb_codec(conn)
         workspace_map, user_map = await _load_current_mappings(conn)
 
-        operations: list[EncryptedEnvelope] = []
+        operations: list[RelayEnvelope] = []
         skipped = 0
         for user_int_id, favorite_ids in favorites.items():
             actor_id = user_map.get(user_int_id)

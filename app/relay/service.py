@@ -8,7 +8,7 @@ from typing import Any
 
 from app.core.clock import Hlc, compare_hlc
 from app.core.validation import validate_payload
-from app.relay.models import BatchRequest, CatchUpRequest, EncryptedEnvelope
+from app.relay.models import BatchRequest, CatchUpRequest, RelayEnvelope
 from app.relay.permissions import PermissionChecker, PermissionDeniedError
 from app.relay.storage import RelayStorage
 
@@ -35,7 +35,7 @@ class RelayService:
         return value
 
     @staticmethod
-    def _validate_envelope(envelope: EncryptedEnvelope) -> None:
+    def _validate_envelope(envelope: RelayEnvelope) -> None:
         """Validate size and HLC constraints for a single envelope."""
         if envelope.hlc.physical < 0 or envelope.hlc.logical < 0:
             raise ValueError("HLC components must be non-negative")
@@ -46,7 +46,7 @@ class RelayService:
         self,
         batch: BatchRequest,
         actor_id: str,
-    ) -> list[EncryptedEnvelope]:
+    ) -> list[RelayEnvelope]:
         """Validate, permission-check, dedupe, and persist a batch of envelopes.
 
         Args:
@@ -72,7 +72,7 @@ class RelayService:
             raise ValueError("All envelopes in a batch must belong to the same workspace")
         workspace_id = workspace_ids.pop()
 
-        validated: list[EncryptedEnvelope] = []
+        validated: list[RelayEnvelope] = []
         for envelope in batch.envelopes:
             self._validate_envelope(envelope)
             payload_error = validate_payload(envelope.op_type, envelope.payload)
@@ -103,11 +103,11 @@ class RelayService:
         self,
         workspace_id: str,
         actor_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         share_token: str | None = None,
         share_node_id: str | None = None,
-    ) -> list[EncryptedEnvelope]:
-        """Return all operations newer than ``hlc`` that ``actor_id`` may read.
+    ) -> list[RelayEnvelope]:
+        """Return all operations with seq greater than ``after_seq`` that ``actor_id`` may read.
 
         Raises:
             PermissionDeniedError: If ``actor_id`` is not allowed to read the
@@ -116,20 +116,19 @@ class RelayService:
         if not await self._may_read(workspace_id, actor_id, share_token):
             raise PermissionDeniedError(f"Read denied for actor {actor_id} in workspace {workspace_id}")
         return await self._maybe_await(
-            self._storage.get_catch_up(workspace_id, hlc, node_id=share_node_id)
+            self._storage.get_catch_up(workspace_id, after_seq, node_id=share_node_id)
         )
 
     async def catch_up_paginated(
         self,
         workspace_id: str,
         actor_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         limit: int = 1000,
-        after_id: str | None = None,
         share_token: str | None = None,
         share_node_id: str | None = None,
-    ) -> tuple[list[EncryptedEnvelope], str | None]:
-        """Return a paginated page of operations newer than ``hlc``.
+    ) -> tuple[list[RelayEnvelope], int | None]:
+        """Return a paginated page of operations with seq greater than ``after_seq``.
 
         Raises:
             PermissionDeniedError: If ``actor_id`` is not allowed to read the
@@ -140,9 +139,8 @@ class RelayService:
         return await self._maybe_await(
             self._storage.get_catch_up_paginated(
                 workspace_id,
-                hlc,
+                after_seq,
                 limit=limit,
-                after_id=after_id,
                 node_id=share_node_id,
             )
         )
@@ -152,12 +150,12 @@ class RelayService:
         request: CatchUpRequest,
         actor_id: str,
         share_token: str | None = None,
-    ) -> list[EncryptedEnvelope]:
+    ) -> list[RelayEnvelope]:
         """Convenience wrapper for :meth:`catch_up` using a request model."""
         return await self.catch_up(
             request.workspace_id,
             actor_id,
-            request.hlc,
+            request.after_seq,
             share_token=share_token,
         )
 
@@ -189,6 +187,10 @@ class RelayService:
         """Return the highest envelope HLC for ``workspace_id``."""
         return await self._maybe_await(self._storage.get_max_hlc(workspace_id))
 
+    async def get_latest_seq(self, workspace_id: str) -> int:
+        """Return the highest server-assigned envelope seq for ``workspace_id``."""
+        return await self._maybe_await(self._storage.get_latest_seq(workspace_id))
+
     async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         """Return the newest snapshot for ``workspace_id``."""
         return await self._maybe_await(self._storage.get_latest_snapshot(workspace_id))
@@ -208,8 +210,12 @@ class RelayService:
 
     async def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
-    ) -> str:
+    ) -> tuple[str, int]:
         """Create a snapshot covering all envelopes up to ``up_to_hlc``.
+
+        Returns:
+            A tuple of the new snapshot id and the highest envelope seq covered
+            by the snapshot.
 
         Raises:
             ValueError: If ``up_to_hlc`` is ahead of the current maximum

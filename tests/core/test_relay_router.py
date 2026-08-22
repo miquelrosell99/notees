@@ -1,4 +1,4 @@
-"""FastAPI router tests for the encrypted operation relay."""
+"""FastAPI router tests for the operation relay."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from app.relay.dependencies import (
     get_relay_storage,
     get_workspace_restore_epoch,
 )
-from app.relay.models import CatchUpRequest, EncryptedEnvelope
+from app.relay.models import CatchUpRequest, RelayEnvelope
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
 from app.relay.router import _catch_up_restore_epoch, router
 from app.relay.service import RelayService
@@ -69,8 +69,8 @@ def _envelope(
     op_type: str = "node.create",
     physical: int = 1000,
     logical: int = 0,
-) -> EncryptedEnvelope:
-    return EncryptedEnvelope(
+) -> RelayEnvelope:
+    return RelayEnvelope(
         id=envelope_id,
         workspace_id=workspace_id,
         actor_id=actor_id,
@@ -147,7 +147,7 @@ def test_receive_batch_overwrites_client_actor_id(
     assert data["saved_count"] == 1
     assert data["saved_ids"] == ["op-1"]
 
-    saved = storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))
+    saved = storage.get_catch_up("ws-1", 0)
     assert len(saved) == 1
     assert saved[0].actor_id == "user-actor-1"
 
@@ -178,7 +178,7 @@ async def test_catch_up_returns_newer_envelopes(client: TestClient, storage: Rel
 
     response = client.post(
         "/api/relay/catch-up",
-        json={"workspace_id": "ws-1", "hlc": {"physical": 1500, "logical": 0}},
+        json={"workspace_id": "ws-1", "after_seq": 1},
         headers={"x-actor-id": "actor-1"},
     )
     assert response.status_code == 200
@@ -208,7 +208,7 @@ def test_catch_up_rejects_permission_denied(client: TestClient, permissions: Per
 
     response = deny_client.post(
         "/api/relay/catch-up",
-        json={"workspace_id": "ws-1", "hlc": {"physical": 0, "logical": 0}},
+        json={"workspace_id": "ws-1", "after_seq": 0},
         headers={"x-actor-id": "actor-1"},
     )
     assert response.status_code == 403
@@ -219,23 +219,20 @@ async def test_catch_up_paginated_pages_through_envelopes(
     client: TestClient,
     storage: RelayStorage,
 ) -> None:
-    """Paginated catch-up returns pages with has_more and next_after_id."""
+    """Paginated catch-up returns pages with has_more and next_after_seq."""
     service = RelayService(storage, StubPermissionChecker())
     envelopes = [_envelope(f"op-{i:02d}", physical=i * 1000) for i in range(1, 11)]
     await service.receive_batch(type("Batch", (), {"envelopes": envelopes})(), "actor-1")
 
     all_ids: list[str] = []
-    hlc: dict[str, int] = {"physical": 0, "logical": 0}
-    after_id: str | None = None
+    after_seq = 0
     page_count = 0
     while page_count < 5:
         payload: dict = {
             "workspace_id": "ws-1",
-            "hlc": hlc,
+            "after_seq": after_seq,
             "limit": 3,
         }
-        if after_id is not None:
-            payload["after_id"] = after_id
 
         response = client.post(
             "/api/relay/catch-up",
@@ -247,16 +244,29 @@ async def test_catch_up_paginated_pages_through_envelopes(
 
         page_ids = [envelope["id"] for envelope in data["envelopes"]]
         all_ids.extend(page_ids)
-        assert data["has_more"] is (data["next_after_id"] is not None)
+        # has_more signals a full page; next_after_seq is the cursor to adopt
+        # and is also set on the final page so the tail is not re-fetched.
+        if data["has_more"]:
+            assert data["next_after_seq"] is not None
 
         if not data["has_more"]:
             break
 
-        after_id = data["next_after_id"]
-        assert after_id == page_ids[-1]
+        after_seq = data["next_after_seq"]
         page_count += 1
 
     assert all_ids == [f"op-{i:02d}" for i in range(1, 11)]
+
+    # Adopting the final page's cursor must make the next pull a no-op.
+    response = client.post(
+        "/api/relay/catch-up",
+        json={"workspace_id": "ws-1", "after_seq": data["next_after_seq"], "limit": 3},
+        headers={"x-actor-id": "actor-1"},
+    )
+    assert response.status_code == 200
+    tail = response.json()
+    assert tail["envelopes"] == []
+    assert tail["has_more"] is False
 
 
 def test_snapshot_latest_requires_workspace_id(client: TestClient) -> None:

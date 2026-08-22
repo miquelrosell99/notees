@@ -9,9 +9,8 @@ from collections.abc import Awaitable, Callable
 import pytest
 
 from app.core import workspace_store as workspace_store_module
-from app.core.clock import Hlc
 from app.core.workspace_store import WorkspaceStore
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.storage import SqliteRelayStorage
 
 pytestmark = pytest.mark.unit
@@ -43,7 +42,7 @@ class InterleavingRelayStorage(SqliteRelayStorage):
         super().__init__(":memory:")
         self._on_saved = on_saved
 
-    async def save_envelope(self, envelope: EncryptedEnvelope) -> None:  # type: ignore[override]
+    async def save_envelope(self, envelope: RelayEnvelope) -> None:  # type: ignore[override]
         super().save_envelope(envelope)
         await self._on_saved()
 
@@ -59,22 +58,21 @@ class CountingRelayStorage(SqliteRelayStorage):
     def get_catch_up(
         self,
         workspace_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         node_id: str | None = None,
-    ) -> list[EncryptedEnvelope]:
+    ) -> list[RelayEnvelope]:
         raise AssertionError("sync() must use get_catch_up_paginated")
 
     def get_catch_up_paginated(
         self,
         workspace_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         limit: int = 1000,
-        after_id: str | None = None,
         node_id: str | None = None,
-    ) -> tuple[list[EncryptedEnvelope], str | None]:
+    ) -> tuple[list[RelayEnvelope], int | None]:
         self.paginated_calls += 1
         return super().get_catch_up_paginated(
-            workspace_id, hlc, limit=limit, after_id=after_id, node_id=node_id
+            workspace_id, after_seq, limit=limit, node_id=node_id
         )
 
 
@@ -295,7 +293,7 @@ class TestWorkspaceStore:
 
         snapshot = relay.get_latest_snapshot("ws-1")
         assert snapshot is not None
-        newer_envelopes = relay.get_catch_up("ws-1", snapshot["hlc"])
+        newer_envelopes = relay.get_catch_up("ws-1", snapshot["up_to_seq"] or 0)
         assert len(newer_envelopes) == 3
 
         old_rows = await reader.query(

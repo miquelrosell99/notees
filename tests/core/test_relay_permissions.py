@@ -8,7 +8,7 @@ import pytest
 
 from app.core.clock import Hlc
 from app.features.auth import auth
-from app.relay.models import BatchRequest, EncryptedEnvelope
+from app.relay.models import BatchRequest, RelayEnvelope
 from app.relay.permissions import PermissionDeniedError
 from app.relay.permissions_postgres import PostgresPermissionChecker
 from app.relay.service import RelayService
@@ -163,9 +163,7 @@ async def test_public_share_token_allows_anonymous_catch_up(db_pool, test_user) 
         share_token = await _create_public_share(conn, node_uuid, workspace_id, owner_id)
 
     # Anonymous catch-up with a valid share token should succeed.
-    from app.core.clock import Hlc
-
-    result = await service.catch_up(workspace_uuid, "anonymous", Hlc(0, 0), share_token=share_token)
+    result = await service.catch_up(workspace_uuid, "anonymous", 0, share_token=share_token)
     assert result == []
 
 
@@ -206,7 +204,7 @@ async def test_public_share_write_rejected_via_service(db_pool, test_user) -> No
         node_uuid = await _create_node(conn, workspace_id, owner_id)
         await _create_public_share(conn, node_uuid, workspace_id, owner_id)
 
-    envelope = EncryptedEnvelope(
+    envelope = RelayEnvelope(
         id="env-public",
         workspace_id=workspace_uuid,
         actor_id="anonymous",
@@ -235,7 +233,7 @@ async def test_shared_editor_can_read_and_write_through_relay(db_pool, test_user
             conn, workspace_id, int(editor["id"]), owner_id, can_read=True, can_write=True
         )
 
-    envelope = EncryptedEnvelope(
+    envelope = RelayEnvelope(
         id="env-editor-write",
         workspace_id=workspace_uuid,
         actor_id=editor["uuid"],
@@ -248,7 +246,7 @@ async def test_shared_editor_can_read_and_write_through_relay(db_pool, test_user
     saved = await service.receive_batch(BatchRequest(envelopes=[envelope]), editor["uuid"])
     assert len(saved) == 1
 
-    caught_up = await service.catch_up(workspace_uuid, editor["uuid"], Hlc(0, 0))
+    caught_up = await service.catch_up(workspace_uuid, editor["uuid"], 0)
     assert len(caught_up) == 1
     assert caught_up[0].id == "env-editor-write"
 
@@ -269,7 +267,7 @@ async def test_shared_viewer_can_read_but_not_write_through_relay(db_pool, test_
         )
 
     # Owner seeds an operation that the viewer should be able to read.
-    owner_envelope = EncryptedEnvelope(
+    owner_envelope = RelayEnvelope(
         id="env-owner",
         workspace_id=workspace_uuid,
         actor_id=test_user["uuid"],
@@ -280,10 +278,10 @@ async def test_shared_viewer_can_read_but_not_write_through_relay(db_pool, test_
     )
     await service.receive_batch(BatchRequest(envelopes=[owner_envelope]), test_user["uuid"])
 
-    caught_up = await service.catch_up(workspace_uuid, viewer["uuid"], Hlc(0, 0))
+    caught_up = await service.catch_up(workspace_uuid, viewer["uuid"], 0)
     assert len(caught_up) == 1
 
-    viewer_envelope = EncryptedEnvelope(
+    viewer_envelope = RelayEnvelope(
         id="env-viewer",
         workspace_id=workspace_uuid,
         actor_id=viewer["uuid"],
@@ -311,7 +309,7 @@ async def test_revoked_share_immediately_loses_write_access(db_pool, test_user) 
             conn, workspace_id, int(editor["id"]), owner_id, can_read=True, can_write=True
         )
 
-    envelope_before = EncryptedEnvelope(
+    envelope_before = RelayEnvelope(
         id="env-before-revoke",
         workspace_id=workspace_uuid,
         actor_id=editor["uuid"],
@@ -339,7 +337,7 @@ async def test_revoked_share_immediately_loses_write_access(db_pool, test_user) 
             int(editor["id"]),
         )
 
-    envelope_after = EncryptedEnvelope(
+    envelope_after = RelayEnvelope(
         id="env-after-revoke",
         workspace_id=workspace_uuid,
         actor_id=editor["uuid"],
@@ -368,7 +366,7 @@ async def test_public_share_catch_up_is_node_scoped(db_pool, test_user) -> None:
             conn, shared_node_uuid, workspace_id, owner_id
         )
 
-    shared_envelope = EncryptedEnvelope(
+    shared_envelope = RelayEnvelope(
         id="env-shared",
         workspace_id=workspace_uuid,
         actor_id=test_user["uuid"],
@@ -377,7 +375,7 @@ async def test_public_share_catch_up_is_node_scoped(db_pool, test_user) -> None:
         op_type="node.updateContent",
         payload={"nodeId": shared_node_uuid, "content": []},
     )
-    other_envelope = EncryptedEnvelope(
+    other_envelope = RelayEnvelope(
         id="env-other",
         workspace_id=workspace_uuid,
         actor_id=test_user["uuid"],
@@ -398,7 +396,7 @@ async def test_public_share_catch_up_is_node_scoped(db_pool, test_user) -> None:
     result = await service.catch_up(
         workspace_uuid,
         "anonymous",
-        Hlc(0, 0),
+        0,
         share_token=share_token,
         share_node_id=share_node_id,
     )
