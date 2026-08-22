@@ -65,6 +65,39 @@ class TestNodeUpdateContentApplier:
         assert state["text_state"] == bytes([1, 2, 3])
         conn.close()
 
+    def test_text_update_with_content_mirror_stores_ast(self) -> None:
+        ast = json.dumps([{"type": "text", "text": "hello"}])
+        ops = [
+            make_operation("node.create", {"nodeId": "n-1", "kind": "page", "index": 0}),
+            make_operation(
+                "node.updateContent",
+                {"nodeId": "n-1", "textUpdate": [1, 2, 3], "content": ast},
+                physical=2,
+            ),
+        ]
+        conn = replay_operations(ops)
+        row = conn.execute("SELECT content FROM node WHERE id = ?", ("n-1",)).fetchone()
+        assert row["content"] == ast
+        state = conn.execute(
+            "SELECT text_state FROM crdt_state WHERE node_id = ?", ("n-1",)
+        ).fetchone()
+        assert state["text_state"] == bytes([1, 2, 3])
+        conn.close()
+
+    def test_text_update_with_plain_text_mirror_wraps_as_text_node(self) -> None:
+        ops = [
+            make_operation("node.create", {"nodeId": "n-1", "kind": "page", "index": 0}),
+            make_operation(
+                "node.updateContent",
+                {"nodeId": "n-1", "textUpdate": [1, 2, 3], "content": "plain"},
+                physical=2,
+            ),
+        ]
+        conn = replay_operations(ops)
+        row = conn.execute("SELECT content FROM node WHERE id = ?", ("n-1",)).fetchone()
+        assert json.loads(row["content"]) == [{"type": "text", "text": "plain"}]
+        conn.close()
+
     def test_tree_update_stores_tree_state_without_touching_content(self) -> None:
         ops = [
             make_operation(
