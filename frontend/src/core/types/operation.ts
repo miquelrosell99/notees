@@ -321,13 +321,19 @@ export function createOperation(
 }
 
 /**
- * Return the protocol version of a received envelope, defaulting to 1 when the
- * field is absent (pre-versioning peers). Throws when the peer speaks a newer
- * protocol than this client understands — callers must treat that as a hard
- * sync error, not skip the envelope silently.
+ * Return the protocol version of a received envelope. Throws when the field is
+ * absent (outdated peer — all clients are expected to be current) or newer
+ * than this client understands; callers must treat both as a hard sync error,
+ * not skip the envelope silently.
  */
 export function assertSupportedProtocolVersion(envelope: { protocolVersion?: number; id?: string }): number {
-  const version = envelope.protocolVersion ?? 1;
+  const version = envelope.protocolVersion;
+  if (version === undefined) {
+    throw new Error(
+      `Missing protocol version on envelope ${envelope.id ?? '<unknown>'}; ` +
+        `this client requires protocol ${PROTOCOL_VERSION}. Upgrade the peer.`
+    );
+  }
   if (version > PROTOCOL_VERSION) {
     throw new Error(
       `Unsupported relay protocol version ${version} on envelope ${envelope.id ?? '<unknown>'}; ` +
@@ -344,6 +350,6 @@ export function validateOperation(op: Operation): boolean {
   if (typeof env.hlc?.physical !== 'number' || typeof env.hlc?.logical !== 'number') return false;
   if (!Array.isArray(env.affectedNodeIds)) return false;
   if (!OP_TYPES.has(env.opType)) return false;
-  if ((env.protocolVersion ?? 1) > PROTOCOL_VERSION) return false;
+  if (env.protocolVersion === undefined || env.protocolVersion > PROTOCOL_VERSION) return false;
   return true;
 }

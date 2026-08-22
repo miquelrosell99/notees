@@ -22,6 +22,7 @@ from fastapi import WebSocketDisconnect
 
 from app.config import settings
 from app.logging_config import get_logger
+from app.relay.models import WsOpsMessage
 
 try:
     from redis.asyncio import Redis
@@ -215,14 +216,18 @@ async def unsubscribe(workspace_id: str, websocket: WebSocket) -> None:
     await backend.unsubscribe(workspace_id)
 
 
-async def broadcast(workspace_id: str, envelope: EncryptedEnvelope) -> None:
-    """Send ``envelope`` to every subscriber of ``workspace_id``.
+async def broadcast(workspace_id: str, envelopes: list[EncryptedEnvelope]) -> None:
+    """Send a batch of envelopes to every subscriber of ``workspace_id``.
 
+    Envelopes go out as one typed ``ops`` message (camelCase wire format) per
+    saved batch, not one bare frame per envelope — see protocol/SPEC.md §4.3.
     With the Redis backend this publishes to the workspace channel; local
     subscribers receive the message through the Redis listener. With the
     in-memory backend delivery happens directly.
     """
-    message = envelope.model_dump_json(by_alias=True)
+    if not envelopes:
+        return
+    message = WsOpsMessage(envelopes=envelopes).model_dump_json(by_alias=True)
     backend = await get_broadcast_backend()
     await backend.publish(workspace_id, message)
 

@@ -22,6 +22,8 @@ from app.relay.models import (
     CatchUpRequest,
     EncryptedEnvelope,
     SnapshotRequest,
+    WsHelloMessage,
+    WsOpsMessage,
 )
 
 pytestmark = pytest.mark.unit
@@ -35,6 +37,8 @@ FIXTURE_MODELS: dict[str, tuple[type[BaseModel], bool]] = {
     "catch-up-request.json": (CatchUpRequest, False),
     "catch-up-response.json": (CatchUpPaginatedResponse, True),
     "snapshot-request.json": (SnapshotRequest, False),
+    "ws-hello.json": (WsHelloMessage, True),
+    "ws-ops.json": (WsOpsMessage, True),
 }
 
 
@@ -76,7 +80,7 @@ def test_envelope_protocol_version_defaults_to_current() -> None:
 
 
 def test_envelope_accepts_snake_case_field_names() -> None:
-    """Broadcast frames are serialized snake_case; receivers must accept both."""
+    """v1 WS framing emitted snake_case envelopes; receivers must accept both."""
     raw = json.loads((FIXTURES_DIR / "envelope-minimal.json").read_text())
     snake = {
         "id": raw["id"],
