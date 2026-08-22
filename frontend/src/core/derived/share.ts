@@ -34,26 +34,27 @@ export function applyShareOperation(db: Database, op: Operation): ChangeNotifica
   }
 
   if (opType === 'share.user.grant') {
+    const targetUserId = payload.targetUserId as string;
     db.run(
       `INSERT OR REPLACE INTO node_user_share (node_id, user_id, role, created_at, created_by)
        VALUES (?, ?, ?, ?, ?)`,
       [
         nodeId,
-        payload.userId as string,
-        payload.role as string,
+        targetUserId,
+        (payload.role as string | undefined) ?? '',
         new Date().toISOString(),
         actorId,
       ]
     );
-    return [{ scope: 'node', nodeId, relatedIds: [payload.userId as string] }];
+    return [{ scope: 'node', nodeId, relatedIds: [targetUserId] }];
   }
 
   if (opType === 'share.user.revoke') {
-    db.run('DELETE FROM node_user_share WHERE node_id = ? AND user_id = ?', [
-      nodeId,
-      payload.userId as string,
-    ]);
-    return [{ scope: 'node', nodeId, relatedIds: [payload.userId as string] }];
+    // The frontend node_user_share table has no share_id column, so revoke by
+    // the (nodeId, targetUserId) pair the producer emits.
+    const targetUserId = payload.targetUserId as string;
+    db.run('DELETE FROM node_user_share WHERE node_id = ? AND user_id = ?', [nodeId, targetUserId]);
+    return [{ scope: 'node', nodeId, relatedIds: [targetUserId] }];
   }
 
   return [];

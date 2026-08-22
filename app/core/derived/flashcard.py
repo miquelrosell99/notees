@@ -8,7 +8,6 @@ flashcards plugin. The applier below projects those operations into the
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime
 
 from app.core.operation import Operation
 
@@ -18,8 +17,13 @@ OP_REVIEW = "flashcard.review"
 OP_DELETE = "flashcard.delete"
 
 
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+def _op_timestamp_iso(op: Operation) -> str:
+    """Return the operation's envelope timestamp as ISO string.
+
+    Derived state must be a deterministic function of the operation log —
+    wall-clock stamps would make replays and rebuilds diverge.
+    """
+    return op.envelope.timestamp.isoformat()
 
 
 def apply_flashcard_create(conn: sqlite3.Connection, op: Operation) -> None:
@@ -42,7 +46,7 @@ def apply_flashcard_create(conn: sqlite3.Connection, op: Operation) -> None:
     actor_id = data.get("actorId")
     front_text = data.get("frontText", "")
     back_text = data.get("backText", "")
-    now = _now_iso()
+    now = _op_timestamp_iso(op)
 
     conn.execute(
         """
@@ -73,7 +77,7 @@ def apply_flashcard_review(conn: sqlite3.Connection, op: Operation) -> None:
     payload = op.payload
     data = payload.get("data", {})
     node_id = payload.get("nodeId")
-    now = _now_iso()
+    now = _op_timestamp_iso(op)
 
     conn.execute(
         """
