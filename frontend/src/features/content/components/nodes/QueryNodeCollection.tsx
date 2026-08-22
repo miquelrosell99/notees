@@ -434,7 +434,7 @@ export function QueryNodeCollection({
               condition_type: 'class',
               operator: 'is_any_of',
               class_uuids: [],
-            } as any,
+            },
           ],
         },
       },

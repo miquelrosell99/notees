@@ -6,11 +6,11 @@ import {
   getOrCreateDailyNoteClient,
   getOrCreateMonthlyNoteClient,
   getOrCreateYearlyNoteClient,
-} from '@/features/content/hooks/useNodeDateQueries';
+  useCreateNode,
+} from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { useCommandRegistry } from '@/stores/commandRegistry';
 import { useNotifications } from '@/stores/notificationStore';
-import { useCreateNode } from '@/features/content';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';

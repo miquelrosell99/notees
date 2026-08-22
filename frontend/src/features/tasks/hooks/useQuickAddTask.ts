@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useCreateNode } from '@/features/content';
-import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
+import { useCreateNode, getOrCreateDailyNoteClient } from '@/features/content';
 import { useSetNodeProperty } from '@/features/properties';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';

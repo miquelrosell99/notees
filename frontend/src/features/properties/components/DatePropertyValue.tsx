@@ -1,8 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { useNode } from '@/features/content';
-import { DatePickerPopup } from '@/features/content';
+import { useNode, DatePickerPopup, getOrCreateDailyNoteClient } from '@/features/content';
 import { Button } from '@/components/ui/Button';
-import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { nodeNameToText } from '@/features/queries';

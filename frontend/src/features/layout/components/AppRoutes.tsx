@@ -247,7 +247,7 @@ function AuthenticatedShell() {
   // rely on /auth/status's boolean field for logout decisions because it can
   // race with post-login state updates.
   const { data: verifiedUser, isLoading: isVerifyingAuth } = useQuery({
-    queryKey: ['auth', 'verify'],
+    queryKey: authKeys.verify(),
     queryFn: () => getMe(),
     enabled: isAuthenticated && authRestored,
     staleTime: 5 * 60 * 1000, // 5 minutes

@@ -12,7 +12,7 @@ import type { ASTDocument as ContentAST } from '@/types/ast';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';
-import { NodeRef } from '@/features/content/components/nodes/NodeRef';
+import { NodeRef } from '@/features/content';
 import { NodeLinkContextMenuTrigger } from '@/features/content';
 import { Icon } from '@/components/ui/icons';
 import { astToUnits, getInlineChildren } from '../model/inlineEditorModel';

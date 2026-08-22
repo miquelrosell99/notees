@@ -13,7 +13,7 @@ import { useClasses } from '@/features/content/hooks/useNodeQueries';
 import { useCreateNodeAdapter } from '@/core/adapters';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { TemplateVariableDialog } from '../components/TemplateVariableDialog';
-import { useAuthStore } from '@/features/auth/stores/authStore';
+import { useAuthStore } from '@/features/auth';
 import { queryClient } from '@/lib/queryClient';
 import { nodeKeys, templateKeys } from '@/hooks/queryKeys';
 import type { Node } from '@/types/api';

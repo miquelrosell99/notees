@@ -10,8 +10,6 @@ const getOrCreateDailyNoteMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/features/content', () => ({
   useCreateNode: () => ({ mutateAsync: mutateAsyncMock }),
-}));
-vi.mock('@/features/content/hooks/useNodeDateQueries', () => ({
   getOrCreateDailyNoteClient: getOrCreateDailyNoteMock,
 }));
 vi.mock('@/features/properties', () => ({

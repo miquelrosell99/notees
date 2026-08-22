@@ -8,6 +8,9 @@ import { useNodeDisplayName } from '@/features/queries';
 import { useListDragSort } from '@/hooks/useListDragSort';
 import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation, useReorderFavoritesMutation, removeFavorite, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import { isApiError } from '@/api/client';
+import { getLogger } from '@/utils/logger';
+
+const log = getLogger('SidebarFavorites');
 import { Button } from '@/components/ui/Button';
 import {
   StarIcon,
@@ -47,7 +50,9 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   // Auto-remove stale favorites for deleted nodes
   useEffect(() => {
     if (error && isApiError(error) && error.response?.status === 404) {
-      removeFavorite(workspaceId, nodeUuid).catch(() => {});
+      removeFavorite(workspaceId, nodeUuid).catch((err) => {
+        log.warn('Failed to remove stale favorite', err);
+      });
     }
   }, [error, workspaceId, nodeUuid]);
 

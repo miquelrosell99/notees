@@ -84,6 +84,10 @@ interface NavigationState {
   closeLocalGraph: () => void;
 }
 
+// Timer handle for flashSidebarCard — kept at module scope so overlapping
+// flashes cancel the previous reset instead of scheduling independent timeouts.
+let flashSidebarCardTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useNavigationStore = create<NavigationState>()((set) => ({
   activeNodeUuid: null,
   currentNodeUuid: null,
@@ -231,7 +235,11 @@ export const useNavigationStore = create<NavigationState>()((set) => ({
   clearSidebarCards: () => set({ sidebarCards: [], rightSidebarOpen: false, rightSidebarContent: null }),
   flashSidebarCard: (cardId) => {
     set({ flashSidebarCardId: cardId, rightSidebarOpen: true, rightSidebarContent: 'node' });
-    setTimeout(() => {
+    if (flashSidebarCardTimer) {
+      clearTimeout(flashSidebarCardTimer);
+    }
+    flashSidebarCardTimer = setTimeout(() => {
+      flashSidebarCardTimer = null;
       set({ flashSidebarCardId: null });
     }, 1500);
   },

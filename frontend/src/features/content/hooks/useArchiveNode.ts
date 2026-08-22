@@ -5,6 +5,9 @@ import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { getLogger } from '@/utils/logger';
+
+const log = getLogger('useArchiveNode');
 
 /**
  * Hook to archive a node
@@ -22,7 +25,9 @@ export function useArchiveNode() {
     },
     onMutate: (nodeUuid) => {
       if (nodeUuid && isFavorite(workspaceUuid ?? undefined, nodeUuid)) {
-        removeFavorite(workspaceUuid ?? undefined, nodeUuid).catch(() => {});
+        removeFavorite(workspaceUuid ?? undefined, nodeUuid).catch((err) => {
+          log.warn('Failed to remove favorite for archived node', err);
+        });
       }
       removeRecent(nodeUuid);
     },

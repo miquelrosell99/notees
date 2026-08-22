@@ -28,6 +28,7 @@ import type {
   Bounds,
   ConnectorEndpoint,
   StrokeStyle,
+  ShapeType,
 } from '@/features/whiteboard/types/whiteboard';
 import { boundsOverlap, isPointInBounds, getBounds } from '@/features/whiteboard/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/features/whiteboard/hooks/useWhiteboard';
@@ -2040,7 +2041,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       {/* Shape creation preview — live fainted shape */}
       {interaction.selectionBox && interaction.isDragging && !interaction.isSelectionBox && (() => {
         const isShift = shiftConstraint;
-        const shapeMap: Record<string, string> = {
+        const shapeMap: Record<string, ShapeType> = {
           rectangle: 'rectangle',
           ellipse: 'ellipse',
           triangle: isShift ? 'triangle-right' : 'triangle',
@@ -2077,7 +2078,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
               height: sh,
               opacity: 'var(--opacity-45)',
               pointerEvents: 'none',
-              zIndex: 'var(--wb-z-overlay)' as any,
+              zIndex: 'var(--wb-z-overlay)',
               transform: previewRotation ? `rotate(${previewRotation}deg)` : undefined,
             }}
           >
@@ -2113,7 +2114,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 />
               ) : (
                 <path
-                  d={getShapePath(shapeType as any, sw, sh)}
+                  d={getShapePath(shapeType, sw, sh)}
                   fill={fill}
                   stroke={stroke}
                   strokeWidth={strokeWidth}

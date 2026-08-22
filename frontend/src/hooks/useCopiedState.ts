@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 /**
  * Hook for a transient "copied" state with automatic reset.
@@ -25,6 +25,16 @@ export function useCopiedState(resetMs = 2000): [boolean, () => void] {
       timeoutRef.current = null;
     }, resetMs);
   }, [resetMs]);
+
+  // Clear any pending reset timer on unmount to avoid setState after unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, []);
 
   return [copied, triggerCopy];
 }

@@ -14,7 +14,7 @@ import {
   getOrCreateDailyNoteClient,
   getOrCreateMonthlyNoteClient,
   getOrCreateYearlyNoteClient,
-} from '@/features/content/hooks/useNodeDateQueries';
+} from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';

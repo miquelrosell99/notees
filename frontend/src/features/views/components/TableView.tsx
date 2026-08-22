@@ -22,7 +22,7 @@ import { getPropertyValueRenderer } from '@/features/properties';
 import '@/features/properties';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
-import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { useProperties } from '@/features/properties';
