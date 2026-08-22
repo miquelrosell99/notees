@@ -93,7 +93,9 @@ export function AssetImage({
   const openNode = useNavigationStore(s => s.openNode);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
 
-  // Get the image URL from the asset node's uuid (async with token)
+  // Get the image URL from the asset node's uuid (async with token).
+  // In local mode this is an object URL for the IndexedDB-stored blob; revoke
+  // it when the effect re-runs or the component unmounts.
   useEffect(() => {
     if (!assetNodeId || !assetNode?.uuid) {
       setImageUrl(null);
@@ -102,13 +104,17 @@ export function AssetImage({
     }
 
     let cancelled = false;
+    let objectUrl: string | null = null;
     setHasError(false);
 
     getAssetUrlAsync(assetNode.uuid)
       .then(url => {
-        if (!cancelled) {
-          setImageUrl(url);
+        if (cancelled) {
+          if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+          return;
         }
+        objectUrl = url.startsWith('blob:') ? url : null;
+        setImageUrl(url);
       })
       .catch(err => {
         console.error('Failed to load image URL:', err);
@@ -119,6 +125,7 @@ export function AssetImage({
 
     return () => {
       cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [assetNodeId, assetNode?.uuid]);
 

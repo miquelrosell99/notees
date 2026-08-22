@@ -1513,6 +1513,31 @@ export class WorkspaceStore {
     return this.actorId;
   }
 
+  /**
+   * Return the derived asset metadata for a node, or undefined when the node
+   * is not an asset. Written by the ``asset.upload`` applier; read by the
+   * local-mode asset store to resolve content hashes without a server call.
+   */
+  getAssetInfo(nodeId: string):
+    | { assetHash: string; mimeType: string; sizeBytes: number; originalName: string }
+    | undefined {
+    const row = queryOne<{
+      asset_hash: string;
+      mime_type: string;
+      size: number;
+      original_name: string;
+    }>(this.db, 'SELECT asset_hash, mime_type, size, original_name FROM node_asset WHERE node_id = ?', [
+      nodeId,
+    ]);
+    if (!row) return undefined;
+    return {
+      assetHash: row.asset_hash,
+      mimeType: row.mime_type,
+      sizeBytes: row.size,
+      originalName: row.original_name,
+    };
+  }
+
   /** Create a snapshot of the derived state up to the given HLC. */
   createSnapshot(upToHlc?: { physical: number; logical: number }): string {
     const hlc = upToHlc ?? this.getLatestHlc();
