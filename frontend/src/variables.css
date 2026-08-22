@@ -757,6 +757,10 @@
    so primary actions stay legible on pure-black surfaces. */
 
 /* ==================== Responsive Breakpoints ==================== */
+/* CSS custom properties cannot be used in media queries, so breakpoints are
+   hardcoded across the codebase. Keep these tokens in sync with the px values
+   in: features/layout/components/TopBar.css, features/layout/components/Layout.css,
+   features/layout/components/MobileLayout.css, features/content/pages/NodeView.css. */
 :root {
   --breakpoint-mobile: 480px;
   --breakpoint-tablet: 768px;
