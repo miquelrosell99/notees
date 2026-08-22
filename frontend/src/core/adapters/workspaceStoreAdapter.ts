@@ -14,6 +14,8 @@ import {
   subscribeFavorites,
   warmFavoritesCache,
 } from '@/core/favoritesCache';
+import { getConnectionMode } from '@/config/serverUrl';
+import { useConnectionStore } from '@/stores/connectionStore';
 
 interface RegistryEntry {
   store: WorkspaceStore;
@@ -153,8 +155,12 @@ async function openWorkspaceStore(
   // of derived state when the applier version has changed. It then runs the
   // first sync. Initialization errors are propagated so the workspace loading
   // overlay can show the error overlay and let the user retry.
-  report('sync-initialize', 'Connecting to server…');
-  await syncEngine.initialize();
+  // In local mode there is no server to sync with — the local op log is the
+  // source of truth — so the initial sync (and its transport calls) is skipped.
+  if (getConnectionMode(useConnectionStore.getState().healthy) !== 'local') {
+    report('sync-initialize', 'Connecting to server…');
+    await syncEngine.initialize();
+  }
 
   report('ready', 'Ready');
   return store;

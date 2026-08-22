@@ -11,11 +11,14 @@ export function useWorkspaces<TData = PaginatedResponse<WorkspaceInfo>>(
   options?: Omit<UseQueryOptions<PaginatedResponse<WorkspaceInfo>, Error, TData>, 'queryKey' | 'queryFn'>
 ) {
   const authVerified = useAuthStore((s) => s.authVerified);
+  // Local sessions own a single well-known workspace; the server list endpoint
+  // is never queried for them (local-first split).
+  const isLocalSession = useAuthStore((s) => s.user?.isLocal === true);
   return useQuery<PaginatedResponse<WorkspaceInfo>, Error, TData>({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 30000,
     ...options,
-    enabled: options?.enabled ?? authVerified,
+    enabled: (options?.enabled ?? authVerified) && !isLocalSession,
   });
 }

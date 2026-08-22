@@ -4,7 +4,7 @@
  * Replaces the bespoke custom router with declarative routes while keeping
  * the existing navigationStore tab model.
  */
-import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Routes,
   Route,
@@ -32,9 +32,10 @@ import {
 } from '@/stores';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useCommand } from '@/hooks/useCommand';
-import { useAuthStatus, getMe } from '@/features/auth';
-import { listWorkspaces, getSettings } from '@/features/workspace';
+import { useAuthStatus, getMe, getLocalWorkspaceUuid } from '@/features/auth';
+import { listWorkspaces, getSettings, type WorkspaceInfo } from '@/features/workspace';
 import { authKeys, settingsKeys, workspaceKeys } from '@/hooks/queryKeys';
+import { useConnectionMode } from '@/stores/connectionStore';
 import { getUserData } from '@/utils/auth';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useDelayedOverlay } from '@/hooks/useDelayedOverlay';
@@ -150,7 +151,10 @@ function OnboardingRoute() {
 
 function LoginRoute() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { data: authStatus } = useAuthStatus();
+  const connectionMode = useConnectionMode();
+  // Local mode has no server; skip the auth-status call so the login screen
+  // never touches `/api/*`.
+  const { data: authStatus } = useAuthStatus({ enabled: connectionMode !== 'local' });
 
   if (authStatus?.needs_onboarding) {
     return <Navigate to="/onboarding" replace />;
@@ -172,6 +176,8 @@ function LoginRoute() {
 function WorkspaceRedirect() {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
+  const isLocalSession = user?.isLocal === true;
   const {
     data: dbData,
     isLoading,
@@ -180,7 +186,7 @@ function WorkspaceRedirect() {
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 10000,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !isLocalSession,
     select: (data) => ({
       workspaces: data.items,
       active: data.items.find((w) => w.is_active)?.uuid ?? null,
@@ -188,6 +194,12 @@ function WorkspaceRedirect() {
   });
 
   useEffect(() => {
+    // Local sessions own a single well-known workspace; route to it directly
+    // without calling listWorkspaces.
+    if (isLocalSession) {
+      navigate(`/${getLocalWorkspaceUuid()}`, { replace: true });
+      return;
+    }
     if (dbData?.active) {
       navigate(`/${dbData.active}`, { replace: true });
     } else if (dbData && !dbData.active) {
@@ -195,7 +207,7 @@ function WorkspaceRedirect() {
     } else if (isError) {
       navigate('/workspaces', { replace: true });
     }
-  }, [dbData, isError, navigate]);
+  }, [isLocalSession, dbData, isError, navigate]);
 
   if (isLoading) {
     return <LoadingScreen label="Loading workspace…" />;
@@ -209,6 +221,10 @@ function AuthenticatedShell() {
   const authVerified = useAuthStore((s) => s.authVerified);
   const setAuthVerified = useAuthStore((s) => s.setAuthVerified);
   const setUser = useAuthStore((s) => s.setUser);
+  const user = useAuthStore((s) => s.user);
+  // Local sessions are self-verified and own a single well-known workspace;
+  // every server round-trip in the guard chain below is skipped for them.
+  const isLocalSession = user?.isLocal === true;
   const showWorkspaceManager = useModalStore((s) => s.showWorkspaceManager);
   const setShowWorkspaceManager = useModalStore((s) => s.setShowWorkspaceManager);
   const location = useLocation();
@@ -226,15 +242,19 @@ function AuthenticatedShell() {
   // Restore persisted user into the store on first mount. The access token
   // is stored in an HTTPOnly cookie, so we only need to restore the profile.
   useEffect(() => {
-    const user = getUserData();
-    if (user) {
-      setUser(user as User);
+    const storedUser = getUserData();
+    if (storedUser) {
+      setUser(storedUser as User);
+      // Local sessions carry no token; mark them verified without /auth/me.
+      if ((storedUser as User).isLocal) {
+        setAuthVerified(true);
+      }
     }
     setAuthRestored(true);
-  }, [setUser]);
+  }, [setUser, setAuthVerified]);
 
   const { data: authStatus, isLoading: isLoadingAuthStatus } = useAuthStatus({
-    enabled: authRestored,
+    enabled: authRestored && !isLocalSession,
   });
 
 
@@ -249,7 +269,7 @@ function AuthenticatedShell() {
   const { data: verifiedUser, isLoading: isVerifyingAuth } = useQuery({
     queryKey: authKeys.verify(),
     queryFn: () => getMe(),
-    enabled: isAuthenticated && authRestored,
+    enabled: isAuthenticated && authRestored && !isLocalSession,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false,
   });
@@ -260,10 +280,10 @@ function AuthenticatedShell() {
     }
   }, [verifiedUser, setAuthVerified]);
 
-  const { data: dbData, isLoading: isLoadingWorkspaces } = useQuery({
+  const { data: serverDbData, isLoading: isLoadingWorkspaces } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
-    enabled: isAuthenticated && !needsOnboarding && authVerified,
+    enabled: isAuthenticated && !needsOnboarding && authVerified && !isLocalSession,
     staleTime: 10000,
     select: (data) => ({
       workspaces: data.items,
@@ -271,21 +291,36 @@ function AuthenticatedShell() {
     }),
   });
 
+  // Local sessions short-circuit the workspace list to their well-known local
+  // workspace so downstream gates (and the workspace-manager sync effect) keep
+  // working unchanged.
+  const dbData = useMemo(() => {
+    if (!isLocalSession) return serverDbData;
+    const uuid = getLocalWorkspaceUuid();
+    const localWorkspace: WorkspaceInfo = { uuid, name: 'Local', is_active: true };
+    return { workspaces: [localWorkspace], active: uuid };
+  }, [isLocalSession, serverDbData]);
+
   const { data: enrollmentSettings, isLoading: isCheckingEnrollment } = useQuery({
     queryKey: settingsKeys.all,
     queryFn: () => getSettings(),
-    enabled: isAuthenticated && !needsOnboarding && authVerified,
+    enabled: isAuthenticated && !needsOnboarding && authVerified && !isLocalSession,
     staleTime: Infinity,
   });
 
   // Sync server-stored user settings into the local Zustand store before the
   // workspace shell renders, so startup routing respects the backend source of
-  // truth (e.g. `default_view`).
+  // truth (e.g. `default_view`). Local mode has no server settings: the
+  // client-persisted settings store (with its defaults) is the source of truth.
   useLayoutEffect(() => {
+    if (isLocalSession) {
+      if (!settingsSynced) setSettingsSynced(true);
+      return;
+    }
     if (!enrollmentSettings || settingsSynced) return;
     syncUserSettingsFromBackend(enrollmentSettings);
     setSettingsSynced(true);
-  }, [enrollmentSettings, settingsSynced]);
+  }, [isLocalSession, enrollmentSettings, settingsSynced]);
 
   const needsEnrollment = enrollmentSettings
     ? String(enrollmentSettings['enrollment_completed']) !== 'true'

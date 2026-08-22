@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
-import { useNavigationStore, useModalStore, useRecentsStore, useNotificationStore } from '@/stores';
+import { useNavigationStore, useModalStore, useRecentsStore, useNotificationStore, useAuthStore } from '@/stores';
 import { workspaceKeys } from '@/hooks/queryKeys';
 import { invalidateWorkspaceQueries } from '@/lib/queryClient';
 import { Button } from '@/components/ui/Button';
@@ -21,11 +21,14 @@ export function WorkspaceSwitcher() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const setShowWorkspaceManager = useModalStore((s) => s.setShowWorkspaceManager);
+  // Local sessions have a single well-known workspace; never query the server.
+  const isLocalSession = useAuthStore((s) => s.user?.isLocal === true);
 
   const { data } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 30000,
+    enabled: !isLocalSession,
     select: (d) => ({
       workspaces: d.items,
       active: d.items.find((w) => w.is_active)?.uuid ?? null,

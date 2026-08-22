@@ -10,12 +10,16 @@
  * for `LOCK_THRESHOLD_MS`.
  */
 import { useEffect, useRef } from 'react';
-import { useConnectionStore } from '@/stores/connectionStore';
+import { useConnectionStore, useConnectionMode } from '@/stores/connectionStore';
+import { getApiBaseUrl } from '@/config/serverUrl';
 import { getLogger } from '@/utils/logger';
 
 const log = getLogger('useBackendHealth');
 
-const HEALTH_URL = '/api/health';
+// Resolved once at module init: `<serverUrl>/api/health` when a remote server
+// is configured, same-origin `/api/health` otherwise. In local mode this URL
+// is never polled at all.
+const HEALTH_URL = `${getApiBaseUrl()}/health`;
 const HEALTHY_POLL_MS = 30_000; // recheck every 30s even when healthy
 const UNHEALTHY_POLL_MS = 3_000; // recheck quickly while recovering
 const TIMEOUT_MS = 5_000;
@@ -41,9 +45,14 @@ async function checkHealth(): Promise<boolean> {
 
 export function useBackendHealth(): void {
   const { markHealthy, markUnhealthy, markLocked } = useConnectionStore();
+  const connectionMode = useConnectionMode();
   const consecutiveFailuresRef = useRef(0);
 
   useEffect(() => {
+    // Local mode: there is no server, so never poll and never trigger the
+    // warning banner or the full-screen lock.
+    if (connectionMode === 'local') return;
+
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -93,5 +102,5 @@ export function useBackendHealth(): void {
         clearTimeout(timeoutId);
       }
     };
-  }, [markHealthy, markUnhealthy, markLocked]);
+  }, [connectionMode, markHealthy, markUnhealthy, markLocked]);
 }
