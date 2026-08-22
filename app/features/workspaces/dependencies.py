@@ -9,7 +9,6 @@ import asyncpg
 
 from app.db.connection import get_data_dir, get_pool
 from app.domain.ports import NodeExportRenderer
-from app.domain.repositories.factories import make_user_repository
 from app.features.workspaces.io_service import WorkspaceIOService
 from app.features.workspaces.port import WorkspaceIORepository, WorkspaceRepository
 from app.features.workspaces.repository import (
@@ -18,6 +17,7 @@ from app.features.workspaces.repository import (
 )
 from app.features.workspaces.service import WorkspaceService
 from app.infrastructure.export.renderer import HtmlPdfExportRenderer
+from app.infrastructure.repositories.factories import make_user_repository
 
 
 def _make_workspace_repository(pool: asyncpg.Pool) -> WorkspaceRepository:
@@ -60,6 +60,18 @@ async def get_workspace_service() -> AsyncGenerator[WorkspaceService, None]:
         workspace_repo=_make_workspace_repository(pool),
         user_repo=make_user_repository(pool),
     )
+
+
+def get_active_workspace_id(user_id: str) -> str | None:
+    """Get the active workspace UUID for a user (in-memory session state)."""
+    return WorkspaceService.get_active_workspace_id(user_id)
+
+
+async def get_numeric_user_id(user_id: str) -> int | None:
+    """Convert a string user id/uuid to the numeric PostgreSQL user id."""
+    pool = await get_pool()
+    user = await make_user_repository(pool).get_by_id_or_uuid(user_id)
+    return user.id if user else None
 
 
 async def _get_workspace_io_service(user_id: int | str | None = None) -> WorkspaceIOService:

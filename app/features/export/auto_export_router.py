@@ -31,7 +31,7 @@ from app.features.export.auto_export_service import AutoExportService
 from app.features.export.dependencies import _make_export_repository, get_export_repository
 from app.features.export.port import ExportRepository
 from app.features.export.service import ExportService
-from app.features.workspaces.manager import _active_workspaces, _get_numeric_user_id
+from app.features.workspaces.dependencies import get_active_workspace_id, get_numeric_user_id
 from app.infrastructure.export.renderer import HtmlPdfExportRenderer
 from app.logging_config import get_logger
 from app.models import User
@@ -105,11 +105,11 @@ async def auto_export_batch(
     This is a dev/heavy operation that runs asynchronously and reports progress
     via the /status endpoint.
     """
-    numeric_user_id = await _get_numeric_user_id(user.id)
+    numeric_user_id = await get_numeric_user_id(user.id)
     if not numeric_user_id:
         raise HTTPException(status_code=404, detail="User not found")
 
-    active_uuid = _active_workspaces.get(user.id)
+    active_uuid = get_active_workspace_id(user.id)
 
     workspace_uuid = await get_workspace_uuid(workspace_id)
     if not workspace_uuid:
@@ -192,7 +192,7 @@ async def auto_export_status(
     user: User = Depends(get_current_user),
 ):
     """Get the current batch export status."""
-    active_uuid = _active_workspaces.get(user.id)
+    active_uuid = get_active_workspace_id(user.id)
     if not active_uuid:
         return BatchExportStatus(running=False, total=0, completed=0, current_page=None, error=None)
 
@@ -249,11 +249,11 @@ async def auto_export_page(
     workspace_id: int = Depends(get_workspace_id),
 ):
     """Export a single page to the workspace markdown-export directory."""
-    numeric_user_id = await _get_numeric_user_id(user.id)
+    numeric_user_id = await get_numeric_user_id(user.id)
     if not numeric_user_id:
         raise HTTPException(status_code=404, detail="User not found")
 
-    active_uuid = _active_workspaces.get(user.id)
+    active_uuid = get_active_workspace_id(user.id)
 
     workspace_uuid = await get_workspace_uuid(workspace_id)
     if not workspace_uuid:

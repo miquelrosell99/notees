@@ -25,8 +25,7 @@ import asyncpg
 
 from app.core.workspace_store import WorkspaceStore
 from app.db.connection import acquire_connection, get_workspace_uuid
-
-from .interfaces import CleanupRepository
+from app.domain.repositories.interfaces import CleanupRepository
 
 
 class PostgresCleanupRepository(CleanupRepository):

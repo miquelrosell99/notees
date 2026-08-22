@@ -41,6 +41,11 @@ async def _make_export_repository_for_user(user: User) -> ExportRepository:
     return _make_export_repository(user.uuid)
 
 
+def _make_export_service(actor_id: str) -> ExportService:
+    """Build a concrete ExportService for the given actor."""
+    return ExportService(_make_export_repository(actor_id), _get_export_renderer())
+
+
 async def get_export_repository(
     user: User = Depends(get_current_user),
     workspace_id: int = Depends(get_workspace_id),
@@ -62,5 +67,4 @@ async def get_export_service(
     workspace_uuid = await get_workspace_uuid(workspace_id)
     if workspace_uuid is None:
         raise RuntimeError("Workspace not found")
-    export_repo = _make_export_repository(user.uuid)
-    yield ExportService(export_repo, _get_export_renderer())
+    yield _make_export_service(user.uuid)

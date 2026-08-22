@@ -20,13 +20,13 @@ from app.dependencies import (
     get_settings_repository,
 )
 from app.domain.errors import PasswordRequiredError, RegistrationDisabledError
-from app.domain.repositories.factories import make_user_repository
 from app.domain.repositories.interfaces import SettingsRepository
 from app.features.auth import auth as auth_module
 from app.features.auth import totp
 from app.features.auth.dependencies import get_invite_repository
 from app.features.auth.port import InviteRepository
 from app.features.notifications.port import PushDeviceRepository
+from app.infrastructure.repositories.factories import make_user_repository
 from app.logging_config import get_logger
 from app.models import (
     AccessTokenResponse,
@@ -105,13 +105,6 @@ async def _resolve_user_from_auth(
                 if user:
                     return user
     return None
-
-
-async def require_admin(user: User = Depends(get_current_user)) -> User:  # noqa: B008
-    """Require admin role."""
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
 
 
 @router.get("/status", response_model=AuthStatusResponse)

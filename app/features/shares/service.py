@@ -16,7 +16,7 @@ from app.core.workspace_store import WorkspaceStore
 from app.domain.entities.share import PublicShare
 from app.domain.ports import EmailSender, InviteEmailResult
 from app.domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
-from app.features.export.service import ExportService
+from app.features.export.port import NodeExportService
 from app.logging_config import get_logger
 
 from .port import ShareRepository
@@ -42,7 +42,7 @@ class ShareService:
     def __init__(
         self,
         share_repository: ShareRepository,
-        node_export_service: ExportService,
+        node_export_service: NodeExportService,
         workspace_id: int,
         user_id: int,
         email_sender: EmailSender | None = None,
