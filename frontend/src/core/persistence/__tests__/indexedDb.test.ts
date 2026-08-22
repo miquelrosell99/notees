@@ -91,10 +91,11 @@ describe('indexedDb persistence', () => {
 });
 
 // Helpers for legacy v1 migration tests. These bypass the public API because
-// v1 is no longer written by production code.
+// v1 is no longer written by production code. Open at the current DB version
+// (the public API has already upgraded the database by the time these run).
 function openTestDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('notees-workspaces', 2);
+    const request = indexedDB.open('notees-workspaces', 3);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = () => {
