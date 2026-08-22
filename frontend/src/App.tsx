@@ -433,6 +433,10 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
 
     useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, true);
     getOrCreateWorkspaceStore(workspaceId, actorId, transport, {
+      // Local-mode seed uses the session's display name for the user page.
+      // Read imperatively: the name is fixed for a session and must not
+      // retrigger workspace init.
+      localUserDisplayName: useAuthStore.getState().user?.name ?? undefined,
       onOpenProgress: ({ message }) => {
         if (!cancelled) setPhaseMessage(message);
       },

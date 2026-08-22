@@ -10,6 +10,7 @@ import { createDatabase } from '../db/connection';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
 import { listNodes } from '../query/listNodes';
+import { getClass } from '../query/classes';
 import { queryNodes } from '../query/queryNodes';
 import { executeQuery } from '../query/executeQuery';
 import { buildGraphData } from '../query/graphData';
@@ -743,6 +744,12 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     // Special-case query helpers that are not methods on WorkspaceStore.
     if (method === 'listNodes') {
       return Promise.resolve(listNodes(this.store, args[0] as Parameters<typeof listNodes>[1]) as T);
+    }
+    // Mirrors the worker protocol's `getClass` case; used by the local
+    // workspace seed to check which system classes already exist.
+    if (method === 'getClass') {
+      const [classId] = args as [string];
+      return Promise.resolve(getClass(this.store.getDb(), classId) as T);
     }
     if (method === 'queryNodes') {
       const filters = args[0] as Parameters<typeof queryNodes>[1];
