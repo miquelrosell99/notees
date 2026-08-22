@@ -53,7 +53,7 @@ export function resolveTaskStatusName(optionId: string): TaskStatus | null {
 
 /** Invalidate all tasks-popup section queries (badge + list refresh). */
 export function invalidateTaskPopupQueries(): void {
-  queryClient.invalidateQueries({ queryKey: [...taskKeys.all, 'popup'] });
+  queryClient.invalidateQueries({ queryKey: taskKeys.popupAll() });
 }
 
 // ==================== Optimistic popup section updates ====================
@@ -132,7 +132,7 @@ export function optimisticTaskStatusUpdate(
   status: TaskStatus | null,
 ): PopupQuerySnapshot[] {
   // Don't let an in-flight section refetch overwrite the optimistic patch.
-  void queryClient.cancelQueries({ queryKey: [...taskKeys.all, 'popup'] });
+  void queryClient.cancelQueries({ queryKey: taskKeys.popupAll() });
 
   const snapshots: PopupQuerySnapshot[] = [];
   let movedNode: Node | undefined;

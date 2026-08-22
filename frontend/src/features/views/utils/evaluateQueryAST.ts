@@ -216,10 +216,11 @@ function evaluateClassCondition(
 ): boolean {
   const nodeClassUuids = getNodeClassUuids(node);
   const targetUuid = cond.class_uuid;
-
-  if (!targetUuid) return false;
-
   const op = cond.operator ?? 'contains';
+
+  // Backend treats a class condition without a class_uuid as no filter
+  // (match-all); 'is_any_of' is the operator used for that case.
+  if (!targetUuid) return op === 'is_any_of';
 
   // Direct class membership
   const hasDirectClass = nodeClassUuids.includes(targetUuid);

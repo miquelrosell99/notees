@@ -20,7 +20,7 @@ import { getNodeColorStylesAuto } from '@/utils/color';
 import { getEffectiveColor } from '@/utils/nodeIcon';
 import { useProperties, useSetNodeProperty } from '@/features/properties';
 import { useCreateNode, useRemoveClass, useAddClass, useUpdateNode, useResolvedClassDetails } from '@/features/content';
-import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
+import { getNodeUuidByServerId } from '@/features/content';
 import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 
@@ -47,7 +47,7 @@ import './CardItem.css';
 
 // ─── Card Title Editor (CustomInlineEditor wrapper) ────────────────────
 
-import { CustomInlineEditor } from '@/features/editor/custom/components/CustomInlineEditor';
+import { CustomInlineEditor } from '@/features/editor';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { PropertiesSection } from '@/features/properties';
 import { BlockList } from '@/features/content';

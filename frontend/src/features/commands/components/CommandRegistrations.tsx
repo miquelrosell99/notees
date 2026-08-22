@@ -9,7 +9,7 @@ import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useNavigationStore } from '@/stores';
 import { useNotifyActions } from '@/features/layout';
-import { useSyncStatusStore } from '@/features/sync/stores/syncStatusStore';
+import { useSyncStatusStore } from '@/features/sync';
 import { queryClient } from '@/lib/queryClient';
 import {
   useClasses,
@@ -18,7 +18,7 @@ import {
 } from '@/features/content';
 import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
-import { useWorkspaceRole } from '@/features/workspace/hooks/useWorkspaceRole';
+import { useWorkspaceRole } from '@/features/workspace';
 import {
   pushActiveWorkspace,
   pullActiveWorkspace,

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { webcrypto } from 'node:crypto';
-import { WorkspaceStore } from '../../../store';
-import { uuidv7 } from '../../../uuid';
-import { createTestDatabase } from '../../../__tests__/helpers';
+import { WorkspaceStore } from '@/core/store';
+import { uuidv7 } from '@/core/uuid';
+import { createTestDatabase } from '@/core/__tests__/helpers';
 import { GetNodeTreeQuery } from '../GetNodeTreeQuery';
 
 beforeAll(() => {

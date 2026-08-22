@@ -7,7 +7,10 @@ import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
+import { getLogger } from '@/utils/logger';
 import type { Node } from '@/types/api';
+
+const log = getLogger('useTrash');
 
 function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: trashKeys.all });
@@ -21,7 +24,9 @@ async function cleanupNode(workspaceUuid: string | null, nodeUuid: string) {
   if (!nodeUuid) return;
   const workspaceId = workspaceUuid ?? undefined;
   if (isFavorite(workspaceId, nodeUuid)) {
-    removeFavorite(workspaceId, nodeUuid).catch(() => {});
+    removeFavorite(workspaceId, nodeUuid).catch((err) => {
+      log.warn('Failed to remove favorite during cleanup', err);
+    });
   }
   removeRecent(nodeUuid);
 }
