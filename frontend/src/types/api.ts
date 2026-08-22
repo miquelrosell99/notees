@@ -712,6 +712,12 @@ export interface User {
   role: string;
   is_active: boolean;
   totp_enabled: boolean;
+  /**
+   * Local-first split: true for a client-side local session (no server
+   * account, no token). Never sent by the backend; every local-mode gate
+   * checks this discriminator.
+   */
+  isLocal?: boolean;
 }
 
 /**

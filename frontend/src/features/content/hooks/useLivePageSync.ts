@@ -17,6 +17,7 @@ import { useAuthStore } from '@/features/auth';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useWorkspaces } from '@/features/workspace';
+import { useCapabilities } from '@/config/capabilities';
 
 import type { Node } from '@/types';
 import { updateNodeInTreeCaches, updateNodeInFlatCaches, updateNodeInListCaches } from '@/hooks/cacheUtils';
@@ -51,6 +52,8 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
   const queryClient = useQueryClient();
   const unsubRef = useRef<(() => void) | null>(null);
   const authVerified = useAuthStore((s) => s.authVerified);
+  // The live-sync WebSocket is server-only; never connect in local mode.
+  const capabilities = useCapabilities();
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' | 'unauthorized'>('idle');
 
   const { data: workspacesData } = useWorkspaces({ enabled: authVerified });
@@ -59,7 +62,7 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
     return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
   }, [workspacesData]);
   useEffect(() => {
-    if (!enabled || !nodeUuid || !authVerified) return;
+    if (!enabled || !nodeUuid || !authVerified || !capabilities.collabPresence) return;
 
     const unsubStatus = liveSyncManager.onStatusChange(setConnectionStatus);
 
@@ -208,7 +211,7 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
         }));
       }
     };
-  }, [nodeUuid, queryClient, enabled, authVerified, activeWorkspace?.uuid]);
+  }, [nodeUuid, queryClient, enabled, authVerified, activeWorkspace?.uuid, capabilities.collabPresence]);
 
   return connectionStatus;
 }

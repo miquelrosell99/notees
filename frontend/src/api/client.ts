@@ -7,6 +7,7 @@ import axios, { type AxiosError, type AxiosRequestConfig } from 'axios';
 import { getLogger } from '@/utils/logger';
 import { getApiKey, handleAuthFailure } from '@/utils/auth';
 import { useConnectionStore } from '@/stores/connectionStore';
+import { getApiBaseUrl } from '@/config/serverUrl';
 
 const log = getLogger('api');
 
@@ -74,7 +75,7 @@ async function doRefresh(): Promise<boolean> {
     // just needs to make the request with credentials included. The response
     // body also contains the new access token so we can schedule the next
     // proactive refresh.
-    const resp = await fetch('/api/auth/refresh', {
+    const resp = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
       method: 'POST',
       credentials: 'same-origin',
     });
@@ -129,7 +130,7 @@ export interface RequestOptions {
 }
 
 const axiosClient = axios.create({
-  baseURL: '/api',
+  baseURL: getApiBaseUrl(),
   timeout: 30000,
   withCredentials: true,
 });
