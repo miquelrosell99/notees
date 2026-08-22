@@ -34,6 +34,16 @@ export function getLocalWorkspaceUuid(): string {
   return uuid;
 }
 
+/**
+ * The persisted local workspace UUID, or `null` when this profile never had a
+ * local session. Unlike `getLocalWorkspaceUuid` this has no side effects —
+ * used by the connect-later adoption check (local-first split, Task 6) to
+ * decide whether a post-login adoption prompt applies.
+ */
+export function getExistingLocalWorkspaceUuid(): string | null {
+  return localStorage.getItem(LOCAL_WORKSPACE_UUID_KEY);
+}
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
