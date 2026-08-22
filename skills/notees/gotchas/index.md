@@ -44,6 +44,14 @@ A text property stores its value as the UUID of a block node. That block must be
 
 - Reference: `references/gotchas.md#navigation-text-property-blocks-must-be-children`
 
+## WorkspaceStore sync lock is class-level and shared across instances
+
+`WorkspaceStore._sync_locks` is a class-level dict keyed by workspace, so two store instances for the same workspace share one non-reentrant `asyncio.Lock`. Plugin side effects (e.g. the flashcards plugin constructs a *new* `WorkspaceStore` for the same workspace and calls `apply()`) must therefore run **after** the lock is released — holding `_sync_lock` across `_invoke_class_side_effects()` deadlocks. `apply()`/`apply_many()` hold the lock across persist+apply only.
+
+## Repository SQL can drift from schema migrations
+
+`app/db/schema/sql.py` evolves tables via guarded `ALTER TABLE` blocks (e.g. `pending_invite` dropped `node_id` at v5), but nothing fails CI when repository SQL still references the dropped column — the breakage only surfaces at runtime. After changing schema DDL, grep `app/features/**/repository.py` for the old column name.
+
 ## Dev vs Prod
 
 Development infrastructure settings in `compose.dev.yaml` must never be used in production.
