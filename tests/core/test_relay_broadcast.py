@@ -14,7 +14,7 @@ from app.relay.broadcast import (
     RedisBroadcastBackend,
     reset_broadcast_backend,
 )
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 
 pytestmark = pytest.mark.unit
 
@@ -23,8 +23,8 @@ def _envelope(
     envelope_id: str,
     workspace_id: str = "ws-1",
     actor_id: str = "actor-1",
-) -> EncryptedEnvelope:
-    return EncryptedEnvelope(
+) -> RelayEnvelope:
+    return RelayEnvelope(
         id=envelope_id,
         workspace_id=workspace_id,
         actor_id=actor_id,

@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.clock import Hlc
-from app.relay.models import MAX_BATCH_SIZE, MAX_ENVELOPE_SIZE_BYTES, EncryptedEnvelope
+from app.relay.models import MAX_BATCH_SIZE, MAX_ENVELOPE_SIZE_BYTES, RelayEnvelope
 
 pytestmark = pytest.mark.unit
 
@@ -19,8 +19,8 @@ def _envelope(
     physical: int = 1000,
     logical: int = 0,
     payload: dict | None = None,
-) -> EncryptedEnvelope:
-    return EncryptedEnvelope(
+) -> RelayEnvelope:
+    return RelayEnvelope(
         id=envelope_id,
         workspace_id=workspace_id,
         actor_id=actor_id or "actor-1",

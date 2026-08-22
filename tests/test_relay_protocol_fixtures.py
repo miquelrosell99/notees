@@ -20,7 +20,7 @@ from app.relay.models import (
     BatchRequest,
     CatchUpPaginatedResponse,
     CatchUpRequest,
-    EncryptedEnvelope,
+    RelayEnvelope,
     SnapshotRequest,
     WsHelloMessage,
     WsOpsMessage,
@@ -32,7 +32,7 @@ FIXTURES_DIR = Path(__file__).resolve().parent.parent / "protocol" / "fixtures"
 
 # fixture file -> (model, serialize with camelCase aliases)
 FIXTURE_MODELS: dict[str, tuple[type[BaseModel], bool]] = {
-    "envelope-minimal.json": (EncryptedEnvelope, True),
+    "envelope-minimal.json": (RelayEnvelope, True),
     "batch-request.json": (BatchRequest, True),
     "catch-up-request.json": (CatchUpRequest, False),
     "catch-up-response.json": (CatchUpPaginatedResponse, True),
@@ -75,7 +75,7 @@ def test_envelope_protocol_version_defaults_to_current() -> None:
     assert raw["protocolVersion"] == PROTOCOL_VERSION
 
     without_version = {key: value for key, value in raw.items() if key != "protocolVersion"}
-    parsed = EncryptedEnvelope.model_validate(without_version)
+    parsed = RelayEnvelope.model_validate(without_version)
     assert parsed.protocol_version == PROTOCOL_VERSION
 
 
@@ -93,5 +93,5 @@ def test_envelope_accepts_snake_case_field_names() -> None:
         "timestamp": raw["timestamp"],
         "payload": raw["payload"],
     }
-    parsed = EncryptedEnvelope.model_validate(snake)
+    parsed = RelayEnvelope.model_validate(snake)
     assert parsed.model_dump(mode="json", by_alias=True) == raw

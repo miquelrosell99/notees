@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.core.clock import Hlc
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.storage import PostgresRelayStorage
 
 pytestmark = pytest.mark.unit
@@ -20,8 +20,8 @@ def _envelope(
     affected_node_ids: list[str] | None = None,
     op_type: str = "node.create",
     payload: dict | None = None,
-) -> EncryptedEnvelope:
-    return EncryptedEnvelope(
+) -> RelayEnvelope:
+    return RelayEnvelope(
         id=envelope_id,
         workspace_id=workspace_id,
         actor_id=actor_id,
@@ -51,7 +51,7 @@ class TestPostgresRelayStorage:
         await storage.save_envelope(envelope)
         assert await storage.envelope_exists(envelope.id) is True
 
-        results = await storage.get_catch_up(envelope.workspace_id, Hlc(physical=0, logical=0))
+        results = await storage.get_catch_up(envelope.workspace_id, 0)
         assert len(results) == 1
         assert results[0].id == envelope.id
         assert results[0].payload == envelope.payload
@@ -100,11 +100,15 @@ class TestPostgresRelayStorage:
 
         await storage.save_envelopes([older, same, newer, other_workspace])
 
-        results = await storage.get_catch_up(workspace_id, Hlc(physical=10, logical=0))
+        all_results = await storage.get_catch_up(workspace_id, 0)
+        same_seq = next(e.seq for e in all_results if e.id == same.id)
+        results = await storage.get_catch_up(workspace_id, same_seq)
         assert [envelope.id for envelope in results] == [newer.id]
 
     @pytest.mark.asyncio
-    async def test_catch_up_sorted_by_hlc_then_id(self, storage: PostgresRelayStorage) -> None:
+    async def test_catch_up_sorted_by_seq(self, storage: PostgresRelayStorage) -> None:
+        """Catch-up order is the server-assigned seq (insertion order), not
+        the client-supplied HLC."""
         workspace_id = "ws-pg-sort"
         second = _envelope(
             envelope_id="env-b",
@@ -127,8 +131,8 @@ class TestPostgresRelayStorage:
 
         await storage.save_envelopes([second, first, third])
 
-        results = await storage.get_catch_up(workspace_id, Hlc(physical=0, logical=0))
-        assert [envelope.id for envelope in results] == [first.id, second.id, third.id]
+        results = await storage.get_catch_up(workspace_id, 0)
+        assert [envelope.id for envelope in results] == [second.id, first.id, third.id]
 
     @pytest.mark.asyncio
     async def test_duplicate_envelope_ignored_by_id(self, storage: PostgresRelayStorage) -> None:
@@ -150,7 +154,7 @@ class TestPostgresRelayStorage:
         await storage.save_envelope(envelope)
         await storage.save_envelope(duplicate)
 
-        results = await storage.get_catch_up("ws-pg-dup", Hlc(physical=0, logical=0))
+        results = await storage.get_catch_up("ws-pg-dup", 0)
         assert len(results) == 1
         assert results[0].payload == envelope.payload
 
@@ -168,53 +172,64 @@ class TestPostgresRelayStorage:
         ]
         await storage.save_envelopes(envelopes)
 
-        start_hlc = Hlc(physical=0, logical=0)
-        page, next_after_id = await storage.get_catch_up_paginated(
-            workspace_id, start_hlc, limit=2
+        page, next_after_seq = await storage.get_catch_up_paginated(
+            workspace_id, 0, limit=2
         )
         assert len(page) == 2
-        assert next_after_id == page[-1].id
+        assert next_after_seq == page[-1].seq
 
-        page2, next_after_id2 = await storage.get_catch_up_paginated(
-            workspace_id, start_hlc, limit=2, after_id=next_after_id
+        page2, next_after_seq2 = await storage.get_catch_up_paginated(
+            workspace_id, next_after_seq, limit=2
         )
         assert len(page2) == 2
-        assert next_after_id2 == page2[-1].id
+        assert next_after_seq2 == page2[-1].seq
 
-        page3, next_after_id3 = await storage.get_catch_up_paginated(
-            workspace_id, start_hlc, limit=2, after_id=next_after_id2
+        page3, next_after_seq3 = await storage.get_catch_up_paginated(
+            workspace_id, next_after_seq2, limit=2
         )
         assert len(page3) == 1
-        assert next_after_id3 is None
+        assert next_after_seq3 is None
 
     @pytest.mark.asyncio
-    async def test_get_catch_up_paginated_detects_missing_after_id(
+    async def test_get_catch_up_paginated_tolerates_pruned_cursor(
         self, storage: PostgresRelayStorage
     ) -> None:
-        workspace_id = "ws-pg-missing-cursor"
-        await storage.save_envelope(
-            _envelope(
-                envelope_id="env-a",
-                workspace_id=workspace_id,
-                actor_id="actor-1",
-                hlc=Hlc(physical=1, logical=0),
-            )
+        """A seq cursor below pruned rows still yields the remaining rows —
+        no cursor lookup can fail because the cursor is a plain integer."""
+        workspace_id = "ws-pg-pruned-cursor"
+        await storage.save_envelopes(
+            [
+                _envelope(
+                    envelope_id="env-a",
+                    workspace_id=workspace_id,
+                    actor_id="actor-1",
+                    hlc=Hlc(physical=1, logical=0),
+                ),
+                _envelope(
+                    envelope_id="env-b",
+                    workspace_id=workspace_id,
+                    actor_id="actor-1",
+                    hlc=Hlc(physical=2, logical=0),
+                ),
+            ]
         )
+        cursor = (await storage.get_catch_up(workspace_id, 0))[0].seq
+        await storage.prune_envelopes(workspace_id, Hlc(physical=1, logical=0))
 
-        with pytest.raises(ValueError, match="no longer exists"):
-            await storage.get_catch_up_paginated(
-                workspace_id,
-                Hlc(physical=0, logical=0),
-                limit=2,
-                after_id="does-not-exist",
-            )
+        results, next_after_seq = await storage.get_catch_up_paginated(
+            workspace_id, cursor, limit=10
+        )
+        assert [envelope.id for envelope in results] == ["env-b"]
+        assert next_after_seq is None
 
     @pytest.mark.asyncio
-    async def test_get_catch_up_paginated_includes_concurrent_insert_with_smaller_id(
+    async def test_get_catch_up_paginated_by_seq_includes_concurrent_insert(
         self, storage: PostgresRelayStorage
     ) -> None:
-        """A concurrent insert whose id sorts before the cursor id but whose HLC
-        is ahead of the cursor must not be skipped across pages.
+        """A concurrent insert after a page boundary always lands on a later
+        page: the seq cursor is assigned at insert time, so a new envelope is
+        strictly after any previously returned cursor — regardless of its id
+        or client-supplied HLC.
         """
         workspace_id = "ws-pg-race"
         first = _envelope(
@@ -231,29 +246,27 @@ class TestPostgresRelayStorage:
         )
         await storage.save_envelopes([first, second])
 
-        start_hlc = Hlc(physical=0, logical=0)
         page1, after1 = await storage.get_catch_up_paginated(
-            workspace_id, start_hlc, limit=1
+            workspace_id, 0, limit=1
         )
         assert [envelope.id for envelope in page1] == [first.id]
-        assert after1 == first.id
+        assert after1 == page1[-1].seq
 
-        # Inserted after page 1: HLC is ahead of the cursor so it belongs on
-        # page 2, but its id is lexicographically smaller than the cursor id.
+        # Inserted after page 1 with an id and HLC that both sort before the
+        # cursor envelope's — the seq cursor still picks it up on page 2.
         concurrent = _envelope(
-            envelope_id="env-concurrent",
+            envelope_id="env-aa",
             workspace_id=workspace_id,
             actor_id="actor-1",
-            hlc=Hlc(physical=2, logical=0),
+            hlc=Hlc(physical=1, logical=0),
         )
-        concurrent.id = "env-aa"
         await storage.save_envelope(concurrent)
 
         page2, after2 = await storage.get_catch_up_paginated(
-            workspace_id, start_hlc, limit=10, after_id=after1
+            workspace_id, after1, limit=10
         )
         ids = [envelope.id for envelope in page2]
-        assert concurrent.id in ids
+        assert ids == [second.id, concurrent.id]
         assert after2 is None
 
     @pytest.mark.asyncio
@@ -283,11 +296,13 @@ class TestPostgresRelayStorage:
     @pytest.mark.asyncio
     async def test_create_snapshot(self, storage: PostgresRelayStorage) -> None:
         workspace_id = "ws-pg-snapshot"
-        snapshot_id = await storage.create_snapshot(
+        snapshot_id, up_to_seq = await storage.create_snapshot(
             workspace_id, Hlc(physical=100, logical=0)
         )
         assert isinstance(snapshot_id, str)
         assert len(snapshot_id) > 0
+        # No envelopes in this workspace, so the snapshot covers seq 0.
+        assert up_to_seq == 0
 
     @pytest.mark.asyncio
     async def test_create_compaction_segment_prunes_envelopes(

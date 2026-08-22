@@ -15,7 +15,7 @@ from app.core.clock import Hlc
 from app.core.sync import SyncEngine
 from app.core.transport import MemoryRelay, MemoryTransport
 from app.core.workspace_store import WorkspaceStore
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.permissions import StubPermissionChecker
 from app.relay.service import RelayService
 from app.relay.storage import SqliteRelayStorage
@@ -45,16 +45,16 @@ def _seed_relay_storage(
     workspace_id: str,
     actor_id: str,
     count: int,
-) -> list[EncryptedEnvelope]:
+) -> list[RelayEnvelope]:
     """Generate deterministic envelopes and persist them."""
     import random
 
     rng = random.Random(SEED)
 
-    envelopes: list[EncryptedEnvelope] = []
+    envelopes: list[RelayEnvelope] = []
     for i in range(count):
         payload = {"nodeId": f"node-{i:06d}", "kind": "block"}
-        envelope = EncryptedEnvelope(
+        envelope = RelayEnvelope(
             id=f"env-{workspace_id}-{i:08d}-{rng.randint(0, 1_000_000):06d}",
             workspace_id=workspace_id,
             actor_id=actor_id,
@@ -69,8 +69,8 @@ def _seed_relay_storage(
 
 
 class TestRelayCatchUpLatency:
-    async def test_catch_up_from_hlc_zero(self) -> None:
-        """A client at HLC zero catches up N operations within the bound."""
+    async def test_catch_up_from_seq_zero(self) -> None:
+        """A client at seq zero catches up N operations within the bound."""
         count = _operation_count()
         storage = SqliteRelayStorage(":memory:")
         workspace_id = "ws-catch-up-zero"
@@ -78,9 +78,7 @@ class TestRelayCatchUpLatency:
         service = RelayService(storage, StubPermissionChecker())
 
         start = time.perf_counter()
-        results = await service.catch_up(
-            workspace_id, "actor-b", Hlc(physical=0, logical=0)
-        )
+        results = await service.catch_up(workspace_id, "actor-b", 0)
         elapsed = time.perf_counter() - start
 
         assert len(results) == count
@@ -96,13 +94,14 @@ class TestRelayCatchUpLatency:
         delta = min(count, 500)
         storage = SqliteRelayStorage(":memory:")
         workspace_id = "ws-catch-up-delta"
-        envelopes = _seed_relay_storage(storage, workspace_id, "actor-a", count)
+        _seed_relay_storage(storage, workspace_id, "actor-a", count)
         service = RelayService(storage, StubPermissionChecker())
 
-        # Pretend the client already has everything up to (count - delta).
-        cursor = envelopes[count - delta - 1].hlc
+        # Envelopes were seeded in order into a fresh store, so seqs are
+        # 1..count; pretend the client already has everything up to
+        # seq (count - delta).
         start = time.perf_counter()
-        results = await service.catch_up(workspace_id, "actor-b", cursor)
+        results = await service.catch_up(workspace_id, "actor-b", count - delta)
         elapsed = time.perf_counter() - start
 
         assert len(results) == delta

@@ -15,8 +15,8 @@ Canonical implementations:
 
 Every mutation is an **operation**: a routing envelope plus a payload.
 The relay server stores and forwards envelopes without interpreting payload
-contents. The wire model is `EncryptedEnvelope` (a historical name — payloads
-are plaintext JSON on the server; confidentiality comes from TLS/Tailscale).
+contents. The wire model is `RelayEnvelope`: payloads are plaintext JSON on
+the server; confidentiality comes from TLS/Tailscale.
 
 Envelope fields are camelCase on the wire. Every envelope carries
 `protocolVersion`; there is no legacy casing or framing to support — all
@@ -44,12 +44,31 @@ An HLC is `{"physical": int, "logical": int}`:
 - `logical` — tie-breaking counter when physical times are equal.
 - Both components **must be non-negative**; the server rejects negative values
   with a validation error.
-- Total order: compare `physical` first, then `logical`. Envelope streams are
-  ordered by `(physical, logical, id)` — the envelope `id` is the final
-  tie-breaker so pagination is stable.
+- Total order: compare `physical` first, then `logical`.
 - Clock semantics (advance on local event, merge on receive, never go
   backwards) are implemented in `app/core/clock.py` and
   `frontend/src/core/clock.ts`.
+
+The HLC is **causality metadata inside the envelope**, not the sync cursor.
+The authoritative order of the relay log is the server-assigned sequence
+number (`seq`, §2.1): it is assigned at insert time, immune to buggy or
+malicious clients supplying far-future `physical` values, and doubles as the
+resume primitive for the WebSocket channel (§5).
+
+### 2.1 Server sequence numbers
+
+Every envelope stored by the relay receives a `seq` (`BIGINT GENERATED ALWAYS
+AS IDENTITY` on PostgreSQL; an `INTEGER PRIMARY KEY AUTOINCREMENT` alias of
+the rowid on the SQLite test/lightweight store):
+
+- `seq` is assigned by the server on insert; clients never see or supply it
+  (it is not part of the envelope wire schema, so `protocolVersion` stays 1).
+- The sequence is global (per relay database), not per workspace — a
+  workspace's seq values are strictly monotonic and unique but may have gaps.
+- Dedupe keeps the original seq: a re-submitted envelope id
+  (`ON CONFLICT DO NOTHING` / `INSERT OR IGNORE`) does not get a new seq.
+- Compaction may prune envelopes, so seq values below the pruned range simply
+  stop existing; cursors remain valid because catch-up is `seq > cursor`.
 
 ## 3. Op types and payloads
 
@@ -110,35 +129,37 @@ Rate limit: 30,000 envelopes/minute per actor+workspace.
 
 ### 4.2 `POST /catch-up`
 
-Fetch envelopes newer than a watermark, paginated.
+Fetch envelopes newer than a seq cursor, paginated.
 
 Request (`CatchUpRequest`) — `protocol/fixtures/catch-up-request.json`:
 
 ```
-{"workspace_id": str, "hlc": {"physical": int, "logical": int},
- "limit": int = 1000, "after_id": str | null = null}
+{"workspace_id": str, "after_seq": int = 0, "limit": int = 1000}
 ```
 
-- `hlc`: exclusive lower bound — only envelopes with a strictly greater
-  `(physical, logical)` are returned.
+- `after_seq`: exclusive lower bound — only envelopes with a strictly greater
+  server-assigned `seq` (§2.1) are returned. `0` fetches from the beginning.
+  Clients persist the cursor between sessions; HLCs are no longer accepted
+  here.
 - `limit`: page size, clamped server-side to [1, 10,000].
-- `after_id`: pagination cursor; id of the last envelope of the previous
-  page. The page continues strictly after that envelope in
-  `(physical, logical, id)` order.
 - Optional query param `share_token`: read-only access via a public share.
 
 Response 200 (`CatchUpPaginatedResponse`) —
 `protocol/fixtures/catch-up-response.json`:
 
 ```
-{"envelopes": [<envelope>, ...], "next_after_id": str | null,
+{"envelopes": [<envelope>, ...], "next_after_seq": int | null,
  "has_more": bool, "restore_epoch": int}
 ```
 
-`next_after_id` is set when the page is full; keep paging while `has_more` is
-true. `restore_epoch` changes when the server was restored from backup —
-clients must wipe local state and resync when it differs from their stored
-epoch.
+Envelopes are returned in ascending `seq` order. `next_after_seq` is the
+cursor to adopt and pass back as `after_seq` while `has_more` is true. On the
+final page (`has_more: false`) `next_after_seq` is still set to the last
+envelope's seq, so HTTP-only clients adopt it directly as their stored cursor
+without re-fetching the tail on the next pull. WS clients may instead adopt
+`hello.latestSeq` (§5). `restore_epoch` changes when the
+server was restored from backup — clients must wipe local state and resync
+when it differs from their stored epoch.
 
 Rate limit: 600 requests/minute per actor+workspace.
 
@@ -150,11 +171,15 @@ Response 200 (`LatestSnapshotResponse`):
 
 ```
 {"snapshot_id": str, "workspace_id": str, "hlc": {physical, logical},
- "data_base64": str, "has_snapshot": bool, "restore_epoch": int}
+ "data_base64": str, "has_snapshot": bool, "restore_epoch": int,
+ "up_to_seq": int | null}
 ```
 
 `has_snapshot: false` returns empty `snapshot_id`/`data_base64` and HLC zero.
-Clients restore the bytes, then catch up from the snapshot HLC.
+Clients restore the bytes, then catch up from the snapshot's `up_to_seq`
+cursor (`after_seq = up_to_seq`). `up_to_seq` is `null` only for snapshots
+recorded before the seq cursor existed; in that case clients catch up from
+`after_seq = 0` and rely on operation-id dedupe.
 
 ### 4.4 `POST /snapshot`
 
@@ -164,7 +189,12 @@ Request (`SnapshotRequest`) — `protocol/fixtures/snapshot-request.json`:
 `{"workspace_id": str, "up_to_hlc": {physical, logical}, "data_base64": str}`
 
 Response 200 (`SnapshotResponse`):
-`{"snapshot_id": str, "workspace_id": str, "up_to_hlc": {physical, logical}}`
+`{"snapshot_id": str, "workspace_id": str, "up_to_hlc": {physical, logical},
+"up_to_seq": int}`
+
+`up_to_seq` is the highest envelope seq covered by the snapshot (`0` when no
+envelopes are covered), recorded so post-restore catch-up can start from a
+seq cursor.
 
 ### 4.5 `POST /compact`
 
@@ -198,9 +228,11 @@ All server→client frames are **typed messages** — receivers must dispatch on
 `type` and must not shape-sniff. Message protocol (JSON text frames):
 
 - Server → Client, immediately after connect:
-  `{"type": "hello", "protocolVersion": 2, "restoreEpoch": int}` — framing
-  version greeting plus the workspace restore epoch, so clients can fail fast
-  on an incompatible server instead of mid-sync.
+  `{"type": "hello", "protocolVersion": 2, "restoreEpoch": int,
+  "latestSeq": int}` — framing version greeting, the workspace restore epoch,
+  and the highest server-assigned `seq` (§2.1) for the workspace at connect
+  time, so clients can fail fast on an incompatible server instead of
+  mid-sync and can detect missed operations.
 - Client → Server: `{"type": "batch", "envelopes": [<envelope>, ...]}` —
   same shape and limits as `POST /batch`.
 - Server → Client:
@@ -210,6 +242,20 @@ All server→client frames are **typed messages** — receivers must dispatch on
   - `{"type": "ops", "protocolVersion": 2, "envelopes": [<envelope>, ...]}` —
     one message per saved batch, broadcast to all subscribers (including,
     currently, the sender). Receivers should apply each batch atomically.
+
+**Resume algorithm.** The client stores a seq cursor: the highest seq it has
+applied, seeded from `0`, from a snapshot's `up_to_seq`, or from
+`hello.latestSeq` once fully caught up. On every (re)connect:
+
+1. Read `hello.latestSeq` (and `restoreEpoch`; a changed epoch means wipe
+   local state and resync from seq 0).
+2. If `latestSeq` is ahead of the stored cursor, run HTTP catch-up
+   (§4.2) from `after_seq = stored cursor` and page until `has_more` is
+   false, adopting each page's `next_after_seq` (the final page's cursor
+   covers the tail).
+3. Only then accept live `ops` messages. (The channel does not currently
+   buffer ops during catch-up; a client that wants a hard guarantee may
+   reconnect and re-compare after catching up.)
 
 `hello` and `ops` carry `protocolVersion` = the **WS framing version**
 (`WS_PROTOCOL_VERSION`, currently **2**), which is versioned independently of
@@ -277,3 +323,23 @@ Base path: `/api/relay/keys`. Bodies are snake_case.
   (`RotateKeyRequest`): empty body. Response (`RotateKeyResponse`):
   `{"workspace_id": str, "key_version": int}` — the key is re-wrapped for
   all members under the new version.
+
+## 9. Trust model
+
+The relay is a **semi-trusted** component. Envelope routing metadata
+(`workspaceId`, `actorId`, `affectedNodeIds`, `opType`, HLC) is
+client-supplied plaintext; the server uses it for permission checks but
+cannot verify it against payload contents (payloads are opaque JSON — and
+will be ciphertext once client-side E2EE lands). A malicious client can
+therefore lie about `affectedNodeIds` to evade node-level permission checks.
+
+Consequences:
+
+- Do not build a security boundary on per-node routing metadata. Workspace
+  membership and authentication are the real boundary; node-level checks are
+  best-effort UX/accident protection.
+- Server-side key wrapping (§8) means the server operator can read all
+  workspace contents. Self-hosting + transport encryption is the current
+  confidentiality story — see `docs/faq.md`.
+- The server-assigned `seq` (§2.1) is the only server-trusted ordering;
+  client-supplied HLC is causality metadata, never an ordering authority.
