@@ -30,6 +30,7 @@ import { CommandRegistrations } from './features/commands';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { useUndoStore, useAuthStore } from './stores';
+import { getLocalWorkspaceUuid } from '@/features/auth';
 import { useInputContext } from './stores/inputContext';
 import { useBackendHealth } from './hooks/useBackendHealth';
 import { useBackgroundSync } from './hooks/useBackgroundSync';
@@ -157,6 +158,7 @@ let appInitialized = false;
 
 function App() {
   const authVerified = useAuthStore((s) => s.authVerified);
+  const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
     if (appInitialized) return;
@@ -197,13 +199,14 @@ function App() {
   // Load frontend plugins once the session is verified. Built-in plugins are
   // bundled; user plugins are fetched from the backend and imported dynamically.
   // Loading before authentication would hit the protected /plugins endpoint and
-  // trigger a failing token refresh on every unauthenticated visit.
+  // trigger a failing token refresh on every unauthenticated visit. Local
+  // sessions skip this entirely: the /plugins endpoint is server-only.
   useEffect(() => {
-    if (!authVerified) return;
+    if (!authVerified || user?.isLocal) return;
     pluginManager.loadPlugins().catch((err) => {
       log.error('Failed to load plugins', err);
     });
-  }, [authVerified]);
+  }, [authVerified, user]);
 
   return (
     <>
@@ -291,12 +294,17 @@ const PERSIST_OPTIONS = {
 function WorkspacePersisterSync() {
   const user = useAuthStore((s) => s.user);
   const authVerified = useAuthStore((s) => s.authVerified);
-  const { data: workspacesData } = useWorkspaces({ enabled: !!user && authVerified });
+  const isLocalSession = user?.isLocal === true;
+  const { data: workspacesData } = useWorkspaces({ enabled: !!user && authVerified && !isLocalSession });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
     return workspacesData.items.find((ws) => ws.is_active) ?? null;
   }, [workspacesData]);
-  const workspaceUuid = activeWorkspace?.uuid ?? null;
+  // Local sessions never call listWorkspaces; their workspace is the
+  // well-known local UUID persisted alongside the session.
+  const workspaceUuid = isLocalSession
+    ? getLocalWorkspaceUuid()
+    : (activeWorkspace?.uuid ?? null);
 
   useEffect(() => {
     setPersistWorkspaceUuid(workspaceUuid);
@@ -330,6 +338,9 @@ function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
 function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const authVerified = useAuthStore((s) => s.authVerified);
+  const isLocalSession = user?.isLocal === true;
+  // In local mode the op-log actor is the local session uuid (never
+  // 'anonymous', so the init gate below passes for local sessions too).
   const actorId = user?.uuid ?? 'anonymous';
   const {
     data: workspacesData,
@@ -337,12 +348,16 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
     isError: isWorkspacesError,
     error: workspacesError,
     refetch: refetchWorkspaces,
-  } = useWorkspaces({ enabled: !!user && authVerified });
+  } = useWorkspaces({ enabled: !!user && authVerified && !isLocalSession });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
     return workspacesData.items.find((ws) => ws.is_active) ?? null;
   }, [workspacesData]);
-  const workspaceId = activeWorkspace?.uuid ?? null;
+  // Local sessions own the well-known local workspace; the server list is
+  // never queried for them.
+  const workspaceId = isLocalSession
+    ? getLocalWorkspaceUuid()
+    : (activeWorkspace?.uuid ?? null);
   const [showWorkspaceTimeout, setShowWorkspaceTimeout] = useState(false);
 
   useEffect(() => {
@@ -418,6 +433,10 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
 
     useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, true);
     getOrCreateWorkspaceStore(workspaceId, actorId, transport, {
+      // Local-mode seed uses the session's display name for the user page.
+      // Read imperatively: the name is fixed for a session and must not
+      // retrigger workspace init.
+      localUserDisplayName: useAuthStore.getState().user?.name ?? undefined,
       onOpenProgress: ({ message }) => {
         if (!cancelled) setPhaseMessage(message);
       },
@@ -462,7 +481,8 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         // so the workspace is fully initialized at this point.
         useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
         const syncEngine = getWorkspaceSyncEngine(workspaceId);
-        if (syncEngine) {
+        // Local mode has no server to sync with; skip visibility-triggered sync.
+        if (syncEngine && !isLocalSession) {
           unregisterVisibilityRef.current = registerVisibilitySync(syncEngine);
         }
       })
@@ -489,7 +509,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         });
       }
     };
-  }, [workspaceId, actorId, workspaceResetNonce, retryNonce, authVerified]);
+  }, [workspaceId, actorId, workspaceResetNonce, retryNonce, authVerified, isLocalSession]);
 
   const isWaitingForWorkspaces = !!user && authVerified && isLoadingWorkspaces;
   const isReady =

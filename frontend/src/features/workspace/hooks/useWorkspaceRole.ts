@@ -28,11 +28,14 @@ const PERMS_BY_ROLE: Record<WorkspaceRole, WorkspacePermissions> = {
 
 export function useWorkspaceRole(options?: { enabled?: boolean }) {
   const authVerified = useAuthStore((s) => s.authVerified);
+  // Local sessions are owners of their well-known local workspace; never
+  // query the server workspace list for them.
+  const isLocalSession = useAuthStore((s) => s.user?.isLocal === true);
   const { data } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 30000,
-    enabled: (options?.enabled ?? true) && authVerified,
+    enabled: (options?.enabled ?? true) && authVerified && !isLocalSession,
     select: (d) => ({
       workspaces: d.items,
       active: d.items.find((w) => w.is_active)?.uuid ?? null,

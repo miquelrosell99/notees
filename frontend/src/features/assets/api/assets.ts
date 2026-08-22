@@ -2,12 +2,41 @@
  * Assets API client.
  * 
  * Handles file uploads and downloads for images, audio, and other assets.
+ *
+ * Local-first split (Task 5): in local mode every operation is dispatched to
+ * the local asset store (`localAssets.ts`) — blobs in IndexedDB, metadata via
+ * the local op log — and no `/api/*` call is made (asset tokens included,
+ * they are meaningless without a server).
  */
 import api from '@/api/client';
 import { getLogger } from '@/utils/logger';
+import { getConnectionMode } from '@/config/serverUrl';
+import { useConnectionStore } from '@/stores/connectionStore';
+import { getActiveWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import type { IWorkspaceStoreClient } from '@/core/worker/workerProtocol';
 import { getAssetToken, getAssetUrlSync } from './assetTokens';
+import {
+  deleteLocalAsset,
+  getLocalAssetInfo,
+  getLocalAssetUrl,
+  uploadLocalAsset,
+} from './localAssets';
 
 const log = getLogger('assets-api');
+
+/** True when running without a configured server (see config/serverUrl). */
+function isLocalMode(): boolean {
+  return getConnectionMode(useConnectionStore.getState().healthy) === 'local';
+}
+
+/** The open workspace store client, required for all local asset operations. */
+function requireLocalClient(): IWorkspaceStoreClient {
+  const client = getActiveWorkspaceStoreClient();
+  if (!client) {
+    throw new Error('No local workspace is open');
+  }
+  return client;
+}
 
 /**
  * Asset category types.
@@ -70,6 +99,12 @@ export async function uploadAsset(
   existingNodeUuid?: string,
   content?: string,
 ): Promise<Asset> {
+  if (isLocalMode()) {
+    const asset = await uploadLocalAsset(requireLocalClient(), file, parentUuid, existingNodeUuid, content);
+    log.info(`Asset uploaded locally: ${asset.uuid}`);
+    return asset;
+  }
+
   const formData = new FormData();
   formData.append('file', file);
   if (parentUuid !== undefined) formData.append('parent_uuid', parentUuid);
@@ -115,6 +150,11 @@ export function getAssetUrl(assetUuid: string): string {
  * @returns Promise resolving to the URL to access the asset with token
  */
 export async function getAssetUrlAsync(assetUuid: string): Promise<string> {
+  if (isLocalMode()) {
+    // Bytes live in IndexedDB; return an object URL. The caller (AssetImage)
+    // revokes it on unmount.
+    return getLocalAssetUrl(requireLocalClient(), assetUuid);
+  }
   try {
     const token = await getAssetToken(assetUuid);
     return getAssetUrlSync(assetUuid, token);
@@ -132,6 +172,9 @@ export async function getAssetUrlAsync(assetUuid: string): Promise<string> {
  * @returns Asset info
  */
 export async function getAssetInfo(assetUuid: string): Promise<Asset> {
+  if (isLocalMode()) {
+    return getLocalAssetInfo(requireLocalClient(), assetUuid);
+  }
   const response = await api.get<Asset>(`/assets/${assetUuid}/info`);
   return response.data;
 }
@@ -143,6 +186,9 @@ export async function getAssetInfo(assetUuid: string): Promise<Asset> {
  * @returns Success response
  */
 export async function deleteAsset(assetUuid: string): Promise<{ success: boolean; deleted_file: boolean }> {
+  if (isLocalMode()) {
+    return deleteLocalAsset(requireLocalClient(), assetUuid);
+  }
   const response = await api.delete<{ success: boolean; deleted_file: boolean }>(`/assets/${assetUuid}`);
   return response.data;
 }
@@ -155,6 +201,11 @@ export async function deleteAsset(assetUuid: string): Promise<{ success: boolean
  * @returns List of assets
  */
 export async function listAssets(page: number = 1, pageSize: number = 50): Promise<AssetListResponse> {
+  if (isLocalMode()) {
+    // No server to list from; the local asset inventory lives in the workspace
+    // graph (asset-class nodes), not behind this endpoint.
+    throw new Error('Asset listing is not available in local mode');
+  }
   const response = await api.get<AssetListResponse>('/assets/', {
     params: { page, page_size: pageSize },
   });

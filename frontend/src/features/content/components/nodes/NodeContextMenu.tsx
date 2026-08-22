@@ -30,6 +30,7 @@ import {
 } from '@/features/layout';
 import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation } from '@/features/content';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useCapabilities } from '@/config/capabilities';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import {
@@ -136,6 +137,9 @@ export function NodeContextMenu({
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.uuid);
   const clipboardMode = useClipboardStore((state) => state.mode);
   const pluginActions = useNodeActions();
+  // Server-only menu entries (Share…, Export…, Copy as text) are hidden in
+  // local mode (local-first split, Task 4).
+  const capabilities = useCapabilities();
 
   const nodeScope: 'page' | 'block' = node.is_page ? 'page' : 'block';
 
@@ -353,6 +357,7 @@ export function NodeContextMenu({
           break;
 
         case 'export':
+          if (!capabilities.importExport) break;
           items.push({
             id: 'export',
             group: 'export',
@@ -377,6 +382,7 @@ export function NodeContextMenu({
           break;
 
         case 'share':
+          if (!capabilities.shares) break;
           items.push({
             id: 'share',
             label: 'Share…',
@@ -387,6 +393,8 @@ export function NodeContextMenu({
           break;
 
         case 'copy-text':
+          // Backed by the server-side export job pipeline.
+          if (!capabilities.importExport) break;
           items.push({
             id: 'copy-text',
             group: 'export',
@@ -527,7 +535,7 @@ export function NodeContextMenu({
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
     addFavoriteMutation, removeFavoriteMutation, currentNodeUuid, sidebarCards,
-    flashSidebarCard, pluginActions, togglePin,
+    flashSidebarCard, pluginActions, togglePin, capabilities,
   ]);
 
   const handleColorChange = useCallback((color: string | null) => {

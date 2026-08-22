@@ -10,6 +10,39 @@ import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
 import * as authApi from '@/features/auth/api/auth';
 import { scheduleProactiveRefresh, cancelProactiveRefresh, isApiError } from '@/api/client';
+import { setUserData, clearUserData } from '@/utils/auth';
+import { uuidv7 } from '@/core/uuid';
+
+/**
+ * Local-first split (Task 2): the well-known local workspace UUID, generated
+ * once per browser profile and persisted alongside the session. It survives
+ * logout so signing back in locally reopens the same workspace (and its
+ * IndexedDB data).
+ */
+const LOCAL_WORKSPACE_UUID_KEY = 'notees.localWorkspaceUuid';
+
+/**
+ * The well-known local workspace UUID for this profile, creating and
+ * persisting it on first use.
+ */
+export function getLocalWorkspaceUuid(): string {
+  let uuid = localStorage.getItem(LOCAL_WORKSPACE_UUID_KEY);
+  if (!uuid) {
+    uuid = uuidv7();
+    localStorage.setItem(LOCAL_WORKSPACE_UUID_KEY, uuid);
+  }
+  return uuid;
+}
+
+/**
+ * The persisted local workspace UUID, or `null` when this profile never had a
+ * local session. Unlike `getLocalWorkspaceUuid` this has no side effects —
+ * used by the connect-later adoption check (local-first split, Task 6) to
+ * decide whether a post-login adoption prompt applies.
+ */
+export function getExistingLocalWorkspaceUuid(): string | null {
+  return localStorage.getItem(LOCAL_WORKSPACE_UUID_KEY);
+}
 
 interface AuthState {
   user: User | null;
@@ -27,6 +60,8 @@ interface AuthState {
 
   // Actions
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  /** Create a local, serverless session (local-first split). No network calls. */
+  loginLocally: () => void;
   register: (email: string, password: string, name?: string, rememberMe?: boolean) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   verifyTwoFactor: (code: string) => Promise<void>;
@@ -117,6 +152,40 @@ export const useAuthStore = create<AuthState>()(
           set({ error: message, isLoading: false });
           throw error;
         }
+      },
+
+      /**
+       * Create a local, serverless session. The session is persisted exactly
+       * like a server login (user object only), but there is no token, no
+       * proactive refresh scheduling, and no `/auth/*` call. The local uuid
+       * doubles as the op-log actor id.
+       */
+      loginLocally: () => {
+        const user: User = {
+          nodeUuid: uuidv7(),
+          uuid: uuidv7(),
+          email: 'local@local',
+          name: 'Local user',
+          surnames: null,
+          profile_pic: null,
+          role: 'user',
+          is_active: true,
+          totp_enabled: false,
+          isLocal: true,
+        };
+        // Ensure the well-known local workspace exists alongside the session.
+        getLocalWorkspaceUuid();
+        setUserData(user);
+        set({
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+          authVerified: true,
+          twoFactor: null,
+          backupCodes: null,
+          setupData: null,
+        });
       },
 
       register: async (email: string, password: string, name?: string, rememberMe: boolean = true) => {
@@ -245,7 +314,14 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        authApi.logout();
+        // Local sessions have no server-side token to revoke; skip the API
+        // call and just clear the persisted session. The local workspace UUID
+        // is intentionally kept so a later local login reopens the same data.
+        if (get().user?.isLocal) {
+          clearUserData();
+        } else {
+          authApi.logout();
+        }
         cancelProactiveRefresh();
         set({
           user: null,

@@ -23,7 +23,9 @@ import { SelectionButton } from '@/components/ui/SelectionButton';
 import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Tabs } from '@/components/ui/Tabs';
+import { ServerConnectionSection } from './ServerConnectionSection';
 import { getRegisteredSettingsTabs } from '@/plugins/core';
+import { useCapabilities } from '@/config/capabilities';
 import './UserSettingsModal.css';
 
 interface UserSettingsModalProps {
@@ -35,6 +37,7 @@ type BuiltInSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'sec
 
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<BuiltInSettingsTab | string>('appearance');
+  const capabilities = useCapabilities();
   const user = useAuthUser();
   const { logout, setUser, changePassword } = useAuthActions();
   const [editName, setEditName] = useState(user?.name ?? '');
@@ -360,8 +363,14 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     { id: 'appearance', label: 'Appearance' },
     { id: 'editor', label: 'Editor' },
     { id: 'general', label: 'General' },
-    { id: 'account', label: 'Account' },
-    { id: 'security', label: 'Security' },
+    // Account and Security tabs manage server-side identity (password, API
+    // keys, 2FA); hidden in local mode (local-first split, Task 4).
+    ...(capabilities.accountSecurity
+      ? [
+          { id: 'account', label: 'Account' },
+          { id: 'security', label: 'Security' },
+        ] as const
+      : []),
     { id: 'support', label: 'Support' },
     { id: 'about', label: 'About' },
   ];
@@ -594,6 +603,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
           )}
 
           {activeTab === 'general' && (
+            <>
             <div className="settings-section">
               <h3 className="settings-section__title">General</h3>
               <Card>
@@ -694,6 +704,9 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 </div>
               </Card>
             </div>
+
+            <ServerConnectionSection />
+            </>
           )}
 
           {activeTab === 'account' && (
