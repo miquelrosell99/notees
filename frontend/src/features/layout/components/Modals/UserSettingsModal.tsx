@@ -23,6 +23,7 @@ import { SelectionButton } from '@/components/ui/SelectionButton';
 import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Tabs } from '@/components/ui/Tabs';
+import { ServerConnectionSection } from './ServerConnectionSection';
 import { getRegisteredSettingsTabs } from '@/plugins/core';
 import { useCapabilities } from '@/config/capabilities';
 import './UserSettingsModal.css';
@@ -602,6 +603,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
           )}
 
           {activeTab === 'general' && (
+            <>
             <div className="settings-section">
               <h3 className="settings-section__title">General</h3>
               <Card>
@@ -702,6 +704,9 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 </div>
               </Card>
             </div>
+
+            <ServerConnectionSection />
+            </>
           )}
 
           {activeTab === 'account' && (

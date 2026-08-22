@@ -34,6 +34,7 @@ import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useCommand } from '@/hooks/useCommand';
 import { useAuthStatus, getMe, getLocalWorkspaceUuid } from '@/features/auth';
 import { listWorkspaces, getSettings, type WorkspaceInfo } from '@/features/workspace';
+import { AdoptionPrompt } from '@/features/workspace/components/AdoptionPrompt';
 import { authKeys, settingsKeys, workspaceKeys } from '@/hooks/queryKeys';
 import { useConnectionMode } from '@/stores/connectionStore';
 import { getUserData } from '@/utils/auth';
@@ -394,12 +395,15 @@ function AuthenticatedShell() {
 
   if (hasNoWorkspaces || hasNoActiveWorkspace || isWorkspacesRoute || showWorkspaceManager) {
     return (
-      <WorkspaceManagementView
-        onWorkspaceSelected={() => {
-          setShowWorkspaceManager(false);
-          queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
-        }}
-      />
+      <>
+        <WorkspaceManagementView
+          onWorkspaceSelected={() => {
+            setShowWorkspaceManager(false);
+            queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
+          }}
+        />
+        <AdoptionPrompt />
+      </>
     );
   }
 
@@ -420,6 +424,7 @@ function AuthenticatedShell() {
   return (
     <>
       <Outlet />
+      <AdoptionPrompt />
       <Suspense fallback={null}>
         <QuickAddModal isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
       </Suspense>
