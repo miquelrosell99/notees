@@ -4,11 +4,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationKeys } from '@/hooks/queryKeys';
 import { listNotifications, markNotificationRead, markAllNotificationsRead } from '@/features/layout';
+import { useCapabilities } from '@/config/capabilities';
 
 export function useNotifications(includeRead = false) {
+  // Notifications are server-side; never fire the query in local mode, even
+  // if a hidden entry point still mounts the hook.
+  const capabilities = useCapabilities();
   return useQuery({
     queryKey: notificationKeys.list(includeRead),
     queryFn: () => listNotifications(includeRead),
+    enabled: capabilities.notifications,
   });
 }
 
