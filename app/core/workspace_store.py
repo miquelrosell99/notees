@@ -25,6 +25,11 @@ from app.relay.key_storage import WorkspaceKeyStorage
 from app.relay.models import EncryptedEnvelope
 from app.relay.storage import RelayStorage
 
+# Number of envelopes fetched and applied per batch during cold-sync catch-up.
+# Kept below SQLite's default 999 bound-variable limit so the batched
+# applied-id check works on any supported SQLite build.
+_CATCH_UP_BATCH_SIZE = 500
+
 
 class WorkspaceStore:
     """Server-side derived-state store scoped to ``(workspace_id, actor_id)``.
@@ -34,8 +39,9 @@ class WorkspaceStore:
     operations from the relay into the derived database idempotently.
     """
 
-    # Serialize sync() calls per workspace so concurrent requests do not race
-    # while restoring the derived database from a snapshot.
+    # Serialize sync() and apply()/apply_many() per workspace so concurrent
+    # requests cannot interleave relay persistence with catch-up replay, which
+    # would double-apply non-idempotent operations (e.g. ``link.click``).
     _sync_locks: dict[str, asyncio.Lock] = {}
 
     def __init__(
@@ -184,22 +190,31 @@ class WorkspaceStore:
         Skips saving/applying when the operation id already exists in relay
         storage, making the method safely idempotent.
 
+        Persist and derived-state application hold the workspace sync lock so a
+        concurrent ``sync()`` cannot fetch and replay the freshly persisted
+        envelope before it is recorded in ``applied_operation_id`` (which would
+        double-apply non-idempotent appliers). Plugin side effects run after
+        the lock is released because handlers may emit follow-up operations on
+        the same workspace through another store instance, and the lock is not
+        reentrant.
+
         Returns:
             The encrypted envelope that was saved, or ``None`` when the
             operation was already present and was skipped.
         """
-        envelope = await self._persist_operation(operation)
-        if envelope is None:
-            return None
+        async with self._sync_lock:
+            envelope = await self._persist_operation(operation)
+            if envelope is None:
+                return None
 
-        conn = await self._ensure_connection()
-        self._apply_to_derived(conn, operation)
-        conn.commit()
+            conn = await self._ensure_connection()
+            self._apply_to_derived(conn, operation)
+            conn.commit()
+            self._clock.update(
+                operation.envelope.hlc,
+                int(datetime.now(UTC).timestamp() * 1000),
+            )
         await self._invoke_class_side_effects(operation)
-        self._clock.update(
-            operation.envelope.hlc,
-            int(datetime.now(UTC).timestamp() * 1000),
-        )
         return envelope
 
     async def apply_many(
@@ -219,25 +234,30 @@ class WorkspaceStore:
         results: list[EncryptedEnvelope | None] = []
         to_apply: list[Operation] = []
 
-        for operation in operations:
-            envelope = await self._persist_operation(operation)
-            results.append(envelope)
-            if envelope is not None:
-                to_apply.append(operation)
+        # Hold the workspace sync lock across persist + derived application so
+        # a concurrent sync() cannot replay these envelopes in between. Plugin
+        # side effects run after the lock is released (see apply()).
+        async with self._sync_lock:
+            for operation in operations:
+                envelope = await self._persist_operation(operation)
+                results.append(envelope)
+                if envelope is not None:
+                    to_apply.append(operation)
 
-        if not to_apply:
-            return results
+            if not to_apply:
+                return results
 
-        conn = await self._ensure_connection()
-        for operation in to_apply:
-            self._apply_to_derived(conn, operation)
-        conn.commit()
+            conn = await self._ensure_connection()
+            for operation in to_apply:
+                self._apply_to_derived(conn, operation)
+            conn.commit()
+            for operation in to_apply:
+                self._clock.update(
+                    operation.envelope.hlc,
+                    int(datetime.now(UTC).timestamp() * 1000),
+                )
         for operation in to_apply:
             await self._invoke_class_side_effects(operation)
-            self._clock.update(
-                operation.envelope.hlc,
-                int(datetime.now(UTC).timestamp() * 1000),
-            )
         return results
 
     async def _persist_operation(
@@ -325,41 +345,65 @@ class WorkspaceStore:
                 conn = await self._ensure_connection()
                 catch_up_hlc = Hlc(physical=0, logical=0)
 
-            envelopes = await self._maybe_await(
-                self._relay_storage.get_catch_up(self.workspace_id, catch_up_hlc)
-            )
             max_seen_hlc = catch_up_hlc
+            after_id: str | None = None
 
-            for envelope in envelopes:
-                if self._is_applied(conn, envelope.id):
-                    continue
+            # Page through the relay in batches instead of loading the full
+            # operation history at once, and check already-applied ids with a
+            # single query per batch rather than per envelope.
+            while True:
+                envelopes, after_id = await self._maybe_await(
+                    self._relay_storage.get_catch_up_paginated(
+                        self.workspace_id,
+                        catch_up_hlc,
+                        limit=_CATCH_UP_BATCH_SIZE,
+                        after_id=after_id,
+                    )
+                )
+                if not envelopes:
+                    break
 
-                operation = Operation(
-                    envelope=OperationEnvelope(
-                        id=envelope.id,
-                        workspace_id=envelope.workspace_id,
-                        actor_id=envelope.actor_id,
-                        hlc=envelope.hlc,
-                        affected_node_ids=envelope.affected_node_ids,
-                        op_type=envelope.op_type,
-                        timestamp=envelope.timestamp,
-                    ),
-                    payload=envelope.payload,
-                )
-                apply_operation(conn, operation)
-                conn.execute(
-                    "INSERT OR IGNORE INTO applied_operation_id (id) VALUES (?)",
-                    (operation.id,),
-                )
-                if compare_hlc(envelope.hlc, max_seen_hlc) > 0:
-                    max_seen_hlc = envelope.hlc
+                applied_ids = self._applied_ids(conn, [envelope.id for envelope in envelopes])
+                for envelope in envelopes:
+                    if envelope.id in applied_ids:
+                        continue
+
+                    operation = Operation(
+                        envelope=OperationEnvelope(
+                            id=envelope.id,
+                            workspace_id=envelope.workspace_id,
+                            actor_id=envelope.actor_id,
+                            hlc=envelope.hlc,
+                            affected_node_ids=envelope.affected_node_ids,
+                            op_type=envelope.op_type,
+                            timestamp=envelope.timestamp,
+                        ),
+                        payload=envelope.payload,
+                    )
+                    apply_operation(conn, operation)
+                    conn.execute(
+                        "INSERT OR IGNORE INTO applied_operation_id (id) VALUES (?)",
+                        (operation.id,),
+                    )
+                    if compare_hlc(envelope.hlc, max_seen_hlc) > 0:
+                        max_seen_hlc = envelope.hlc
+
+                if after_id is None:
+                    break
 
             self._clock.update(max_seen_hlc, int(datetime.now(UTC).timestamp() * 1000))
             conn.commit()
 
-    def _is_applied(self, conn: sqlite3.Connection, operation_id: str) -> bool:
-        row = conn.execute("SELECT 1 FROM applied_operation_id WHERE id = ?", (operation_id,)).fetchone()
-        return row is not None
+    def _applied_ids(self, conn: sqlite3.Connection, operation_ids: list[str]) -> set[str]:
+        """Return the subset of ``operation_ids`` already recorded as applied."""
+        if not operation_ids:
+            return set()
+        placeholders = ", ".join("?" for _ in operation_ids)
+        rows = conn.execute(
+            f"SELECT id FROM applied_operation_id WHERE id IN ({placeholders})",
+            operation_ids,
+        ).fetchall()
+        return {row[0] for row in rows}
 
     async def get_envelopes(self, after_hlc: Hlc) -> list[EncryptedEnvelope]:
         """Return persisted envelopes for this workspace newer than ``after_hlc``."""
@@ -573,6 +617,11 @@ class WorkspaceStore:
         if details is not None:
             payload["details"] = details
         await self.apply(self._build_operation("activity.record", payload, [node_id]))
+
+    async def delete_activity(self, activity_id: str, node_id: str) -> None:
+        """Emit an ``activity.delete`` operation."""
+        payload: dict[str, Any] = {"activityId": activity_id, "nodeId": node_id}
+        await self.apply(self._build_operation("activity.delete", payload, [node_id]))
 
     async def record_link_click(
         self,

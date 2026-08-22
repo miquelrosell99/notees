@@ -59,6 +59,7 @@ REQUIRED_PAYLOAD_FIELDS: dict[str, frozenset[str]] = {
     "asset.delete": frozenset({"nodeId"}),
     # Activity / links / shares
     "activity.record": frozenset({"activityType"}),
+    "activity.delete": frozenset({"activityId", "nodeId"}),
     "link.click": frozenset({"nodeId"}),
     "share.public.create": frozenset({"nodeId"}),
     "share.public.revoke": frozenset({"nodeId"}),

@@ -50,3 +50,17 @@ def apply_activity_record(conn: sqlite3.Connection, op: Operation) -> None:
             timestamp,
         ),
     )
+
+
+def apply_activity_delete(conn: sqlite3.Connection, op: Operation) -> None:
+    """Apply an ``activity.delete`` operation.
+
+    Payload fields:
+        - activityId: UUIDv7 of the activity record to remove.
+        - nodeId: owning node UUIDv7.
+    """
+    payload = op.payload
+    conn.execute(
+        "DELETE FROM activity_log WHERE id = ? AND node_id = ?",
+        (payload["activityId"], payload["nodeId"]),
+    )
