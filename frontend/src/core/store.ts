@@ -691,7 +691,10 @@ export class WorkspaceStore {
         affectedNodeIds: [nodeId],
         opType: 'node.updateContent',
       },
-      { nodeId, textUpdate: Array.from(text.getState()) }
+      // The text CRDT plaintext is the serialized content AST; mirror it in
+      // `content` so non-CRDT clients can read node content without decoding
+      // the Yjs update.
+      { nodeId, textUpdate: Array.from(text.getState()), content: text.toPlaintext() }
     );
     this.apply(op);
   }
