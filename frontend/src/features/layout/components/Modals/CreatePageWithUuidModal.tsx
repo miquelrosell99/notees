@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import { NodeSelector, useCreateNode, usePageClass, getNodeUuidByServerId } from '@/features/content';
+import { NodeSelector, useCreateNode, getNodeUuidByServerId } from '@/features/content';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import type { Node } from '@/types';
