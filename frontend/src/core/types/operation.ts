@@ -108,7 +108,7 @@ export interface AssetUploadPayload {
   nodeId: string;
   assetHash: string;
   mimeType: string;
-  size: number;
+  sizeBytes: number;
   originalName: string;
 }
 
@@ -118,9 +118,11 @@ export interface AssetDeletePayload {
 }
 
 export interface ActivityRecordPayload {
-  activityType: string;
-  nodeId?: string;
-  metadata?: Record<string, unknown>;
+  action: string;
+  nodeId: string;
+  activityId?: string;
+  targetNodeId?: string;
+  details?: Record<string, unknown>;
 }
 
 export interface ActivityDeletePayload {
@@ -129,8 +131,10 @@ export interface ActivityDeletePayload {
 }
 
 export interface LinkClickPayload {
-  nodeId: string;
-  targetId?: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  linkUuid?: string;
+  clickedAt?: string;
 }
 
 export interface SharePublicCreatePayload {
@@ -144,9 +148,11 @@ export interface SharePublicRevokePayload {
 }
 
 export interface ShareUserGrantPayload {
+  shareId: string;
   nodeId: string;
-  userId: string;
-  role: string;
+  targetUserId: string;
+  permissionBits: number;
+  role?: string;
 }
 
 export interface ShareUserRevokePayload {

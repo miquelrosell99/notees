@@ -21,21 +21,22 @@ export function applyActivityOperation(db: Database, op: Operation): ChangeNotif
 
   if (opType !== 'activity.record') return [];
 
-  const activityType = payload.activityType as string | undefined;
+  const activityId = (payload.activityId as string | undefined) ?? id;
+  const action = payload.action as string | undefined;
   const nodeId = payload.nodeId as string | undefined;
-  const metadata = payload.metadata as Record<string, unknown> | undefined;
+  const details = payload.details as Record<string, unknown> | undefined;
 
   db.run(
     `INSERT OR IGNORE INTO activity_log (id, workspace_id, actor_id, op_id, node_id, op_type, metadata, recorded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
+      activityId,
       workspaceId,
       actorId,
       id,
       nodeId ?? null,
-      activityType ?? null,
-      JSON.stringify(metadata ?? {}),
+      action ?? null,
+      JSON.stringify(details ?? {}),
       new Date().toISOString(),
     ]
   );
