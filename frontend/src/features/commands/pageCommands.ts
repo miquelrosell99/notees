@@ -16,6 +16,7 @@ registerCommand({
   icon: 'mdi mdi-export',
   context: 'global',
   requiresPage: true,
+  capability: 'importExport',
   palette: { category: 'page' },
   execute: () => {
     const currentId = useNavigationStore.getState().currentNodeUuid;
@@ -31,6 +32,7 @@ registerCommand({
   icon: 'mdi mdi-share-variant-outline',
   context: 'global',
   requiresPage: true,
+  capability: 'shares',
   palette: { category: 'page' },
   execute: () => {
     const currentId = useNavigationStore.getState().currentNodeUuid;

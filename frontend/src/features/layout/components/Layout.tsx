@@ -18,6 +18,7 @@ import { getLogger } from '@/utils/logger';
 import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
+import { useCapabilities } from '@/config/capabilities';
 import { useIsMobile, useDocumentTitle } from '@/hooks';
 import { useCreateNode, useNode, addRecent } from '@/features/content';
 import { RouteAdapter } from './RouteAdapter';
@@ -55,6 +56,7 @@ const layoutLog = getLogger('Layout');
 export function Layout() {
   const hasInitialized = useRef(false);
   const isProcessingUrl = useRef(false);
+  const capabilities = useCapabilities();
 
   useEffect(() => {
     layoutLog.info('Layout mounted');
@@ -163,7 +165,7 @@ export function Layout() {
 
   useCommand(COMMAND_IDS.IMPORT_DATA, () => {
     setImportDataModalOpen(true);
-  }, { label: 'Import Data' });
+  }, { label: 'Import Data', enabled: capabilities.importExport });
 
   // Native drop handler for sidebar cards / items dragged to the main workspace
   useEffect(() => {

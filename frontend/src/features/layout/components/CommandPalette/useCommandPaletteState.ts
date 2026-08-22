@@ -15,6 +15,7 @@ import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser
 import { nodeKeys } from '@/hooks/queryKeys';
 import { parseQueryWithFilters } from '@/utils/searchFilters';
 import { useCommandRegistry, type Command } from '@/stores/commandRegistry';
+import { useCapabilities } from '@/config/capabilities';
 import type { AppliedFilter, DuplicateModalState } from './CommandPalette.types';
 import {
   INITIAL_MAX_PAGES,
@@ -192,9 +193,14 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   // new array on every call and triggers React's "getSnapshot should be cached"
   // infinite-loop warning when used as a Zustand selector.
   const allCommands = useCommandRegistry((state) => state.commands);
+  const capabilities = useCapabilities();
   const commands = useMemo<Command[]>(
-    () => Array.from(allCommands.values()).filter((c) => c.palette && c.palette.visible !== false),
-    [allCommands]
+    // Commands bound to a server capability are hidden when it is unavailable
+    // (e.g. import/export or workspace switching in local mode).
+    () => Array.from(allCommands.values()).filter(
+      (c) => c.palette && c.palette.visible !== false && (!c.capability || capabilities[c.capability]),
+    ),
+    [allCommands, capabilities]
   );
 
   // Empty-state sections: recently accessed, recently created, random pages

@@ -11,6 +11,7 @@
 import { NodeViewSection } from '@/features/content';
 import { useDeleteTaskRecurrence, useSetTaskRecurrence, useTaskRecurrence } from '@/features/tasks';
 import { useNotifications } from '@/stores/notificationStore';
+import { useConnectionMode } from '@/stores/connectionStore';
 import type { RecurrenceRuleInput } from '@/types/api';
 import { TaskCompletionHistory } from './TaskCompletionHistory';
 import { TaskRecurrencePicker } from './TaskRecurrencePicker';
@@ -22,6 +23,10 @@ interface TaskRecurrenceSectionProps {
 }
 
 export function TaskRecurrenceSection({ nodeUuid, readOnly = false }: TaskRecurrenceSectionProps) {
+  // Recurrence is a server-only feature with no dedicated capability key, so
+  // this entry point reads the connection mode directly (documented exception
+  // — local-first split, Task 4). Hidden entirely in local mode.
+  const isLocalMode = useConnectionMode() === 'local';
   const { data: rule } = useTaskRecurrence(nodeUuid);
   const setMutation = useSetTaskRecurrence();
   const deleteMutation = useDeleteTaskRecurrence();
@@ -44,6 +49,8 @@ export function TaskRecurrenceSection({ nodeUuid, readOnly = false }: TaskRecurr
       }
     );
   };
+
+  if (isLocalMode) return null;
 
   return (
     <NodeViewSection

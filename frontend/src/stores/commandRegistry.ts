@@ -17,6 +17,7 @@
  */
 
 import { create } from 'zustand';
+import type { Capabilities } from '@/config/capabilities';
 
 /**
  * Contexts for shortcut activation.
@@ -60,6 +61,13 @@ export interface Command {
   devOnly?: boolean;
   /** Whether this command requires an active page node */
   requiresPage?: boolean;
+  /**
+   * Server capability this command needs (local-first split, Task 4). When
+   * set, the command palette hides the command whenever the capability is
+   * unavailable (e.g. local mode). Keyboard shortcuts are gated separately
+   * via `useCommand`'s `enabled` option.
+   */
+  capability?: keyof Capabilities;
   /** Context where this command is active */
   context: ShortcutContext;
   /** The function to run when the command is invoked */

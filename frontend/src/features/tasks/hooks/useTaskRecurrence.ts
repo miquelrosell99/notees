@@ -12,15 +12,25 @@ import {
   setRecurrenceRule,
 } from '@/features/tasks';
 import { taskKeys } from '@/hooks/queryKeys';
+import { useConnectionMode } from '@/stores/connectionStore';
 import type { RecurrenceRule, RecurrenceRuleInput, TaskCompletionInput } from '@/types/api';
 
+/**
+ * Recurrence endpoints live on the server and have no dedicated capability
+ * key, so these hooks read the connection mode directly (documented exception
+ * to the useCapabilities-only rule — local-first split, Task 4).
+ */
+function useRecurrenceAvailable(): boolean {
+  return useConnectionMode() !== 'local';
+}
 
 export function useTaskRecurrence(nodeUuid: string | null | undefined) {
   const resolvedUuid = nodeUuid ?? null;
+  const available = useRecurrenceAvailable();
   return useQuery({
     queryKey: taskKeys.recurrence(resolvedUuid ?? ''),
     queryFn: () => getRecurrenceRule(resolvedUuid!),
-    enabled: !!resolvedUuid,
+    enabled: !!resolvedUuid && available,
     staleTime: 0,
   });
 }
@@ -61,11 +71,12 @@ export function useTaskCompletions(
   options: { limit?: number; offset?: number } = {}
 ) {
   const resolvedUuid = nodeUuid ?? null;
+  const available = useRecurrenceAvailable();
   const { limit = 50, offset = 0 } = options;
   return useQuery({
     queryKey: taskKeys.completions(resolvedUuid ?? '', limit, offset),
     queryFn: () => listTaskCompletions(resolvedUuid!, { limit, offset }),
-    enabled: !!resolvedUuid,
+    enabled: !!resolvedUuid && available,
   });
 }
 

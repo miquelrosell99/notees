@@ -9,6 +9,7 @@ registerCommand({
   label: 'Import Markdown files',
   icon: 'mdi mdi-language-markdown',
   context: 'global',
+  capability: 'importExport',
   palette: { category: 'import-export' },
   execute: () => useModalStore.getState().setImportMarkdownModalOpen(true),
 });
@@ -18,6 +19,7 @@ registerCommand({
   label: 'Import Logseq folder',
   icon: 'mdi mdi-folder-open',
   context: 'global',
+  capability: 'importExport',
   palette: { category: 'import-export' },
   execute: () => useModalStore.getState().setImportLogseqFolderModalOpen(true),
 });
@@ -37,6 +39,7 @@ registerCommand({
   icon: 'mdi mdi-sync',
   context: 'global',
   devOnly: true,
+  capability: 'importExport',
   palette: { category: 'import-export' },
   execute: () => useModalStore.getState().setAutoExportProgressModalOpen(true),
 });

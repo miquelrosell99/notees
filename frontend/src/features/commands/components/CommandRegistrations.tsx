@@ -19,6 +19,7 @@ import {
 import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useWorkspaceRole } from '@/features/workspace';
+import { useCapabilities } from '@/config/capabilities';
 import {
   pushActiveWorkspace,
   pullActiveWorkspace,
@@ -35,6 +36,7 @@ export function CommandRegistrations() {
   const resetNodeViewsMutation = useResetNodeViews();
   const { activeWorkspace } = useWorkspaceRole();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const capabilities = useCapabilities();
 
   // Toggle page privacy — not modeled in the core store yet, so this is a no-op.
   useCommand(
@@ -130,6 +132,8 @@ export function CommandRegistrations() {
       label: 'Push local changes to server',
       icon: 'mdi mdi-cloud-upload-outline',
       palette: { category: 'tools', keywords: ['sync', 'push', 'upload'] },
+      // Server sync is meaningless in local mode (local-first split, Task 4).
+      enabled: capabilities.workspaceManagement,
     }
   );
 
@@ -147,6 +151,7 @@ export function CommandRegistrations() {
       label: 'Replace local workspace from server',
       icon: 'mdi mdi-cloud-download-outline',
       palette: { category: 'tools', keywords: ['sync', 'pull', 'reset', 'local'] },
+      enabled: capabilities.workspaceManagement,
     }
   );
 
