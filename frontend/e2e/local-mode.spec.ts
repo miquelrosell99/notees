@@ -38,5 +38,12 @@ test.describe('Local mode', () => {
 
     // R2: local mode never calls /api/*.
     expect(apiCalls).toEqual([]);
+
+    // Task 3: the client seeds the local workspace on open. The sidebar's
+    // Inbox button is disabled until `useNodeByUuid(SYSTEM_PAGE_UUIDS.inbox)`
+    // resolves, so an enabled button proves the seeded Inbox node exists.
+    const inboxButton = page.getByRole('button', { name: 'Inbox', exact: true });
+    await expect(inboxButton).toBeVisible();
+    await expect(inboxButton).toBeEnabled();
   });
 });

@@ -1,6 +1,7 @@
 import { createDatabase } from '../db/connection';
 import { loadWorkspaceDatabase, saveWorkspaceDatabase, deleteWorkspaceDatabase } from '../persistence/indexedDb';
 import { SyncEngine, type SyncEngineCallbacks } from '../sync';
+import { ensureLocalWorkspace } from '../seed';
 import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
@@ -35,6 +36,11 @@ export interface WorkspaceOpenProgress {
 export interface WorkspaceStoreInitOptions {
   syncCallbacks?: SyncEngineCallbacks;
   onOpenProgress?: (progress: WorkspaceOpenProgress) => void;
+  /**
+   * Display name for the local user's personal seed page. Only used when the
+   * workspace is opened in local mode (see `ensureLocalWorkspace`).
+   */
+  localUserDisplayName?: string;
 }
 
 function isWorkerSupported(): boolean {
@@ -157,9 +163,15 @@ async function openWorkspaceStore(
   // overlay can show the error overlay and let the user retry.
   // In local mode there is no server to sync with — the local op log is the
   // source of truth — so the initial sync (and its transport calls) is skipped.
+  // Instead, the client seeds the workspace itself: there is no server-side
+  // seed in local mode, and without it the workspace would boot empty (no
+  // Inbox, no system classes). Idempotent: a no-op once content exists.
   if (getConnectionMode(useConnectionStore.getState().healthy) !== 'local') {
     report('sync-initialize', 'Connecting to server…');
     await syncEngine.initialize();
+  } else {
+    report('seed-local-workspace', 'Preparing local workspace…');
+    await ensureLocalWorkspace(client, actorId, options.localUserDisplayName ?? 'Local user');
   }
 
   report('ready', 'Ready');
