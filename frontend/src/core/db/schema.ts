@@ -223,7 +223,8 @@ export function createSchema(db: Database): void {
       workspace_id TEXT PRIMARY KEY,
       hlc_physical INTEGER NOT NULL,
       hlc_logical INTEGER NOT NULL,
-      restore_epoch INTEGER NOT NULL DEFAULT 0
+      restore_epoch INTEGER NOT NULL DEFAULT 0,
+      cursor_seq INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS sync_push_watermark (
@@ -704,5 +705,18 @@ function migrateSchema(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_node_link_source_target ON node_link (source_id, target_id);
     `);
     db.exec('PRAGMA user_version = 14');
+  }
+
+  if (version < 15) {
+    // Catch-up cursor moved from client HLC to server-assigned seq. A NULL
+    // cursor_seq means the row predates the seq cursor; the sync engine treats
+    // it as seq 0 and runs one full catch-up (operation-id dedupe makes
+    // re-applying safe).
+    try {
+      db.exec('ALTER TABLE sync_watermark ADD COLUMN cursor_seq INTEGER');
+    } catch {
+      // Column may already exist; ignore.
+    }
+    db.exec('PRAGMA user_version = 15');
   }
 }
