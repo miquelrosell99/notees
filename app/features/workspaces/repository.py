@@ -554,9 +554,9 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 """
-                INSERT INTO pending_invite (uuid, email, workspace_id, role, invited_by, expires_at, active)
-                VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-                ON CONFLICT (email, workspace_id, node_id)
+                INSERT INTO pending_invite (uuid, email, workspace_id, node_uuid, role, invited_by, expires_at, active)
+                VALUES ($1, $2, $3, (SELECT uuid FROM workspace WHERE id = $3), $4, $5, $6, TRUE)
+                ON CONFLICT (email, workspace_id, node_uuid)
                 DO UPDATE SET
                     role = EXCLUDED.role,
                     invited_by = EXCLUDED.invited_by,
@@ -618,7 +618,8 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
                     """
                     SELECT uuid as invite_uuid, email, role, created_at
                     FROM pending_invite
-                    WHERE workspace_id = $1 AND node_id IS NULL AND active = TRUE
+                    WHERE workspace_id = $1 AND active = TRUE
+                      AND node_uuid = (SELECT uuid FROM workspace WHERE id = $1)
                       AND (expires_at IS NULL OR expires_at > NOW())
                     ORDER BY created_at DESC
                     """,
@@ -673,7 +674,8 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
                 """
                 UPDATE pending_invite
                 SET active = FALSE
-                WHERE workspace_id = $1 AND email = $2 AND node_id IS NULL
+                WHERE workspace_id = $1 AND email = $2
+                  AND node_uuid = (SELECT uuid FROM workspace WHERE id = $1)
                 """,
                 workspace_id,
                 email,
@@ -1620,27 +1622,31 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                 "title": _extract_plain_text(content),
             }
 
-            ancestors = []
-            current_parent = node_row["parent_id"]
-            visited = set()
-            while current_parent and current_parent not in visited:
-                visited.add(current_parent)
-                parent_rows = await store.query(
-                    "SELECT id, content FROM node WHERE id = ?",
-                    (current_parent,),
+            if node_row["parent_id"]:
+                # Resolve the whole ancestor chain in one recursive query
+                # instead of one query per level. The depth cap guards
+                # against pathological parent cycles.
+                ancestor_rows = await store.query(
+                    """
+                    WITH RECURSIVE ancestors(id, content, parent_id, depth) AS (
+                        SELECT id, content, parent_id, 0 FROM node WHERE id = ?
+                        UNION ALL
+                        SELECT n.id, n.content, n.parent_id, a.depth + 1
+                        FROM node n
+                        JOIN ancestors a ON n.id = a.parent_id
+                        WHERE a.depth < 100
+                    )
+                    SELECT id, content FROM ancestors ORDER BY depth DESC
+                    """,
+                    (node_row["parent_id"],),
                 )
-                if not parent_rows:
-                    break
-                parent_row = parent_rows[0]
-                ancestors.insert(
-                    0,
+                ancestors = [
                     {
-                        "uuid": parent_row["id"],
-                        "title": _extract_plain_text(_load_json(parent_row["content"], [])),
-                    },
-                )
-                current_parent = parent_row["parent_id"]
-            if ancestors:
+                        "uuid": r["id"],
+                        "title": _extract_plain_text(_load_json(r["content"], [])),
+                    }
+                    for r in ancestor_rows
+                ]
                 metadata["parents"] = ancestors
 
             if class_ids:
@@ -1666,6 +1672,25 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                     """,
                     (node_uuid,),
                 )
+                # Batch-resolve node/relation targets with a single query
+                # instead of one query per property value.
+                node_value_uuids = {
+                    _load_json(row["raw_value"], None)
+                    for row in prop_rows
+                    if row["property_type"] in ("node", "relation")
+                }
+                node_value_uuids.discard(None)
+                node_names: dict[str, str] = {}
+                if node_value_uuids:
+                    placeholders = ",".join("?" for _ in node_value_uuids)
+                    target_rows = await store.query(
+                        f"SELECT id, content FROM node WHERE id IN ({placeholders})",
+                        tuple(node_value_uuids),
+                    )
+                    node_names = {
+                        r["id"]: _extract_plain_text(_load_json(r["content"], [])) for r in target_rows
+                    }
+
                 props_out: dict[str, Any] = {}
                 for row in prop_rows:
                     prop_name = row["property_name"]
@@ -1673,15 +1698,9 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                     raw_value = _load_json(row["raw_value"], None)
                     value: Any = None
                     if prop_type in ("node", "relation"):
-                        target_rows = await store.query(
-                            "SELECT content FROM node WHERE id = ?",
-                            (raw_value,),
-                        )
                         value = {
                             "uuid": raw_value,
-                            "name": _extract_plain_text(
-                                _load_json(target_rows[0]["content"], []) if target_rows else []
-                            ),
+                            "name": node_names.get(raw_value, _extract_plain_text([])),
                         }
                     elif prop_type == "selection":
                         options = _load_json(row["options"], [])
