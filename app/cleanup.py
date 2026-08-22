@@ -19,9 +19,9 @@ from pathlib import Path
 
 from .config import settings
 from .db.connection import get_data_dir, get_pool, get_workspace_assets_dir
-from .domain.repositories.factories import make_cleanup_repository
 from .domain.repositories.interfaces import CleanupRepository
 from .features.assets.service import AssetFileService
+from .infrastructure.repositories.factories import make_cleanup_repository
 from .logging_config import get_logger
 from .system_settings import get_system_setting
 

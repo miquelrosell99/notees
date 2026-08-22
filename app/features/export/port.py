@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 
@@ -97,4 +98,13 @@ class ExportRepository(ABC):
         self, workspace_uuid: str, node_uuids: list[str]
     ) -> list[str]:
         """Return node UUIDs for the given UUIDs in the workspace."""
+        pass
+
+
+class NodeExportService(ABC):
+    """Service interface for node export operations consumed by other features."""
+
+    @abstractmethod
+    async def write_share_html(self, share_uuid: str, workspace_uuid: str, node_uuid: str) -> Path:
+        """Generate and write static share HTML to disk."""
         pass

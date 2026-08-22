@@ -37,9 +37,9 @@ from app.core.workspace_store import WorkspaceStore
 from app.db.connection import clear_request_conn, get_pool
 from app.dependencies import _make_workspace_repository
 from app.domain.permissions import PermissionChecker
-from app.domain.repositories.factories import make_permission_repository
 from app.features.auth import authenticate_api_key, decode_token, get_user_by_id
 from app.infrastructure.redis_pubsub import collab_pubsub
+from app.infrastructure.repositories.factories import make_permission_repository
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -143,19 +143,32 @@ async def broadcast_ops(room_id: str, ops: list[dict[str, Any]]) -> None:
 async def _run_redis_loop(
     room_id: str, user_id: int, connection: _LiveSyncConnection
 ) -> None:
-    """Module-level Redis subscriber loop for cross-instance live sync."""
-    try:
-        async for raw in collab_pubsub.subscribe(f"live:{room_id}"):
-            try:
-                msg = json.loads(raw.decode())
-                if msg.get("sender_id") == user_id:
-                    continue
-                msg.pop("sender_id", None)
-                await connection.send(msg)
-            except Exception:
-                pass
-    except Exception:
-        pass
+    """Module-level Redis subscriber loop for cross-instance live sync.
+
+    A Redis disconnect ends the ``subscribe`` generator; keep resubscribing
+    with exponential backoff (capped at 30s) so cross-instance sync recovers.
+    Runs until the task is cancelled when the WebSocket closes.
+    """
+    backoff = 1.0
+    while True:
+        try:
+            async for raw in collab_pubsub.subscribe(f"live:{room_id}"):
+                try:
+                    msg = json.loads(raw.decode())
+                    if msg.get("sender_id") == user_id:
+                        continue
+                    msg.pop("sender_id", None)
+                    await connection.send(msg)
+                except Exception:
+                    logger.warning(f"Failed to handle live sync message for room {room_id}")
+            # Subscription stream ended (e.g. Redis disconnect); resubscribe.
+            backoff = 1.0
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(f"Live sync Redis subscriber error for room {room_id}")
+        await asyncio.sleep(backoff)
+        backoff = min(backoff * 2, 30.0)
 
 
 async def _send_users_list(conn: _LiveSyncConnection) -> None:

@@ -7,9 +7,9 @@ from typing import Any
 
 import asyncpg
 
-from ...db.connection import acquire_connection
-from ...utils import utc_now
-from .interfaces import SettingsRepository
+from app.db.connection import acquire_connection
+from app.domain.repositories.interfaces import SettingsRepository
+from app.utils import utc_now
 
 
 class PostgresSettingsRepository(SettingsRepository):

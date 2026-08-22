@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import asyncpg
 
+from app.domain.repositories.interfaces import CleanupRepository, PermissionRepository, SystemSettingsRepository
+from app.domain.repositories.postgres_permission import PostgresPermissionRepository
 from app.features.auth.port import UserRepository
 from app.features.auth.repository import PostgresUserRepository
 from app.features.workspaces.port import WorkspaceRepository
 from app.features.workspaces.repository import PostgresWorkspaceRepository
 
-from .interfaces import CleanupRepository, PermissionRepository, SystemSettingsRepository
 from .postgres_cleanup import PostgresCleanupRepository
-from .postgres_permission import PostgresPermissionRepository
 from .postgres_system_settings import PostgresSystemSettingsRepository
 
 

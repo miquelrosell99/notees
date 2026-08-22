@@ -12,7 +12,7 @@ from typing import Any
 from app.domain.converters import JsonAstConverter, MarkdownConverter, PlainTextConverter
 from app.domain.ports import NodeExportRenderer
 from app.domain.stringify_ast import NodeLinkResolution, parse_ast
-from app.features.export.port import ExportRepository
+from app.features.export.port import ExportRepository, NodeExportService
 from app.logging_config import get_logger
 from app.plugins.core.context import PluginContext
 from app.plugins.core.manager import plugin_manager
@@ -21,7 +21,7 @@ from app.plugins.core.ports import ExportContext
 logger = get_logger(__name__)
 
 
-class ExportService:
+class ExportService(NodeExportService):
     """Service facade for node export operations."""
 
     def __init__(self, export_repo: ExportRepository, renderer: NodeExportRenderer):
