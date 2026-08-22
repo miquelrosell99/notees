@@ -161,6 +161,7 @@ export const taskKeys = {
   completions: (nodeUuid: string, limit?: number, offset?: number) =>
     [...taskKeys.all, 'completions', nodeUuid, { limit: limit ?? 50, offset: offset ?? 0 }] as const,
   popup: (section: string) => [...taskKeys.all, 'popup', section] as const,
+  popupAll: () => [...taskKeys.all, 'popup'] as const,
 };
 
 // ==================== Trash Query Keys ====================
@@ -190,6 +191,7 @@ export const workspaceKeys = {
 
 export const authKeys = {
   status: () => ['auth', 'status'] as const,
+  verify: () => ['auth', 'verify'] as const,
 };
 
 // ==================== Admin Query Keys ====================

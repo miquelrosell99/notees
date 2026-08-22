@@ -97,6 +97,12 @@ export * from './hooks/useBatchNodesByUuid';
 export * from './hooks/useTemplates';
 export * from './hooks/useConvertNode';
 export * from './hooks/useCoreBlockMutations';
+export {
+  getOrCreateDailyNoteClient,
+  getOrCreateMonthlyNoteClient,
+  getOrCreateYearlyNoteClient,
+} from './hooks/useNodeDateQueries';
+export { getNodeUuidByServerId } from './hooks/useNodeMutations.utils';
 export * from './hooks/dnd';
 
 // Activity API (moved from src/api)

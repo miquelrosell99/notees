@@ -3,7 +3,7 @@
  */
 import { useMutation } from '@tanstack/react-query';
 import { useSetNodePropertyAdapter } from '@/core/adapters/useSetNodePropertyAdapter';
-import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
+import { getOrCreateDailyNoteClient } from '@/features/content';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
 import { formatDateForApi } from '../renderers/GanttRenderer';

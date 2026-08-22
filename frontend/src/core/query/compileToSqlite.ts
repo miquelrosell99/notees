@@ -277,7 +277,9 @@ class Compiler {
     const uuids = validUuids(
       condition.class_uuids && condition.class_uuids.length > 0
         ? condition.class_uuids
-        : [condition.class_uuid],
+        : condition.class_uuid
+          ? [condition.class_uuid]
+          : [],
       this.currentNodeUuid
     );
     if (uuids.length === 0) return undefined;

@@ -57,9 +57,9 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
       });
       items.push({
         id: 'toggle-collapse',
-        label: (element as any).collapsed ? 'Expand Card' : 'Collapse Card',
-        icon: (element as any).collapsed ? "mdi mdi-chevron-down" : "mdi mdi-chevron-up",
-        onClick: () => { wb.updateElement(element.id, { collapsed: !(element as any).collapsed }); onClose(); },
+        label: element.collapsed ? 'Expand Card' : 'Collapse Card',
+        icon: element.collapsed ? "mdi mdi-chevron-down" : "mdi mdi-chevron-up",
+        onClick: () => { wb.updateElement(element.id, { collapsed: !element.collapsed }); onClose(); },
       });
       items.push({ id: 'sep-card', label: '', separator: true });
     }
