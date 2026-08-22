@@ -270,6 +270,8 @@ CREATE INDEX IF NOT EXISTS idx_node_share_user_id ON node_share(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_node_public_share_uuid ON node_public_share(uuid);
 CREATE INDEX IF NOT EXISTS idx_node_public_share_node ON node_public_share(node_uuid) WHERE active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_node_public_share_workspace ON node_public_share(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_node_public_share_created_by ON node_public_share(created_by);
 
 -- Pending invites (for users who don't have an account yet)
 CREATE TABLE IF NOT EXISTS pending_invite (
@@ -288,6 +290,7 @@ CREATE TABLE IF NOT EXISTS pending_invite (
 
 CREATE INDEX IF NOT EXISTS idx_pending_invite_email ON pending_invite(email);
 CREATE INDEX IF NOT EXISTS idx_pending_invite_uuid ON pending_invite(uuid);
+CREATE INDEX IF NOT EXISTS idx_pending_invite_workspace ON pending_invite(workspace_id);
 
 -- ============================================================
 -- NOTIFICATIONS
