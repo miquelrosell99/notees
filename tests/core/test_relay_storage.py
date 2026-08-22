@@ -269,3 +269,33 @@ class TestSqliteRelayStorageBulkSave:
 
         inserted_again = storage.save_envelopes([first])
         assert inserted_again == []
+
+
+class TestSqliteRelayStorageLegacyRows:
+    def test_null_timestamp_falls_back_to_hlc_physical(self) -> None:
+        """Legacy raw-SQL writers may insert rows with NULL timestamp; reading
+        them must not crash — the HLC physical component (ms epoch) is the fallback."""
+        storage = SqliteRelayStorage(":memory:")
+        storage._connection.execute(
+            """
+            INSERT INTO relay_envelope (
+                id, workspace_id, actor_id, physical, logical,
+                affected_node_ids, op_type, payload, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            """,
+            (
+                "env-legacy",
+                "ws-1",
+                "actor-1",
+                1_700_000_000_000,
+                0,
+                "[]",
+                "node.create",
+                '{"nodeId": "env-legacy"}',
+            ),
+        )
+        storage._connection.commit()
+
+        envelopes = storage.get_catch_up("ws-1", Hlc(0, 0))
+        assert len(envelopes) == 1
+        assert envelopes[0].timestamp.timestamp() == pytest.approx(1_700_000_000)

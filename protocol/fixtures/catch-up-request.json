@@ -1,0 +1,9 @@
+{
+  "workspace_id": "018f0000-0000-7000-8000-000000000001",
+  "hlc": {
+    "physical": 1767225600000,
+    "logical": 0
+  },
+  "limit": 1000,
+  "after_id": null
+}

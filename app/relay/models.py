@@ -9,7 +9,22 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic.alias_generators import to_camel
 
 from app.core.clock import Hlc
-from app.core.operation import OperationEnvelope
+from app.core.operation import PROTOCOL_VERSION, OperationEnvelope
+
+__all__ = [
+    "PROTOCOL_VERSION",
+    "BatchRequest",
+    "CatchUpPaginatedResponse",
+    "CatchUpRequest",
+    "CatchUpResponse",
+    "CompactRequest",
+    "CompactResponse",
+    "EncryptedEnvelope",
+    "LatestSnapshotResponse",
+    "RelayStatsResponse",
+    "SnapshotRequest",
+    "SnapshotResponse",
+]
 
 MAX_BATCH_SIZE = 1000
 MAX_ENVELOPE_SIZE_BYTES = 1024 * 1024  # 1 MB

@@ -20,6 +20,7 @@ Authentication uses short-lived JWT access tokens and rotating refresh tokens. S
 ## Operation relay
 
 The relay is the sync path for the local-first core. All operation-log traffic goes through these endpoints.
+The field-level wire contract (envelope fields, HLC rules, versioning policy) lives in `protocol/SPEC.md`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

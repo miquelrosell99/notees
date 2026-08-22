@@ -61,6 +61,7 @@ KNOWN_OP_TYPES: frozenset[str] = frozenset(
         "asset.delete",
         # Activity
         "activity.record",
+        "activity.delete",
         "link.click",
         # Shares
         "share.public.create",
@@ -77,6 +78,12 @@ KNOWN_OP_TYPES: frozenset[str] = frozenset(
 )
 
 
+#: Version of the relay sync protocol described in ``protocol/SPEC.md``.
+#: Bump only on breaking wire changes; additive optional fields do not
+#: require a bump (see the versioning policy in the spec).
+PROTOCOL_VERSION = 1
+
+
 class OperationEnvelope(BaseModel):
     """Routing metadata for an operation.
 
@@ -85,6 +92,7 @@ class OperationEnvelope(BaseModel):
     """
 
     id: str = Field(default_factory=uuidv7)
+    protocol_version: int = Field(default=PROTOCOL_VERSION)
     workspace_id: str
     actor_id: str
     hlc: Hlc

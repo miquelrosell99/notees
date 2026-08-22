@@ -1,8 +1,16 @@
 import type { Hlc } from '../clock';
 import { uuidv7 } from '../uuid';
 
+/**
+ * Version of the relay sync protocol (see protocol/SPEC.md at the repo root).
+ * Bump only on breaking wire changes; additive optional fields do not require
+ * a bump. Must match the backend's PROTOCOL_VERSION in app/core/operation.py.
+ */
+export const PROTOCOL_VERSION = 1;
+
 export interface OperationEnvelope {
   id: string;
+  protocolVersion: number;
   workspaceId: string;
   actorId: string;
   hlc: Hlc;
@@ -50,6 +58,7 @@ const OP_TYPES = new Set([
   'asset.upload',
   'asset.delete',
   'activity.record',
+  'activity.delete',
   'link.click',
   'share.public.create',
   'share.public.revoke',
@@ -112,6 +121,11 @@ export interface ActivityRecordPayload {
   activityType: string;
   nodeId?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface ActivityDeletePayload {
+  activityId: string;
+  nodeId: string;
 }
 
 export interface LinkClickPayload {
@@ -293,16 +307,34 @@ export interface NodeViewReorderPayload {
 }
 
 export function createOperation(
-  partial: Omit<OperationEnvelope, 'id'> & { id?: string },
+  partial: Omit<OperationEnvelope, 'id' | 'protocolVersion'> & { id?: string; protocolVersion?: number },
   payload: unknown
 ): Operation {
   return {
     envelope: {
       id: partial.id ?? uuidv7(),
+      protocolVersion: partial.protocolVersion ?? PROTOCOL_VERSION,
       ...partial,
     },
     payload,
   };
+}
+
+/**
+ * Return the protocol version of a received envelope, defaulting to 1 when the
+ * field is absent (pre-versioning peers). Throws when the peer speaks a newer
+ * protocol than this client understands — callers must treat that as a hard
+ * sync error, not skip the envelope silently.
+ */
+export function assertSupportedProtocolVersion(envelope: { protocolVersion?: number; id?: string }): number {
+  const version = envelope.protocolVersion ?? 1;
+  if (version > PROTOCOL_VERSION) {
+    throw new Error(
+      `Unsupported relay protocol version ${version} on envelope ${envelope.id ?? '<unknown>'}; ` +
+        `this client supports up to ${PROTOCOL_VERSION}. Upgrade the client.`
+    );
+  }
+  return version;
 }
 
 export function validateOperation(op: Operation): boolean {
@@ -312,5 +344,6 @@ export function validateOperation(op: Operation): boolean {
   if (typeof env.hlc?.physical !== 'number' || typeof env.hlc?.logical !== 'number') return false;
   if (!Array.isArray(env.affectedNodeIds)) return false;
   if (!OP_TYPES.has(env.opType)) return false;
+  if ((env.protocolVersion ?? 1) > PROTOCOL_VERSION) return false;
   return true;
 }

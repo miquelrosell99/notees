@@ -24,14 +24,22 @@ CREATE TABLE IF NOT EXISTS relay_envelope (
     affected_node_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     op_type TEXT NOT NULL,
     payload JSONB NOT NULL,
-    timestamp TIMESTAMPTZ
+    timestamp TIMESTAMPTZ,
+    protocol_version INTEGER NOT NULL DEFAULT 1
 );
+
+-- Existing databases created before the protocol version field was persisted.
+ALTER TABLE relay_envelope
+    ADD COLUMN IF NOT EXISTS protocol_version INTEGER NOT NULL DEFAULT 1;
 
 CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_hlc
     ON relay_envelope (workspace_id, physical, logical, id);
 
 CREATE INDEX IF NOT EXISTS idx_relay_envelope_actor
     ON relay_envelope (actor_id);
+
+CREATE INDEX IF NOT EXISTS idx_relay_envelope_affected_node_ids
+    ON relay_envelope USING GIN (affected_node_ids jsonb_path_ops);
 
 CREATE TABLE IF NOT EXISTS relay_snapshot (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -48,6 +56,11 @@ CREATE INDEX IF NOT EXISTS idx_relay_snapshot_workspace
 CREATE INDEX IF NOT EXISTS idx_relay_snapshot_workspace_created
     ON relay_snapshot (workspace_id, created_at DESC);
 
+-- Supports latest-snapshot lookups that order by the numeric HLC fields
+-- (ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC).
+CREATE INDEX IF NOT EXISTS idx_relay_snapshot_workspace_hlc
+    ON relay_snapshot (workspace_id, ((hlc->>'physical')::bigint) DESC, ((hlc->>'logical')::bigint) DESC);
+
 CREATE TABLE IF NOT EXISTS compacted_operation_segment (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id TEXT NOT NULL,
@@ -61,5 +74,7 @@ CREATE TABLE IF NOT EXISTS compacted_operation_segment (
 CREATE INDEX IF NOT EXISTS idx_compacted_segment_workspace
     ON compacted_operation_segment (workspace_id);
 
-CREATE INDEX IF NOT EXISTS idx_compacted_segment_to_hlc
-    ON compacted_operation_segment (workspace_id, (to_hlc->>'physical'), (to_hlc->>'logical'));
+-- Dropped: idx_compacted_segment_to_hlc indexed the TEXT extraction of the
+-- numeric HLC fields (lexicographic order, so '10' < '9') and no query used
+-- it. The DROP removes it from databases where it was already created.
+DROP INDEX IF EXISTS idx_compacted_segment_to_hlc;

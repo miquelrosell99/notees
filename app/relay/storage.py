@@ -21,7 +21,7 @@ from typing import Any
 import asyncpg
 
 from app.core.clock import Hlc
-from app.db.connection import get_pool
+from app.db.connection import acquire_connection, get_pool
 from app.relay.models import EncryptedEnvelope
 
 
@@ -205,7 +205,8 @@ class SqliteRelayStorage(RelayStorage):
                 affected_node_ids TEXT NOT NULL DEFAULT '[]',
                 op_type TEXT NOT NULL,
                 payload TEXT NOT NULL,
-                timestamp TEXT
+                timestamp TEXT,
+                protocol_version INTEGER NOT NULL DEFAULT 1
             );
             CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_hlc
                 ON relay_envelope (workspace_id, physical, logical, id);
@@ -234,10 +235,22 @@ class SqliteRelayStorage(RelayStorage):
                 ON compacted_operation_segment (workspace_id);
             """
         )
+        # Existing databases created before the protocol version field was
+        # persisted get the column added in place; rows default to version 1.
+        columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(relay_envelope)")}
+        if "protocol_version" not in columns:
+            self._connection.execute(
+                "ALTER TABLE relay_envelope ADD COLUMN protocol_version INTEGER NOT NULL DEFAULT 1"
+            )
         self._connection.commit()
 
     def _row_to_envelope(self, row: sqlite3.Row) -> EncryptedEnvelope:
-        timestamp = datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else None
+        # Legacy rows (raw-SQL writers) may have NULL timestamp; fall back to the
+        # HLC physical component (ms epoch) instead of crashing on the non-optional field.
+        if row["timestamp"]:
+            timestamp = datetime.fromisoformat(row["timestamp"])
+        else:
+            timestamp = datetime.fromtimestamp(row["physical"] / 1000, UTC)
         return EncryptedEnvelope(
             id=row["id"],
             workspace_id=row["workspace_id"],
@@ -247,6 +260,7 @@ class SqliteRelayStorage(RelayStorage):
             op_type=row["op_type"],
             payload=json.loads(row["payload"]),
             timestamp=timestamp,
+            protocol_version=row["protocol_version"],
         )
 
     def save_envelope(self, envelope: EncryptedEnvelope) -> None:
@@ -254,8 +268,8 @@ class SqliteRelayStorage(RelayStorage):
             """
             INSERT OR IGNORE INTO relay_envelope (
                 id, workspace_id, actor_id, physical, logical,
-                affected_node_ids, op_type, payload, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                affected_node_ids, op_type, payload, timestamp, protocol_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 envelope.id,
@@ -267,6 +281,7 @@ class SqliteRelayStorage(RelayStorage):
                 envelope.op_type,
                 json.dumps(envelope.payload),
                 envelope.timestamp.isoformat() if envelope.timestamp else None,
+                envelope.protocol_version,
             ),
         )
         self._connection.commit()
@@ -306,6 +321,7 @@ class SqliteRelayStorage(RelayStorage):
                 envelope.op_type,
                 json.dumps(envelope.payload),
                 envelope.timestamp.isoformat() if envelope.timestamp else None,
+                envelope.protocol_version,
             )
             for envelope in new_envelopes
         ]
@@ -313,8 +329,8 @@ class SqliteRelayStorage(RelayStorage):
             """
             INSERT OR IGNORE INTO relay_envelope (
                 id, workspace_id, actor_id, physical, logical,
-                affected_node_ids, op_type, payload, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                affected_node_ids, op_type, payload, timestamp, protocol_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -683,28 +699,31 @@ class PostgresRelayStorage(RelayStorage):
             op_type=row["op_type"],
             payload=row["payload"],
             timestamp=row["timestamp"],
+            protocol_version=row["protocol_version"],
         )
 
     async def save_envelope(self, envelope: EncryptedEnvelope) -> None:
         pool = await self._get_pool()
-        await pool.execute(
-            """
-            INSERT INTO relay_envelope (
-                id, workspace_id, actor_id, physical, logical,
-                affected_node_ids, op_type, payload, timestamp
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            ON CONFLICT (id) DO NOTHING
-            """,
-            envelope.id,
-            envelope.workspace_id,
-            envelope.actor_id,
-            envelope.hlc.physical,
-            envelope.hlc.logical,
-            envelope.affected_node_ids,
-            envelope.op_type,
-            envelope.payload,
-            envelope.timestamp,
-        )
+        async with acquire_connection(pool) as conn:
+            await conn.execute(
+                """
+                INSERT INTO relay_envelope (
+                    id, workspace_id, actor_id, physical, logical,
+                    affected_node_ids, op_type, payload, timestamp, protocol_version
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                envelope.id,
+                envelope.workspace_id,
+                envelope.actor_id,
+                envelope.hlc.physical,
+                envelope.hlc.logical,
+                envelope.affected_node_ids,
+                envelope.op_type,
+                envelope.payload,
+                envelope.timestamp,
+                envelope.protocol_version,
+            )
 
     async def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> list[str]:
         pool = await self._get_pool()
@@ -718,29 +737,28 @@ class PostgresRelayStorage(RelayStorage):
         affected_node_ids = [json.dumps(envelope.affected_node_ids) for envelope in envelopes]
         op_types = [envelope.op_type for envelope in envelopes]
         payloads = [json.dumps(envelope.payload) for envelope in envelopes]
-        timestamps = [
-            envelope.timestamp.isoformat() if envelope.timestamp else None
-            for envelope in envelopes
-        ]
-        async with pool.acquire() as conn:
+        timestamps = [envelope.timestamp.isoformat() if envelope.timestamp else None for envelope in envelopes]
+        protocol_versions = [envelope.protocol_version for envelope in envelopes]
+        async with acquire_connection(pool) as conn:
             rows = await conn.fetch(
                 """
                 INSERT INTO relay_envelope (
                     id, workspace_id, actor_id, physical, logical,
-                    affected_node_ids, op_type, payload, timestamp
+                    affected_node_ids, op_type, payload, timestamp, protocol_version
                 )
                 SELECT
                     id, workspace_id, actor_id, physical, logical,
                     affected_node_ids::jsonb,
                     op_type,
                     payload::jsonb,
-                    timestamp::timestamptz
+                    timestamp::timestamptz,
+                    protocol_version::integer
                 FROM unnest(
                     $1::text[], $2::text[], $3::text[],
                     $4::bigint[], $5::bigint[], $6::text[],
-                    $7::text[], $8::text[], $9::text[]
+                    $7::text[], $8::text[], $9::text[], $10::integer[]
                 )
-                AS t(id, workspace_id, actor_id, physical, logical, affected_node_ids, op_type, payload, timestamp)
+                AS t(id, workspace_id, actor_id, physical, logical, affected_node_ids, op_type, payload, timestamp, protocol_version)
                 ON CONFLICT (id) DO NOTHING
                 RETURNING id
                 """,
@@ -753,6 +771,7 @@ class PostgresRelayStorage(RelayStorage):
                 op_types,
                 payloads,
                 timestamps,
+                protocol_versions,
             )
         return [str(row["id"]) for row in rows]
 
@@ -763,32 +782,33 @@ class PostgresRelayStorage(RelayStorage):
         node_id: str | None = None,
     ) -> list[EncryptedEnvelope]:
         pool = await self._get_pool()
-        if node_id is not None:
-            rows = await pool.fetch(
-                """
-                SELECT * FROM relay_envelope
-                WHERE workspace_id = $1
-                  AND (physical, logical) > ($2, $3)
-                  AND affected_node_ids @> $4::jsonb
-                ORDER BY physical ASC, logical ASC, id ASC
-                """,
-                workspace_id,
-                hlc.physical,
-                hlc.logical,
-                json.dumps([node_id]),
-            )
-        else:
-            rows = await pool.fetch(
-                """
-                SELECT * FROM relay_envelope
-                WHERE workspace_id = $1
-                  AND (physical, logical) > ($2, $3)
-                ORDER BY physical ASC, logical ASC, id ASC
-                """,
-                workspace_id,
-                hlc.physical,
-                hlc.logical,
-            )
+        async with acquire_connection(pool) as conn:
+            if node_id is not None:
+                rows = await conn.fetch(
+                    """
+                    SELECT * FROM relay_envelope
+                    WHERE workspace_id = $1
+                      AND (physical, logical) > ($2, $3)
+                      AND affected_node_ids @> $4::jsonb
+                    ORDER BY physical ASC, logical ASC, id ASC
+                    """,
+                    workspace_id,
+                    hlc.physical,
+                    hlc.logical,
+                    json.dumps([node_id]),
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT * FROM relay_envelope
+                    WHERE workspace_id = $1
+                      AND (physical, logical) > ($2, $3)
+                    ORDER BY physical ASC, logical ASC, id ASC
+                    """,
+                    workspace_id,
+                    hlc.physical,
+                    hlc.logical,
+                )
         return [self._row_to_envelope(row) for row in rows]
 
     async def get_catch_up_paginated(
@@ -807,118 +827,124 @@ class PostgresRelayStorage(RelayStorage):
             node_filter_sql = f"AND affected_node_ids @> ${node_param_index}::jsonb"
             node_filter_arg = json.dumps([node_id])
 
-        if after_id is not None:
-            cursor_row = await pool.fetchrow(
-                "SELECT physical, logical, id FROM relay_envelope WHERE id = $1::text",
-                after_id,
-            )
-            if cursor_row is None:
-                raise ValueError(
-                    f"Pagination cursor envelope {after_id} no longer exists"
+        async with acquire_connection(pool) as conn:
+            if after_id is not None:
+                cursor_row = await conn.fetchrow(
+                    "SELECT physical, logical, id FROM relay_envelope WHERE id = $1::text",
+                    after_id,
                 )
-            args = [
-                workspace_id,
-                hlc.physical,
-                hlc.logical,
-                cursor_row["physical"],
-                cursor_row["logical"],
-                after_id,
-                limit,
-            ]
-            if node_filter_arg is not None:
-                args.append(node_filter_arg)
-            rows = await pool.fetch(
-                f"""
-                SELECT * FROM relay_envelope
-                WHERE workspace_id = $1
-                  AND (physical, logical) > ($2, $3)
-                  AND (physical, logical, id) > ($4, $5, $6)
-                  {node_filter_sql}
-                ORDER BY physical ASC, logical ASC, id ASC
-                LIMIT $7
-                """,
-                *args,
-            )
-        else:
-            args = [
-                workspace_id,
-                hlc.physical,
-                hlc.logical,
-                limit,
-            ]
-            if node_filter_arg is not None:
-                args.append(node_filter_arg)
-            rows = await pool.fetch(
-                f"""
-                SELECT * FROM relay_envelope
-                WHERE workspace_id = $1
-                  AND (physical, logical) > ($2, $3)
-                  {node_filter_sql}
-                ORDER BY physical ASC, logical ASC, id ASC
-                LIMIT $4
-                """,
-                *args,
-            )
+                if cursor_row is None:
+                    raise ValueError(
+                        f"Pagination cursor envelope {after_id} no longer exists"
+                    )
+                args = [
+                    workspace_id,
+                    hlc.physical,
+                    hlc.logical,
+                    cursor_row["physical"],
+                    cursor_row["logical"],
+                    after_id,
+                    limit,
+                ]
+                if node_filter_arg is not None:
+                    args.append(node_filter_arg)
+                rows = await conn.fetch(
+                    f"""
+                    SELECT * FROM relay_envelope
+                    WHERE workspace_id = $1
+                      AND (physical, logical) > ($2, $3)
+                      AND (physical, logical, id) > ($4, $5, $6)
+                      {node_filter_sql}
+                    ORDER BY physical ASC, logical ASC, id ASC
+                    LIMIT $7
+                    """,
+                    *args,
+                )
+            else:
+                args = [
+                    workspace_id,
+                    hlc.physical,
+                    hlc.logical,
+                    limit,
+                ]
+                if node_filter_arg is not None:
+                    args.append(node_filter_arg)
+                rows = await conn.fetch(
+                    f"""
+                    SELECT * FROM relay_envelope
+                    WHERE workspace_id = $1
+                      AND (physical, logical) > ($2, $3)
+                      {node_filter_sql}
+                    ORDER BY physical ASC, logical ASC, id ASC
+                    LIMIT $4
+                    """,
+                    *args,
+                )
         results = [self._row_to_envelope(row) for row in rows]
         next_after_id = results[-1].id if len(results) == limit else None
         return results, next_after_id
 
     async def envelope_exists(self, envelope_id: str) -> bool:
         pool = await self._get_pool()
-        row = await pool.fetchrow(
-            "SELECT 1 FROM relay_envelope WHERE id = $1",
-            envelope_id,
-        )
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT 1 FROM relay_envelope WHERE id = $1",
+                envelope_id,
+            )
         return row is not None
 
     async def count_operations(self, workspace_id: str) -> int:
         pool = await self._get_pool()
-        row = await pool.fetchrow(
-            "SELECT COUNT(*) FROM relay_envelope WHERE workspace_id = $1",
-            workspace_id,
-        )
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT COUNT(*) FROM relay_envelope WHERE workspace_id = $1",
+                workspace_id,
+            )
         return row[0] if row else 0
 
     async def get_operation_size_estimate(self, workspace_id: str) -> int:
         pool = await self._get_pool()
-        row = await pool.fetchrow(
-            """
-            SELECT COALESCE(SUM(LENGTH(payload::text)), 0)
-            FROM relay_envelope
-            WHERE workspace_id = $1
-            """,
-            workspace_id,
-        )
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT COALESCE(SUM(LENGTH(payload::text)), 0)
+                FROM relay_envelope
+                WHERE workspace_id = $1
+                """,
+                workspace_id,
+            )
         return row[0] if row else 0
 
     async def get_max_hlc(self, workspace_id: str) -> Hlc:
         pool = await self._get_pool()
-        row = await pool.fetchrow(
-            """
-            SELECT physical, logical FROM relay_envelope
-            WHERE workspace_id = $1
-            ORDER BY physical DESC, logical DESC
-            LIMIT 1
-            """,
-            workspace_id,
-        )
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT physical, logical FROM relay_envelope
+                WHERE workspace_id = $1
+                ORDER BY physical DESC, logical DESC
+                LIMIT 1
+                """,
+                workspace_id,
+            )
         if row is None:
             return Hlc(physical=0, logical=0)
         return Hlc(physical=row["physical"], logical=row["logical"])
 
     async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         pool = await self._get_pool()
-        row = await pool.fetchrow(
-            """
-            SELECT id, hlc, data FROM relay_snapshot
-            WHERE workspace_id = $1
-              AND data IS NOT NULL
-              AND OCTET_LENGTH(data) > 0
-            ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC
-            LIMIT 1
-            """,
-            workspace_id,
-        )
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, hlc, data FROM relay_snapshot
+                WHERE workspace_id = $1
+                  AND data IS NOT NULL
+                  AND OCTET_LENGTH(data) > 0
+                ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC
+                LIMIT 1
+                """,
+                workspace_id,
+            )
         if row is None:
             return None
         hlc_dict = row["hlc"]
@@ -931,9 +957,12 @@ class PostgresRelayStorage(RelayStorage):
     async def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b"", conn: Any | None = None
     ) -> str:
+        if conn is None:
+            pool = await self._get_pool()
+            async with acquire_connection(pool) as owned_conn:
+                return await self.create_snapshot(workspace_id, up_to_hlc, data=data, conn=owned_conn)
         if not data:
-            executor = conn if conn is not None else (await self._get_pool())
-            segment_count = await executor.fetchval(
+            segment_count = await conn.fetchval(
                 "SELECT COUNT(*) FROM compacted_operation_segment WHERE workspace_id = $1",
                 workspace_id,
             )
@@ -945,8 +974,7 @@ class PostgresRelayStorage(RelayStorage):
         state_hash = hashlib.sha256(
             f"{workspace_id}:{json.dumps(hlc_dict)}:".encode() + data
         ).hexdigest()
-        executor = conn if conn is not None else (await self._get_pool())
-        row = await executor.fetchrow(
+        row = await conn.fetchrow(
             """
             INSERT INTO relay_snapshot (workspace_id, hlc, state_hash, data)
             VALUES ($1, $2, $3, $4)
@@ -972,7 +1000,7 @@ class PostgresRelayStorage(RelayStorage):
             )
 
         pool = await self._get_pool()
-        async with pool.acquire() as conn, conn.transaction():
+        async with acquire_connection(pool) as conn, conn.transaction():
             snapshot_id = await self.create_snapshot(
                 workspace_id, up_to_hlc, data=data, conn=conn
             )
@@ -1020,61 +1048,63 @@ class PostgresRelayStorage(RelayStorage):
 
     async def prune_envelopes(self, workspace_id: str, up_to_hlc: Hlc) -> int:
         pool = await self._get_pool()
-        result = await pool.execute(
-            """
-            DELETE FROM relay_envelope
-            WHERE workspace_id = $1
-              AND (physical, logical) <= ($2, $3)
-            """,
-            workspace_id,
-            up_to_hlc.physical,
-            up_to_hlc.logical,
-        )
+        async with acquire_connection(pool) as conn:
+            result = await conn.execute(
+                """
+                DELETE FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND (physical, logical) <= ($2, $3)
+                """,
+                workspace_id,
+                up_to_hlc.physical,
+                up_to_hlc.logical,
+            )
         # asyncpg DELETE returns "DELETE N"
         parts = result.split()
         return int(parts[-1]) if parts else 0
 
     async def get_workspace_stats(self, workspace_id: str) -> dict[str, Any]:
         pool = await self._get_pool()
-        envelope_row = await pool.fetchrow(
-            """
-            SELECT COUNT(*) AS count, COALESCE(SUM(LENGTH(payload::text)), 0) AS size
-            FROM relay_envelope
-            WHERE workspace_id = $1
-            """,
-            workspace_id,
-        )
-        snapshot_count_row = await pool.fetchrow(
-            "SELECT COUNT(*) AS count FROM relay_snapshot WHERE workspace_id = $1",
-            workspace_id,
-        )
-        latest_snapshot_row = await pool.fetchrow(
-            """
-            SELECT hlc FROM relay_snapshot
-            WHERE workspace_id = $1 AND data IS NOT NULL AND OCTET_LENGTH(data) > 0
-            ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC
-            LIMIT 1
-            """,
-            workspace_id,
-        )
+        async with acquire_connection(pool) as conn:
+            envelope_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) AS count, COALESCE(SUM(LENGTH(payload::text)), 0) AS size
+                FROM relay_envelope
+                WHERE workspace_id = $1
+                """,
+                workspace_id,
+            )
+            snapshot_count_row = await conn.fetchrow(
+                "SELECT COUNT(*) AS count FROM relay_snapshot WHERE workspace_id = $1",
+                workspace_id,
+            )
+            latest_snapshot_row = await conn.fetchrow(
+                """
+                SELECT hlc FROM relay_snapshot
+                WHERE workspace_id = $1 AND data IS NOT NULL AND OCTET_LENGTH(data) > 0
+                ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC
+                LIMIT 1
+                """,
+                workspace_id,
+            )
+            compacted_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) AS count, COALESCE(SUM(operation_count), 0) AS ops
+                FROM compacted_operation_segment
+                WHERE workspace_id = $1
+                """,
+                workspace_id,
+            )
+            max_row = await conn.fetchrow(
+                """
+                SELECT physical, logical FROM relay_envelope
+                WHERE workspace_id = $1
+                ORDER BY physical DESC, logical DESC LIMIT 1
+                """,
+                workspace_id,
+            )
         latest_snapshot_hlc = (
             _dict_to_hlc(latest_snapshot_row["hlc"]) if latest_snapshot_row else None
-        )
-        compacted_row = await pool.fetchrow(
-            """
-            SELECT COUNT(*) AS count, COALESCE(SUM(operation_count), 0) AS ops
-            FROM compacted_operation_segment
-            WHERE workspace_id = $1
-            """,
-            workspace_id,
-        )
-        max_row = await pool.fetchrow(
-            """
-            SELECT physical, logical FROM relay_envelope
-            WHERE workspace_id = $1
-            ORDER BY physical DESC, logical DESC LIMIT 1
-            """,
-            workspace_id,
         )
         max_hlc = (
             Hlc(physical=max_row["physical"], logical=max_row["logical"])
