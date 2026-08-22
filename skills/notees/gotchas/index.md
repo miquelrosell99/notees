@@ -48,6 +48,14 @@ A text property stores its value as the UUID of a block node. That block must be
 
 `WorkspaceStore._sync_locks` is a class-level dict keyed by workspace, so two store instances for the same workspace share one non-reentrant `asyncio.Lock`. Plugin side effects (e.g. the flashcards plugin constructs a *new* `WorkspaceStore` for the same workspace and calls `apply()`) must therefore run **after** the lock is released — holding `_sync_lock` across `_invoke_class_side_effects()` deadlocks. `apply()`/`apply_many()` hold the lock across persist+apply only.
 
+## Playwright route globs match Vite module URLs
+
+In e2e, a route glob like `**/api/**` also matches Vite's module URLs (`/src/features/auth/api/*.ts`) and bricks the boot. Match on parsed URL pathname instead (see `frontend/e2e/local-mode.spec.ts`).
+
+## Local mode is a connection mode, not a build variant
+
+Serverless behavior keys off `useConnectionMode()` / `useCapabilities()` (`frontend/src/config/serverUrl.ts`, `config/capabilities.ts`) — never scatter raw `localStorage`/`isLocal` checks through features. New server-dependent UI must declare its capability. See plan `references/agents/plans/2026-08-22-local-first-split/`.
+
 ## Repository SQL can drift from schema migrations
 
 `app/db/schema/sql.py` evolves tables via guarded `ALTER TABLE` blocks (e.g. `pending_invite` dropped `node_id` at v5), but nothing fails CI when repository SQL still references the dropped column — the breakage only surfaces at runtime. After changing schema DDL, grep `app/features/**/repository.py` for the old column name.
