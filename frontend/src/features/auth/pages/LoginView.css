@@ -53,6 +53,12 @@
   border-radius: var(--shape-medium);
 }
 
+.login-local {
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-4);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+}
+
 .login-toggle {
   text-align: center;
   margin-top: var(--spacing-4);

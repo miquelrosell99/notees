@@ -9,6 +9,7 @@
 import { useState, useCallback } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import { useNodeActivity, useDeleteNodeActivity } from '@/features/content';
+import { useCapabilities } from '@/config/capabilities';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { splitTextWithLinks } from '@/lib/noteesUri';
 import { useNavigationStore } from '@/stores';
@@ -137,6 +138,9 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
 
 export function NodeActivityLogSection({ nodeUuid, defaultExpanded = false, variant = 'default', focusMode = false }: NodeActivityLogSectionProps) {
   const internalVariant = variant;
+  // The activity log (fetch + delete) is entirely server-side; the section is
+  // hidden in local mode (local-first split, Task 4).
+  const capabilities = useCapabilities();
   const { data: activities, isLoading } = useNodeActivity(nodeUuid);
   const deleteActivity = useDeleteNodeActivity();
   
@@ -158,7 +162,7 @@ export function NodeActivityLogSection({ nodeUuid, defaultExpanded = false, vari
     setContextMenu(null);
   }, [nodeUuid, deleteActivity]);
 
-  const contextMenuItems: ContextMenuItem[] = contextMenu ? [
+  const contextMenuItems: ContextMenuItem[] = contextMenu && capabilities.activity ? [
     {
       id: 'delete',
       label: 'Delete entry',
@@ -169,6 +173,8 @@ export function NodeActivityLogSection({ nodeUuid, defaultExpanded = false, vari
   ] : [];
 
   const count = activities?.length ?? 0;
+
+  if (!capabilities.activity) return null;
 
   return (
     <NodeViewSection

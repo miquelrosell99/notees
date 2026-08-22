@@ -62,6 +62,9 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   const entityUuid = params['*'];
   const queryClient = useQueryClient();
   const authVerified = useAuthStore((s) => s.authVerified);
+  // Local sessions never query the server workspace list; the URL workspaceId
+  // already identifies the well-known local workspace.
+  const isLocalSession = useAuthStore((s) => s.user?.isLocal === true);
 
   const {
     setMainViewType,
@@ -81,7 +84,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   const { data: dbData, isLoading: isLoadingDbs } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
-    enabled: authVerified,
+    enabled: authVerified && !isLocalSession,
     staleTime: 30000,
     select: (data) => ({
       workspaces: data.items,

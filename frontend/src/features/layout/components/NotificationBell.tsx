@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
 import { useNavigationStore } from '@/stores';
+import { useCapabilities } from '@/config/capabilities';
 import { Icon, Button, Spinner } from '@/components/ui';
 import './NotificationBell.css';
 
@@ -81,6 +82,7 @@ export function NotificationPanel({ filterType, title, onClose }: NotificationPa
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const capabilities = useCapabilities();
   const { data } = useNotifications(false);
 
   const unreadCount = data?.unread_count ?? 0;
@@ -96,6 +98,9 @@ export function NotificationBell() {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
+
+  // Notifications are server-side; the bell is hidden entirely in local mode.
+  if (!capabilities.notifications) return null;
 
   return (
     <div className="notification-bell" ref={panelRef}>

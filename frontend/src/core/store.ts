@@ -1513,6 +1513,89 @@ export class WorkspaceStore {
     return this.actorId;
   }
 
+  /**
+   * Return the derived asset metadata for a node, or undefined when the node
+   * is not an asset. Written by the ``asset.upload`` applier; read by the
+   * local-mode asset store to resolve content hashes without a server call.
+   */
+  getAssetInfo(nodeId: string):
+    | { assetHash: string; mimeType: string; sizeBytes: number; originalName: string }
+    | undefined {
+    const row = queryOne<{
+      asset_hash: string;
+      mime_type: string;
+      size: number;
+      original_name: string;
+    }>(this.db, 'SELECT asset_hash, mime_type, size, original_name FROM node_asset WHERE node_id = ?', [
+      nodeId,
+    ]);
+    if (!row) return undefined;
+    return {
+      assetHash: row.asset_hash,
+      mimeType: row.mime_type,
+      sizeBytes: row.size,
+      originalName: row.original_name,
+    };
+  }
+
+  /**
+   * Return every operation in this workspace's local op log, ordered by HLC
+   * (causal order; rowid breaks cross-actor ties by insertion order). Used by
+   * connect-later adoption (local-first split, Task 6) to replay the FULL log —
+   * not just the outbox — into a fresh, empty server workspace.
+   */
+  getAllOperations(): Operation[] {
+    const rows = queryAll<OperationRow>(
+      this.db,
+      `SELECT id, workspace_id, actor_id, hlc_physical, hlc_logical, affected_node_ids, op_type, payload
+       FROM operation
+       WHERE workspace_id = ?
+       ORDER BY hlc_physical ASC, hlc_logical ASC, rowid ASC`,
+      [this.workspaceId]
+    );
+    return rows.map((row) => ({
+      envelope: {
+        id: row.id,
+        protocolVersion: PROTOCOL_VERSION,
+        workspaceId: row.workspace_id,
+        actorId: row.actor_id,
+        hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
+        affectedNodeIds: JSON.parse(row.affected_node_ids) as string[],
+        opType: row.op_type,
+      },
+      payload: JSON.parse(row.payload) as unknown,
+    }));
+  }
+
+  /**
+   * Return every derived asset row (asset node → content-addressed blob
+   * metadata). Written by the `asset.upload` applier; rows for deleted assets
+   * are removed by `asset.delete`, so this is the live inventory. Used by
+   * connect-later adoption to upload locally stored blobs to the server.
+   */
+  getAllAssets(): Array<{
+    nodeId: string;
+    assetHash: string;
+    mimeType: string;
+    sizeBytes: number;
+    originalName: string;
+  }> {
+    const rows = queryAll<{
+      node_id: string;
+      asset_hash: string;
+      mime_type: string;
+      size: number;
+      original_name: string;
+    }>(this.db, 'SELECT node_id, asset_hash, mime_type, size, original_name FROM node_asset');
+    return rows.map((row) => ({
+      nodeId: row.node_id,
+      assetHash: row.asset_hash,
+      mimeType: row.mime_type,
+      sizeBytes: row.size,
+      originalName: row.original_name,
+    }));
+  }
+
   /** Create a snapshot of the derived state up to the given HLC. */
   createSnapshot(upToHlc?: { physical: number; logical: number }): string {
     const hlc = upToHlc ?? this.getLatestHlc();

@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as activityApi from '../api/activity';
 import { activityKeys } from '@/hooks/queryKeys';
+import { useCapabilities } from '@/config/capabilities';
 
 // ==================== Activity Queries ====================
 
@@ -13,10 +14,12 @@ import { activityKeys } from '@/hooks/queryKeys';
  * Hook to fetch activity log for a node
  */
 export function useNodeActivity(nodeUuid: string | null, limit = 50) {
+  // The activity log is server-side; never fire the query in local mode.
+  const capabilities = useCapabilities();
   return useQuery({
     queryKey: activityKeys.forNode(nodeUuid ?? ''),
     queryFn: () => activityApi.getNodeActivity(nodeUuid!, limit),
-    enabled: !!nodeUuid,
+    enabled: !!nodeUuid && capabilities.activity,
   });
 }
 

@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Spinner } from '@/components/ui/Spinner';
 import './LoginView.css';
 import { useAuthStore } from '@/stores';
+import { useConnectionMode } from '@/stores/connectionStore';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { Checkbox } from '@/components/ui/Checkbox';
@@ -35,14 +36,18 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
   const [isRegister, setIsRegister] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [showServerLogin, setShowServerLogin] = useState(false);
   const queryClient = useQueryClient();
   const login = useAuthStore((s) => s.login);
+  const loginLocally = useAuthStore((s) => s.loginLocally);
   const register = useAuthStore((s) => s.register);
   const isLoading = useAuthStore((s) => s.isLoading);
   const error = useAuthStore((s) => s.error);
   const clearError = useAuthStore((s) => s.clearError);
   const twoFactor = useAuthStore((s) => s.twoFactor);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const connectionMode = useConnectionMode();
+  const isLocalMode = connectionMode === 'local';
 
   const passwordError = useMemo(() => {
     if (!isRegister || !password) return null;
@@ -79,6 +84,14 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
     }
   };
 
+  const handleContinueLocally = () => {
+    clearError();
+    setLocalError(null);
+    loginLocally();
+    // isAuthenticated flips synchronously; LoginRoute navigates to '/' exactly
+    // as after a server login.
+  };
+
   const displayError = localError || error;
   const formErrorId = useId();
 
@@ -92,14 +105,36 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
     );
   }
 
+  const showServerForm = !isLocalMode || showServerLogin;
+
   return (
     <div className="login-page">
       <div className="login-container">
         <h1>Notees</h1>
         <p className="login-subtitle">
-          {isRegister ? 'Create your account' : 'Sign in to continue'}
+          {isLocalMode && !showServerForm
+            ? 'Your notes stay on this device'
+            : isRegister
+              ? 'Create your account'
+              : 'Sign in to continue'}
         </p>
 
+        {!showServerForm && (
+          <>
+            <Button variant="primary" fullWidth type="button" onClick={handleContinueLocally}>
+              Continue locally
+            </Button>
+            <p className="login-toggle">
+              Have a server?{' '}
+              <Button variant="ghost" size="xs" type="button" onClick={() => setShowServerLogin(true)}>
+                Sign in to a server
+              </Button>
+            </p>
+          </>
+        )}
+
+        {showServerForm && (
+          <>
         <form onSubmit={handleSubmit} className="login-form">
           <TextField
             id="email"
@@ -161,6 +196,14 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
             {isLoading ? <Spinner size="sm" label={isRegister ? 'Registering...' : 'Signing in...'} /> : isRegister ? 'Register' : 'Sign In'}
           </Button>
         </form>
+
+        <div className="login-local">
+          <Button variant="default" fullWidth type="button" onClick={handleContinueLocally}>
+            Continue locally
+          </Button>
+        </div>
+          </>
+        )}
 
         {registrationEnabled && (
           <p className="login-toggle">

@@ -8,6 +8,7 @@ import { useState, useRef, useEffect, useLayoutEffect, type ReactNode, type RefO
 import { createPortal } from 'react-dom';
 import { autoUpdate, computePosition, flip, offset, shift, type Placement } from '@floating-ui/dom';
 import { useAuthStore } from '@/stores';
+import { useCapabilities } from '@/config/capabilities';
 import { useNotifications } from '@/hooks/useNotifications';
 import { NotificationPanel } from './NotificationBell';
 
@@ -108,6 +109,7 @@ export function AccountMenu({
   const notifRef = useRef<HTMLDivElement>(null);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const capabilities = useCapabilities();
   const { data: notificationsData } = useNotifications(false);
 
   // Register the main menu and notification panel with the global overlay stack
@@ -230,24 +232,30 @@ export function AccountMenu({
             <span className="account-menu__username">{displayName}</span>
           </div>
           <div className="account-menu__divider" />
-          <button className="account-menu__item" onClick={() => handleOpenNotifications(undefined, 'Notifications')}>
-            <Icon path={"mdi mdi-bell-outline"} size={0.7} />
-            <span>Notifications</span>
-            {unreadCount > 0 && <span className="account-menu__badge">{unreadCount}</span>}
-          </button>
-          <button className="account-menu__item" onClick={() => handleOpenNotifications('mention', 'Mentions')}>
-            <Icon path={"mdi mdi-at"} size={0.7} />
-            <span>Mentions</span>
-            {unreadMentions > 0 && <span className="account-menu__badge">{unreadMentions}</span>}
-          </button>
-          <div className="account-menu__divider" />
-          {onOpenShares && (
-            <button className="account-menu__item" onClick={handleShares}>
-              <Icon path={"mdi mdi-share-variant"} size={0.7} />
-              <span>Shares</span>
-            </button>
+          {capabilities.notifications && (
+            <>
+              <button className="account-menu__item" onClick={() => handleOpenNotifications(undefined, 'Notifications')}>
+                <Icon path={"mdi mdi-bell-outline"} size={0.7} />
+                <span>Notifications</span>
+                {unreadCount > 0 && <span className="account-menu__badge">{unreadCount}</span>}
+              </button>
+              <button className="account-menu__item" onClick={() => handleOpenNotifications('mention', 'Mentions')}>
+                <Icon path={"mdi mdi-at"} size={0.7} />
+                <span>Mentions</span>
+                {unreadMentions > 0 && <span className="account-menu__badge">{unreadMentions}</span>}
+              </button>
+              <div className="account-menu__divider" />
+            </>
           )}
-          <div className="account-menu__divider" />
+          {capabilities.shares && onOpenShares && (
+            <>
+              <button className="account-menu__item" onClick={handleShares}>
+                <Icon path={"mdi mdi-share-variant"} size={0.7} />
+                <span>Shares</span>
+              </button>
+              <div className="account-menu__divider" />
+            </>
+          )}
           <button className="account-menu__item" onClick={handleUserSettings}>
             <Icon path={"mdi mdi-account-outline"} size={0.7} />
             <span>User Settings</span>
@@ -258,7 +266,7 @@ export function AccountMenu({
               <span>Graph Settings</span>
             </button>
           )}
-          {user?.role === 'admin' && onOpenSystemSettings && (
+          {capabilities.admin && user?.role === 'admin' && onOpenSystemSettings && (
             <button className="account-menu__item" onClick={handleSystemSettings}>
               <Icon path={"mdi mdi-account-cog"} size={0.7} />
               <span>System Settings</span>

@@ -1,5 +1,7 @@
 const DB_NAME = 'notees-workspaces';
-const DB_VERSION = 2;
+// v3 adds the `assetBlobs` object store (local-first split, Task 5): content
+// bytes for assets uploaded in local mode, keyed by SHA-256 content hash.
+const DB_VERSION = 3;
 
 const CHUNK_SIZE_BYTES = 1024 * 1024; // 1 MiB
 const WRITE_BATCH_SIZE = 20;
@@ -35,7 +37,12 @@ interface WorkspaceDatabaseChunk {
   data: Uint8Array;
 }
 
-function openPersistenceDb(): Promise<IDBDatabase> {
+/**
+ * Open the shared persistence database, running schema upgrades as needed.
+ * Exported so sibling modules (e.g. the local asset blob store) can reuse the
+ * same database and connection pattern instead of opening a parallel one.
+ */
+export function openPersistenceDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     try {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -60,6 +67,11 @@ function openPersistenceDb(): Promise<IDBDatabase> {
         // load; new writes go to the chunked stores.
         if (!db.objectStoreNames.contains('databases')) {
           db.createObjectStore('databases', { keyPath: 'workspaceId' });
+        }
+        // v3: content-addressed asset bytes for local mode. Key = asset hash
+        // (out-of-line), value = raw bytes. Managed by features/assets/api/localAssets.
+        if (!db.objectStoreNames.contains('assetBlobs')) {
+          db.createObjectStore('assetBlobs');
         }
         void event;
       };
