@@ -109,9 +109,10 @@ describe('projectNode', () => {
     const node = projectNode(store, pageId);
     expect(node!.name).not.toContain('type');
     expect(node!.name).not.toContain('node_link');
-    // When the only content is an unresolved node link, show the target UUID
-    // instead of an ellipsis so users can identify the reference.
-    expect(node!.name).toBe(targetId);
+    // When the only content is an unresolved node link, fall back to a
+    // non-UUID placeholder (never the raw target UUID, which would leak an
+    // internal identifier) — see skills/notees/rules/coding-standards.md.
+    expect(node!.name).toBe('Link');
   });
 
   it('keeps surrounding text when content mixes text and node links', async () => {

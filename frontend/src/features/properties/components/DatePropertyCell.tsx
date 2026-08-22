@@ -1,11 +1,9 @@
 import { useState, useRef, useMemo, useCallback } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '../hooks';
-import { useNode } from '@/features/content';
-import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
+import { useNode, getOrCreateDailyNoteClient, DatePickerPopup } from '@/features/content';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
-import { DatePickerPopup } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import './PropertyCell.css';
 

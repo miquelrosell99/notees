@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useGraphQuery } from '../useGraphQuery';
-import type { IWorkspaceStoreClient, NotifyChangeMessage } from '../../../worker/workerProtocol';
+import type { IWorkspaceStoreClient, NotifyChangeMessage } from '@/core/worker/workerProtocol';
 import type { GraphQuery } from '../../GraphQuery';
 
-vi.mock('../../../hooks/useWorkspaceStoreClient', () => ({
+vi.mock('@/core/hooks/useWorkspaceStoreClient', () => ({
   useWorkspaceStoreClient: vi.fn(),
 }));
 
-import { useWorkspaceStoreClient } from '../../../hooks/useWorkspaceStoreClient';
+import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 
 const TestQuery: GraphQuery<{ nodeUuid: string }, { value: string }> = {
   name: 'TestQuery',

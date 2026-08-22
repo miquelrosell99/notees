@@ -24,8 +24,7 @@ import {
   useSetNodeProperty,
   useCreateProperty,
 } from '@/features/properties';
-import { DatePickerPopup, useCreateComment } from '@/features/content';
-import { getOrCreateDailyNoteClient } from '@/features/content/hooks/useNodeDateQueries';
+import { DatePickerPopup, useCreateComment, getOrCreateDailyNoteClient } from '@/features/content';
 import { generateUUID } from '@/utils/uuid';
 import type { DateRangeValue } from '@/utils/dateRange';
 import { useParams } from 'react-router-dom';

@@ -201,10 +201,12 @@ export interface BaseConditionNode {
  */
 export interface ClassCondition extends BaseConditionNode {
   condition_type: 'class';
-  class_uuid: string;
+  // Optional to match the backend: an empty/missing class_uuid compiles to no
+  // filter (match-all), e.g. the all_pages pseudo-query uses 'is_any_of'.
+  class_uuid?: string;
   // For dynamic mode: comma-separated UUIDs
   class_uuids?: string[];
-  operator?: 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'defined' | 'not_defined';  // Default: 'contains'
+  operator?: 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'defined' | 'not_defined' | 'is_any_of';  // Default: 'contains'
 }
 
 /**
