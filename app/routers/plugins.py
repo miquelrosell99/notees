@@ -17,14 +17,16 @@ from app.dependencies import (
     require_write_scope,
 )
 from app.domain.repositories.interfaces import SettingsRepository
-from app.features.auth.router import require_admin
+from app.features.auth.dependencies import require_admin
 from app.features.workspaces.manager import get_active_workspace_id
+from app.logging_config import get_logger
 from app.models import User
 from app.plugins.core import PluginContext, plugin_manager
 from app.plugins.core.installer import create_install_job, get_install_job, run_install_job
 from app.plugins.core.ports import ImportContext, ImportResult
 from app.utils import utc_now
 
+logger = get_logger(__name__)
 router = APIRouter(
     prefix="/plugins",
     tags=["plugins"],
@@ -211,7 +213,8 @@ async def update_plugin(plugin_id: str):
     try:
         loaded = plugin_manager.reload_plugin(plugin_id)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc)) from exc
+        logger.exception("Failed to reload plugin %s after update", plugin_id)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to reload plugin") from exc
     return _plugin_summary(loaded)
 
 
