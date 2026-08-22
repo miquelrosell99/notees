@@ -10,25 +10,13 @@ from fastapi import Depends, HTTPException
 from app.core.workspace_store import WorkspaceStore
 from app.db.connection import get_pool, get_workspace_uuid
 from app.dependencies import _get_workspace_context_cached, get_current_user, get_workspace_id
-from app.features.export.dependencies import _make_export_repository
-from app.features.export.service import ExportService
-from app.infrastructure.export.renderer import HtmlPdfExportRenderer
+from app.features.export.dependencies import _make_export_service
 from app.models import User
 from app.relay.dependencies import get_relay_storage
 
 from .port import ShareRepository
 from .repository import PostgresShareRepository
 from .service import ShareService
-
-_export_renderer_instance: HtmlPdfExportRenderer | None = None
-
-
-def _get_export_renderer() -> HtmlPdfExportRenderer:
-    """Return the singleton HTML/PDF export renderer adapter."""
-    global _export_renderer_instance
-    if _export_renderer_instance is None:
-        _export_renderer_instance = HtmlPdfExportRenderer()
-    return _export_renderer_instance
 
 
 def _make_share_repository(
@@ -65,8 +53,7 @@ async def _get_share_service(user: User) -> ShareService:
     if workspace_uuid is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
     share_repo = _make_share_repository(pool, workspace_id, user_id)
-    export_repo = _make_export_repository(user.uuid)
-    export_service = ExportService(export_repo, _get_export_renderer())
+    export_service = _make_export_service(user.uuid)
     return ShareService(
         share_repo, export_service, workspace_id, user_id, workspace_uuid=workspace_uuid
     )
@@ -79,8 +66,7 @@ async def _get_public_share_service(workspace_id: int) -> ShareService:
     if workspace_uuid is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
     share_repo = _make_share_repository(pool, workspace_id, 0)
-    export_repo = _make_export_repository("anonymous")
-    export_service = ExportService(export_repo, _get_export_renderer())
+    export_service = _make_export_service("anonymous")
     return ShareService(
         share_repo, export_service, workspace_id, 0, workspace_uuid=workspace_uuid
     )

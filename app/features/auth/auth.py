@@ -59,7 +59,7 @@ def clear_user_cache(user_id: str) -> None:
 
 async def _get_user_repo() -> UserRepository:
     """Return a UserRepository backed by the current pool."""
-    from app.domain.repositories.factories import make_user_repository
+    from app.infrastructure.repositories.factories import make_user_repository
 
     return make_user_repository(await get_pool())
 

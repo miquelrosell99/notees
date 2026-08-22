@@ -13,8 +13,8 @@ from __future__ import annotations
 from typing import Any
 
 from .db.connection import get_pool
-from .domain.repositories.factories import make_system_settings_repository
 from .domain.repositories.interfaces import SystemSettingsRepository
+from .infrastructure.repositories.factories import make_system_settings_repository
 from .logging_config import get_logger
 
 logger = get_logger(__name__)

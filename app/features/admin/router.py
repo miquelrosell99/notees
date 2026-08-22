@@ -11,9 +11,8 @@ from pydantic import BaseModel
 from app.dependencies import require_admin_scope
 from app.features.auth import auth as auth_module
 from app.features.auth import hash_password
-from app.features.auth.dependencies import get_user_repository
+from app.features.auth.dependencies import get_user_repository, require_admin
 from app.features.auth.port import UserRepository
-from app.features.auth.router import require_admin
 from app.logging_config import get_logger
 from app.models import AdminUserCreate, AdminUserUpdate, PaginatedResponse
 from app.system_settings import get_all_system_settings, get_system_setting, set_system_setting

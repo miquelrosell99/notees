@@ -15,7 +15,7 @@ from __future__ import annotations
 from app.core.workspace_store import WorkspaceStore
 from app.db.connection import get_pool
 from app.domain.repositories.interfaces import SettingsRepository
-from app.domain.repositories.postgres_settings import PostgresSettingsRepository
+from app.infrastructure.repositories.postgres_settings import PostgresSettingsRepository
 from app.relay.dependencies import get_relay_storage
 
 from .manager import plugin_manager

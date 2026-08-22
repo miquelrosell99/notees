@@ -1,4 +1,4 @@
-"""Repository implementations package."""
+"""Repository interfaces and the PostgreSQL permission adapter."""
 
 from .interfaces import (
     CleanupRepository,
@@ -6,10 +6,7 @@ from .interfaces import (
     SettingsRepository,
     SystemSettingsRepository,
 )
-from .postgres_cleanup import PostgresCleanupRepository
 from .postgres_permission import PostgresPermissionRepository
-from .postgres_settings import PostgresSettingsRepository
-from .postgres_system_settings import PostgresSystemSettingsRepository
 
 __all__ = [
     # Interfaces
@@ -18,8 +15,5 @@ __all__ = [
     "SettingsRepository",
     "SystemSettingsRepository",
     # PostgreSQL implementations
-    "PostgresCleanupRepository",
     "PostgresPermissionRepository",
-    "PostgresSettingsRepository",
-    "PostgresSystemSettingsRepository",
 ]

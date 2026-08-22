@@ -31,8 +31,6 @@ from .db.connection import acquire_connection, get_pool
 from .db.schema import get_or_create_user_workspace
 from .domain.permissions import PermissionChecker
 from .domain.ports import EmailSender, PushNotificationSender
-from .domain.repositories import PostgresSettingsRepository
-from .domain.repositories.factories import make_permission_repository
 from .domain.repositories.interfaces import SettingsRepository
 from .features.notifications.port import NotificationRepository, PushDeviceRepository
 from .features.notifications.repository import (
@@ -47,6 +45,8 @@ from .features.workspaces.dependencies import (
 from .features.workspaces.manager import get_active_workspace_id
 from .infrastructure.email import SmtpEmailSender
 from .infrastructure.push.fcm import FcmPushSender
+from .infrastructure.repositories import PostgresSettingsRepository
+from .infrastructure.repositories.factories import make_permission_repository
 from .logging_config import get_logger
 from .models import User
 

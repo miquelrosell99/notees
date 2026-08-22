@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.domain.repositories import PostgresSettingsRepository
+from app.infrastructure.repositories import PostgresSettingsRepository
 from app.system_settings import get_system_setting, set_system_setting
 
 pytestmark = pytest.mark.asyncio

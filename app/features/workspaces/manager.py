@@ -7,8 +7,8 @@ been moved to PostgresWorkspaceRepository and orchestrated by WorkspaceService.
 from typing import Any
 
 from app.db.connection import get_pool
-from app.domain.repositories.factories import make_user_repository, make_workspace_repository
 from app.features.workspaces.service import WorkspaceService, _active_workspaces
+from app.infrastructure.repositories.factories import make_user_repository, make_workspace_repository
 
 __all__ = [
     "create_workspace",
