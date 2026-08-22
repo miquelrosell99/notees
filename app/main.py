@@ -22,6 +22,7 @@ Provides REST API for:
 """
 
 import asyncio
+import contextlib
 import mimetypes
 import os
 import sys
@@ -65,9 +66,9 @@ from .domain.errors import (
     NodeNotFoundError,
     PermissionDeniedError,
 )
-from .domain.repositories.factories import make_user_repository
 from .features.auth import is_strong_admin_password
 from .infrastructure.export.share_files import get_static_share_path
+from .infrastructure.repositories.factories import make_user_repository
 from .logging_config import get_logger, setup_logging
 from .plugins.core import plugin_manager
 from .plugins.core.bootstrap import register_core_ports
@@ -663,8 +664,10 @@ _share_limiter = per_ip_limiter(60, Duration.MINUTE)
 )
 async def serve_share_html(share_uuid: str):
     """Serve pre-generated static HTML for a public share, or fall back to SPA."""
-    html_path = get_static_share_path(share_uuid)
-    if html_path.exists():
+    html_path = None
+    with contextlib.suppress(ValueError):
+        html_path = get_static_share_path(share_uuid)
+    if html_path is not None and html_path.exists():
         return FileResponse(html_path, media_type="text/html")
     # Fall back to SPA - the React app will render PublicShareView
     index_path = dist_path / "index.html"

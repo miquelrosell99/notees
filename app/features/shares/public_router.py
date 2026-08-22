@@ -88,7 +88,9 @@ async def get_shared_node(
     derived_share = dict(share_rows[0])
     password_hash = derived_share.get("password_hash") or share.password_hash
     if password_hash:
-        password = request.query_params.get("password") or ""
+        # Header, not a query param: query strings leak into access/proxy logs
+        # and browser history.
+        password = request.headers.get("X-Share-Password") or ""
         try:
             password_ok = bool(password) and verify_password(password, password_hash)
         except PasswordVerificationError:

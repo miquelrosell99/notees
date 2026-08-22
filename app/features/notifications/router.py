@@ -5,7 +5,7 @@ Handles in-app notifications for mentions, shares, and comments.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.workspace_store import WorkspaceStore
 from app.dependencies import (
@@ -44,7 +44,7 @@ def _node_name_from_content(content: str | None) -> str | None:
 @router.get("")
 async def list_notifications(
     include_read: bool = False,
-    limit: int = 20,
+    limit: int = Query(20, le=200),
     user: User = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
     store: WorkspaceStore = Depends(get_workspace_store),

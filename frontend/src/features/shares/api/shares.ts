@@ -160,13 +160,16 @@ export async function deleteShare(shareUuid: string): Promise<{ success: boolean
 
 /**
  * Get a publicly shared node (no auth required)
+ *
+ * The share password is sent via the `X-Share-Password` header rather than a
+ * query param so it does not leak into access logs or browser history.
  */
 export async function getPublicSharedNode(
   shareUuid: string,
   password?: string
 ): Promise<PublicSharedNode> {
   const response = await api.get<PublicSharedNode>(`${PUBLIC_BASE}/${shareUuid}`, {
-    params: password ? { password } : undefined,
+    headers: password ? { 'X-Share-Password': password } : undefined,
   });
   return response.data;
 }
