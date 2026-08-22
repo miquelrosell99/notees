@@ -994,6 +994,11 @@ class PostgresInviteRepository(BasePostgresRepository, InviteRepository):
 
             node_uuid = invite.get("node_uuid")
             if node_uuid:
+                # Since schema v5, workspace-level invites carry the workspace's own
+                # UUID as node_uuid (the op-log authority id / root node reference).
+                # Accepting such an invite therefore also grants a share on the
+                # workspace root node. This is intentional — confirmed 2026-08
+                # (see docs/audit-report.md, Open decisions).
                 ws_uuid_row = await conn.fetchrow(
                     "SELECT uuid::text FROM workspace WHERE id = $1",
                     invite["workspace_id"],
