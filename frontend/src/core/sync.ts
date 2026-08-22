@@ -53,6 +53,8 @@ export interface OperationRow {
 export class SyncEngine {
   private lastReceivedHlc: Hlc = { physical: 0, logical: 0 };
   private lastPushedHlc: Hlc = { physical: 0, logical: 0 };
+  /** Server-assigned seq of the last applied envelope; the catch-up cursor. */
+  private lastReceivedSeq = 0;
   private client: IWorkspaceStoreClient;
   private transport: Transport;
   private callbacks: SyncEngineCallbacks;
@@ -79,9 +81,14 @@ export class SyncEngine {
 
   private async ensureWatermarksLoaded(): Promise<void> {
     if (this.watermarksLoaded) return;
-    const watermarks = await this.client.query<{ received: Hlc; pushed: Hlc }>('loadWatermarks', []);
+    const watermarks = await this.client.query<{
+      received: Hlc;
+      pushed: Hlc;
+      receivedSeq: number;
+    }>('loadWatermarks', []);
     this.lastReceivedHlc = watermarks.received;
     this.lastPushedHlc = watermarks.pushed;
+    this.lastReceivedSeq = watermarks.receivedSeq;
     this.watermarksLoaded = true;
   }
 
@@ -95,6 +102,10 @@ export class SyncEngine {
 
   private async saveWatermark(hlc: Hlc, kind: 'received' | 'pushed'): Promise<void> {
     await this.client.mutate('saveWatermark', [kind, hlc]);
+  }
+
+  private async saveSeqCursor(seq: number): Promise<void> {
+    await this.client.mutate('saveSeqCursor', [seq]);
   }
 
   private async saveRestoreEpoch(epoch: number): Promise<void> {
@@ -264,8 +275,10 @@ export class SyncEngine {
       await this.client.mutate('clearOperationLog', []);
       this.lastReceivedHlc = { physical: 0, logical: 0 };
       this.lastPushedHlc = { physical: 0, logical: 0 };
+      this.lastReceivedSeq = 0;
       await this.saveWatermark(this.lastReceivedHlc, 'received');
       await this.saveWatermark(this.lastPushedHlc, 'pushed');
+      await this.saveSeqCursor(0);
       await this.saveRestoreEpoch(snapshot.restoreEpoch);
       this.uploadedSnapshotHlc = null;
     }
@@ -302,18 +315,42 @@ export class SyncEngine {
       // metadata HLC ensures we don't re-fetch and re-apply the entire log.
       this.lastReceivedHlc = maxHlc(restoredHlc, snapshot.hlc);
       await this.saveWatermark(this.lastReceivedHlc, 'received');
+      // Resume catch-up from the seq the snapshot covers. Null upToSeq means
+      // the snapshot predates the seq cursor: replay from 0, protected by
+      // operation-id dedupe.
+      this.lastReceivedSeq = snapshot.upToSeq ?? 0;
+      await this.saveSeqCursor(this.lastReceivedSeq);
     }
 
-    // Paginate through all server pages. This keeps the sync logic simple and
-    // lets us apply the full batch in sorted order. Memory use is modest:
-    // 115k envelopes is a few megabytes of JSON.
+    // Page the server by seq cursor until hasMore is false. This keeps the
+    // sync logic simple and lets us apply the full batch in sorted order.
+    // Memory use is modest: 115k envelopes is a few megabytes of JSON.
     log.info('pull catching up', {
-      afterHlc: this.lastReceivedHlc,
+      afterSeq: this.lastReceivedSeq,
     });
-    const envelopes = await this.transport.catchUp(this.lastReceivedHlc, (_page, totalSoFar) => {
-      this.reportPhase('catching-up', `Catching up with server… ${totalSoFar} operations`);
-      this.callbacks.onPullProgress?.({ applied: 0, total: totalSoFar });
-    });
+    const envelopes: OperationEnvelope[] = [];
+    let afterSeq = this.lastReceivedSeq;
+    // The final page has no next cursor; adopt the last cursor we saw. Any
+    // envelopes on that page are above it and will be re-fetched on the next
+    // pull — operation-id dedupe makes that safe.
+    let finalSeq = afterSeq;
+    for (;;) {
+      const page = await this.transport.catchUp(afterSeq);
+      envelopes.push(...page.envelopes);
+      if (page.nextAfterSeq !== null) {
+        finalSeq = page.nextAfterSeq;
+      }
+      this.reportPhase('catching-up', `Catching up with server… ${envelopes.length} operations`);
+      this.callbacks.onPullProgress?.({ applied: 0, total: envelopes.length });
+      if (!page.hasMore) break;
+      if (page.nextAfterSeq === null) {
+        // Defensive: a server that reports hasMore without a cursor would loop
+        // forever. Bail out; the next pull resumes from the last good cursor.
+        log.warn('catch-up page reported hasMore without nextAfterSeq; stopping pagination');
+        break;
+      }
+      afterSeq = page.nextAfterSeq;
+    }
     log.info('pull catch-up result', { envelopeCount: envelopes.length });
 
     // Fail loud when a peer speaks a newer protocol than we understand:
@@ -383,6 +420,8 @@ export class SyncEngine {
       this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, op.envelope.hlc);
     }
 
+    this.lastReceivedSeq = finalSeq;
+    await this.saveSeqCursor(this.lastReceivedSeq);
     await this.saveWatermark(this.lastReceivedHlc, 'received');
     await this.saveRestoreEpoch(snapshot.restoreEpoch);
     // Flush the SQLite DB to IndexedDB so the watermark and operation log survive
@@ -425,6 +464,9 @@ export class SyncEngine {
             data,
             restoreEpoch: snapshot.restoreEpoch,
             hasSnapshot: true,
+            // The exported derived DB covers everything up to our current
+            // cursor; the server records it as the snapshot's up_to_seq.
+            upToSeq: this.lastReceivedSeq,
           });
           this.uploadedSnapshotHlc = hlc;
         } catch (err) {
@@ -485,8 +527,10 @@ export class SyncEngine {
       await this.client.mutate('clearOperationLog', []);
       this.lastReceivedHlc = { physical: 0, logical: 0 };
       this.lastPushedHlc = { physical: 0, logical: 0 };
+      this.lastReceivedSeq = 0;
       await this.saveWatermark(this.lastReceivedHlc, 'received');
       await this.saveWatermark(this.lastPushedHlc, 'pushed');
+      await this.saveSeqCursor(0);
       await this.saveRestoreEpoch(serverSnapshot.restoreEpoch);
       this.uploadedSnapshotHlc = null;
       this.reportPhase('pulling-operations', 'Pulling operations from server…');
@@ -525,9 +569,9 @@ export class SyncEngine {
   }
 
   /**
-   * Reset received watermark to zero, clear the local operation log, and pull
-   * everything from the server. Re-applying operations repairs derived state
-   * that may have been produced by an older applier version.
+   * Reset the received seq cursor to zero, clear the local operation log, and
+   * pull everything from the server. Re-applying operations repairs derived
+   * state that may have been produced by an older applier version.
    */
   async forceResync(): Promise<void> {
     await this.ensureWatermarksLoaded();
@@ -535,8 +579,10 @@ export class SyncEngine {
     await this.client.mutate('clearOperationLog', []);
     this.lastReceivedHlc = { physical: 0, logical: 0 };
     this.lastPushedHlc = { physical: 0, logical: 0 };
+    this.lastReceivedSeq = 0;
     await this.saveWatermark(this.lastReceivedHlc, 'received');
     await this.saveWatermark(this.lastPushedHlc, 'pushed');
+    await this.saveSeqCursor(0);
     this.uploadedSnapshotHlc = null;
     await this.syncOnce();
     // Note: we intentionally do not reset restoreEpoch here. syncOnce -> pull

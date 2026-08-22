@@ -1,6 +1,6 @@
 import type { Hlc } from './clock';
 import type { OperationEnvelope } from './crypto';
-import type { SnapshotEnvelope, SendBatchResult, Transport } from './transport';
+import type { CatchUpPage, SnapshotEnvelope, SendBatchResult, Transport } from './transport';
 
 const REQUEST_TIMEOUT_MS = 60_000;
 
@@ -98,55 +98,42 @@ export class HttpTransport implements Transport {
     return { savedIds: data.saved_ids };
   }
 
-  async catchUp(
-    afterHlc: Hlc,
-    onPage?: (page: OperationEnvelope[], totalSoFar: number, hasMore: boolean) => void
-  ): Promise<OperationEnvelope[]> {
-    const allEnvelopes: OperationEnvelope[] = [];
-    let afterId: string | undefined;
-    let hasMore = true;
+  async catchUp(afterSeq: number): Promise<CatchUpPage> {
+    const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/catch-up`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Actor-Id': this.actorId,
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        workspace_id: this.workspaceId,
+        after_seq: afterSeq,
+        limit: 10000,
+      }),
+    });
 
-    while (hasMore) {
-      const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/catch-up`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Actor-Id': this.actorId,
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          workspace_id: this.workspaceId,
-          hlc: afterHlc,
-          after_id: afterId,
-          limit: 10000,
-        }),
-      });
-
-      if (response.status === 403) {
-        throw new Error(
-          `Relay read denied for actor ${this.actorId} in workspace ${this.workspaceId}`
-        );
-      }
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => 'Unknown error');
-        throw new Error(`Relay catch-up failed (${response.status}): ${text}`);
-      }
-
-      const data = (await response.json()) as {
-        envelopes: OperationEnvelope[];
-        next_after_id: string | null;
-        has_more: boolean;
-      };
-      const page = data.envelopes ?? [];
-      allEnvelopes.push(...page);
-      hasMore = data.has_more ?? false;
-      afterId = data.next_after_id ?? undefined;
-
-      onPage?.(page, allEnvelopes.length, hasMore);
+    if (response.status === 403) {
+      throw new Error(
+        `Relay read denied for actor ${this.actorId} in workspace ${this.workspaceId}`
+      );
     }
 
-    return allEnvelopes;
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Relay catch-up failed (${response.status}): ${text}`);
+    }
+
+    const data = (await response.json()) as {
+      envelopes: OperationEnvelope[];
+      next_after_seq: number | null;
+      has_more: boolean;
+    };
+    return {
+      envelopes: data.envelopes ?? [],
+      nextAfterSeq: data.next_after_seq ?? null,
+      hasMore: data.has_more ?? false,
+    };
   }
 
   async getLatestSnapshot(): Promise<SnapshotEnvelope> {
@@ -179,6 +166,7 @@ export class HttpTransport implements Transport {
       data_base64: string;
       has_snapshot: boolean;
       restore_epoch: number;
+      up_to_seq: number | null;
     };
 
     return {
@@ -188,6 +176,9 @@ export class HttpTransport implements Transport {
       data: data.has_snapshot ? base64ToUint8Array(data.data_base64) : new Uint8Array(0),
       restoreEpoch: data.restore_epoch ?? 0,
       hasSnapshot: data.has_snapshot,
+      // Null for snapshots recorded before the seq cursor existed; the sync
+      // engine resumes catch-up from seq 0 in that case.
+      upToSeq: data.up_to_seq ?? null,
     };
   }
 

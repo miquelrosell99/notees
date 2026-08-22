@@ -261,6 +261,12 @@ async function handleMutateBody(request: Extract<WorkerRequest, { type: 'mutate'
       postResponse({ type: 'mutate-done', id: request.id, result: undefined });
       return;
     }
+    if (method === 'saveSeqCursor') {
+      const [seq] = request.args as [number];
+      saveSeqCursor(state.store, seq);
+      postResponse({ type: 'mutate-done', id: request.id, result: undefined });
+      return;
+    }
     if (method === 'markOperationsInFlight') {
       const [ids] = request.args as [string[]];
       state.store.markOperationsInFlight(ids);
@@ -979,6 +985,7 @@ function loadWatermarks(store: WorkspaceStore): {
   received: Hlc;
   pushed: Hlc;
   restoreEpoch: number;
+  receivedSeq: number;
 } {
   const db = store.getDb();
   const workspaceId = store.getWorkspaceId();
@@ -993,9 +1000,9 @@ function loadWatermarks(store: WorkspaceStore): {
     'SELECT hlc_physical, hlc_logical FROM sync_push_watermark WHERE workspace_id = ?',
     [workspaceId]
   );
-  const epochRow = queryOne<{ restore_epoch: number }>(
+  const epochRow = queryOne<{ restore_epoch: number; cursor_seq: number | null }>(
     db,
-    'SELECT restore_epoch FROM sync_watermark WHERE workspace_id = ?',
+    'SELECT restore_epoch, cursor_seq FROM sync_watermark WHERE workspace_id = ?',
     [workspaceId]
   );
 
@@ -1007,6 +1014,9 @@ function loadWatermarks(store: WorkspaceStore): {
       ? { physical: pushed.hlc_physical, logical: pushed.hlc_logical }
       : { physical: 0, logical: 0 },
     restoreEpoch: epochRow?.restore_epoch ?? 0,
+    // NULL cursor_seq = watermark row predates the seq cursor; start from 0 so
+    // the next pull is a full catch-up (operation-id dedupe protects replays).
+    receivedSeq: epochRow?.cursor_seq ?? 0,
   };
 }
 
@@ -1033,6 +1043,18 @@ function saveRestoreEpoch(store: WorkspaceStore, epoch: number, receivedHlc: Hlc
      ON CONFLICT(workspace_id) DO UPDATE SET
        restore_epoch = excluded.restore_epoch`,
     [workspaceId, receivedHlc.physical, receivedHlc.logical, epoch]
+  );
+}
+
+function saveSeqCursor(store: WorkspaceStore, seq: number): void {
+  const db = store.getDb();
+  const workspaceId = store.getWorkspaceId();
+  db.run(
+    `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical, cursor_seq)
+     VALUES (?, 0, 0, ?)
+     ON CONFLICT(workspace_id) DO UPDATE SET
+       cursor_seq = excluded.cursor_seq`,
+    [workspaceId, seq]
   );
 }
 

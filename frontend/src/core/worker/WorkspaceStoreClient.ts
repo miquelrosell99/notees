@@ -579,6 +579,11 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       this.saveRestoreEpoch(epoch, receivedHlc);
       return Promise.resolve(undefined as T);
     }
+    if (method === 'saveSeqCursor') {
+      const [seq] = args as [number];
+      this.saveSeqCursor(seq);
+      return Promise.resolve(undefined as T);
+    }
     if (method === 'markOperationsInFlight') {
       const [ids] = args as [string[]];
       this.store.markOperationsInFlight(ids);
@@ -967,7 +972,7 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     return () => {};
   }
 
-  private loadWatermarks(): { received: Hlc; pushed: Hlc; restoreEpoch: number } {
+  private loadWatermarks(): { received: Hlc; pushed: Hlc; restoreEpoch: number; receivedSeq: number } {
     const store = this.store!;
     const db = store.getDb();
     const workspaceId = store.getWorkspaceId();
@@ -982,9 +987,9 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       'SELECT hlc_physical, hlc_logical FROM sync_push_watermark WHERE workspace_id = ?',
       [workspaceId]
     );
-    const epochRow = queryOne<{ restore_epoch: number }>(
+    const epochRow = queryOne<{ restore_epoch: number; cursor_seq: number | null }>(
       db,
-      'SELECT restore_epoch FROM sync_watermark WHERE workspace_id = ?',
+      'SELECT restore_epoch, cursor_seq FROM sync_watermark WHERE workspace_id = ?',
       [workspaceId]
     );
 
@@ -996,6 +1001,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
         ? { physical: pushed.hlc_physical, logical: pushed.hlc_logical }
         : { physical: 0, logical: 0 },
       restoreEpoch: epochRow?.restore_epoch ?? 0,
+      // NULL cursor_seq = watermark row predates the seq cursor; start from 0
+      // so the next pull is a full catch-up (operation-id dedupe protects
+      // replays).
+      receivedSeq: epochRow?.cursor_seq ?? 0,
     };
   }
 
@@ -1024,6 +1033,19 @@ class InlineStoreClient implements IWorkspaceStoreClient {
        ON CONFLICT(workspace_id) DO UPDATE SET
          restore_epoch = excluded.restore_epoch`,
       [workspaceId, receivedHlc.physical, receivedHlc.logical, epoch]
+    );
+  }
+
+  private saveSeqCursor(seq: number): void {
+    const store = this.store!;
+    const db = store.getDb();
+    const workspaceId = store.getWorkspaceId();
+    db.run(
+      `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical, cursor_seq)
+       VALUES (?, 0, 0, ?)
+       ON CONFLICT(workspace_id) DO UPDATE SET
+         cursor_seq = excluded.cursor_seq`,
+      [workspaceId, seq]
     );
   }
 

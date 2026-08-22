@@ -29,16 +29,16 @@ describe('SyncEngine', () => {
     storeA.createNode({ nodeId, kind: 'page', parentId: null });
 
     await syncA.push();
-    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(1);
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(1);
 
     // A second push with no new operations should not send anything.
     await syncA.push();
-    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(1);
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(1);
 
     // A new operation should be pushed.
     storeA.updateText(nodeId, (text) => text.insert(0, 'hello'));
     await syncA.push();
-    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(2);
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(2);
   });
 
   it('converges two workspace stores via in-memory transport', async () => {
@@ -117,6 +117,7 @@ describe('SyncEngine', () => {
       data: snapshot.data,
       restoreEpoch: 0,
       hasSnapshot: true,
+      upToSeq: null,
     });
 
     const clientB = await createClientFromStore(storeB);
@@ -160,7 +161,7 @@ describe('SyncEngine', () => {
     store.createNode({ nodeId, kind: 'page', parentId: null });
 
     await expect(sync.push()).rejects.toThrow('network error');
-    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(0);
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(0);
 
     const watermarksAfterFailure = await client.query<{ pushed: { physical: number; logical: number } }>(
       'loadWatermarks',
@@ -172,7 +173,7 @@ describe('SyncEngine', () => {
     vi.advanceTimersByTime(6000);
     await sync.push();
 
-    expect(relay.catchUp(workspaceId, { physical: 0, logical: 0 })).toHaveLength(1);
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(1);
 
     const watermarksAfterSuccess = await client.query<{ pushed: { physical: number; logical: number } }>(
       'loadWatermarks',
@@ -228,5 +229,111 @@ describe('SyncEngine', () => {
     await sync.pull();
 
     expect(mutateSpy).not.toHaveBeenCalledWith('persistNow', []);
+  });
+
+  it('pages catch-up by seq cursor and resumes from the stored cursor', async () => {
+    const workspaceId = uuidv7();
+    const actorA = uuidv7();
+    const actorB = uuidv7();
+    const relay = new MemoryRelay();
+
+    const dbA = await createTestDatabase();
+    const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, new MemoryTransport(relay, workspaceId));
+
+    const nodeIds = [uuidv7(), uuidv7(), uuidv7()];
+    for (const nodeId of nodeIds) {
+      storeA.createNode({ nodeId, kind: 'page', parentId: null });
+    }
+    await syncA.push();
+
+    // Force small pages so pull has to paginate by seq.
+    const transportB = new MemoryTransport(relay, workspaceId);
+    const catchUpArgs: number[] = [];
+    transportB.catchUp = (afterSeq: number) => {
+      catchUpArgs.push(afterSeq);
+      return relay.catchUp(workspaceId, afterSeq, 2);
+    };
+
+    const dbB = await createTestDatabase();
+    const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
+    const clientB = await createClientFromStore(storeB);
+    const syncB = new SyncEngine(clientB, transportB);
+
+    await syncB.pull();
+
+    // Page 1: afterSeq 0 -> seqs 1,2 (full page, hasMore). Page 2: afterSeq 2
+    // -> seq 3 (partial final page, no next cursor).
+    expect(catchUpArgs).toEqual([0, 2]);
+    for (const nodeId of nodeIds) {
+      expect(storeB.getNode(nodeId)).toBeDefined();
+    }
+
+    const watermarks = await clientB.query<{ receivedSeq: number }>('loadWatermarks', []);
+    // The final page carries no next cursor, so the adopted cursor is the last
+    // next_after_seq seen; the tail page is re-fetched (dedupe-protected) on
+    // the next pull.
+    expect(watermarks.receivedSeq).toBe(2);
+
+    catchUpArgs.length = 0;
+    await syncB.pull();
+    expect(catchUpArgs[0]).toBe(2);
+  });
+
+  it('resumes catch-up from a restored snapshot upToSeq', async () => {
+    const workspaceId = uuidv7();
+    const actorA = uuidv7();
+    const actorB = uuidv7();
+    const relay = new MemoryRelay();
+
+    const dbA = await createTestDatabase();
+    const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, new MemoryTransport(relay, workspaceId));
+
+    const nodeId1 = uuidv7();
+    const nodeId2 = uuidv7();
+    storeA.createNode({ nodeId: nodeId1, kind: 'page', parentId: null });
+    storeA.createNode({ nodeId: nodeId2, kind: 'page', parentId: null });
+    await syncA.push();
+
+    // Snapshot covers seqs 1-2.
+    const snapshot = storeA.exportSnapshot();
+
+    // Server state advances past the snapshot (seq 3).
+    const nodeId3 = uuidv7();
+    storeA.createNode({ nodeId: nodeId3, kind: 'page', parentId: null });
+    await syncA.push();
+
+    const transportB = new MemoryTransport(relay, workspaceId);
+    transportB.getLatestSnapshot = async () => ({
+      snapshotId: 'snap-1',
+      workspaceId,
+      hlc: snapshot.hlc,
+      data: snapshot.data,
+      restoreEpoch: 0,
+      hasSnapshot: true,
+      upToSeq: 2,
+    });
+    const catchUpArgs: number[] = [];
+    const baseCatchUp = transportB.catchUp.bind(transportB);
+    transportB.catchUp = (afterSeq: number) => {
+      catchUpArgs.push(afterSeq);
+      return baseCatchUp(afterSeq);
+    };
+
+    const dbB = await createTestDatabase();
+    const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
+    const clientB = await createClientFromStore(storeB);
+    const syncB = new SyncEngine(clientB, transportB);
+
+    await syncB.pull();
+
+    // Catch-up resumes from the snapshot's upToSeq, not from 0.
+    expect(catchUpArgs).toEqual([2]);
+    expect(storeB.getNode(nodeId1)).toBeDefined();
+    expect(storeB.getNode(nodeId2)).toBeDefined();
+    expect(storeB.getNode(nodeId3)).toBeDefined();
   });
 });

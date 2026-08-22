@@ -79,20 +79,31 @@ describe('HttpTransport', () => {
     };
 
     const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ envelopes: [returnedEnvelope] }), { status: 200 })
+      new Response(
+        JSON.stringify({
+          envelopes: [returnedEnvelope],
+          next_after_seq: 43,
+          has_more: true,
+        }),
+        { status: 200 }
+      )
     );
     globalThis.fetch = mockFetch as unknown as typeof fetch;
 
-    const result = await transport.catchUp({ physical: 1000, logical: 0 });
+    const result = await transport.catchUp(42);
 
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual(returnedEnvelope);
+    expect(result.envelopes).toHaveLength(1);
+    expect(result.envelopes[0]).toEqual(returnedEnvelope);
+    expect(result.nextAfterSeq).toBe(43);
+    expect(result.hasMore).toBe(true);
 
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/api/relay/catch-up');
     const body = JSON.parse((init?.body as string) ?? '{}');
     expect(body.workspace_id).toBe(workspaceId);
-    expect(body.hlc).toEqual({ physical: 1000, logical: 0 });
+    expect(body.after_seq).toBe(42);
+    expect(body.hlc).toBeUndefined();
+    expect(body.after_id).toBeUndefined();
   });
 
   it('throws a clear error on 403 during catchUp', async () => {
@@ -100,9 +111,7 @@ describe('HttpTransport', () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response('Forbidden', { status: 403 }));
     globalThis.fetch = mockFetch as unknown as typeof fetch;
 
-    await expect(transport.catchUp({ physical: 0, logical: 0 })).rejects.toThrow(
-      'Relay read denied'
-    );
+    await expect(transport.catchUp(0)).rejects.toThrow('Relay read denied');
   });
 
   it('skips snapshot upload when data exceeds the client size limit', async () => {
@@ -117,6 +126,7 @@ describe('HttpTransport', () => {
       data: new Uint8Array(11 * 1024 * 1024),
       restoreEpoch: 0,
       hasSnapshot: true,
+      upToSeq: null,
     });
 
     expect(mockFetch).not.toHaveBeenCalled();
@@ -134,6 +144,7 @@ describe('HttpTransport', () => {
       data: new Uint8Array(1024),
       restoreEpoch: 0,
       hasSnapshot: true,
+      upToSeq: null,
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);

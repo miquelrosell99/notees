@@ -7,8 +7,7 @@ import { PROTOCOL_VERSION } from '../types/operation';
 import { createTestDatabase } from './helpers';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
-import type { SnapshotEnvelope, Transport } from '../transport';
-import type { Hlc } from '../clock';
+import type { CatchUpPage, SnapshotEnvelope, Transport } from '../transport';
 
 async function createClientFromStore(store: WorkspaceStore): Promise<IWorkspaceStoreClient> {
   const client = createWorkspaceStoreClient();
@@ -30,8 +29,8 @@ class MockHttpTransport implements Transport {
     return { savedIds: envelopes.map((e) => e.id) };
   }
 
-  async catchUp(_afterHlc: Hlc): Promise<OperationEnvelope[]> {
-    return this.catchUpEnvelopes;
+  async catchUp(_afterSeq: number): Promise<CatchUpPage> {
+    return { envelopes: this.catchUpEnvelopes, nextAfterSeq: null, hasMore: false };
   }
 
   async getLatestSnapshot(): Promise<SnapshotEnvelope> {
@@ -42,6 +41,7 @@ class MockHttpTransport implements Transport {
       data: new Uint8Array(0),
       restoreEpoch: 0,
       hasSnapshot: false,
+      upToSeq: null,
     };
   }
 
