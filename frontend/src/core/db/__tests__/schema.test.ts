@@ -12,12 +12,18 @@ beforeAll(() => {
 });
 
 describe('schema', () => {
-  it('creates node icon/color columns, node_stats, node_link, edge indexes, sync_outbox next_retry_at, node_child_order PK and migrates to user_version 14', async () => {
+  it('creates node icon/color columns, node_stats, node_link, edge indexes, sync_outbox next_retry_at, node_child_order PK and migrates to user_version 15', async () => {
     const db = await createTestDatabase();
 
     const versionRow = db.exec('PRAGMA user_version')[0];
     const version = versionRow?.values[0]?.[0] as number;
-    expect(version).toBe(14);
+    expect(version).toBe(15);
+
+    const watermarkTable = queryOne<{ sql: string }>(
+      db,
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sync_watermark'"
+    );
+    expect(watermarkTable?.sql).toMatch(/cursor_seq\s+INTEGER/i);
 
     const nodeTable = queryOne<{ sql: string }>(
       db,
