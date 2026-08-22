@@ -187,7 +187,9 @@ def test_websocket_batch_is_broadcast_to_other_client(
 
         received = receiver.receive_json()
         assert received["id"] == "op-1"
-        assert received["workspace_id"] == "ws-1"
+        # Broadcast envelopes use the camelCase wire format, same as HTTP.
+        assert received["workspaceId"] == "ws-1"
+        assert received["protocolVersion"] == 1
 
         # Sender also receives the broadcast (idempotently) before the ack.
         broadcast_to_sender = sender.receive_json()
