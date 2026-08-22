@@ -6,8 +6,8 @@ from typing import Any
 
 import asyncpg
 
-from ...db.connection import acquire_connection
-from .interfaces import SystemSettingsRepository
+from app.db.connection import acquire_connection
+from app.domain.repositories.interfaces import SystemSettingsRepository
 
 
 class PostgresSystemSettingsRepository(SystemSettingsRepository):
