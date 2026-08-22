@@ -119,25 +119,27 @@ export function Layout() {
   const isMobile = useIsMobile();
 
   // Narrow-desktop band (769–1024px): full chrome leaves too little content
-  // width, so auto-collapse the right sidebar once per band entry. The user
-  // can re-open it manually; it collapses again only when the band is
+  // width, so auto-collapse both sidebars once per band entry. The user
+  // can re-open them manually; they collapse again only when the band is
   // re-entered from outside.
   const wasNarrowDesktopRef = useRef(false);
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 769px) and (max-width: 1024px)');
-    const syncRightSidebar = () => {
-      if (
-        mq.matches &&
-        !wasNarrowDesktopRef.current &&
-        useNavigationStore.getState().rightSidebarOpen
-      ) {
-        useNavigationStore.setState({ rightSidebarOpen: false });
+    const syncSidebars = () => {
+      if (mq.matches && !wasNarrowDesktopRef.current) {
+        const nav = useNavigationStore.getState();
+        if (nav.rightSidebarOpen) {
+          useNavigationStore.setState({ rightSidebarOpen: false });
+        }
+        if (!nav.isSidebarCollapsed) {
+          useNavigationStore.setState({ isSidebarCollapsed: true, sidebarOpen: false });
+        }
       }
       wasNarrowDesktopRef.current = mq.matches;
     };
-    syncRightSidebar();
-    mq.addEventListener('change', syncRightSidebar);
-    return () => mq.removeEventListener('change', syncRightSidebar);
+    syncSidebars();
+    mq.addEventListener('change', syncSidebars);
+    return () => mq.removeEventListener('change', syncSidebars);
   }, []);
 
   // Sidebar resize state (desktop only)
@@ -390,8 +392,8 @@ export function Layout() {
           />
         </Suspense>
 
-        {/* Floating Graph Minimap */}
-        {isMinimapOpen && (
+        {/* Floating Graph Minimap (desktop only — covers the mobile FAB at small widths) */}
+        {!isMobile && isMinimapOpen && (
           <GraphMinimap onClose={() => setMinimapOpen(false)} />
         )}
 
