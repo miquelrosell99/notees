@@ -12,6 +12,13 @@ export function applyActivityOperation(db: Database, op: Operation): ChangeNotif
     return [{ scope: 'all', nodeId }];
   }
 
+  if (opType === 'activity.delete') {
+    const activityId = payload.activityId as string;
+    const nodeId = payload.nodeId as string | undefined;
+    db.run('DELETE FROM activity_log WHERE id = ?', [activityId]);
+    return nodeId ? [{ scope: 'node', nodeId }] : [];
+  }
+
   if (opType !== 'activity.record') return [];
 
   const activityType = payload.activityType as string | undefined;

@@ -91,7 +91,6 @@ export {
   useLinkClicks,
   useLinkClick,
   useTrackLinkClick,
-  useResetLinkClick,
 } from './useActivity';
 
 // ==================== Helper Hooks ====================

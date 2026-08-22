@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import Awaitable, Callable
 
 import pytest
 
+from app.core import workspace_store as workspace_store_module
+from app.core.clock import Hlc
 from app.core.workspace_store import WorkspaceStore
+from app.relay.models import EncryptedEnvelope
 from app.relay.storage import SqliteRelayStorage
 
 pytestmark = pytest.mark.unit
@@ -23,6 +28,54 @@ class FixedKeyStorage:
         self, workspace_id: str, secret_key: str
     ) -> bytes:
         return b"0" * 32
+
+
+class InterleavingRelayStorage(SqliteRelayStorage):
+    """Relay storage that starts a concurrent sync right after each save.
+
+    Simulates the production interleaving with PostgresRelayStorage, where
+    awaiting ``save_envelope`` yields to the event loop and lets a concurrent
+    ``sync()`` fetch and replay the just-persisted envelope before ``apply()``
+    records it in ``applied_operation_id``.
+    """
+
+    def __init__(self, on_saved: Callable[[], Awaitable[None]]) -> None:
+        super().__init__(":memory:")
+        self._on_saved = on_saved
+
+    async def save_envelope(self, envelope: EncryptedEnvelope) -> None:  # type: ignore[override]
+        super().save_envelope(envelope)
+        await self._on_saved()
+
+
+class CountingRelayStorage(SqliteRelayStorage):
+    """Relay storage that counts paginated catch-up calls and forbids the
+    unpaginated variant, so tests can assert ``sync()`` pages in batches."""
+
+    def __init__(self) -> None:
+        super().__init__(":memory:")
+        self.paginated_calls = 0
+
+    def get_catch_up(
+        self,
+        workspace_id: str,
+        hlc: Hlc,
+        node_id: str | None = None,
+    ) -> list[EncryptedEnvelope]:
+        raise AssertionError("sync() must use get_catch_up_paginated")
+
+    def get_catch_up_paginated(
+        self,
+        workspace_id: str,
+        hlc: Hlc,
+        limit: int = 1000,
+        after_id: str | None = None,
+        node_id: str | None = None,
+    ) -> tuple[list[EncryptedEnvelope], str | None]:
+        self.paginated_calls += 1
+        return super().get_catch_up_paginated(
+            workspace_id, hlc, limit=limit, after_id=after_id, node_id=node_id
+        )
 
 
 async def _make_store(
@@ -312,3 +365,87 @@ class TestWorkspaceStore:
         assert ancestors == {"child-1", "parent-1"}
 
         await store.close()
+
+    async def test_apply_racing_sync_does_not_double_apply(self) -> None:
+        """A sync interleaved between persist and apply must not double-apply.
+
+        ``link.click`` is increment-only, so a double application is observable
+        as ``click_count == 2``. The interleaving storage starts a concurrent
+        sync and yields right after the envelope is persisted, which is exactly
+        the window the workspace sync lock must close.
+        """
+        sync_tasks: list[asyncio.Task[None]] = []
+        store_holder: dict[str, WorkspaceStore] = {}
+
+        async def start_sync() -> None:
+            sync_tasks.append(asyncio.create_task(store_holder["store"].sync()))
+            # Yield so the concurrent sync can fetch and apply the just-saved op.
+            await asyncio.sleep(0)
+
+        store = await _make_store(
+            workspace_id="ws-apply-sync-race",
+            relay_storage=InterleavingRelayStorage(start_sync),
+        )
+        store_holder["store"] = store
+
+        await store.record_link_click("source-1", "target-1")
+        await asyncio.gather(*sync_tasks)
+
+        rows = await store.query(
+            "SELECT click_count FROM node_link WHERE source_id = ? AND target_id = ?",
+            ("source-1", "target-1"),
+        )
+        assert len(rows) == 1
+        assert rows[0]["click_count"] == 1
+
+        await store.close()
+
+    async def test_sync_paginates_cold_catch_up(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Cold sync pages through the relay in batches of the configured size."""
+        monkeypatch.setattr(workspace_store_module, "_CATCH_UP_BATCH_SIZE", 2)
+
+        relay = CountingRelayStorage()
+        writer = await _make_store(relay_storage=relay)
+        for i in range(5):
+            await writer.create_node(f"node-{i}", "page")
+        await writer.close()
+
+        relay.paginated_calls = 0
+        reader = await _make_store(relay_storage=relay)
+        await reader.sync()
+
+        # 5 envelopes at batch size 2 arrive in 3 pages (2 + 2 + 1).
+        assert relay.paginated_calls == 3
+        rows = await reader.query("SELECT COUNT(*) FROM node")
+        assert rows[0][0] == 5
+        applied = await reader.query("SELECT COUNT(*) FROM applied_operation_id")
+        assert applied[0][0] == 5
+
+        await reader.close()
+
+    async def test_sync_batched_catch_up_skips_already_applied(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Batch applied-id checks must keep dedup intact across pages.
+
+        Batch size 1 forces the batch-check query to run once per envelope and
+        makes every batch of the second sync contain only already-applied ids.
+        """
+        monkeypatch.setattr(workspace_store_module, "_CATCH_UP_BATCH_SIZE", 1)
+
+        relay = SqliteRelayStorage(":memory:")
+        writer = await _make_store(relay_storage=relay)
+        await writer.record_link_click("source-1", "target-1")
+        await writer.create_node("node-1", "page")
+        await writer.close()
+
+        reader = await _make_store(relay_storage=relay)
+        await reader.sync()
+        await reader.sync()
+
+        rows = await reader.query(
+            "SELECT click_count FROM node_link WHERE source_id = ? AND target_id = ?",
+            ("source-1", "target-1"),
+        )
+        assert len(rows) == 1
+        assert rows[0]["click_count"] == 1
+
+        await reader.close()

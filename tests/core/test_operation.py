@@ -52,6 +52,7 @@ class TestOperationEnvelope:
             "asset.upload",
             "asset.delete",
             "activity.record",
+            "activity.delete",
             "link.click",
             "share.public.create",
             "share.public.revoke",

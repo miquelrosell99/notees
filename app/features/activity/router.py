@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.core.uuid import uuidv7
@@ -104,7 +104,7 @@ def _content_to_text(raw_content: str | None) -> str | None:
 @router.get("/node/{node_uuid}", response_model=list[NodeActivityResponse])
 async def get_node_activity(
     node_uuid: str,
-    limit: int = 50,
+    limit: int = Query(50, le=200),
     user: User = Depends(get_current_user),
     store: WorkspaceStore = Depends(get_workspace_store),
 ):
@@ -205,10 +205,10 @@ async def delete_node_activity(
     user: User = Depends(get_current_user),
     store: WorkspaceStore = Depends(get_workspace_store),
 ):
-    """Delete a node activity entry from the derived store.
+    """Delete a node activity entry by emitting an ``activity.delete`` operation.
 
-    The operation log remains append-only; this removes the visible derived row.
-    Deletion semantics will be refined in a later phase.
+    The deletion flows through the operation log so it syncs to other clients
+    and survives derived-state rebuilds.
     """
     await store.sync()
     existing = await store.query(
@@ -217,10 +217,8 @@ async def delete_node_activity(
     )
     if not existing:
         raise HTTPException(404, "Activity not found")
-    await store.execute(
-        "DELETE FROM activity_log WHERE id = ? AND node_id = ?",
-        (activity_uuid, node_uuid),
-    )
+    await store.delete_activity(activity_uuid, node_uuid)
+    await store.sync()
     return {"success": True}
 
 
@@ -349,7 +347,7 @@ async def get_link_click(
 async def get_link_click_history(
     source_node_uuid: str,
     target_node_uuid: str,
-    limit: int = 100,
+    limit: int = Query(100, le=200),
     user: User = Depends(get_current_user),
     store: WorkspaceStore = Depends(get_workspace_store),
 ):
@@ -376,19 +374,3 @@ async def get_link_click_history(
         )
         for row in rows
     ]
-
-
-@router.post("/link/reset/{source_node_uuid}/{target_node_uuid}", dependencies=[Depends(require_write_scope)])
-async def reset_link_click(
-    source_node_uuid: str,
-    target_node_uuid: str,
-    user: User = Depends(get_current_user),
-    store: WorkspaceStore = Depends(get_workspace_store),
-):
-    """Reset click counters for all links from source to target."""
-    await store.sync()
-    await store.execute(
-        "DELETE FROM node_link WHERE source_id = ? AND target_id = ?",
-        (source_node_uuid, target_node_uuid),
-    )
-    return {"success": True}
