@@ -36,8 +36,10 @@
   max-height: 90dvh;
   min-height: min-content;
   /* Never shrink below the natural width of the header, content, or footer
-     so buttons and other non-wrapping elements stay inside the modal. */
-  min-width: min-content;
+     so buttons and other non-wrapping elements stay inside the modal —
+     but clamp to the viewport like the max-width rules below so wide
+     unwrappable content cannot overflow small screens. */
+  min-width: min(min-content, calc(100vw - 2 * var(--spacing-4)));
   animation: modalSlideIn var(--motion-duration-long) var(--motion-easing-decelerate);
 }
 
