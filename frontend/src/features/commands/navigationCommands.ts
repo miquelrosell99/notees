@@ -120,6 +120,7 @@ registerCommand({
   label: 'Switch workspace',
   icon: 'mdi mdi-database-outline',
   context: 'global',
+  capability: 'workspaceManagement',
   palette: { category: 'navigation', keywords: ['workspace', 'graph', 'switch'] },
   execute: () => useModalStore.getState().setShowWorkspaceManager(true),
 });
