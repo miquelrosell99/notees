@@ -222,7 +222,7 @@ async def broadcast(workspace_id: str, envelope: EncryptedEnvelope) -> None:
     subscribers receive the message through the Redis listener. With the
     in-memory backend delivery happens directly.
     """
-    message = envelope.model_dump_json()
+    message = envelope.model_dump_json(by_alias=True)
     backend = await get_broadcast_backend()
     await backend.publish(workspace_id, message)
 

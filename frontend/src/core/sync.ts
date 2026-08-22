@@ -1,5 +1,10 @@
 import { compareHlc, maxHlc, type Hlc } from './clock';
-import { createOperation, type Operation } from './types/operation';
+import {
+  assertSupportedProtocolVersion,
+  createOperation,
+  PROTOCOL_VERSION,
+  type Operation,
+} from './types/operation';
 import type { OperationEnvelope } from './crypto';
 import { detectConflicts, type SyncConflictInput } from './syncConflicts';
 import type { IWorkspaceStoreClient } from './worker/workerProtocol';
@@ -147,6 +152,7 @@ export class SyncEngine {
     const workspaceId = await this.client.query<string>('getWorkspaceId', []);
     const toEnvelope = (row: OperationRow) => ({
       id: row.id,
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId,
       actorId: row.actor_id,
       hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
@@ -309,6 +315,14 @@ export class SyncEngine {
       this.callbacks.onPullProgress?.({ applied: 0, total: totalSoFar });
     });
     log.info('pull catch-up result', { envelopeCount: envelopes.length });
+
+    // Fail loud when a peer speaks a newer protocol than we understand:
+    // applying operations we cannot interpret would silently corrupt derived
+    // state. The error propagates to syncOnce, which surfaces it via the
+    // 'error' status and onError callback.
+    for (const env of envelopes) {
+      assertSupportedProtocolVersion(env);
+    }
 
     envelopes.sort((a, b) => {
       const cmp = compareHlc(a.hlc, b.hlc);

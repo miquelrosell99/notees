@@ -24,7 +24,7 @@ from app.core.crypto import (
     unwrap_key,
     wrap_key,
 )
-from app.db.connection import get_connection
+from app.db.connection import acquire_connection, get_connection
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS workspace_key (
@@ -69,7 +69,7 @@ class WorkspaceKeyStorage:
         workspace_wrapping_key = derive_workspace_key(workspace_id, secret_key)
 
         if self._pool is not None:
-            async with self._pool.acquire() as conn:
+            async with acquire_connection(self._pool) as conn:
                 await self._ensure_schema(conn)
                 return await self._get_or_create_master_key_with_conn(
                     conn, workspace_id, workspace_wrapping_key
@@ -150,7 +150,7 @@ class WorkspaceKeyStorage:
         user_wrapping_key = derive_user_wrapping_key(user_id, secret_key)
 
         if self._pool is not None:
-            async with self._pool.acquire() as conn:
+            async with acquire_connection(self._pool) as conn:
                 await self._ensure_schema(conn)
                 return await self._get_or_create_member_key_with_conn(
                     conn, workspace_id, user_id, master_key, user_wrapping_key
@@ -305,7 +305,7 @@ class WorkspaceKeyStorage:
                     )
 
         if self._pool is not None:
-            async with self._pool.acquire() as conn:
+            async with acquire_connection(self._pool) as conn:
                 await _rotate(conn)
         else:
             async with get_connection() as conn:
