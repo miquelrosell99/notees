@@ -106,6 +106,10 @@ export async function uploadAsset(
   }
 
   const formData = new FormData();
+  formData.append('file', file);
+  if (parentUuid !== undefined) formData.append('parent_uuid', parentUuid);
+  if (existingNodeUuid !== undefined) formData.append('existing_node_uuid', existingNodeUuid);
+  if (content !== undefined) formData.append('content', content);
 
   log.info(
     `Uploading asset: ${file.name} (${file.type}, ${file.size} bytes)${
