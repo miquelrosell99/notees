@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic.alias_generators import to_camel
@@ -13,6 +13,7 @@ from app.core.operation import PROTOCOL_VERSION, OperationEnvelope
 
 __all__ = [
     "PROTOCOL_VERSION",
+    "WS_PROTOCOL_VERSION",
     "BatchRequest",
     "CatchUpPaginatedResponse",
     "CatchUpRequest",
@@ -24,10 +25,47 @@ __all__ = [
     "RelayStatsResponse",
     "SnapshotRequest",
     "SnapshotResponse",
+    "WsHelloMessage",
+    "WsOpsMessage",
 ]
 
 MAX_BATCH_SIZE = 1000
 MAX_ENVELOPE_SIZE_BYTES = 1024 * 1024  # 1 MB
+
+# Version of the WebSocket message framing (hello/ops/ack/error). Kept separate
+# from PROTOCOL_VERSION (the envelope schema): envelope fields are unchanged, so
+# older clients' HTTP catch-up keeps working; only WS framing consumers gate on
+# this version.
+WS_PROTOCOL_VERSION = 2
+
+
+class WsHelloMessage(BaseModel):
+    """Server greeting sent right after the relay WebSocket connects.
+
+    Lets clients fail fast on an incompatible framing version instead of
+    mid-sync, and advertises the workspace restore epoch.
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    type: Literal["hello"] = "hello"
+    protocol_version: int = WS_PROTOCOL_VERSION
+    restore_epoch: int = 0
+
+
+class WsOpsMessage(BaseModel):
+    """Batch of envelopes broadcast to workspace subscribers.
+
+    One frame per saved batch instead of one frame per envelope: receivers get
+    an atomic batch to apply, and a `type` discriminator removes the need to
+    shape-sniff bare envelopes against control messages.
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    type: Literal["ops"] = "ops"
+    protocol_version: int = WS_PROTOCOL_VERSION
+    envelopes: list[EncryptedEnvelope]
 
 
 def _parse_hlc(value: Any) -> Hlc:

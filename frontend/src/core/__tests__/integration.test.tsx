@@ -3,6 +3,7 @@ import { WorkspaceStore } from '../store';
 import { SyncEngine } from '../sync';
 import { type OperationEnvelope } from '../crypto';
 import { uuidv7 } from '../uuid';
+import { PROTOCOL_VERSION } from '../types/operation';
 import { createTestDatabase } from './helpers';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
@@ -85,6 +86,7 @@ describe('local-first integration', () => {
     const payload = { nodeId, kind: 'page', parentId: null, classIds: [] };
     const envelope: OperationEnvelope = {
       id: uuidv7(),
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId,
       actorId,
       affectedNodeIds: [nodeId],

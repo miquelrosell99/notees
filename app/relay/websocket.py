@@ -13,8 +13,9 @@ from app.relay.dependencies import (
     get_actor_id_ws,
     get_effective_permission_checker,
     get_relay_service,
+    get_workspace_restore_epoch,
 )
-from app.relay.models import BatchRequest
+from app.relay.models import BatchRequest, WsHelloMessage
 from app.relay.permissions import PermissionChecker, PermissionDeniedError
 from app.relay.service import RelayService
 
@@ -25,6 +26,7 @@ async def websocket_endpoint(
     actor_id: str = Depends(get_actor_id_ws),
     permissions: PermissionChecker = Depends(get_effective_permission_checker),
     service: RelayService = Depends(get_relay_service),
+    restore_epoch: int = Depends(get_workspace_restore_epoch),
 ) -> None:
     """Accept WebSocket connections and forward encrypted operation batches.
 
@@ -34,12 +36,15 @@ async def websocket_endpoint(
     any client in the same workspace.
 
     Message protocol (JSON):
+      Server -> Client (immediately after connect):
+        { "type": "hello", "protocolVersion": 2, "restoreEpoch": N }
       Client -> Server:
         { "type": "batch", "envelopes": [...] }
       Server -> Client:
         { "type": "ack", "saved_ids": [...] }
         { "type": "error", "message": "..." }
-        <saved envelope objects broadcast from other clients>
+        { "type": "ops", "protocolVersion": 2, "envelopes": [...] }
+          — one message per saved batch, broadcast to all subscribers
     """
     if actor_id == "anonymous":
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -50,6 +55,7 @@ async def websocket_endpoint(
         return
 
     await websocket.accept()
+    await websocket.send_text(WsHelloMessage(restore_epoch=restore_epoch).model_dump_json(by_alias=True))
     await subscribe(workspace_id, websocket)
 
     try:
@@ -82,8 +88,8 @@ async def websocket_endpoint(
                 await websocket.send_json({"type": "error", "message": str(exc)})
                 continue
 
-            for envelope in saved:
-                await broadcast(workspace_id, envelope)
+            if saved:
+                await broadcast(workspace_id, saved)
 
             await websocket.send_json({"type": "ack", "saved_ids": [envelope.id for envelope in saved]})
     finally:

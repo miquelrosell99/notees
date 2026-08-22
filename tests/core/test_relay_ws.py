@@ -16,6 +16,7 @@ from app.relay.dependencies import (
     get_effective_permission_checker,
     get_permission_checker,
     get_relay_storage,
+    get_workspace_restore_epoch,
 )
 from app.relay.models import EncryptedEnvelope
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
@@ -42,6 +43,7 @@ def app(storage: RelayStorage, permissions: PermissionChecker) -> FastAPI:
     application.dependency_overrides[get_relay_storage] = lambda: storage
     application.dependency_overrides[get_permission_checker] = lambda: permissions
     application.dependency_overrides[get_effective_permission_checker] = lambda: permissions
+    application.dependency_overrides[get_workspace_restore_epoch] = lambda: 0
     return application
 
 
@@ -91,12 +93,21 @@ def _envelope(
     )
 
 
+def _assert_hello(websocket) -> None:
+    """Every accepted connection receives the typed hello greeting first."""
+    hello = websocket.receive_json()
+    assert hello["type"] == "hello"
+    assert hello["protocolVersion"] == 2
+    assert hello["restoreEpoch"] == 0
+
+
 def test_websocket_connect_with_valid_actor(client: TestClient, auth_patch: None) -> None:
-    """A connection with a valid JWT token is accepted."""
+    """A connection with a valid JWT token is accepted and greeted."""
     with client.websocket_connect(
         "/api/relay/ws/ws-1",
         headers={"Authorization": "Bearer valid-token"},
     ) as websocket:
+        _assert_hello(websocket)
         websocket.send_json({"type": "batch", "envelopes": []})
         response = websocket.receive_json()
         assert response["type"] == "ack"
@@ -151,6 +162,7 @@ def test_websocket_connect_permission_denied(monkeypatch: pytest.MonkeyPatch) ->
     app.dependency_overrides[get_relay_storage] = lambda: SqliteRelayStorage()
     app.dependency_overrides[get_permission_checker] = lambda: DenyAll()
     app.dependency_overrides[get_effective_permission_checker] = lambda: DenyAll()
+    app.dependency_overrides[get_workspace_restore_epoch] = lambda: 0
 
     with TestClient(app) as deny_client, pytest.raises(
         WebSocketDisconnect
@@ -178,6 +190,8 @@ def test_websocket_batch_is_broadcast_to_other_client(
             headers={"Authorization": "Bearer valid-token"},
         ) as receiver,
     ):
+        _assert_hello(sender)
+        _assert_hello(receiver)
         sender.send_json(
             {
                 "type": "batch",
@@ -185,15 +199,20 @@ def test_websocket_batch_is_broadcast_to_other_client(
             }
         )
 
+        # Broadcasts are typed `ops` messages carrying the batch; envelopes
+        # inside use the camelCase wire format, same as HTTP.
         received = receiver.receive_json()
-        assert received["id"] == "op-1"
-        # Broadcast envelopes use the camelCase wire format, same as HTTP.
-        assert received["workspaceId"] == "ws-1"
-        assert received["protocolVersion"] == 1
+        assert received["type"] == "ops"
+        assert received["protocolVersion"] == 2
+        assert len(received["envelopes"]) == 1
+        assert received["envelopes"][0]["id"] == "op-1"
+        assert received["envelopes"][0]["workspaceId"] == "ws-1"
+        assert received["envelopes"][0]["protocolVersion"] == 1
 
         # Sender also receives the broadcast (idempotently) before the ack.
         broadcast_to_sender = sender.receive_json()
-        assert broadcast_to_sender["id"] == "op-1"
+        assert broadcast_to_sender["type"] == "ops"
+        assert broadcast_to_sender["envelopes"][0]["id"] == "op-1"
 
         ack = sender.receive_json()
         assert ack["type"] == "ack"
@@ -209,6 +228,7 @@ def test_websocket_malformed_json_is_handled(
         "/api/relay/ws/ws-1",
         headers={"Authorization": "Bearer valid-token"},
     ) as websocket:
+        _assert_hello(websocket)
         websocket.send_text("not valid json")
         response = websocket.receive_json()
         assert response["type"] == "error"

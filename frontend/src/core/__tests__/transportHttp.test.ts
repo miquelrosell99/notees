@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createHttpTransport } from '../transportHttp';
 import { uuidv7 } from '../uuid';
+import { PROTOCOL_VERSION } from '../types/operation';
 
 describe('HttpTransport', () => {
   afterEach(() => {
@@ -14,6 +15,7 @@ describe('HttpTransport', () => {
 
     const envelope = {
       id: uuidv7(),
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId,
       actorId,
       affectedNodeIds: ['node-1'],
@@ -49,6 +51,7 @@ describe('HttpTransport', () => {
     await expect(
       transport.send({
         id: uuidv7(),
+        protocolVersion: PROTOCOL_VERSION,
         workspaceId: 'ws-1',
         actorId: 'actor-1',
         affectedNodeIds: [],
@@ -66,6 +69,7 @@ describe('HttpTransport', () => {
 
     const returnedEnvelope = {
       id: uuidv7(),
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId,
       actorId,
       affectedNodeIds: ['node-2'],

@@ -3,8 +3,8 @@ import { PROTOCOL_VERSION } from './types/operation';
 
 export interface OperationEnvelope {
   id: string;
-  /** Relay protocol version (protocol/SPEC.md). Optional on receive: absent means 1. */
-  protocolVersion?: number;
+  /** Relay protocol version (protocol/SPEC.md). Mandatory on the wire. */
+  protocolVersion: number;
   workspaceId: string;
   actorId: string;
   affectedNodeIds: string[];

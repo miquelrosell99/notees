@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { encryptEnvelope, decryptEnvelope, type OperationEnvelope } from '../crypto';
 import { uuidv7 } from '../uuid';
+import { PROTOCOL_VERSION } from '../types/operation';
 
 describe('relay envelope helpers', () => {
   it('encryptEnvelope returns a plaintext envelope with the payload', async () => {
     const metadata = {
       id: uuidv7(),
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId: uuidv7(),
       actorId: uuidv7(),
       affectedNodeIds: ['node-1'],
@@ -29,6 +31,7 @@ describe('relay envelope helpers', () => {
     const payload = { value: 42 };
     const envelope: OperationEnvelope = {
       id: uuidv7(),
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId: uuidv7(),
       actorId: uuidv7(),
       affectedNodeIds: [],
