@@ -17,8 +17,8 @@ export function applyLinkOperation(db: Database, op: Operation): ChangeNotificat
 
   if (opType !== 'link.click') return [];
 
-  const sourceId = (payload.sourceNodeId as string | undefined) || (payload.nodeId as string);
-  const targetId = (payload.targetNodeId as string | undefined) || (payload.targetId as string | undefined) || '';
+  const sourceId = payload.sourceNodeId as string;
+  const targetId = payload.targetNodeId as string;
   const linkUuid = payload.linkUuid as string | undefined;
   const clickedAt = (payload.clickedAt as string | undefined) ?? new Date().toISOString();
 

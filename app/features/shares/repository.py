@@ -325,8 +325,10 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn, conn.transaction():
             share_row = await conn.fetchrow(
                 """
-                SELECT ns.id, ns.uuid as share_uuid, ns.node_uuid, ns.create_uid
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_uuid, ns.create_uid,
+                       u.uuid as target_user_uuid
                 FROM node_share ns
+                JOIN "user" u ON u.id = ns.user_id
                 WHERE ns.uuid = $1 AND ns.active = TRUE AND ns.workspace_id = $2
                 """,
                 share_uuid,
@@ -345,4 +347,5 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         return {
             "node_uuid": str(share_row["node_uuid"]),
             "share_uuid": str(share_row["share_uuid"]),
+            "target_user_uuid": str(share_row["target_user_uuid"]),
         }

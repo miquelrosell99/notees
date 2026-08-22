@@ -54,7 +54,7 @@ describe('asset applier', () => {
       nodeId,
       assetHash: 'sha256:abc',
       mimeType: 'image/png',
-      size: 1234,
+      sizeBytes: 1234,
       originalName: 'diagram.png',
     });
 
@@ -81,7 +81,7 @@ describe('asset applier', () => {
         nodeId,
         assetHash: 'sha256:abc',
         mimeType: 'image/png',
-        size: 1,
+        sizeBytes: 1,
         originalName: 'a.png',
       })
     );
@@ -105,7 +105,7 @@ describe('asset applier', () => {
         nodeId,
         assetHash: 'sha256:one',
         mimeType: 'image/png',
-        size: 1,
+        sizeBytes: 1,
         originalName: 'a.png',
       })
     );
@@ -115,7 +115,7 @@ describe('asset applier', () => {
         nodeId,
         assetHash: 'sha256:two',
         mimeType: 'image/png',
-        size: 2,
+        sizeBytes: 2,
         originalName: 'b.png',
       })
     );
@@ -139,7 +139,7 @@ describe('asset applier', () => {
         nodeId,
         assetHash: 'sha256:abc',
         mimeType: 'image/png',
-        size: 1,
+        sizeBytes: 1,
         originalName: 'a.png',
       })
     );
@@ -256,8 +256,8 @@ describe('activity applier', () => {
       'activity.record',
       {
         nodeId: uuidv7(),
-        activityType: 'node.viewed',
-        metadata: { source: 'quick-search' },
+        action: 'node.viewed',
+        details: { source: 'quick-search' },
       },
       { workspaceId, actorId }
     );
@@ -277,7 +277,7 @@ describe('activity applier', () => {
 
   it('is idempotent', async () => {
     const { db } = await createStore();
-    const op = makeOp('activity.record', { activityType: 'node.viewed' });
+    const op = makeOp('activity.record', { action: 'node.viewed' });
     applyActivityOperation(db, op);
     applyActivityOperation(db, op);
 
@@ -293,7 +293,7 @@ describe('activity applier', () => {
     const { store } = await createStore();
     const nodeId = uuidv7();
     store.createNode({ nodeId, kind: 'page', parentId: null });
-    const op = makeOp('activity.record', { nodeId, activityType: 'node.viewed' });
+    const op = makeOp('activity.record', { nodeId, action: 'node.viewed' });
     store.apply(op);
 
     store.deleteNode(nodeId);
@@ -311,7 +311,7 @@ describe('activity applier', () => {
     const nodeId = uuidv7();
     const recordOp = makeOp(
       'activity.record',
-      { nodeId, activityType: 'node.viewed' },
+      { nodeId, action: 'node.viewed' },
       { workspaceId, actorId }
     );
     applyActivityOperation(db, recordOp);
@@ -338,7 +338,7 @@ describe('link applier', () => {
     const { db } = await createStore();
     const nodeId = uuidv7();
     const targetId = uuidv7();
-    const baseOp = makeOp('link.click', { nodeId, targetId });
+    const baseOp = makeOp('link.click', { sourceNodeId: nodeId, targetNodeId: targetId });
 
     applyLinkOperation(db, baseOp);
     applyLinkOperation(db, baseOp);
@@ -357,7 +357,7 @@ describe('link applier', () => {
     const nodeId = uuidv7();
     const targetId = uuidv7();
     store.createNode({ nodeId, kind: 'page', parentId: null });
-    store.apply(makeOp('link.click', { nodeId, targetId }));
+    store.apply(makeOp('link.click', { sourceNodeId: nodeId, targetNodeId: targetId }));
 
     store.deleteNode(nodeId);
 
@@ -402,7 +402,7 @@ describe('share applier', () => {
     const userId = uuidv7();
     applyShareOperation(
       db,
-      makeOp('share.user.grant', { nodeId, userId, role: 'editor' }, { actorId })
+      makeOp('share.user.grant', { shareId: uuidv7(), nodeId, targetUserId: userId, permissionBits: 7, role: 'editor' }, { actorId })
     );
 
     const row = queryOne<{ user_id: string; role: string; created_by: string }>(
@@ -413,7 +413,7 @@ describe('share applier', () => {
     expect(row?.role).toBe('editor');
     expect(row?.created_by).toBe(actorId);
 
-    applyShareOperation(db, makeOp('share.user.revoke', { nodeId, userId }));
+    applyShareOperation(db, makeOp('share.user.revoke', { shareId: 'share-1', nodeId, targetUserId: userId }));
     const countRow = queryOne<{ count: number }>(
       db,
       'SELECT COUNT(*) AS count FROM node_user_share WHERE node_id = ?',
@@ -426,7 +426,7 @@ describe('share applier', () => {
     const { db } = await createStore();
     const nodeId = uuidv7();
     const userId = uuidv7();
-    const op = makeOp('share.user.grant', { nodeId, userId, role: 'viewer' });
+    const op = makeOp('share.user.grant', { shareId: uuidv7(), nodeId, targetUserId: userId, permissionBits: 1, role: 'viewer' });
     applyShareOperation(db, op);
     applyShareOperation(db, op);
 
@@ -445,7 +445,7 @@ describe('share applier', () => {
     const userId = uuidv7();
     store.createNode({ nodeId, kind: 'page', parentId: null });
     store.apply(makeOp('share.public.create', { nodeId, slug: 'share' }));
-    store.apply(makeOp('share.user.grant', { nodeId, userId, role: 'viewer' }));
+    store.apply(makeOp('share.user.grant', { shareId: uuidv7(), nodeId, targetUserId: userId, permissionBits: 1, role: 'viewer' }));
 
     store.deleteNode(nodeId);
 

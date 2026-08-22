@@ -23,17 +23,14 @@ def apply_link_click(conn: sqlite3.Connection, op: Operation) -> None:
     compatibility with legacy ``link.click`` operations.
     """
     payload = op.payload
-    source_node_id = payload.get("sourceNodeId") or payload.get("nodeId")
-    target_node_id = payload.get("targetNodeId") or payload.get("targetId")
+    source_node_id = payload["sourceNodeId"]
+    target_node_id = payload["targetNodeId"]
     link_uuid = payload.get("linkUuid")
     clicked_at = payload.get("clickedAt")
     if clicked_at is None and op.envelope.timestamp is not None:
         clicked_at = op.envelope.timestamp.isoformat()
     if clicked_at is None:
         clicked_at = ""
-
-    if not source_node_id or not target_node_id:
-        return
 
     if link_uuid:
         existing = conn.execute(

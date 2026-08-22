@@ -460,7 +460,11 @@ async def revoke_user_share(
     if result is None:
         raise HTTPException(status_code=404, detail="Share not found")
 
-    await store.revoke_user_share(share_uuid, node_uuid=result.get("node_uuid"))
+    await store.revoke_user_share(
+        share_uuid,
+        node_uuid=result.get("node_uuid"),
+        user_id=result.get("target_user_uuid"),
+    )
     await store.sync()
 
     return {"success": True}
