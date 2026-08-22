@@ -76,6 +76,25 @@ describe('WorkspaceStore', () => {
     expect(content[0].text).toBe('Hello world');
   });
 
+  it('emits textUpdate ops with a content mirror of the serialized AST', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    const ast = JSON.stringify([{ type: 'text', text: 'Mirrored' }]);
+    store.updateText(nodeId, (text) => text.insert(0, ast));
+
+    const result = db.exec("SELECT payload FROM operation WHERE op_type = 'node.updateContent'");
+    expect(result).toHaveLength(1);
+    expect(result[0].values).toHaveLength(1);
+    const payload = JSON.parse(result[0].values[0][0] as string) as Record<string, unknown>;
+    expect(Array.isArray(payload.textUpdate)).toBe(true);
+    expect(payload.content).toBe(ast);
+  });
+
   it('sets node text', async () => {
     const db = await createTestDatabase();
     const workspaceId = uuidv7();

@@ -263,8 +263,12 @@ def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
       ``crdtUpdate`` for storage.
     * ``textUpdate`` — a Yjs text update as a list of byte values (or bytes).
       The update is stored in ``crdt_state.text_state`` so the server can serve
-      it back as a binary Yjs state blob; the node content is set to a minimal
-      text placeholder because the server does not interpret Yjs updates.
+      it back as a binary Yjs state blob. When the op also carries ``content``
+      (a plaintext mirror of the serialized AST stored in the text CRDT,
+      emitted by newer web clients), the node content is written from that
+      mirror so non-CRDT clients can read it; otherwise the node content is
+      set to a minimal text placeholder because the server does not interpret
+      Yjs updates.
     * ``treeUpdate`` — a Yjs array update for child-order CRDT state. Stored in
       ``crdt_state.tree_state`` without touching ``node.content``.
     """
@@ -293,7 +297,24 @@ def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
             """,
             (node_id, blob),
         )
-        content = [{"type": "text", "text": ""}]
+        content_mirror = payload.get("content")
+        if isinstance(content_mirror, str) and content_mirror:
+            try:
+                parsed = json.loads(content_mirror)
+            except ValueError:
+                parsed = None
+            # Keep the column valid JSON: store a serialized AST verbatim,
+            # wrap anything else as a plain text node.
+            if isinstance(parsed, list):
+                content_json = content_mirror
+            else:
+                content_json = json.dumps([{"type": "text", "text": content_mirror}])
+        elif isinstance(content_mirror, list):
+            content_json = json.dumps(content_mirror)
+        elif isinstance(content_mirror, dict):
+            content_json = json.dumps([content_mirror])
+        else:
+            content_json = json.dumps([{"type": "text", "text": ""}])
         conn.execute(
             """
             UPDATE node
@@ -302,7 +323,7 @@ def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
             WHERE id = ?
             """,
             (
-                json.dumps(content),
+                content_json,
                 ts,
                 op.envelope.actor_id,
                 incoming_hlc.physical,
