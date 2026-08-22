@@ -14,7 +14,7 @@ from typing import Any
 
 from app.core.operation import Operation
 
-from .activity import apply_activity_record
+from .activity import apply_activity_delete, apply_activity_record
 from .asset import apply_asset_delete, apply_asset_upload
 from .class_hierarchy import apply_class_create, apply_class_update
 from .favorite import apply_favorite_add, apply_favorite_remove, apply_favorite_reorder
@@ -156,6 +156,8 @@ def apply_operation(conn: sqlite3.Connection, op: Operation) -> None:
         apply_task_delete_recurrence(conn, op)
     elif op_type == "activity.record":
         apply_activity_record(conn, op)
+    elif op_type == "activity.delete":
+        apply_activity_delete(conn, op)
     elif op_type == "link.click":
         apply_link_click(conn, op)
     elif op_type == "share.public.create":
