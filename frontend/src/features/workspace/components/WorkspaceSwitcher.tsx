@@ -9,7 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
-import { useNavigationStore, useModalStore, useRecentsStore, useNotificationStore, useAuthStore } from '@/stores';
+import { useNavigationStore, useModalStore, useRecentsStore, useNotificationStore } from '@/stores';
+import { useCapabilities } from '@/config/capabilities';
 import { workspaceKeys } from '@/hooks/queryKeys';
 import { invalidateWorkspaceQueries } from '@/lib/queryClient';
 import { Button } from '@/components/ui/Button';
@@ -21,14 +22,15 @@ export function WorkspaceSwitcher() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const setShowWorkspaceManager = useModalStore((s) => s.setShowWorkspaceManager);
-  // Local sessions have a single well-known workspace; never query the server.
-  const isLocalSession = useAuthStore((s) => s.user?.isLocal === true);
+  // Local mode has exactly one well-known workspace; the switcher (and its
+  // workspace-management entry) is hidden and never queries the server.
+  const capabilities = useCapabilities();
 
   const { data } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 30000,
-    enabled: !isLocalSession,
+    enabled: capabilities.workspaceManagement,
     select: (d) => ({
       workspaces: d.items,
       active: d.items.find((w) => w.is_active)?.uuid ?? null,
@@ -116,26 +118,28 @@ export function WorkspaceSwitcher() {
   return (
     <div className="workspace-switcher">
       <div className="workspace-switcher__row">
-        <Dropdown
-          options={options}
-          value={data?.active || null}
-          onChange={handleChange}
-          placeholder="Select graph..."
-          searchable
-          size="sm"
-          disabled={switchMutation.isPending}
-          renderOption={renderOption}
-          footer={
-            <button
-              className="workspace-switcher__manage-btn"
-              onClick={() => setShowWorkspaceManager(true)}
-            >
-              <Icon path={"mdi mdi-view-dashboard"} size={0.6} />
-              <span>Workspaces</span>
-            </button>
-          }
-          className="workspace-switcher__dropdown"
-        />
+        {capabilities.workspaceManagement && (
+          <Dropdown
+            options={options}
+            value={data?.active || null}
+            onChange={handleChange}
+            placeholder="Select graph..."
+            searchable
+            size="sm"
+            disabled={switchMutation.isPending}
+            renderOption={renderOption}
+            footer={
+              <button
+                className="workspace-switcher__manage-btn"
+                onClick={() => setShowWorkspaceManager(true)}
+              >
+                <Icon path={"mdi mdi-view-dashboard"} size={0.6} />
+                <span>Workspaces</span>
+              </button>
+            }
+            className="workspace-switcher__dropdown"
+          />
+        )}
         <Button aria-label="Search"
           className="workspace-switcher__search-btn"
           onClick={() => useModalStore.getState().setCommandPaletteOpen(true)}
