@@ -106,9 +106,9 @@ def apply_share_user_revoke(conn: sqlite3.Connection, op: Operation) -> None:
     """Apply a ``share.user.revoke`` operation."""
     share_id = op.payload["shareId"]
     conn.execute("DELETE FROM node_user_share WHERE share_id = ?", (share_id,))
-    # Fallback: some callers emit the node/user pair directly.
+    # Fallback for callers that emit the node/user pair.
     node_id = op.payload.get("nodeId")
-    user_id = op.payload.get("userId") or op.payload.get("targetUserId")
+    user_id = op.payload.get("targetUserId")
     if node_id and user_id:
         conn.execute(
             "DELETE FROM node_user_share WHERE node_id = ? AND user_id = ?",

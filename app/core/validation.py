@@ -55,16 +55,16 @@ REQUIRED_PAYLOAD_FIELDS: dict[str, frozenset[str]] = {
     "task.setRecurrence": frozenset({"nodeId", "rule"}),
     "task.deleteRecurrence": frozenset({"nodeId", "recurrenceId"}),
     # Assets
-    "asset.upload": frozenset({"nodeId", "assetHash", "mimeType", "size", "originalName"}),
+    "asset.upload": frozenset({"nodeId", "assetHash", "mimeType", "sizeBytes", "originalName"}),
     "asset.delete": frozenset({"nodeId"}),
     # Activity / links / shares
-    "activity.record": frozenset({"activityType"}),
+    "activity.record": frozenset({"nodeId", "action"}),
     "activity.delete": frozenset({"activityId", "nodeId"}),
-    "link.click": frozenset({"nodeId"}),
+    "link.click": frozenset({"sourceNodeId", "targetNodeId"}),
     "share.public.create": frozenset({"nodeId"}),
     "share.public.revoke": frozenset({"nodeId"}),
-    "share.user.grant": frozenset({"nodeId", "userId", "role"}),
-    "share.user.revoke": frozenset({"nodeId", "userId"}),
+    "share.user.grant": frozenset({"shareId", "nodeId", "targetUserId"}),
+    "share.user.revoke": frozenset({"shareId"}),
     # User preferences
     "user.favorite.add": frozenset({"nodeId"}),
     "user.favorite.remove": frozenset({"nodeId"}),

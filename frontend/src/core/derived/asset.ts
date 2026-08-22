@@ -20,7 +20,7 @@ export function applyAssetOperation(db: Database, op: Operation): ChangeNotifica
         nodeId,
         payload.assetHash as string,
         payload.mimeType as string,
-        payload.size as number,
+        payload.sizeBytes as number,
         payload.originalName as string,
         new Date().toISOString(),
       ]
