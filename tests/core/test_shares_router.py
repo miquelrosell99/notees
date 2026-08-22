@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
@@ -114,7 +115,7 @@ class FakeShareRepository:
     ) -> PublicShare:
         share = PublicShare(
             id=self._next_public_id,
-            uuid=f"public-share-{self._next_public_id}",
+            uuid=str(uuid4()),
             node_uuid=node_uuid,
             workspace_id=workspace_id,
             created_by=created_by,
@@ -330,7 +331,7 @@ class TestPublicShares:
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["share_uuid"].startswith("public-share-")
+        assert UUID(body["share_uuid"])
         assert body["expiry_date"] == "2026-12-31"
 
         await store.sync()
@@ -525,3 +526,41 @@ class TestPublicRouter:
         assert body["node"]["uuid"] == TEST_NODE_UUID
         assert body["node"]["display_name"] == "Hello"
         assert "id" not in body["node"]
+
+    async def test_public_shared_node_password_via_header(self, shares_client: AsyncClient) -> None:
+        """Share passwords are accepted via X-Share-Password header, never the query string."""
+        store = _store(shares_client)
+        await store.create_node(TEST_NODE_UUID, "page")
+        await store.update_content(
+            TEST_NODE_UUID,
+            [{"type": "paragraph", "children": [{"type": "text", "text": "Secret"}]}],
+        )
+        await store.sync()
+
+        create_response = await shares_client.post(
+            f"/{TEST_NODE_UUID}/shares",
+            json={"password": "s3cret-share-pass"},
+        )
+        assert create_response.status_code == 200
+        share_uuid = create_response.json()["share_uuid"]
+
+        # No password at all -> 403.
+        response = await shares_client.get(f"/public/n/{share_uuid}")
+        assert response.status_code == 403
+
+        # Query-param passwords are no longer accepted (they leak into logs).
+        response = await shares_client.get(f"/public/n/{share_uuid}", params={"password": "s3cret-share-pass"})
+        assert response.status_code == 403
+
+        # Wrong password via header -> 403.
+        response = await shares_client.get(
+            f"/public/n/{share_uuid}", headers={"X-Share-Password": "wrong-password"}
+        )
+        assert response.status_code == 403
+
+        # Correct password via header -> 200.
+        response = await shares_client.get(
+            f"/public/n/{share_uuid}", headers={"X-Share-Password": "s3cret-share-pass"}
+        )
+        assert response.status_code == 200
+        assert response.json()["node"]["display_name"] == "Secret"

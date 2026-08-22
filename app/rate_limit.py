@@ -4,13 +4,23 @@ Extracted from app.main so that router-specific limiters can reuse the same
 per-IP bucket factory and identifier without creating a circular import.
 """
 
+import time
+
 from fastapi import Request
 from pyrate_limiter import Duration, Limiter, Rate
 from pyrate_limiter.abstracts import BucketFactory, RateItem
 from pyrate_limiter.buckets import InMemoryBucket
 from pyrate_limiter.clocks import MonotonicClock
 
+from app.config import settings
 from app.features import auth as auth_module
+
+# Default bounds for PerKeyBucketFactory. Auth endpoints key buckets by raw
+# email/username from request bodies, so an unbounded map lets an attacker
+# exhaust memory by spraying random identifiers. Buckets idle longer than the
+# TTL are evicted; the map never grows past MAX_BUCKETS (LRU eviction).
+DEFAULT_MAX_BUCKETS = 10_000
+DEFAULT_BUCKET_TTL_SECONDS = 3_600.0
 
 
 class PerKeyBucketFactory(BucketFactory):
@@ -24,31 +34,70 @@ class PerKeyBucketFactory(BucketFactory):
     This factory isolates each key so that rate limits apply per-client (or per
     client+endpoint combination), preventing one user's navigation from blocking
     another and giving each key its own independent budget.
+
+    The bucket map is bounded: entries idle longer than ``bucket_ttl_seconds``
+    are evicted on the next access, and when the map is full the least-recently
+    used bucket is dropped (and deregistered from the background leaker) before
+    a new one is created.
     """
 
     _instances: list["PerKeyBucketFactory"] = []
 
-    def __init__(self, rates: list[Rate]) -> None:
+    def __init__(
+        self,
+        rates: list[Rate],
+        max_buckets: int = DEFAULT_MAX_BUCKETS,
+        bucket_ttl_seconds: float = DEFAULT_BUCKET_TTL_SECONDS,
+    ) -> None:
         super().__init__()
         self._rates = rates
         self._buckets: dict[str, InMemoryBucket] = {}
+        self._last_access: dict[str, float] = {}
+        self._max_buckets = max_buckets
+        self._bucket_ttl_seconds = bucket_ttl_seconds
         self._clock = MonotonicClock()
         PerKeyBucketFactory._instances.append(self)
 
     def wrap_item(self, name: str, weight: int = 1) -> RateItem:
         return RateItem(name, self._clock.now(), weight=weight)
 
+    def _drop(self, key: str) -> None:
+        bucket = self._buckets.pop(key, None)
+        self._last_access.pop(key, None)
+        if bucket is not None:
+            self.dispose(bucket)
+
+    def _evict_stale(self, now: float) -> None:
+        # ``_buckets`` is LRU-ordered, so stale entries are always at the front.
+        stale_keys: list[str] = []
+        for key in self._buckets:
+            if now - self._last_access.get(key, 0.0) <= self._bucket_ttl_seconds:
+                break
+            stale_keys.append(key)
+        for key in stale_keys:
+            self._drop(key)
+
     def get(self, item: RateItem) -> InMemoryBucket:
         key = item.name
-        if key not in self._buckets:
+        now = time.monotonic()
+        self._evict_stale(now)
+        bucket = self._buckets.get(key)
+        if bucket is None:
+            while len(self._buckets) >= self._max_buckets:
+                self._drop(next(iter(self._buckets)))
             bucket = InMemoryBucket(self._rates)
             self._buckets[key] = bucket
             self.schedule_leak(bucket)
-        return self._buckets[key]
+        else:
+            # Move to the end so iteration order reflects recency (LRU).
+            self._buckets[key] = self._buckets.pop(key)
+        self._last_access[key] = now
+        return bucket
 
     def reset(self) -> None:
         """Drop all in-memory buckets and stop the background leaker."""
         self._buckets.clear()
+        self._last_access.clear()
         if self._leaker is not None:
             self._leaker.close()
             self._leaker = None
@@ -70,15 +119,16 @@ async def ip_only_identifier(request: Request) -> str:
 
     Using the IP alone keeps the bucket count bounded to the number of active
     clients while still isolating users from one another.
+
+    ``X-Forwarded-For`` is honored only when the direct peer is listed in
+    ``settings.trusted_proxy_ips``; otherwise the header is attacker-controlled
+    and would let clients bypass per-IP limits by spoofing it.
     """
+    peer_ip = request.client.host if request.client else "127.0.0.1"
     forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        ip = forwarded.split(",")[0].strip()
-    elif request.client:
-        ip = request.client.host
-    else:
-        ip = "127.0.0.1"
-    return ip
+    if forwarded and peer_ip in settings.trusted_proxy_ips:
+        return forwarded.split(",")[0].strip()
+    return peer_ip
 
 
 async def _extract_auth_identifier(request: Request) -> str | None:
