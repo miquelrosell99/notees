@@ -13,7 +13,7 @@ import asyncpg
 
 from app.core.migration.writer import OperationWriter
 from app.core.operation import Operation
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 
 
 class PostgresOperationWriter(OperationWriter):
@@ -30,13 +30,13 @@ class PostgresOperationWriter(OperationWriter):
     def __init__(self, conn: asyncpg.Connection, batch_size: int = 1000) -> None:
         self._conn = conn
         self._batch_size = batch_size
-        self._buffer: list[EncryptedEnvelope] = []
+        self._buffer: list[RelayEnvelope] = []
         self._written = 0
 
     @staticmethod
-    def _to_envelope(operation: Operation) -> EncryptedEnvelope:
+    def _to_envelope(operation: Operation) -> RelayEnvelope:
         env = operation.envelope
-        return EncryptedEnvelope(
+        return RelayEnvelope(
             id=env.id,
             workspace_id=env.workspace_id,
             actor_id=env.actor_id,

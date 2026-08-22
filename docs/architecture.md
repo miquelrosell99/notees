@@ -17,7 +17,7 @@ For installation, configuration, usage, plugin development, and troubleshooting,
 
 ## 1. High-level architecture
 
-Notees is a local-first, privacy-first note application. The authoritative source of truth is an immutable **operation log** stored on the server as an encrypted relay and replayed in the browser. The client builds a derived **SQLite** database (via `sql.js`/WebAssembly) from that log. All reads the UI performs run against the local SQLite store; writes append local operations that are asynchronously pushed to the server.
+Notees is a local-first, privacy-first note application. The authoritative source of truth is an immutable **operation log** stored on the server as a relay (payloads are plaintext JSON; confidentiality comes from transport encryption such as TLS/Tailscale) and replayed in the browser. The client builds a derived **SQLite** database (via `sql.js`/WebAssembly) from that log. All reads the UI performs run against the local SQLite store; writes append local operations that are asynchronously pushed to the server.
 
 ```
 Browser UI (React)
@@ -32,10 +32,10 @@ Web Worker  ←── owns the sql.js Database
        └── query / mutate dispatch
        │
        ▼
-SyncEngine  ←── push/pull encrypted operation envelopes
+SyncEngine  ←── push/pull relay operation envelopes
        │
        ▼
-FastAPI backend  ←── encrypted relay log, snapshots, users, shares
+FastAPI backend  ←── operation relay log, snapshots, users, shares
 ```
 
 ### Main layers
@@ -49,7 +49,7 @@ FastAPI backend  ←── encrypted relay log, snapshots, users, shares
 | **WorkspaceStore** | In-worker API over the SQLite database | `frontend/src/core/store.ts` |
 | **Worker client** | Main-thread proxy that posts messages to the worker | `frontend/src/core/worker/WorkspaceStoreClient.ts` |
 | **Sync engine** | Push local ops, pull remote ops, detect conflicts, snapshots | `frontend/src/core/sync.ts` |
-| **Backend relay** | Encrypted operation storage, snapshot storage, auth | `app/relay/`, `app/features/auth/` |
+| **Backend relay** | Relay operation storage, snapshot storage, auth | `app/relay/`, `app/features/auth/` |
 
 ### Folder structure
 
@@ -505,13 +505,13 @@ The worker owns one `sql.js` `Database` per workspace. It is serialised to a `Ui
 
 ### Sync protocol
 
-- **Push**: `SyncEngine.push()` queries pending operations from `sync_outbox` (those with HLC greater than the pushed watermark), batches them into encrypted envelopes, sends them via `Transport`, and marks acknowledged ids. Failed operations record `attempt_count` and `next_retry_at`.
+- **Push**: `SyncEngine.push()` queries pending operations from `sync_outbox` (those with HLC greater than the pushed watermark), batches them into relay envelopes, sends them via `Transport`, and marks acknowledged ids. Failed operations record `attempt_count` and `next_retry_at`.
 - **Pull**: `SyncEngine.pull()` fetches the latest snapshot. If the server's `restore_epoch` changed, local derived state and the operation log are cleared and rebuilt from the server. Otherwise, or if the snapshot is newer, the snapshot is restored and then newer operations are fetched with `catchUp()` and applied in one `applyMany` worker batch.
 - **Conflict detection**: after pulling, remote operations are compared against still-pending local operations on the same affected nodes via `detectConflicts()`.
 
 ### Operation log
 
-Operations are immutable, ordered by HLC. The backend stores them encrypted and serves them in HLC order.
+Operations are immutable, ordered by HLC. The backend stores them as plaintext JSON (confidentiality comes from transport encryption only) and serves them in server-assigned seq order.
 
 ### Batching / optimistic updates
 

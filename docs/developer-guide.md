@@ -15,7 +15,7 @@ notees/
 │   ├── features/           # Feature modules (router + service + port + repository)
 │   ├── infrastructure/     # Infrastructure adapters
 │   ├── plugins/            # Runtime plugin system
-│   ├── relay/              # Encrypted operation relay server
+│   ├── relay/              # Operation relay server
 │   ├── routers/            # API router aggregation
 │   └── static/dist/        # Built frontend
 ├── frontend/               # React 19 + TypeScript + Vite
@@ -175,7 +175,7 @@ All database reads and writes run inside the worker. The database is serialized 
 
 `frontend/src/core/sync.ts` implements the `SyncEngine`:
 
-- **Push**: uploads pending operations from `sync_outbox` in encrypted envelopes.
+- **Push**: uploads pending operations from `sync_outbox` in relay envelopes.
 - **Pull**: fetches the latest snapshot, restores it, and catches up newer operations from `/api/relay/catch-up`.
 - **Conflict detection**: compares remote operations against pending local edits.
 

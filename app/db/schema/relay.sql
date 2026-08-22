@@ -25,12 +25,26 @@ CREATE TABLE IF NOT EXISTS relay_envelope (
     op_type TEXT NOT NULL,
     payload JSONB NOT NULL,
     timestamp TIMESTAMPTZ,
-    protocol_version INTEGER NOT NULL DEFAULT 1
+    protocol_version INTEGER NOT NULL DEFAULT 1,
+    seq BIGINT GENERATED ALWAYS AS IDENTITY
 );
 
 -- Existing databases created before the protocol version field was persisted.
 ALTER TABLE relay_envelope
     ADD COLUMN IF NOT EXISTS protocol_version INTEGER NOT NULL DEFAULT 1;
+
+-- Server-assigned sequence number: the authoritative catch-up cursor.
+-- GENERATED ALWAYS AS IDENTITY is supported as an ADD COLUMN on populated
+-- tables since PostgreSQL 10; existing rows are backfilled from the new
+-- sequence (order unspecified, which is acceptable — the relay log can be
+-- re-seeded and the HLC columns remain the causal metadata). The sequence is
+-- global, so per-workspace seq values may have gaps; only monotonicity and
+-- uniqueness within a workspace are guaranteed.
+ALTER TABLE relay_envelope
+    ADD COLUMN IF NOT EXISTS seq BIGINT GENERATED ALWAYS AS IDENTITY;
+
+CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_seq
+    ON relay_envelope (workspace_id, seq);
 
 CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_hlc
     ON relay_envelope (workspace_id, physical, logical, id);
@@ -47,8 +61,14 @@ CREATE TABLE IF NOT EXISTS relay_snapshot (
     hlc JSONB NOT NULL,
     state_hash TEXT,
     data BYTEA,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    up_to_seq BIGINT
 );
+
+-- Seq cursor covered by the snapshot, so post-restore catch-up can resume by
+-- seq instead of HLC. NULL on snapshots created before the column existed.
+ALTER TABLE relay_snapshot
+    ADD COLUMN IF NOT EXISTS up_to_seq BIGINT;
 
 CREATE INDEX IF NOT EXISTS idx_relay_snapshot_workspace
     ON relay_snapshot (workspace_id);

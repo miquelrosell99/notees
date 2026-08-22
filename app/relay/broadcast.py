@@ -35,7 +35,7 @@ except ImportError:  # pragma: no cover
 if TYPE_CHECKING:
     from fastapi import WebSocket
 
-    from app.relay.models import EncryptedEnvelope
+    from app.relay.models import RelayEnvelope
 
 logger = get_logger(__name__)
 
@@ -216,7 +216,7 @@ async def unsubscribe(workspace_id: str, websocket: WebSocket) -> None:
     await backend.unsubscribe(workspace_id)
 
 
-async def broadcast(workspace_id: str, envelopes: list[EncryptedEnvelope]) -> None:
+async def broadcast(workspace_id: str, envelopes: list[RelayEnvelope]) -> None:
     """Send a batch of envelopes to every subscriber of ``workspace_id``.
 
     Envelopes go out as one typed ``ops`` message (camelCase wire format) per

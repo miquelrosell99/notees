@@ -132,7 +132,7 @@ async def catch_up(
     service: RelayService = Depends(get_relay_service),
     restore_epoch: int = Depends(_catch_up_restore_epoch),
 ) -> CatchUpPaginatedResponse:
-    """Serve operation envelopes newer than the given HLC."""
+    """Serve operation envelopes newer than the given seq cursor."""
     if actor_id == "anonymous" and share_token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -153,12 +153,11 @@ async def catch_up(
         limit = min(request.limit, 10_000)
         if limit < 1:
             limit = 1000
-        envelopes, next_after_id = await service.catch_up_paginated(
+        envelopes, next_after_seq = await service.catch_up_paginated(
             request.workspace_id,
             actor_id,
-            request.hlc,
+            request.after_seq,
             limit=limit,
-            after_id=request.after_id,
             share_token=share_token,
             share_node_id=share_node_id,
         )
@@ -172,10 +171,16 @@ async def catch_up(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+    has_more = next_after_seq is not None
+    if not has_more and envelopes:
+        # Advance the cursor past the final page too, so HTTP-only clients
+        # (which have no WS hello.latestSeq) don't re-fetch the tail on the
+        # next pull. has_more still distinguishes pagination from completion.
+        next_after_seq = envelopes[-1].seq
     return CatchUpPaginatedResponse(
         envelopes=envelopes,
-        next_after_id=next_after_id,
-        has_more=next_after_id is not None,
+        next_after_seq=next_after_seq,
+        has_more=has_more,
         restore_epoch=restore_epoch,
     )
 
@@ -203,7 +208,7 @@ async def create_snapshot(
     """
     await require_workspace_owner_or_admin(request.workspace_id, user)
     try:
-        snapshot_id = await service.create_snapshot(
+        snapshot_id, up_to_seq = await service.create_snapshot(
             request.workspace_id,
             request.up_to_hlc,
             data=request.data,
@@ -222,6 +227,7 @@ async def create_snapshot(
         snapshot_id=snapshot_id,
         workspace_id=request.workspace_id,
         up_to_hlc=request.up_to_hlc,
+        up_to_seq=up_to_seq,
     )
 
 
@@ -318,6 +324,7 @@ async def get_latest_snapshot(
         data_base64=base64.b64encode(snapshot["data"]).decode("ascii"),
         has_snapshot=True,
         restore_epoch=restore_epoch,
+        up_to_seq=snapshot["up_to_seq"],
     )
 
 

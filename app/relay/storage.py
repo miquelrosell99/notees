@@ -22,18 +22,18 @@ import asyncpg
 
 from app.core.clock import Hlc
 from app.db.connection import acquire_connection, get_pool
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 
 
 class RelayStorage(ABC):
-    """Abstract port for persisting and retrieving encrypted operation envelopes."""
+    """Abstract port for persisting and retrieving relay operation envelopes."""
 
     @abstractmethod
-    def save_envelope(self, envelope: EncryptedEnvelope) -> None:
+    def save_envelope(self, envelope: RelayEnvelope) -> None:
         """Persist ``envelope``. Callers should dedupe via ``envelope_exists``."""
 
     @abstractmethod
-    def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> list[str]:
+    def save_envelopes(self, envelopes: list[RelayEnvelope]) -> list[str]:
         """Persist many envelopes efficiently.
 
         Returns the ids of envelopes that were actually inserted; duplicates
@@ -44,34 +44,35 @@ class RelayStorage(ABC):
     def get_catch_up(
         self,
         workspace_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         node_id: str | None = None,
-    ) -> list[EncryptedEnvelope]:
-        """Return envelopes for ``workspace_id`` with HLC greater than ``hlc``.
+    ) -> list[RelayEnvelope]:
+        """Return envelopes for ``workspace_id`` with ``seq`` greater than ``after_seq``.
 
         When ``node_id`` is provided, only envelopes whose ``affected_node_ids``
         include that node are returned.
 
-        Results are sorted lexicographically by HLC, then by envelope id.
+        Results are sorted by the server-assigned ``seq``, which is the
+        authoritative catch-up order; HLC remains causality metadata inside
+        the envelope.
         """
 
     @abstractmethod
     def get_catch_up_paginated(
         self,
         workspace_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         limit: int = 1000,
-        after_id: str | None = None,
         node_id: str | None = None,
-    ) -> tuple[list[EncryptedEnvelope], str | None]:
-        """Return a page of envelopes newer than ``hlc`` for ``workspace_id``.
+    ) -> tuple[list[RelayEnvelope], int | None]:
+        """Return a page of envelopes with ``seq`` greater than ``after_seq``.
 
         When ``node_id`` is provided, only envelopes whose ``affected_node_ids``
         include that node are returned.
 
-        Results are sorted lexicographically by HLC, then by envelope id.
-        The returned ``next_after_id`` is the id of the last envelope when the
-        page is full, indicating that more results may be available.
+        Results are sorted by ``seq``. The returned ``next_after_seq`` is the
+        seq of the last envelope when the page is full, indicating that more
+        results may be available.
         """
 
     @abstractmethod
@@ -84,7 +85,7 @@ class RelayStorage(ABC):
 
     @abstractmethod
     def get_operation_size_estimate(self, workspace_id: str) -> int:
-        """Return the total byte size of encrypted payloads for ``workspace_id``."""
+        """Return the total byte size of operation payloads for ``workspace_id``."""
 
     @abstractmethod
     def get_max_hlc(self, workspace_id: str) -> Hlc:
@@ -95,18 +96,27 @@ class RelayStorage(ABC):
         """
 
     @abstractmethod
+    def get_latest_seq(self, workspace_id: str) -> int:
+        """Return the highest server-assigned seq for ``workspace_id``.
+
+        Returns:
+            The maximum seq, or ``0`` when no envelopes exist.
+        """
+
+    @abstractmethod
     def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         """Return the newest snapshot for ``workspace_id``.
 
         Returns:
-            A dict with ``id``, ``hlc``, and ``data`` keys, or ``None`` when no
-            snapshot exists.
+            A dict with ``id``, ``hlc``, ``up_to_seq``, and ``data`` keys, or
+            ``None`` when no snapshot exists. ``up_to_seq`` is ``None`` for
+            snapshots recorded before the seq cursor existed.
         """
 
     @abstractmethod
     def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
-    ) -> str:
+    ) -> tuple[str, int]:
         """Create a snapshot covering all envelopes up to ``up_to_hlc``.
 
         Args:
@@ -114,7 +124,9 @@ class RelayStorage(ABC):
                 snapshot.
 
         Returns:
-            The new snapshot id.
+            A tuple of the new snapshot id and the highest envelope seq covered
+            by the snapshot (``0`` when no envelopes are covered), for use as
+            the post-restore catch-up cursor.
         """
 
     @abstractmethod
@@ -194,10 +206,67 @@ class SqliteRelayStorage(RelayStorage):
         if needs_migration:
             self._connection.execute("DROP TABLE relay_envelope")
 
+        table_exists = (
+            self._connection.execute(
+                """
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table' AND name = 'relay_envelope'
+                """
+            ).fetchone()
+            is not None
+        )
+        if table_exists:
+            columns = {
+                row["name"]
+                for row in self._connection.execute("PRAGMA table_info(relay_envelope)")
+            }
+            # Existing databases created before the protocol version field was
+            # persisted get the column added in place; rows default to version 1.
+            if "protocol_version" not in columns:
+                self._connection.execute(
+                    "ALTER TABLE relay_envelope ADD COLUMN protocol_version INTEGER NOT NULL DEFAULT 1"
+                )
+            if "seq" not in columns:
+                # SQLite cannot add a PRIMARY KEY via ALTER TABLE, and the old
+                # layout (id TEXT PRIMARY KEY) does not alias rowid, so the
+                # table is rebuilt with an explicit AUTOINCREMENT seq column.
+                # Rows are copied in the previous catch-up order so the new seq
+                # agrees with the historical HLC order. AUTOINCREMENT prevents
+                # seq reuse after compaction prunes the highest rows.
+                self._connection.executescript(
+                    """
+                    CREATE TABLE relay_envelope_with_seq (
+                        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id TEXT NOT NULL UNIQUE,
+                        workspace_id TEXT NOT NULL,
+                        actor_id TEXT NOT NULL,
+                        physical INTEGER NOT NULL,
+                        logical INTEGER NOT NULL,
+                        affected_node_ids TEXT NOT NULL DEFAULT '[]',
+                        op_type TEXT NOT NULL,
+                        payload TEXT NOT NULL,
+                        timestamp TEXT,
+                        protocol_version INTEGER NOT NULL DEFAULT 1
+                    );
+                    INSERT INTO relay_envelope_with_seq (
+                        id, workspace_id, actor_id, physical, logical,
+                        affected_node_ids, op_type, payload, timestamp, protocol_version
+                    )
+                    SELECT
+                        id, workspace_id, actor_id, physical, logical,
+                        affected_node_ids, op_type, payload, timestamp, protocol_version
+                    FROM relay_envelope
+                    ORDER BY physical ASC, logical ASC, id ASC;
+                    DROP TABLE relay_envelope;
+                    ALTER TABLE relay_envelope_with_seq RENAME TO relay_envelope;
+                    """
+                )
+
         self._connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS relay_envelope (
-                id TEXT PRIMARY KEY,
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT NOT NULL UNIQUE,
                 workspace_id TEXT NOT NULL,
                 actor_id TEXT NOT NULL,
                 physical INTEGER NOT NULL,
@@ -211,13 +280,17 @@ class SqliteRelayStorage(RelayStorage):
             CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_hlc
                 ON relay_envelope (workspace_id, physical, logical, id);
 
+            CREATE INDEX IF NOT EXISTS idx_relay_envelope_workspace_seq
+                ON relay_envelope (workspace_id, seq);
+
             CREATE TABLE IF NOT EXISTS relay_snapshot (
                 id TEXT PRIMARY KEY,
                 workspace_id TEXT NOT NULL,
                 hlc TEXT NOT NULL,
                 state_hash TEXT,
                 data BLOB,
-                created_at TEXT
+                created_at TEXT,
+                up_to_seq INTEGER
             );
             CREATE INDEX IF NOT EXISTS idx_relay_snapshot_workspace
                 ON relay_snapshot (workspace_id);
@@ -235,23 +308,25 @@ class SqliteRelayStorage(RelayStorage):
                 ON compacted_operation_segment (workspace_id);
             """
         )
-        # Existing databases created before the protocol version field was
-        # persisted get the column added in place; rows default to version 1.
-        columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(relay_envelope)")}
-        if "protocol_version" not in columns:
+        # Snapshots recorded before the seq cursor existed have NULL up_to_seq.
+        snapshot_columns = {
+            row["name"]
+            for row in self._connection.execute("PRAGMA table_info(relay_snapshot)")
+        }
+        if "up_to_seq" not in snapshot_columns:
             self._connection.execute(
-                "ALTER TABLE relay_envelope ADD COLUMN protocol_version INTEGER NOT NULL DEFAULT 1"
+                "ALTER TABLE relay_snapshot ADD COLUMN up_to_seq INTEGER"
             )
         self._connection.commit()
 
-    def _row_to_envelope(self, row: sqlite3.Row) -> EncryptedEnvelope:
+    def _row_to_envelope(self, row: sqlite3.Row) -> RelayEnvelope:
         # Legacy rows (raw-SQL writers) may have NULL timestamp; fall back to the
         # HLC physical component (ms epoch) instead of crashing on the non-optional field.
         if row["timestamp"]:
             timestamp = datetime.fromisoformat(row["timestamp"])
         else:
             timestamp = datetime.fromtimestamp(row["physical"] / 1000, UTC)
-        return EncryptedEnvelope(
+        return RelayEnvelope(
             id=row["id"],
             workspace_id=row["workspace_id"],
             actor_id=row["actor_id"],
@@ -261,9 +336,10 @@ class SqliteRelayStorage(RelayStorage):
             payload=json.loads(row["payload"]),
             timestamp=timestamp,
             protocol_version=row["protocol_version"],
+            seq=row["seq"],
         )
 
-    def save_envelope(self, envelope: EncryptedEnvelope) -> None:
+    def save_envelope(self, envelope: RelayEnvelope) -> None:
         self._connection.execute(
             """
             INSERT OR IGNORE INTO relay_envelope (
@@ -286,7 +362,7 @@ class SqliteRelayStorage(RelayStorage):
         )
         self._connection.commit()
 
-    def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> list[str]:
+    def save_envelopes(self, envelopes: list[RelayEnvelope]) -> list[str]:
         """Persist many envelopes in a single transaction.
 
         This is much faster than calling :meth:`save_envelope` in a loop for
@@ -340,10 +416,10 @@ class SqliteRelayStorage(RelayStorage):
     def get_catch_up(
         self,
         workspace_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         node_id: str | None = None,
-    ) -> list[EncryptedEnvelope]:
-        params: list[Any] = [workspace_id, hlc.physical, hlc.logical]
+    ) -> list[RelayEnvelope]:
+        params: list[Any] = [workspace_id, after_seq]
         node_filter = ""
         if node_id is not None:
             node_filter = "AND affected_node_ids LIKE ?"
@@ -352,9 +428,9 @@ class SqliteRelayStorage(RelayStorage):
             f"""
             SELECT * FROM relay_envelope
             WHERE workspace_id = ?
-              AND (physical, logical) > (?, ?)
+              AND seq > ?
               {node_filter}
-            ORDER BY physical ASC, logical ASC, id ASC
+            ORDER BY seq ASC
             """,
             tuple(params),
         )
@@ -363,62 +439,29 @@ class SqliteRelayStorage(RelayStorage):
     def get_catch_up_paginated(
         self,
         workspace_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         limit: int = 1000,
-        after_id: str | None = None,
         node_id: str | None = None,
-    ) -> tuple[list[EncryptedEnvelope], str | None]:
+    ) -> tuple[list[RelayEnvelope], int | None]:
+        params: list[Any] = [workspace_id, after_seq]
         node_filter = ""
-        node_param: tuple[Any, ...] = ()
         if node_id is not None:
             node_filter = "AND affected_node_ids LIKE ?"
-            node_param = (f'%"{node_id}"%',)
-
-        if after_id is not None:
-            cursor_row = self._connection.execute(
-                "SELECT physical, logical FROM relay_envelope WHERE id = ?",
-                (after_id,),
-            ).fetchone()
-            if cursor_row is None:
-                raise ValueError(
-                    f"Pagination cursor envelope {after_id} no longer exists"
-                )
-            cursor = self._connection.execute(
-                f"""
-                SELECT * FROM relay_envelope
-                WHERE workspace_id = ?
-                  AND (physical, logical) > (?, ?)
-                  AND (physical, logical, id) > (?, ?, ?)
-                  {node_filter}
-                ORDER BY physical ASC, logical ASC, id ASC
-                LIMIT ?
-                """,
-                (
-                    workspace_id,
-                    hlc.physical,
-                    hlc.logical,
-                    cursor_row["physical"],
-                    cursor_row["logical"],
-                    after_id,
-                    *node_param,
-                    limit,
-                ),
-            )
-        else:
-            cursor = self._connection.execute(
-                f"""
-                SELECT * FROM relay_envelope
-                WHERE workspace_id = ?
-                  AND (physical, logical) > (?, ?)
-                  {node_filter}
-                ORDER BY physical ASC, logical ASC, id ASC
-                LIMIT ?
-                """,
-                (workspace_id, hlc.physical, hlc.logical, *node_param, limit),
-            )
+            params.append(f'%"{node_id}"%')
+        cursor = self._connection.execute(
+            f"""
+            SELECT * FROM relay_envelope
+            WHERE workspace_id = ?
+              AND seq > ?
+              {node_filter}
+            ORDER BY seq ASC
+            LIMIT ?
+            """,
+            (*params, limit),
+        )
         results = [self._row_to_envelope(row) for row in cursor.fetchall()]
-        next_after_id = results[-1].id if len(results) == limit else None
-        return results, next_after_id
+        next_after_seq = results[-1].seq if len(results) == limit else None
+        return results, next_after_seq
 
     def envelope_exists(self, envelope_id: str) -> bool:
         cursor = self._connection.execute(
@@ -462,10 +505,18 @@ class SqliteRelayStorage(RelayStorage):
             return Hlc(physical=0, logical=0)
         return Hlc(physical=row["physical"], logical=row["logical"])
 
+    def get_latest_seq(self, workspace_id: str) -> int:
+        cursor = self._connection.execute(
+            "SELECT MAX(seq) FROM relay_envelope WHERE workspace_id = ?",
+            (workspace_id,),
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
     def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         cursor = self._connection.execute(
             """
-            SELECT id, hlc, data FROM relay_snapshot
+            SELECT id, hlc, data, up_to_seq FROM relay_snapshot
             WHERE workspace_id = ?
               AND data IS NOT NULL
               AND LENGTH(data) > 0
@@ -485,12 +536,13 @@ class SqliteRelayStorage(RelayStorage):
         return {
             "id": latest["id"],
             "hlc": _dict_to_hlc(hlc_dict),
+            "up_to_seq": latest["up_to_seq"],
             "data": latest["data"] or b"",
         }
 
     def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b"", commit: bool = True
-    ) -> str:
+    ) -> tuple[str, int]:
         if not data:
             cursor = self._connection.execute(
                 "SELECT 1 FROM compacted_operation_segment WHERE workspace_id = ? LIMIT 1",
@@ -505,11 +557,28 @@ class SqliteRelayStorage(RelayStorage):
         state_hash = hashlib.sha256(
             f"{workspace_id}:{hlc_json}:".encode() + data
         ).hexdigest()
+        # Highest seq covered by the snapshot, so post-restore catch-up can
+        # resume from a seq cursor instead of an HLC watermark.
+        up_to_seq = int(
+            self._connection.execute(
+                """
+                SELECT COALESCE(MAX(seq), 0) FROM relay_envelope
+                WHERE workspace_id = ?
+                  AND (physical < ? OR (physical = ? AND logical <= ?))
+                """,
+                (
+                    workspace_id,
+                    up_to_hlc.physical,
+                    up_to_hlc.physical,
+                    up_to_hlc.logical,
+                ),
+            ).fetchone()[0]
+        )
         self._connection.execute(
             """
             INSERT INTO relay_snapshot (
-                id, workspace_id, hlc, state_hash, data, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                id, workspace_id, hlc, state_hash, data, created_at, up_to_seq
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 snapshot_id,
@@ -518,11 +587,12 @@ class SqliteRelayStorage(RelayStorage):
                 state_hash,
                 data,
                 datetime.now(UTC).isoformat(),
+                up_to_seq,
             ),
         )
         if commit:
             self._connection.commit()
-        return snapshot_id
+        return snapshot_id, up_to_seq
 
     def create_compaction_segment(
         self,
@@ -537,7 +607,7 @@ class SqliteRelayStorage(RelayStorage):
             )
 
         hlc_json = json.dumps(_hlc_to_dict(up_to_hlc))
-        snapshot_id = self.create_snapshot(
+        snapshot_id, _up_to_seq = self.create_snapshot(
             workspace_id, up_to_hlc, data=data, commit=False
         )
         count = self._connection.execute(
@@ -689,8 +759,8 @@ class PostgresRelayStorage(RelayStorage):
         return self._pool
 
     @staticmethod
-    def _row_to_envelope(row: asyncpg.Record) -> EncryptedEnvelope:
-        return EncryptedEnvelope(
+    def _row_to_envelope(row: asyncpg.Record) -> RelayEnvelope:
+        return RelayEnvelope(
             id=row["id"],
             workspace_id=row["workspace_id"],
             actor_id=row["actor_id"],
@@ -700,9 +770,10 @@ class PostgresRelayStorage(RelayStorage):
             payload=row["payload"],
             timestamp=row["timestamp"],
             protocol_version=row["protocol_version"],
+            seq=row["seq"],
         )
 
-    async def save_envelope(self, envelope: EncryptedEnvelope) -> None:
+    async def save_envelope(self, envelope: RelayEnvelope) -> None:
         pool = await self._get_pool()
         async with acquire_connection(pool) as conn:
             await conn.execute(
@@ -725,7 +796,7 @@ class PostgresRelayStorage(RelayStorage):
                 envelope.protocol_version,
             )
 
-    async def save_envelopes(self, envelopes: list[EncryptedEnvelope]) -> list[str]:
+    async def save_envelopes(self, envelopes: list[RelayEnvelope]) -> list[str]:
         pool = await self._get_pool()
         if not envelopes:
             return []
@@ -778,9 +849,9 @@ class PostgresRelayStorage(RelayStorage):
     async def get_catch_up(
         self,
         workspace_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         node_id: str | None = None,
-    ) -> list[EncryptedEnvelope]:
+    ) -> list[RelayEnvelope]:
         pool = await self._get_pool()
         async with acquire_connection(pool) as conn:
             if node_id is not None:
@@ -788,13 +859,12 @@ class PostgresRelayStorage(RelayStorage):
                     """
                     SELECT * FROM relay_envelope
                     WHERE workspace_id = $1
-                      AND (physical, logical) > ($2, $3)
-                      AND affected_node_ids @> $4::jsonb
-                    ORDER BY physical ASC, logical ASC, id ASC
+                      AND seq > $2
+                      AND affected_node_ids @> $3::jsonb
+                    ORDER BY seq ASC
                     """,
                     workspace_id,
-                    hlc.physical,
-                    hlc.logical,
+                    after_seq,
                     json.dumps([node_id]),
                 )
             else:
@@ -802,87 +872,43 @@ class PostgresRelayStorage(RelayStorage):
                     """
                     SELECT * FROM relay_envelope
                     WHERE workspace_id = $1
-                      AND (physical, logical) > ($2, $3)
-                    ORDER BY physical ASC, logical ASC, id ASC
+                      AND seq > $2
+                    ORDER BY seq ASC
                     """,
                     workspace_id,
-                    hlc.physical,
-                    hlc.logical,
+                    after_seq,
                 )
         return [self._row_to_envelope(row) for row in rows]
 
     async def get_catch_up_paginated(
         self,
         workspace_id: str,
-        hlc: Hlc,
+        after_seq: int = 0,
         limit: int = 1000,
-        after_id: str | None = None,
         node_id: str | None = None,
-    ) -> tuple[list[EncryptedEnvelope], str | None]:
+    ) -> tuple[list[RelayEnvelope], int | None]:
         pool = await self._get_pool()
         node_filter_sql = ""
-        node_filter_arg: Any | None = None
-        node_param_index = 8 if after_id is not None else 5
+        args: list[Any] = [workspace_id, after_seq, limit]
         if node_id is not None:
-            node_filter_sql = f"AND affected_node_ids @> ${node_param_index}::jsonb"
-            node_filter_arg = json.dumps([node_id])
+            node_filter_sql = "AND affected_node_ids @> $4::jsonb"
+            args.append(json.dumps([node_id]))
 
         async with acquire_connection(pool) as conn:
-            if after_id is not None:
-                cursor_row = await conn.fetchrow(
-                    "SELECT physical, logical, id FROM relay_envelope WHERE id = $1::text",
-                    after_id,
-                )
-                if cursor_row is None:
-                    raise ValueError(
-                        f"Pagination cursor envelope {after_id} no longer exists"
-                    )
-                args = [
-                    workspace_id,
-                    hlc.physical,
-                    hlc.logical,
-                    cursor_row["physical"],
-                    cursor_row["logical"],
-                    after_id,
-                    limit,
-                ]
-                if node_filter_arg is not None:
-                    args.append(node_filter_arg)
-                rows = await conn.fetch(
-                    f"""
-                    SELECT * FROM relay_envelope
-                    WHERE workspace_id = $1
-                      AND (physical, logical) > ($2, $3)
-                      AND (physical, logical, id) > ($4, $5, $6)
-                      {node_filter_sql}
-                    ORDER BY physical ASC, logical ASC, id ASC
-                    LIMIT $7
-                    """,
-                    *args,
-                )
-            else:
-                args = [
-                    workspace_id,
-                    hlc.physical,
-                    hlc.logical,
-                    limit,
-                ]
-                if node_filter_arg is not None:
-                    args.append(node_filter_arg)
-                rows = await conn.fetch(
-                    f"""
-                    SELECT * FROM relay_envelope
-                    WHERE workspace_id = $1
-                      AND (physical, logical) > ($2, $3)
-                      {node_filter_sql}
-                    ORDER BY physical ASC, logical ASC, id ASC
-                    LIMIT $4
-                    """,
-                    *args,
-                )
+            rows = await conn.fetch(
+                f"""
+                SELECT * FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND seq > $2
+                  {node_filter_sql}
+                ORDER BY seq ASC
+                LIMIT $3
+                """,
+                *args,
+            )
         results = [self._row_to_envelope(row) for row in rows]
-        next_after_id = results[-1].id if len(results) == limit else None
-        return results, next_after_id
+        next_after_seq = results[-1].seq if len(results) == limit else None
+        return results, next_after_seq
 
     async def envelope_exists(self, envelope_id: str) -> bool:
         pool = await self._get_pool()
@@ -931,12 +957,21 @@ class PostgresRelayStorage(RelayStorage):
             return Hlc(physical=0, logical=0)
         return Hlc(physical=row["physical"], logical=row["logical"])
 
+    async def get_latest_seq(self, workspace_id: str) -> int:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT MAX(seq) FROM relay_envelope WHERE workspace_id = $1",
+                workspace_id,
+            )
+        return int(row[0]) if row and row[0] is not None else 0
+
     async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         pool = await self._get_pool()
         async with acquire_connection(pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, hlc, data FROM relay_snapshot
+                SELECT id, hlc, data, up_to_seq FROM relay_snapshot
                 WHERE workspace_id = $1
                   AND data IS NOT NULL
                   AND OCTET_LENGTH(data) > 0
@@ -951,12 +986,13 @@ class PostgresRelayStorage(RelayStorage):
         return {
             "id": str(row["id"]),
             "hlc": _dict_to_hlc(hlc_dict),
+            "up_to_seq": row["up_to_seq"],
             "data": row["data"] or b"",
         }
 
     async def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b"", conn: Any | None = None
-    ) -> str:
+    ) -> tuple[str, int]:
         if conn is None:
             pool = await self._get_pool()
             async with acquire_connection(pool) as owned_conn:
@@ -974,18 +1010,31 @@ class PostgresRelayStorage(RelayStorage):
         state_hash = hashlib.sha256(
             f"{workspace_id}:{json.dumps(hlc_dict)}:".encode() + data
         ).hexdigest()
+        # Highest seq covered by the snapshot, so post-restore catch-up can
+        # resume from a seq cursor instead of an HLC watermark.
+        up_to_seq = await conn.fetchval(
+            """
+            SELECT COALESCE(MAX(seq), 0) FROM relay_envelope
+            WHERE workspace_id = $1
+              AND (physical, logical) <= ($2, $3)
+            """,
+            workspace_id,
+            up_to_hlc.physical,
+            up_to_hlc.logical,
+        )
         row = await conn.fetchrow(
             """
-            INSERT INTO relay_snapshot (workspace_id, hlc, state_hash, data)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO relay_snapshot (workspace_id, hlc, state_hash, data, up_to_seq)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id
             """,
             workspace_id,
             hlc_dict,
             state_hash,
             data,
+            up_to_seq,
         )
-        return str(row["id"])
+        return str(row["id"]), int(up_to_seq)
 
     async def create_compaction_segment(
         self,
@@ -1001,7 +1050,7 @@ class PostgresRelayStorage(RelayStorage):
 
         pool = await self._get_pool()
         async with acquire_connection(pool) as conn, conn.transaction():
-            snapshot_id = await self.create_snapshot(
+            snapshot_id, _up_to_seq = await self.create_snapshot(
                 workspace_id, up_to_hlc, data=data, conn=conn
             )
             count_row = await conn.fetchrow(

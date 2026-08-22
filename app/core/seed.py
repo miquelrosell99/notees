@@ -2,7 +2,7 @@
 
 This module replaces the legacy PostgreSQL-only workspace seeding for the data
 that the local-first frontend needs. It writes the canonical system classes and
-default pages as encrypted operations through the shared relay storage adapter,
+default pages as relay operations through the shared relay storage adapter,
 so every client that catches up the workspace will derive the same state.
 """
 
@@ -19,7 +19,7 @@ from app.domain.entities.constants import (
     SYSTEM_CLASS_UUIDS,
     SYSTEM_PAGE_UUIDS,
 )
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 
 
 def _name_ast(text: str) -> list[dict[str, Any]]:
@@ -126,7 +126,7 @@ def _page_operations(
 
 async def _save_envelopes(
     storage: Any,
-    envelopes: list[EncryptedEnvelope],
+    envelopes: list[RelayEnvelope],
 ) -> None:
     """Persist envelopes, awaiting the call if the adapter is async."""
     coro_or_result = storage.save_envelopes(envelopes)
@@ -159,10 +159,10 @@ async def seed_workspace_relay(
     operations = _class_operations(clock, workspace_id, actor_id)
     operations.extend(_page_operations(clock, workspace_id, actor_id, user_display_name))
 
-    envelopes: list[EncryptedEnvelope] = []
+    envelopes: list[RelayEnvelope] = []
     for operation in operations:
         envelopes.append(
-            EncryptedEnvelope(
+            RelayEnvelope(
                 id=operation.id,
                 workspace_id=operation.envelope.workspace_id,
                 actor_id=operation.envelope.actor_id,

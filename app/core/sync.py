@@ -27,7 +27,7 @@ class SyncEngine:
 
     async def push(self) -> int:
         """Send all operations persisted by this store to the relay."""
-        envelopes = await self._store.get_envelopes(Hlc(0, 0))
+        envelopes = await self._store.get_envelopes(0)
         for envelope in envelopes:
             await self._transport.send(envelope)
         return len(envelopes)

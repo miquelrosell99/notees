@@ -1,8 +1,8 @@
 """Server-side workspace store for the operation-log core.
 
-``WorkspaceStore`` is scoped to a single workspace and actor. It encrypts
-operations with the workspace master key, persists them through the relay
-storage port, and applies them to a local SQLite derived-state database. This
+``WorkspaceStore`` is scoped to a single workspace and actor. It persists
+operations through the relay storage port and applies them to a local SQLite
+derived-state database. This
 lets backend feature islands participate in the same local-first operation log
 as clients.
 """
@@ -22,7 +22,7 @@ from app.core.derived import apply_operation, create_derived_schema
 from app.core.operation import Operation, OperationEnvelope
 from app.core.uuid import uuidv7
 from app.relay.key_storage import WorkspaceKeyStorage
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.storage import RelayStorage
 
 # Number of envelopes fetched and applied per batch during cold-sync catch-up.
@@ -34,8 +34,8 @@ _CATCH_UP_BATCH_SIZE = 500
 class WorkspaceStore:
     """Server-side derived-state store scoped to ``(workspace_id, actor_id)``.
 
-    Operations are encrypted with the workspace master key, saved to the relay,
-    and applied to a per-workspace SQLite derived database. ``sync()`` replays
+    Operations are saved to the relay as plaintext JSON payloads and applied to
+    a per-workspace SQLite derived database. ``sync()`` replays
     operations from the relay into the derived database idempotently.
     """
 
@@ -184,8 +184,8 @@ class WorkspaceStore:
             payload=payload,
         )
 
-    async def apply(self, operation: Operation) -> EncryptedEnvelope | None:
-        """Encrypt, persist, and apply a single operation.
+    async def apply(self, operation: Operation) -> RelayEnvelope | None:
+        """Persist and apply a single operation.
 
         Skips saving/applying when the operation id already exists in relay
         storage, making the method safely idempotent.
@@ -199,7 +199,7 @@ class WorkspaceStore:
         reentrant.
 
         Returns:
-            The encrypted envelope that was saved, or ``None`` when the
+            The relay envelope that was saved, or ``None`` when the
             operation was already present and was skipped.
         """
         async with self._sync_lock:
@@ -219,8 +219,8 @@ class WorkspaceStore:
 
     async def apply_many(
         self, operations: list[Operation]
-    ) -> list[EncryptedEnvelope | None]:
-        """Encrypt, persist, and apply multiple operations.
+    ) -> list[RelayEnvelope | None]:
+        """Persist and apply multiple operations.
 
         Operations whose ids already exist in relay storage are skipped. The
         remaining operations are persisted to the relay and applied to the
@@ -228,10 +228,10 @@ class WorkspaceStore:
         recorded in ``applied_operation_id`` atomically.
 
         Returns:
-            A list parallel to ``operations``: the encrypted envelope for each
+            A list parallel to ``operations``: the relay envelope for each
             persisted operation, or ``None`` for operations that were skipped.
         """
-        results: list[EncryptedEnvelope | None] = []
+        results: list[RelayEnvelope | None] = []
         to_apply: list[Operation] = []
 
         # Hold the workspace sync lock across persist + derived application so
@@ -262,7 +262,7 @@ class WorkspaceStore:
 
     async def _persist_operation(
         self, operation: Operation
-    ) -> EncryptedEnvelope | None:
+    ) -> RelayEnvelope | None:
         """Persist an operation to relay storage.
 
         Returns:
@@ -275,7 +275,7 @@ class WorkspaceStore:
         if exists:
             return None
 
-        envelope = EncryptedEnvelope(
+        envelope = RelayEnvelope(
             id=operation.id,
             workspace_id=operation.envelope.workspace_id,
             actor_id=operation.envelope.actor_id,
@@ -325,8 +325,8 @@ class WorkspaceStore:
         """Fetch operations from the relay and apply them idempotently.
 
         If a snapshot exists for the workspace, the derived SQLite database is
-        restored from it and only operations newer than the snapshot's HLC are
-        replayed. Otherwise all operations are replayed from HLC zero.
+        restored from it and only operations past the snapshot's seq cursor are
+        replayed. Otherwise all operations are replayed from seq zero.
 
         Skips operations already recorded in the ``applied_operation_id`` table.
         This is important for increment-only appliers such as ``link.click``.
@@ -340,24 +340,26 @@ class WorkspaceStore:
             )
             if snapshot is not None:
                 conn = self._restore_from_snapshot(snapshot["data"])
-                catch_up_hlc = snapshot["hlc"]
+                max_seen_hlc = snapshot["hlc"]
+                # Snapshots recorded before the seq cursor existed fall back to
+                # a full replay; the applied_operation_id dedupe (restored with
+                # the snapshot) keeps already-applied operations from
+                # re-applying.
+                after_seq = snapshot["up_to_seq"] or 0
             else:
                 conn = await self._ensure_connection()
-                catch_up_hlc = Hlc(physical=0, logical=0)
-
-            max_seen_hlc = catch_up_hlc
-            after_id: str | None = None
+                max_seen_hlc = Hlc(physical=0, logical=0)
+                after_seq = 0
 
             # Page through the relay in batches instead of loading the full
             # operation history at once, and check already-applied ids with a
             # single query per batch rather than per envelope.
             while True:
-                envelopes, after_id = await self._maybe_await(
+                envelopes, next_after_seq = await self._maybe_await(
                     self._relay_storage.get_catch_up_paginated(
                         self.workspace_id,
-                        catch_up_hlc,
+                        after_seq,
                         limit=_CATCH_UP_BATCH_SIZE,
-                        after_id=after_id,
                     )
                 )
                 if not envelopes:
@@ -388,8 +390,9 @@ class WorkspaceStore:
                     if compare_hlc(envelope.hlc, max_seen_hlc) > 0:
                         max_seen_hlc = envelope.hlc
 
-                if after_id is None:
+                if next_after_seq is None:
                     break
+                after_seq = next_after_seq
 
             self._clock.update(max_seen_hlc, int(datetime.now(UTC).timestamp() * 1000))
             conn.commit()
@@ -405,10 +408,10 @@ class WorkspaceStore:
         ).fetchall()
         return {row[0] for row in rows}
 
-    async def get_envelopes(self, after_hlc: Hlc) -> list[EncryptedEnvelope]:
-        """Return persisted envelopes for this workspace newer than ``after_hlc``."""
+    async def get_envelopes(self, after_seq: int = 0) -> list[RelayEnvelope]:
+        """Return persisted envelopes for this workspace past the ``after_seq`` cursor."""
         return await self._maybe_await(
-            self._relay_storage.get_catch_up(self.workspace_id, after_hlc)
+            self._relay_storage.get_catch_up(self.workspace_id, after_seq)
         )
 
     async def create_snapshot(self, up_to_hlc: Hlc | None = None) -> str:
@@ -428,11 +431,12 @@ class WorkspaceStore:
             up_to_hlc = await self._maybe_await(
                 self._relay_storage.get_max_hlc(self.workspace_id)
             )
-        return await self._maybe_await(
+        snapshot_id, _up_to_seq = await self._maybe_await(
             self._relay_storage.create_snapshot(
                 self.workspace_id, up_to_hlc, data=db_bytes
             )
         )
+        return snapshot_id
 
     async def create_node(
         self,
@@ -664,7 +668,7 @@ class WorkspaceStore:
         self,
         node_id: str,
         update: bytes,
-    ) -> EncryptedEnvelope | None:
+    ) -> RelayEnvelope | None:
         """Emit a ``node.updateContent`` operation carrying a Yjs text update.
 
         The raw bytes are serialized as a list of ints so the payload remains
@@ -672,7 +676,7 @@ class WorkspaceStore:
         derived-state applier.
 
         Returns:
-            The encrypted envelope that was saved, or ``None`` when the
+            The relay envelope that was saved, or ``None`` when the
             operation was a duplicate.
         """
         return await self.apply(

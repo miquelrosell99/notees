@@ -1,4 +1,4 @@
-"""WebSocket tests for the encrypted operation relay."""
+"""WebSocket tests for the operation relay."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from app.relay.dependencies import (
     get_relay_storage,
     get_workspace_restore_epoch,
 )
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
 from app.relay.router import router
 from app.relay.storage import RelayStorage, SqliteRelayStorage
@@ -80,8 +80,8 @@ def _envelope(
     physical: int = 1000,
     logical: int = 0,
     affected_node_ids: list[str] | None = None,
-) -> EncryptedEnvelope:
-    return EncryptedEnvelope(
+) -> RelayEnvelope:
+    return RelayEnvelope(
         id=envelope_id,
         workspace_id=workspace_id,
         actor_id=actor_id,
@@ -93,12 +93,13 @@ def _envelope(
     )
 
 
-def _assert_hello(websocket) -> None:
+def _assert_hello(websocket, latest_seq: int = 0) -> None:
     """Every accepted connection receives the typed hello greeting first."""
     hello = websocket.receive_json()
     assert hello["type"] == "hello"
     assert hello["protocolVersion"] == 2
     assert hello["restoreEpoch"] == 0
+    assert hello["latestSeq"] == latest_seq
 
 
 def test_websocket_connect_with_valid_actor(client: TestClient, auth_patch: None) -> None:
@@ -120,6 +121,28 @@ def test_websocket_connect_without_auth_is_rejected(client: TestClient) -> None:
         "/api/relay/ws/ws-1"
     ):
         pass  # pragma: no cover
+
+
+def test_websocket_hello_carries_latest_seq(
+    client: TestClient,
+    auth_patch: None,
+    storage: RelayStorage,
+) -> None:
+    """hello.latestSeq is the workspace's highest server-assigned seq, the
+    resume cursor clients compare against their stored position."""
+    storage.save_envelope(_envelope("op-1", workspace_id="ws-1", physical=1000))
+    storage.save_envelope(_envelope("op-2", workspace_id="ws-1", physical=2000))
+    storage.save_envelope(_envelope("op-other", workspace_id="ws-2", physical=3000))
+
+    expected = storage.get_latest_seq("ws-1")
+    assert expected > 0
+    assert storage.get_latest_seq("ws-2") > expected
+
+    with client.websocket_connect(
+        "/api/relay/ws/ws-1",
+        headers={"Authorization": "Bearer valid-token"},
+    ) as websocket:
+        _assert_hello(websocket, latest_seq=expected)
 
 
 def test_websocket_connect_x_actor_id_alone_is_rejected(client: TestClient) -> None:

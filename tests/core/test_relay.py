@@ -1,11 +1,11 @@
-"""Unit tests for the encrypted operation relay server."""
+"""Unit tests for the operation relay server."""
 
 from __future__ import annotations
 
 import pytest
 
 from app.core.clock import Hlc
-from app.relay.models import BatchRequest, EncryptedEnvelope
+from app.relay.models import BatchRequest, RelayEnvelope
 from app.relay.permissions import PermissionDeniedError, StubPermissionChecker
 from app.relay.service import RelayService
 from app.relay.storage import PostgresRelayStorage, SqliteRelayStorage
@@ -22,8 +22,8 @@ def _envelope(
     affected_node_ids: list[str] | None = None,
     op_type: str = "node.create",
     payload: dict | None = None,
-) -> EncryptedEnvelope:
-    return EncryptedEnvelope(
+) -> RelayEnvelope:
+    return RelayEnvelope(
         id=envelope_id,
         workspace_id=workspace_id,
         actor_id=actor_id,
@@ -48,7 +48,7 @@ class TestSqliteRelayStorage:
         storage.save_envelope(envelope)
         assert storage.envelope_exists(envelope.id) is True
 
-        results = storage.get_catch_up(envelope.workspace_id, Hlc(physical=0, logical=0))
+        results = storage.get_catch_up(envelope.workspace_id, 0)
         assert len(results) == 1
         assert results[0].id == envelope.id
         assert results[0].payload == envelope.payload
@@ -84,10 +84,13 @@ class TestSqliteRelayStorage:
         for envelope in (older, same, newer, other_workspace):
             storage.save_envelope(envelope)
 
-        results = storage.get_catch_up(workspace_id, Hlc(physical=10, logical=0))
+        same_seq = storage.get_catch_up(workspace_id, 0)[1].seq
+        results = storage.get_catch_up(workspace_id, same_seq)
         assert [envelope.id for envelope in results] == [newer.id]
 
-    def test_catch_up_sorted_by_hlc_then_id(self) -> None:
+    def test_catch_up_sorted_by_seq(self) -> None:
+        """Catch-up order is the server-assigned seq (insertion order), not
+        the client-supplied HLC."""
         storage = SqliteRelayStorage()
         workspace_id = "ws-1"
         second = _envelope(
@@ -112,8 +115,8 @@ class TestSqliteRelayStorage:
         for envelope in (second, first, third):
             storage.save_envelope(envelope)
 
-        results = storage.get_catch_up(workspace_id, Hlc(physical=0, logical=0))
-        assert [envelope.id for envelope in results] == [first.id, second.id, third.id]
+        results = storage.get_catch_up(workspace_id, 0)
+        assert [envelope.id for envelope in results] == [second.id, first.id, third.id]
 
     def test_duplicate_envelope_ignored_by_id(self) -> None:
         storage = SqliteRelayStorage()
@@ -135,7 +138,7 @@ class TestSqliteRelayStorage:
         storage.save_envelope(envelope)
         storage.save_envelope(duplicate)
 
-        results = storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))
+        results = storage.get_catch_up("ws-1", 0)
         assert len(results) == 1
         assert results[0].payload == envelope.payload
 
@@ -181,7 +184,7 @@ class TestRelayService:
         )
 
         assert [envelope.id for envelope in saved] == ["env-2"]
-        assert len(storage.get_catch_up("ws-1", Hlc(physical=0, logical=0))) == 2
+        assert len(storage.get_catch_up("ws-1", 0)) == 2
 
     @pytest.mark.asyncio
     async def test_receive_batch_allows_envelope_actor_id_to_differ_from_authenticated_actor(
@@ -249,7 +252,8 @@ class TestRelayService:
         )
 
         await service.receive_batch(BatchRequest(envelopes=[old, new]), "actor-1")
-        results = await service.catch_up("ws-1", "actor-1", Hlc(physical=5, logical=0))
+        old_seq = (await service.catch_up("ws-1", "actor-1", 0))[0].seq
+        results = await service.catch_up("ws-1", "actor-1", old_seq)
 
         assert [envelope.id for envelope in results] == [new.id]
 
@@ -264,7 +268,7 @@ class TestRelayService:
         service = RelayService(storage, DenyReadChecker())
 
         with pytest.raises(PermissionDeniedError):
-            await service.catch_up("ws-1", "actor-1", Hlc(physical=0, logical=0))
+            await service.catch_up("ws-1", "actor-1", 0)
 
 
 class TestPostgresRelayStorage:
@@ -273,7 +277,7 @@ class TestPostgresRelayStorage:
         assert isinstance(storage, PostgresRelayStorage)
 
 
-class TestEncryptedEnvelopeValidation:
+class TestRelayEnvelopeValidation:
     def test_rejects_unknown_op_type(self) -> None:
         with pytest.raises(ValueError):
             _envelope(
@@ -286,7 +290,7 @@ class TestEncryptedEnvelopeValidation:
 
     def test_rejects_negative_hlc(self) -> None:
         with pytest.raises(ValueError):
-            EncryptedEnvelope(
+            RelayEnvelope(
                 id="env-1",
                 workspace_id="ws-1",
                 actor_id="actor-1",

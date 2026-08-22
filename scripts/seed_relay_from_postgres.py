@@ -47,7 +47,7 @@ from app.core.migration.validation import (
 )
 from app.core.migration.writer import InMemoryOperationWriter
 from app.core.operation import create_operation
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.storage import SqliteRelayStorage
 
 DEFAULT_RELAY_URL = "http://localhost:8001"
@@ -139,7 +139,7 @@ async def _seed_workspace(
     if direct:
         if storage is None:
             raise ValueError("direct=True requires a SqliteRelayStorage instance")
-        storage.save_envelopes([EncryptedEnvelope(**envelope) for envelope in envelopes])
+        storage.save_envelopes([RelayEnvelope(**envelope) for envelope in envelopes])
         posted = len(envelopes)
     else:
         posted = 0
@@ -163,7 +163,7 @@ async def _seed_workspace(
     return posted, operations
 
 
-def _envelope_to_dict(envelope: EncryptedEnvelope) -> dict:
+def _envelope_to_dict(envelope: RelayEnvelope) -> dict:
     """Serialize a stored envelope back into the dict format used by smoke tests."""
     return {
         "id": envelope.id,
@@ -186,23 +186,20 @@ async def _fetch_relay_operations(
     if storage is not None:
         return [
             _envelope_to_dict(env)
-            for env in storage.get_catch_up(workspace_uuid, Hlc(physical=0, logical=0))
+            for env in storage.get_catch_up(workspace_uuid, 0)
         ]
 
     if client is None:
         raise ValueError("Either an httpx client or a SqliteRelayStorage instance is required")
 
     envelopes: list[dict] = []
-    hlc: dict[str, int] = {"physical": 0, "logical": 0}
-    after_id: str | None = None
+    after_seq = 0
     while True:
         payload: dict = {
             "workspace_id": workspace_uuid,
-            "hlc": hlc,
+            "after_seq": after_seq,
             "limit": 1000,
         }
-        if after_id is not None:
-            payload["after_id"] = after_id
 
         response = await client.post(
             "/api/relay/catch-up",
@@ -215,9 +212,7 @@ async def _fetch_relay_operations(
         envelopes.extend(page)
         if not data.get("has_more"):
             break
-        after_id = data["next_after_id"]
-        last = page[-1]
-        hlc = last["hlc"]
+        after_seq = data["next_after_seq"]
     return envelopes
 
 
@@ -385,7 +380,7 @@ async def _run(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Seed the encrypted operation relay from PostgreSQL workspaces."
+        description="Seed the operation relay from PostgreSQL workspaces."
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
