@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from app.core.clock import Hlc
@@ -20,7 +20,7 @@ __all__ = [
     "CatchUpResponse",
     "CompactRequest",
     "CompactResponse",
-    "EncryptedEnvelope",
+    "RelayEnvelope",
     "LatestSnapshotResponse",
     "RelayStatsResponse",
     "SnapshotRequest",
@@ -43,7 +43,10 @@ class WsHelloMessage(BaseModel):
     """Server greeting sent right after the relay WebSocket connects.
 
     Lets clients fail fast on an incompatible framing version instead of
-    mid-sync, and advertises the workspace restore epoch.
+    mid-sync, and advertises the workspace restore epoch plus the highest
+    server-assigned sequence number, which clients compare against their
+    stored seq cursor to decide whether a catch-up is needed before
+    accepting live ``ops`` (see ``protocol/SPEC.md`` §5).
     """
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -51,6 +54,7 @@ class WsHelloMessage(BaseModel):
     type: Literal["hello"] = "hello"
     protocol_version: int = WS_PROTOCOL_VERSION
     restore_epoch: int = 0
+    latest_seq: int = 0
 
 
 class WsOpsMessage(BaseModel):
@@ -65,7 +69,7 @@ class WsOpsMessage(BaseModel):
 
     type: Literal["ops"] = "ops"
     protocol_version: int = WS_PROTOCOL_VERSION
-    envelopes: list[EncryptedEnvelope]
+    envelopes: list[RelayEnvelope]
 
 
 def _parse_hlc(value: Any) -> Hlc:
@@ -81,7 +85,7 @@ def _parse_hlc(value: Any) -> Hlc:
     raise ValueError(f"Invalid HLC value: {value!r}")
 
 
-class EncryptedEnvelope(OperationEnvelope):
+class RelayEnvelope(OperationEnvelope):
     """Routing metadata plus a plaintext operation payload.
 
     The envelope fields are inherited from :class:`app.core.operation.OperationEnvelope`
@@ -97,6 +101,12 @@ class EncryptedEnvelope(OperationEnvelope):
 
     payload: dict[str, Any]
 
+    # Server-assigned relay sequence number (authoritative sync cursor). Set
+    # only when the envelope is read back from relay storage; never accepted
+    # from clients and never serialized onto the wire, so the envelope schema
+    # (protocolVersion 1) is unchanged.
+    seq: int | None = Field(default=None, exclude=True)
+
     @field_validator("hlc", mode="before")
     @classmethod
     def _validate_hlc(cls, value: Any) -> Hlc:
@@ -109,13 +119,13 @@ class EncryptedEnvelope(OperationEnvelope):
 class BatchRequest(BaseModel):
     """A batch of operation envelopes submitted by a client."""
 
-    envelopes: list[EncryptedEnvelope]
+    envelopes: list[RelayEnvelope]
 
     @field_validator("envelopes")
     @classmethod
     def _validate_batch_size_and_envelope_sizes(
-        cls, envelopes: list[EncryptedEnvelope]
-    ) -> list[EncryptedEnvelope]:
+        cls, envelopes: list[RelayEnvelope]
+    ) -> list[RelayEnvelope]:
         if len(envelopes) > MAX_BATCH_SIZE:
             raise ValueError(f"Batch exceeds maximum of {MAX_BATCH_SIZE} envelopes")
         for index, envelope in enumerate(envelopes):
@@ -127,33 +137,30 @@ class BatchRequest(BaseModel):
 
 
 class CatchUpRequest(BaseModel):
-    """Request operations for a workspace newer than the given HLC."""
+    """Request operations for a workspace newer than the given seq cursor.
+
+    ``after_seq`` is the server-assigned sequence number of the last envelope
+    the client has applied (0 for a cold start). Client-supplied HLCs are no
+    longer accepted as the catch-up cursor: the server sequence is the
+    authoritative order.
+    """
 
     workspace_id: str
-    hlc: Hlc
+    after_seq: int = Field(default=0, ge=0)
     limit: int = 1000
-    after_id: str | None = None
-
-    @field_validator("hlc", mode="before")
-    @classmethod
-    def _validate_hlc(cls, value: Any) -> Hlc:
-        hlc = _parse_hlc(value)
-        if hlc.physical < 0 or hlc.logical < 0:
-            raise ValueError("HLC components must be non-negative")
-        return hlc
 
 
 class CatchUpResponse(BaseModel):
     """A list of operation envelopes for catch-up sync."""
 
-    envelopes: list[EncryptedEnvelope]
+    envelopes: list[RelayEnvelope]
 
 
 class CatchUpPaginatedResponse(BaseModel):
     """A paginated page of operation envelopes for catch-up sync."""
 
-    envelopes: list[EncryptedEnvelope]
-    next_after_id: str | None = None
+    envelopes: list[RelayEnvelope]
+    next_after_seq: int | None = None
     has_more: bool = False
     restore_epoch: int = 0
 
@@ -191,6 +198,7 @@ class SnapshotResponse(BaseModel):
     snapshot_id: str
     workspace_id: str
     up_to_hlc: Hlc
+    up_to_seq: int = 0
 
 
 class LatestSnapshotResponse(BaseModel):
@@ -202,6 +210,7 @@ class LatestSnapshotResponse(BaseModel):
     data_base64: str
     has_snapshot: bool
     restore_epoch: int = 0
+    up_to_seq: int | None = None
 
 
 class CompactRequest(BaseModel):

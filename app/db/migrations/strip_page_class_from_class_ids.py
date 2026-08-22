@@ -21,7 +21,7 @@ from app.config import settings
 from app.core.clock import Clock
 from app.core.operation import Operation, OperationEnvelope
 from app.core.uuid import uuidv7
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.storage import PostgresRelayStorage
 
 # Legacy page system class UUID that is no longer part of SYSTEM_CLASS_UUIDS.
@@ -166,7 +166,7 @@ def _build_class_delete_operation(workspace_id: str, actor_id: str) -> Operation
 
 async def _save_operation(storage: PostgresRelayStorage, operation: Operation) -> None:
     """Persist a ``class.delete`` operation through the production relay storage."""
-    envelope = EncryptedEnvelope(
+    envelope = RelayEnvelope(
         id=operation.id,
         workspace_id=operation.envelope.workspace_id,
         actor_id=operation.envelope.actor_id,

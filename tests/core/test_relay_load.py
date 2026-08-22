@@ -14,7 +14,7 @@ import time
 import pytest
 
 from app.core.clock import Hlc
-from app.relay.models import EncryptedEnvelope
+from app.relay.models import RelayEnvelope
 from app.relay.permissions import StubPermissionChecker
 from app.relay.service import RelayService
 from app.relay.storage import SqliteRelayStorage
@@ -30,16 +30,16 @@ def _generate_envelopes(
     count: int,
     workspace_id: str = WORKSPACE_ID,
     actor_id: str = ACTOR_ID,
-) -> list[EncryptedEnvelope]:
+) -> list[RelayEnvelope]:
     """Generate ``count`` envelopes with deterministic HLCs and ids."""
     rng = random.Random(SEED)
-    envelopes: list[EncryptedEnvelope] = []
+    envelopes: list[RelayEnvelope] = []
     for i in range(count):
         envelope_id = f"env-{workspace_id}-{i:08d}-{rng.randint(0, 1_000_000):06d}"
         physical = (i // 10) + 1
         logical = i % 10
         envelopes.append(
-            EncryptedEnvelope(
+            RelayEnvelope(
                 id=envelope_id,
                 workspace_id=workspace_id,
                 actor_id=actor_id,
@@ -56,7 +56,7 @@ def _generate_envelopes(
     return envelopes
 
 
-def _seed_storage(storage: SqliteRelayStorage, envelopes: list[EncryptedEnvelope]) -> None:
+def _seed_storage(storage: SqliteRelayStorage, envelopes: list[RelayEnvelope]) -> None:
     for envelope in envelopes:
         storage.save_envelope(envelope)
 
@@ -95,7 +95,7 @@ class TestRelayCatchUpPerformance:
         service = RelayService(storage, StubPermissionChecker())
 
         start = time.perf_counter()
-        results = await service.catch_up(WORKSPACE_ID, ACTOR_ID, Hlc(physical=0, logical=0))
+        results = await service.catch_up(WORKSPACE_ID, ACTOR_ID, 0)
         elapsed = time.perf_counter() - start
 
         assert len(results) == count
@@ -110,58 +110,53 @@ class TestRelayCatchUpPerformance:
         _seed_storage(storage, envelopes)
         service = RelayService(storage, StubPermissionChecker())
 
-        collected: list[EncryptedEnvelope] = []
-        # The HLC cursor stays at the starting watermark; only after_id advances
-        # per page. This keeps pagination stable if concurrent inserts arrive
-        # with the same HLC as a page boundary.
-        cursor_hlc = Hlc(physical=0, logical=0)
-        after_id: str | None = None
+        collected: list[RelayEnvelope] = []
+        # The seq cursor advances per page; pagination is stable under
+        # concurrent inserts because a new envelope's seq is always strictly
+        # after any previously returned cursor.
+        after_seq = 0
         page = 0
         while True:
             page += 1
-            results, next_after_id = await service.catch_up_paginated(
+            results, next_after_seq = await service.catch_up_paginated(
                 WORKSPACE_ID,
                 ACTOR_ID,
-                cursor_hlc,
+                after_seq,
                 limit=1_000,
-                after_id=after_id,
             )
             assert len(results) <= 1_000
             collected.extend(results)
-            if next_after_id is None:
+            if next_after_seq is None:
                 break
-            after_id = next_after_id
+            after_seq = next_after_seq
             assert page <= 10, "pagination did not terminate"
 
         assert len(collected) == count
-        # Verify total ordering by HLC then id.
+        # Verify total ordering by the server-assigned seq.
         for prev, curr in zip(collected, collected[1:], strict=False):
-            assert (prev.hlc.physical, prev.hlc.logical, prev.id) <= (
-                curr.hlc.physical,
-                curr.hlc.logical,
-                curr.id,
-            )
+            assert prev.seq is not None and curr.seq is not None
+            assert prev.seq < curr.seq
 
     @pytest.mark.asyncio
-    async def test_catch_up_paginated_respects_hlc_cursor(self) -> None:
+    async def test_catch_up_paginated_respects_seq_cursor(self) -> None:
         storage = SqliteRelayStorage()
         envelopes = _generate_envelopes(2_500)
         _seed_storage(storage, envelopes)
         service = RelayService(storage, StubPermissionChecker())
 
-        # Skip the first 500 envelopes by HLC.
-        cursor_hlc = envelopes[499].hlc
-        results, next_after_id = await service.catch_up_paginated(
+        # Skip the first 500 envelopes by seq.
+        first_page, _ = await service.catch_up_paginated(
+            WORKSPACE_ID, ACTOR_ID, 0, limit=500
+        )
+        cursor_seq = first_page[-1].seq
+        results, next_after_seq = await service.catch_up_paginated(
             WORKSPACE_ID,
             ACTOR_ID,
-            cursor_hlc,
+            cursor_seq,
             limit=1_000,
         )
         assert len(results) == 1_000
-        assert next_after_id is not None
-        # No result should be before or equal to the cursor HLC.
+        assert next_after_seq is not None
+        # No result should be at or before the cursor seq.
         for envelope in results:
-            assert (envelope.hlc.physical, envelope.hlc.logical) > (
-                cursor_hlc.physical,
-                cursor_hlc.logical,
-            )
+            assert envelope.seq is not None and envelope.seq > cursor_seq

@@ -1,9 +1,9 @@
-"""Minimal cryptographic helpers for the encrypted operation relay.
+"""Legacy cryptographic helpers from the encrypted-relay prototype phase.
 
-These helpers mirror the prototype key derivation and AES-GCM encryption used
-by ``frontend/src/core/crypto.ts`` so that server-side seeding produces
-envelopes the frontend can decrypt. Phase 5 will replace this ad-hoc scheme
-with a real key-management system.
+Operation payloads are no longer encrypted per-envelope — relay payloads are
+plaintext JSON and confidentiality comes from transport encryption
+(TLS/Tailscale). The helpers below are kept for legacy callers; see
+:func:`decrypt_payload`, which is now a pass-through.
 """
 
 from __future__ import annotations

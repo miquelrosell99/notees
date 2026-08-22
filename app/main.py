@@ -593,7 +593,7 @@ app.include_router(v1_router)
 # like RateLimiter because WebSocket scopes lack an HTTP Request object.
 app.include_router(live_sync_ws_router, prefix="/api")
 
-# Mount encrypted operation relay router.
+# Mount operation relay router.
 app.include_router(relay_router)
 
 # Mount external agent API router.

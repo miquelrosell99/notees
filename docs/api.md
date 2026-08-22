@@ -24,8 +24,8 @@ The field-level wire contract (envelope fields, HLC rules, versioning policy) li
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/relay/batch` | Push a batch of encrypted operation envelopes to the relay. |
-| `POST` | `/api/relay/catch-up` | Pull operation envelopes newer than a given HLC, paginated. |
+| `POST` | `/api/relay/batch` | Push a batch of relay operation envelopes to the relay. |
+| `POST` | `/api/relay/catch-up` | Pull operation envelopes past a server-assigned seq cursor, paginated. |
 | `GET` | `/api/relay/latest-snapshot` | Return the newest snapshot for a workspace. |
 | `POST` | `/api/relay/snapshot` | Create a relay snapshot up to a given HLC (admin/owner only). |
 | `POST` | `/api/relay/compact` | Compact relay envelopes up to a given HLC (admin/owner only). |
@@ -34,19 +34,19 @@ The field-level wire contract (envelope fields, HLC rules, versioning policy) li
 
 ### `/api/relay/batch`
 
-Accepts a `BatchRequest` body containing encrypted operation envelopes. Returns the count and ids of saved envelopes.
+Accepts a `BatchRequest` body containing relay operation envelopes. Returns the count and ids of saved envelopes.
 
 Rate limit: 30,000 envelopes per minute, keyed by actor and workspace.
 
 ### `/api/relay/catch-up`
 
-Accepts a `CatchUpRequest` body with an HLC cursor and optional pagination `after_id`. Returns paginated envelopes newer than the cursor.
+Accepts a `CatchUpRequest` body with an `after_seq` cursor (the server-assigned sequence number of the last applied envelope; `0` for a cold start). Returns paginated envelopes with `seq > after_seq` plus `next_after_seq`/`has_more` for paging.
 
 Rate limit: 600 requests per minute, keyed by actor and workspace. The default/requestable page size is capped at 10,000 envelopes.
 
 ### `/api/relay/latest-snapshot`
 
-Query parameters: `workspace_id`, optional `share_token`. Returns the newest snapshot as base64-encoded SQLite bytes, plus its HLC and the workspace `restore_epoch`. Clients can restore the snapshot and then catch up only operations newer than the snapshot HLC.
+Query parameters: `workspace_id`, optional `share_token`. Returns the newest snapshot as base64-encoded SQLite bytes, plus its HLC, the covered `up_to_seq` cursor, and the workspace `restore_epoch`. Clients can restore the snapshot and then catch up only operations past `up_to_seq`.
 
 ### `/api/relay/snapshot`
 
