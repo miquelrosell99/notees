@@ -7,6 +7,7 @@
  * the banner.
  */
 import { create } from 'zustand';
+import { getConnectionMode, type ConnectionMode } from '@/config/serverUrl';
 
 export interface ConnectionState {
   /** `null` during the first health check, `true` when reachable, `false` when down. */
@@ -62,3 +63,12 @@ export const useConnectionStore = create<ConnectionState>()((set) => ({
       bannerDismissed: true,
     })),
 }));
+
+/**
+ * Current connection mode: `local` when no server is configured (the setting
+ * was explicitly cleared — health polling must be skipped in this mode),
+ * otherwise `connected` / `unreachable` from the health state above.
+ */
+export function useConnectionMode(): ConnectionMode {
+  return useConnectionStore((state) => getConnectionMode(state.healthy));
+}
