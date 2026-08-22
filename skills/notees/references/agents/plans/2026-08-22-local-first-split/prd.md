@@ -1,7 +1,9 @@
 ---
-status: active
+status: done
 created: 2026-08-22
 branch: feat/local-first-split
+distilled_to:
+  - skills/notees/gotchas/index.md
 ---
 
 # Local-first split — client runs serverless, sync optional
