@@ -61,3 +61,41 @@ class TestActivityApplier:
         ).fetchone()[0]
         assert count == 1
         conn.close()
+
+    def test_activity_delete_removes_row(self) -> None:
+        ops = [
+            make_operation("node.create", {"nodeId": "page-1", "kind": "page", "index": 0}),
+            make_operation(
+                "activity.record",
+                {"activityId": "act-1", "nodeId": "page-1", "action": "created"},
+            ),
+            make_operation(
+                "activity.delete",
+                {"activityId": "act-1", "nodeId": "page-1"},
+            ),
+        ]
+        conn = replay_operations(ops)
+        count = conn.execute(
+            "SELECT COUNT(*) FROM activity_log WHERE id = ?", ("act-1",)
+        ).fetchone()[0]
+        assert count == 0
+        conn.close()
+
+    def test_activity_delete_is_scoped_to_node(self) -> None:
+        ops = [
+            make_operation("node.create", {"nodeId": "page-1", "kind": "page", "index": 0}),
+            make_operation(
+                "activity.record",
+                {"activityId": "act-1", "nodeId": "page-1", "action": "created"},
+            ),
+            make_operation(
+                "activity.delete",
+                {"activityId": "act-1", "nodeId": "page-2"},
+            ),
+        ]
+        conn = replay_operations(ops)
+        count = conn.execute(
+            "SELECT COUNT(*) FROM activity_log WHERE id = ?", ("act-1",)
+        ).fetchone()[0]
+        assert count == 1
+        conn.close()

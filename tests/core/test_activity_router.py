@@ -10,6 +10,7 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from app.core.clock import Hlc
 from app.core.workspace_store import WorkspaceStore
 from app.dependencies import (
     get_current_user,
@@ -141,15 +142,36 @@ class TestNodeActivity:
             f"/activity/node/page-uuid-1/{activity_id}"
         )
         assert delete_response.status_code == 200
+        assert delete_response.json() == {"success": True}
 
-        # The endpoint removes the derived row directly. The operation log is
-        # append-only, so a later sync would recreate it; this test verifies the
-        # immediate derived-state effect only.
+        # Deletion flows through the operation log so it syncs to other
+        # clients and survives derived-state rebuilds.
+        envelopes = await store.get_envelopes(Hlc(physical=0, logical=0))
+        delete_ops = [e for e in envelopes if e.op_type == "activity.delete"]
+        assert len(delete_ops) == 1
+        assert delete_ops[0].payload["activityId"] == activity_id
+        assert delete_ops[0].payload["nodeId"] == "page-uuid-1"
+
         rows = await store.query(
             "SELECT 1 FROM activity_log WHERE id = ? AND node_id = ?",
             (activity_id, "page-uuid-1"),
         )
         assert len(rows) == 0
+
+    async def test_delete_node_activity_not_found(self, activity_client: AsyncClient) -> None:
+        store = _store(activity_client)
+        await store.create_node("page-uuid-1", "page")
+        await store.sync()
+
+        response = await activity_client.delete("/activity/node/page-uuid-1/missing-activity")
+        assert response.status_code == 404
+
+    async def test_get_node_activity_limit_capped(self, activity_client: AsyncClient) -> None:
+        response = await activity_client.get("/activity/node/page-uuid-1", params={"limit": 201})
+        assert response.status_code == 422
+
+        ok_response = await activity_client.get("/activity/node/page-uuid-1", params={"limit": 200})
+        assert ok_response.status_code == 200
 
 
 class TestLinkClicks:
@@ -185,24 +207,3 @@ class TestLinkClicks:
         assert response.status_code == 200
         body = response.json()
         assert body["click_count"] == 1
-
-    async def test_reset_link_click(self, activity_client: AsyncClient) -> None:
-        store = _store(activity_client)
-        await store.create_node("source-uuid-1", "page")
-        await store.create_node("target-uuid-1", "page")
-        await store.record_link_click("source-uuid-1", "target-uuid-1")
-        await store.sync()
-
-        reset_response = await activity_client.post(
-            "/activity/link/reset/source-uuid-1/target-uuid-1"
-        )
-        assert reset_response.status_code == 200
-
-        # The endpoint removes the derived row directly. The operation log is
-        # append-only, so a later sync would recreate it; this test verifies the
-        # immediate derived-state effect only.
-        rows = await store.query(
-            "SELECT 1 FROM link_click WHERE node_id = ? AND target_id = ?",
-            ("source-uuid-1", "target-uuid-1"),
-        )
-        assert len(rows) == 0

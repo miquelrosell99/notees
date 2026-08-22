@@ -107,23 +107,3 @@ export function useTrackLinkClick() {
     },
   });
 }
-
-/**
- * Hook to reset link click counter
- */
-export function useResetLinkClick() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ sourceNodeUuid, targetNodeUuid }: { sourceNodeUuid: string; targetNodeUuid: string }) => {
-      if (!sourceNodeUuid || !targetNodeUuid) throw new Error('Node UUID not found');
-      return activityApi.resetLinkClick(sourceNodeUuid, targetNodeUuid);
-    },
-    onSuccess: (_, { sourceNodeUuid, targetNodeUuid }) => {
-      if (sourceNodeUuid && targetNodeUuid) {
-        queryClient.invalidateQueries({ queryKey: activityKeys.linkClicks(sourceNodeUuid) });
-        queryClient.invalidateQueries({ queryKey: activityKeys.linkClick(sourceNodeUuid, targetNodeUuid) });
-      }
-    },
-  });
-}

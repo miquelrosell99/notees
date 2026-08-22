@@ -305,6 +305,32 @@ describe('activity applier', () => {
     );
     expect(row?.count).toBe(0);
   });
+
+  it('removes the activity row on activity.delete', async () => {
+    const { db, workspaceId, actorId } = await createStore();
+    const nodeId = uuidv7();
+    const recordOp = makeOp(
+      'activity.record',
+      { nodeId, activityType: 'node.viewed' },
+      { workspaceId, actorId }
+    );
+    applyActivityOperation(db, recordOp);
+
+    const deleteOp = makeOp(
+      'activity.delete',
+      { activityId: recordOp.envelope.id, nodeId },
+      { workspaceId, actorId }
+    );
+    const notifications = applyActivityOperation(db, deleteOp);
+
+    const row = queryOne<{ count: number }>(
+      db,
+      'SELECT COUNT(*) AS count FROM activity_log WHERE id = ?',
+      [recordOp.envelope.id]
+    );
+    expect(row?.count).toBe(0);
+    expect(notifications).toEqual([{ scope: 'node', nodeId }]);
+  });
 });
 
 describe('link applier', () => {

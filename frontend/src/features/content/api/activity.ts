@@ -130,16 +130,6 @@ export async function getLinkClick(
 }
 
 /**
- * Reset click counter for a specific link
- */
-export async function resetLinkClick(
-  sourceNodeUuid: string,
-  targetNodeUuid: string
-): Promise<void> {
-  await api.post(`${BASE}/link/reset/${sourceNodeUuid}/${targetNodeUuid}`);
-}
-
-/**
  * Get click history for a specific link (individual click records with timestamps)
  */
 export async function getLinkClickHistory(
