@@ -13,13 +13,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
-import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BASELINE_PATH = PROJECT_ROOT / "scripts" / ".structure-baseline.txt"
@@ -173,10 +170,8 @@ def check_css_colocation(report: Report) -> None:
     for base in (components_dir, features_dir):
         if not base.exists():
             continue
-        for tsx in base.rglob("*.tsx"):
-            css = tsx.with_suffix(".css")
-            # Co-location is preferred but not mandatory; warn only for components with styles.
-            # This check is intentionally lenient to avoid baseline noise.
+        # Co-location is preferred but not mandatory; warn only for components with styles.
+        # This check is intentionally lenient to avoid baseline noise.
 
 
 def check_agents_docs(report: Report) -> None:
@@ -242,7 +237,7 @@ def main() -> int:
             print(f"Found {len(new_violations)} new structural violation(s):\n")
             for v in new_violations:
                 print(f"  [{v.file.relative_to(PROJECT_ROOT)}] {v.message}")
-            print(f"\nRun with --update-baseline to grandfather existing violations.")
+            print("\nRun with --update-baseline to grandfather existing violations.")
         else:
             if report.violations:
                 print(
