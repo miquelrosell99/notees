@@ -12,6 +12,7 @@ import { rewriteLinksToTarget } from './query/mergePages';
 import { loadTextCrdt, loadTreeCrdt, loadTreeCrdtClean, saveTreeCrdt } from './derived/crdtState';
 import {
   createOperation,
+  PROTOCOL_VERSION,
   type ClassCreatePayload,
   type ClassDeletePayload,
   type ClassPropertyEdgeCreatePayload,
@@ -556,6 +557,7 @@ export class WorkspaceStore {
       ops.push({
         envelope: {
           id: row.id,
+          protocolVersion: PROTOCOL_VERSION,
           workspaceId: row.workspace_id,
           actorId: row.actor_id,
           hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
