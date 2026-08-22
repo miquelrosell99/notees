@@ -35,7 +35,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
@@ -649,6 +649,20 @@ async def service_worker():
     if fallback_path.exists():
         return FileResponse(fallback_path, media_type="application/javascript")
     raise HTTPException(status_code=404, detail="Service worker not found. Build React app first.")
+
+
+@app.get("/config.js")
+async def runtime_config_js():
+    """Empty runtime config for the all-in-one image.
+
+    The web-only image (Dockerfile.web) generates a real ``/config.js`` that
+    sets ``window.__NOTEES_SERVER_URL__``; the SPA references it
+    unconditionally, so this route keeps the all-in-one deployment 404-free.
+    """
+    return Response(
+        content="// no runtime config — all-in-one deployment\n",
+        media_type="application/javascript",
+    )
 
 
 # ============ Public share HTML (before SPA fallback) ============
