@@ -18,9 +18,9 @@ The relay server stores and forwards envelopes without interpreting payload
 contents. The wire model is `EncryptedEnvelope` (a historical name — payloads
 are plaintext JSON on the server; confidentiality comes from TLS/Tailscale).
 
-Envelope fields are camelCase on the wire. The server also accepts snake_case
-field names on submission (`populate_by_name=True`), and always emits camelCase
-on HTTP responses and WebSocket broadcasts (see §4.3).
+Envelope fields are camelCase on the wire. Every envelope carries
+`protocolVersion`; there is no legacy casing or framing to support — all
+clients are expected to be current.
 
 | Wire name (`camelCase`) | Python field | Type | Required | Semantics |
 |---|---|---|---|---|
@@ -194,22 +194,28 @@ Response 200 (`RelayStatsResponse`):
 `GET /api/relay/ws/{workspace_id}` (upgraded). Same auth as HTTP; anonymous
 connections and actors without read access are closed with code 1008.
 
-Message protocol (JSON text frames):
+All server→client frames are **typed messages** — receivers must dispatch on
+`type` and must not shape-sniff. Message protocol (JSON text frames):
 
+- Server → Client, immediately after connect:
+  `{"type": "hello", "protocolVersion": 2, "restoreEpoch": int}` — framing
+  version greeting plus the workspace restore epoch, so clients can fail fast
+  on an incompatible server instead of mid-sync.
 - Client → Server: `{"type": "batch", "envelopes": [<envelope>, ...]}` —
   same shape and limits as `POST /batch`.
 - Server → Client:
   - `{"type": "ack", "saved_ids": [...]}` — after a submitted batch is saved.
   - `{"type": "error", "message": "..."}` — malformed JSON, wrong message
     type, invalid envelopes, or permission errors.
-  - `<envelope object>` — every envelope saved by any client in the workspace
-    is broadcast to all subscribers (including, currently, the sender).
+  - `{"type": "ops", "protocolVersion": 2, "envelopes": [<envelope>, ...]}` —
+    one message per saved batch, broadcast to all subscribers (including,
+    currently, the sender). Receivers should apply each batch atomically.
 
-> **Casing note:** broadcast envelopes use the same camelCase wire format as
-> HTTP responses. Servers before the 2026-08 protocol-versioning change emitted
-> snake_case here (`workspace_id`, `protocol_version`, ...) — receivers that may
-> talk to an older server should still accept both casings. Control messages
-> (`ack`, `error`) keep their snake_case keys (`saved_ids`).
+`hello` and `ops` carry `protocolVersion` = the **WS framing version**
+(`WS_PROTOCOL_VERSION`, currently **2**), which is versioned independently of
+the envelope schema version (§7): the envelope fields did not change, so HTTP
+catch-up compatibility for older clients is unaffected. Control messages
+(`ack`, `error`) keep their snake_case keys (`saved_ids`).
 
 ## 6. Limits
 
@@ -232,8 +238,10 @@ Rules:
 - **Breaking change, bump**: renaming or removing a field, changing a field's
   type or semantics, or adding a required field bumps `PROTOCOL_VERSION` in
   both repos and updates this spec and the fixtures.
-- **Missing version**: an envelope without `protocolVersion` is treated as
-  version 1 (pre-versioning peers).
+- **Missing version**: an envelope without `protocolVersion` is **rejected** —
+  all clients are expected to be current; a missing version means a stale or
+  non-conformant peer. (Server-side models keep a construction default of
+  `PROTOCOL_VERSION` so newly produced envelopes are always stamped.)
 - **Newer version**: a peer that receives an envelope with
   `protocolVersion` greater than its own constant must **fail loud** — the
   web client throws, which drives sync into the `error` status
@@ -245,6 +253,12 @@ Rules:
   and broadcast, so a mixed-version fleet never has versions rewritten in
   transit. The server accepts any version on submission; rejecting newer
   versions is the client's responsibility.
+- **WS framing is versioned separately** (`WS_PROTOCOL_VERSION` in
+  `app/relay/models.py`, currently **2**): it covers the `hello`/`ops`/`ack`/
+  `error` message envelope, not the operation envelope schema. Changing WS
+  message shapes bumps only this version; changing envelope fields bumps only
+  `PROTOCOL_VERSION`. Receivers must fail loud on a `hello`/`ops` with a
+  framing version newer than their own.
 
 ## 8. Workspace key management
 
