@@ -1,26 +1,16 @@
 import type { Node } from '@/types';
-import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';
 import type { NodeSearchItem } from './useNodeSearch.types';
 
 export function getClassesResults(
   debouncedQuery: string,
-  query: string,
   classSearchResults: Node[] | undefined,
   allClassNodes: Node[] | undefined,
-  allPages: Node[] | undefined,
   excludeNodeId: string | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
-  const parsed = parseHierarchicalPath(debouncedQuery);
-  const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
-
-  let results = searchQuery.length > 0
+  let results = debouncedQuery.length > 0
     ? (classSearchResults ?? [])
     : (allClassNodes ?? []).slice(0, maxResults);
-
-  if (parsed.isHierarchical && allPages) {
-    results = filterNodesByHierarchy(query, results, allPages);
-  }
 
   if (excludeNodeId !== undefined) {
     results = results.filter(n => n.uuid !== excludeNodeId);
@@ -43,10 +33,7 @@ export function getUsersResults(
   excludeNodeId: string | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
-  const parsed = parseHierarchicalPath(debouncedQuery);
-  const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
-
-  let results = searchQuery.length > 0
+  let results = debouncedQuery.length > 0
     ? (searchResults ?? [])
     : [];
 
@@ -67,23 +54,15 @@ export function getUsersResults(
 
 export function getTagsResults(
   debouncedQuery: string,
-  query: string,
   searchResults: Node[] | undefined,
   allPages: Node[] | undefined,
   classFilters: string[],
   excludeNodeId: string | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
-  const parsed = parseHierarchicalPath(debouncedQuery);
-  const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
-
-  let results = searchQuery.length > 0
+  let results = debouncedQuery.length > 0
     ? (searchResults ?? []).filter(n => n.is_page)
     : (allPages ?? []).slice(0, maxResults * 3);
-
-  if (parsed.isHierarchical && allPages) {
-    results = filterNodesByHierarchy(query, results, allPages);
-  }
 
   if (classFilters.length > 0) {
     results = results.filter(node => {
@@ -113,23 +92,15 @@ export function getTagsResults(
 
 export function getAliasesResults(
   debouncedQuery: string,
-  query: string,
   searchResults: Node[] | undefined,
   allPages: Node[] | undefined,
   excludeNodeId: string | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
-  const parsed = parseHierarchicalPath(debouncedQuery);
-  const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
-
-  let results = (searchQuery.length > 0
+  let results = (debouncedQuery.length > 0
     ? (searchResults ?? []).filter(n => n.is_page)
     : (allPages ?? []).slice(0, maxResults * 3)
   ).filter(n => !n.aliased_uuid && (!n.aliases_uuid || n.aliases_uuid.length === 0));
-
-  if (parsed.isHierarchical && allPages) {
-    results = filterNodesByHierarchy(query, results, allPages);
-  }
 
   if (excludeNodeId !== undefined) {
     results = results.filter(n => n.uuid !== excludeNodeId);
@@ -150,7 +121,6 @@ export function getAliasesResults(
 
 export function getPagesResults(
   debouncedQuery: string,
-  query: string,
   searchResults: Node[] | undefined,
   suggestions: Node[] | undefined,
   filteredPages: Node[] | undefined,
@@ -160,11 +130,8 @@ export function getPagesResults(
   pinnedNodeId: string | null | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
-  const parsed = parseHierarchicalPath(debouncedQuery);
-  const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
-
   let results: Node[];
-  if (searchQuery.length > 0) {
+  if (debouncedQuery.length > 0) {
     results = (searchResults ?? []).filter(n => n.is_page || n.parent_uuid === null);
   } else if (suggestions && suggestions.length > 0) {
     results = suggestions;
@@ -174,15 +141,11 @@ export function getPagesResults(
     results = (allPages ?? []).slice(0, maxResults * 3);
   }
 
-  if (parsed.isHierarchical && allPages) {
-    results = filterNodesByHierarchy(query, results, allPages);
-  }
-
   if (excludeNodeId !== undefined) {
     results = results.filter(n => n.uuid !== excludeNodeId);
   }
 
-  if (pinnedNodeId && searchQuery.length === 0) {
+  if (pinnedNodeId && debouncedQuery.length === 0) {
     const pinnedIdx = results.findIndex(n => n.uuid === pinnedNodeId);
     if (pinnedIdx > 0) {
       const [pinned] = results.splice(pinnedIdx, 1);
@@ -209,10 +172,7 @@ export function getBlocksResults(
   allNodes: Node[] | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
-  const parsed = parseHierarchicalPath(debouncedQuery);
-  const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
-
-  const results = searchQuery.length > 0
+  const results = debouncedQuery.length > 0
     ? (searchResults ?? []).filter(n => !n.is_page && n.parent_uuid !== null)
     : (allNodes ?? []).filter(n => !n.is_page).slice(0, maxResults);
 
@@ -228,7 +188,6 @@ export function getBlocksResults(
 
 export function getAllResults(
   debouncedQuery: string,
-  query: string,
   searchResults: Node[] | undefined,
   suggestions: Node[] | undefined,
   allPages: Node[] | undefined,
@@ -238,10 +197,7 @@ export function getAllResults(
   pinnedNodeId: string | null | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
-  const parsed = parseHierarchicalPath(debouncedQuery);
-  const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
-
-  let baseResults = searchQuery.length > 0
+  let baseResults = debouncedQuery.length > 0
     ? (searchResults ?? [])
     : suggestions && suggestions.length > 0
       ? [
@@ -252,13 +208,6 @@ export function getAllResults(
           ...(allPages ?? []).slice(0, Math.floor(maxResults / 2)),
           ...(allNodes ?? []).filter(n => n.parent_uuid !== null).slice(0, Math.floor(maxResults / 2)),
         ];
-
-  if (parsed.isHierarchical && allPages) {
-    const pagesOnly = baseResults.filter(n => n.is_page || n.parent_uuid === null);
-    const blocksOnly = baseResults.filter(n => !n.is_page && n.parent_uuid !== null);
-    const filteredPages = filterNodesByHierarchy(query, pagesOnly, allPages);
-    baseResults = [...filteredPages, ...blocksOnly];
-  }
 
   if (classFilters.length > 0) {
     baseResults = baseResults.filter(node => {
@@ -273,7 +222,7 @@ export function getAllResults(
     baseResults = baseResults.filter(n => n.uuid !== excludeNodeId);
   }
 
-  if (pinnedNodeId && searchQuery.length === 0) {
+  if (pinnedNodeId && debouncedQuery.length === 0) {
     const pinnedIdx = baseResults.findIndex(n => n.uuid === pinnedNodeId);
     if (pinnedIdx > 0) {
       const [pinned] = baseResults.splice(pinnedIdx, 1);
