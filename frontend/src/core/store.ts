@@ -3,7 +3,7 @@ import { Clock, compareHlc, type Hlc } from './clock';
 import { type TextCrdt } from './crdt/text';
 import { createSchema } from './db/schema';
 import { queryAll, queryOne, transaction } from './db/sqlite';
-import { applyOperation, type ChangeNotification } from './derived';
+import { applyOperation, classExtendsWouldCycle, type ChangeNotification } from './derived';
 import { rebuildNodeStats } from './derived/nodeStats';
 import { getBacklinks, rebuildEdgesForNode } from './derived/edge';
 import { healNodeLinkTarget } from './derived/linkHealing';
@@ -1014,6 +1014,12 @@ export class WorkspaceStore {
   }
 
   setClassExtends(args: ClassSetExtendsPayload): void {
+    const cyclicParentId = classExtendsWouldCycle(this.db, args.classId, args.extendsClassIds);
+    if (cyclicParentId) {
+      throw new Error(
+        `Cannot set extends for class ${args.classId}: ${cyclicParentId} would create an inheritance cycle`
+      );
+    }
     const op = createOperation(
       {
         workspaceId: this.workspaceId,
