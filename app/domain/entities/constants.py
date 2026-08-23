@@ -135,6 +135,18 @@ SYSTEM_CLASS_UUIDS = {
     "danger": "00000000-0000-0000-0001-000000000020",
     "success": "00000000-0000-0000-0001-000000000021",
     "cloze": "00000000-0000-0000-0001-000000000022",
+    "source": "00000000-0000-0000-0001-000000000023",
+    "book": "00000000-0000-0000-0001-000000000024",
+    "paper": "00000000-0000-0000-0001-000000000025",
+    "article": "00000000-0000-0000-0001-000000000026",
+    "thesis": "00000000-0000-0000-0001-000000000027",
+    "document": "00000000-0000-0000-0001-000000000028",
+    "agent": "00000000-0000-0000-0001-000000000029",
+    "person": "00000000-0000-0000-0001-000000000030",
+    "organization": "00000000-0000-0000-0001-000000000031",
+    "collection": "00000000-0000-0000-0001-000000000032",
+    "highlight": "00000000-0000-0000-0001-000000000033",
+    "weblink": "00000000-0000-0000-0001-000000000034",
 }
 
 SYSTEM_CLASS_ICONS = {
@@ -158,6 +170,18 @@ SYSTEM_CLASS_ICONS = {
     "danger": "mdiAlertCircle",
     "success": "mdiCheckCircle",
     "cloze": "mdiEyeOff",
+    "source": "mdiBookshelf",
+    "book": "mdiBookOpenVariant",
+    "paper": "mdiNewspaperVariantOutline",
+    "article": "mdiNewspaper",
+    "thesis": "mdiSchoolOutline",
+    "document": "mdiFileOutline",
+    "agent": "mdiAccountGroupOutline",
+    "person": "mdiAccountOutline",
+    "organization": "mdiDomain",
+    "collection": "mdiFolderMultipleOutline",
+    "highlight": "mdiFormatHighlight",
+    "weblink": "mdiLinkVariant",
 }
 
 
@@ -193,6 +217,21 @@ SYSTEM_PROPERTY_UUIDS = {
     "task_priority": "00000000-0000-0000-0003-000000000004",
     "task_closed_date": "00000000-0000-0000-0003-000000000005",
     "task_recurrence": "00000000-0000-0000-0003-000000000006",
+    # Source hierarchy & attachments
+    "attachments": "00000000-0000-0000-0000-000000000011",
+    "authors": "00000000-0000-0000-0000-000000000012",
+    "isbn": "00000000-0000-0000-0000-000000000013",
+    "doi": "00000000-0000-0000-0000-000000000014",
+    "publication_date": "00000000-0000-0000-0000-000000000015",
+    "publisher": "00000000-0000-0000-0000-000000000016",
+    "role": "00000000-0000-0000-0000-000000000017",
+    "locator": "00000000-0000-0000-0000-000000000018",
+    "provenance": "00000000-0000-0000-0000-000000000019",
+    "highlight_asset": "00000000-0000-0000-0000-000000000020",
+    "given_name": "00000000-0000-0000-0000-000000000021",
+    "family_name": "00000000-0000-0000-0000-000000000022",
+    "citekey": "00000000-0000-0000-0000-000000000023",
+    "url": "00000000-0000-0000-0000-000000000024",
 }
 
 
