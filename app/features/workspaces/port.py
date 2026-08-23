@@ -69,6 +69,14 @@ class WorkspaceRepository(ABC):
         pass
 
     @abstractmethod
+    async def ensure_system_schema(self, workspace_id: int, user_id: int) -> int:
+        """Backfill missing system classes/properties/bindings (idempotent).
+
+        Returns the number of operations emitted (0 when already up to date).
+        """
+        pass
+
+    @abstractmethod
     async def get_workspace_uuid_by_name_for_user(self, name: str, user_id: int) -> str | None:
         """Resolve a workspace UUID from its name for a user (owner or shared)."""
         pass

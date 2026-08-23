@@ -39,6 +39,104 @@ export const SYSTEM_PROPERTY_UUIDS = {
   url: '00000000-0000-0000-0000-000000000024',
 } as const;
 
+/**
+ * System class icons - mirrors the backend SYSTEM_CLASS_ICONS in
+ * app/domain/entities/constants.py (guarded by the system-UUID parity test).
+ */
+export const SYSTEM_CLASS_ICONS: Record<string, string> = {
+  class: 'mdiTagMultiple',
+  day: 'mdiCalendarToday',
+  month: 'mdiCalendarMonth',
+  year: 'mdiCalendarText',
+  quote: 'mdiFormatQuoteClose',
+  query: 'mdiMagnify',
+  asset: 'mdiPaperclip',
+  whiteboard: 'mdiDraw',
+  card: 'mdiCardOutline',
+  template: 'mdiFileDocumentOutline',
+  task: 'mdiCheckboxMarkedCircleOutline',
+  comment: 'mdiCommentOutline',
+  table: 'mdiTable',
+  warning: 'mdiAlert',
+  note: 'mdiNoteOutline',
+  tip: 'mdiLightbulbOutline',
+  info: 'mdiInformationOutline',
+  danger: 'mdiAlertCircle',
+  success: 'mdiCheckCircle',
+  cloze: 'mdiEyeOff',
+  source: 'mdiBookshelf',
+  book: 'mdiBookOpenVariant',
+  paper: 'mdiNewspaperVariantOutline',
+  article: 'mdiNewspaper',
+  thesis: 'mdiSchoolOutline',
+  document: 'mdiFileOutline',
+  agent: 'mdiAccountGroupOutline',
+  person: 'mdiAccountOutline',
+  organization: 'mdiDomain',
+  collection: 'mdiFolderMultipleOutline',
+  highlight: 'mdiFormatHighlight',
+  weblink: 'mdiLinkVariant',
+};
+
+/**
+ * Canonical extends edges between system classes (class name -> parent class
+ * names). Mirrors the backend SYSTEM_CLASS_EXTENDS (parity-test guarded).
+ */
+export const SYSTEM_CLASS_EXTENDS: Record<string, string[]> = {
+  book: ['source'],
+  paper: ['source'],
+  article: ['source'],
+  thesis: ['source'],
+  document: ['source'],
+  person: ['agent'],
+  organization: ['agent'],
+};
+
+/** Class-scoped system property schema specification (see SYSTEM_PROPERTY_SCHEMA_SPECS). */
+export interface SystemPropertySchemaSpec {
+  type: string;
+  multi?: boolean;
+  classFilter?: string[];
+  options?: Array<{ uuid: string; name: string; sequence: number }>;
+  defaultValue?: string;
+  bindTo: string;
+}
+
+/**
+ * Class-scoped system property schemas, in canonical seed order. Keys are
+ * property names (also keys of SYSTEM_PROPERTY_UUIDS); `bindTo` names the
+ * system class the schema is bound to via a classPropertyEdge. Mirrors the
+ * backend SYSTEM_PROPERTY_SCHEMA_SPECS (parity-test guarded).
+ */
+export const SYSTEM_PROPERTY_SCHEMA_SPECS: Record<string, SystemPropertySchemaSpec> = {
+  attachments: { type: 'node', multi: true, classFilter: ['asset'], bindTo: 'source' },
+  authors: { type: 'node', multi: true, classFilter: ['agent'], bindTo: 'source' },
+  isbn: { type: 'text', bindTo: 'source' },
+  doi: { type: 'text', bindTo: 'source' },
+  publication_date: { type: 'date', bindTo: 'source' },
+  publisher: { type: 'text', bindTo: 'source' },
+  role: {
+    type: 'selection',
+    options: [
+      { uuid: '00000000-0000-0000-0004-000000000001', name: 'representation', sequence: 0 },
+      { uuid: '00000000-0000-0000-0004-000000000002', name: 'cover', sequence: 1 },
+      { uuid: '00000000-0000-0000-0004-000000000003', name: 'supplement', sequence: 2 },
+      { uuid: '00000000-0000-0000-0004-000000000004', name: 'attachment', sequence: 3 },
+      { uuid: '00000000-0000-0000-0004-000000000005', name: 'generated', sequence: 4 },
+      { uuid: '00000000-0000-0000-0004-000000000006', name: 'thumbnail', sequence: 5 },
+      { uuid: '00000000-0000-0000-0004-000000000007', name: 'other', sequence: 6 },
+    ],
+    bindTo: 'asset',
+  },
+  locator: { type: 'text', bindTo: 'highlight' },
+  provenance: { type: 'text', bindTo: 'highlight' },
+  highlight_asset: { type: 'node', classFilter: ['asset'], bindTo: 'highlight' },
+  given_name: { type: 'text', bindTo: 'person' },
+  family_name: { type: 'text', bindTo: 'person' },
+  citekey: { type: 'text', defaultValue: '', bindTo: 'source' },
+  url: { type: 'url', bindTo: 'weblink' },
+};
+
 /** All task status names, ordered to match the backend TASK_STATUS_OPTIONS. */
 export const TASK_STATUSES = [
   'Backlog',

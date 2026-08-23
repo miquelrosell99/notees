@@ -562,13 +562,52 @@ class WorkspaceStore:
         schema_id: str,
         name: str,
         prop_type: str,
+        *,
+        multi: bool = False,
+        is_system: bool = False,
+        scope: str | None = None,
+        class_filter_uuids: list[str] | None = None,
+        options: list[dict[str, Any]] | None = None,
+        default_value: Any = None,
     ) -> None:
         """Emit a ``propertySchema.create`` operation."""
+        payload: dict[str, Any] = {"schemaId": schema_id, "name": name, "type": prop_type}
+        if multi:
+            payload["multi"] = True
+        if is_system:
+            payload["isSystem"] = True
+        if scope is not None:
+            payload["scope"] = scope
+        if class_filter_uuids is not None:
+            payload["classFilterUuids"] = class_filter_uuids
+        if options is not None:
+            payload["options"] = options
+        if default_value is not None:
+            payload["defaultValue"] = default_value
         await self.apply(
             self._build_operation(
                 "propertySchema.create",
-                {"schemaId": schema_id, "name": name, "type": prop_type},
+                payload,
                 [schema_id],
+            )
+        )
+
+    async def create_class_property_edge(
+        self,
+        class_id: str,
+        property_schema_id: str,
+        sequence: int = 0,
+    ) -> None:
+        """Emit a ``classPropertyEdge.create`` operation."""
+        await self.apply(
+            self._build_operation(
+                "classPropertyEdge.create",
+                {
+                    "classId": class_id,
+                    "propertySchemaId": property_schema_id,
+                    "sequence": sequence,
+                },
+                [class_id, property_schema_id],
             )
         )
 
