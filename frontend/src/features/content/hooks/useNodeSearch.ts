@@ -11,7 +11,6 @@
  * - Fallback to pages/nodes when query is empty
  * - Separation of results into pages and blocks
  * - Optional filtering by tag/type
- * - Hierarchical path support (e.g., "Page1/Page2" searches for Page2 child of Page1)
  * - "Create new" option detection
  */
 import { useMemo } from 'react';
@@ -20,7 +19,6 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggestions } from './useNodes';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
-import { parseHierarchicalPath } from '@/utils/hierarchicalPath';
 import { nodeNameToText } from '@/features/queries';
 import type { NodeSearchMode, NodeSearchFilters, NodeSearchItem, UseNodeSearchReturn } from './useNodeSearch.types';
 import type { Node } from '@/types/api';
@@ -112,28 +110,27 @@ export function useNodeSearch(
   // Filter and organize results
   const { pageResults, blockResults, truncated } = useMemo(() => {
     if (mode === 'classes') {
-      return getClassesResults(debouncedQuery, query, classSearchResults, allClassNodes, allPages, excludeNodeId, maxResults);
+      return getClassesResults(debouncedQuery, classSearchResults, allClassNodes, excludeNodeId, maxResults);
     }
     if (mode === 'users') {
       return getUsersResults(debouncedQuery, searchResults, excludeNodeId, maxResults);
     }
     if (mode === 'tags') {
-      return getTagsResults(debouncedQuery, query, searchResults, allPages, classFilters, excludeNodeId, maxResults);
+      return getTagsResults(debouncedQuery, searchResults, allPages, classFilters, excludeNodeId, maxResults);
     }
     if (mode === 'aliases') {
-      return getAliasesResults(debouncedQuery, query, searchResults, allPages, excludeNodeId, maxResults);
+      return getAliasesResults(debouncedQuery, searchResults, allPages, excludeNodeId, maxResults);
     }
     if (mode === 'pages') {
-      return getPagesResults(debouncedQuery, query, searchResults, suggestions, filteredPages, allPages, classFilters, excludeNodeId, pinnedNodeId, maxResults);
+      return getPagesResults(debouncedQuery, searchResults, suggestions, filteredPages, allPages, classFilters, excludeNodeId, pinnedNodeId, maxResults);
     }
     if (mode === 'blocks') {
       return getBlocksResults(debouncedQuery, searchResults, allNodes, maxResults);
     }
-    return getAllResults(debouncedQuery, query, searchResults, suggestions, allPages, allNodes, classFilters, excludeNodeId, pinnedNodeId, maxResults);
+    return getAllResults(debouncedQuery, searchResults, suggestions, allPages, allNodes, classFilters, excludeNodeId, pinnedNodeId, maxResults);
   }, [
     mode,
     debouncedQuery,
-    query,
     searchResults,
     allPages,
     suggestions,
@@ -159,34 +156,9 @@ export function useNodeSearch(
     if (!query.trim()) return false;
     if (isLoading) return false;
 
-    const parsed = parseHierarchicalPath(query);
-    const searchTerm = parsed.isHierarchical ? parsed.leaf : query;
-
-    // For hierarchical paths, only show create if the parent path exists
-    if (parsed.isHierarchical && allPages) {
-      // Check if we can resolve all parent segments
-      let currentParentId: string | null = null;
-      for (const segment of parsed.parentSegments) {
-        const matchingPage = allPages.find(
-          p => p.name === segment && p.parent_uuid === currentParentId
-        );
-        if (!matchingPage) {
-          // Parent path doesn't exist, can't create - but we could show "Create Page1/Page2..."
-          return true; // Allow creation to create intermediate pages
-        }
-        currentParentId = matchingPage.uuid;
-      }
-
-      // Parent path exists, check if leaf exists
-      const leafExists = pageResults.some(
-        r => nodeNameToText(r.node.name) === parsed.leaf && r.node.parent_uuid === currentParentId
-      );
-      return !leafExists;
-    }
-
-    // No exact match in page results (case-sensitive comparison)
-    return !pageResults.some(r => nodeNameToText(r.node.name) === searchTerm);
-  }, [pageResults, query, allPages, isLoading]);
+    // No exact match in page results (case-sensitive comparison, names are literal)
+    return !pageResults.some(r => nodeNameToText(r.node.name) === query);
+  }, [pageResults, query, isLoading]);
 
   return {
     pageResults,

@@ -151,16 +151,6 @@
   font: var(--font-headline-small);
 }
 
-.page-title-child-preview {
-  font-size: var(--font-size-base);
-  font-weight: 400;
-  color: var(--color-outline);
-  font-style: italic;
-  margin-left: var(--spacing-2);
-  white-space: nowrap;
-  opacity: var(--opacity-60);
-}
-
 /* ==================== Responsive Breakpoints ==================== */
 
 /* Mobile: reduce icon size and title padding */
