@@ -11,16 +11,12 @@
  * - Block CRUD operations (add, remove, change)
  * - Keyboard handling (Enter to add, Backspace to remove)
  * - Block creation to destination page
- * - Hierarchical page creation support (e.g., "Page1/Page2")
  */
 import { useState, useCallback } from 'react';
 import { useCreateNode } from '@/features/content';
 import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types';
-import { listCorePagesAsync } from '@/core/query/listPages';
-import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useOpenNode } from '@/features/layout';
-import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
 
 export interface DraftBlock {
   nodeUuid: string;
@@ -77,7 +73,6 @@ export interface UseQuickAddReturn {
  * });
  */
 export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn {
-  const workspaceUuid = useCurrentWorkspaceUuid();
   const {
     initialBlocks = [{ nodeUuid: generateUUID(), content: '' }],
     onSuccess,
@@ -159,38 +154,15 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
     [draftBlocks, createNodeMutation, resetBlocks, navigateOnSuccess, openNode, onSuccess]
   );
 
-  // Create a new page (supports hierarchical paths like "Page1/Page2")
+  // Create a new page with the given literal name ("/" is not special)
   const createPage = useCallback(
     async (name: string) => {
       if (!name.trim()) return undefined;
 
-      const trimmedName = name.trim();
-      const parsed = parseHierarchicalPath(trimmedName);
-
-      let parentUuid: string | null = null;
-
-      // If hierarchical path, resolve parent (creating intermediate pages if needed)
-      if (parsed.isHierarchical) {
-        // Fetch fresh pages from the local-first store to resolve hierarchy.
-        const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
-        parentUuid = await resolveHierarchicalParentUuid(
-          parsed.parentSegments,
-          freshPages,
-          async (segmentName, parentUuidForCreation) => {
-            return await createNodeMutation.mutateAsync({
-              name: segmentName,
-              kind: 'page',
-              parent_uuid: parentUuidForCreation,
-            });
-          }
-        );
-      }
-
-      // Create the final page with resolved parent
       const newPage = await createNodeMutation.mutateAsync({
-        name: parsed.leaf || trimmedName,
+        name: name.trim(),
         kind: 'page',
-        parent_uuid: parentUuid,
+        parent_uuid: null,
       });
 
       if (navigateOnSuccess) {

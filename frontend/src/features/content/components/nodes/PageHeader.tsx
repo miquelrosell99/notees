@@ -15,8 +15,6 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useUpdateNode, useClasses, useCreateNode, useClassClass, useAddClass } from '@/features/content';
 import { useNodeDisplayName } from '@/features/queries';
-import { listCorePagesAsync } from '@/core/query/listPages';
-import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { useNavigationStore } from '@/stores';
@@ -27,7 +25,6 @@ import { NodeIcon, Icon } from '@/components/ui/icons';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { SuggestionPopup } from './SuggestionPopup';
 import { isSystemPage } from '@/utils/systemPages';
-import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
 import { dayUuidToWeekday, monthUuidToMonthName } from '@/utils/dateUuid';
 import './PageHeader.css';
 
@@ -77,7 +74,6 @@ export function PageHeader({
   const addClass = useAddClass();
   const { classClassUuid } = useClassClass();
   const addSidebarCard = useNavigationStore((state) => state.addSidebarCard);
-  const workspaceUuid = useCurrentWorkspaceUuid();
 
   // Icon picker state
   const [showIconPicker, setShowIconPicker] = useState(false);
@@ -126,39 +122,6 @@ export function PageHeader({
     if (page.is_monthly) return monthUuidToMonthName(page.uuid);
     return null;
   }, [page.uuid, page.is_daily, page.is_monthly]);
-  
-  // Parse input to show child page preview (disabled for date pages)
-  const renamePreview = useMemo(() => {
-    // Don't show preview for date pages
-    if (page.is_daily || page.is_monthly || page.is_yearly) return null;
-    
-    if (!inputValue.includes('/')) return null;
-    
-    const parsed = parseHierarchicalPath(inputValue);
-    const originalName = page.name || '';
-    
-    // Case 1: Creating child page (e.g., "Pokemon" → "Pokemon/Charizard" or "Pokemon/Gen1/Fire/Charizard")
-    if (parsed.parentSegments.length > 0 && parsed.parentSegments[0] === originalName) {
-      const childPath = [...parsed.parentSegments.slice(1), parsed.leaf].join('/');
-      return { type: 'create-child' as const, path: childPath };
-    }
-    
-    // Case 2: Moving to parent (e.g., "Charizard" → "Pokemon/Charizard" or "Types/Fire/Pokemon/Charizard")
-    if (parsed.leaf === originalName && parsed.parentSegments.length > 0) {
-      return { type: 'move-to-parent' as const, parent: parsed.parentSegments.join('/') };
-    }
-    
-    // Case 3: Rename and move (e.g., "Charizard" → "Fire/Dragon" or "Types/Fire/Dragon")
-    if (parsed.leaf !== originalName) {
-      return { 
-        type: 'rename-and-move' as const, 
-        newName: parsed.leaf,
-        parent: parsed.parentSegments.length > 0 ? parsed.parentSegments.join('/') : null
-      };
-    }
-    
-    return null;
-  }, [inputValue, page.name, page.is_daily, page.is_monthly, page.is_yearly]);
 
   const handleInputChange = useCallback((newValue: string) => {
     setInputValue(newValue);
@@ -211,155 +174,21 @@ export function PageHeader({
     setClassPopupOpen(false);
   }, [inputValue]);
 
-  const handleNameChange = useCallback(async (newName: string) => {
+  const handleNameChange = useCallback((newName: string) => {
     // Close class popup if open
     setClassPopupOpen(false);
-    
+
     // Strip any trailing +query text (user blurred while typing a class trigger)
+    // Names are literal: "/" has no special meaning.
     const cleanName = newName.replace(/(^|\s)\+\S*$/, '').trimEnd() || newName;
-    
-    // Disable hierarchical creation for date pages (daily, monthly, yearly)
-    const isDatePage = page.is_daily || page.is_monthly || page.is_yearly;
-    
-    // Check if the new name contains "/" and this is not a date page
-    if (cleanName.includes('/') && !isDatePage) {
-      const parsed = parseHierarchicalPath(cleanName);
-      const originalName = page.name || '';
-      
-      // Case 1: User keeps original name at start and adds "/" after it 
-      // (e.g., "Pokemon" → "Pokemon/Charizard" or "Pokemon/Gen1/Fire/Charizard")
-      // Create child pages under the current page
-      if (parsed.parentSegments.length > 0 && parsed.parentSegments[0] === originalName) {
-        try {
-          // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
-          // The child hierarchy starts after the original name
-          const childSegments = parsed.parentSegments.slice(1);
-          
-          // Build lookup map for O(1) access
-          const pageMap = new Map<string, Node>();
-          for (const p of freshPages) {
-            const key = `${p.name}|${p.parent_uuid ?? 'null'}`;
-            pageMap.set(key, p);
-          }
 
-          // Resolve or create intermediate child pages
-          let currentParent = page.uuid;
-          for (const segment of childSegments) {
-            const key = `${segment}|${currentParent}`;
-            let node = pageMap.get(key);
-
-            if (!node) {
-              node = await createNode.mutateAsync({
-                name: segment,
-                kind: 'page',
-                parent_uuid: currentParent,
-              });
-              // Add to map so subsequent iterations can find it
-              pageMap.set(key, node);
-            }
-
-            currentParent = node.uuid;
-          }
-
-          // Create the final leaf page
-          if (parsed.leaf) {
-            createNode.mutate({
-              name: parsed.leaf,
-              kind: 'page',
-              parent_uuid: currentParent,
-            });
-          }
-          
-          // Reset input to original name
-          setInputValue(originalName);
-          return;
-        } catch (error) {
-          console.error('Failed to create child hierarchy:', error);
-          // Fall through to normal rename on error
-        }
-      }
-      
-      // Case 2: User adds something before the original name 
-      // (e.g., "Charizard" → "Pokemon/Charizard" or "Types/Fire/Pokemon/Charizard")
-      // Change the parent of the current page
-      if (parsed.leaf === originalName && parsed.parentSegments.length > 0) {
-        try {
-          // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
-
-          // Resolve or create parent pages (supports multiple levels)
-          const parentUuid = await resolveHierarchicalParentUuid(
-            parsed.parentSegments,
-            freshPages,
-            async (name, parent) => {
-              return await createNode.mutateAsync({
-                name,
-                parent_uuid: parent,
-                kind: 'page',
-              });
-            }
-          );
-
-          // Move current page under the new parent
-          updateNode.mutate({
-            nodeUuid: page.uuid,
-            data: { parent_uuid: parentUuid }
-          });
-          // Reset input to original name
-          setInputValue(originalName);
-          return;
-        } catch (error) {
-          console.error('Failed to resolve hierarchical parent:', error);
-          // Fall through to normal rename on error
-        }
-      }
-      
-      // Case 3: Complete rename with hierarchy 
-      // (e.g., "Charizard" → "Fire/Dragon" or "Types/Fire/Dragon/Charizard")
-      // This is a different name entirely - update name and move to parent
-      if (parsed.leaf !== originalName) {
-        try {
-          // Fetch fresh pages from API to avoid stale cache issues
-          const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
-
-          // Resolve or create parent pages (supports multiple levels)
-          const parentUuid = await resolveHierarchicalParentUuid(
-            parsed.parentSegments,
-            freshPages,
-            async (name, parent) => {
-              return await createNode.mutateAsync({
-                name,
-                parent_uuid: parent,
-                kind: 'page',
-              });
-            }
-          );
-
-          // Update page with new name and parent
-          updateNode.mutate({
-            nodeUuid: page.uuid,
-            data: {
-              name: parsed.leaf,
-              parent_uuid: parentUuid
-            }
-          });
-          return;
-        } catch (error) {
-          console.error('Failed to resolve hierarchical parent:', error);
-          // Fall through to normal rename on error
-        }
-      }
-    }
-    
-    // Normal name change (no hierarchy, date pages, or fallback on error)
     if (onNameChange) {
       onNameChange(cleanName);
     } else {
       const data: NodeUpdate = { name: cleanName };
       updateNode.mutate({ nodeUuid: page.uuid, data });
     }
-  }, [page.uuid, page.name, page.is_daily, page.is_monthly, page.is_yearly, updateNode, createNode, onNameChange]);
+  }, [page.uuid, updateNode, onNameChange]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -476,17 +305,6 @@ export function PageHeader({
                 aria-label="Page title"
               />
             </h1>
-              {renamePreview && (
-                <span className="page-title-child-preview">
-                  {renamePreview.type === 'create-child' && `→ will create child: ${renamePreview.path}`}
-                  {renamePreview.type === 'move-to-parent' && `→ will move under: ${renamePreview.parent}`}
-                  {renamePreview.type === 'rename-and-move' && (
-                    renamePreview.parent 
-                      ? `→ will rename to "${renamePreview.newName}" and move under: ${renamePreview.parent}`
-                      : `→ will rename to "${renamePreview.newName}"`
-                  )}
-                </span>
-              )}
             {isTitleLocked && (
               <span className="page-title-locked" title={`Editing by ${titleLockedBy.map((u) => u.name).join(', ')}`}>
                 <Icon path="mdi mdi-lock-outline" size={0.7} color={titleLockedBy[0].color} />

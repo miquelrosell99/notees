@@ -87,7 +87,6 @@ export * from './hooks/useComments';
 export { extractImageFromDragEvent } from './hooks/useDragDropImage';
 export * from './hooks/useLinkedReferencesCount';
 export * from './hooks/useResolvedClassDetails';
-export * from './hooks/useHierarchicalPath';
 export * from './hooks/useNodeNavigation';
 export * from './hooks/useLivePageSync';
 export * from './hooks/useTrash';
