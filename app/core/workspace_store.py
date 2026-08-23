@@ -19,6 +19,7 @@ from typing import Any
 from app.config import settings
 from app.core.clock import Clock, Hlc, compare_hlc
 from app.core.derived import apply_operation, create_derived_schema
+from app.core.derived.class_hierarchy import class_extends_would_cycle
 from app.core.operation import Operation, OperationEnvelope
 from app.core.uuid import uuidv7
 from app.relay.key_storage import WorkspaceKeyStorage
@@ -469,13 +470,18 @@ class WorkspaceStore:
         name: str,
         icon: str | None = None,
         color: str | None = None,
+        extends_class_ids: list[str] | None = None,
     ) -> None:
         """Emit a ``class.create`` operation."""
+        if extends_class_ids:
+            await self._ensure_no_class_extends_cycle(class_id, extends_class_ids)
         payload: dict[str, Any] = {"classId": class_id, "name": name}
         if icon is not None:
             payload["icon"] = icon
         if color is not None:
             payload["color"] = color
+        if extends_class_ids is not None:
+            payload["extends"] = extends_class_ids
         await self.apply(self._build_operation("class.create", payload, [class_id]))
 
     async def delete_node(self, node_id: str) -> None:
@@ -522,12 +528,27 @@ class WorkspaceStore:
             self._build_operation("class.delete", {"classId": class_id}, [class_id])
         )
 
+    async def _ensure_no_class_extends_cycle(
+        self,
+        class_id: str,
+        extends_class_ids: list[str],
+    ) -> None:
+        """Reject an extends change that would create an inheritance cycle."""
+        conn = await self._ensure_connection()
+        parent_id = class_extends_would_cycle(conn, class_id, extends_class_ids)
+        if parent_id is not None:
+            raise ValueError(
+                f"Cannot set extends for class {class_id}: "
+                f"{parent_id} would create an inheritance cycle"
+            )
+
     async def set_class_extends(
         self,
         class_id: str,
         extends_class_ids: list[str],
     ) -> None:
         """Emit a ``class.setExtends`` operation."""
+        await self._ensure_no_class_extends_cycle(class_id, extends_class_ids)
         await self.apply(
             self._build_operation(
                 "class.setExtends",

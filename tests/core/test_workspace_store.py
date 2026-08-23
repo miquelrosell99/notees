@@ -447,3 +447,75 @@ class TestWorkspaceStore:
         assert rows[0]["click_count"] == 1
 
         await reader.close()
+
+
+class TestClassExtendsCycleValidation:
+    async def test_direct_cycle_is_rejected(self) -> None:
+        store = await _make_store()
+        await store.create_class("a", "A")
+        await store.create_class("b", "B")
+        await store.set_class_extends("a", ["b"])
+
+        with pytest.raises(ValueError, match="inheritance cycle"):
+            await store.set_class_extends("b", ["a"])
+
+        await store.close()
+
+    async def test_self_extends_is_rejected(self) -> None:
+        store = await _make_store()
+        await store.create_class("a", "A")
+
+        with pytest.raises(ValueError, match="inheritance cycle"):
+            await store.set_class_extends("a", ["a"])
+
+        await store.close()
+
+    async def test_indirect_cycle_is_rejected(self) -> None:
+        store = await _make_store()
+        for class_id in ("a", "b", "c"):
+            await store.create_class(class_id, class_id.upper())
+        await store.set_class_extends("a", ["b"])
+        await store.set_class_extends("b", ["c"])
+
+        with pytest.raises(ValueError, match="inheritance cycle"):
+            await store.set_class_extends("c", ["a"])
+
+        await store.close()
+
+    async def test_rejected_cycle_emits_no_operation(self) -> None:
+        store = await _make_store()
+        await store.create_class("a", "A")
+        await store.create_class("b", "B")
+        await store.set_class_extends("a", ["b"])
+
+        with pytest.raises(ValueError, match="inheritance cycle"):
+            await store.set_class_extends("b", ["a"])
+
+        rows = await store.query(
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?", ("b",)
+        )
+        assert {row["ancestor_id"] for row in rows} == {"b"}
+
+        await store.close()
+
+    async def test_create_class_with_self_extends_is_rejected(self) -> None:
+        store = await _make_store()
+
+        with pytest.raises(ValueError, match="inheritance cycle"):
+            await store.create_class("a", "A", extends_class_ids=["a"])
+
+        await store.close()
+
+    async def test_valid_extends_chain_is_accepted(self) -> None:
+        store = await _make_store()
+        await store.create_class("x", "X")
+        await store.create_class("source", "source", extends_class_ids=["x"])
+        await store.create_class("book", "book")
+        await store.set_class_extends("book", ["source"])
+
+        rows = await store.query(
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?", ("book",)
+        )
+        assert {row["ancestor_id"] for row in rows} == {"book", "source", "x"}
+
+        await store.close()

@@ -1,6 +1,6 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
-import { queryAll } from '../db/sqlite';
+import { queryAll, queryOne } from '../db/sqlite';
 import type { ChangeNotification } from './index';
 
 interface AstNode {
@@ -42,27 +42,83 @@ function normalizeClassName(name: unknown): string {
   return trimmed;
 }
 
-function applyClassHierarchy(db: Database, classId: string, extendsClassIds: string[]): void {
+function computeAncestors(db: Database, classId: string, extendsClassIds: string[]): string[] {
+  const ancestors = new Set<string>();
+  const visited = new Set<string>([classId]);
+  const stack = [...extendsClassIds];
+  while (stack.length > 0) {
+    const current = stack.pop() as string;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    ancestors.add(current);
+    const rows = queryAll<{ ancestor_id: string }>(
+      db,
+      'SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?',
+      [current]
+    );
+    for (const row of rows) stack.push(row.ancestor_id);
+  }
+  return [...ancestors].sort();
+}
+
+function parseStoredExtends(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const value = JSON.parse(raw) as unknown;
+    return Array.isArray(value) ? (value as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function classExtendsWouldCycle(
+  db: Database,
+  classId: string,
+  extendsClassIds: string[]
+): string | null {
+  for (const parentId of extendsClassIds) {
+    if (parentId === classId) return parentId;
+    const row = queryOne<{ found: number }>(
+      db,
+      'SELECT 1 AS found FROM class_hierarchy WHERE class_id = ? AND ancestor_id = ? LIMIT 1',
+      [parentId, classId]
+    );
+    if (row) return parentId;
+  }
+  return null;
+}
+
+function applyClassHierarchy(
+  db: Database,
+  classId: string,
+  extendsClassIds: string[],
+  seen?: Set<string>
+): void {
+  const visitedClasses = seen ?? new Set<string>();
+  if (visitedClasses.has(classId)) return;
+  visitedClasses.add(classId);
+
   db.run('DELETE FROM class_hierarchy WHERE class_id = ?', [classId]);
   db.run(
     'INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)',
     [classId, classId]
   );
-  for (const ancestorId of extendsClassIds) {
+  for (const ancestorId of computeAncestors(db, classId, extendsClassIds)) {
     db.run(
       'INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)',
       [classId, ancestorId]
     );
-    const rows = queryAll<{ ancestor_id: string }>(
-      db,
-      'SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?',
-      [ancestorId]
-    );
-    for (const row of rows) {
-      db.run(
-        'INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)',
-        [classId, row.ancestor_id]
-      );
+  }
+
+  const children = queryAll<{ id: string; extends_class_ids: string | null }>(
+    db,
+    'SELECT id, extends_class_ids FROM class WHERE id != ?',
+    [classId]
+  );
+  for (const child of children) {
+    const childExtends = parseStoredExtends(child.extends_class_ids);
+    if (childExtends.includes(classId)) {
+      applyClassHierarchy(db, child.id, childExtends, visitedClasses);
     }
   }
 }
@@ -114,7 +170,16 @@ export function applyClassOperation(db: Database, op: Operation): ChangeNotifica
       values.push(payload.description as string | null);
     }
 
-    if (sets.length === 0) return [];
+    let hierarchyChanged = false;
+    if ('extends' in payload) {
+      const extendsClassIds = Array.isArray(payload.extends) ? (payload.extends as string[]) : [];
+      applyClassHierarchy(db, classId, extendsClassIds);
+      hierarchyChanged = true;
+    }
+
+    if (sets.length === 0) {
+      return hierarchyChanged ? [{ scope: 'class', nodeId: classId }] : [];
+    }
 
     sets.push('updated_at = ?');
     values.push(ts, classId);
