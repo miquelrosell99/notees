@@ -7,6 +7,9 @@ from typing import Any
 from app.domain.ports import EmailSender
 from app.features.auth.port import UserRepository
 from app.features.workspaces.port import WorkspaceRepository
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Track active workspace per user (in-memory, for session)
 # Maps user_id (str) -> workspace UUID (str)
@@ -117,6 +120,26 @@ class WorkspaceService:
             return False
 
         self.set_active_workspace(user_id, workspace_uuid)
+
+        # Backfill the system schema (source-hierarchy classes, class-scoped
+        # property schemas, bindings) for workspaces created before it
+        # existed. Idempotent; a failure must not block opening the workspace.
+        try:
+            emitted = await self._workspace_repo.ensure_system_schema(
+                workspace["id"], numeric_user_id
+            )
+            if emitted:
+                logger.info(
+                    "Backfilled %d system-schema operations into workspace %s",
+                    emitted,
+                    workspace_uuid,
+                )
+        except Exception:
+            logger.warning(
+                "Failed to ensure system schema for workspace %s",
+                workspace_uuid,
+                exc_info=True,
+            )
         return True
 
     async def rename_workspace(

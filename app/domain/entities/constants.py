@@ -9,6 +9,7 @@ without importing DB-schema modules.
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Date helpers
@@ -232,6 +233,60 @@ SYSTEM_PROPERTY_UUIDS = {
     "family_name": "00000000-0000-0000-0000-000000000022",
     "citekey": "00000000-0000-0000-0000-000000000023",
     "url": "00000000-0000-0000-0000-000000000024",
+}
+
+
+# ---------------------------------------------------------------------------
+# System class hierarchy & class-scoped property schemas
+# ---------------------------------------------------------------------------
+
+# Canonical extends edges between system classes, keyed by class name with
+# parent class names as values. Mirrored in
+# frontend/src/constants/systemProperties.ts and guarded by
+# tests/core/test_system_uuid_parity.py.
+SYSTEM_CLASS_EXTENDS = {
+    "book": ["source"],
+    "paper": ["source"],
+    "article": ["source"],
+    "thesis": ["source"],
+    "document": ["source"],
+    "person": ["agent"],
+    "organization": ["agent"],
+}
+
+# Class-scoped system property schemas, in canonical seed order. Keys are
+# property names (also keys of SYSTEM_PROPERTY_UUIDS); ``bindTo`` names the
+# system class the schema is bound to via a classPropertyEdge. Field names are
+# camelCase so the mirrored frontend spec stays textually identical.
+# Mirrored in frontend/src/constants/systemProperties.ts and guarded by
+# tests/core/test_system_uuid_parity.py.
+SYSTEM_PROPERTY_SCHEMA_SPECS: dict[str, dict[str, Any]] = {
+    "attachments": {"type": "node", "multi": True, "classFilter": ["asset"], "bindTo": "source"},
+    "authors": {"type": "node", "multi": True, "classFilter": ["agent"], "bindTo": "source"},
+    "isbn": {"type": "text", "bindTo": "source"},
+    "doi": {"type": "text", "bindTo": "source"},
+    "publication_date": {"type": "date", "bindTo": "source"},
+    "publisher": {"type": "text", "bindTo": "source"},
+    "role": {
+        "type": "selection",
+        "options": [
+            {"uuid": "00000000-0000-0000-0004-000000000001", "name": "representation", "sequence": 0},
+            {"uuid": "00000000-0000-0000-0004-000000000002", "name": "cover", "sequence": 1},
+            {"uuid": "00000000-0000-0000-0004-000000000003", "name": "supplement", "sequence": 2},
+            {"uuid": "00000000-0000-0000-0004-000000000004", "name": "attachment", "sequence": 3},
+            {"uuid": "00000000-0000-0000-0004-000000000005", "name": "generated", "sequence": 4},
+            {"uuid": "00000000-0000-0000-0004-000000000006", "name": "thumbnail", "sequence": 5},
+            {"uuid": "00000000-0000-0000-0004-000000000007", "name": "other", "sequence": 6},
+        ],
+        "bindTo": "asset",
+    },
+    "locator": {"type": "text", "bindTo": "highlight"},
+    "provenance": {"type": "text", "bindTo": "highlight"},
+    "highlight_asset": {"type": "node", "classFilter": ["asset"], "bindTo": "highlight"},
+    "given_name": {"type": "text", "bindTo": "person"},
+    "family_name": {"type": "text", "bindTo": "person"},
+    "citekey": {"type": "text", "defaultValue": "", "bindTo": "source"},
+    "url": {"type": "url", "bindTo": "weblink"},
 }
 
 
