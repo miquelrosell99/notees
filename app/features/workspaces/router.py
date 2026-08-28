@@ -50,6 +50,20 @@ router = APIRouter(
 logger = get_logger(__name__)
 
 
+async def _open_workspace_store(workspace_uuid: str, actor_uuid: str):
+    """Open a WorkspaceStore for derived-state reads/writes on a workspace."""
+    from app.core.workspace_store import WorkspaceStore
+    from app.relay.dependencies import get_relay_storage
+
+    store = WorkspaceStore(
+        workspace_id=workspace_uuid,
+        actor_id=actor_uuid,
+        relay_storage=get_relay_storage(),
+    )
+    await store.sync()
+    return store
+
+
 def _workspace_error_to_http(error: Exception) -> HTTPException:
     """Convert domain errors to HTTP exceptions."""
     if isinstance(error, ValueError):
@@ -136,6 +150,69 @@ async def set_workspace_setting_endpoint(
         raise HTTPException(status_code=404, detail=f"Workspace '{workspace_uuid}' not found")
     await settings_repo.set_workspace_setting(workspace_id, key, data.get("value"), utc_now(), int(user.id))
     return {"success": True}
+
+
+class ClassConsolidationRequest(BaseModel):
+    """Explicit old→new class-UUID mapping (never name-guessed, Decision 26)."""
+
+    old_class_uuid: str
+    new_class_uuid: str
+
+
+@router.get("/{workspace_uuid}/classes", dependencies=[Depends(require_read_or_write_scope)])
+async def list_workspace_classes_endpoint(
+    workspace_uuid: str,
+    user: User = Depends(get_current_user),
+):
+    """List active classes of a workspace (for the class consolidation UI)."""
+    from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
+
+    system_uuids = set(SYSTEM_CLASS_UUIDS.values())
+    store = await _open_workspace_store(workspace_uuid, user.uuid)
+    try:
+        rows = await store.query(
+            "SELECT id, name FROM class WHERE active = 1 ORDER BY name"
+        )
+        return {
+            "items": [
+                {"id": row["id"], "name": row["name"], "is_system": row["id"] in system_uuids}
+                for row in rows
+            ]
+        }
+    finally:
+        await store.close()
+
+
+@router.post("/{workspace_uuid}/class-consolidation", dependencies=[Depends(require_write_scope)])
+async def consolidate_class_endpoint(
+    workspace_uuid: str,
+    data: ClassConsolidationRequest,
+    user: User = Depends(get_current_user),
+):
+    """Consolidate one class into another given an explicit UUID mapping.
+
+    Reassigns nodes, remaps matching class-property edges to system schemas,
+    then soft-deletes the old class. Refuses guesswork: both UUIDs must point
+    at existing active classes and the old class must not be a system class.
+    """
+    from app.features.workspaces.class_consolidation import (
+        ConsolidationError,
+        consolidate_class,
+    )
+
+    store = await _open_workspace_store(workspace_uuid, user.uuid)
+    try:
+        try:
+            summary = await consolidate_class(
+                store,
+                old_class_uuid=data.old_class_uuid,
+                new_class_uuid=data.new_class_uuid,
+            )
+        except ConsolidationError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        return {"success": True, **summary}
+    finally:
+        await store.close()
 
 
 @router.put("/{name}/rename", dependencies=[Depends(require_write_scope)])
