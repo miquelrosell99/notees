@@ -37,6 +37,7 @@ EXPECTED_CLASS_NAMES = {
     "organization",
     "collection",
     "highlight",
+    "movie",
 }
 
 EXPECTED_PROPERTY_NAMES = {
@@ -165,3 +166,11 @@ def test_system_property_schema_specs_parity() -> None:
 
     frontend = _frontend_constant("SYSTEM_PROPERTY_SCHEMA_SPECS")
     assert {k: dict(v) for k, v in SYSTEM_PROPERTY_SCHEMA_SPECS.items()} == frontend
+
+
+def test_system_extra_class_bindings_parity() -> None:
+    """SYSTEM_EXTRA_CLASS_BINDINGS must not drift between backend and frontend."""
+    from app.domain.entities.constants import SYSTEM_EXTRA_CLASS_BINDINGS
+
+    frontend = _frontend_constant("SYSTEM_EXTRA_CLASS_BINDINGS")
+    assert {k: dict(v) for k, v in SYSTEM_EXTRA_CLASS_BINDINGS.items()} == frontend

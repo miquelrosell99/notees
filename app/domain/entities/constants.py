@@ -148,6 +148,7 @@ SYSTEM_CLASS_UUIDS = {
     "collection": "00000000-0000-0000-0001-000000000032",
     "highlight": "00000000-0000-0000-0001-000000000033",
     "weblink": "00000000-0000-0000-0001-000000000034",
+    "movie": "00000000-0000-0000-0001-000000000035",
 }
 
 SYSTEM_CLASS_ICONS = {
@@ -183,6 +184,7 @@ SYSTEM_CLASS_ICONS = {
     "collection": "mdiFolderMultipleOutline",
     "highlight": "mdiFormatHighlight",
     "weblink": "mdiLinkVariant",
+    "movie": "mdiMovieOpenOutline",
 }
 
 
@@ -250,6 +252,7 @@ SYSTEM_CLASS_EXTENDS = {
     "article": ["source"],
     "thesis": ["source"],
     "document": ["source"],
+    "movie": ["source"],
     "person": ["agent"],
     "organization": ["agent"],
 }
@@ -286,6 +289,17 @@ SYSTEM_PROPERTY_SCHEMA_SPECS: dict[str, dict[str, Any]] = {
     "family_name": {"type": "text", "bindTo": "person"},
     "citekey": {"type": "text", "defaultValue": "", "bindTo": "source"},
     "url": {"type": "url", "bindTo": "weblink"},
+}
+
+
+# Extra class-property bindings for base system properties whose schemas are
+# created outside SYSTEM_PROPERTY_SCHEMA_SPECS (e.g. the global cover
+# property): seeds/backfill emit only the classPropertyEdge, never the schema.
+# ``sequence`` is the next free per-class slot (source's spec-bound schemas
+# occupy 0-6). Mirrored in frontend/src/constants/systemProperties.ts and
+# guarded by tests/core/test_system_uuid_parity.py.
+SYSTEM_EXTRA_CLASS_BINDINGS: dict[str, dict[str, Any]] = {
+    "cover": {"bindTo": "source", "sequence": 7},
 }
 
 

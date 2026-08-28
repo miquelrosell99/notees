@@ -25,6 +25,7 @@ from app.core.workspace_store import WorkspaceStore
 from app.domain.entities.constants import (
     SYSTEM_CLASS_EXTENDS,
     SYSTEM_CLASS_UUIDS,
+    SYSTEM_EXTRA_CLASS_BINDINGS,
     SYSTEM_PROPERTY_SCHEMA_SPECS,
     SYSTEM_PROPERTY_UUIDS,
 )
@@ -39,9 +40,11 @@ ASSET = SYSTEM_CLASS_UUIDS["asset"]
 
 CLASS_COUNT = len(SYSTEM_CLASS_UUIDS)
 SCHEMA_COUNT = len(SYSTEM_PROPERTY_SCHEMA_SPECS)
+EXTRA_BINDING_COUNT = len(SYSTEM_EXTRA_CLASS_BINDINGS)
 # class.create + node.updateContent per class; propertySchema.create +
-# classPropertyEdge.create per schema; node.create per default page.
-SEED_OP_COUNT = CLASS_COUNT * 2 + SCHEMA_COUNT * 2 + 2
+# classPropertyEdge.create per schema; classPropertyEdge.create per extra
+# binding (e.g. cover → source); node.create per default page.
+SEED_OP_COUNT = CLASS_COUNT * 2 + SCHEMA_COUNT * 2 + EXTRA_BINDING_COUNT + 2
 
 
 def _seed_operations(workspace_id: str = "ws-1", actor_id: str = "actor-1"):
@@ -72,6 +75,9 @@ def test_seed_operation_sequence_counts_and_order() -> None:
     assert op_types[: CLASS_COUNT * 2] == ["class.create", "node.updateContent"] * CLASS_COUNT
     schema_section = op_types[CLASS_COUNT * 2 : CLASS_COUNT * 2 + SCHEMA_COUNT * 2]
     assert schema_section == ["propertySchema.create", "classPropertyEdge.create"] * SCHEMA_COUNT
+    # Extra bindings (e.g. cover → source) are edge-only ops after the schemas.
+    extra_section = op_types[CLASS_COUNT * 2 + SCHEMA_COUNT * 2 : -2]
+    assert extra_section == ["classPropertyEdge.create"] * EXTRA_BINDING_COUNT
     assert op_types[-2:] == ["node.create", "node.create"]
 
     # Parents are created before their subclasses so closures derive fully.
@@ -176,12 +182,15 @@ def test_seed_derives_class_scoped_property_schemas_and_edges() -> None:
             "SELECT class_id, property_schema_id, sequence FROM class_property_edge"
         ).fetchall()
     }
-    assert len(edges) == SCHEMA_COUNT
+    assert len(edges) == SCHEMA_COUNT + EXTRA_BINDING_COUNT
     expected_sequences = _edge_sequences()
     for schema_name, spec in SYSTEM_PROPERTY_SCHEMA_SPECS.items():
         key = (SYSTEM_CLASS_UUIDS[spec["bindTo"]], SYSTEM_PROPERTY_UUIDS[schema_name])
         assert key in edges, schema_name
         assert edges[key] == expected_sequences[schema_name]
+
+    # Extra bindings: cover → source at the next free sequence slot.
+    assert edges[(SOURCE, SYSTEM_PROPERTY_UUIDS["cover"])] == 7
 
     # Source-bound schemas are ordered as in the canonical spec.
     source_edges = [
@@ -196,7 +205,7 @@ async def test_ensure_system_schema_emits_full_schema_then_converges() -> None:
     try:
         # Fresh (empty) workspace: everything except the default pages is emitted.
         emitted = await ensure_system_schema(store)
-        assert emitted == CLASS_COUNT * 2 + SCHEMA_COUNT * 2
+        assert emitted == CLASS_COUNT * 2 + SCHEMA_COUNT * 2 + EXTRA_BINDING_COUNT
 
         # Second run is a no-op.
         assert await ensure_system_schema(store) == 0
@@ -206,7 +215,7 @@ async def test_ensure_system_schema_emits_full_schema_then_converges() -> None:
         rows = await store.query("SELECT COUNT(*) AS c FROM property_schema")
         assert rows[0]["c"] == SCHEMA_COUNT
         rows = await store.query("SELECT COUNT(*) AS c FROM class_property_edge")
-        assert rows[0]["c"] == SCHEMA_COUNT
+        assert rows[0]["c"] == SCHEMA_COUNT + EXTRA_BINDING_COUNT
         rows = await store.query(
             "SELECT COUNT(*) AS c FROM class_hierarchy WHERE class_id = ? AND ancestor_id = ?",
             (SYSTEM_CLASS_UUIDS["book"], SOURCE),
@@ -228,7 +237,7 @@ async def test_ensure_backfills_extends_for_existing_flat_classes() -> None:
         emitted = await ensure_system_schema(store)
         # One class.setExtends per class with canonical parents, plus all
         # schemas and edges (classes themselves are skipped).
-        assert emitted == len(SYSTEM_CLASS_EXTENDS) + SCHEMA_COUNT * 2
+        assert emitted == len(SYSTEM_CLASS_EXTENDS) + SCHEMA_COUNT * 2 + EXTRA_BINDING_COUNT
 
         rows = await store.query(
             "SELECT extends_class_ids FROM class WHERE id = ?",
@@ -246,7 +255,7 @@ async def test_ensure_backfills_extends_for_existing_flat_classes() -> None:
         rows = await store.query("SELECT COUNT(*) AS c FROM class")
         assert rows[0]["c"] == CLASS_COUNT
         rows = await store.query("SELECT COUNT(*) AS c FROM class_property_edge")
-        assert rows[0]["c"] == SCHEMA_COUNT
+        assert rows[0]["c"] == SCHEMA_COUNT + EXTRA_BINDING_COUNT
     finally:
         await store.close()
 
@@ -280,6 +289,6 @@ async def test_ensure_backfills_only_missing_schema_entities() -> None:
         rows = await store.query("SELECT COUNT(*) AS c FROM property_schema")
         assert rows[0]["c"] == SCHEMA_COUNT
         rows = await store.query("SELECT COUNT(*) AS c FROM class_property_edge")
-        assert rows[0]["c"] == SCHEMA_COUNT
+        assert rows[0]["c"] == SCHEMA_COUNT + EXTRA_BINDING_COUNT
     finally:
         await store.close()

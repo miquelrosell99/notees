@@ -23,6 +23,7 @@ import {
   getPropertySchemaByUuid,
   getBatchPropertyValues,
   getClassProperties,
+  getClassPropertyEdgeIds,
   getNodeClassPropertyEdges,
 } from '../adapters/propertyQueries';
 import { UndoManager } from '../undo/UndoManager';
@@ -785,6 +786,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     if (method === 'getClassProperties') {
       const [classId, includeInherited] = args as [string, boolean];
       return Promise.resolve(getClassProperties(this.store, classId, includeInherited) as T);
+    }
+    if (method === 'getClassPropertyEdgeIds') {
+      const [classId] = args as [string];
+      return Promise.resolve(getClassPropertyEdgeIds(this.store, classId) as T);
     }
     if (method === 'getNodeClassPropertyEdges') {
       const [classUuids] = args as [string[]];

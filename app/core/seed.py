@@ -27,6 +27,7 @@ from app.domain.entities.constants import (
     SYSTEM_CLASS_EXTENDS,
     SYSTEM_CLASS_ICONS,
     SYSTEM_CLASS_UUIDS,
+    SYSTEM_EXTRA_CLASS_BINDINGS,
     SYSTEM_PAGE_UUIDS,
     SYSTEM_PROPERTY_SCHEMA_SPECS,
     SYSTEM_PROPERTY_UUIDS,
@@ -194,6 +195,24 @@ def _system_schema_operations(
                     "classId": class_uuid,
                     "propertySchemaId": schema_uuid,
                     "sequence": sequences[schema_name],
+                },
+                [class_uuid, schema_uuid],
+            )
+        )
+
+    for prop_name, binding in SYSTEM_EXTRA_CLASS_BINDINGS.items():
+        schema_uuid = SYSTEM_PROPERTY_UUIDS[prop_name]
+        class_uuid = SYSTEM_CLASS_UUIDS[binding["bindTo"]]
+        operations.append(
+            _build_operation(
+                clock,
+                workspace_id,
+                actor_id,
+                "classPropertyEdge.create",
+                {
+                    "classId": class_uuid,
+                    "propertySchemaId": schema_uuid,
+                    "sequence": binding["sequence"],
                 },
                 [class_uuid, schema_uuid],
             )
@@ -372,6 +391,17 @@ async def ensure_system_schema(store: WorkspaceStore) -> int:
                 class_uuid,
                 schema_uuid,
                 sequence=sequences[schema_name],
+            )
+            emitted += 1
+
+    for prop_name, binding in SYSTEM_EXTRA_CLASS_BINDINGS.items():
+        schema_uuid = SYSTEM_PROPERTY_UUIDS[prop_name]
+        class_uuid = SYSTEM_CLASS_UUIDS[binding["bindTo"]]
+        if (class_uuid, schema_uuid) not in existing_edges:
+            await store.create_class_property_edge(
+                class_uuid,
+                schema_uuid,
+                sequence=binding["sequence"],
             )
             emitted += 1
 

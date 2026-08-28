@@ -76,6 +76,7 @@ export const SYSTEM_CLASS_ICONS: Record<string, string> = {
   collection: 'mdiFolderMultipleOutline',
   highlight: 'mdiFormatHighlight',
   weblink: 'mdiLinkVariant',
+  movie: 'mdiMovieOpenOutline',
 };
 
 /**
@@ -88,6 +89,7 @@ export const SYSTEM_CLASS_EXTENDS: Record<string, string[]> = {
   article: ['source'],
   thesis: ['source'],
   document: ['source'],
+  movie: ['source'],
   person: ['agent'],
   organization: ['agent'],
 };
@@ -134,6 +136,24 @@ export const SYSTEM_PROPERTY_SCHEMA_SPECS: Record<string, SystemPropertySchemaSp
   family_name: { type: 'text', bindTo: 'person' },
   citekey: { type: 'text', defaultValue: '', bindTo: 'source' },
   url: { type: 'url', bindTo: 'weblink' },
+};
+
+/** Extra class-property binding for a base system property (see SYSTEM_EXTRA_CLASS_BINDINGS). */
+interface ExtraClassBinding {
+  bindTo: string;
+  sequence: number;
+}
+
+/**
+ * Extra class-property bindings for base system properties whose schemas are
+ * created outside SYSTEM_PROPERTY_SCHEMA_SPECS (e.g. the global cover
+ * property): seeds emit only the classPropertyEdge, never the schema.
+ * `sequence` is the next free per-class slot (source's spec-bound schemas
+ * occupy 0-6). Mirrors the backend SYSTEM_EXTRA_CLASS_BINDINGS (parity-test
+ * guarded).
+ */
+export const SYSTEM_EXTRA_CLASS_BINDINGS: Record<string, ExtraClassBinding> = {
+  cover: { bindTo: 'source', sequence: 7 },
 };
 
 /** All task status names, ordered to match the backend TASK_STATUS_OPTIONS. */
@@ -210,6 +230,7 @@ export const SYSTEM_CLASS_UUIDS = {
   collection: '00000000-0000-0000-0001-000000000032',
   highlight: '00000000-0000-0000-0001-000000000033',
   weblink: '00000000-0000-0000-0001-000000000034',
+  movie: '00000000-0000-0000-0001-000000000035',
 } as const;
 
 /**
