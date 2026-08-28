@@ -1,10 +1,14 @@
 /**
- * LibraryPage — top-level Library view (notees.library plugin).
+ * LibraryPage — three-pane Library view (notees.library plugin, Task 11).
  *
- * Sections: All Sources, per-subclass sections (Books, Papers, Articles,
- * Theses, Documents, Movies) and Authors (class:agent). Source lists are
- * driven by a `class:source` query AST (hierarchy-aware by construction) and
- * support table/card view modes and flat/Work→Edition grouping.
+ * Left pane: collection tree ("All sources" pseudo-root + nested collections,
+ * expandable). Center pane: sources of the selected collection — nested under
+ * it recursively (subcollections included) ∪ linking to it, deduped,
+ * intersected with class:source (Decision 22, via `collectionContents`) — or,
+ * with "All sources" selected, the Task 7 sections (per subclass, authors)
+ * with flat/Work→Edition grouping. Right pane: metadata inspector for the
+ * selected source (class-bound property panel; edits persist via normal
+ * property ops). Selection never navigates; opening a node is explicit.
  */
 import { useMemo, useState, useCallback } from 'react';
 import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
@@ -14,16 +18,34 @@ import { useNavigationStore } from '@/stores';
 import { useClasses } from '@/features/content/hooks/useNodeQueries';
 import { useQuery_ } from '@/features/content/hooks/useNodeViews.queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
+import {
+  buildCollectionLinkedQueryAst,
+  buildCollectionNestedQueryAst,
+  computeCollectionContents,
+} from '@/features/content/utils/collectionContents';
 import type { Node } from '@/types';
 import {
   buildLibraryQueryAst,
   filterNodesBySection,
   getLibrarySection,
   groupSourcesIntoWorks,
+  libraryNodeName,
   LIBRARY_SECTIONS,
   type LibraryGrouping,
   type LibraryViewMode,
 } from './libraryUtils';
+import {
+  ALL_SOURCES_SELECTION,
+  buildCollectionTree,
+  flattenCollectionTree,
+  pruneSourceSelection,
+  selectCollection,
+  selectSource,
+  toggleExpanded,
+  type LibraryPaneSelection,
+} from './collectionTree';
+import { CollectionTreePane } from './components/CollectionTreePane';
+import { LibraryInspector } from './components/LibraryInspector';
 import { LibraryTable } from './components/LibraryTable';
 import { LibraryCardGrid } from './components/LibraryCardGrid';
 import './LibraryPage.css';
@@ -34,16 +56,23 @@ export function LibraryPage() {
   const [sectionId, setSectionId] = useState<string>('all');
   const [viewMode, setViewMode] = useState<LibraryViewMode>('table');
   const [grouping, setGrouping] = useState<LibraryGrouping>('flat');
+  const [selection, setSelection] = useState<LibraryPaneSelection>(ALL_SOURCES_SELECTION);
+  const [expandedCollections, setExpandedCollections] = useState<ReadonlySet<string>>(new Set());
 
+  const isCollectionSelected = selection.collectionUuid !== null;
   const section = getLibrarySection(sectionId);
-  const isAuthorsSection = section.className === 'agent';
+  const isAuthorsSection = !isCollectionSelected && section.className === 'agent';
 
-  // Two hierarchy-aware class queries back every section: sources and agents.
+  // Hierarchy-aware class queries back the view: sources, agents, collections.
   const sourcesAst = useMemo(
     () => buildLibraryQueryAst(SYSTEM_CLASS_UUIDS.source, 'sources'),
     [],
   );
   const agentsAst = useMemo(() => buildLibraryQueryAst(SYSTEM_CLASS_UUIDS.agent, 'agents'), []);
+  const collectionsAst = useMemo(
+    () => buildLibraryQueryAst(SYSTEM_CLASS_UUIDS.collection, 'collections'),
+    [],
+  );
 
   const { data: sources = [], isLoading: sourcesLoading } = useQuery_(
     { query_ast: sourcesAst },
@@ -53,15 +82,63 @@ export function LibraryPage() {
     { query_ast: agentsAst },
     { enabled: true },
   );
+  const { data: collectionCandidates = [] } = useQuery_(
+    { query_ast: collectionsAst },
+    { enabled: true },
+  );
+
+  // Collection contents (Decision 22): nested recursively ∪ linking, both
+  // intersected with class:source, deduped. Only queried when a collection is
+  // selected.
+  const selectedCollectionUuid = selection.collectionUuid;
+  const nestedAst = useMemo(
+    () =>
+      selectedCollectionUuid
+        ? buildCollectionNestedQueryAst(selectedCollectionUuid, SYSTEM_CLASS_UUIDS.source)
+        : undefined,
+    [selectedCollectionUuid],
+  );
+  const linkedAst = useMemo(
+    () =>
+      selectedCollectionUuid
+        ? buildCollectionLinkedQueryAst(selectedCollectionUuid, SYSTEM_CLASS_UUIDS.source)
+        : undefined,
+    [selectedCollectionUuid],
+  );
+  const { data: nestedSources, isLoading: nestedLoading } = useQuery_(
+    { query_ast: nestedAst, include_properties: true },
+    { enabled: !!nestedAst },
+  );
+  const { data: linkedSources, isLoading: linkedLoading } = useQuery_(
+    { query_ast: linkedAst, include_properties: true },
+    { enabled: !!linkedAst },
+  );
+  const collectionContents = useMemo(
+    () => computeCollectionContents(nestedSources ?? [], linkedSources ?? []),
+    [nestedSources, linkedSources],
+  );
 
   const { data: classes = [] } = useClasses();
+
+  const collectionTree = useMemo(
+    () => buildCollectionTree(collectionCandidates, SYSTEM_CLASS_UUIDS.collection, classes),
+    [collectionCandidates, classes],
+  );
+  const treeRows = useMemo(
+    () => flattenCollectionTree(collectionTree, expandedCollections),
+    [collectionTree, expandedCollections],
+  );
+  const selectedCollection = useMemo(
+    () => collectionCandidates.find((node) => node.uuid === selectedCollectionUuid) ?? null,
+    [collectionCandidates, selectedCollectionUuid],
+  );
 
   const agentsByUuid = useMemo(
     () => new Map<string, Node>(agents.map((agent) => [agent.uuid, agent])),
     [agents],
   );
   // Unfiltered source map so edition covers can fall back to parent.cover even
-  // when the parent is outside the active section filter.
+  // when the parent is outside the active section/collection filter.
   const allSourcesByUuid = useMemo(
     () => new Map<string, Node>(sources.map((source) => [source.uuid, source])),
     [sources],
@@ -80,10 +157,21 @@ export function LibraryPage() {
     return filterNodesBySection(base, sectionClassUuid, classes);
   }, [isAuthorsSection, agents, sources, sectionClassUuid, classes]);
 
+  // Center pane: collection contents when a collection is selected, the
+  // active section otherwise.
+  const centerNodes = isCollectionSelected ? collectionContents : sectionNodes;
+
   const groups = useMemo(
-    () => (grouping === 'grouped' && !isAuthorsSection ? groupSourcesIntoWorks(sectionNodes) : []),
-    [grouping, isAuthorsSection, sectionNodes],
+    () => (grouping === 'grouped' && !isAuthorsSection ? groupSourcesIntoWorks(centerNodes) : []),
+    [grouping, isAuthorsSection, centerNodes],
   );
+
+  // The inspector tracks the selection as long as the source stays visible.
+  const visibleUuids = useMemo(
+    () => new Set<string>(centerNodes.map((node) => node.uuid)),
+    [centerNodes],
+  );
+  const inspectorUuid = pruneSourceSelection(selection, visibleUuids).sourceUuid;
 
   const handleOpenNode = useCallback(
     (nodeUuid: string) => {
@@ -91,8 +179,24 @@ export function LibraryPage() {
     },
     [openNode],
   );
+  const handleSelectCollection = useCallback((collectionUuid: string | null) => {
+    setSelection((prev) => selectCollection(prev, collectionUuid));
+  }, []);
+  const handleSelectSource = useCallback((sourceUuid: string) => {
+    setSelection((prev) => selectSource(prev, sourceUuid));
+  }, []);
+  const handleCloseInspector = useCallback(() => {
+    setSelection((prev) => ({ ...prev, sourceUuid: null }));
+  }, []);
+  const handleToggleExpand = useCallback((collectionUuid: string) => {
+    setExpandedCollections((prev) => toggleExpanded(prev, collectionUuid));
+  }, []);
 
-  const isLoading = isAuthorsSection ? agentsLoading : sourcesLoading;
+  const isLoading = isCollectionSelected
+    ? nestedLoading || linkedLoading
+    : isAuthorsSection
+      ? agentsLoading
+      : sourcesLoading;
 
   return (
     <article className="node-view node-view--page library-view">
@@ -147,53 +251,96 @@ export function LibraryPage() {
         }
       />
 
-      <div className="library-view__sections" role="tablist" aria-label="Library sections">
-        {LIBRARY_SECTIONS.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            role="tab"
-            aria-selected={s.id === sectionId}
-            className={`library-view__section-tab${s.id === sectionId ? ' library-view__section-tab--active' : ''}`}
-            onClick={() => setSectionId(s.id)}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <div className="library-view__panes">
+        <div className="library-view__tree-pane">
+          <CollectionTreePane
+            rows={treeRows}
+            selectedCollectionUuid={selection.collectionUuid}
+            onSelectCollection={handleSelectCollection}
+            onToggleExpand={handleToggleExpand}
+          />
+        </div>
 
-      <div className="library-view__content">
-        <DataStateView
-          isLoading={isLoading}
-          isEmpty={sectionNodes.length === 0}
-          emptyTitle={isAuthorsSection ? 'No authors yet' : 'No sources yet'}
-          emptyDescription={
-            isAuthorsSection
-              ? 'Agents (persons, organizations) referenced by sources appear here.'
-              : 'Class a page or block as a source (book, paper, ...) and it appears here.'
-          }
-          skeletonRows={4}
-        >
-          {viewMode === 'table' ? (
-            <LibraryTable
-              rows={sectionNodes}
-              groups={groups}
-              grouped={grouping === 'grouped' && !isAuthorsSection}
-              classNamesByUuid={classNamesByUuid}
-              agentsByUuid={agentsByUuid}
-              onOpenNode={handleOpenNode}
-            />
+        <div className="library-view__center-pane">
+          {isCollectionSelected ? (
+            <div className="library-view__collection-heading">
+              <span className="library-view__collection-heading-label">
+                {selectedCollection ? libraryNodeName(selectedCollection) : 'Collection'}
+              </span>
+            </div>
           ) : (
-            <LibraryCardGrid
-              rows={sectionNodes}
-              groups={groups}
-              grouped={grouping === 'grouped' && !isAuthorsSection}
-              allSourcesByUuid={allSourcesByUuid}
-              agentsByUuid={agentsByUuid}
-              onOpenNode={handleOpenNode}
-            />
+            <div className="library-view__sections" role="tablist" aria-label="Library sections">
+              {LIBRARY_SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={s.id === sectionId}
+                  className={`library-view__section-tab${s.id === sectionId ? ' library-view__section-tab--active' : ''}`}
+                  onClick={() => setSectionId(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           )}
-        </DataStateView>
+
+          <div className="library-view__content">
+            <DataStateView
+              isLoading={isLoading}
+              isEmpty={centerNodes.length === 0}
+              emptyTitle={
+                isCollectionSelected
+                  ? 'No sources in this collection yet'
+                  : isAuthorsSection
+                    ? 'No authors yet'
+                    : 'No sources yet'
+              }
+              emptyDescription={
+                isCollectionSelected
+                  ? 'Nest sources under this collection or link them to it.'
+                  : isAuthorsSection
+                    ? 'Agents (persons, organizations) referenced by sources appear here.'
+                    : 'Class a page or block as a source (book, paper, ...) and it appears here.'
+              }
+              skeletonRows={4}
+            >
+              {viewMode === 'table' ? (
+                <LibraryTable
+                  rows={centerNodes}
+                  groups={groups}
+                  grouped={grouping === 'grouped' && !isAuthorsSection}
+                  classNamesByUuid={classNamesByUuid}
+                  agentsByUuid={agentsByUuid}
+                  onOpenNode={handleOpenNode}
+                  onSelectNode={handleSelectSource}
+                  selectedUuid={inspectorUuid}
+                />
+              ) : (
+                <LibraryCardGrid
+                  rows={centerNodes}
+                  groups={groups}
+                  grouped={grouping === 'grouped' && !isAuthorsSection}
+                  allSourcesByUuid={allSourcesByUuid}
+                  agentsByUuid={agentsByUuid}
+                  onOpenNode={handleOpenNode}
+                  onSelectNode={handleSelectSource}
+                  selectedUuid={inspectorUuid}
+                />
+              )}
+            </DataStateView>
+          </div>
+        </div>
+
+        {inspectorUuid && (
+          <div className="library-view__inspector-pane">
+            <LibraryInspector
+              nodeUuid={inspectorUuid}
+              onOpenNode={handleOpenNode}
+              onClose={handleCloseInspector}
+            />
+          </div>
+        )}
       </div>
     </article>
   );
