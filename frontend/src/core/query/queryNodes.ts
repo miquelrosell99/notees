@@ -11,7 +11,7 @@ import type { Node } from '@/types/api';
 import type { WorkspaceStore } from '../store';
 import { compileToSqlite } from './compileToSqlite';
 import { substituteRuntimeParams } from './substituteRuntimeParams';
-import { searchNodes, SEARCH_RESULT_LIMIT, type SearchFilters } from './search';
+import { searchNodes, SEARCH_RESULT_LIMIT, buildClassMembershipClause, type SearchFilters } from './search';
 import { projectNodes } from '../adapters/nodeProjection';
 import { queryAll } from '../db/sqlite';
 import { listClasses, classRowToNode } from './classes';
@@ -200,12 +200,9 @@ function listNodesSql(workspaceId: string, filters: QueryNodesFilters): { sql: s
   }
 
   if (filters.classIds !== undefined && filters.classIds.length > 0) {
-    const clauses: string[] = [];
-    for (const classUuid of filters.classIds) {
-      clauses.push('EXISTS (SELECT 1 FROM json_each(n.class_ids) WHERE value = ?)');
-      params.push(classUuid);
-    }
-    where.push(`(${clauses.join(' OR ')})`);
+    // Hierarchy-aware: a superclass filter matches subclass instances via the
+    // class_hierarchy closure (same semantics as compileToSqlite).
+    where.push(buildClassMembershipClause('n', filters.classIds, params));
   }
 
   const sql = `SELECT n.id FROM node n WHERE ${where.join(' AND ')} ORDER BY n.id`;

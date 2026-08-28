@@ -25,7 +25,7 @@ describe('queryNodes', () => {
     return new WorkspaceStore(db, workspaceId, actorId);
   }
 
-  function applyClassCreate(store: WorkspaceStore, classId: string): void {
+  function applyClassCreate(store: WorkspaceStore, classId: string, extendsIds: string[] = []): void {
     const op: Operation = createOperation(
       {
         workspaceId: store.getWorkspaceId(),
@@ -34,7 +34,7 @@ describe('queryNodes', () => {
         affectedNodeIds: [classId],
         opType: 'class.create',
       },
-      { classId, name: 'Class', propertySchemaIds: [], extends: [] }
+      { classId, name: 'Class', propertySchemaIds: [], extends: extendsIds }
     );
     store.apply(op);
   }
@@ -115,6 +115,55 @@ describe('queryNodes', () => {
 
     const results = queryNodes(store, { ast, runtimeParams: { current_node_uuid: 'class-1' } });
     expect(results.map((n) => n.uuid)).toEqual(['n1']);
+  });
+
+  it('metadata listing filtered by a superclass includes subclass instances', async () => {
+    const store = await makeStore();
+    applyClassCreate(store, 'class-source');
+    applyClassCreate(store, 'class-book', ['class-source']);
+    applyClassCreate(store, 'class-paper', ['class-source']);
+
+    store.createNode({ nodeId: 'n1', kind: 'page', parentId: null, classIds: ['class-book'] });
+    store.createNode({ nodeId: 'n2', kind: 'page', parentId: null, classIds: ['class-paper'] });
+    store.createNode({ nodeId: 'n3', kind: 'page', parentId: null, classIds: ['class-source'] });
+    store.createNode({ nodeId: 'n4', kind: 'page', parentId: null });
+
+    // Metadata-only path (no text query): superclass filter matches subclass
+    // instances and direct members.
+    const bySource = queryNodes(store, { classIds: ['class-source'], isPage: true });
+    expect(bySource.map((n) => n.uuid).sort()).toEqual(['n1', 'n2', 'n3']);
+
+    // Exact-subclass filters still work.
+    const byBook = queryNodes(store, { classIds: ['class-book'], isPage: true });
+    expect(byBook.map((n) => n.uuid)).toEqual(['n1']);
+  });
+
+  it('FTS search filtered by a superclass includes subclass instances (AST parity)', async () => {
+    const store = await makeStore();
+    applyClassCreate(store, 'class-source');
+    applyClassCreate(store, 'class-book', ['class-source']);
+
+    store.createNode({ nodeId: 'n1', kind: 'page', parentId: null, classIds: ['class-book'] });
+    store.updateText('n1', (t) => t.insert(0, 'Dune novel'));
+    store.createNode({ nodeId: 'n2', kind: 'page', parentId: null });
+    store.updateText('n2', (t) => t.insert(0, 'Dune notes'));
+
+    // FTS path: superclass filter matches the book instance, excludes n2.
+    const bySource = queryNodes(store, { query: 'Dune', classIds: ['class-source'] });
+    expect(bySource.map((n) => n.uuid)).toEqual(['n1']);
+
+    // Same condition through the AST compiler must agree.
+    const ast = {
+      ...createEmptyQueryAST(),
+      scope: { type: 'scope' as const, scope_type: 'pages' as const },
+      root_group: {
+        type: 'group' as const,
+        logic: 'AND' as const,
+        children: [createClassCondition('class-source')],
+      },
+    };
+    const viaAst = queryNodes(store, { ast });
+    expect(viaAst.map((n) => n.uuid)).toEqual(['n1']);
   });
 
   it('caps results at 500 nodes', async () => {
