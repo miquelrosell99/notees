@@ -32,6 +32,12 @@ import { Spinner } from '@/components/ui/Spinner';
 import { AddIcon, Icon } from '@/components/ui/icons';
 import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import { getRegisteredSlashCommands } from '@/plugins/core';
+import {
+  resolveClassAwareCreate,
+  uploadAssetAsNode,
+} from '@/features/content/utils/classAwareCreate';
+import { SourceQuickCreateModal } from '@/features/content/components/nodes/SourceQuickCreateModal';
+import { AgentQuickCreateModal } from '@/features/content/components/nodes/AgentQuickCreateModal';
 import './TriggerPopup.css';
 
 export type TriggerPopupType = 'class' | 'link' | 'tag' | 'slash';
@@ -44,6 +50,7 @@ interface SlashCommand {
 
 const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'link', label: 'Insert Page Link', description: 'Link to a page' },
+  { id: 'sourcelink', label: 'Link to Source', description: 'Link to a source (book, paper, article…)' },
   { id: 'blocklink', label: 'Insert Block Link', description: 'Link to a specific block' },
   { id: 'embed', label: 'Embed Node', description: 'Embed the full content of a node' },
   { id: 'url', label: 'Add URL', description: 'Add a URL link to external website' },
@@ -146,6 +153,8 @@ export interface TriggerPopupProps {
   contextBlockServerId?: string;
   /** Constrains the link popup (`type === 'link'`) to a subset of nodes (e.g. blocks only) */
   linkSearchMode?: 'all' | 'pages' | 'blocks';
+  /** Class IDs to filter link results by (nodes must have at least one of these classes) */
+  classFilters?: string[];
   /** Workspace ID used to look up the context block in the core store. */
   workspaceId?: string;
   /**
@@ -173,6 +182,7 @@ export function TriggerPopup({
   hiddenSlashCommandIds,
   contextBlockServerId,
   linkSearchMode,
+  classFilters,
   workspaceId,
   inline = false,
   controlledQuery,
@@ -322,6 +332,7 @@ export function TriggerPopup({
     {
       mode: effectiveSearchMode,
       maxResults: displayLimit,
+      classFilters: type === 'link' ? classFilters : undefined,
       ...filterProps,
     }
   );
@@ -351,6 +362,19 @@ export function TriggerPopup({
     : showLinkTabs && linkTab === 'blocks'
       ? false
       : searchShowCreate;
+
+  // Class-aware create flow (Decisions 17-19): under a source/agent/asset
+  // class filter, "create" opens the matching quick-create flow instead of
+  // creating a plain page.
+  const createPlan = useMemo(
+    () => (type === 'link' && classFilters && classFilters.length > 0
+      ? resolveClassAwareCreate(classFilters, allClasses)
+      : null),
+    [type, classFilters, allClasses],
+  );
+  const isAssetCreate = createPlan?.kind === 'asset';
+  const [classCreateModalOpen, setClassCreateModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Value picker data (for user filter)
   const { pageResults: userPickerResults } = useNodeSearch(
@@ -408,7 +432,8 @@ export function TriggerPopup({
     return { selectableItems: items };
   }, [type, pendingFilter, valuePickerFilter, nodeItems, effectiveQuery, commandUsage, hiddenSlashCommandIds, allSlashCommands]);
 
-  const showCreate = isNodeTrigger && showCreateOption && cleanQuery.trim() && !valuePickerFilter;
+  const showCreate = isNodeTrigger && !valuePickerFilter &&
+    (isAssetCreate || (showCreateOption && !!cleanQuery.trim()));
   const showMore = type === 'link' && hasMore && !valuePickerFilter;
   const itemCount = selectableItems.length + (showCreate ? 1 : 0) + (showMore ? 1 : 0);
 
@@ -553,6 +578,16 @@ export function TriggerPopup({
 
   const handleCreate = useCallback(
     async (name: string, mode: 'default' | 'alternative' = 'default') => {
+      // Class-aware create flows (Decisions 17-19)
+      if (createPlan?.kind === 'asset') {
+        fileInputRef.current?.click();
+        return;
+      }
+      if (createPlan?.kind === 'source' || createPlan?.kind === 'agent') {
+        setClassCreateModalOpen(true);
+        return;
+      }
+
       const plainName = nodeNameToText(name) || name;
       if (type === 'class') {
         if (!workspaceId) return;
@@ -573,7 +608,36 @@ export function TriggerPopup({
         }
       );
     },
-    [createNode, type, onSelectNode, workspaceId]
+    [createNode, type, onSelectNode, workspaceId, createPlan]
+  );
+
+  // Class-aware creation completed: insert/select the new node through the
+  // same single insertion path as an existing-node pick.
+  const handleClassAwareCreated = useCallback(
+    (node: Node) => {
+      setClassCreateModalOpen(false);
+      onSelectNode?.(node, 'default', false);
+    },
+    [onSelectNode],
+  );
+
+  // Asset-filtered create: file selector -> upload -> insert the asset node.
+  const handleAssetFileSelected = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      // Reset so selecting the same file twice still fires onChange.
+      e.target.value = '';
+      if (!file || !workspaceId) return;
+      const client = getWorkspaceStoreClient(workspaceId);
+      if (!client) return;
+      try {
+        const node = await uploadAssetAsNode(client, file);
+        onSelectNode?.(node, 'default', false);
+      } catch (error) {
+        console.error('Failed to upload asset:', error);
+      }
+    },
+    [workspaceId, onSelectNode],
   );
 
   const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {
@@ -944,7 +1008,11 @@ export function TriggerPopup({
               onMouseEnter={() => setSelectedIndex(selectableItems.length)}
             >
               <AddIcon size="sm" />
-              Create &quot;{cleanQuery.trim()}&quot;
+              {isAssetCreate
+                ? 'Upload file…'
+                : createPlan?.kind === 'source'
+                  ? `Create source "${cleanQuery.trim()}"`
+                  : `Create "${cleanQuery.trim()}"`}
             </button>
           )}
 
@@ -1014,5 +1082,36 @@ export function TriggerPopup({
     </div>
   );
 
-  return createPortal(popup, document.body);
+  return (
+    <>
+      {createPortal(popup, document.body)}
+      <input
+        ref={fileInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        aria-hidden="true"
+        onChange={handleAssetFileSelected}
+      />
+      {createPlan?.kind === 'source' && (
+        <SourceQuickCreateModal
+          isOpen={classCreateModalOpen}
+          initialTitle={cleanQuery.trim()}
+          defaultClassUuid={createPlan.defaultClassUuid}
+          onClose={() => setClassCreateModalOpen(false)}
+          onCreated={handleClassAwareCreated}
+        />
+      )}
+      {createPlan?.kind === 'agent' && (
+        <AgentQuickCreateModal
+          isOpen={classCreateModalOpen}
+          initialName={cleanQuery.trim()}
+          defaultAgentType={
+            createPlan.defaultClassUuid === SYSTEM_CLASS_UUIDS.organization ? 'organization' : 'person'
+          }
+          onClose={() => setClassCreateModalOpen(false)}
+          onCreated={handleClassAwareCreated}
+        />
+      )}
+    </>
+  );
 }

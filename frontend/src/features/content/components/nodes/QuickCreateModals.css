@@ -1,0 +1,40 @@
+/**
+ * QuickCreateModals - shared styles for the class-aware create dialogs
+ * (SourceQuickCreateModal, AgentQuickCreateModal).
+ */
+
+.quick-create-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.quick-create-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.quick-create-modal__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--spacing-3);
+}
+
+.quick-create-modal__label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.quick-create-modal__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-error);
+}
+
+@media (max-width: 480px) {
+  .quick-create-modal__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

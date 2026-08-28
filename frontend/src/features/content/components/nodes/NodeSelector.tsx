@@ -31,6 +31,14 @@ import {
   getOrCreateMonthlyNoteClient,
   getOrCreateYearlyNoteClient,
 } from '@/features/content/hooks/useNodeDateQueries';
+import {
+  resolveClassAwareCreate,
+  uploadAssetAsNode,
+  type ClassAwareCreatePlan,
+} from '@/features/content/utils/classAwareCreate';
+import { SourceQuickCreateModal } from './SourceQuickCreateModal';
+import { AgentQuickCreateModal } from './AgentQuickCreateModal';
+import { useNotifications } from '@/stores/notificationStore';
 import { parseQueryWithFilters, type AppliedFilter } from '@/utils/searchFilters';
 import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
@@ -38,6 +46,7 @@ import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { projectNodeFromClient } from '@/core/adapters/nodeProjection';
 import { nodeNameToText, nodeNameToDisplayText } from '@/features/queries';
 import { useSettingsStore } from '@/stores';
+import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import type { Node } from '@/types';
 import './NodeSelector.css';
 
@@ -287,11 +296,21 @@ export function NodeSelector({
   }, [currentSingleValue]);
   const pinnedNodeId = !multi ? (currentSingleValue ?? lastNonNullValue) : null;
 
+  // Class-aware create flow (Decisions 17-19): under a source/agent/asset
+  // class filter, "create" opens the matching quick-create flow instead of
+  // creating a plain page. Driven by the picker's own classFilters prop.
+  const createPlan = useMemo<ClassAwareCreatePlan | null>(
+    () => (classFilters && classFilters.length > 0 ? resolveClassAwareCreate(classFilters, allClasses) : null),
+    [classFilters, allClasses],
+  );
+
   // Use shared search hook (same as SuggestionPopup)
+  // Asset-filtered pickers search in 'all' mode: uploaded asset nodes are
+  // blocks, so a pages-only search would never offer existing assets.
   const { allResults, isLoading, showCreateOption: searchShowCreate, hasMore } = useNodeSearch(
     parsedFilters.searchTerm,
     {
-      mode: searchMode,
+      mode: createPlan?.kind === 'asset' ? 'all' : searchMode,
       classFilters: derivedClassFilters,
       excludeNodeId,
       maxResults: displayLimit,
@@ -312,21 +331,29 @@ export function NodeSelector({
   // Built-in create support — hooks must be called unconditionally
   const createNodeMutation = useCreateNode();
   const { classClassUuid } = useClassClass();
+  const { error: notifyError } = useNotifications();
 
   // Resolve whether create is enabled: default true for page/class/tag modes, false for blocks
   const createEnabled = allowCreate ?? (searchMode !== 'blocks');
+
+  const [classCreateModalOpen, setClassCreateModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Internal default create handler based on searchMode
   const defaultCreateNew = useCallback(async (name: string): Promise<Node> => {
     const classUuids: string[] = [];
     if ((searchMode === 'classes') && classClassUuid) classUuids.push(classClassUuid);
+    // Assign the picker's class filters so the created page satisfies the
+    // filter (generic case; system source/agent/asset filters are handled by
+    // the class-aware flow before this handler runs).
+    else if (classFilters && classFilters.length > 0) classUuids.push(...classFilters);
     return new Promise((resolve, reject) => {
       createNodeMutation.mutate({ name, kind: 'page', class_uuids: classUuids.length > 0 ? classUuids : undefined }, {
         onSuccess: resolve,
         onError: reject,
       });
     });
-  }, [createNodeMutation, classClassUuid, searchMode]);
+  }, [createNodeMutation, classClassUuid, searchMode, classFilters]);
 
   // Effective create handler: external overrides internal
   const effectiveCreateNew = onCreateNew ?? (createEnabled ? defaultCreateNew : undefined);
@@ -405,8 +432,23 @@ export function NodeSelector({
       .filter(node => !canAdd || canAdd(node));
   }, [searchResults, assignedIds, canAdd]);
 
-  // Only show create option if a create handler is available and there's a query
-  const showCreateOption = effectiveCreateNew && searchShowCreate && searchQuery.trim().length > 0 && filterSuggestions.length === 0;
+  // Only show create option if a create handler is available and there's a query.
+  // Asset-filtered pickers always offer the upload action: adding an
+  // attachment means picking an existing asset OR uploading a new file in one
+  // action (Decision 18), so it is not gated on a no-match query.
+  const isAssetCreate = createPlan?.kind === 'asset';
+  const showCreateOption = !!effectiveCreateNew && filterSuggestions.length === 0 &&
+    (isAssetCreate || (searchShowCreate && searchQuery.trim().length > 0));
+
+  // Label for the create row: asset filters upload a file; source/agent
+  // filters open the class-aware quick-create dialog.
+  const createLabel = isAssetCreate
+    ? 'Upload file…'
+    : createPlan?.kind === 'source'
+      ? `Create source "${searchQuery.trim()}"`
+      : createPlan?.kind === 'agent'
+        ? `Create "${searchQuery.trim()}"`
+        : undefined;
 
   // Non-class pages matching the search query, offered as "convert to class" candidates
   const convertCandidates = useMemo(() => {
@@ -586,9 +628,24 @@ export function NodeSelector({
   }, [assignedIds, handleAdd, handleRemove]);
 
   const handleCreateNew = useCallback(async () => {
-    if (!searchQuery.trim() || !effectiveCreateNew) return;
+    if (!effectiveCreateNew) return;
+
+    // Class-aware create flows (Decisions 17-19): the picker interprets
+    // "create" according to the class filter in force.
+    if (createPlan?.kind === 'asset') {
+      fileInputRef.current?.click();
+      return;
+    }
+    if (!searchQuery.trim()) return;
+    if (createPlan?.kind === 'source' || createPlan?.kind === 'agent') {
+      // Dialog opens on top of the picker; the picker's search already ran,
+      // so create only fires on no-match (find-or-create dedupe).
+      setClassCreateModalOpen(true);
+      return;
+    }
+
     const result = effectiveCreateNew(searchQuery.trim());
-    
+
     // If onCreate returns a promise (creates node), wait for it and add it
     if (result instanceof Promise) {
       try {
@@ -600,11 +657,67 @@ export function NodeSelector({
         console.error('Failed to create node:', error);
       }
     }
-    
+
     setIsPickerOpen(false);
     setSearchQuery('');
     setAppliedFilters([]);
-  }, [searchQuery, effectiveCreateNew, handleAdd]);
+  }, [searchQuery, effectiveCreateNew, createPlan, handleAdd]);
+
+  // Asset upload from the picker: file selector -> upload -> link/set the
+  // resulting asset node without leaving the picker flow.
+  const handleAssetFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset so selecting the same file twice still fires onChange.
+    e.target.value = '';
+    if (!file || !client) return;
+    try {
+      const node = await uploadAssetAsNode(client, file);
+      handleAdd(node);
+    } catch (error) {
+      console.error('Failed to upload asset:', error);
+      notifyError('Failed to upload file', error instanceof Error ? error.message : 'Please try again.');
+    }
+  }, [client, handleAdd, notifyError]);
+
+  // The class-aware quick-create dialogs are portaled, so one shared element
+  // can be mounted from every trigger-mode branch below.
+  const classCreateDialogs = (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        aria-hidden="true"
+        onChange={handleAssetFileSelected}
+      />
+      {createPlan?.kind === 'source' && (
+        <SourceQuickCreateModal
+          isOpen={classCreateModalOpen}
+          initialTitle={searchQuery.trim()}
+          defaultClassUuid={createPlan.defaultClassUuid}
+          onClose={() => setClassCreateModalOpen(false)}
+          onCreated={(node) => {
+            setClassCreateModalOpen(false);
+            handleAdd(node);
+          }}
+        />
+      )}
+      {createPlan?.kind === 'agent' && (
+        <AgentQuickCreateModal
+          isOpen={classCreateModalOpen}
+          initialName={searchQuery.trim()}
+          defaultAgentType={
+            createPlan.defaultClassUuid === SYSTEM_CLASS_UUIDS.organization ? 'organization' : 'person'
+          }
+          onClose={() => setClassCreateModalOpen(false)}
+          onCreated={(node) => {
+            setClassCreateModalOpen(false);
+            handleAdd(node);
+          }}
+        />
+      )}
+    </>
+  );
 
   const handleClearAll = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -923,6 +1036,7 @@ export function NodeSelector({
                 onAddBooleanFilter={handleAddBooleanFilter}
                 onPrefixSelect={handlePrefixSelect}
                 onCreateNew={handleCreateNew}
+                createLabel={createLabel}
                 onShowMore={handleShowMore}
               />
             </div>
@@ -1000,6 +1114,7 @@ export function NodeSelector({
                 onAddBooleanFilter={handleAddBooleanFilter}
                 onPrefixSelect={handlePrefixSelect}
                 onCreateNew={handleCreateNew}
+                createLabel={createLabel}
                 onShowMore={handleShowMore}
                 onConvertToClass={onConvertToClass}
                 onClosePicker={() => { setIsPickerOpen(false); setSearchQuery(''); setAppliedFilters([]); }}
@@ -1019,6 +1134,7 @@ export function NodeSelector({
           </Card>,
           document.body
         )}
+        {classCreateDialogs}
       </div>
     );
   }
@@ -1061,12 +1177,14 @@ export function NodeSelector({
             onAddBooleanFilter={handleAddBooleanFilter}
             onPrefixSelect={handlePrefixSelect}
             onCreateNew={handleCreateNew}
+            createLabel={createLabel}
             onShowMore={handleShowMore}
             onConvertToClass={onConvertToClass}
             onClosePicker={() => { setIsPickerOpen(false); setSearchQuery(''); setAppliedFilters([]); }}
             emptyClassName="node-selector__no-results"
           />
         </div>
+        {classCreateDialogs}
       </div>
     );
   }
@@ -1076,7 +1194,9 @@ export function NodeSelector({
 
   // Anchored mode: render only the picker panel portal, no trigger UI
   if (isAnchored) {
-    return createPortal(
+    return (
+      <>
+        {createPortal(
       <div
         className="node-selector__picker"
         ref={pickerRef}
@@ -1118,12 +1238,16 @@ export function NodeSelector({
             onAddBooleanFilter={handleAddBooleanFilter}
             onPrefixSelect={handlePrefixSelect}
             onCreateNew={handleCreateNew}
+            createLabel={createLabel}
             onShowMore={handleShowMore}
             emptyClassName="node-selector__no-results"
           />
         </div>
       </div>,
       document.body,
+        )}
+        {classCreateDialogs}
+      </>
     );
   }
 
@@ -1207,6 +1331,7 @@ export function NodeSelector({
                   onAddBooleanFilter={handleAddBooleanFilter}
                   onPrefixSelect={handlePrefixSelect}
                   onCreateNew={handleCreateNew}
+                  createLabel={createLabel}
                   onShowMore={handleShowMore}
                   onConvertToClass={onConvertToClass}
                   onClosePicker={() => { setIsPickerOpen(false); setSearchQuery(''); setAppliedFilters([]); }}
@@ -1218,6 +1343,7 @@ export function NodeSelector({
           )}
         </div>
       )}
+      {classCreateDialogs}
     </div>
   );
 }
