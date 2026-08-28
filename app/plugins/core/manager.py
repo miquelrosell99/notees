@@ -168,6 +168,7 @@ class PluginManager:
         self.registry.remove_sync_sources(plugin_id)
         self.registry.remove_settings(plugin_id)
         self.registry.remove_class_side_effects(plugin_id)
+        self.registry.remove_asset_metadata_handlers(plugin_id)
 
         plugin.enabled = False
         return True

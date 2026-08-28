@@ -1,0 +1,16 @@
+{
+  "id": "notees.epub",
+  "name": "EPUB Metadata",
+  "version": "1.0.0",
+  "description": "Extract metadata (title, authors, publisher, ISBN/DOI, cover) from EPUB attachments onto source nodes, and sync source metadata back into EPUB files.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["read_nodes", "write_nodes", "read_properties", "write_properties", "read_assets", "write_assets", "router"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.epub.setup:setup"
+  },
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "enabledByDefault": false
+}
