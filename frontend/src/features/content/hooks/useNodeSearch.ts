@@ -20,6 +20,7 @@ import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggest
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { nodeNameToText } from '@/features/queries';
+import { expandClassFilterUuids } from '@/core/query/classFilter';
 import type { NodeSearchMode, NodeSearchFilters, NodeSearchItem, UseNodeSearchReturn } from './useNodeSearch.types';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -55,8 +56,21 @@ export function useNodeSearch(
   // Debounce the search query to avoid firing API on every keystroke
   const debouncedQuery = useDebouncedValue(query, 150);
 
+  // Class list doubles as the hierarchy source for filter expansion below.
+  const { data: allClassNodes } = useClasses();
+
+  // Hierarchy-aware class filtering (Decision 9): expand filter UUIDs through
+  // the class hierarchy so superclass filters (e.g. agent, source) match
+  // subclass instances everywhere — worker-side queries and the client-side
+  // filters in useNodeSearch.utils alike. Expansion is idempotent for the
+  // closure-aware SQL compilers downstream (queryNodes/search).
+  const expandedClassFilters = useMemo(
+    () => expandClassFilterUuids(classFilters, allClassNodes ?? []),
+    [classFilters, allClassNodes],
+  );
+
   // Convert classFilters array to comma-separated string for backend
-  const classFiltersParam = classFilters.length > 0 ? classFilters.join(',') : undefined;
+  const classFiltersParam = expandedClassFilters.length > 0 ? expandedClassFilters.join(',') : undefined;
 
   // Core search queries - pass class_filters to backend for server-side filtering
   const searchFilterOptions = {
@@ -97,7 +111,6 @@ export function useNodeSearch(
   );
 
   // Class-specific queries (only enabled when mode is 'classes')
-  const { data: allClassNodes } = useClasses();
   const { data: classSearchResults, isLoading: isClassSearchLoading } = useSearchClasses(
     mode === 'classes' ? debouncedQuery : ''
   );
@@ -116,18 +129,18 @@ export function useNodeSearch(
       return getUsersResults(debouncedQuery, searchResults, excludeNodeId, maxResults);
     }
     if (mode === 'tags') {
-      return getTagsResults(debouncedQuery, searchResults, allPages, classFilters, excludeNodeId, maxResults);
+      return getTagsResults(debouncedQuery, searchResults, allPages, expandedClassFilters, excludeNodeId, maxResults);
     }
     if (mode === 'aliases') {
       return getAliasesResults(debouncedQuery, searchResults, allPages, excludeNodeId, maxResults);
     }
     if (mode === 'pages') {
-      return getPagesResults(debouncedQuery, searchResults, suggestions, filteredPages, allPages, classFilters, excludeNodeId, pinnedNodeId, maxResults);
+      return getPagesResults(debouncedQuery, searchResults, suggestions, filteredPages, allPages, expandedClassFilters, excludeNodeId, pinnedNodeId, maxResults);
     }
     if (mode === 'blocks') {
       return getBlocksResults(debouncedQuery, searchResults, allNodes, maxResults);
     }
-    return getAllResults(debouncedQuery, searchResults, suggestions, allPages, allNodes, classFilters, excludeNodeId, pinnedNodeId, maxResults);
+    return getAllResults(debouncedQuery, searchResults, suggestions, allPages, allNodes, expandedClassFilters, excludeNodeId, pinnedNodeId, maxResults);
   }, [
     mode,
     debouncedQuery,
@@ -138,7 +151,7 @@ export function useNodeSearch(
     allNodes,
     allClassNodes,
     classSearchResults,
-    classFilters,
+    expandedClassFilters,
     excludeNodeId,
     maxResults,
     pinnedNodeId,
