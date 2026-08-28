@@ -185,7 +185,7 @@ export function NodeCollectionToolbar({
   // Build view mode metadata from registry
   const allModeOptions = useMemo(() => getViewModeOptions(), []);
   const modeMeta = useMemo(() => {
-    const map = new Map<NodeCollectionViewMode, { icon: string; label: string }>();
+    const map = new Map<string, { icon: string; label: string }>();
     for (const opt of allModeOptions) {
       map.set(opt.mode, { icon: opt.icon, label: opt.label });
     }

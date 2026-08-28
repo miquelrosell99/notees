@@ -27,32 +27,37 @@ export interface ViewCapabilities {
 }
 
 export interface ViewRegistryEntry {
-  id: NodeCollectionViewMode;
+  /** Built-in modes use NodeCollectionViewMode; plugins may register custom string ids. */
+  id: NodeCollectionViewMode | string;
   label: string;
   icon: string;
-   
+
   component: ComponentType<any> | LazyExoticComponent<ComponentType<any>>;
   capabilities: ViewCapabilities;
 }
 
-const registry = new Map<NodeCollectionViewMode, ViewRegistryEntry>();
+const registry = new Map<string, ViewRegistryEntry>();
 
 export function registerView(entry: ViewRegistryEntry): void {
   registry.set(entry.id, entry);
 }
 
+export function unregisterView(id: NodeCollectionViewMode | string): void {
+  registry.delete(id);
+}
+
 export function getViewDefinition(
-  mode: NodeCollectionViewMode
+  mode: NodeCollectionViewMode | string
 ): ViewRegistryEntry | undefined {
   return registry.get(mode);
 }
 
-export function getRegisteredViewModes(): NodeCollectionViewMode[] {
+export function getRegisteredViewModes(): (NodeCollectionViewMode | string)[] {
   return Array.from(registry.keys());
 }
 
 export function getViewModeOptions(): {
-  mode: NodeCollectionViewMode;
+  mode: NodeCollectionViewMode | string;
   icon: string;
   label: string;
 }[] {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import threading
@@ -43,6 +44,43 @@ class PluginManager:
         """Store the FastAPI app so routers can be mounted at runtime."""
         self._app = app
 
+    # ── Enablement persistence ────────────────────────────────────────────
+    # Runtime toggles survive restarts via a small JSON override file keyed by
+    # plugin id; the manifest's enabled_by_default remains the fallback.
+
+    @property
+    def _enablement_path(self) -> Path:
+        return settings.database_dir / "plugin_enablement.json"
+
+    def _load_enablement_overrides(self) -> dict[str, bool]:
+        try:
+            raw = json.loads(self._enablement_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Ignoring unreadable plugin enablement state: %s", exc)
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+        return {str(k): bool(v) for k, v in raw.items()}
+
+    def _persist_enablement(self, plugin_id: str, enabled: bool) -> None:
+        overrides = self._load_enablement_overrides()
+        overrides[plugin_id] = enabled
+        try:
+            self._enablement_path.parent.mkdir(parents=True, exist_ok=True)
+            self._enablement_path.write_text(
+                json.dumps(overrides, indent=2, sort_keys=True), encoding="utf-8"
+            )
+        except OSError as exc:
+            logger.warning("Failed to persist plugin enablement state: %s", exc)
+
+    def _default_enabled(self, manifest) -> bool:
+        """Initial enablement: persisted override wins over the manifest default."""
+        return self._load_enablement_overrides().get(
+            manifest.id, manifest.enabled_by_default
+        )
+
     def register_port(self, name: str, factory: PortFactory) -> None:
         """Register a core domain-service factory available to plugins."""
         self.port_factories[name] = factory
@@ -59,7 +97,7 @@ class PluginManager:
         plugin_dirs = self.loader.discover()
         for plugin_dir in sorted(plugin_dirs, key=lambda p: p.name):
             manifest = self.loader.load_manifest(plugin_dir)
-            enabled = manifest.enabled_by_default
+            enabled = self._default_enabled(manifest)
 
             plugin = LoadedPlugin(
                 manifest=manifest,
@@ -221,7 +259,8 @@ class PluginManager:
         Enabling runs the plugin's backend setup (registering routers,
         importers, exporters, settings, side effects) and mounts its router on
         the bound app. Disabling unregisters all contributions and unmounts
-        its routes.
+        its routes. The choice is persisted (plugin_enablement.json) and wins
+        over the manifest's enabled_by_default on subsequent startups.
 
         Limitation: teardown is registration-based. A plugin that spawned
         background threads/tasks or mutated global state outside the registry
@@ -247,6 +286,7 @@ class PluginManager:
             self._mount_plugin_router(plugin_id)
         else:
             self.unload_plugin(plugin_id)
+        self._persist_enablement(plugin_id, enabled)
         return True
 
     def rescan(self) -> list[LoadedPlugin]:
@@ -268,7 +308,7 @@ class PluginManager:
             try:
                 manifest = self.loader.load_manifest(plugin_dir)
                 plugin = self.load_plugin_dir(
-                    plugin_dir, enabled=manifest.enabled_by_default
+                    plugin_dir, enabled=self._default_enabled(manifest)
                 )
                 new_plugins.append(plugin)
             except Exception as exc:  # noqa: BLE001

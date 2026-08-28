@@ -128,12 +128,27 @@ Built-in plugins live under `frontend/src/plugins/builtin/`:
 |--------|------|---------|
 | OPML exporter | `frontend/src/plugins/builtin/opml_exporter/` | Export node trees to OPML 2.0. |
 | Flashcards | `frontend/src/plugins/builtin/flashcards/` | Cloze-deletion flashcard study UI. |
+| Library | `frontend/src/plugins/builtin/library/` | Source management views (table/card, Work→Edition grouping, covers). Ships disabled (`enabledByDefault: false`); enable it in the Plugin Manager. |
 | Hello (sample) | `frontend/src/plugins/builtin/hello/` | Minimal example plugin. |
 | BibTeX | `frontend/src/plugins/builtin/bibtex/` | BibTeX-related plugin stub. |
 | Logseq importer | `frontend/src/plugins/builtin/logseq_importer/` | Logseq Markdown-folder importer. |
 | Zotero | `frontend/src/plugins/builtin/zotero/` | Zotero integration stub. |
 
 The OPML exporter (`notees.opml_exporter`) is registered as a built-in export format and consumes the already-fetched node tree through `ExportContext.nodes_data`.
+
+### View primitives
+
+Frontend plugins compose their views from the app's own building blocks via `context.primitives` (defined in `frontend/src/plugins/core/primitives.ts`) instead of writing components from scratch:
+
+| Primitive | Purpose |
+|-----------|---------|
+| `QueryNodeCollection` | Query-driven collection: runs a QueryAST against the local store and renders results with the standard view modes. Class conditions are hierarchy-aware. |
+| `NodeCollection` | Renderer for an already-fetched node list (list/table/kanban/...). |
+| `NodeSelector` | Universal class-aware node picker; `classFilters` accept superclass UUIDs. |
+| `PropertiesSection` | Standard class-bound property panel for a node. |
+| `PageViewHeader` | Standard hub-view header chrome (title / middle / actions). |
+
+Registered views appear as top-level views (`context.registerView`) with optional sidebar rail entries (`context.registerSidebarItem`) and palette commands; everything registered through the context is torn down automatically when the plugin is disabled.
 
 ---
 
@@ -149,7 +164,7 @@ Three ways to install:
 
 Enabling or disabling a plugin through the Plugin Manager **takes effect immediately** — the backend mounts/unmounts the plugin's routes (`POST /api/plugins/<id>/enable|disable`) and the frontend loads/unloads its contributions without a page reload.
 
-**Limitation:** disabling a plugin is registration-based teardown. Routes, importers, exporters, settings schemas, and side-effect handlers are removed, but background threads/tasks a plugin spawned are not forcibly cancelled and may run to completion. Enablement state is in-memory: after a restart, plugins revert to their manifest's `enabledByDefault` (built-in plugins always default to enabled).
+**Limitation:** disabling a plugin is registration-based teardown. Routes, importers, exporters, settings schemas, side-effect handlers, and frontend contributions (views, sidebar items, commands, slash commands, NodeCollection view modes, property renderers) are removed, but background threads/tasks a plugin spawned are not forcibly cancelled and may run to completion. Enablement state is persisted in `data/plugin_enablement.json` and wins over the manifest's `enabledByDefault` on subsequent startups. Built-in plugins ship enabled unless their manifest explicitly declares `"enabledByDefault": false` (the Library plugin uses this to ship disabled).
 
 Uninstalling an external plugin (`DELETE /api/plugins/<id>`) unloads it and deletes its folder. Built-in plugins cannot be uninstalled.
 

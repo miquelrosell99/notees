@@ -1,0 +1,24 @@
+{
+  "id": "notees.library",
+  "name": "Library",
+  "version": "1.0.0",
+  "description": "Source management views: browse sources by class (books, papers, articles, theses, documents, movies) and authors, with table/card modes, Work→Edition grouping, and covers.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": [],
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "enabledByDefault": false,
+  "contributes": {
+    "commands": [
+      {"id": "library.open", "label": "Open Library", "icon": "bookshelf"}
+    ],
+    "views": [
+      {"id": "library", "label": "Library", "icon": "bookshelf"}
+    ],
+    "sidebarItems": [
+      {"id": "library-sidebar", "label": "Library", "icon": "bookshelf", "viewId": "library"}
+    ]
+  }
+}

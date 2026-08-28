@@ -2,6 +2,7 @@ export * from './manifest';
 export * from './PluginContext';
 export * from './PluginManager';
 export * from './registries';
+export * from './primitives';
 export * from './types';
 export { PluginManagerModal } from './components/PluginManagerModal';
 export { PluginCommandRegistrations } from './components/PluginCommandRegistrations';
