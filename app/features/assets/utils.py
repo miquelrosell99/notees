@@ -26,6 +26,24 @@ ALLOWED_CONTENT_TYPES = {
     "audio/ogg": ".ogg",
     "audio/opus": ".opus",
     "audio/webm": ".webm",
+    # Documents (books, papers, comics, office docs)
+    "application/pdf": ".pdf",
+    "application/epub+zip": ".epub",
+    "application/vnd.comicbook+zip": ".cbz",
+    "application/x-cbz": ".cbz",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.oasis.opendocument.text": ".odt",
+}
+
+# MIME types treated as documents. Documents get a larger size allowance than
+# media and fall back to the "file" asset category.
+DOCUMENT_CONTENT_TYPES = {
+    "application/pdf",
+    "application/epub+zip",
+    "application/vnd.comicbook+zip",
+    "application/x-cbz",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.oasis.opendocument.text",
 }
 
 # Asset categories for frontend rendering
@@ -43,8 +61,18 @@ ASSET_CATEGORIES = {
     ],
 }
 
-# Max file size: 50MB (for audio files)
+# Max file size: 50MB (images and audio)
 MAX_FILE_SIZE = 50 * 1024 * 1024
+
+# Max file size for documents: 100MB (scanned PDFs, large EPUBs)
+MAX_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
+
+
+def get_max_file_size(content_type: str) -> int:
+    """Return the maximum allowed upload size in bytes for a content type."""
+    if content_type in DOCUMENT_CONTENT_TYPES:
+        return MAX_DOCUMENT_FILE_SIZE
+    return MAX_FILE_SIZE
 
 # Magic byte signatures: map expected MIME types → list of (offset, bytes) signatures.
 # We check the file header rather than trusting the client-supplied Content-Type.
@@ -60,6 +88,16 @@ _MAGIC_SIGNATURES: dict[str, list[tuple[int, bytes]]] = {
     "audio/ogg": [(0, b"OggS")],
     "audio/opus": [(0, b"OggS")],
     "audio/webm": [(0, b"\x1aE\xdf\xa3")],
+    "application/pdf": [(0, b"%PDF-")],
+    # EPUB is a ZIP whose first entry must be the uncompressed "mimetype" file
+    # containing "application/epub+zip" (per the OCF spec), so bytes 30-58 are
+    # fixed: filename at offset 30, content immediately after at offset 38.
+    "application/epub+zip": [(30, b"mimetypeapplication/epub+zip")],
+    # CBZ, DOCX and ODT are ZIP containers; magic bytes can only confirm ZIP.
+    "application/vnd.comicbook+zip": [(0, b"PK\x03\x04")],
+    "application/x-cbz": [(0, b"PK\x03\x04")],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [(0, b"PK\x03\x04")],
+    "application/vnd.oasis.opendocument.text": [(0, b"PK\x03\x04")],
 }
 
 
