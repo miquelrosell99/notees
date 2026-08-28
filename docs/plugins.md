@@ -130,7 +130,6 @@ Built-in plugins live under `frontend/src/plugins/builtin/`:
 | Flashcards | `frontend/src/plugins/builtin/flashcards/` | Cloze-deletion flashcard study UI. |
 | Hello (sample) | `frontend/src/plugins/builtin/hello/` | Minimal example plugin. |
 | BibTeX | `frontend/src/plugins/builtin/bibtex/` | BibTeX-related plugin stub. |
-| KOReader | `frontend/src/plugins/builtin/koreader/` | KOReader highlights integration stub. |
 | Logseq importer | `frontend/src/plugins/builtin/logseq_importer/` | Logseq Markdown-folder importer. |
 | Zotero | `frontend/src/plugins/builtin/zotero/` | Zotero integration stub. |
 
