@@ -97,6 +97,24 @@ def _service(client: AsyncClient) -> AssetService:
     return client._assets_test_service  # type: ignore[no-any-return,attr-defined]
 
 
+def _minimal_epub_bytes() -> bytes:
+    """Build a byte stream with a valid EPUB (OCF) header layout.
+
+    A real EPUB stores the uncompressed "mimetype" entry first: the 30-byte
+    ZIP local file header is followed by the filename "mimetype" at offset 30
+    and the content "application/epub+zip" at offset 38.
+    """
+    return (
+        b"PK\x03\x04"
+        + b"\x14\x00\x00\x00\x08\x00"  # version, flags, method
+        + b"\x00" * 16  # timestamps, crc, sizes
+        + b"\x08\x00\x00\x00"  # filename length 8, extra length 0
+        + b"mimetype"
+        + b"application/epub+zip"
+        + b"\x00" * 64
+    )
+
+
 class TestAssetUpload:
     async def test_upload_asset_creates_node_and_file(self, assets_client: AsyncClient) -> None:
         content = b"\xff\xd8\xfffake-jpeg-content"
@@ -130,6 +148,60 @@ class TestAssetUpload:
             files={"file": ("fake.jpg", b"not-a-jpeg", "image/jpeg")},
         )
         assert response.status_code == 400
+
+    async def test_upload_pdf_creates_asset_node(self, assets_client: AsyncClient) -> None:
+        content = b"%PDF-1.7\nfake-pdf-content"
+        response = await assets_client.post(
+            "/assets/upload",
+            files={"file": ("paper.pdf", content, "application/pdf")},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["filename"] == "paper.pdf"
+        assert body["content_type"] == "application/pdf"
+        assert body["category"] == "file"
+
+        store = _service(assets_client)._store
+        rows = await store.query("SELECT * FROM node_asset WHERE node_id = ?", (body["uuid"],))
+        assert len(rows) == 1
+        assert rows[0]["mime_type"] == "application/pdf"
+
+    async def test_upload_epub_creates_asset_node(self, assets_client: AsyncClient) -> None:
+        content = _minimal_epub_bytes()
+        response = await assets_client.post(
+            "/assets/upload",
+            files={"file": ("book.epub", content, "application/epub+zip")},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["filename"] == "book.epub"
+        assert body["content_type"] == "application/epub+zip"
+
+        store = _service(assets_client)._store
+        rows = await store.query("SELECT * FROM node_asset WHERE node_id = ?", (body["uuid"],))
+        assert len(rows) == 1
+        assert rows[0]["mime_type"] == "application/epub+zip"
+
+    async def test_upload_epub_rejects_renamed_text_file(self, assets_client: AsyncClient) -> None:
+        response = await assets_client.post(
+            "/assets/upload",
+            files={"file": ("fake.epub", b"plain text content", "application/epub+zip")},
+        )
+        assert response.status_code == 400
+
+    async def test_upload_rejects_oversized_document(
+        self, assets_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Shrink the document limit so the check can be exercised without a
+        # 100MB payload.
+        monkeypatch.setattr("app.features.assets.utils.MAX_DOCUMENT_FILE_SIZE", 16)
+        content = b"%PDF-1.7\n" + b"x" * 64
+        response = await assets_client.post(
+            "/assets/upload",
+            files={"file": ("big.pdf", content, "application/pdf")},
+        )
+        assert response.status_code == 400
+        assert "too large" in response.json()["detail"].lower()
 
 
 class TestAssetDownload:
