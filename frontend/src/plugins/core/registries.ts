@@ -238,6 +238,12 @@ export interface NodeActionContext {
   nodeUuid: string;
   /** Resolved node, or null when the menu could not resolve it (e.g. unresolved link target). */
   node: Node | null;
+  /**
+   * MIME type of the node's asset blob, when the node is an asset; null while
+   * loading or for non-asset nodes. Lets plugins gate actions per format
+   * (e.g. EPUB metadata extract/inject on epub attachments only).
+   */
+  assetMimeType?: string | null;
   /** Close the menu without running further actions. */
   close: () => void;
 }
