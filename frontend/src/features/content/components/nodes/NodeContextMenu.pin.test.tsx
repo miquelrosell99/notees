@@ -20,6 +20,11 @@ const baseNode = (isPage: boolean): Node => ({
 
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  // The asset mime hook (useAssetMimeType) and the queryClient module load
+  // through the component's import graph; stub what they touch at module scope.
+  useQuery: () => ({ data: undefined }),
+  QueryClient: class {},
+  QueryCache: class {},
 }));
 
 vi.mock('@/utils/clipboardManager', () => ({

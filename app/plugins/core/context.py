@@ -15,6 +15,7 @@ from app.domain.entities.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UU
 from app.utils.datetime_utils import utc_now
 
 from .exceptions import PluginPermissionError
+from .metadata import AssetMetadataHandler
 from .ports import (
     ClassSideEffectContext,
     ClassSideEffectHandler,
@@ -168,6 +169,11 @@ class PluginContext:
         """Register a workspace-scoped plugin setting schema."""
         self._require("settings")
         self.registry.add_setting(self.plugin_id, schema)
+
+    def register_asset_metadata_handler(self, handler: AssetMetadataHandler) -> None:
+        """Register an asset metadata handler for its declared MIME types."""
+        self._require("read_assets")
+        self.registry.add_asset_metadata_handler(self.plugin_id, handler)
 
     def register_node_class_side_effect(
         self, class_uuid: str, handler: ClassSideEffectHandler

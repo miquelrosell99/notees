@@ -259,3 +259,10 @@ export const notificationKeys = {
   all: ['notifications'] as const,
   list: (includeRead: boolean) => [...notificationKeys.all, 'list', includeRead] as const,
 };
+
+// ==================== Asset Query Keys ====================
+
+export const assetKeys = {
+  all: ['assets'] as const,
+  info: (assetUuid: string) => [...assetKeys.all, 'info', assetUuid] as const,
+};
