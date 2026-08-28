@@ -25,6 +25,10 @@ interface LibraryTableProps {
   classNamesByUuid: ReadonlyMap<string, string>;
   agentsByUuid: ReadonlyMap<string, Node>;
   onOpenNode: (nodeUuid: string) => void;
+  /** Three-pane mode: row click selects (inspector) instead of navigating. */
+  onSelectNode?: (nodeUuid: string) => void;
+  /** Currently selected row (inspector target). */
+  selectedUuid?: string | null;
 }
 
 export function LibraryTable({
@@ -34,6 +38,8 @@ export function LibraryTable({
   classNamesByUuid,
   agentsByUuid,
   onOpenNode,
+  onSelectNode,
+  selectedUuid,
 }: LibraryTableProps) {
   const [expandedWorks, setExpandedWorks] = useState<ReadonlySet<string>>(new Set());
 
@@ -52,6 +58,7 @@ export function LibraryTable({
   const renderRow = (node: Node, opts: { isEdition?: boolean; editions?: Node[] } = {}): React.ReactNode => {
     const { isEdition = false, editions = [] } = opts;
     const isExpanded = expandedWorks.has(node.uuid);
+    const isSelected = selectedUuid === node.uuid;
     const classLabels = (node.classes_uuid ?? [])
       .map((uuid) => classNamesByUuid.get(uuid))
       .filter((name): name is string => !!name);
@@ -60,8 +67,9 @@ export function LibraryTable({
     return [
       <tr
         key={node.uuid}
-        className={`library-table__row${isEdition ? ' library-table__row--edition' : ''}`}
-        onClick={() => onOpenNode(node.uuid)}
+        className={`library-table__row${isEdition ? ' library-table__row--edition' : ''}${isSelected ? ' library-table__row--selected' : ''}`}
+        onClick={() => (onSelectNode ?? onOpenNode)(node.uuid)}
+        aria-selected={isSelected || undefined}
       >
         <td className="library-table__cell library-table__cell--title">
           {grouped && !isEdition && editions.length > 0 ? (
