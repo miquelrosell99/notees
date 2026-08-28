@@ -11,7 +11,7 @@ from fastapi import APIRouter
 
 from app.core.uuid import uuidv7
 from app.core.workspace_store import WorkspaceStore
-from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
+from app.domain.entities.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 from app.utils.datetime_utils import utc_now
 
 from .exceptions import PluginPermissionError
@@ -270,23 +270,37 @@ class PluginContext:
     ) -> str | None:
         """Return the UUID of a class with the given name, creating it if needed.
 
-        System classes are resolved from :data:`SYSTEM_CLASS_UUIDS`. The
-        structural ``page`` kind is not a class, so requesting ``"page"``
+        Resolution order (case-insensitive, so repeated calls converge and
+        never create duplicates):
+
+        1. Fixed system UUID from :data:`SYSTEM_CLASS_UUIDS` (e.g. ``"Source"``
+           resolves to the system ``source`` class without emitting an op).
+        2. An existing active class with the same name in the derived ``class``
+           table (name-based lookup, mirroring ``import_/service.py``).
+        3. A new ``class.create`` operation with a fresh UUID; the derived
+           ``class`` row stores the name, so later calls resolve at step 2.
+
+        The structural ``page`` kind is not a class, so requesting ``"page"``
         returns ``None``; callers should rely on ``kind = 'page'`` instead.
-        For user-created classes the derived state currently does not store
-        class names, so a new ``class.create`` operation is emitted each time.
+        ``icon`` is only applied when a new class is created.
         """
         self._require("write_nodes")
         if name == "page":
             return None
+        lowered = name.lower()
         for class_name, class_uuid in SYSTEM_CLASS_UUIDS.items():
-            if class_name == name:
+            if class_name == lowered:
                 return class_uuid
 
         store = await self._get_workspace_store(workspace_uuid, actor_uuid)
         try:
+            await store.sync()
+            rows = await store.query("SELECT id, name FROM class WHERE active = 1")
+            for row in rows:
+                if (row["name"] or "").lower() == lowered:
+                    return row["id"]
             class_uuid = uuidv7()
-            await store.create_class(class_id=class_uuid, name=name)
+            await store.create_class(class_id=class_uuid, name=name, icon=icon)
             return class_uuid
         finally:
             await store.close()
@@ -298,22 +312,133 @@ class PluginContext:
         name: str,
         prop_type: str = "text",
         icon: str | None = None,
+        *,
+        multi: bool = False,
+        is_system: bool = False,
+        scope: str | None = None,
+        class_filter_uuids: list[str] | None = None,
+        options: list[dict[str, Any]] | None = None,
+        default_value: Any = None,
     ) -> str:
         """Return the UUID of a property schema with the given name.
 
-        Property schemas are not materialised in the derived SQLite state, so a
-        new ``propertySchema.create`` operation is emitted on each call. Plugins
-        that need idempotent schema creation should store the generated UUID in
-        their own derived rows via :meth:`emit_op`.
+        Resolution mirrors :meth:`ensure_class` (case-insensitive): fixed
+        system UUID from :data:`SYSTEM_PROPERTY_UUIDS`, then name lookup in
+        the derived ``property_schema`` table, then a new
+        ``propertySchema.create`` operation. Repeated calls converge and never
+        create duplicates. The remaining keyword arguments are passed through
+        to the create operation and only apply when a new schema is created.
         """
         self._require("write_properties")
+        lowered = name.lower()
+        for prop_name, schema_uuid in SYSTEM_PROPERTY_UUIDS.items():
+            if prop_name == lowered:
+                return schema_uuid
+
         store = await self._get_workspace_store(workspace_uuid, actor_uuid)
         try:
+            await store.sync()
+            rows = await store.query(
+                "SELECT id, name FROM property_schema WHERE active = 1"
+            )
+            for row in rows:
+                if (row["name"] or "").lower() == lowered:
+                    return row["id"]
             schema_uuid = uuidv7()
             await store.create_property_schema(
-                schema_id=schema_uuid, name=name, prop_type=prop_type
+                schema_id=schema_uuid,
+                name=name,
+                prop_type=prop_type,
+                icon=icon,
+                multi=multi,
+                is_system=is_system,
+                scope=scope,
+                class_filter_uuids=class_filter_uuids,
+                options=options,
+                default_value=default_value,
             )
             return schema_uuid
+        finally:
+            await store.close()
+
+    async def set_class_extends(
+        self,
+        workspace_uuid: str,
+        actor_uuid: str,
+        class_uuid: str,
+        extends_uuids: list[str],
+    ) -> None:
+        """Set the parent classes of a class via ``class.setExtends``.
+
+        Thin wrapper over :meth:`WorkspaceStore.set_class_extends`; inherits
+        its inheritance-cycle validation, which raises ``ValueError``.
+
+        Uses the ``write_nodes`` permission: the manifest has no dedicated
+        class permission and class hierarchy is node-model structure, the
+        same permission :meth:`ensure_class` already requires.
+        """
+        self._require("write_nodes")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            await store.sync()
+            await store.set_class_extends(
+                class_id=class_uuid, extends_class_ids=list(extends_uuids)
+            )
+        finally:
+            await store.close()
+
+    async def find_or_create_node_by_name(
+        self,
+        workspace_uuid: str,
+        actor_uuid: str,
+        class_uuid: str,
+        name: str,
+        *,
+        kind: str = "page",
+        property_values: dict[str, Any] | None = None,
+    ) -> str:
+        """Return the UUID of an active node of ``class_uuid`` named ``name``.
+
+        Looks up an active node whose derived content text matches ``name``
+        exactly and whose classes include ``class_uuid``; creates the node
+        (with ``class_uuid`` assigned and optional ``property_values`` set)
+        only when absent. Repeated calls converge on the same node, which is
+        how imports dedupe agents (persons/organizations) by name.
+        """
+        self._require("write_nodes")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            await store.sync()
+            rows = await store.query(
+                "SELECT id, content, class_ids FROM node WHERE active = 1"
+            )
+            for row in rows:
+                if _content_to_text(row["content"]) != name:
+                    continue
+                node_classes = set(json.loads(row["class_ids"]) or [])
+                if class_uuid in node_classes:
+                    return row["id"]
+
+            node_uuid = uuidv7()
+            await store.create_node(
+                node_id=node_uuid,
+                kind=kind,
+                initial_content=[
+                    {
+                        "type": "paragraph",
+                        "children": [{"text": name}],
+                    }
+                ],
+                class_ids=[class_uuid],
+            )
+            for schema_uuid, value in (property_values or {}).items():
+                await store.set_property(
+                    property_value_id=uuidv7(),
+                    node_id=node_uuid,
+                    schema_id=schema_uuid,
+                    value=value,
+                )
+            return node_uuid
         finally:
             await store.close()
 
