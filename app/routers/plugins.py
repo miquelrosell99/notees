@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +21,13 @@ from app.features.workspaces.manager import get_active_workspace_id
 from app.logging_config import get_logger
 from app.models import User
 from app.plugins.core import PluginContext, plugin_manager
-from app.plugins.core.installer import create_install_job, get_install_job, run_install_job
+from app.plugins.core.installer import (
+    PluginInstallError,
+    create_install_job,
+    get_install_job,
+    install_plugin_from_zip,
+    run_install_job,
+)
 from app.plugins.core.ports import ImportContext, ImportResult
 from app.utils import utc_now
 
@@ -84,6 +89,51 @@ async def list_plugins(
     return [_plugin_summary(p) for p in plugin_manager.list_plugins()]
 
 
+@router.get("/info")
+async def get_plugins_info(
+    user: User = Depends(require_admin),
+):
+    """Return plugin storage locations (admin only; exposes server paths)."""
+    return {
+        "external_dir": str(plugin_manager.external_dir),
+        "builtin_dir": str(plugin_manager.builtin_dir),
+    }
+
+
+@router.post("/rescan", dependencies=[Depends(require_admin), Depends(require_write_scope)])
+async def rescan_plugins():
+    """Re-run discovery over the plugin folders and load newly dropped plugins.
+
+    Plugin folders placed manually into the external plugins directory are
+    detected, validated, and loaded with their manifest's default enablement
+    state. Folders already known to the registry are left untouched.
+    """
+    added = plugin_manager.rescan()
+    return {
+        "added": [p.manifest.id for p in added],
+        "plugins": [_plugin_summary(p) for p in added],
+    }
+
+
+@router.post("/install/zip", dependencies=[Depends(require_admin), Depends(require_write_scope)])
+async def install_plugin_zip(
+    file: UploadFile,
+    user: User = Depends(require_admin),
+):
+    """Install a plugin from an uploaded ZIP archive.
+
+    The archive must contain exactly one top-level folder with a valid
+    ``manifest.json``; it is extracted into the external plugins directory and
+    loaded without a restart.
+    """
+    content = await file.read()
+    try:
+        result = install_plugin_from_zip(content)
+    except PluginInstallError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return result
+
+
 @router.get("/{plugin_id}")
 async def get_plugin(
     plugin_id: str,
@@ -101,10 +151,10 @@ async def enable_plugin(
     plugin_id: str,
     user: User = Depends(get_current_user),
 ):
-    """Enable a plugin. Requires a restart to take effect."""
+    """Enable a plugin, taking effect immediately (no restart)."""
     if not plugin_manager.set_enabled(plugin_id, True):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Plugin not found")
-    return {"id": plugin_id, "enabled": True, "restart_required": True}
+    return {"id": plugin_id, "enabled": True, "restart_required": False}
 
 
 @router.post("/{plugin_id}/disable", dependencies=[Depends(require_admin), Depends(require_write_scope)])
@@ -112,10 +162,14 @@ async def disable_plugin(
     plugin_id: str,
     user: User = Depends(get_current_user),
 ):
-    """Disable a plugin. Requires a restart to take effect."""
+    """Disable a plugin, taking effect immediately (no restart).
+
+    Routes and registry contributions are removed; background work already
+    spawned by the plugin is not forcibly cancelled.
+    """
     if not plugin_manager.set_enabled(plugin_id, False):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Plugin not found")
-    return {"id": plugin_id, "enabled": False, "restart_required": True}
+    return {"id": plugin_id, "enabled": False, "restart_required": False}
 
 
 @router.post("/install", status_code=status.HTTP_202_ACCEPTED)
@@ -187,9 +241,7 @@ async def uninstall_plugin(plugin_id: str):
     if plugin.manifest.builtin:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot uninstall built-in plugins")
 
-    plugin_manager.unload_plugin(plugin_id)
-    plugin_manager.registry.remove_plugin(plugin_id)
-    shutil.rmtree(plugin.path, ignore_errors=True)
+    plugin_manager.uninstall_plugin(plugin_id)
     return {"id": plugin_id, "uninstalled": True}
 
 

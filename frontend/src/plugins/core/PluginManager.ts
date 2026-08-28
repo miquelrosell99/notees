@@ -112,6 +112,61 @@ class PluginManager {
     return true;
   }
 
+  /**
+   * Restartless enable/disable: toggles the backend (which mounts/unmounts
+   * the plugin's routes immediately) and applies the same to the frontend
+   * runtime without a page reload.
+   */
+  async setPluginEnabled(pluginId: string, enabled: boolean): Promise<PluginStatus> {
+    await api.post(`/plugins/${pluginId}/${enabled ? 'enable' : 'disable'}`);
+    const response = await api.get(`/plugins/${pluginId}`);
+    const manifest = response.data as PluginStatus;
+
+    const idx = this.manifests.findIndex((m) => m.id === pluginId);
+    if (idx >= 0) {
+      this.manifests[idx] = manifest;
+    } else {
+      this.manifests.push(manifest);
+    }
+
+    if (enabled) {
+      await this.loadPluginFrontend(manifest);
+    } else {
+      const loaded = this.loadedPlugins.get(pluginId);
+      if (loaded) {
+        loaded.context.unregisterAll();
+        this.loadedPlugins.delete(pluginId);
+      }
+    }
+    return manifest;
+  }
+
+  /**
+   * Re-sync cached manifests with the backend (e.g. after a ZIP install or a
+   * folder rescan): loads frontends of newly enabled plugins and unloads
+   * plugins that were disabled or removed server-side.
+   */
+  async refreshPlugins(): Promise<PluginStatus[]> {
+    const response = await api.get('/plugins');
+    const manifests = (response.data as PluginStatus[]) ?? [];
+    this.manifests = manifests;
+
+    const byId = new Map(manifests.map((m) => [m.id, m]));
+    for (const [id, loaded] of [...this.loadedPlugins]) {
+      const manifest = byId.get(id);
+      if (!manifest || !manifest.enabled) {
+        loaded.context.unregisterAll();
+        this.loadedPlugins.delete(id);
+      }
+    }
+    for (const manifest of manifests) {
+      if (manifest.enabled) {
+        await this.loadPluginFrontend(manifest);
+      }
+    }
+    return manifests;
+  }
+
   /** Runtime reload: refresh a plugin's code and re-register contributions. */
   async reloadPlugin(pluginId: string): Promise<PluginStatus | undefined> {
     const loaded = this.loadedPlugins.get(pluginId);
