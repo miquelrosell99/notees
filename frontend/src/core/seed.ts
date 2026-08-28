@@ -20,6 +20,7 @@ import {
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
+  SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PAGE_UUIDS,
   SYSTEM_PROPERTY_SCHEMA_SPECS,
   SYSTEM_PROPERTY_UUIDS,
@@ -157,6 +158,22 @@ export function buildWorkspaceSeedOperations(
     }
   }
 
+  // Base system properties (e.g. cover) only get a binding edge — their
+  // schemas are created outside the class-scoped spec seed (mirrors
+  // `_system_schema_operations` in `app/core/seed.py`).
+  for (const [propName, binding] of Object.entries(SYSTEM_EXTRA_CLASS_BINDINGS)) {
+    const schemaId = SYSTEM_PROPERTY_UUIDS[propName as PropertyName];
+    const classId = SYSTEM_CLASS_UUIDS[binding.bindTo as ClassName];
+    if (filter.edgeKeys && !filter.edgeKeys.has(`${classId}:${schemaId}`)) continue;
+    operations.push(
+      build(
+        'classPropertyEdge.create',
+        { classId, propertySchemaId: schemaId, sequence: binding.sequence },
+        [classId, schemaId]
+      )
+    );
+  }
+
   const pages: Array<[string, string]> = [
     ['Inbox', SYSTEM_PAGE_UUIDS.inbox],
     [userDisplayName, SYSTEM_PAGE_UUIDS.scratchpad],
@@ -228,6 +245,16 @@ export async function ensureLocalWorkspace(
       directEdgesByClass.set(classId, edges);
     }
     if (!edges.has(schemaId)) missingEdgeKeys.add(`${classId}:${schemaId}`);
+  }
+
+  for (const [propName, binding] of Object.entries(SYSTEM_EXTRA_CLASS_BINDINGS)) {
+    const schemaId = SYSTEM_PROPERTY_UUIDS[propName as PropertyName];
+    const classId = SYSTEM_CLASS_UUIDS[binding.bindTo as ClassName];
+    // Raw edge lookup: the bound schema may be a base system property whose
+    // row is not synced locally yet, so getClassProperties (which joins
+    // property_schema) would hide the edge and re-emit it on every open.
+    const edgeIds = await client.query<string[]>('getClassPropertyEdgeIds', [classId]);
+    if (!edgeIds.includes(schemaId)) missingEdgeKeys.add(`${classId}:${schemaId}`);
   }
 
   const missingPageIds = new Set<string>();

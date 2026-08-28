@@ -17,6 +17,7 @@ import {
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
+  SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PAGE_UUIDS,
   SYSTEM_PROPERTY_SCHEMA_SPECS,
   SYSTEM_PROPERTY_UUIDS,
@@ -24,11 +25,13 @@ import {
 
 const CLASS_COUNT = Object.keys(SYSTEM_CLASS_UUIDS).length;
 const SCHEMA_COUNT = Object.keys(SYSTEM_PROPERTY_SCHEMA_SPECS).length;
+const EXTRA_BINDING_COUNT = Object.keys(SYSTEM_EXTRA_CLASS_BINDINGS).length;
 /**
  * class.create + node.updateContent per class, propertySchema.create +
- * classPropertyEdge.create per schema, node.create per page.
+ * classPropertyEdge.create per schema, classPropertyEdge.create per extra
+ * binding (e.g. cover → source), node.create per page.
  */
-const SEED_OP_COUNT = CLASS_COUNT * 2 + SCHEMA_COUNT * 2 + 2;
+const SEED_OP_COUNT = CLASS_COUNT * 2 + SCHEMA_COUNT * 2 + EXTRA_BINDING_COUNT + 2;
 
 function paragraphAst(text: string) {
   return [{ type: 'paragraph', children: [{ type: 'text', text }] }];
@@ -130,6 +133,21 @@ describe('workspace seed (local mode)', () => {
       i += 2;
     }
 
+    // Extra bindings (e.g. cover → source) are edge-only ops after the schemas.
+    for (const [propName, binding] of Object.entries(SYSTEM_EXTRA_CLASS_BINDINGS)) {
+      const schemaId = SYSTEM_PROPERTY_UUIDS[propName as keyof typeof SYSTEM_PROPERTY_UUIDS];
+      const classId = SYSTEM_CLASS_UUIDS[binding.bindTo as keyof typeof SYSTEM_CLASS_UUIDS];
+      const edgeOp = ops[i];
+      expect(edgeOp.envelope.opType).toBe('classPropertyEdge.create');
+      expect(edgeOp.payload).toEqual({
+        classId,
+        propertySchemaId: schemaId,
+        sequence: binding.sequence,
+      });
+      expect(edgeOp.envelope.affectedNodeIds).toEqual([classId, schemaId]);
+      i += 1;
+    }
+
     const inbox = ops[i];
     expect(inbox.envelope.opType).toBe('node.create');
     expect(inbox.payload).toEqual({
@@ -196,11 +214,12 @@ describe('workspace seed (local mode)', () => {
       db,
       'SELECT class_id, property_schema_id FROM class_property_edge'
     );
-    expect(edges).toHaveLength(SCHEMA_COUNT);
+    expect(edges).toHaveLength(SCHEMA_COUNT + EXTRA_BINDING_COUNT);
     const edgePairs = new Set(edges.map((r) => `${r.class_id}:${r.property_schema_id}`));
     expect(edgePairs.has(`${SYSTEM_CLASS_UUIDS.source}:${SYSTEM_PROPERTY_UUIDS.attachments}`)).toBe(true);
     expect(edgePairs.has(`${SYSTEM_CLASS_UUIDS.asset}:${SYSTEM_PROPERTY_UUIDS.role}`)).toBe(true);
     expect(edgePairs.has(`${SYSTEM_CLASS_UUIDS.weblink}:${SYSTEM_PROPERTY_UUIDS.url}`)).toBe(true);
+    expect(edgePairs.has(`${SYSTEM_CLASS_UUIDS.source}:${SYSTEM_PROPERTY_UUIDS.cover}`)).toBe(true);
 
     // Inbox page exists with its name as content.
     const inbox = store.getNode(SYSTEM_PAGE_UUIDS.inbox);
@@ -274,8 +293,11 @@ describe('workspace seed (local mode)', () => {
     await client.mutate('applyMany', [legacyOps]);
 
     const emitted = await ensureLocalWorkspace(client, actorId, 'Test User');
-    // class.setExtends per canonical subclass + all schemas + all edges.
-    expect(emitted).toBe(Object.keys(SYSTEM_CLASS_EXTENDS).length + SCHEMA_COUNT * 2);
+    // class.setExtends per canonical subclass + all schemas + all edges
+    // (including extra bindings like cover → source).
+    expect(emitted).toBe(
+      Object.keys(SYSTEM_CLASS_EXTENDS).length + SCHEMA_COUNT * 2 + EXTRA_BINDING_COUNT
+    );
 
     // Running again converges: nothing left to emit.
     expect(await ensureLocalWorkspace(client, actorId, 'Test User')).toBe(0);
@@ -288,6 +310,6 @@ describe('workspace seed (local mode)', () => {
     const schemas = queryAll<{ id: string }>(db, 'SELECT id FROM property_schema');
     expect(schemas).toHaveLength(SCHEMA_COUNT);
     const edges = queryAll<{ class_id: string }>(db, 'SELECT class_id FROM class_property_edge');
-    expect(edges).toHaveLength(SCHEMA_COUNT);
+    expect(edges).toHaveLength(SCHEMA_COUNT + EXTRA_BINDING_COUNT);
   });
 });

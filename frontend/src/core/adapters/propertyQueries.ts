@@ -331,6 +331,20 @@ export function getClassProperties(
 }
 
 /**
+ * Raw property-schema ids bound to a class, without joining property_schema.
+ * Unlike getClassProperties, edges whose schema row does not exist locally
+ * (e.g. base system properties not yet synced) are still returned — the
+ * local seed's idempotency check depends on this.
+ */
+export function getClassPropertyEdgeIds(store: WorkspaceStore, classId: string): string[] {
+  return queryAll<{ property_schema_id: string }>(
+    store.getDb(),
+    'SELECT property_schema_id FROM class_property_edge WHERE class_id = ?',
+    [classId]
+  ).map((row) => row.property_schema_id);
+}
+
+/**
  * Fetch class-property edges for multiple classes.
  */
 export function getNodeClassPropertyEdges(
