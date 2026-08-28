@@ -27,6 +27,10 @@ interface LibraryCardGridProps {
   allSourcesByUuid: ReadonlyMap<string, Node>;
   agentsByUuid: ReadonlyMap<string, Node>;
   onOpenNode: (nodeUuid: string) => void;
+  /** Three-pane mode: card click selects (inspector) instead of navigating. */
+  onSelectNode?: (nodeUuid: string) => void;
+  /** Currently selected card (inspector target). */
+  selectedUuid?: string | null;
 }
 
 export function LibraryCardGrid({
@@ -36,6 +40,8 @@ export function LibraryCardGrid({
   allSourcesByUuid,
   agentsByUuid,
   onOpenNode,
+  onSelectNode,
+  selectedUuid,
 }: LibraryCardGridProps) {
   const [expandedWorks, setExpandedWorks] = useState<ReadonlySet<string>>(new Set());
 
@@ -56,18 +62,21 @@ export function LibraryCardGrid({
     const coverUuid = resolveCoverAssetUuid(node, allSourcesByUuid);
     const authors = resolveAuthorNames(node, agentsByUuid);
     const isExpanded = expandedWorks.has(node.uuid);
+    const isSelected = selectedUuid === node.uuid;
+    const handleActivate = () => (onSelectNode ?? onOpenNode)(node.uuid);
 
     return (
       <div key={node.uuid} className="library-card-wrapper">
         <div
-          className={`library-card${isEdition ? ' library-card--edition' : ''}`}
+          className={`library-card${isEdition ? ' library-card--edition' : ''}${isSelected ? ' library-card--selected' : ''}`}
           role="button"
           tabIndex={0}
-          onClick={() => onOpenNode(node.uuid)}
+          aria-pressed={isSelected || undefined}
+          onClick={handleActivate}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              onOpenNode(node.uuid);
+              handleActivate();
             }
           }}
         >
