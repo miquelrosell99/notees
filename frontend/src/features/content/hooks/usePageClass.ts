@@ -54,6 +54,9 @@ export function useSystemClasses() {
       whiteboard: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.whiteboard),
       card: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.card),
       cloze: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.cloze),
+      source: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.source),
+      agent: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.agent),
+      collection: findClassByUuid(allClasses, SYSTEM_CLASS_UUIDS.collection),
     };
   }, [allClasses]);
 
@@ -75,6 +78,9 @@ export function useSystemClasses() {
       whiteboard: systemClasses.whiteboard?.id ?? null,
       card: systemClasses.card?.id ?? null,
       cloze: systemClasses.cloze?.id ?? null,
+      source: systemClasses.source?.id ?? null,
+      agent: systemClasses.agent?.id ?? null,
+      collection: systemClasses.collection?.id ?? null,
     };
   }, [systemClasses]);
 

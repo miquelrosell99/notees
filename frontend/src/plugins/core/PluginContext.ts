@@ -13,8 +13,16 @@ import {
   unregisterExportFormat,
   type ExportFormatDefinition,
 } from '@/features/workspace/components/exportFormatRegistry';
-import { registerView as registerNodeCollectionView, type ViewRegistryEntry } from '@/features/views/components/registry';
-import { registerPropertyValueRenderer, type PropertyValueRenderer } from '@/features/properties/utils/propertyValueRegistry';
+import {
+  registerView as registerNodeCollectionView,
+  unregisterView as unregisterNodeCollectionView,
+  type ViewRegistryEntry,
+} from '@/features/views/components/registry';
+import {
+  registerPropertyValueRenderer,
+  unregisterPropertyValueRenderer,
+  type PropertyValueRenderer,
+} from '@/features/properties/utils/propertyValueRegistry';
 
 import type { PluginManifest } from './manifest';
 import {
@@ -22,6 +30,7 @@ import {
   unregisterImporter,
   type ImporterDefinition,
 } from './importerRegistry';
+import { viewPrimitives, type ViewPrimitives } from './primitives';
 import {
   registerNodeAction,
   registerSettingsTab,
@@ -30,6 +39,9 @@ import {
   registerView,
   unregisterNodeAction,
   unregisterSettingsTab,
+  unregisterSidebarItem,
+  unregisterSlashCommand,
+  unregisterView,
   type NodeActionDefinition,
   type SettingsTabDefinition,
   type SidebarItemDefinition,
@@ -70,6 +82,13 @@ export interface PluginContext {
   /** Register a node-level action button. */
   registerNodeAction: (action: NodeActionDefinition) => void;
 
+  /**
+   * App view primitives for composing custom views (QueryNodeCollection,
+   * NodeSelector, PropertiesSection, PageViewHeader, ...).
+   * See `primitives.ts` for the documented surface.
+   */
+  primitives: ViewPrimitives;
+
   /** Return a typed HTTP client for the plugin's backend routes. */
   getApiClient: () => { get: (path: string) => Promise<unknown>; post: (path: string, data?: unknown) => Promise<unknown> };
 
@@ -82,15 +101,30 @@ export function createPluginContext(manifest: PluginManifest): PluginContext {
 
   const context: PluginContext = {
     manifest,
-    registerCommand,
-    registerSlashCommand,
+    registerCommand: (command) => {
+      const unregister = registerCommand(command);
+      unregisterCallbacks.push(unregister);
+    },
+    registerSlashCommand: (command) => {
+      registerSlashCommand(command);
+      unregisterCallbacks.push(() => unregisterSlashCommand(command.id));
+    },
     registerSettingsTab: (tab) => {
       registerSettingsTab(tab);
       unregisterCallbacks.push(() => unregisterSettingsTab(tab.id));
     },
-    registerSidebarItem,
-    registerView,
-    registerNodeCollectionView,
+    registerSidebarItem: (item) => {
+      registerSidebarItem(item);
+      unregisterCallbacks.push(() => unregisterSidebarItem(item.id));
+    },
+    registerView: (view) => {
+      registerView(view);
+      unregisterCallbacks.push(() => unregisterView(view.viewId));
+    },
+    registerNodeCollectionView: (entry) => {
+      registerNodeCollectionView(entry);
+      unregisterCallbacks.push(() => unregisterNodeCollectionView(entry.id));
+    },
     registerImporter: (importer) => {
       registerImporter(importer);
       unregisterCallbacks.push(() => unregisterImporter(importer.id));
@@ -99,11 +133,15 @@ export function createPluginContext(manifest: PluginManifest): PluginContext {
       registerExportFormat(format);
       unregisterCallbacks.push(() => unregisterExportFormat(format.format));
     },
-    registerPropertyRenderer: registerPropertyValueRenderer,
+    registerPropertyRenderer: (renderer) => {
+      registerPropertyValueRenderer(renderer);
+      unregisterCallbacks.push(() => unregisterPropertyValueRenderer(renderer.type));
+    },
     registerNodeAction: (action) => {
       registerNodeAction(action);
       unregisterCallbacks.push(() => unregisterNodeAction(action.id));
     },
+    primitives: viewPrimitives,
     getApiClient: () => ({
       get: async <T = unknown>(path: string) => {
         const { default: apiClient } = await import('@/api/client');
