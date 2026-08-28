@@ -226,7 +226,7 @@ SYSTEM_PROPERTY_UUIDS = {
     "publication_date": "00000000-0000-0000-0000-000000000015",
     "publisher": "00000000-0000-0000-0000-000000000016",
     "role": "00000000-0000-0000-0000-000000000017",
-    "locator": "00000000-0000-0000-0000-000000000018",
+    # "locator" (…0018) withdrawn — highlights carry position info as text; do not reuse
     "provenance": "00000000-0000-0000-0000-000000000019",
     "highlight_asset": "00000000-0000-0000-0000-000000000020",
     "given_name": "00000000-0000-0000-0000-000000000021",
@@ -280,7 +280,6 @@ SYSTEM_PROPERTY_SCHEMA_SPECS: dict[str, dict[str, Any]] = {
         ],
         "bindTo": "asset",
     },
-    "locator": {"type": "text", "bindTo": "highlight"},
     "provenance": {"type": "text", "bindTo": "highlight"},
     "highlight_asset": {"type": "node", "classFilter": ["asset"], "bindTo": "highlight"},
     "given_name": {"type": "text", "bindTo": "person"},
