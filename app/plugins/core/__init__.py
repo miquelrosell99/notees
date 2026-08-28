@@ -13,6 +13,7 @@ from .exceptions import (
 from .loader import PluginLoader
 from .manager import PluginManager, plugin_manager
 from .manifest import PluginManifest
+from .metadata import AssetMetadataError, AssetMetadataHandler
 from .ports import (
     ClassSideEffectContext,
     ExportContext,
@@ -30,6 +31,8 @@ from .ports import (
 from .registry import LoadedPlugin, PluginRegistry
 
 __all__ = [
+    "AssetMetadataError",
+    "AssetMetadataHandler",
     "ClassSideEffectContext",
     "ExportContext",
     "ExportResult",

@@ -25,6 +25,7 @@ from .ports import RouterRegistration
 
 if TYPE_CHECKING:
     from .manifest import PluginManifest
+    from .metadata import AssetMetadataHandler
     from .ports import (
         ClassSideEffectHandler,
         ExporterAdapter,
@@ -58,6 +59,7 @@ class PluginRegistry:
         self._sync_sources: dict[str, tuple[str, SyncSource]] = {}
         self._settings: dict[str, SettingSchema] = {}
         self._class_side_effects: dict[str, list[ClassSideEffectHandler]] = {}
+        self._asset_metadata_handlers: dict[str, tuple[str, AssetMetadataHandler]] = {}
 
     # Plugins
     def add_plugin(self, plugin: LoadedPlugin) -> None:
@@ -177,6 +179,35 @@ class PluginRegistry:
             if key.startswith(prefix):
                 removed.append(self._settings.pop(key))
         return removed
+
+    # Asset metadata handlers (Decision 30), keyed by MIME type
+    def add_asset_metadata_handler(
+        self, plugin_id: str, handler: AssetMetadataHandler
+    ) -> None:
+        for mime_type in handler.mime_types:
+            self._asset_metadata_handlers[mime_type] = (plugin_id, handler)
+
+    def get_asset_metadata_handler(
+        self, mime_type: str
+    ) -> tuple[str, AssetMetadataHandler] | None:
+        return self._asset_metadata_handlers.get(mime_type)
+
+    def list_asset_metadata_handlers(self) -> list[AssetMetadataHandler]:
+        seen: dict[int, AssetMetadataHandler] = {}
+        for _, handler in self._asset_metadata_handlers.values():
+            seen[id(handler)] = handler
+        return list(seen.values())
+
+    def remove_asset_metadata_handlers(
+        self, plugin_id: str
+    ) -> list[AssetMetadataHandler]:
+        removed: dict[int, AssetMetadataHandler] = {}
+        for key in list(self._asset_metadata_handlers.keys()):
+            pid, handler = self._asset_metadata_handlers[key]
+            if pid == plugin_id:
+                removed[id(handler)] = handler
+                del self._asset_metadata_handlers[key]
+        return list(removed.values())
 
     # Class side effects
     def add_class_side_effect(
