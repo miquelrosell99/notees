@@ -47,7 +47,6 @@ EXPECTED_PROPERTY_NAMES = {
     "publication_date",
     "publisher",
     "role",
-    "locator",
     "provenance",
     "highlight_asset",
     "given_name",
