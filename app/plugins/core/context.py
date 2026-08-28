@@ -242,6 +242,20 @@ class PluginContext:
             user_id,
         )
 
+    async def get_workspace_setting(
+        self, workspace_id: int, user_id: int, key: str, default: Any = None
+    ) -> Any:
+        """Read a core (non-plugin-namespaced) workspace setting.
+
+        Unlike :meth:`get_setting`, the key is looked up verbatim (e.g.
+        ``citekey_pattern``), matching what the workspace settings API and the
+        settings UI store.
+        """
+        factory = self.get_port("SettingsRepository")
+        repo: SettingsRepository = await factory(workspace_id, user_id)
+        settings = await repo.get_workspace_settings(workspace_id)
+        return settings.get(key, default)
+
     async def emit_op(
         self,
         workspace_uuid: str,
@@ -439,6 +453,45 @@ class PluginContext:
                     value=value,
                 )
             return node_uuid
+        finally:
+            await store.close()
+
+    async def set_multi_property(
+        self,
+        workspace_uuid: str,
+        actor_uuid: str,
+        node_uuid: str,
+        schema_uuid: str,
+        values: list[Any],
+    ) -> None:
+        """Replace a multi-valued property with ``values`` (one row per index).
+
+        Values equal to the existing row at the same index are left untouched
+        so repeated syncs converge without op churn; surplus trailing rows are
+        unset.
+        """
+        self._require("write_properties")
+        store = await self._get_workspace_store(workspace_uuid, actor_uuid)
+        try:
+            await store.sync()
+            rows = await store.query(
+                "SELECT idx, value FROM property_value "
+                "WHERE node_id = ? AND property_schema_id = ? ORDER BY idx",
+                (node_uuid, schema_uuid),
+            )
+            existing = [json.loads(row["value"]) for row in rows]
+            for index, value in enumerate(values):
+                if index < len(existing) and existing[index] == value:
+                    continue
+                await store.set_property(
+                    property_value_id=uuidv7(),
+                    node_id=node_uuid,
+                    schema_id=schema_uuid,
+                    value=value,
+                    index=index,
+                )
+            for index in range(len(values), len(existing)):
+                await store.unset_property(node_uuid, schema_uuid, index=index)
         finally:
             await store.close()
 

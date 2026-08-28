@@ -5,7 +5,7 @@
   "description": "Import BibTeX / BibLaTeX files.",
   "author": "Notees",
   "license": "AGPL-3.0",
-  "permissions": ["read_nodes", "write_nodes", "read_properties", "import"],
+  "permissions": ["read_nodes", "write_nodes", "read_properties", "write_properties", "settings", "import"],
   "backend": {
     "entrypoint": "app.plugins.builtin.bibtex.setup:setup"
   },
