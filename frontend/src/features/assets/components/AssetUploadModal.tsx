@@ -2,10 +2,10 @@
  * AssetUploadModal - Modal for uploading assets (images, audio, files)
  * 
  * Supports drag-and-drop or click-to-select file upload.
- * Validates file type and size (max 50MB).
+ * Validates file type and size (max 50MB for media, 100MB for documents).
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '../api/assets';
+import { uploadAsset, isSupportedAssetType, getAssetCategory, getMaxAssetSize, type Asset, type AssetCategory } from '../api/assets';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { FileDropZone } from '@/components/ui/FileDropZone';
@@ -67,6 +67,17 @@ function getAcceptString(acceptedTypes?: AssetCategory[]): string {
   if (!acceptedTypes || acceptedTypes.includes('audio')) {
     types.push('audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/opus', 'audio/webm');
   }
+  if (!acceptedTypes || acceptedTypes.includes('file')) {
+    types.push(
+      'application/pdf',
+      'application/epub+zip',
+      'application/vnd.comicbook+zip',
+      'application/x-cbz',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.oasis.opendocument.text',
+      '.pdf', '.epub', '.cbz', '.docx', '.odt',
+    );
+  }
   
   return types.join(',');
 }
@@ -97,8 +108,9 @@ export function AssetUploadModal({
       return `Only ${acceptedTypes.join(' and ')} files are accepted.`;
     }
     
-    if (file.size > MAX_ASSET_SIZE) {
-      return `File too large. Maximum size is ${MAX_ASSET_SIZE / (1024 * 1024)}MB.`;
+    const maxSize = getMaxAssetSize(file.type);
+    if (file.size > maxSize) {
+      return `File too large. Maximum size is ${maxSize / (1024 * 1024)}MB.`;
     }
     return null;
   }, [acceptedTypes]);
