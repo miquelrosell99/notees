@@ -139,7 +139,19 @@ The OPML exporter (`notees.opml_exporter`) is registered as a built-in export fo
 
 ## Installing plugins
 
-User-installed plugins are loaded from `data/plugins/`. Each plugin is a folder containing a `manifest.json` and its entrypoint files. Enable or disable plugins through the **Plugin Manager** in the web app.
+User-installed plugins live one-folder-per-plugin under `data/plugins/` (the instance plugins folder; the Plugin Manager shows the exact path). Each folder contains a `manifest.json` and its entrypoint files.
+
+Three ways to install:
+
+1. **Git URL** — Plugin Manager → "Install from git URL" (`POST /api/plugins/install`, async job).
+2. **ZIP archive** — Plugin Manager → "Install from ZIP archive" (`POST /api/plugins/install/zip`). The archive must contain exactly one top-level folder with a valid `manifest.json`; entries with `..`, absolute paths, or symlinks are rejected, and uploads are capped at 50 MB compressed / 100 MB uncompressed.
+3. **Folder drop** — copy a plugin folder into `data/plugins/` and use "Rescan folder" (`POST /api/plugins/rescan`), or restart (the startup scan picks it up too). New folders load with their manifest's `enabledByDefault` state.
+
+Enabling or disabling a plugin through the Plugin Manager **takes effect immediately** — the backend mounts/unmounts the plugin's routes (`POST /api/plugins/<id>/enable|disable`) and the frontend loads/unloads its contributions without a page reload.
+
+**Limitation:** disabling a plugin is registration-based teardown. Routes, importers, exporters, settings schemas, and side-effect handlers are removed, but background threads/tasks a plugin spawned are not forcibly cancelled and may run to completion. Enablement state is in-memory: after a restart, plugins revert to their manifest's `enabledByDefault` (built-in plugins always default to enabled).
+
+Uninstalling an external plugin (`DELETE /api/plugins/<id>`) unloads it and deletes its folder. Built-in plugins cannot be uninstalled.
 
 ---
 
@@ -150,6 +162,6 @@ User-installed plugins are loaded from `data/plugins/`. Each plugin is a folder 
 3. Implement the backend adapter(s) in the file referenced by `backend.entrypoint`.
 4. Implement the frontend setup in the file referenced by `frontend.entrypoint`.
 5. Register contributions through the provided `PluginContext` / registries.
-6. Reload the app.
+6. Use "Rescan folder" in the Plugin Manager (no app reload needed for the backend; the frontend loads the plugin's entrypoint from `data/plugins/<id>/` on enable).
 
 For the manifest schema and available permissions, see `app/plugins/core/manifest.py` and `frontend/src/plugins/core/manifest.ts`.
