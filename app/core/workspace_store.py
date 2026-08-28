@@ -563,6 +563,7 @@ class WorkspaceStore:
         name: str,
         prop_type: str,
         *,
+        icon: str | None = None,
         multi: bool = False,
         is_system: bool = False,
         scope: str | None = None,
@@ -572,6 +573,8 @@ class WorkspaceStore:
     ) -> None:
         """Emit a ``propertySchema.create`` operation."""
         payload: dict[str, Any] = {"schemaId": schema_id, "name": name, "type": prop_type}
+        if icon is not None:
+            payload["icon"] = icon
         if multi:
             payload["multi"] = True
         if is_system:
