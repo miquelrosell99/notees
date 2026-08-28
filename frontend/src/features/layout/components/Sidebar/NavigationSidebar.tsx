@@ -28,6 +28,7 @@ import { SidebarFavorites } from './SidebarFavorites';
 import { SidebarRecents } from './SidebarRecents';
 import { SidebarPinnedPages } from './SidebarPinnedPages';
 import { SupportBadge } from '@/features/support';
+import { useSidebarItems } from '@/plugins/core';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import './NavigationSidebar.css';
 
@@ -229,6 +230,9 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
   const isPagesActive = mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline';
   const isClassesActive = mainViewType === 'classes';
 
+  // Plugin-contributed sidebar entries (appear/disappear with plugin toggles).
+  const pluginSidebarItems = useSidebarItems();
+
   if (hidden) return null;
 
   return (
@@ -292,6 +296,26 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
             title="Inbox"
           />
         )}
+        {pluginSidebarItems.map((item) => (
+          <Button
+            key={item.id}
+            className="sidebar-rail__btn"
+            variant="ghost"
+            size="md"
+            icon={item.icon ? `mdi mdi-${item.icon}` : 'mdi mdi-puzzle-outline'}
+            fullWidth
+            active={mainViewType === item.viewId}
+            onClick={() => {
+              if (item.onClick) {
+                item.onClick();
+              } else {
+                setMainViewType(item.viewId);
+              }
+            }}
+            aria-label={item.label}
+            title={item.label}
+          />
+        ))}
       </div>
 
       <SidebarTools layout="rail" />

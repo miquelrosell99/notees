@@ -13,7 +13,7 @@ import { WhiteboardsView } from '@/features/whiteboard';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
 import { JournalsView } from '@/features/journals';
-import { getViewDefinition } from '@/plugins/core';
+import { useViewDefinition } from '@/plugins/core';
 import type { MainViewType } from '@/stores';
 import './MainContentPane.css';
 
@@ -21,6 +21,7 @@ const PropertyViewFull = React.lazy(() => import('@/features/properties/pages/Pr
 const WhiteboardView = React.lazy(() => import('@/features/whiteboard').then(m => ({ default: m.WhiteboardView })));
 const SharesUnifiedView = React.lazy(() => import('@/features/shares/pages/SharesUnifiedView').then(m => ({ default: m.SharesUnifiedView })));
 const NodeCollectionView = React.lazy(() => import('@/features/content').then(m => ({ default: m.NodeCollectionView })));
+const CollectionView = React.lazy(() => import('@/features/content/pages/CollectionView').then(m => ({ default: m.CollectionView })));
 
 interface MainContentPaneProps {
   viewType: MainViewType;
@@ -43,6 +44,9 @@ export function MainContentPane({
   const viewMode = useNavigationStore(s => s.viewMode);
   const nodeCollectionQueryAST = useNavigationStore(s => s.nodeCollectionQueryAST);
   const nodeCollectionNodeUuids = useNavigationStore(s => s.nodeCollectionNodeUuids);
+  // Reactive lookup: when a plugin is disabled, its view unregisters and this
+  // pane falls through to the default empty state on the next render.
+  const pluginView = useViewDefinition(viewType);
 
   const nodeColorStyle = useMemo(() => {
     const color = getEffectiveColor(currentNode, allClasses);
@@ -159,8 +163,8 @@ export function MainContentPane({
     );
   }
 
-  // Plugin-registered top-level views
-  const pluginView = getViewDefinition(viewType);
+  // Plugin-registered top-level views (reactive: unregistered views, e.g. after
+  // a plugin is disabled, fall through to the default empty state).
   if (pluginView) {
     const PluginViewComponent = pluginView.component;
     return (
@@ -190,6 +194,22 @@ export function MainContentPane({
       <div className="main-content main-content--whiteboard">
         <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
           <WhiteboardView nodeUuid={currentNode.uuid} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  // Class-drives-chrome (Decision 22, same principle as whiteboard): a page
+  // classed `collection` renders the collection-manager view — a member list
+  // instead of the document flow.
+  const isCollection = currentNode?.is_page && systemClassUuids?.collection &&
+    currentNode.classes_uuid?.includes(systemClassUuids.collection);
+
+  if (isCollection && currentNode) {
+    return (
+      <div className="main-content">
+        <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
+          <CollectionView nodeUuid={currentNode.uuid} />
         </Suspense>
       </div>
     );

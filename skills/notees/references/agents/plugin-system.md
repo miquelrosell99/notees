@@ -250,7 +250,20 @@ renders last.
 
 Actions registered through `PluginContext` are removed automatically on
 plugin unload/reload. The hello built-in plugin registers a `devOnly` example
-(`hello.logNodeUuid`).
+(`hello.logNodeUuid`). All contribution kinds register cleanly through the
+context — commands, slash commands, sidebar items, top-level views,
+NodeCollection view modes, and property renderers are all torn down by
+`context.unregisterAll()` when the plugin is disabled (restartless toggle).
+
+#### View primitives
+
+Plugins compose custom views from the app's own components via
+`context.primitives` (`frontend/src/plugins/core/primitives.ts`):
+`QueryNodeCollection` (run a QueryAST with standard view modes), `NodeCollection`,
+`NodeSelector` (class-aware picker), `PropertiesSection`, and `PageViewHeader`.
+The built-in Library plugin (`notees.library`, ships disabled via
+`"enabledByDefault": false`) is the reference implementation. Enablement
+choices persist in `data/plugin_enablement.json` and survive restarts.
 
 ### Loading
 

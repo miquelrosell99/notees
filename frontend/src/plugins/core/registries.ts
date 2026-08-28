@@ -8,7 +8,7 @@
 import { useSyncExternalStore, type ComponentType, type LazyExoticComponent } from 'react';
 
 import type { MainViewType } from '@/stores/appStore';
-import { registerCommand } from '@/stores/commandRegistry';
+import { registerCommand, unregisterCommand } from '@/stores/commandRegistry';
 import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
 
@@ -57,6 +57,10 @@ export function registerSlashCommand(def: SlashCommandDefinition): void {
   slashCommandRegistry.set(def.id, def);
 }
 
+export function unregisterSlashCommand(id: string): void {
+  slashCommandRegistry.delete(id);
+}
+
 export function getSlashCommand(id: string): SlashCommandDefinition | undefined {
   return slashCommandRegistry.get(id);
 }
@@ -72,12 +76,20 @@ export interface SidebarItemDefinition extends ContributedSidebarItem {
 }
 
 const sidebarItemRegistry = new Map<string, SidebarItemDefinition>();
+const sidebarItemListeners = new Set<() => void>();
+let sidebarItemsSnapshot: SidebarItemDefinition[] = [];
+
+function notifySidebarItemListeners(): void {
+  sidebarItemsSnapshot = Array.from(sidebarItemRegistry.values());
+  sidebarItemListeners.forEach((listener) => listener());
+}
 
 export function registerSidebarItem(def: SidebarItemDefinition): void {
   sidebarItemRegistry.set(def.id, def);
+  notifySidebarItemListeners();
 
-  // Sidebar items are no longer rendered as buttons; expose them through the
-  // command palette so plugin-contributed views remain reachable.
+  // Sidebar items also surface in the command palette so plugin-contributed
+  // views remain reachable from the keyboard.
   const commandId = `sidebar.${def.viewId ?? def.id}`;
   registerCommand({
     id: commandId,
@@ -95,12 +107,38 @@ export function registerSidebarItem(def: SidebarItemDefinition): void {
   });
 }
 
+export function unregisterSidebarItem(id: string): void {
+  const def = sidebarItemRegistry.get(id);
+  if (!def) return;
+  sidebarItemRegistry.delete(id);
+  // Drop the palette companion command registered alongside the item.
+  unregisterCommand(`sidebar.${def.viewId ?? def.id}`);
+  notifySidebarItemListeners();
+}
+
 export function getSidebarItem(id: string): SidebarItemDefinition | undefined {
   return sidebarItemRegistry.get(id);
 }
 
 export function getRegisteredSidebarItems(): SidebarItemDefinition[] {
   return Array.from(sidebarItemRegistry.values());
+}
+
+/** Subscribe to sidebar item registry changes. Returns an unsubscribe function. */
+export function subscribeSidebarItems(listener: () => void): () => void {
+  sidebarItemListeners.add(listener);
+  return () => {
+    sidebarItemListeners.delete(listener);
+  };
+}
+
+function getSidebarItemsSnapshot(): SidebarItemDefinition[] {
+  return sidebarItemsSnapshot;
+}
+
+/** React hook: currently registered plugin sidebar items (updates on plugin load/unload). */
+export function useSidebarItems(): SidebarItemDefinition[] {
+  return useSyncExternalStore(subscribeSidebarItems, getSidebarItemsSnapshot, getSidebarItemsSnapshot);
 }
 
 // ── Top-Level View Registry ──────────────────────────────────────────────────
@@ -111,9 +149,23 @@ export interface ViewDefinition extends ContributedView {
 }
 
 const viewRegistry = new Map<string, ViewDefinition>();
+const viewListeners = new Set<() => void>();
+let viewsSnapshot: ViewDefinition[] = [];
+
+function notifyViewListeners(): void {
+  viewsSnapshot = Array.from(viewRegistry.values());
+  viewListeners.forEach((listener) => listener());
+}
 
 export function registerView(def: ViewDefinition): void {
   viewRegistry.set(def.viewId, def);
+  notifyViewListeners();
+}
+
+export function unregisterView(viewId: string): void {
+  if (viewRegistry.delete(viewId)) {
+    notifyViewListeners();
+  }
 }
 
 export function getViewDefinition(id: string): ViewDefinition | undefined {
@@ -122,6 +174,29 @@ export function getViewDefinition(id: string): ViewDefinition | undefined {
 
 export function getRegisteredViews(): ViewDefinition[] {
   return Array.from(viewRegistry.values());
+}
+
+/** Subscribe to view registry changes. Returns an unsubscribe function. */
+export function subscribeViews(listener: () => void): () => void {
+  viewListeners.add(listener);
+  return () => {
+    viewListeners.delete(listener);
+  };
+}
+
+function getViewsSnapshot(): ViewDefinition[] {
+  return viewsSnapshot;
+}
+
+/** React hook: all currently registered plugin views (updates on plugin load/unload). */
+export function useRegisteredViews(): ViewDefinition[] {
+  return useSyncExternalStore(subscribeViews, getViewsSnapshot, getViewsSnapshot);
+}
+
+/** React hook: the definition for one plugin view, reactive to (un)registration. */
+export function useViewDefinition(id: string): ViewDefinition | undefined {
+  const views = useRegisteredViews();
+  return views.find((view) => view.viewId === id);
 }
 
 // ── Node Action Registry ─────────────────────────────────────────────────────

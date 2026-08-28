@@ -181,3 +181,75 @@ def test_uninstall_removes_folder(manager_env) -> None:
     assert not _has_route(app, "notees.wp_uninstall")
     # Idempotent on a missing plugin.
     assert manager.uninstall_plugin("notees.wp_uninstall") is False
+
+
+def _rebuild_manager(tmp_path: Path) -> PluginManager:
+    """A fresh manager over the same dirs (simulates a restart)."""
+    manager = PluginManager()
+    builtin = tmp_path / "builtin"
+    manager.builtin_dir = builtin
+    manager.loader.builtin_dir = builtin
+    return manager
+
+
+def test_set_enabled_persists_across_restart(manager_env, tmp_path) -> None:
+    """Runtime toggles are persisted and win over the manifest default."""
+    manager, app, external, modules = manager_env
+    folder = "wp_persist"
+    modules.append(folder)
+    _write_plugin(external, folder, "notees.wp_persist", enabled_by_default=False)
+    manager.load_plugins()
+
+    plugin = manager.get_plugin("notees.wp_persist")
+    assert plugin is not None
+    assert plugin.enabled is False
+
+    assert manager.set_enabled("notees.wp_persist", True)
+    state_file = tmp_path / "plugin_enablement.json"
+    assert json.loads(state_file.read_text(encoding="utf-8")) == {"notees.wp_persist": True}
+
+    # Simulate a restart: a new manager over the same database_dir. Startup
+    # mounts routers after load_plugins via mount_routers (as main.py does).
+    restarted = _rebuild_manager(tmp_path)
+    restarted.bind_app(FastAPI())
+    restarted.load_plugins()
+    restarted_plugin = restarted.get_plugin("notees.wp_persist")
+    assert restarted_plugin is not None
+    assert restarted_plugin.enabled is True
+    restarted.mount_routers()
+    assert any(
+        getattr(r, "path", None) == "/api/plugins/notees.wp_persist/ping"
+        for r in restarted._app.routes  # noqa: SLF001
+    )
+
+    # Disabling persists too.
+    assert restarted.set_enabled("notees.wp_persist", False)
+    restarted_again = _rebuild_manager(tmp_path)
+    restarted_again.load_plugins()
+    assert restarted_again.get_plugin("notees.wp_persist").enabled is False  # type: ignore[union-attr]
+
+
+def test_manifest_default_used_without_override(manager_env, tmp_path) -> None:
+    """Without a persisted override the manifest default applies."""
+    manager, app, external, modules = manager_env
+    folder = "wp_default"
+    modules.append(folder)
+    _write_plugin(external, folder, "notees.wp_default", enabled_by_default=True)
+    manager.load_plugins()
+    assert manager.get_plugin("notees.wp_default").enabled is True  # type: ignore[union-attr]
+
+    restarted = _rebuild_manager(tmp_path)
+    restarted.load_plugins()
+    assert restarted.get_plugin("notees.wp_default").enabled is True  # type: ignore[union-attr]
+
+
+def test_corrupt_enablement_state_is_ignored(manager_env, tmp_path) -> None:
+    """A corrupt state file falls back to manifest defaults instead of crashing."""
+    manager, _app, external, modules = manager_env
+    folder = "wp_corrupt"
+    modules.append(folder)
+    _write_plugin(external, folder, "notees.wp_corrupt", enabled_by_default=True)
+    (tmp_path / "plugin_enablement.json").write_text("not json", encoding="utf-8")
+
+    manager.load_plugins()
+    assert manager.get_plugin("notees.wp_corrupt").enabled is True  # type: ignore[union-attr]

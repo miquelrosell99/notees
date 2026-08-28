@@ -88,6 +88,14 @@ export function registerPropertyValueRenderer(renderer: PropertyValueRenderer): 
 }
 
 /**
+ * Unregister a property value renderer (plugin teardown on disable/unload).
+ * Core renderers registered at module load should never be unregistered.
+ */
+export function unregisterPropertyValueRenderer(type: string): void {
+  registry.delete(type);
+}
+
+/**
  * Get the registered renderer for a property type.
  */
 export function getPropertyValueRenderer(type: string): PropertyValueRenderer | undefined {
