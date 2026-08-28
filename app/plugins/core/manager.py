@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -120,13 +121,15 @@ class PluginManager:
             if name == package_root or name.startswith(f"{package_root}."):
                 del sys.modules[name]
 
+        # Unmount routes before dropping the registration; the unmount needs
+        # the registration to know which routes to remove.
+        self._unmount_plugin_router(plugin_id)
         self.registry.remove_router(plugin_id)
         self.registry.remove_importers(plugin_id)
         self.registry.remove_exporters(plugin_id)
         self.registry.remove_sync_sources(plugin_id)
         self.registry.remove_settings(plugin_id)
         self.registry.remove_class_side_effects(plugin_id)
-        self._unmount_plugin_router(plugin_id)
 
         plugin.enabled = False
         return True
@@ -155,19 +158,40 @@ class PluginManager:
             prefix = f"{prefix}/{reg.prefix}"
         with self._route_lock:
             self._app.include_router(reg.router, prefix=prefix, tags=[reg.plugin_id])
+            self._app.openapi_schema = None
 
     def _unmount_plugin_router(self, plugin_id: str) -> None:
-        """Remove a plugin's routes from the bound FastAPI app."""
+        """Remove a plugin's routes from the bound FastAPI app.
+
+        ``include_router`` copies routes into the app, so routes are matched
+        by path and methods under the plugin's mount prefix rather than by
+        object identity.
+        """
         if self._app is None:
             return
         reg = self.registry.get_router_registration(plugin_id)
         if reg is None:
             return
 
-        route_ids = {id(r) for r in reg.router.routes}
+        prefix = f"/api/plugins/{reg.plugin_id}"
+        if reg.prefix:
+            prefix = f"{prefix}/{reg.prefix}"
+        expected = {
+            (
+                f"{prefix}{getattr(r, 'path', '')}",
+                tuple(sorted(getattr(r, "methods", None) or ())),
+            )
+            for r in reg.router.routes
+        }
         with self._route_lock:
             self._app.routes[:] = [
-                r for r in self._app.routes if id(r) not in route_ids
+                r
+                for r in self._app.routes
+                if (
+                    getattr(r, "path", None),
+                    tuple(sorted(getattr(r, "methods", None) or ())),
+                )
+                not in expected
             ]
             self._app.openapi_schema = None
 
@@ -192,11 +216,75 @@ class PluginManager:
         return self.registry.list_plugins()
 
     def set_enabled(self, plugin_id: str, enabled: bool) -> bool:
-        """Enable or disable a plugin. Requires a restart to take effect."""
+        """Enable or disable a plugin, taking effect immediately (no restart).
+
+        Enabling runs the plugin's backend setup (registering routers,
+        importers, exporters, settings, side effects) and mounts its router on
+        the bound app. Disabling unregisters all contributions and unmounts
+        its routes.
+
+        Limitation: teardown is registration-based. A plugin that spawned
+        background threads/tasks or mutated global state outside the registry
+        is not forcibly stopped; its routes and contributions are removed, but
+        in-flight background work may run to completion.
+        """
         plugin = self.registry.get_plugin(plugin_id)
         if plugin is None:
             return False
-        plugin.enabled = enabled
+        if enabled == plugin.enabled:
+            return True
+        if enabled:
+            plugin.enabled = True
+            context = PluginContext(
+                plugin_id=plugin.manifest.id,
+                permissions=set(plugin.manifest.permissions),
+                registry=self.registry,
+                port_factories=self.port_factories,
+            )
+            self.loader.setup_plugin(
+                Path(plugin.path), plugin.manifest, context, plugin
+            )
+            self._mount_plugin_router(plugin_id)
+        else:
+            self.unload_plugin(plugin_id)
+        return True
+
+    def rescan(self) -> list[LoadedPlugin]:
+        """Discover plugin folders added since startup and load them.
+
+        Folders already present in the registry are skipped (their current
+        enablement state is respected). Newly discovered folders are loaded
+        with their manifest's ``enabled_by_default`` state and, when enabled,
+        mounted on the bound app without a restart.
+        """
+        known_paths = {p.path for p in self.registry.list_plugins()}
+        if str(self.external_dir) not in sys.path:
+            sys.path.insert(0, str(self.external_dir))
+
+        new_plugins: list[LoadedPlugin] = []
+        for plugin_dir in sorted(self.loader.discover(), key=lambda p: p.name):
+            if str(plugin_dir) in known_paths:
+                continue
+            try:
+                manifest = self.loader.load_manifest(plugin_dir)
+                plugin = self.load_plugin_dir(
+                    plugin_dir, enabled=manifest.enabled_by_default
+                )
+                new_plugins.append(plugin)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Rescan skipped plugin folder %s: %s", plugin_dir, exc
+                )
+        return new_plugins
+
+    def uninstall_plugin(self, plugin_id: str) -> bool:
+        """Unload a plugin, remove it from the registry, and delete its folder."""
+        plugin = self.registry.get_plugin(plugin_id)
+        if plugin is None:
+            return False
+        self.unload_plugin(plugin_id)
+        self.registry.remove_plugin(plugin_id)
+        shutil.rmtree(plugin.path, ignore_errors=True)
         return True
 
     def get_importer(self, importer_id: str):
