@@ -34,17 +34,16 @@ export type TableVariant = 'default' | 'striped' | 'bordered';
 export type { SortDirection, SortEntry } from '@/types/nodeCollection';
 
 /**
- * Helper to detect if a value is a Node object
+ * Helper to detect if a value is a Node object.
+ * Local-first projected nodes have no numeric `id` — uuid and name are the
+ * stable identity markers.
  */
-function isNode(value: unknown): value is { nodeUuid: string; uuid: string; name: string; is_page?: boolean; parent_id?: number | null } {
+function isNode(value: unknown): value is { uuid: string; name: string; is_page?: boolean } {
   return (
     typeof value === 'object' &&
     value !== null &&
-    'id' in value &&
-    'uuid' in value &&
-    'name' in value &&
-    typeof (value as any).id === 'number' &&
-    typeof (value as any).uuid === 'string'
+    typeof (value as { uuid?: unknown }).uuid === 'string' &&
+    typeof (value as { name?: unknown }).name === 'string'
   );
 }
 
@@ -594,7 +593,7 @@ export function NodeTable<T>({
                           title="Open in sidebar"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onNodeOpenInSidebar(cellValue.nodeUuid, cellValue.is_page ? 'page' : 'block');
+                            onNodeOpenInSidebar(cellValue.uuid, cellValue.is_page ? 'page' : 'block');
                           }}
                         />
                       )}
@@ -606,7 +605,7 @@ export function NodeTable<T>({
                           title="Open node"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onNodeOpen(cellValue.nodeUuid, cellValue.is_page ? 'page' : 'block');
+                            onNodeOpen(cellValue.uuid, cellValue.is_page ? 'page' : 'block');
                           }}
                         />
                       )}
