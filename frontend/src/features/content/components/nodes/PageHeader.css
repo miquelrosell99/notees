@@ -140,7 +140,8 @@
 
 .page-title-input:focus-visible {
   outline: none;
-  box-shadow: var(--shadow-focus-ring);
+  /* Underline instead of a boxed focus ring */
+  box-shadow: 0 var(--border-width-thick) 0 0 var(--color-primary);
 }
 
 .page-title-input--medium {
