@@ -60,11 +60,18 @@
   color: var(--color-on-surface);
   background: transparent;
   border: none;
+  border-radius: 0;
   resize: none;
   outline: none;
   padding: 0;
   margin: 0;
   overflow: hidden;
+}
+
+.class-header__title:focus-visible {
+  outline: none;
+  /* Underline instead of a boxed focus ring */
+  box-shadow: 0 var(--border-width-thick) 0 0 var(--color-primary);
 }
 
 .class-header__title--medium {
