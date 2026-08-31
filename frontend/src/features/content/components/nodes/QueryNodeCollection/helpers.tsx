@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { QueryAST } from '@/types/queryAST';
 import type { Node } from '@/types';
+import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 
 /**
  * Apply collapse level to node children recursively
@@ -125,4 +126,23 @@ export function renderProseWithLinks(text: string, onLinkClick: (nodeUuid: strin
   }
 
   return parts.length > 0 ? parts : text;
+}
+
+/**
+ * Compute the AST a persisted view should execute with.
+ *
+ * Default system views (classed_nodes, extended_by, child_pages, ...) are
+ * persisted with an empty query_ast — the required system condition is
+ * restored at load time by autoFixSystemQuery. Applying it here, on the
+ * execution path, keeps the executed query in sync with what the edit UI
+ * shows; without it an empty persisted AST matches nothing (the caller gates
+ * empty ASTs to zero results).
+ */
+export function getExecutionAST(
+  ast: QueryAST | undefined | null,
+  viewType: string,
+  nodeUuid: string,
+): QueryAST | undefined {
+  if (!ast || typeof ast !== 'object' || ast.type !== 'query') return undefined;
+  return autoFixSystemQuery(ast, viewType, { nodeUuid });
 }

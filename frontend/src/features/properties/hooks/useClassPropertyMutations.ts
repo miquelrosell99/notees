@@ -11,6 +11,7 @@ import type {
   ClassPropertyEdgeReorderPayload,
   ClassPropertyEdgeUpdatePayload,
 } from '@/core/types/operation';
+import type { ClassRow } from '@/core/query/classes';
 
 function useClient() {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
@@ -152,10 +153,15 @@ export function useAddClassExtends() {
   return useMutation<void, Error, { classId: string; extendsClassId: string }>({
     mutationFn: async ({ classId, extendsClassId }) => {
       if (!client) throw new Error('Workspace store not available');
-      const rows = await client.query<string[]>('getClassExtendsAncestors', [classId]);
-      const existing = new Set(rows);
+      // setClassExtends replaces the *direct* extends list (with cycle
+      // validation in the store), so read the class row's direct
+      // extendsClassIds — not the transitive ancestor closure.
+      const row = await client.query<ClassRow | undefined>('getClass', [resolveClassId(classId)]);
+      const existing = new Set(row?.extendsClassIds ?? []);
       existing.add(extendsClassId);
-      await client.mutate<void>('updateClass', [classId, Array.from(existing)]);
+      await client.mutate<void>('setClassExtends', [
+        { classId: resolveClassId(classId), extendsClassIds: Array.from(existing) },
+      ]);
     },
     onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
@@ -175,10 +181,12 @@ export function useRemoveClassExtends() {
   return useMutation<void, Error, { classId: string; extendsClassId: string }>({
     mutationFn: async ({ classId, extendsClassId }) => {
       if (!client) throw new Error('Workspace store not available');
-      const rows = await client.query<string[]>('getClassExtendsAncestors', [classId]);
-      const existing = new Set(rows);
+      const row = await client.query<ClassRow | undefined>('getClass', [resolveClassId(classId)]);
+      const existing = new Set(row?.extendsClassIds ?? []);
       existing.delete(extendsClassId);
-      await client.mutate<void>('updateClass', [classId, Array.from(existing)]);
+      await client.mutate<void>('setClassExtends', [
+        { classId: resolveClassId(classId), extendsClassIds: Array.from(existing) },
+      ]);
     },
     onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });

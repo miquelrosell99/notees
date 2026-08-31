@@ -96,6 +96,26 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 
 **Prevent:** When writing idempotent backfill/ensure logic that checks class-property edges, use the raw edge query; reserve the JOINed variant for UI display.
 
+## **[derived]** Applier changes must bump the derived-state version
+
+**Symptom:** After an applier-logic fix ships, existing clients still show stale or wrong query results (e.g. class/extends queries over `class_hierarchy` return nothing) while fresh installs work.
+
+**Cause:** Client-side applier changes leave rows derived from already-applied operations stale; nothing fails CI when `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) is not bumped, so only a hard rebuild (version mismatch → full log replay) heals existing clients.
+
+**Fix:** Bump `CURRENT_DERIVED_STATE_VERSION` in the same commit as the applier change, and add any new derived table to `resetDerivedState`'s DELETE list so the replay starts clean.
+
+**Prevent:** When a diff touches `frontend/src/core/derived/**` appliers, verify the version bump and reset list in the same commit.
+
+## **[query]** Persisted system views store an empty `query_ast`
+
+**Symptom:** A system section (`classed_nodes`, `extended_by`, `child_pages`) renders empty even though matching nodes exist, while its query editor shows the expected system condition chip (e.g. "class contains current page").
+
+**Cause:** Default system views are created with `createEmptyQueryAST()`; the required system condition is restored by `autoFixSystemQuery`. The edit UI and filter badge apply it, but if the execution path doesn't, the empty AST executes and the empty-query gate forces zero results — the chip reflects a condition that never runs.
+
+**Fix:** Route every persisted-view execution AST through `getExecutionAST` (`frontend/src/features/content/components/nodes/QueryNodeCollection/helpers.tsx`), which applies `autoFixSystemQuery(ast, viewType, { nodeUuid })`.
+
+**Prevent:** When adding a new execution path for persisted views, use `getExecutionAST`; the invariant is unit-tested in `getExecutionAST.test.ts`.
+
 ## **[testing]** Frontend vitest suite flakes under concurrent heavy load
 
 **Symptom:** `npm run test:run` fails with 1–2 errors like "Chunk count mismatch" in `src/core/persistence/__tests__/indexedDb.test.ts` (or similar persistence timing tests), but the same files pass in isolation and in an idle rerun.

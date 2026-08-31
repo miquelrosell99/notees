@@ -47,10 +47,10 @@ import { ViewTabs } from './QueryNodeCollection/ViewTabs';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy, SortEntry, ChartConfig } from '@/types/nodeCollection';
 import { useNavigationStore, useAppStore, useSettingsStore } from '@/stores';
 import type { CardLayoutMode } from '@/stores/appStore';
-import { useProperties } from '@/features/properties';
+import { useProperties, useExtendedByClasses } from '@/features/properties';
 import './QueryNodeCollection.css';
 
-import { applyCollapseLevelToChildren, extractUuidsFromAST } from './QueryNodeCollection/helpers';
+import { applyCollapseLevelToChildren, extractUuidsFromAST, getExecutionAST } from './QueryNodeCollection/helpers';
 import { dedupeNodesByUuid } from '@/utils/nodeTree';
 import { queryKeys } from '@/hooks/queryKeys';
 
@@ -443,7 +443,15 @@ export function QueryNodeCollection({
     return defaultQueries[viewType] ?? createEmptyQueryAST();
   }, [isPseudoNode, viewType]);
 
-  // Execute query for active view
+  // Execute query for active view.
+  // Default system views are persisted with an empty query_ast — restore the
+  // required system condition (class for classed_nodes, parent for
+  // child_pages, ...) before execution, otherwise the empty AST matches
+  // nothing and the section renders empty.
+  const viewExecutionAST = useMemo(
+    () => getExecutionAST(activeView?.query_ast, viewType, nodeUuid),
+    [activeView, viewType, nodeUuid],
+  );
   const {
     data: queryResults,
     isLoading: queryLoading,
@@ -457,14 +465,29 @@ export function QueryNodeCollection({
     includeAllChildren: collectionViewMode === 'kanban',
     pagesOnly: queryPagesOnly,
     includeProperties: true,
-    enabled: !!activeView && !isPseudoNode && viewType !== 'linked_references',
-    ast: activeView?.query_ast ?? undefined,
+    enabled: !!activeView && !isPseudoNode && viewType !== 'linked_references' && viewType !== 'extended_by',
+    ast: viewExecutionAST,
   });
 
   // Pagination for linked references
   const LINKED_REFS_PAGE_SIZE = 50;
   const [linkedRefsOffset, setLinkedRefsOffset] = useState(0);
   const isLinkedRefs = viewType === 'linked_references';
+
+  // extended_by lists subclass *classes*, which live in the dedicated class
+  // table — the node query can't return them (the extends condition compiles
+  // against node.class_ids), so bypass it with the class-table-backed query,
+  // mirroring the linked_references dedicated path.
+  const isExtendedBy = viewType === 'extended_by';
+  const { data: extendedByRows } = useExtendedByClasses(isExtendedBy ? nodeUuid : null);
+  const { data: allClassNodes = [] } = useClasses();
+  const extendedByNodes = useMemo(() => {
+    if (!isExtendedBy) return [];
+    const byUuid = new Map(allClassNodes.map(c => [c.uuid, c]));
+    return (extendedByRows ?? [])
+      .map(row => byUuid.get(row.uuid))
+      .filter((n): n is Node => n !== undefined);
+  }, [isExtendedBy, extendedByRows, allClassNodes]);
   // Lazy-load the full linked-references data only when the section is expanded.
   // The cheap count query (below) runs always so the header badge renders.
   const linkedRefsExpanded = !hideContent;
@@ -642,18 +665,20 @@ export function QueryNodeCollection({
     if (viewType === 'linked_references') {
       return [...linkedReferencesBlocks, ...linkedReferencesPages];
     }
+    if (isExtendedBy) return extendedByNodes;
     if (isInlineMode) return inlineQueryResults ?? [];
     if (isPseudoNode) return pseudoQueryResults ?? [];
     return queryResults ?? [];
-  }, [viewType, linkedReferencesBlocks, linkedReferencesPages, isInlineMode, inlineQueryResults, isPseudoNode, pseudoQueryResults, queryResults]);
+  }, [viewType, linkedReferencesBlocks, linkedReferencesPages, isExtendedBy, extendedByNodes, isInlineMode, inlineQueryResults, isPseudoNode, pseudoQueryResults, queryResults]);
   const activeAST = isInlineMode ? inlineQueryAST
-    : (isPseudoNode ? pseudoNodeAST : activeView?.query_ast);
+    : (isPseudoNode ? pseudoNodeAST : viewExecutionAST);
   const resultNodes = useMemo(() => {
     const nodes = (activeAST && isEmptyQuery(activeAST)) ? [] : rawResults;
     return dedupeNodesByUuid(nodes, `QueryNodeCollection:${viewType}`);
   }, [activeAST, rawResults, viewType]);
   const isQueryLoading = isLinkedRefs
     ? linkedReferencesLoading || linkedRefsCountLoading
+    : isExtendedBy ? extendedByRows === undefined
     : isInlineMode ? inlineQueryLoading
     : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 

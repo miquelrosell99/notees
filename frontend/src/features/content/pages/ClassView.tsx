@@ -3,23 +3,31 @@
  *
  * Separated from NodeView because classes are not pages or blocks: they live in
  * the dedicated `class` table, define property schemas, and are best represented
- * by a header, property definitions, and their member nodes rather than page-like
- * content sections.
+ * by a header, class metadata (extends), property definitions, and their member
+ * nodes rather than page-like content sections.
  */
 import { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useNode } from '@/features/content';
+import { useNode, useResolvedClassDetails } from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { MainContentTopbar } from '@/features/layout';
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import { ClassHeader } from '@/features/content/components/nodes/ClassHeader';
-import { ClassPropertiesEditor } from '@/features/properties';
+import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSection';
+import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
+import { ClassPropertiesEditor, useAddClassExtends, useRemoveClassExtends } from '@/features/properties';
 import { QuerySection } from '@/features/content/components/nodes';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { DataStateView } from '@/components/ui/DataStateView';
-import { TableIcon } from '@/components/ui/icons';
+import { MetadataIcon, TableIcon } from '@/components/ui/icons';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import { uuidv7 } from '@/core/uuid';
+import { nodeNameToText } from '@/features/queries';
+import type { Node } from '@/types';
 import './NodeView.css';
+import '@/features/content/components/nodes/NodeMetadataSection.css';
 
 interface ClassViewProps {
   /** Class node UUID to display */
@@ -59,6 +67,32 @@ export function ClassView({ nodeUuid, viewMode, className = '' }: ClassViewProps
     },
     [openNode]
   );
+
+  // Direct superclasses this class extends (classRowToNode maps the class
+  // row's extendsClassIds onto node.extends_uuid).
+  const extendsDetails = useResolvedClassDetails(node?.extends_uuid, { skipNodesFallback: true });
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const addClassExtends = useAddClassExtends();
+  const removeClassExtends = useRemoveClassExtends();
+
+  const handleAddExtends = useCallback((extendsClass: Node) => {
+    if (!node) return;
+    addClassExtends.mutate({ classId: node.uuid, extendsClassId: extendsClass.uuid });
+  }, [node, addClassExtends]);
+
+  const handleCreateExtends = useCallback(async (name: string) => {
+    if (!node || !workspaceUuid) return;
+    const client = getWorkspaceStoreClient(workspaceUuid);
+    if (!client) return;
+    const classId = uuidv7();
+    await client.mutate<void>('createClass', [{ classId, name: nodeNameToText(name) || name }]);
+    addClassExtends.mutate({ classId: node.uuid, extendsClassId: classId });
+  }, [node, workspaceUuid, addClassExtends]);
+
+  const handleRemoveExtends = useCallback((extendsClass: Node) => {
+    if (!node) return;
+    removeClassExtends.mutate({ classId: node.uuid, extendsClassId: extendsClass.uuid });
+  }, [node, removeClassExtends]);
 
   const sectionVariant = 'default' as const;
 
@@ -126,6 +160,34 @@ export function ClassView({ nodeUuid, viewMode, className = '' }: ClassViewProps
           <ClassHeader node={node} focusMode={isFocusMode} />
         </div>
       </div>
+
+      {/* Class metadata — the direct superclasses this class extends */}
+      <NodeViewSection
+        title="Metadata"
+        icon={<MetadataIcon size="sm" />}
+        count={extendsDetails.length}
+        className="node-metadata-section"
+        defaultExpanded={true}
+        focusMode={isFocusMode}
+        variant={sectionVariant}
+      >
+        <div className="node-metadata-content">
+          <div className="node-metadata-row">
+            <div className="section-label">Extends:</div>
+            <NodeSelector
+              nodes={extendsDetails}
+              searchMode="classes"
+              emptyText="Add extend"
+              searchPlaceholder="Search classes to extend..."
+              excludeNodeId={node.uuid}
+              onNodeClick={(n) => handleNavigateToNode(n.uuid)}
+              onRemove={handleRemoveExtends}
+              onAdd={handleAddExtends}
+              onCreateNew={handleCreateExtends}
+            />
+          </div>
+        </div>
+      </NodeViewSection>
 
       {/* Property schema definitions for this class */}
       <ClassPropertiesEditor classNodeUuid={node.uuid} defaultExpanded={!isMobile} />
