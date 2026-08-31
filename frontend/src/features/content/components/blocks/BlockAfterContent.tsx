@@ -14,10 +14,11 @@
  * - Task blocks       → Status badges
  * - Query blocks      → Query results via QueryNodeCollection
  * - Table blocks      → HTML table with row/cell rendering
+ * - Whiteboard blocks → Inline interactive canvas card (Decision 24)
  * - Embed links       → Rendered inline as pills with a floating preview
  */
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   SYSTEM_CLASS_UUIDS,
@@ -43,6 +44,13 @@ import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { NodeLinkContextMenuTrigger } from '@/features/content';
 import type { JSX } from 'react';
 import './BlockAfterContent.css';
+
+// Lazy-loaded so the whiteboard feature bundle is only fetched when a
+// whiteboard-classed block is actually on screen (same pattern as
+// MainContentPane's standalone whiteboard route).
+const LazyWhiteboardView = lazy(() =>
+  import('@/features/whiteboard').then((m) => ({ default: m.WhiteboardView })),
+);
 
 interface BlockAfterContentProps {
   node: Node;
@@ -450,6 +458,7 @@ export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentP
   const isCode = classIds.includes(SYSTEM_CLASS_UUIDS.code);
   const isQuery = classIds.includes(SYSTEM_CLASS_UUIDS.query);
   const isTable = classIds.includes(SYSTEM_CLASS_UUIDS.table);
+  const isWhiteboard = classIds.includes(SYSTEM_CLASS_UUIDS.whiteboard);
   const hasBacklinks = (node.backlink_count ?? 0) > 0;
   const isTask = node.properties_uuid?.[SYSTEM_PROPERTY_UUIDS.task_status] != null;
   const calloutType = detectCalloutType(classIds);
@@ -459,7 +468,7 @@ export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentP
   );
 
   const hasContent =
-    isAsset || isCode || isQuery || isTable || hasBacklinks || isTask || calloutType != null;
+    isAsset || isCode || isQuery || isTable || isWhiteboard || hasBacklinks || isTask || calloutType != null;
 
   if (!hasContent) {
     return <div className="block-after-content" />;
@@ -474,6 +483,11 @@ export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentP
       {hasBacklinks && <BacklinkPreview node={node} expanded={backlinkExpanded} />}
       {isQuery && !isCollapsed && <QueryPreview node={node} />}
       {isTable && <TablePreview node={node} />}
+      {isWhiteboard && !isCollapsed && (
+        <Suspense fallback={null}>
+          <LazyWhiteboardView nodeUuid={node.uuid} inline />
+        </Suspense>
+      )}
     </div>
   );
 }
