@@ -402,3 +402,24 @@
     padding-right: var(--spacing-4);
   }
 }
+
+/* ── Drag-and-drop (Task 12) ─────────────────────────────────────────────── */
+
+.library-tree__row--drop-target {
+  background: var(--color-primary-container);
+  color: var(--color-on-surface);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.library-table__row--drop-target,
+.library-table__row--drop-target:hover {
+  background: var(--color-primary-container);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+.library-card--drop-target,
+.library-card--drop-target:hover {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
