@@ -2,10 +2,13 @@
   "id": "notees.library",
   "name": "Library",
   "version": "1.0.0",
-  "description": "Source management views: browse sources by class (books, papers, articles, theses, documents, movies) and authors, with table/card modes, Work→Edition grouping, and covers.",
+  "description": "Source management views: browse sources by class (books, papers, articles, theses, documents, movies) and authors, with table/card modes, Work→Edition grouping, covers, and add-by-identifier (ISBN/DOI lookup).",
   "author": "Notees",
   "license": "AGPL-3.0",
-  "permissions": [],
+  "permissions": ["read_nodes", "write_nodes", "read_properties", "write_properties", "settings", "router"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.library.setup:setup"
+  },
   "frontend": {
     "entrypoint": "./dist/plugin.js"
   },
