@@ -16,6 +16,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
 
   const allItems = useCommandPaletteItems({
     rawPages: state.rawPages,
+    rawClasses: state.rawClasses,
     rawBlocks: state.rawBlocks,
     rawProperties: state.rawProperties,
     searchTerm: state.searchTerm,
@@ -29,6 +30,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     recentCreatedPages: state.recentCreatedPages,
     randomPages: state.randomPages,
     maxPages: state.maxPages,
+    maxClasses: state.maxClasses,
     maxBlocks: state.maxBlocks,
     maxProperties: state.maxProperties,
     uuidSearch: state.uuidSearch,
@@ -57,6 +59,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     handleBooleanSelect: state.handleBooleanSelect,
     setDuplicateModal: state.setDuplicateModal,
     setMaxPages: state.setMaxPages,
+    setMaxClasses: state.setMaxClasses,
     setMaxBlocks: state.setMaxBlocks,
     setMaxProperties: state.setMaxProperties,
   });
@@ -127,6 +130,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
   const groupedItems = useMemo<GroupedItems>(() => {
     const dateItems: ItemEntry[] = [];
     const pageItems: ItemEntry[] = [];
+    const classItems: ItemEntry[] = [];
     const blockItems: ItemEntry[] = [];
     const propertyItems: ItemEntry[] = [];
     const quickAddItems: ItemEntry[] = [];
@@ -144,6 +148,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
       switch (item.type) {
         case 'date': dateItems.push(item); break;
         case 'page': case 'add-page': pageItems.push(item); break;
+        case 'class': classItems.push(item); break;
         case 'block': blockItems.push(item); break;
         case 'property': propertyItems.push(item); break;
         case 'quick-add': quickAddItems.push(item); break;
@@ -152,6 +157,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
         case 'boolean-option': booleanOptionItems.push(item); break;
         case 'show-more':
           if (item.showMoreSection === 'pages') pageItems.push(item);
+          else if (item.showMoreSection === 'classes') classItems.push(item);
           else if (item.showMoreSection === 'blocks') blockItems.push(item);
           else if (item.showMoreSection === 'properties') propertyItems.push(item);
           break;
@@ -162,7 +168,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
           break;
       }
     }
-    return { dateItems, pageItems, blockItems, propertyItems, quickAddItems, commandItems, filterPrefixItems, booleanOptionItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap };
+    return { dateItems, pageItems, classItems, blockItems, propertyItems, quickAddItems, commandItems, filterPrefixItems, booleanOptionItems, browseRecentAccessed, browseRecentCreated, browseRandom, indexMap };
   }, [allItems]);
 
   return {

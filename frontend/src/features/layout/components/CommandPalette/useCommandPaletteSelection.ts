@@ -27,6 +27,7 @@ interface UseCommandPaletteSelectionParams {
   handleBooleanSelect: (value: boolean) => void;
   setDuplicateModal: (state: DuplicateModalState) => void;
   setMaxPages: (updater: React.SetStateAction<number>) => void;
+  setMaxClasses: (updater: React.SetStateAction<number>) => void;
   setMaxBlocks: (updater: React.SetStateAction<number>) => void;
   setMaxProperties: (updater: React.SetStateAction<number>) => void;
 }
@@ -44,6 +45,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     handleBooleanSelect,
     setDuplicateModal,
     setMaxPages,
+    setMaxClasses,
     setMaxBlocks,
     setMaxProperties,
   } = params;
@@ -95,6 +97,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
 
       case 'page':
       case 'block':
+      case 'class':
       case 'browse-page':
         if (item.result?.node) {
           if (onSelect) {
@@ -174,6 +177,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
 
       case 'show-more':
         if (item.showMoreSection === 'pages') setMaxPages(prev => prev + 10);
+        else if (item.showMoreSection === 'classes') setMaxClasses(prev => prev + 10);
         else if (item.showMoreSection === 'blocks') setMaxBlocks(prev => prev + 10);
         else if (item.showMoreSection === 'properties') setMaxProperties(prev => prev + 10);
         return;
@@ -190,7 +194,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     allItems, searchTerm, pageNameForCreation, selectedClasses,
     destinationPage, onSelect, openNode, openPropertyView, createNodeMutation,
     onClose, queryClient, handlePrefixSelect, handleBooleanSelect,
-    setDuplicateModal, setMaxPages, setMaxBlocks, setMaxProperties,
+    setDuplicateModal, setMaxPages, setMaxClasses, setMaxBlocks, setMaxProperties,
     notifyError, notifyWarning, workspaceUuid, client,
   ]);
 

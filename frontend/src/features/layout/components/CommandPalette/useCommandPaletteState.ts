@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import { useProperties } from '@/features/properties';
-import { useSearch, useCreateNode, useTodayNote, usePages, useClassClass, useClasses, useRecents } from '@/features/content';
+import { useSearch, useCreateNode, useTodayNote, usePages, useClassClass, useClasses, useSearchClasses, useRecents } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -19,6 +19,7 @@ import { useCapabilities } from '@/config/capabilities';
 import type { AppliedFilter, DuplicateModalState } from './CommandPalette.types';
 import {
   INITIAL_MAX_PAGES,
+  INITIAL_MAX_CLASSES,
   INITIAL_MAX_BLOCKS,
   INITIAL_MAX_PROPERTIES,
 } from './CommandPalette.types';
@@ -49,6 +50,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     parentUuid: null,
   });
   const [maxPages, setMaxPages] = useState(INITIAL_MAX_PAGES);
+  const [maxClasses, setMaxClasses] = useState(INITIAL_MAX_CLASSES);
   const [maxBlocks, setMaxBlocks] = useState(INITIAL_MAX_BLOCKS);
   const [maxProperties, setMaxProperties] = useState(INITIAL_MAX_PROPERTIES);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -125,6 +127,10 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     allProperties,
     debouncedSearchTerm,
   );
+
+  // Class results live in the dedicated class table (not in node search
+  // results), so they are matched client-side by name, like properties.
+  const { data: rawClasses } = useSearchClasses(debouncedSearchTerm);
 
   // Show loading when typing, waiting for API, or worker is categorizing
   const isLoading = isSearchLoading || isCategorizingPending || (searchTerm !== debouncedSearchTerm && searchTerm.length > 0);
@@ -217,6 +223,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   // Reset section limits when search query changes
   useEffect(() => {
     setMaxPages(INITIAL_MAX_PAGES);
+    setMaxClasses(INITIAL_MAX_CLASSES);
     setMaxBlocks(INITIAL_MAX_BLOCKS);
     setMaxProperties(INITIAL_MAX_PROPERTIES);
   }, [debouncedSearchTerm]);
@@ -230,6 +237,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
       setQuery('');
       setAppliedFilters([]);
       setMaxPages(INITIAL_MAX_PAGES);
+      setMaxClasses(INITIAL_MAX_CLASSES);
       setMaxBlocks(INITIAL_MAX_BLOCKS);
       setMaxProperties(INITIAL_MAX_PROPERTIES);
       inputRef.current?.focus();
@@ -352,6 +360,8 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     setDuplicateModal,
     maxPages,
     setMaxPages,
+    maxClasses,
+    setMaxClasses,
     maxBlocks,
     setMaxBlocks,
     maxProperties,
@@ -374,6 +384,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     booleanFilters,
     searchResults,
     rawPages,
+    rawClasses,
     rawBlocks,
     rawProperties,
     isLoading,
