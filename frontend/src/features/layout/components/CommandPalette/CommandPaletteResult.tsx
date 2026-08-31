@@ -105,6 +105,8 @@ export function ResultItem({
         <span className="command-palette__result-icon">
           {result.type === 'page' ? (
             <NodeIcon icon={getEffectiveIcon(result.node, allClasses)} isPage={true} size="sm" />
+          ) : result.type === 'class' ? (
+            <NodeIcon icon={getEffectiveIcon(result.node, allClasses) ?? result.node.icon} isPage={false} size="sm" />
           ) : (() => {
             const effectiveIcon = getEffectiveIcon(result.node, allClasses);
             return effectiveIcon
@@ -120,6 +122,11 @@ export function ResultItem({
         {aliasedNodeName && (
           <span className="command-palette__result-alias">
             alias of: {aliasedNodeName}
+          </span>
+        )}
+        {result.type === 'class' && (
+          <span className="command-palette__result-type">
+            class
           </span>
         )}
         {displayClasses.length > 0 && (
