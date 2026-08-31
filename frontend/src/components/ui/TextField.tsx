@@ -2,7 +2,7 @@
  * TextField Component
  *
  * A reusable text input component with consistent styling.
- * Features slightly rounded corners and subtle border.
+ * Features a minimal underline that highlights when active.
  */
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import './TextField.css';
@@ -28,7 +28,7 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 
 /**
  * TextField component for text input with consistent styling.
- * Provides slightly rounded corners and subtle border styling.
+ * Provides a minimal underline that highlights when active.
  */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
   {
