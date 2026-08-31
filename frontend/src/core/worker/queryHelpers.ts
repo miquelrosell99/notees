@@ -672,6 +672,49 @@ export function repairDatePageHierarchy(store: WorkspaceStore): void {
   }
 }
 
+/**
+ * Rebuild the class_hierarchy closure table from the class table.
+ *
+ * Idempotent startup repair, run alongside repairDatePageHierarchy. The
+ * closure is fully derivable from class.extends_class_ids, so this heals
+ * clients that applied class ops with an older applier — without forcing a
+ * full operation-log replay via CURRENT_DERIVED_STATE_VERSION. Ancestors are
+ * resolved by walking extends_class_ids directly (not the half-built closure)
+ * and the walk is cycle-safe. Cheap: workspaces have few classes.
+ */
+export function repairClassHierarchy(store: WorkspaceStore): void {
+  const db = store.getDb();
+  const classes = queryAll<{ id: string; extends_class_ids: string | null }>(
+    db,
+    'SELECT id, extends_class_ids FROM class'
+  );
+  if (classes.length === 0) return;
+
+  const extendsById = new Map<string, string[]>(
+    classes.map((c) => [c.id, parseJson<string[]>(c.extends_class_ids ?? '', [])])
+  );
+
+  const ancestorsOf = (classId: string): string[] => {
+    const ancestors = new Set<string>();
+    const stack = [...(extendsById.get(classId) ?? [])];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current === classId || ancestors.has(current)) continue;
+      ancestors.add(current);
+      stack.push(...(extendsById.get(current) ?? []));
+    }
+    return [...ancestors].sort();
+  };
+
+  db.run('DELETE FROM class_hierarchy');
+  for (const c of classes) {
+    db.run('INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)', [c.id, c.id]);
+    for (const ancestorId of ancestorsOf(c.id)) {
+      db.run('INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)', [c.id, ancestorId]);
+    }
+  }
+}
+
 // ─── Backlinks ──────────────────────────────────────────────────────────────
 
 export function buildBacklinks(store: WorkspaceStore, nodeUuid: string): Backlink[] {
