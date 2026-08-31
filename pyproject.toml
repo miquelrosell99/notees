@@ -33,6 +33,7 @@ dependencies = [
     "redis>=5.0.0",
     "uuid7>=0.1.0",
     "pyotp>=2.10.0",
+    "pypdf>=6.0,<7",
     "cryptography>=49.0.0",
     "qrcode>=8.2",
 ]
