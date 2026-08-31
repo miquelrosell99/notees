@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
-import { listCorePagesAsync } from '@/core/query/listPages';
 import {
   getOrCreateDailyNoteClient,
   getOrCreateMonthlyNoteClient,
@@ -14,7 +13,6 @@ import { useNotifications } from '@/stores/notificationStore';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
-import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
 import type { ItemEntry, DuplicateModalState } from './CommandPalette.types';
 
 interface UseCommandPaletteSelectionParams {
@@ -117,30 +115,13 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
 
       case 'add-page':
         try {
-          const parsed = parseHierarchicalPath(pageNameForCreation);
-          let parentUuid: string | null = null;
           const classUuids = selectedClasses.map(c => c.uuid);
-
-          if (parsed.isHierarchical) {
-            const freshPages = workspaceUuid ? await listCorePagesAsync(workspaceUuid) : [];
-            parentUuid = await resolveHierarchicalParentUuid(
-              parsed.parentSegments,
-              freshPages,
-              async (name, parent) => {
-                return await createNodeMutation.mutateAsync({
-                  name,
-                  kind: 'page',
-                  parent_uuid: parent,
-                });
-              }
-            );
-          }
 
           try {
             const newNode = await createNodeMutation.mutateAsync({
-              name: parsed.leaf || pageNameForCreation,
+              name: pageNameForCreation,
               kind: 'page',
-              parent_uuid: parentUuid,
+              parent_uuid: null,
               class_uuids: classUuids.length > 0 ? classUuids : undefined,
             });
             onClose();
@@ -152,10 +133,10 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
               const conflicting = typeof detail === 'object' && detail !== null ? (detail.conflicting_classes || []) : [];
               setDuplicateModal({
                 isOpen: true,
-                pageName: parsed.leaf || pageNameForCreation,
+                pageName: pageNameForCreation,
                 conflictingClasses: conflicting,
                 originalClasses: classUuids,
-                parentUuid: parentUuid,
+                parentUuid: null,
               });
             } else {
               notifyError('Failed to create page', 'Please try again.');

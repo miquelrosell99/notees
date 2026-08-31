@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import { useProperties } from '@/features/properties';
-import { useSearch, useCreateNode, useTodayNote, usePages, useHierarchicalPath, useClassClass, useClasses, useRecents } from '@/features/content';
+import { useSearch, useCreateNode, useTodayNote, usePages, useClassClass, useClasses, useRecents } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -141,9 +141,6 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   }, [allPages]);
   const inboxPage = allPages?.find(p => nodeNameToText(p.name) === 'Inbox');
   const destinationPage = quickAddDestination === 'today' ? todayNote : inboxPage;
-
-  // Analyze hierarchical path structure (use searchTerm without the @class part)
-  const pathInfo = useHierarchicalPath(searchTerm, true);
 
   // Display name for page creation (without @class suffix)
   const pageNameForCreation = searchTerm.trim();
@@ -385,7 +382,6 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     pageMap,
     inboxPage,
     destinationPage,
-    pathInfo,
     pageNameForCreation,
     parsedDate,
     existingDateNode,

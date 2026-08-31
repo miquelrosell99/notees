@@ -36,7 +36,6 @@ describe('getPagesResults', () => {
 
     const { pageResults } = getPagesResults(
       '',
-      '',
       undefined,
       undefined,
       undefined,
@@ -55,7 +54,6 @@ describe('getPagesResults', () => {
 
     const { pageResults } = getPagesResults(
       'Regular',
-      'Regular',
       [page],
       undefined,
       undefined,
@@ -68,6 +66,32 @@ describe('getPagesResults', () => {
 
     expect(pageResults.map(r => r.node.uuid)).toEqual(['page-1']);
   });
+
+  it('treats "/" in queries literally (no parent-path resolution)', () => {
+    // A page literally named "Parent/Child" at root, plus an unrelated child
+    // named "Child" under a page named "Parent". A literal query must not
+    // resolve "Parent" as a parent path segment.
+    const literalPage = makeNode({ uuid: 'page-literal', name: 'Parent/Child', is_page: true });
+    const parent = makeNode({ uuid: 'page-parent', name: 'Parent', is_page: true });
+    const child = makeNode({ uuid: 'page-child', name: 'Child', parent_uuid: 'page-parent', is_page: false });
+
+    const { pageResults } = getPagesResults(
+      'Parent/Child',
+      [literalPage, parent, child],
+      undefined,
+      undefined,
+      [literalPage, parent, child],
+      [],
+      undefined,
+      undefined,
+      10,
+    );
+
+    // The backend search already matched by literal name; the client must not
+    // re-filter by hierarchy. The non-page child is dropped only because this
+    // builder keeps pages, like any other query.
+    expect(pageResults.map(r => r.node.uuid)).toEqual(['page-literal', 'page-parent']);
+  });
 });
 
 describe('getAllResults', () => {
@@ -76,7 +100,6 @@ describe('getAllResults', () => {
     const block = makeNode({ uuid: 'block-1', name: 'Block', is_page: false, parent_uuid: 'page-1' });
 
     const { pageResults, blockResults } = getAllResults(
-      '',
       '',
       undefined,
       undefined,
@@ -96,7 +119,6 @@ describe('getAllResults', () => {
     const page = makeNode({ uuid: 'page-1', name: 'Regular page', is_page: true });
 
     const { pageResults } = getAllResults(
-      'Regular',
       'Regular',
       [page],
       undefined,

@@ -13,7 +13,7 @@ export const SYSTEM_PROPERTY_UUIDS = {
   cover: '00000000-0000-0000-0000-000000000005',
   banner: '00000000-0000-0000-0000-000000000006',
   description: '00000000-0000-0000-0000-000000000009',
-  extends: '00000000-0000-0000-0000-000000000008',
+  _query_ast: '00000000-0000-0000-0000-000000000007',  // Hidden system property for query nodes
   _whiteboard_data: '00000000-0000-0000-0000-000000000010',  // Whiteboard layout JSON
   // Task class properties
   task_status: '00000000-0000-0000-0003-000000000001',
@@ -22,7 +22,139 @@ export const SYSTEM_PROPERTY_UUIDS = {
   task_priority: '00000000-0000-0000-0003-000000000004',
   task_closed_date: '00000000-0000-0000-0003-000000000005',
   task_recurrence: '00000000-0000-0000-0003-000000000006',
+  // Source hierarchy & attachments
+  attachments: '00000000-0000-0000-0000-000000000011',
+  authors: '00000000-0000-0000-0000-000000000012',
+  isbn: '00000000-0000-0000-0000-000000000013',
+  doi: '00000000-0000-0000-0000-000000000014',
+  publication_date: '00000000-0000-0000-0000-000000000015',
+  publisher: '00000000-0000-0000-0000-000000000016',
+  role: '00000000-0000-0000-0000-000000000017',
+  // "locator" (…0018) withdrawn — highlights carry position info as text; do not reuse
+  provenance: '00000000-0000-0000-0000-000000000019',
+  highlight_asset: '00000000-0000-0000-0000-000000000020',
+  given_name: '00000000-0000-0000-0000-000000000021',
+  family_name: '00000000-0000-0000-0000-000000000022',
+  citekey: '00000000-0000-0000-0000-000000000023',
+  url: '00000000-0000-0000-0000-000000000024',
 } as const;
+
+/**
+ * System class icons - mirrors the backend SYSTEM_CLASS_ICONS in
+ * app/domain/entities/constants.py (guarded by the system-UUID parity test).
+ */
+export const SYSTEM_CLASS_ICONS: Record<string, string> = {
+  class: 'mdiTagMultiple',
+  day: 'mdiCalendarToday',
+  month: 'mdiCalendarMonth',
+  year: 'mdiCalendarText',
+  quote: 'mdiFormatQuoteClose',
+  query: 'mdiMagnify',
+  asset: 'mdiPaperclip',
+  whiteboard: 'mdiDraw',
+  card: 'mdiCardOutline',
+  template: 'mdiFileDocumentOutline',
+  task: 'mdiCheckboxMarkedCircleOutline',
+  comment: 'mdiCommentOutline',
+  table: 'mdiTable',
+  warning: 'mdiAlert',
+  note: 'mdiNoteOutline',
+  tip: 'mdiLightbulbOutline',
+  info: 'mdiInformationOutline',
+  danger: 'mdiAlertCircle',
+  success: 'mdiCheckCircle',
+  cloze: 'mdiEyeOff',
+  source: 'mdiBookshelf',
+  book: 'mdiBookOpenVariant',
+  paper: 'mdiNewspaperVariantOutline',
+  article: 'mdiNewspaper',
+  thesis: 'mdiSchoolOutline',
+  document: 'mdiFileOutline',
+  agent: 'mdiAccountGroupOutline',
+  person: 'mdiAccountOutline',
+  organization: 'mdiDomain',
+  collection: 'mdiFolderMultipleOutline',
+  highlight: 'mdiFormatHighlight',
+  weblink: 'mdiLinkVariant',
+  movie: 'mdiMovieOpenOutline',
+};
+
+/**
+ * Canonical extends edges between system classes (class name -> parent class
+ * names). Mirrors the backend SYSTEM_CLASS_EXTENDS (parity-test guarded).
+ */
+export const SYSTEM_CLASS_EXTENDS: Record<string, string[]> = {
+  book: ['source'],
+  paper: ['source'],
+  article: ['source'],
+  thesis: ['source'],
+  document: ['source'],
+  movie: ['source'],
+  person: ['agent'],
+  organization: ['agent'],
+};
+
+/** Class-scoped system property schema specification (see SYSTEM_PROPERTY_SCHEMA_SPECS). */
+export interface SystemPropertySchemaSpec {
+  type: string;
+  multi?: boolean;
+  classFilter?: string[];
+  options?: Array<{ uuid: string; name: string; sequence: number }>;
+  defaultValue?: string;
+  bindTo: string;
+}
+
+/**
+ * Class-scoped system property schemas, in canonical seed order. Keys are
+ * property names (also keys of SYSTEM_PROPERTY_UUIDS); `bindTo` names the
+ * system class the schema is bound to via a classPropertyEdge. Mirrors the
+ * backend SYSTEM_PROPERTY_SCHEMA_SPECS (parity-test guarded).
+ */
+export const SYSTEM_PROPERTY_SCHEMA_SPECS: Record<string, SystemPropertySchemaSpec> = {
+  attachments: { type: 'node', multi: true, classFilter: ['asset'], bindTo: 'source' },
+  authors: { type: 'node', multi: true, classFilter: ['agent'], bindTo: 'source' },
+  isbn: { type: 'text', bindTo: 'source' },
+  doi: { type: 'text', bindTo: 'source' },
+  publication_date: { type: 'date', bindTo: 'source' },
+  publisher: { type: 'text', bindTo: 'source' },
+  role: {
+    type: 'selection',
+    options: [
+      { uuid: '00000000-0000-0000-0004-000000000001', name: 'representation', sequence: 0 },
+      { uuid: '00000000-0000-0000-0004-000000000002', name: 'cover', sequence: 1 },
+      { uuid: '00000000-0000-0000-0004-000000000003', name: 'supplement', sequence: 2 },
+      { uuid: '00000000-0000-0000-0004-000000000004', name: 'attachment', sequence: 3 },
+      { uuid: '00000000-0000-0000-0004-000000000005', name: 'generated', sequence: 4 },
+      { uuid: '00000000-0000-0000-0004-000000000006', name: 'thumbnail', sequence: 5 },
+      { uuid: '00000000-0000-0000-0004-000000000007', name: 'other', sequence: 6 },
+    ],
+    bindTo: 'asset',
+  },
+  provenance: { type: 'text', bindTo: 'highlight' },
+  highlight_asset: { type: 'node', classFilter: ['asset'], bindTo: 'highlight' },
+  given_name: { type: 'text', bindTo: 'person' },
+  family_name: { type: 'text', bindTo: 'person' },
+  citekey: { type: 'text', defaultValue: '', bindTo: 'source' },
+  url: { type: 'url', bindTo: 'weblink' },
+};
+
+/** Extra class-property binding for a base system property (see SYSTEM_EXTRA_CLASS_BINDINGS). */
+interface ExtraClassBinding {
+  bindTo: string;
+  sequence: number;
+}
+
+/**
+ * Extra class-property bindings for base system properties whose schemas are
+ * created outside SYSTEM_PROPERTY_SCHEMA_SPECS (e.g. the global cover
+ * property): seeds emit only the classPropertyEdge, never the schema.
+ * `sequence` is the next free per-class slot (source's spec-bound schemas
+ * occupy 0-6). Mirrors the backend SYSTEM_EXTRA_CLASS_BINDINGS (parity-test
+ * guarded).
+ */
+export const SYSTEM_EXTRA_CLASS_BINDINGS: Record<string, ExtraClassBinding> = {
+  cover: { bindTo: 'source', sequence: 7 },
+};
 
 /** All task status names, ordered to match the backend TASK_STATUS_OPTIONS. */
 export const TASK_STATUSES = [
@@ -86,6 +218,19 @@ export const SYSTEM_CLASS_UUIDS = {
   danger: '00000000-0000-0000-0001-000000000020',
   success: '00000000-0000-0000-0001-000000000021',
   cloze: '00000000-0000-0000-0001-000000000022',
+  source: '00000000-0000-0000-0001-000000000023',
+  book: '00000000-0000-0000-0001-000000000024',
+  paper: '00000000-0000-0000-0001-000000000025',
+  article: '00000000-0000-0000-0001-000000000026',
+  thesis: '00000000-0000-0000-0001-000000000027',
+  document: '00000000-0000-0000-0001-000000000028',
+  agent: '00000000-0000-0000-0001-000000000029',
+  person: '00000000-0000-0000-0001-000000000030',
+  organization: '00000000-0000-0000-0001-000000000031',
+  collection: '00000000-0000-0000-0001-000000000032',
+  highlight: '00000000-0000-0000-0001-000000000033',
+  weblink: '00000000-0000-0000-0001-000000000034',
+  movie: '00000000-0000-0000-0001-000000000035',
 } as const;
 
 /**

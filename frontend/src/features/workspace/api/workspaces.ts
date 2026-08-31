@@ -226,4 +226,48 @@ export async function setWorkspaceSetting(workspaceUuid: string, key: string, va
   await api.put(`/workspaces/${encodeURIComponent(workspaceUuid)}/settings/${encodeURIComponent(key)}`, { value });
 }
 
+// ── Class consolidation (opt-in, Decision 26) ─────────────
+
+export interface WorkspaceClassInfo {
+  id: string;
+  name: string;
+  is_system: boolean;
+}
+
+/**
+ * List active classes of a workspace.
+ */
+export async function listWorkspaceClasses(workspaceUuid: string): Promise<WorkspaceClassInfo[]> {
+  const response = await api.get<{ items: WorkspaceClassInfo[] }>(
+    `/workspaces/${encodeURIComponent(workspaceUuid)}/classes`,
+  );
+  return response.data.items;
+}
+
+export interface ClassConsolidationResult {
+  success: boolean;
+  old_class_uuid: string;
+  old_class_name: string;
+  new_class_uuid: string;
+  new_class_name: string;
+  nodes_reassigned: number;
+  property_edges_remapped: number;
+  property_values_migrated: number;
+}
+
+/**
+ * Consolidate one class into another given an explicit old→new UUID mapping.
+ */
+export async function consolidateClass(
+  workspaceUuid: string,
+  oldClassUuid: string,
+  newClassUuid: string,
+): Promise<ClassConsolidationResult> {
+  const response = await api.post<ClassConsolidationResult>(
+    `/workspaces/${encodeURIComponent(workspaceUuid)}/class-consolidation`,
+    { old_class_uuid: oldClassUuid, new_class_uuid: newClassUuid },
+  );
+  return response.data;
+}
+
 

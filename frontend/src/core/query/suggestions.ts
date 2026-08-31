@@ -5,6 +5,7 @@
 import type { Node } from '@/types/api';
 import { queryAll } from '../db/sqlite';
 import { projectNode } from '../adapters/nodeProjection';
+import { expandClassFilterUuidsFromDb, nodeMatchesExpandedClassFilter } from './classFilter';
 import type { WorkspaceStore } from '../store';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 
@@ -13,7 +14,11 @@ const RECENT_MINUTES = 15;
 
 export function buildSuggestions(store: WorkspaceStore, classFilters?: string): Node[] {
   const db = store.getDb();
-  const classFilterSet = classFilters ? new Set(classFilters.split(',').filter(Boolean)) : null;
+  // Hierarchy-aware class filtering (Decision 9): resolve filter UUIDs through
+  // the class_hierarchy closure so superclass filters match subclass instances.
+  const classFilterSet = classFilters
+    ? expandClassFilterUuidsFromDb(db, classFilters.split(',').filter(Boolean))
+    : null;
 
   const recentCutoff = new Date(Date.now() - RECENT_MINUTES * 60 * 1000).toISOString();
 
@@ -54,7 +59,7 @@ export function buildSuggestions(store: WorkspaceStore, classFilters?: string): 
 
   const addNode = (node: Node) => {
     if (seen.has(node.uuid)) return;
-    if (classFilterSet && !(node.classes_uuid ?? []).some((id) => classFilterSet!.has(id))) return;
+    if (classFilterSet && !nodeMatchesExpandedClassFilter(node.classes_uuid, classFilterSet)) return;
     seen.add(node.uuid);
     suggestions.push(node);
   };

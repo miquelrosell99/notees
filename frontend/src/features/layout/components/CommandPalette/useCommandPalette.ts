@@ -186,7 +186,6 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     debouncedSearchTerm: state.debouncedSearchTerm,
     uuidSearch: state.uuidSearch,
     parsedDate: state.parsedDate,
-    pathInfo: state.pathInfo,
     allItems,
     selectedIndex,
     handleKeyDown,
