@@ -12,8 +12,10 @@
  * Drag-and-drop (Task 12): dropping a file on a source row/card attaches it
  * (upload + asset node + `attachments` entry); dragging a source row/card
  * onto a collection in the tree nests it there (node.move). Header action
- * "Add by identifier" (Task 13) opens the ISBN/DOI lookup dialog; confirm
- * creates the source backend-side, then selects and opens it.
+ * "Add by identifier" (Task 13) opens the ISBN/DOI lookup dialog; "Add PDF"
+ * (Task 14) opens the add-by-file dialog (extract DOI/ISBN from the PDF,
+ * resolve metadata, attach the file). Confirm creates the source
+ * backend-side, then selects and opens it.
  */
 import { useMemo, useState, useCallback } from 'react';
 import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
@@ -54,6 +56,7 @@ import { LibraryInspector } from './components/LibraryInspector';
 import { LibraryTable } from './components/LibraryTable';
 import { LibraryCardGrid } from './components/LibraryCardGrid';
 import { AddByIdentifierDialog } from './components/AddByIdentifierDialog';
+import { AddPdfDialog } from './components/AddPdfDialog';
 import { useLibraryDnd } from './useLibraryDnd';
 import './LibraryPage.css';
 
@@ -66,6 +69,7 @@ export function LibraryPage() {
   const [selection, setSelection] = useState<LibraryPaneSelection>(ALL_SOURCES_SELECTION);
   const [expandedCollections, setExpandedCollections] = useState<ReadonlySet<string>>(new Set());
   const [addByIdentifierOpen, setAddByIdentifierOpen] = useState(false);
+  const [addPdfOpen, setAddPdfOpen] = useState(false);
 
   const isCollectionSelected = selection.collectionUuid !== null;
   const section = getLibrarySection(sectionId);
@@ -248,6 +252,16 @@ export function LibraryPage() {
             >
               Add by identifier
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-file-pdf-box"
+              onClick={() => setAddPdfOpen(true)}
+              aria-label="Add PDF"
+              title="Add PDF (extracts DOI/ISBN and fetches metadata)"
+            >
+              Add PDF
+            </Button>
             <div className="library-view__toggle-group" role="group" aria-label="View mode">
               <Button
                 variant="ghost"
@@ -392,6 +406,11 @@ export function LibraryPage() {
       <AddByIdentifierDialog
         isOpen={addByIdentifierOpen}
         onClose={() => setAddByIdentifierOpen(false)}
+        onCreated={handleIdentifierCreated}
+      />
+      <AddPdfDialog
+        isOpen={addPdfOpen}
+        onClose={() => setAddPdfOpen(false)}
         onCreated={handleIdentifierCreated}
       />
     </article>
