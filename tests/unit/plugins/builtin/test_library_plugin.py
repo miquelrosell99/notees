@@ -1,9 +1,11 @@
 """Tests for the builtin Library plugin package (notees.library).
 
-The Library is a pure view plugin (frontend-only entrypoint, no backend
-routes). These tests pin the packaging contract: the manifest validates, the
-plugin is discovered as a builtin, and — unlike other builtins — it ships
-disabled by default (Decision 23: plugin enablement is the on/off toggle).
+The Library is primarily a view plugin; since Task 13 it also ships a small
+backend (add-by-identifier routes — metadata providers are called
+server-side). These tests pin the packaging contract: the manifest
+validates, the plugin is discovered as a builtin, and — unlike other
+builtins — it ships disabled by default (Decision 23: plugin enablement is
+the on/off toggle).
 """
 
 from __future__ import annotations
@@ -27,9 +29,9 @@ def test_library_manifest_validates() -> None:
     assert manifest.id == "notees.library"
     assert manifest.name == "Library"
     assert manifest.frontend.entrypoint is not None
-    # Pure view plugin: no backend entrypoint, no permissions needed.
-    assert manifest.backend.entrypoint is None
-    assert manifest.permissions == []
+    # View plugin + add-by-identifier backend routes (Task 13).
+    assert manifest.backend.entrypoint is not None
+    assert "router" in manifest.permissions
     contributed_view_ids = [v.id for v in manifest.contributes.views]
     assert "library" in contributed_view_ids
     contributed_sidebar = {item.id: item.view_id for item in manifest.contributes.sidebar_items}
@@ -91,11 +93,12 @@ def test_library_registered_but_not_enabled(tmp_path: Path, monkeypatch) -> None
     assert plugin is not None
     assert plugin.enabled is False
     assert plugin.backend_setup_failed is False
-    # No router: nothing to mount or unmount for a view-only plugin.
+    # Disabled: setup never ran, so no router is registered or mounted.
     assert manager.registry.get_router_registration("notees.library") is None
 
-    # Restartless toggle works for route-less plugins too.
+    # Restartless toggle runs setup (registering the router) on enable.
     assert manager.set_enabled("notees.library", True) is True
     assert plugin.enabled is True
+    assert manager.registry.get_router_registration("notees.library") is not None
     assert manager.set_enabled("notees.library", False) is True
     assert plugin.enabled is False

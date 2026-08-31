@@ -11,7 +11,9 @@
  * property ops). Selection never navigates; opening a node is explicit.
  * Drag-and-drop (Task 12): dropping a file on a source row/card attaches it
  * (upload + asset node + `attachments` entry); dragging a source row/card
- * onto a collection in the tree nests it there (node.move).
+ * onto a collection in the tree nests it there (node.move). Header action
+ * "Add by identifier" (Task 13) opens the ISBN/DOI lookup dialog; confirm
+ * creates the source backend-side, then selects and opens it.
  */
 import { useMemo, useState, useCallback } from 'react';
 import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
@@ -51,6 +53,7 @@ import { CollectionTreePane } from './components/CollectionTreePane';
 import { LibraryInspector } from './components/LibraryInspector';
 import { LibraryTable } from './components/LibraryTable';
 import { LibraryCardGrid } from './components/LibraryCardGrid';
+import { AddByIdentifierDialog } from './components/AddByIdentifierDialog';
 import { useLibraryDnd } from './useLibraryDnd';
 import './LibraryPage.css';
 
@@ -62,6 +65,7 @@ export function LibraryPage() {
   const [grouping, setGrouping] = useState<LibraryGrouping>('flat');
   const [selection, setSelection] = useState<LibraryPaneSelection>(ALL_SOURCES_SELECTION);
   const [expandedCollections, setExpandedCollections] = useState<ReadonlySet<string>>(new Set());
+  const [addByIdentifierOpen, setAddByIdentifierOpen] = useState(false);
 
   const isCollectionSelected = selection.collectionUuid !== null;
   const section = getLibrarySection(sectionId);
@@ -195,6 +199,15 @@ export function LibraryPage() {
   const handleToggleExpand = useCallback((collectionUuid: string) => {
     setExpandedCollections((prev) => toggleExpanded(prev, collectionUuid));
   }, []);
+  // Add-by-identifier (Task 13): the created source is selected in the
+  // inspector and opened — selection lands after sync pulls the new ops.
+  const handleIdentifierCreated = useCallback(
+    (nodeUuid: string) => {
+      setSelection((prev) => selectSource(prev, nodeUuid));
+      openNode(nodeUuid);
+    },
+    [openNode],
+  );
 
   // Drag-to-attach / drag-to-collect (Task 12). Both flow through normal ops
   // (asset upload + property.set; node.move), so sync comes free.
@@ -225,6 +238,16 @@ export function LibraryPage() {
         title={<h1>Library</h1>}
         actions={
           <>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-barcode-scan"
+              onClick={() => setAddByIdentifierOpen(true)}
+              aria-label="Add by identifier"
+              title="Add by identifier (ISBN/DOI)"
+            >
+              Add by identifier
+            </Button>
             <div className="library-view__toggle-group" role="group" aria-label="View mode">
               <Button
                 variant="ghost"
@@ -365,6 +388,12 @@ export function LibraryPage() {
           </div>
         )}
       </div>
+
+      <AddByIdentifierDialog
+        isOpen={addByIdentifierOpen}
+        onClose={() => setAddByIdentifierOpen(false)}
+        onCreated={handleIdentifierCreated}
+      />
     </article>
   );
 }
