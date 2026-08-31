@@ -154,6 +154,7 @@ async def enable_plugin(
     """Enable a plugin, taking effect immediately (no restart)."""
     if not plugin_manager.set_enabled(plugin_id, True):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Plugin not found")
+    await plugin_manager.run_startup_hooks(plugin_id)
     return {"id": plugin_id, "enabled": True, "restart_required": False}
 
 
