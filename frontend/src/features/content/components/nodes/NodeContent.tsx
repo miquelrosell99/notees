@@ -287,6 +287,13 @@ export function NodeContent({
         }
         break;
       }
+      case 'whiteboard': {
+        const classId = systemClassMap?.whiteboard;
+        if (classId != null && blockServerId != null) {
+          addClass.mutate({ nodeUuid: blockServerId, classId });
+        }
+        break;
+      }
       case 'task': {
         const classId = systemClassMap?.task;
         if (classId != null && blockServerId != null) {

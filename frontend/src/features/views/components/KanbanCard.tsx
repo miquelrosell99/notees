@@ -427,6 +427,11 @@ export const NodeCard = memo(function NodeCard({
         if (cls && blockServerId != null) addClass.mutate({ nodeUuid: blockServerId, classId: cls.uuid });
         break;
       }
+      case 'whiteboard': {
+        const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.whiteboard);
+        if (cls && blockServerId != null) addClass.mutate({ nodeUuid: blockServerId, classId: cls.uuid });
+        break;
+      }
       case 'warning':
       case 'note':
       case 'tip':

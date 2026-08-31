@@ -16,6 +16,7 @@ import { WhiteboardCanvas } from './WhiteboardCanvas';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
 import { WhiteboardContextMenu } from './WhiteboardContextMenu';
 import { WhiteboardMinimap } from './WhiteboardMinimap';
+import { Button } from '@/components/ui/Button';
 import { useWhiteboard } from '@/features/whiteboard/hooks/useWhiteboard';
 import { useCreateNode, useDeleteNode } from '@/features/content';
 import { useNavigationStore } from '@/stores';
@@ -29,9 +30,15 @@ import './WhiteboardView.css';
 
 interface WhiteboardViewProps {
   nodeUuid: string;
+  /**
+   * Inline presentation (Decision 24): a block with the `whiteboard` class
+   * renders the same canvas as a bounded card inside the document flow.
+   * Adds an expand affordance (opens the full view) and hides the minimap.
+   */
+  inline?: boolean;
 }
 
-export const WhiteboardView: React.FC<WhiteboardViewProps> = ({  nodeUuid }) => {
+export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeUuid, inline = false }) => {
   const wb = useWhiteboard(nodeUuid);
   const createNode = useCreateNode();
   const deleteNode = useDeleteNode();
@@ -220,8 +227,8 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({  nodeUuid }) => 
   // ─── Grid class ──────────────────────────────────────────────────
 
   const viewClassName = useMemo(() => {
-    return `whiteboard-view ${gridVisible ? 'whiteboard-view--grid' : ''}`;
-  }, [gridVisible]);
+    return `whiteboard-view ${gridVisible ? 'whiteboard-view--grid' : ''} ${inline ? 'whiteboard-view--inline' : ''}`;
+  }, [gridVisible, inline]);
 
   const gridStyle = useMemo(() => {
     if (!gridVisible) return {};
@@ -263,8 +270,21 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({  nodeUuid }) => 
         onAddImage={handleAddImage}
       />
 
-      {/* Minimap */}
-      {minimapVisible && <WhiteboardMinimap wb={wbWrapped} />}
+      {/* Minimap — hidden inline; the card is too small for it to be useful */}
+      {minimapVisible && !inline && <WhiteboardMinimap wb={wbWrapped} />}
+
+      {/* Expand affordance — inline cards open the full-page canvas view */}
+      {inline && (
+        <Button
+          variant="ghost"
+          size="xs"
+          icon="mdi mdi-arrow-expand"
+          aria-label="Open full whiteboard"
+          title="Open full whiteboard"
+          className="whiteboard-view__expand-btn"
+          onClick={() => openNode(nodeUuid)}
+        />
+      )}
 
       {/* Context menu — rendered via portal to escape transform: translateZ(0) on .whiteboard-view,
           which would otherwise offset position:fixed coordinates */}
