@@ -70,9 +70,6 @@ export function ResultItem({
               <HighlightText text={result.property.name} highlight={searchTerm} />
             </span>
           </span>
-          <span className="command-palette__result-type">
-            property
-          </span>
         </div>
       </button>
     );
@@ -122,11 +119,6 @@ export function ResultItem({
         {aliasedNodeName && (
           <span className="command-palette__result-alias">
             alias of: {aliasedNodeName}
-          </span>
-        )}
-        {result.type === 'class' && (
-          <span className="command-palette__result-type">
-            class
           </span>
         )}
         {displayClasses.length > 0 && (
