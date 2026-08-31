@@ -106,6 +106,8 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 
 **Prevent:** When a diff touches `frontend/src/core/derived/**` appliers, verify the version bump and reset list in the same commit.
 
+**Corollary — a bump is the expensive option; prefer targeted startup repairs.** A bump forces every client to replay the full operation log (minutes on large workspaces), and before 2026-08 the version was stamped *before* the rebuild, so an interrupted rebuild persisted wiped tables marked current — no retry, broken client. When the affected state derives from one small local table (e.g. `class_hierarchy` from `class.extends_class_ids`), add an idempotent startup repair instead (`repairClassHierarchy` / `repairDatePageHierarchy` pattern, wired into both store-init paths). The version is now stamped in `SyncEngine.initialize` only after the rebuild's pull succeeds; keep it that way.
+
 ## **[query]** Persisted system views store an empty `query_ast`
 
 **Symptom:** A system section (`classed_nodes`, `extended_by`, `child_pages`) renders empty even though matching nodes exist, while its query editor shows the expected system condition chip (e.g. "class contains current page").

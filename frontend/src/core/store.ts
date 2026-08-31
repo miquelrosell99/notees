@@ -77,12 +77,11 @@ const DEFAULT_VIEW_NAMES: Record<string, string> = {
  * a workspace with a stale version triggers a hard rebuild: derived tables are
  * cleared and the full server operation log is replayed with the new applier.
  *
- * v5: the class_hierarchy hardening in 373335f1 (recursive closure recompute)
- * shipped without a bump — clients that applied class.update ops with the old
- * applier carry a stale closure. Class/extends queries depend on it, so force
- * a rebuild.
+ * Prefer targeted startup repairs (repairDatePageHierarchy,
+ * repairClassHierarchy) over a bump when the affected state can be recomputed
+ * from a small local table — a rebuild replays the entire log.
  */
-export const CURRENT_DERIVED_STATE_VERSION = 5;
+export const CURRENT_DERIVED_STATE_VERSION = 4;
 
 export class WorkspaceStore {
   private clock: Clock;
@@ -260,6 +259,10 @@ export class WorkspaceStore {
    * sync will re-download operations and rebuild derived tables with the new
    * applier. Snapshots are deleted because they may have been produced by an
    * older applier.
+   *
+   * Does NOT stamp the derived-state version: the caller (SyncEngine.initialize)
+   * stamps it only after the rebuild completes, so an interrupted rebuild is
+   * retried on the next open instead of leaving wiped state marked current.
    */
   resetDerivedState(): void {
     transaction(this.db, () => {
@@ -290,8 +293,6 @@ export class WorkspaceStore {
 
       this.db.run('DELETE FROM snapshot');
       this.db.run('DELETE FROM compacted_operation_segment');
-
-      this.setDerivedStateVersion(CURRENT_DERIVED_STATE_VERSION);
     });
     this.emitAll();
     this.schedulePersist();

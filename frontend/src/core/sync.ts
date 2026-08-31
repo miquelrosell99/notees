@@ -1,4 +1,5 @@
 import { compareHlc, maxHlc, type Hlc } from './clock';
+import { CURRENT_DERIVED_STATE_VERSION } from './store';
 import {
   assertSupportedProtocolVersion,
   createOperation,
@@ -535,6 +536,11 @@ export class SyncEngine {
       this.uploadedSnapshotHlc = null;
       this.reportPhase('pulling-operations', 'Pulling operations from server…');
       await this.pull({ ignoreSnapshot: true });
+      // Stamp the new applier version only after the rebuild completed
+      // successfully — an interrupted rebuild must stay "stale" so the next
+      // open retries it instead of keeping wiped tables marked as current.
+      await this.client.mutate('setDerivedStateVersion', [CURRENT_DERIVED_STATE_VERSION]);
+      await this.client.mutate('persistNow', []);
       this.setStatus('idle', null);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
