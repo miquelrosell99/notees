@@ -56,7 +56,7 @@ Persisted system views (`classed_nodes`, `extended_by`, `child_pages`) store an 
 
 ## Applier changes must bump the derived-state version
 
-Any change to client-side applier logic (`frontend/src/core/derived/**`) must bump `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) and clear new derived tables in `resetDerivedState` in the same commit — nothing fails CI otherwise, and existing clients keep stale derived state while fresh installs work.
+Any change to client-side applier logic (`frontend/src/core/derived/**`) must bump `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) and clear new derived tables in `resetDerivedState` in the same commit — nothing fails CI otherwise, and existing clients keep stale derived state while fresh installs work. But prefer a targeted idempotent startup repair (`repairClassHierarchy` / `repairDatePageHierarchy` pattern) when the state derives from one small table — a bump forces a full log replay on every client.
 
 - Reference: `references/gotchas.md#derived-applier-changes-must-bump-the-derived-state-version`
 

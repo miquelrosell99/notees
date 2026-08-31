@@ -69,6 +69,7 @@ import {
   getPropertySuggestions,
   getTrashedNodes,
   readViewAst,
+  repairClassHierarchy,
   repairDatePageHierarchy,
   runGraphQuery,
   validateClassExtends,
@@ -535,6 +536,7 @@ class InlineStoreClient implements IWorkspaceStoreClient {
     }
     this.undoManager = new UndoManager(this.store);
     repairDatePageHierarchy(this.store);
+    repairClassHierarchy(this.store);
   }
 
   async export(): Promise<Uint8Array> {
