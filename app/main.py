@@ -152,6 +152,7 @@ async def lifespan(app: FastAPI):
     if not _in_test:
         register_core_ports()
         plugin_manager.load_plugins()
+        await plugin_manager.run_startup_hooks()
 
     # Skip background schedulers during tests (lifespan may be triggered by ASGI transports)
     if not _in_test:

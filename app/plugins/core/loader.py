@@ -77,13 +77,20 @@ class PluginLoader:
         """Load and validate a plugin manifest."""
         manifest_path = plugin_dir / "manifest.json"
         try:
-            manifest = PluginManifest.from_file(manifest_path)
+            raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest = PluginManifest.model_validate(raw)
         except (json.JSONDecodeError, ValueError) as exc:
             raise PluginManifestError(
                 plugin_dir.name, f"Invalid manifest.json: {exc}"
             ) from exc
         manifest.builtin = plugin_dir.parent.name == "builtin"
-        if manifest.builtin and not manifest.enabled_by_default:
+        # Builtins ship enabled unless they explicitly opt out with
+        # "enabledByDefault": false (e.g. the Library plugin). External plugins
+        # keep the manifest value (default: disabled).
+        explicitly_disabled = isinstance(raw, dict) and (
+            raw.get("enabledByDefault") is False or raw.get("enabled_by_default") is False
+        )
+        if manifest.builtin and not manifest.enabled_by_default and not explicitly_disabled:
             manifest.enabled_by_default = True
         return manifest
 

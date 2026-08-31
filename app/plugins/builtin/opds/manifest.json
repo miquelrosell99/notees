@@ -1,0 +1,16 @@
+{
+  "id": "notees.opds",
+  "name": "OPDS Catalog",
+  "version": "1.0.0",
+  "description": "OPDS 1.2 catalog feed (Atom XML) over selected sources with downloadable attachments, for ereader clients such as KOReader. Per-user authentication; downloads go through the asset token flow.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["read_nodes", "read_properties", "read_assets", "settings", "router"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.opds.setup:setup"
+  },
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "enabledByDefault": false
+}

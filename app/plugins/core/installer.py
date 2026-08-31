@@ -8,10 +8,12 @@ job registry so callers can poll for status.
 from __future__ import annotations
 
 import asyncio
+import io
 import ipaddress
 import shutil
 import traceback
 import uuid
+import zipfile
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -76,6 +78,142 @@ def _external_plugin_dir() -> Path:
     directory = settings.database_dir / "plugins"
     directory.mkdir(parents=True, exist_ok=True)
     return directory
+
+
+# ZIP upload caps, consistent with the asset upload limits (50 MB file cap,
+# 55 MB request-body cap in app.main).
+MAX_ZIP_SIZE = 50 * 1024 * 1024  # 50 MB compressed
+MAX_ZIP_EXTRACTED_SIZE = 100 * 1024 * 1024  # 100 MB uncompressed (zip-bomb guard)
+
+_SYMLINK_MODE = 0o120000  # stat.S_IFLNK
+
+
+def _validate_zip_entries(archive: zipfile.ZipFile) -> str:
+    """Validate archive structure and return the single top-level folder name.
+
+    Raises:
+        PluginInstallError: if the archive contains path traversal, absolute
+            paths, symlinks, stray root-level files, or more than one
+            top-level folder.
+    """
+    top_levels: set[str] = set()
+    total_size = 0
+    for info in archive.infolist():
+        name = info.filename
+        if name.startswith("/") or (len(name) > 1 and name[1] == ":"):
+            raise PluginInstallError(f"Archive entry has an absolute path: {name!r}")
+        parts = [p for p in name.split("/") if p not in ("", ".")]
+        if any(p == ".." for p in parts):
+            raise PluginInstallError(f"Archive entry escapes the plugin folder: {name!r}")
+        if not parts:
+            continue
+        if len(parts) < 2 and not info.is_dir():
+            raise PluginInstallError(
+                "Archive must contain exactly one top-level plugin folder; "
+                f"found stray file {name!r}"
+            )
+        mode = (info.external_attr >> 16) & 0o170000
+        if mode == _SYMLINK_MODE:
+            raise PluginInstallError(f"Archive entry is a symlink: {name!r}")
+        top_levels.add(parts[0])
+        total_size += info.file_size
+        if total_size > MAX_ZIP_EXTRACTED_SIZE:
+            raise PluginInstallError(
+                "Archive uncompressed size exceeds the "
+                f"{MAX_ZIP_EXTRACTED_SIZE // (1024 * 1024)}MB limit"
+            )
+    if len(top_levels) != 1:
+        raise PluginInstallError(
+            "Archive must contain exactly one top-level plugin folder"
+        )
+    return top_levels.pop()
+
+
+def install_plugin_from_zip(content: bytes) -> dict:
+    """Install a plugin from an uploaded ZIP archive.
+
+    The archive must contain exactly one top-level folder holding a valid
+    ``manifest.json``. The folder is extracted into the external plugins
+    directory as ``<safe_id>/`` and, when the app is bound, loaded and mounted
+    immediately (no restart). Re-installing an existing plugin id replaces its
+    files and preserves its current enablement state.
+
+    Returns a result dict like the git install job's ``result``.
+
+    Raises:
+        PluginInstallError: if the archive or manifest is invalid.
+    """
+    if len(content) > MAX_ZIP_SIZE:
+        raise PluginInstallError(
+            f"ZIP too large. Maximum size is {MAX_ZIP_SIZE // (1024 * 1024)}MB"
+        )
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile as exc:
+        raise PluginInstallError("Uploaded file is not a valid ZIP archive") from exc
+
+    external_dir = _external_plugin_dir()
+    temp_dir = external_dir / ".install" / f"zip-{uuid.uuid4()}"
+    final_dir: Path | None = None
+
+    try:
+        with archive:
+            top_level = _validate_zip_entries(archive)
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            archive.extractall(temp_dir)
+
+        source_dir = temp_dir / top_level
+        manifest_path = source_dir / "manifest.json"
+        if not manifest_path.exists():
+            raise PluginInstallError(
+                f"Archive folder {top_level!r} does not contain a manifest.json"
+            )
+        try:
+            manifest = PluginManifest.from_file(manifest_path)
+        except Exception as exc:  # noqa: BLE001
+            raise PluginInstallError(f"Invalid manifest.json: {exc}") from exc
+
+        safe_id = manifest.safe_id
+        if not safe_id:
+            raise PluginInstallError("Plugin manifest produced an empty safe id")
+
+        final_dir = external_dir / safe_id
+        if final_dir.exists():
+            shutil.rmtree(final_dir)
+        source_dir.rename(final_dir)
+
+        # Activate the plugin immediately if the app is bound, replacing any
+        # existing registration while preserving its enablement state.
+        restart_required = True
+        try:
+            from .manager import plugin_manager
+
+            if plugin_manager._app is not None:
+                existing = plugin_manager.get_plugin(manifest.id)
+                enabled = True
+                if existing is not None:
+                    enabled = existing.enabled
+                    plugin_manager.unload_plugin(manifest.id)
+                    plugin_manager.registry.remove_plugin(manifest.id)
+                plugin_manager.load_plugin_dir(final_dir, enabled=enabled)
+                restart_required = False
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Plugin %s installed but could not be activated: %s", manifest.id, exc
+            )
+            restart_required = True
+
+        logger.info("Installed plugin %s from ZIP upload", manifest.id)
+        return {
+            "id": manifest.id,
+            "name": manifest.name,
+            "version": manifest.version,
+            "safe_id": safe_id,
+            "restart_required": restart_required,
+        }
+    finally:
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def create_install_job(git_url: str) -> str:

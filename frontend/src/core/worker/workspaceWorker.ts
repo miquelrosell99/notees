@@ -22,6 +22,7 @@ import {
   getPropertySchemaByUuid,
   getBatchPropertyValues,
   getClassProperties,
+  getClassPropertyEdgeIds,
   getNodeClassPropertyEdges,
 } from '../adapters/propertyQueries';
 import { UndoManager } from '../undo/UndoManager';
@@ -606,6 +607,13 @@ async function handleQueryBody(request: Extract<WorkerRequest, { type: 'query' }
   if (request.method === 'getClassProperties') {
     const [classId, includeInherited] = request.args as [string, boolean];
     const result = getClassProperties(state.store, classId, includeInherited);
+    postResponse({ type: 'query-result', id: request.id, result });
+    return;
+  }
+
+  if (request.method === 'getClassPropertyEdgeIds') {
+    const [classId] = request.args as [string];
+    const result = getClassPropertyEdgeIds(state.store, classId);
     postResponse({ type: 'query-result', id: request.id, result });
     return;
   }

@@ -5,7 +5,7 @@
   "description": "Sync Zotero libraries and cite items in the editor.",
   "author": "Notees",
   "license": "AGPL-3.0",
-  "permissions": ["read_nodes", "write_nodes", "read_properties", "background_sync", "router"],
+  "permissions": ["read_nodes", "write_nodes", "read_properties", "write_properties", "settings", "background_sync", "router"],
   "backend": {
     "entrypoint": "app.plugins.builtin.zotero.setup:setup",
     "dependencies": ["pyzotero>=1.5.0"]

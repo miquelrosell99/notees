@@ -11,7 +11,6 @@
  * - Fallback to pages/nodes when query is empty
  * - Separation of results into pages and blocks
  * - Optional filtering by tag/type
- * - Hierarchical path support (e.g., "Page1/Page2" searches for Page2 child of Page1)
  * - "Create new" option detection
  */
 import { useMemo } from 'react';
@@ -20,8 +19,8 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggestions } from './useNodes';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
-import { parseHierarchicalPath } from '@/utils/hierarchicalPath';
 import { nodeNameToText } from '@/features/queries';
+import { expandClassFilterUuids } from '@/core/query/classFilter';
 import type { NodeSearchMode, NodeSearchFilters, NodeSearchItem, UseNodeSearchReturn } from './useNodeSearch.types';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -57,8 +56,21 @@ export function useNodeSearch(
   // Debounce the search query to avoid firing API on every keystroke
   const debouncedQuery = useDebouncedValue(query, 150);
 
+  // Class list doubles as the hierarchy source for filter expansion below.
+  const { data: allClassNodes } = useClasses();
+
+  // Hierarchy-aware class filtering (Decision 9): expand filter UUIDs through
+  // the class hierarchy so superclass filters (e.g. agent, source) match
+  // subclass instances everywhere — worker-side queries and the client-side
+  // filters in useNodeSearch.utils alike. Expansion is idempotent for the
+  // closure-aware SQL compilers downstream (queryNodes/search).
+  const expandedClassFilters = useMemo(
+    () => expandClassFilterUuids(classFilters, allClassNodes ?? []),
+    [classFilters, allClassNodes],
+  );
+
   // Convert classFilters array to comma-separated string for backend
-  const classFiltersParam = classFilters.length > 0 ? classFilters.join(',') : undefined;
+  const classFiltersParam = expandedClassFilters.length > 0 ? expandedClassFilters.join(',') : undefined;
 
   // Core search queries - pass class_filters to backend for server-side filtering
   const searchFilterOptions = {
@@ -99,7 +111,6 @@ export function useNodeSearch(
   );
 
   // Class-specific queries (only enabled when mode is 'classes')
-  const { data: allClassNodes } = useClasses();
   const { data: classSearchResults, isLoading: isClassSearchLoading } = useSearchClasses(
     mode === 'classes' ? debouncedQuery : ''
   );
@@ -112,28 +123,27 @@ export function useNodeSearch(
   // Filter and organize results
   const { pageResults, blockResults, truncated } = useMemo(() => {
     if (mode === 'classes') {
-      return getClassesResults(debouncedQuery, query, classSearchResults, allClassNodes, allPages, excludeNodeId, maxResults);
+      return getClassesResults(debouncedQuery, classSearchResults, allClassNodes, excludeNodeId, maxResults);
     }
     if (mode === 'users') {
       return getUsersResults(debouncedQuery, searchResults, excludeNodeId, maxResults);
     }
     if (mode === 'tags') {
-      return getTagsResults(debouncedQuery, query, searchResults, allPages, classFilters, excludeNodeId, maxResults);
+      return getTagsResults(debouncedQuery, searchResults, allPages, expandedClassFilters, excludeNodeId, maxResults);
     }
     if (mode === 'aliases') {
-      return getAliasesResults(debouncedQuery, query, searchResults, allPages, excludeNodeId, maxResults);
+      return getAliasesResults(debouncedQuery, searchResults, allPages, excludeNodeId, maxResults);
     }
     if (mode === 'pages') {
-      return getPagesResults(debouncedQuery, query, searchResults, suggestions, filteredPages, allPages, classFilters, excludeNodeId, pinnedNodeId, maxResults);
+      return getPagesResults(debouncedQuery, searchResults, suggestions, filteredPages, allPages, expandedClassFilters, excludeNodeId, pinnedNodeId, maxResults);
     }
     if (mode === 'blocks') {
       return getBlocksResults(debouncedQuery, searchResults, allNodes, maxResults);
     }
-    return getAllResults(debouncedQuery, query, searchResults, suggestions, allPages, allNodes, classFilters, excludeNodeId, pinnedNodeId, maxResults);
+    return getAllResults(debouncedQuery, searchResults, suggestions, allPages, allNodes, expandedClassFilters, excludeNodeId, pinnedNodeId, maxResults);
   }, [
     mode,
     debouncedQuery,
-    query,
     searchResults,
     allPages,
     suggestions,
@@ -141,7 +151,7 @@ export function useNodeSearch(
     allNodes,
     allClassNodes,
     classSearchResults,
-    classFilters,
+    expandedClassFilters,
     excludeNodeId,
     maxResults,
     pinnedNodeId,
@@ -159,34 +169,9 @@ export function useNodeSearch(
     if (!query.trim()) return false;
     if (isLoading) return false;
 
-    const parsed = parseHierarchicalPath(query);
-    const searchTerm = parsed.isHierarchical ? parsed.leaf : query;
-
-    // For hierarchical paths, only show create if the parent path exists
-    if (parsed.isHierarchical && allPages) {
-      // Check if we can resolve all parent segments
-      let currentParentId: string | null = null;
-      for (const segment of parsed.parentSegments) {
-        const matchingPage = allPages.find(
-          p => p.name === segment && p.parent_uuid === currentParentId
-        );
-        if (!matchingPage) {
-          // Parent path doesn't exist, can't create - but we could show "Create Page1/Page2..."
-          return true; // Allow creation to create intermediate pages
-        }
-        currentParentId = matchingPage.uuid;
-      }
-
-      // Parent path exists, check if leaf exists
-      const leafExists = pageResults.some(
-        r => nodeNameToText(r.node.name) === parsed.leaf && r.node.parent_uuid === currentParentId
-      );
-      return !leafExists;
-    }
-
-    // No exact match in page results (case-sensitive comparison)
-    return !pageResults.some(r => nodeNameToText(r.node.name) === searchTerm);
-  }, [pageResults, query, allPages, isLoading]);
+    // No exact match in page results (case-sensitive comparison, names are literal)
+    return !pageResults.some(r => nodeNameToText(r.node.name) === query);
+  }, [pageResults, query, isLoading]);
 
   return {
     pageResults,

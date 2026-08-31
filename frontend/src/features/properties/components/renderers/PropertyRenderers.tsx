@@ -176,14 +176,11 @@ export function NodePropertyValue({
   readOnly,
   onChange,
   onNavigateToNode,
-  onCreatePage,
 }: PropertyValueProps) {
-  const handleCreateNodeForProperty = useCallback(async (name: string) => {
-    const newPage = await onCreatePage?.(name, property.class_filter_uuids ?? []);
-    if (!newPage) throw new Error('Failed to create page');
-    return newPage;
-  }, [onCreatePage, property.class_filter_uuids]);
-
+  // No onCreateNew override: NodeSelector's built-in create is class-aware —
+  // under a source/agent/asset class filter it opens the matching
+  // quick-create flow, and for ordinary class filters it assigns the filter
+  // classes to the created page (Decisions 17-19).
   if (property.multi) {
     return (
       <NodeSelector
@@ -202,7 +199,6 @@ export function NodePropertyValue({
           const currentValue = Array.isArray(value) ? value : [];
           onChange(currentValue.filter((nodeUuid: string) => nodeUuid !== selectedNode.uuid));
         }}
-        onCreateNew={readOnly ? undefined : handleCreateNodeForProperty}
       />
     );
   }
@@ -218,7 +214,6 @@ export function NodePropertyValue({
       readOnly={readOnly}
       onNodeClick={onNavigateToNode ? (n) => onNavigateToNode(n.uuid) : undefined}
       onChange={(newValue) => onChange(newValue)}
-      onCreateNew={readOnly ? undefined : handleCreateNodeForProperty}
     />
   );
 }
