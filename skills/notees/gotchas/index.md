@@ -48,6 +48,18 @@ A text property stores its value as the UUID of a block node. That block must be
 
 `WorkspaceStore._sync_locks` is a class-level dict keyed by workspace, so two store instances for the same workspace share one non-reentrant `asyncio.Lock`. Plugin side effects (e.g. the flashcards plugin constructs a *new* `WorkspaceStore` for the same workspace and calls `apply()`) must therefore run **after** the lock is released — holding `_sync_lock` across `_invoke_class_side_effects()` deadlocks. `apply()`/`apply_many()` hold the lock across persist+apply only.
 
+## System view queries execute an empty AST unless auto-fixed on the execution path
+
+Persisted system views (`classed_nodes`, `extended_by`, `child_pages`) store an empty `query_ast`; the required condition is restored by `autoFixSystemQuery`. Any new execution path for persisted views must route the AST through `getExecutionAST` — the edit UI applies the fix too, so a section can look correctly configured while executing nothing.
+
+- Reference: `references/gotchas.md#query-persisted-system-views-store-an-empty-query_ast`
+
+## Applier changes must bump the derived-state version
+
+Any change to client-side applier logic (`frontend/src/core/derived/**`) must bump `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) and clear new derived tables in `resetDerivedState` in the same commit — nothing fails CI otherwise, and existing clients keep stale derived state while fresh installs work.
+
+- Reference: `references/gotchas.md#derived-applier-changes-must-bump-the-derived-state-version`
+
 ## Playwright route globs match Vite module URLs
 
 In e2e, a route glob like `**/api/**` also matches Vite's module URLs (`/src/features/auth/api/*.ts`) and bricks the boot. Match on parsed URL pathname instead (see `frontend/e2e/local-mode.spec.ts`).
