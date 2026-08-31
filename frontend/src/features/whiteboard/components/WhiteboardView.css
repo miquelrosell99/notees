@@ -47,6 +47,27 @@
   background-size: var(--grid-size) var(--grid-size);
 }
 
+/* ────────────────────────────────────────────────────────────── */
+/*  INLINE PRESENTATION (Decision 24)                             */
+/*  Block + `whiteboard` class → bounded canvas card in the       */
+/*  document flow, sharing the same canvas component.             */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view--inline {
+  height: 22rem;
+  min-height: 16rem;
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  margin: var(--spacing-2) 0;
+}
+
+.whiteboard-view__expand-btn {
+  position: absolute;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  z-index: var(--wb-z-ui);
+}
+
 /* Pan/Zoom cursors */
 .whiteboard-view--panning {
   cursor: grab;
