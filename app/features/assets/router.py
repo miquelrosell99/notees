@@ -26,9 +26,9 @@ from app.features.assets.service import (
 )
 from app.features.assets.utils import (
     ALLOWED_CONTENT_TYPES,
-    MAX_FILE_SIZE,
     check_magic_bytes,
     get_extension_from_content_type,
+    get_max_file_size,
 )
 from app.logging_config import get_logger
 from app.models import User
@@ -99,12 +99,16 @@ async def upload_asset(
     ``existing_node_uuid`` is provided, that node is converted to an asset
     instead of creating a new one.
 
-    Supported file types: Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM)
-    Max file size: 50MB
+    Supported file types: Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM),
+    Documents (PDF, EPUB, CBZ, DOCX, ODT)
+    Max file size: 50MB for media, 100MB for documents
     """
     content_type = file.content_type
     if content_type not in ALLOWED_CONTENT_TYPES:
-        allowed_types = "Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM)"
+        allowed_types = (
+            "Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM), "
+            "Documents (PDF, EPUB, CBZ, DOCX, ODT)"
+        )
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type: {content_type}. Allowed types: {allowed_types}",
@@ -112,10 +116,11 @@ async def upload_asset(
 
     file_content = await file.read()
 
-    if len(file_content) > MAX_FILE_SIZE:
+    max_file_size = get_max_file_size(content_type)
+    if len(file_content) > max_file_size:
         raise HTTPException(
             status_code=400,
-            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB",
+            detail=f"File too large. Maximum size is {max_file_size // (1024 * 1024)}MB",
         )
 
     if not check_magic_bytes(file_content, content_type):

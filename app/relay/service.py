@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 
 from app.core.clock import Hlc, compare_hlc
@@ -11,6 +12,8 @@ from app.core.validation import validate_payload
 from app.relay.models import BatchRequest, CatchUpRequest, RelayEnvelope
 from app.relay.permissions import PermissionChecker, PermissionDeniedError
 from app.relay.storage import RelayStorage
+
+logger = logging.getLogger(__name__)
 
 MAX_BATCH_SIZE = 1000
 MAX_ENVELOPE_SIZE_BYTES = 1024 * 1024  # 1 MB
@@ -97,7 +100,45 @@ class RelayService:
 
         saved_ids = await self._maybe_await(self._storage.save_envelopes(validated))
         saved_map = {envelope.id: envelope for envelope in validated}
-        return [saved_map[saved_id] for saved_id in saved_ids]
+        saved = [saved_map[saved_id] for saved_id in saved_ids]
+        await self._notify_operation_listeners(saved)
+        return saved
+
+    @staticmethod
+    async def _notify_operation_listeners(saved: list[RelayEnvelope]) -> None:
+        """Notify post-commit operation listeners about client-pushed ops.
+
+        Client envelopes persisted here do not pass through a WorkspaceStore
+        apply, so the store-level notification never sees them; features like
+        continuous export reconciliation rely on this hook to react promptly.
+        Listener failures never break ingest.
+        """
+        from app.core.derived.op_listeners import get as get_op_listeners
+        from app.core.operation import Operation, OperationEnvelope
+
+        listeners = get_op_listeners()
+        if not listeners:
+            return
+        for envelope in saved:
+            operation = Operation(
+                envelope=OperationEnvelope(
+                    id=envelope.id,
+                    workspace_id=envelope.workspace_id,
+                    actor_id=envelope.actor_id,
+                    hlc=envelope.hlc,
+                    affected_node_ids=envelope.affected_node_ids,
+                    op_type=envelope.op_type,
+                    timestamp=envelope.timestamp,
+                ),
+                payload=envelope.payload,
+            )
+            for listener in listeners:
+                try:
+                    result = listener(operation)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception:  # noqa: BLE001
+                    logger.exception("Operation listener failed for %s", envelope.id)
 
     async def catch_up(
         self,

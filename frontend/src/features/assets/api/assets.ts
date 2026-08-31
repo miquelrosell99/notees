@@ -82,6 +82,13 @@ export const SUPPORTED_CONTENT_TYPES = {
   'audio/ogg': '.ogg',
   'audio/opus': '.opus',
   'audio/webm': '.webm',
+  // Documents
+  'application/pdf': '.pdf',
+  'application/epub+zip': '.epub',
+  'application/vnd.comicbook+zip': '.cbz',
+  'application/x-cbz': '.cbz',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.oasis.opendocument.text': '.odt',
 };
 
 /**
@@ -234,4 +241,26 @@ export function getAssetCategory(contentType: string): AssetCategory {
 /**
  * Get the maximum allowed file size in bytes.
  */
-export const MAX_ASSET_SIZE = 50 * 1024 * 1024; // 50MB
+export const MAX_ASSET_SIZE = 50 * 1024 * 1024; // 50MB (images, audio)
+
+/**
+ * Maximum allowed size for document assets (PDF, EPUB, CBZ, DOCX, ODT).
+ */
+export const MAX_DOCUMENT_ASSET_SIZE = 100 * 1024 * 1024; // 100MB
+
+const DOCUMENT_CONTENT_TYPES = new Set([
+  'application/pdf',
+  'application/epub+zip',
+  'application/vnd.comicbook+zip',
+  'application/x-cbz',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+]);
+
+/**
+ * Get the maximum allowed upload size for a content type.
+ * Mirrors the backend policy in app/features/assets/utils.py.
+ */
+export function getMaxAssetSize(contentType: string): number {
+  return DOCUMENT_CONTENT_TYPES.has(contentType) ? MAX_DOCUMENT_ASSET_SIZE : MAX_ASSET_SIZE;
+}

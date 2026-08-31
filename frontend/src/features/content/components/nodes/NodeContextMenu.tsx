@@ -29,6 +29,7 @@ import {
   useFlashSidebarCardAction,
 } from '@/features/layout';
 import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation } from '@/features/content';
+import { useAssetMimeType } from '@/features/assets';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useCapabilities } from '@/config/capabilities';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
@@ -137,6 +138,7 @@ export function NodeContextMenu({
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.uuid);
   const clipboardMode = useClipboardStore((state) => state.mode);
   const pluginActions = useNodeActions();
+  const assetMimeType = useAssetMimeType(node);
   // Server-only menu entries (Share…, Export…, Copy as text) are hidden in
   // local mode (local-first split, Task 4).
   const capabilities = useCapabilities();
@@ -501,7 +503,7 @@ export function NodeContextMenu({
     // literals above), merge contributed node actions (core features +
     // plugins, see NodeActionRegistry), and compose the final list — sections
     // render in NODE_MENU_GROUP_ORDER with the destructive section last.
-    const actionContext: NodeActionContext = { menu: 'node', nodeUuid: node.uuid, node, close: onClose };
+    const actionContext: NodeActionContext = { menu: 'node', nodeUuid: node.uuid, node, assetMimeType, close: onClose };
     const contributed = getVisibleNodeActions(pluginActions, {
       nodeScope,
       showDevOptions,
@@ -535,7 +537,7 @@ export function NodeContextMenu({
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
     addFavoriteMutation, removeFavoriteMutation, currentNodeUuid, sidebarCards,
-    flashSidebarCard, pluginActions, togglePin, capabilities,
+    flashSidebarCard, pluginActions, togglePin, capabilities, assetMimeType,
   ]);
 
   const handleColorChange = useCallback((color: string | null) => {

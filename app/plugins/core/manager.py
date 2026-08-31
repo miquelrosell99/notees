@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -42,6 +44,43 @@ class PluginManager:
         """Store the FastAPI app so routers can be mounted at runtime."""
         self._app = app
 
+    # ── Enablement persistence ────────────────────────────────────────────
+    # Runtime toggles survive restarts via a small JSON override file keyed by
+    # plugin id; the manifest's enabled_by_default remains the fallback.
+
+    @property
+    def _enablement_path(self) -> Path:
+        return settings.database_dir / "plugin_enablement.json"
+
+    def _load_enablement_overrides(self) -> dict[str, bool]:
+        try:
+            raw = json.loads(self._enablement_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Ignoring unreadable plugin enablement state: %s", exc)
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+        return {str(k): bool(v) for k, v in raw.items()}
+
+    def _persist_enablement(self, plugin_id: str, enabled: bool) -> None:
+        overrides = self._load_enablement_overrides()
+        overrides[plugin_id] = enabled
+        try:
+            self._enablement_path.parent.mkdir(parents=True, exist_ok=True)
+            self._enablement_path.write_text(
+                json.dumps(overrides, indent=2, sort_keys=True), encoding="utf-8"
+            )
+        except OSError as exc:
+            logger.warning("Failed to persist plugin enablement state: %s", exc)
+
+    def _default_enabled(self, manifest) -> bool:
+        """Initial enablement: persisted override wins over the manifest default."""
+        return self._load_enablement_overrides().get(
+            manifest.id, manifest.enabled_by_default
+        )
+
     def register_port(self, name: str, factory: PortFactory) -> None:
         """Register a core domain-service factory available to plugins."""
         self.port_factories[name] = factory
@@ -58,7 +97,7 @@ class PluginManager:
         plugin_dirs = self.loader.discover()
         for plugin_dir in sorted(plugin_dirs, key=lambda p: p.name):
             manifest = self.loader.load_manifest(plugin_dir)
-            enabled = manifest.enabled_by_default
+            enabled = self._default_enabled(manifest)
 
             plugin = LoadedPlugin(
                 manifest=manifest,
@@ -120,13 +159,19 @@ class PluginManager:
             if name == package_root or name.startswith(f"{package_root}."):
                 del sys.modules[name]
 
+        # Unmount routes before dropping the registration; the unmount needs
+        # the registration to know which routes to remove.
+        self._unmount_plugin_router(plugin_id)
         self.registry.remove_router(plugin_id)
         self.registry.remove_importers(plugin_id)
         self.registry.remove_exporters(plugin_id)
         self.registry.remove_sync_sources(plugin_id)
         self.registry.remove_settings(plugin_id)
         self.registry.remove_class_side_effects(plugin_id)
-        self._unmount_plugin_router(plugin_id)
+        self.registry.remove_asset_metadata_handlers(plugin_id)
+        self.registry.remove_export_providers(plugin_id)
+        self.registry.remove_startup_hooks(plugin_id)
+        self.registry.remove_op_listeners(plugin_id)
 
         plugin.enabled = False
         return True
@@ -155,19 +200,40 @@ class PluginManager:
             prefix = f"{prefix}/{reg.prefix}"
         with self._route_lock:
             self._app.include_router(reg.router, prefix=prefix, tags=[reg.plugin_id])
+            self._app.openapi_schema = None
 
     def _unmount_plugin_router(self, plugin_id: str) -> None:
-        """Remove a plugin's routes from the bound FastAPI app."""
+        """Remove a plugin's routes from the bound FastAPI app.
+
+        ``include_router`` copies routes into the app, so routes are matched
+        by path and methods under the plugin's mount prefix rather than by
+        object identity.
+        """
         if self._app is None:
             return
         reg = self.registry.get_router_registration(plugin_id)
         if reg is None:
             return
 
-        route_ids = {id(r) for r in reg.router.routes}
+        prefix = f"/api/plugins/{reg.plugin_id}"
+        if reg.prefix:
+            prefix = f"{prefix}/{reg.prefix}"
+        expected = {
+            (
+                f"{prefix}{getattr(r, 'path', '')}",
+                tuple(sorted(getattr(r, "methods", None) or ())),
+            )
+            for r in reg.router.routes
+        }
         with self._route_lock:
             self._app.routes[:] = [
-                r for r in self._app.routes if id(r) not in route_ids
+                r
+                for r in self._app.routes
+                if (
+                    getattr(r, "path", None),
+                    tuple(sorted(getattr(r, "methods", None) or ())),
+                )
+                not in expected
             ]
             self._app.openapi_schema = None
 
@@ -192,11 +258,77 @@ class PluginManager:
         return self.registry.list_plugins()
 
     def set_enabled(self, plugin_id: str, enabled: bool) -> bool:
-        """Enable or disable a plugin. Requires a restart to take effect."""
+        """Enable or disable a plugin, taking effect immediately (no restart).
+
+        Enabling runs the plugin's backend setup (registering routers,
+        importers, exporters, settings, side effects) and mounts its router on
+        the bound app. Disabling unregisters all contributions and unmounts
+        its routes. The choice is persisted (plugin_enablement.json) and wins
+        over the manifest's enabled_by_default on subsequent startups.
+
+        Limitation: teardown is registration-based. A plugin that spawned
+        background threads/tasks or mutated global state outside the registry
+        is not forcibly stopped; its routes and contributions are removed, but
+        in-flight background work may run to completion.
+        """
         plugin = self.registry.get_plugin(plugin_id)
         if plugin is None:
             return False
-        plugin.enabled = enabled
+        if enabled == plugin.enabled:
+            return True
+        if enabled:
+            plugin.enabled = True
+            context = PluginContext(
+                plugin_id=plugin.manifest.id,
+                permissions=set(plugin.manifest.permissions),
+                registry=self.registry,
+                port_factories=self.port_factories,
+            )
+            self.loader.setup_plugin(
+                Path(plugin.path), plugin.manifest, context, plugin
+            )
+            self._mount_plugin_router(plugin_id)
+        else:
+            self.unload_plugin(plugin_id)
+        self._persist_enablement(plugin_id, enabled)
+        return True
+
+    def rescan(self) -> list[LoadedPlugin]:
+        """Discover plugin folders added since startup and load them.
+
+        Folders already present in the registry are skipped (their current
+        enablement state is respected). Newly discovered folders are loaded
+        with their manifest's ``enabled_by_default`` state and, when enabled,
+        mounted on the bound app without a restart.
+        """
+        known_paths = {p.path for p in self.registry.list_plugins()}
+        if str(self.external_dir) not in sys.path:
+            sys.path.insert(0, str(self.external_dir))
+
+        new_plugins: list[LoadedPlugin] = []
+        for plugin_dir in sorted(self.loader.discover(), key=lambda p: p.name):
+            if str(plugin_dir) in known_paths:
+                continue
+            try:
+                manifest = self.loader.load_manifest(plugin_dir)
+                plugin = self.load_plugin_dir(
+                    plugin_dir, enabled=self._default_enabled(manifest)
+                )
+                new_plugins.append(plugin)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Rescan skipped plugin folder %s: %s", plugin_dir, exc
+                )
+        return new_plugins
+
+    def uninstall_plugin(self, plugin_id: str) -> bool:
+        """Unload a plugin, remove it from the registry, and delete its folder."""
+        plugin = self.registry.get_plugin(plugin_id)
+        if plugin is None:
+            return False
+        self.unload_plugin(plugin_id)
+        self.registry.remove_plugin(plugin_id)
+        shutil.rmtree(plugin.path, ignore_errors=True)
         return True
 
     def get_importer(self, importer_id: str):
@@ -210,6 +342,24 @@ class PluginManager:
 
     def get_sync_source(self, source_id: str):
         return self.registry.get_sync_source(source_id)
+
+    async def run_startup_hooks(self, plugin_id: str | None = None) -> None:
+        """Run registered startup hooks, optionally scoped to one plugin.
+
+        Invoked from the application lifespan after plugins load, and by
+        :meth:`set_enabled` when a plugin is enabled at runtime so restartless
+        enablement matches a fresh start. Hook failures are logged and never
+        abort startup.
+        """
+        import asyncio
+
+        for hook in self.registry.list_startup_hooks(plugin_id):
+            try:
+                result = hook()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:  # noqa: BLE001
+                logger.exception("Plugin startup hook failed")
 
 
 # Global manager instance used by the application.

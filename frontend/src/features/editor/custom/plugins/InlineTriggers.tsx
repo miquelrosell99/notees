@@ -621,6 +621,19 @@ export function InlineTriggers({
         return;
       }
 
+      // 'Link to source': the same node-link picker, pre-filtered by the
+      // system `source` class (Decision 17 — one insertion path; the picker
+      // is class-aware, so "create" opens the source quick-create dialog).
+      if (commandId === 'sourcelink') {
+        placeholderOffsetRef.current = null;
+        setPopup({
+          type: 'link',
+          position: reopenAt(),
+          classFilters: [SYSTEM_CLASS_UUIDS.source],
+        });
+        return;
+      }
+
       if (commandId === 'template') {
         placeholderOffsetRef.current = null;
         setPopup({
@@ -931,6 +944,7 @@ export function InlineTriggers({
           hiddenSlashCommandIds={hiddenSlashCommandIds}
           contextBlockServerId={blockServerIdRef.current}
           linkSearchMode={popup.linkSearchMode}
+          classFilters={popup.classFilters}
           workspaceId={workspaceId}
           inline={popup.inline}
           controlledQuery={popup.inline ? inlineSlashQuery : undefined}
