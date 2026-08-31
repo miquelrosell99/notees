@@ -76,8 +76,13 @@ const DEFAULT_VIEW_NAMES: Record<string, string> = {
  * derived SQLite state inconsistent with the immutable operation log. Opening
  * a workspace with a stale version triggers a hard rebuild: derived tables are
  * cleared and the full server operation log is replayed with the new applier.
+ *
+ * v5: the class_hierarchy hardening in 373335f1 (recursive closure recompute)
+ * shipped without a bump — clients that applied class.update ops with the old
+ * applier carry a stale closure. Class/extends queries depend on it, so force
+ * a rebuild.
  */
-export const CURRENT_DERIVED_STATE_VERSION = 4;
+export const CURRENT_DERIVED_STATE_VERSION = 5;
 
 export class WorkspaceStore {
   private clock: Clock;
@@ -266,6 +271,7 @@ export class WorkspaceStore {
       this.db.run('DELETE FROM node_link');
       this.db.run('DELETE FROM crdt_state');
       this.db.run('DELETE FROM class_hierarchy');
+      this.db.run('DELETE FROM class');
       this.db.run('DELETE FROM property_schema');
       this.db.run('DELETE FROM class_property_edge');
       this.db.run('DELETE FROM search_index');
