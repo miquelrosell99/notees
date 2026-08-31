@@ -348,13 +348,6 @@
   flex-shrink: 0;
 }
 
-.command-palette__result-type {
-  font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
-  text-transform: capitalize;
-  flex-shrink: 0;
-}
-
 .command-palette__item-shortcut {
   padding: var(--spacing-micro) var(--spacing-1);
   background: var(--color-surface-container);
