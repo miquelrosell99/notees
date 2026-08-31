@@ -16,6 +16,11 @@ import {
   resolveCoverAssetUuid,
   type WorkGroup,
 } from '../libraryUtils';
+import {
+  isFileDrag,
+  serializeNodeDragPayload,
+  NOTEES_NODE_MIME,
+} from '../libraryDnd';
 
 interface LibraryCardGridProps {
   /** Flat mode: every source its own card. */
@@ -31,6 +36,8 @@ interface LibraryCardGridProps {
   onSelectNode?: (nodeUuid: string) => void;
   /** Currently selected card (inspector target). */
   selectedUuid?: string | null;
+  /** Drag-to-attach (Task 12): a file dropped onto a source card. */
+  onDropFile?: (sourceUuid: string, file: File) => void;
 }
 
 export function LibraryCardGrid({
@@ -42,8 +49,11 @@ export function LibraryCardGrid({
   onOpenNode,
   onSelectNode,
   selectedUuid,
+  onDropFile,
 }: LibraryCardGridProps) {
   const [expandedWorks, setExpandedWorks] = useState<ReadonlySet<string>>(new Set());
+  // uuid of the card currently highlighted as a file drop target.
+  const [dropTargetUuid, setDropTargetUuid] = useState<string | null>(null);
 
   const toggleWork = useCallback((workUuid: string) => {
     setExpandedWorks((prev) => {
@@ -68,7 +78,7 @@ export function LibraryCardGrid({
     return (
       <div key={node.uuid} className="library-card-wrapper">
         <div
-          className={`library-card${isEdition ? ' library-card--edition' : ''}${isSelected ? ' library-card--selected' : ''}`}
+          className={`library-card${isEdition ? ' library-card--edition' : ''}${isSelected ? ' library-card--selected' : ''}${dropTargetUuid === node.uuid ? ' library-card--drop-target' : ''}`}
           role="button"
           tabIndex={0}
           aria-pressed={isSelected || undefined}
@@ -77,6 +87,31 @@ export function LibraryCardGrid({
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               handleActivate();
+            }
+          }}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData(
+              NOTEES_NODE_MIME,
+              serializeNodeDragPayload({ nodeUuid: node.uuid, name: libraryNodeName(node) }),
+            );
+            e.dataTransfer.effectAllowed = 'link';
+          }}
+          onDragOver={(e) => {
+            if (!onDropFile || !isFileDrag(e.dataTransfer.types)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            setDropTargetUuid(node.uuid);
+          }}
+          onDragLeave={() => {
+            setDropTargetUuid((current) => (current === node.uuid ? null : current));
+          }}
+          onDrop={(e) => {
+            setDropTargetUuid(null);
+            if (!onDropFile || e.dataTransfer.files.length === 0) return;
+            e.preventDefault();
+            for (const file of Array.from(e.dataTransfer.files)) {
+              onDropFile(node.uuid, file);
             }
           }}
         >

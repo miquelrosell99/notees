@@ -213,7 +213,7 @@ Goal: close the gap between "queryable source table" and a Zotero-like workflow.
 ### Task 12 — Drag-to-attach & drag-to-collect
 - **Files**: owns Library view DnD + asset upload integration (`frontend/src/features/assets/`), drop targets on collection nodes.
 - **Consumes**: Task 5 (MIME widening), `attachments` property ops, collection membership = links.
-- **Produces**: drag a file onto a source → upload + asset node + `attachments` entry; drag a source onto a collection → link. No new op types.
+- **Produces**: drag a file onto a source → upload + asset node + `attachments` entry; drag a source onto a collection → **nesting move (`node.move`)** — implemented as nesting rather than a link because `node_link` rows derive only from a node's own content AST (a membership link in a page-title node corrupts its display name and dies on rename; no link-creation op exists). Consequence: drag-to-collect gives one "home" collection per source (Decision 22's model); true multi-membership links still work manually via `[[collection]]` links in block content, and typed link-membership waits for the deferred edge substrate. Guards: self-drop, cycle, already-nested, already-linked are no-ops. No new op types.
 - **Acceptance**: dropped PDF appears as attachment (asset node, `node_asset` row); dropped source appears in collection; both sync via normal ops.
 
 ### Task 13 — Add-by-identifier (ISBN/DOI lookup)
