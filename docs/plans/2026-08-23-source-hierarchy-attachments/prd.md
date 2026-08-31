@@ -1,6 +1,7 @@
 ---
-status: implementation-ready
+status: implemented (repo scope)
 created: 2026-08-23
+implemented: 2026-08-31
 ---
 
 # Source Hierarchy & Attachments — Unified Knowledge System
