@@ -62,6 +62,7 @@ import {
   getPropertySuggestions,
   getTrashedNodes,
   readViewAst,
+  repairClassHierarchy,
   repairDatePageHierarchy,
   runGraphQuery,
   validateClassExtends,
@@ -153,6 +154,10 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   // Idempotent cleanup: ensure journal pages have the correct year → month → day
   // hierarchy. This fixes date nodes created before hierarchy enforcement.
   repairDatePageHierarchy(store);
+
+  // Idempotent repair: rebuild the class_hierarchy closure from the class
+  // table, healing clients that applied class ops with an older applier.
+  repairClassHierarchy(store);
 
   registerAllQueries();
 
