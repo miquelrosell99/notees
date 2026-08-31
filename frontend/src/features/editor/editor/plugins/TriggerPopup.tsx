@@ -60,6 +60,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'query', label: 'Query', description: 'Assign query class to this block' },
   { id: 'table', label: 'Table', description: 'Convert block to table' },
   { id: 'code', label: 'Code Block', description: 'Convert block to code block' },
+  { id: 'whiteboard', label: 'Whiteboard', description: 'Convert block to an inline whiteboard' },
   { id: 'task', label: 'Task', description: 'Convert block to task' },
   { id: 'comment', label: 'Add comment', description: 'Add a comment to this block' },
   { id: 'image', label: 'Insert image', description: 'Upload an image' },
