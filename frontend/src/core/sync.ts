@@ -199,18 +199,24 @@ export class SyncEngine {
         await this.client.mutate('markOperationsInFlight', [chunkIds]);
 
         try {
-          const result = this.transport.sendBatch
-            ? await this.transport.sendBatch(chunk)
-            : await this.sendBatchViaSend(chunk);
+          if (this.transport.sendBatch) {
+            await this.transport.sendBatch(chunk);
+          } else {
+            await this.sendBatchViaSend(chunk);
+          }
 
-          const ackIds = new Set(result.savedIds);
-          await this.client.mutate('markOperationsAcknowledged', [Array.from(ackIds)]);
+          // A successful batch response means every envelope in the chunk is
+          // persisted server-side: the server omits duplicates from saved_ids
+          // (app/relay/storage.py save_envelopes) and validation or permission
+          // failures throw instead. Ack the whole chunk so duplicate-only
+          // chunks still advance the push watermark — otherwise a client whose
+          // push watermark was reset (e.g. an interrupted rebuild) re-sends
+          // the same server-known operations forever and initialize() hangs.
+          await this.client.mutate('markOperationsAcknowledged', [chunkIds]);
 
           let ackMaxHlc: Hlc | null = null;
           for (const envelope of chunk) {
-            if (ackIds.has(envelope.id)) {
-              ackMaxHlc = ackMaxHlc === null ? envelope.hlc : maxHlc(ackMaxHlc, envelope.hlc);
-            }
+            ackMaxHlc = ackMaxHlc === null ? envelope.hlc : maxHlc(ackMaxHlc, envelope.hlc);
           }
 
           if (ackMaxHlc !== null) {

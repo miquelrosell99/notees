@@ -132,6 +132,45 @@ describe('SyncEngine', () => {
     expect(storeB.getDerivedStateVersion()).toBe(CURRENT_DERIVED_STATE_VERSION);
   });
 
+  it('advances the push watermark when the server already has the operations (duplicate-only batches)', async () => {
+    const workspaceId = uuidv7();
+    const actor = uuidv7();
+    const relay = new MemoryRelay();
+
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, workspaceId, actor);
+    const client = await createClientFromStore(store);
+    const sync = new SyncEngine(client, new MemoryTransport(relay, workspaceId));
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    await sync.push();
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(1);
+
+    // Simulate interrupted-rebuild corruption: the operation log still holds
+    // server-known ops, but the outbox and push watermark were reset.
+    store.getDb().run("UPDATE sync_outbox SET state = 'pending'");
+    await client.mutate('saveWatermark', ['pushed', { physical: 0, logical: 0 }]);
+
+    // The real server omits duplicates from saved_ids (app/relay/storage.py).
+    const seen = new Set(relay.catchUp(workspaceId, 0).envelopes.map((e) => e.id));
+    const serverLikeTransport = new MemoryTransport(relay, workspaceId);
+    serverLikeTransport.sendBatch = (envelopes) => ({
+      savedIds: envelopes.filter((e) => !seen.has(e.id)).map((e) => e.id),
+    });
+    const sync2 = new SyncEngine(client, serverLikeTransport);
+
+    // With the bug this push never resolves: duplicate-only chunks ack nothing,
+    // the watermark never advances, and the same ops are re-sent forever.
+    await Promise.race([
+      sync2.push(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('push hung')), 3000)),
+    ]);
+
+    const pending = store.getPendingPushOperations({ physical: 0, logical: 0 }, 1000, Date.now());
+    expect(pending).toHaveLength(0);
+  });
+
   it('retries failed operations and only advances watermark on ack', async () => {
     vi.useFakeTimers();
     const now = Date.now();

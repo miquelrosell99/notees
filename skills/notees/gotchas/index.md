@@ -54,6 +54,12 @@ Persisted system views (`classed_nodes`, `extended_by`, `child_pages`) store an 
 
 - Reference: `references/gotchas.md#query-persisted-system-views-store-an-empty-query_ast`
 
+## Relay `saved_ids` excludes duplicates — ack the whole accepted batch
+
+A successful relay batch response means every envelope is persisted server-side; the server omits duplicates from `saved_ids`. Clients must ack the whole chunk, not just `saved_ids` — otherwise a reset push watermark (e.g. interrupted rebuild) re-sends the same ops forever and workspace init hangs on "Connecting to server…".
+
+- Reference: `references/gotchas.md#sync-relay-saved_ids-excludes-duplicates--ack-the-whole-accepted-batch`
+
 ## Applier changes must bump the derived-state version
 
 Any change to client-side applier logic (`frontend/src/core/derived/**`) must bump `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) and clear new derived tables in `resetDerivedState` in the same commit — nothing fails CI otherwise, and existing clients keep stale derived state while fresh installs work. But prefer a targeted idempotent startup repair (`repairClassHierarchy` / `repairDatePageHierarchy` pattern) when the state derives from one small table — a bump forces a full log replay on every client.

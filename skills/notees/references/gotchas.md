@@ -118,6 +118,16 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 
 **Prevent:** When adding a new execution path for persisted views, use `getExecutionAST`; the invariant is unit-tested in `getExecutionAST.test.ts`.
 
+## **[sync]** Relay `saved_ids` excludes duplicates — ack the whole accepted batch
+
+**Symptom:** Client stuck on "Connecting to server…" forever; backend logs show an endless stream of `POST /api/relay/batch` 200s while the envelope count stays flat.
+
+**Cause:** The relay omits duplicates from `saved_ids` (`app/relay/storage.py save_envelopes`). A client that acknowledges only `saved_ids` never advances its push watermark on duplicate-only batches, so the same ops are re-sent indefinitely. This stays latent until the push watermark is reset while the op log still holds server-known operations (e.g. an interrupted derived-state rebuild).
+
+**Fix:** On a successful batch response, acknowledge the entire chunk — validation/permission failures raise, so any unsaved envelope is a duplicate the server already has. Fixed in `frontend/src/core/sync.ts` `push()`.
+
+**Prevent:** When touching relay dedupe or push-ack logic, test with a duplicate-only batch (covered by sync.test.ts "duplicate-only batches").
+
 ## **[testing]** Frontend vitest suite flakes under concurrent heavy load
 
 **Symptom:** `npm run test:run` fails with 1–2 errors like "Chunk count mismatch" in `src/core/persistence/__tests__/indexedDb.test.ts` (or similar persistence timing tests), but the same files pass in isolation and in an idle rerun.
