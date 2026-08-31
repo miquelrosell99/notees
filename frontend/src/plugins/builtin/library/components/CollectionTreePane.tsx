@@ -5,11 +5,13 @@
  * tree (expandable per node). Selection is controller-free: the parent owns
  * the state and passes `flattenCollectionTree` rows plus callbacks.
  */
+import { useState } from 'react';
 import { Icon } from '@/components/ui/icons';
 import type {
   CollectionTreeRow,
 } from '../collectionTree';
 import { libraryNodeName } from '../libraryUtils';
+import { isNodeDrag, parseNodeDragPayload, NOTEES_NODE_MIME } from '../libraryDnd';
 
 interface CollectionTreePaneProps {
   rows: CollectionTreeRow[];
@@ -17,6 +19,8 @@ interface CollectionTreePaneProps {
   selectedCollectionUuid: string | null;
   onSelectCollection: (collectionUuid: string | null) => void;
   onToggleExpand: (collectionUuid: string) => void;
+  /** Drag-to-collect (Task 12): a source node dropped onto a collection row. */
+  onDropSource?: (sourceUuid: string, collectionUuid: string) => void;
 }
 
 export function CollectionTreePane({
@@ -24,7 +28,31 @@ export function CollectionTreePane({
   selectedCollectionUuid,
   onSelectCollection,
   onToggleExpand,
+  onDropSource,
 }: CollectionTreePaneProps) {
+  // uuid of the collection row currently highlighted as a drop target.
+  const [dropTargetUuid, setDropTargetUuid] = useState<string | null>(null);
+
+  const rowDropProps = (collectionUuid: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!onDropSource || !isNodeDrag(e.dataTransfer.types)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'link';
+      setDropTargetUuid(collectionUuid);
+    },
+    onDragLeave: () => {
+      setDropTargetUuid((current) => (current === collectionUuid ? null : current));
+    },
+    onDrop: (e: React.DragEvent) => {
+      setDropTargetUuid(null);
+      if (!onDropSource) return;
+      const payload = parseNodeDragPayload(e.dataTransfer.getData(NOTEES_NODE_MIME));
+      if (!payload) return;
+      e.preventDefault();
+      onDropSource(payload.nodeUuid, collectionUuid);
+    },
+  });
+
   return (
     <nav className="library-tree" aria-label="Collections">
       <button
@@ -43,8 +71,9 @@ export function CollectionTreePane({
         return (
           <div
             key={uuid}
-            className={`library-tree__row${isActive ? ' library-tree__row--active' : ''}`}
+            className={`library-tree__row${isActive ? ' library-tree__row--active' : ''}${dropTargetUuid === uuid ? ' library-tree__row--drop-target' : ''}`}
             style={{ paddingLeft: `calc(var(--spacing-2) + ${row.depth} * var(--spacing-4))` }}
+            {...rowDropProps(uuid)}
           >
             {row.hasChildren ? (
               <button

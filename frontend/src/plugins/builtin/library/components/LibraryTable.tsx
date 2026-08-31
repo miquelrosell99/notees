@@ -14,6 +14,11 @@ import {
   resolveAuthorNames,
   type WorkGroup,
 } from '../libraryUtils';
+import {
+  isFileDrag,
+  serializeNodeDragPayload,
+  NOTEES_NODE_MIME,
+} from '../libraryDnd';
 
 interface LibraryTableProps {
   /** Flat mode: every source its own row. */
@@ -29,6 +34,8 @@ interface LibraryTableProps {
   onSelectNode?: (nodeUuid: string) => void;
   /** Currently selected row (inspector target). */
   selectedUuid?: string | null;
+  /** Drag-to-attach (Task 12): a file dropped onto a source row. */
+  onDropFile?: (sourceUuid: string, file: File) => void;
 }
 
 export function LibraryTable({
@@ -40,8 +47,11 @@ export function LibraryTable({
   onOpenNode,
   onSelectNode,
   selectedUuid,
+  onDropFile,
 }: LibraryTableProps) {
   const [expandedWorks, setExpandedWorks] = useState<ReadonlySet<string>>(new Set());
+  // uuid of the row currently highlighted as a file drop target.
+  const [dropTargetUuid, setDropTargetUuid] = useState<string | null>(null);
 
   const toggleWork = useCallback((workUuid: string) => {
     setExpandedWorks((prev) => {
@@ -59,6 +69,7 @@ export function LibraryTable({
     const { isEdition = false, editions = [] } = opts;
     const isExpanded = expandedWorks.has(node.uuid);
     const isSelected = selectedUuid === node.uuid;
+    const isDropTarget = dropTargetUuid === node.uuid;
     const classLabels = (node.classes_uuid ?? [])
       .map((uuid) => classNamesByUuid.get(uuid))
       .filter((name): name is string => !!name);
@@ -67,9 +78,34 @@ export function LibraryTable({
     return [
       <tr
         key={node.uuid}
-        className={`library-table__row${isEdition ? ' library-table__row--edition' : ''}${isSelected ? ' library-table__row--selected' : ''}`}
+        className={`library-table__row${isEdition ? ' library-table__row--edition' : ''}${isSelected ? ' library-table__row--selected' : ''}${isDropTarget ? ' library-table__row--drop-target' : ''}`}
         onClick={() => (onSelectNode ?? onOpenNode)(node.uuid)}
         aria-selected={isSelected || undefined}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData(
+            NOTEES_NODE_MIME,
+            serializeNodeDragPayload({ nodeUuid: node.uuid, name: libraryNodeName(node) }),
+          );
+          e.dataTransfer.effectAllowed = 'link';
+        }}
+        onDragOver={(e) => {
+          if (!onDropFile || !isFileDrag(e.dataTransfer.types)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          setDropTargetUuid(node.uuid);
+        }}
+        onDragLeave={() => {
+          setDropTargetUuid((current) => (current === node.uuid ? null : current));
+        }}
+        onDrop={(e) => {
+          setDropTargetUuid(null);
+          if (!onDropFile || e.dataTransfer.files.length === 0) return;
+          e.preventDefault();
+          for (const file of Array.from(e.dataTransfer.files)) {
+            onDropFile(node.uuid, file);
+          }
+        }}
       >
         <td className="library-table__cell library-table__cell--title">
           {grouped && !isEdition && editions.length > 0 ? (

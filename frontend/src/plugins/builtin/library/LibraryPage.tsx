@@ -9,6 +9,9 @@
  * with flat/Work→Edition grouping. Right pane: metadata inspector for the
  * selected source (class-bound property panel; edits persist via normal
  * property ops). Selection never navigates; opening a node is explicit.
+ * Drag-and-drop (Task 12): dropping a file on a source row/card attaches it
+ * (upload + asset node + `attachments` entry); dragging a source row/card
+ * onto a collection in the tree nests it there (node.move).
  */
 import { useMemo, useState, useCallback } from 'react';
 import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
@@ -48,6 +51,7 @@ import { CollectionTreePane } from './components/CollectionTreePane';
 import { LibraryInspector } from './components/LibraryInspector';
 import { LibraryTable } from './components/LibraryTable';
 import { LibraryCardGrid } from './components/LibraryCardGrid';
+import { useLibraryDnd } from './useLibraryDnd';
 import './LibraryPage.css';
 
 export function LibraryPage() {
@@ -192,6 +196,22 @@ export function LibraryPage() {
     setExpandedCollections((prev) => toggleExpanded(prev, collectionUuid));
   }, []);
 
+  // Drag-to-attach / drag-to-collect (Task 12). Both flow through normal ops
+  // (asset upload + property.set; node.move), so sync comes free.
+  const { attachFileToSource, addSourceToCollection } = useLibraryDnd();
+  const handleDropFile = useCallback(
+    (sourceUuid: string, file: File) => {
+      void attachFileToSource(sourceUuid, file);
+    },
+    [attachFileToSource],
+  );
+  const handleDropSourceOnCollection = useCallback(
+    (sourceUuid: string, collectionUuid: string) => {
+      void addSourceToCollection(sourceUuid, collectionUuid);
+    },
+    [addSourceToCollection],
+  );
+
   const isLoading = isCollectionSelected
     ? nestedLoading || linkedLoading
     : isAuthorsSection
@@ -258,6 +278,7 @@ export function LibraryPage() {
             selectedCollectionUuid={selection.collectionUuid}
             onSelectCollection={handleSelectCollection}
             onToggleExpand={handleToggleExpand}
+            onDropSource={handleDropSourceOnCollection}
           />
         </div>
 
@@ -315,6 +336,7 @@ export function LibraryPage() {
                   onOpenNode={handleOpenNode}
                   onSelectNode={handleSelectSource}
                   selectedUuid={inspectorUuid}
+                  onDropFile={isAuthorsSection ? undefined : handleDropFile}
                 />
               ) : (
                 <LibraryCardGrid
@@ -326,6 +348,7 @@ export function LibraryPage() {
                   onOpenNode={handleOpenNode}
                   onSelectNode={handleSelectSource}
                   selectedUuid={inspectorUuid}
+                  onDropFile={isAuthorsSection ? undefined : handleDropFile}
                 />
               )}
             </DataStateView>
