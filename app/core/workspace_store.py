@@ -22,9 +22,12 @@ from app.core.derived import apply_operation, create_derived_schema
 from app.core.derived.class_hierarchy import class_extends_would_cycle
 from app.core.operation import Operation, OperationEnvelope
 from app.core.uuid import uuidv7
+from app.logging_config import get_logger
 from app.relay.key_storage import WorkspaceKeyStorage
 from app.relay.models import RelayEnvelope
 from app.relay.storage import RelayStorage
+
+logger = get_logger(__name__)
 
 # Number of envelopes fetched and applied per batch during cold-sync catch-up.
 # Kept below SQLite's default 999 bound-variable limit so the batched
@@ -216,6 +219,7 @@ class WorkspaceStore:
                 int(datetime.now(UTC).timestamp() * 1000),
             )
         await self._invoke_class_side_effects(operation)
+        await self._invoke_operation_listeners([operation])
         return envelope
 
     async def apply_many(
@@ -259,6 +263,7 @@ class WorkspaceStore:
                 )
         for operation in to_apply:
             await self._invoke_class_side_effects(operation)
+        await self._invoke_operation_listeners(to_apply)
         return results
 
     async def _persist_operation(
@@ -322,6 +327,27 @@ class WorkspaceStore:
                 added,
             )
 
+    async def _invoke_operation_listeners(self, operations: list[Operation]) -> None:
+        """Notify post-commit operation listeners (e.g. continuous exports).
+
+        Runs after the derived state has been committed and the workspace sync
+        lock released, mirroring class side effects. Listener exceptions are
+        logged and swallowed so a faulty listener cannot break op application.
+        """
+        from app.core.derived.op_listeners import get as get_op_listeners
+
+        listeners = get_op_listeners()
+        if not listeners:
+            return
+        for operation in operations:
+            for listener in listeners:
+                try:
+                    result = listener(operation)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception:  # noqa: BLE001
+                    logger.exception("Operation listener failed for %s", operation.id)
+
     async def sync(self) -> None:
         """Fetch operations from the relay and apply them idempotently.
 
@@ -335,6 +361,7 @@ class WorkspaceStore:
         Sync is serialized per workspace so concurrent requests do not race
         while restoring the derived database from a snapshot.
         """
+        applied_operations: list[Operation] = []
         async with self._sync_lock:
             snapshot = await self._maybe_await(
                 self._relay_storage.get_latest_snapshot(self.workspace_id)
@@ -388,6 +415,7 @@ class WorkspaceStore:
                         "INSERT OR IGNORE INTO applied_operation_id (id) VALUES (?)",
                         (operation.id,),
                     )
+                    applied_operations.append(operation)
                     if compare_hlc(envelope.hlc, max_seen_hlc) > 0:
                         max_seen_hlc = envelope.hlc
 
@@ -397,6 +425,8 @@ class WorkspaceStore:
 
             self._clock.update(max_seen_hlc, int(datetime.now(UTC).timestamp() * 1000))
             conn.commit()
+        if applied_operations:
+            await self._invoke_operation_listeners(applied_operations)
 
     def _applied_ids(self, conn: sqlite3.Connection, operation_ids: list[str]) -> set[str]:
         """Return the subset of ``operation_ids`` already recorded as applied."""

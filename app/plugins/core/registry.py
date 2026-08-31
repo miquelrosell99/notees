@@ -20,10 +20,18 @@ from app.core.derived.class_side_effects import (
 from app.core.derived.class_side_effects import (
     register as register_core_class_side_effect,
 )
+from app.core.derived.op_listeners import (
+    unregister as unregister_core_op_listener,
+)
 
 from .ports import RouterRegistration
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from app.core.derived.op_listeners import OperationListener
+
+    from .export import ExportProvider
     from .manifest import PluginManifest
     from .metadata import AssetMetadataHandler
     from .ports import (
@@ -33,6 +41,8 @@ if TYPE_CHECKING:
         SettingSchema,
         SyncSource,
     )
+
+    StartupHook = Callable[[], Awaitable[None]]
 
 
 @dataclass
@@ -60,6 +70,9 @@ class PluginRegistry:
         self._settings: dict[str, SettingSchema] = {}
         self._class_side_effects: dict[str, list[ClassSideEffectHandler]] = {}
         self._asset_metadata_handlers: dict[str, tuple[str, AssetMetadataHandler]] = {}
+        self._export_providers: dict[str, tuple[str, ExportProvider]] = {}
+        self._startup_hooks: dict[str, list[StartupHook]] = {}
+        self._op_listeners: dict[str, list[OperationListener]] = {}
 
     # Plugins
     def add_plugin(self, plugin: LoadedPlugin) -> None:
@@ -208,6 +221,46 @@ class PluginRegistry:
                 removed[id(handler)] = handler
                 del self._asset_metadata_handlers[key]
         return list(removed.values())
+
+    # Export providers (Decision 31/34), keyed by provider id
+    def add_export_provider(self, plugin_id: str, provider: ExportProvider) -> None:
+        self._export_providers[provider.id] = (plugin_id, provider)
+
+    def get_export_provider(self, provider_id: str) -> ExportProvider | None:
+        entry = self._export_providers.get(provider_id)
+        return entry[1] if entry else None
+
+    def list_export_providers(self) -> list[ExportProvider]:
+        return [provider for (_, provider) in self._export_providers.values()]
+
+    def remove_export_providers(self, plugin_id: str) -> list[ExportProvider]:
+        removed: list[ExportProvider] = []
+        for key in list(self._export_providers.keys()):
+            pid, provider = self._export_providers[key]
+            if pid == plugin_id:
+                removed.append(provider)
+                del self._export_providers[key]
+        return removed
+
+    # Startup hooks, invoked once after plugin load / enablement
+    def add_startup_hook(self, plugin_id: str, hook: StartupHook) -> None:
+        self._startup_hooks.setdefault(plugin_id, []).append(hook)
+
+    def list_startup_hooks(self, plugin_id: str | None = None) -> list[StartupHook]:
+        if plugin_id is not None:
+            return list(self._startup_hooks.get(plugin_id, []))
+        return [hook for hooks in self._startup_hooks.values() for hook in hooks]
+
+    def remove_startup_hooks(self, plugin_id: str) -> None:
+        self._startup_hooks.pop(plugin_id, None)
+
+    # Post-commit operation listeners (Decision 13 continuous reconciliation)
+    def add_op_listener(self, plugin_id: str, listener: OperationListener) -> None:
+        self._op_listeners.setdefault(plugin_id, []).append(listener)
+
+    def remove_op_listeners(self, plugin_id: str) -> None:
+        for listener in self._op_listeners.pop(plugin_id, []):
+            unregister_core_op_listener(listener)
 
     # Class side effects
     def add_class_side_effect(

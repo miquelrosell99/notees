@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter
 
+from app.core.derived.op_listeners import register as register_core_op_listener
 from app.core.uuid import uuidv7
 from app.core.workspace_store import WorkspaceStore
 from app.domain.entities.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
@@ -27,9 +28,15 @@ from .ports import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable
+
+    from app.core.derived.op_listeners import OperationListener
     from app.domain.repositories.interfaces import SettingsRepository
 
+    from .export import ExportProvider
     from .registry import PluginRegistry
+
+    StartupHook = Callable[[], Awaitable[None]]
 
 
 # Port factories may take UUID strings (WorkspaceStore) or integer ids
@@ -174,6 +181,32 @@ class PluginContext:
         """Register an asset metadata handler for its declared MIME types."""
         self._require("read_assets")
         self.registry.add_asset_metadata_handler(self.plugin_id, handler)
+
+    def register_export_provider(self, provider: ExportProvider) -> None:
+        """Register an export provider for the export-profiles engine."""
+        self._require("export")
+        self.registry.add_export_provider(self.plugin_id, provider)
+
+    def register_startup_hook(self, hook: StartupHook) -> None:
+        """Register an async hook run after startup and plugin (re)enablement.
+
+        Hooks run detached from plugin setup; they must tolerate running with
+        no active workspace and should catch their own errors where partial
+        failure is acceptable.
+        """
+        self._require("background_sync")
+        self.registry.add_startup_hook(self.plugin_id, hook)
+
+    def register_op_listener(self, listener: OperationListener) -> None:
+        """Register a post-commit operation listener.
+
+        The listener runs after every committed operation (local or replayed
+        by sync) and is removed automatically when the plugin is disabled.
+        Listeners must be fast — schedule heavy work (e.g. debounced).
+        """
+        self._require("background_sync")
+        self.registry.add_op_listener(self.plugin_id, listener)
+        register_core_op_listener(listener)
 
     def register_node_class_side_effect(
         self, class_uuid: str, handler: ClassSideEffectHandler

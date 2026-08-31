@@ -169,6 +169,9 @@ class PluginManager:
         self.registry.remove_settings(plugin_id)
         self.registry.remove_class_side_effects(plugin_id)
         self.registry.remove_asset_metadata_handlers(plugin_id)
+        self.registry.remove_export_providers(plugin_id)
+        self.registry.remove_startup_hooks(plugin_id)
+        self.registry.remove_op_listeners(plugin_id)
 
         plugin.enabled = False
         return True
@@ -339,6 +342,24 @@ class PluginManager:
 
     def get_sync_source(self, source_id: str):
         return self.registry.get_sync_source(source_id)
+
+    async def run_startup_hooks(self, plugin_id: str | None = None) -> None:
+        """Run registered startup hooks, optionally scoped to one plugin.
+
+        Invoked from the application lifespan after plugins load, and by
+        :meth:`set_enabled` when a plugin is enabled at runtime so restartless
+        enablement matches a fresh start. Hook failures are logged and never
+        abort startup.
+        """
+        import asyncio
+
+        for hook in self.registry.list_startup_hooks(plugin_id):
+            try:
+                result = hook()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:  # noqa: BLE001
+                logger.exception("Plugin startup hook failed")
 
 
 # Global manager instance used by the application.
