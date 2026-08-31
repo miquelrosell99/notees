@@ -43,6 +43,8 @@ interface ResultsListProps {
   onAddBooleanFilter: (prefix: string, label: string, value: boolean) => void;
   onPrefixSelect: (prefix: string) => void;
   onCreateNew: () => void;
+  /** Custom label for the create row (default: `Create "<query>"`) */
+  createLabel?: string;
   onShowMore: () => void;
   onConvertToClass?: (node: Node) => void;
   onClosePicker?: () => void;
@@ -72,6 +74,7 @@ export function ResultsList({
   onAddBooleanFilter,
   onPrefixSelect,
   onCreateNew,
+  createLabel,
   onShowMore,
   onConvertToClass,
   onClosePicker,
@@ -214,7 +217,7 @@ export function ResultsList({
       {showCreate && (
         <NodeResultItem
           key="__create"
-          node={{ name: `Create "${searchQuery.trim()}"` } as Node}
+          node={{ name: createLabel ?? `Create "${searchQuery.trim()}"` } as Node}
           isHighlighted={selectedIndex === createIndex}
           onClick={onCreateNew}
           onMouseEnter={() => setSelectedIndex(createIndex)}

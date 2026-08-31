@@ -1,0 +1,16 @@
+{
+  "id": "notees.export_profiles",
+  "name": "Export Profiles",
+  "version": "1.0.0",
+  "description": "Continuously maintained file export trees for sources: query-selected sources with role-filtered attachments are mirrored to per-user folders using configurable filename templates.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["read_nodes", "read_properties", "read_assets", "settings", "router", "export", "background_sync"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.export_profiles.setup:setup"
+  },
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "enabledByDefault": false
+}

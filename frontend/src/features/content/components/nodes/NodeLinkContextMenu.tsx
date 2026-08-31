@@ -19,6 +19,7 @@ import { useNodeDisplay } from '@/features/content/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/features/content/contexts/useReferencedNode';
 import { useBrokenLinkFix } from '@/features/content/contexts/BrokenLinkFixContext';
 import { useBatchedNodeByUuid } from '@/hooks';
+import { useAssetMimeType } from '@/features/assets';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { parseLinkId } from '@/lib/astBuilder';
 import {
@@ -97,6 +98,7 @@ export function NodeLinkContextMenu({
     { skipGlobalError: true },
   );
   const targetNode = refNode ?? fetchedNode ?? null;
+  const assetMimeType = useAssetMimeType(targetNode);
 
   const { data: allClasses } = useClasses();
   const isTargetClass =
@@ -324,6 +326,7 @@ export function NodeLinkContextMenu({
           menu: 'link',
           nodeUuid: targetUuid,
           node: targetNode,
+          assetMimeType,
           close: onClose,
         };
         const contributed = getVisibleNodeActions(pluginActions, {
@@ -389,6 +392,7 @@ export function NodeLinkContextMenu({
     openInNewTab,
     onClose,
     pluginActions,
+    assetMimeType,
   ]);
 
   return (

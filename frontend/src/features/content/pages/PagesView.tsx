@@ -15,6 +15,8 @@ import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox
 import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
 import { Button } from '@/components/ui/Button';
 import { DataStateView } from '@/components/ui/DataStateView';
+import { useSystemClasses } from '@/features/content/hooks/usePageClass';
+import { filterOutCollectionPages } from '@/features/content/utils/collectionContents';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy, SortEntry } from '@/types/nodeCollection';
 import type { Node } from '@/types';
 import './PagesView.css';
@@ -49,21 +51,24 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
   }, []);
 
   const { data: pages, isLoading, isPlaceholderData, error, refetch } = usePages();
+  const { systemClassUuids } = useSystemClasses();
 
   // All pages view modes operate on a flat list of page nodes only.
   // Strip children so block contents are never rendered here.
+  // Collection-classed pages are managed through their own view (Decision 22)
+  // and do not appear in the regular page list.
   const displayNodes = useMemo<Node[]>(() => {
     if (!pages) return [];
     const seen = new Set<string>();
     const result: Node[] = [];
-    for (const n of pages) {
+    for (const n of filterOutCollectionPages(pages, systemClassUuids?.collection)) {
       if (!n.is_page || seen.has(n.uuid)) continue;
       seen.add(n.uuid);
       // Prevent any view from recursing into page contents.
       result.push({ ...n, children: undefined, has_children: false });
     }
     return result;
-  }, [pages]);
+  }, [pages, systemClassUuids?.collection]);
 
   const handleSearchSelect = useCallback((node: Node) => {
     openNode(node.uuid);

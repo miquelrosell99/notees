@@ -95,8 +95,8 @@ Permissions are declared in the manifest and validated when a plugin registers a
 | `write_properties` | Create or update property definitions and values. |
 | `read_assets` | Read assets. |
 | `write_assets` | Upload or delete assets. |
-| `background_sync` | Register a sync source that runs outside request scope. |
-| `export` | Register an export format adapter. |
+| `background_sync` | Register a sync source, startup hook, or post-commit operation listener that runs outside request scope. |
+| `export` | Register an export format adapter or an export provider. |
 | `import` | Register an importer adapter. |
 | `router` | Register a FastAPI router. |
 | `settings` | Register workspace-scoped plugin setting schemas. |
@@ -169,6 +169,43 @@ class ZoteroSyncSource(SyncSource):
 
     async def sync(self, context: SyncContext) -> SyncResult:
         ...
+```
+
+### Export provider (Decision 31/34)
+
+Export providers feed the export-profiles engine. A provider turns the
+resolved node selection plus its opaque `provider_config` into a manifest of
+desired files; it never touches the filesystem (path validation, the
+reconciler, and the materializer own all I/O). Contracts live in
+`app/plugins/core/export.py`.
+
+```python
+from app.plugins.core.export import ExportManifest
+
+class MyProvider:
+    id = "my_provider"
+
+    def generate_manifest(self, config, nodes, services) -> ExportManifest:
+        ...
+
+def setup(context: PluginContext) -> None:
+    context.register_export_provider(MyProvider())  # requires `export`
+```
+
+### Startup hooks and operation listeners (Decision 13)
+
+Plugins that maintain derived state on disk can react to the operation log
+and to application startup. Both require `background_sync` and are removed
+automatically when the plugin is disabled.
+
+```python
+def setup(context: PluginContext) -> None:
+    # Runs after startup and after restartless (re)enablement.
+    context.register_startup_hook(my_startup_reconcile)
+
+    # Runs after every committed operation (local applies and sync replays);
+    # must be fast — schedule heavy work (e.g. debounced) instead.
+    context.register_op_listener(my_handle_operation)
 ```
 
 ## Frontend plugins
@@ -250,7 +287,20 @@ renders last.
 
 Actions registered through `PluginContext` are removed automatically on
 plugin unload/reload. The hello built-in plugin registers a `devOnly` example
-(`hello.logNodeUuid`).
+(`hello.logNodeUuid`). All contribution kinds register cleanly through the
+context — commands, slash commands, sidebar items, top-level views,
+NodeCollection view modes, and property renderers are all torn down by
+`context.unregisterAll()` when the plugin is disabled (restartless toggle).
+
+#### View primitives
+
+Plugins compose custom views from the app's own components via
+`context.primitives` (`frontend/src/plugins/core/primitives.ts`):
+`QueryNodeCollection` (run a QueryAST with standard view modes), `NodeCollection`,
+`NodeSelector` (class-aware picker), `PropertiesSection`, and `PageViewHeader`.
+The built-in Library plugin (`notees.library`, ships disabled via
+`"enabledByDefault": false`) is the reference implementation. Enablement
+choices persist in `data/plugin_enablement.json` and survive restarts.
 
 ### Loading
 
@@ -321,7 +371,6 @@ See the built-in plugins for working examples:
 - `app/plugins/builtin/flashcards/` — migrated internal feature.
 - `app/plugins/builtin/zotero/` — external service sync.
 - `app/plugins/builtin/bibtex/` — file-based importer.
-- `app/plugins/builtin/koreader/` — device sync.
 - `app/plugins/builtin/logseq_importer/` — folder importer.
 
 ## Future work

@@ -25,6 +25,24 @@ export interface InstallJob {
   error: string | null;
 }
 
+export interface ZipInstallResult {
+  id: string;
+  name: string;
+  version: string;
+  safe_id: string;
+  restart_required: boolean;
+}
+
+export interface RescanResult {
+  added: string[];
+  plugins: PluginStatus[];
+}
+
+export interface PluginsInfo {
+  external_dir: string;
+  builtin_dir: string;
+}
+
 export interface PluginSettingValue extends ContributedSetting {
   value: unknown;
 }
@@ -36,6 +54,33 @@ export interface PluginSettingsResponse {
 
 export function installPlugin(request: InstallPluginRequest): Promise<InstallPluginResponse> {
   return api.post<InstallPluginResponse>('/plugins/install', request).then((r) => r.data);
+}
+
+export function installPluginZip(file: File): Promise<ZipInstallResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api
+    .post<ZipInstallResult>('/plugins/install/zip', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    .then((r) => r.data);
+}
+
+export function rescanPlugins(): Promise<RescanResult> {
+  return api.post<RescanResult>('/plugins/rescan').then((r) => r.data);
+}
+
+export function getPluginsInfo(): Promise<PluginsInfo> {
+  return api.get<PluginsInfo>('/plugins/info').then((r) => r.data);
+}
+
+export function setPluginEnabled(
+  pluginId: string,
+  enabled: boolean,
+): Promise<{ id: string; enabled: boolean; restart_required: boolean }> {
+  return api
+    .post(`/plugins/${pluginId}/${enabled ? 'enable' : 'disable'}`)
+    .then((r) => r.data);
 }
 
 export function listPlugins(): Promise<PluginStatus[]> {

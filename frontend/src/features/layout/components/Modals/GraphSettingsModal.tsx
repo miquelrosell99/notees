@@ -8,6 +8,13 @@ import { useState } from 'react';
 import { useSettingsStore, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { DateFormat } from '@/stores';
 import { useGraphSettings } from '@/features/workspace';
+import { ClassConsolidationSection } from '@/features/workspace/components/ClassConsolidationSection';
+import {
+  CITEKEY_PATTERN_SETTING_KEY,
+  DEFAULT_CITEKEY_PATTERN,
+  getCitekeyPattern,
+  validateCitekeyPattern,
+} from '@/features/workspace/utils/citekey';
 
 import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
 import type { ShortcutContext } from '@/stores/commandRegistry';
@@ -80,6 +87,21 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
 
   // Workspace settings for sidebar visibility toggles
   const { settings: workspaceSettings, updateSetting: updateSettingMutation } = useGraphSettings();
+
+  // Citekey pattern: edited in a local draft, persisted on blur when valid.
+  const citekeyPattern = getCitekeyPattern(workspaceSettings);
+  const [citekeyDraft, setCitekeyDraft] = useState<string | null>(null);
+  const citekeyError =
+    citekeyDraft !== null ? validateCitekeyPattern(citekeyDraft) : null;
+
+  const handleCitekeyBlur = () => {
+    if (citekeyDraft === null) return;
+    const trimmed = citekeyDraft.trim();
+    if (!validateCitekeyPattern(trimmed) && trimmed !== citekeyPattern) {
+      updateSettingMutation.mutate({ key: CITEKEY_PATTERN_SETTING_KEY, value: trimmed });
+    }
+    setCitekeyDraft(null);
+  };
 
   const handleToggleChange = (key: string, value: boolean) => {
     updateSettingMutation.mutate({ key, value });
@@ -272,6 +294,34 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                     />
                   )}
                 </div>
+
+                <h3 className="settings-section__title settings-section__title--spaced">Sources</h3>
+
+                <div className="settings-item">
+                  <div className="settings-item__info">
+                    <label htmlFor="citekey-pattern" className="settings-item__label">Citekey pattern</label>
+                    <p className="settings-item__description">
+                      Pattern used when import integrations fill an empty citekey, e.g.{' '}
+                      <code>{DEFAULT_CITEKEY_PATTERN}</code> → <code>herbert1965</code>. Tokens:{' '}
+                      <code>family_name</code>, <code>organization_name</code>, <code>year</code>,{' '}
+                      <code>title_word</code> with <code>:lower</code>/<code>:upper</code> modifiers.
+                      Existing citekeys are never recomputed — changes apply only to future generations.
+                    </p>
+                  </div>
+                  <TextField
+                    id="citekey-pattern"
+                    value={citekeyDraft ?? citekeyPattern}
+                    onChange={(e) => setCitekeyDraft(e.target.value)}
+                    onBlur={handleCitekeyBlur}
+                    size="sm"
+                    aria-label="Citekey pattern"
+                  />
+                </div>
+                {citekeyError && (
+                  <p className="settings-item__description" role="alert">{citekeyError}</p>
+                )}
+
+                <ClassConsolidationSection />
 
               </div>
             )}

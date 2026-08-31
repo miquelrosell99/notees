@@ -1,0 +1,75 @@
+.add-pdf {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.add-pdf__intro {
+  margin: 0;
+  color: var(--color-text-secondary, #666);
+}
+
+.add-pdf__file-input {
+  font-size: 0.9rem;
+}
+
+.add-pdf__progress {
+  margin: 0;
+  color: var(--color-text-secondary, #666);
+  font-size: 0.9rem;
+}
+
+.add-pdf__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.add-pdf__fallback-note {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.05));
+  color: var(--color-text-secondary, #666);
+  font-size: 0.85rem;
+}
+
+.add-pdf__fields {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.add-pdf__field {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.add-pdf__field dt {
+  flex: 0 0 5.5rem;
+  color: var(--color-text-secondary, #666);
+  font-size: 0.85rem;
+}
+
+.add-pdf__field dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.add-pdf__class {
+  text-transform: capitalize;
+}
+
+.add-pdf__provider {
+  margin: 0;
+  color: var(--color-text-secondary, #666);
+  font-size: 0.85rem;
+}
+
+.add-pdf__error {
+  margin: 0;
+  color: var(--color-danger, #c00);
+  font-size: 0.9rem;
+}

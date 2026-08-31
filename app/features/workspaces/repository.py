@@ -14,7 +14,12 @@ import asyncpg
 from app.config import settings
 from app.db.connection import acquire_connection, get_workspace_dir
 from app.domain.entities import generate_uuid
-from app.domain.entities.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PAGE_UUIDS
+from app.domain.entities.constants import (
+    SYSTEM_CLASS_EXTENDS,
+    SYSTEM_CLASS_ICONS,
+    SYSTEM_CLASS_UUIDS,
+    SYSTEM_PAGE_UUIDS,
+)
 from app.domain.stringify_ast import (
     StringifyMode,
     StringifyOptions,
@@ -398,7 +403,19 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
             class_class_id = SYSTEM_CLASS_UUIDS["class"]
 
             for class_name, class_uuid in SYSTEM_CLASS_UUIDS.items():
-                await store.create_class(class_uuid, class_name)
+                # Icons and extends must match the relay seed
+                # (app/core/seed.py): class.create is an upsert, so a later
+                # op without them would clobber the seeded values.
+                extends = [
+                    SYSTEM_CLASS_UUIDS[parent]
+                    for parent in SYSTEM_CLASS_EXTENDS.get(class_name, [])
+                ]
+                await store.create_class(
+                    class_uuid,
+                    class_name,
+                    icon=SYSTEM_CLASS_ICONS.get(class_name),
+                    extends_class_ids=extends or None,
+                )
                 await store.update_content(class_uuid, _name_ast(class_name))
                 await store.assign_class(class_uuid, class_class_id)
 
@@ -408,6 +425,23 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
                     "page",
                     initial_content=_name_ast(page_name.capitalize()),
                 )
+        finally:
+            await store.close()
+
+    async def ensure_system_schema(self, workspace_id: int, user_id: int) -> int:
+        """Backfill missing system classes/properties/bindings (idempotent)."""
+        workspace_uuid = await self._workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            raise ValueError(f"Workspace {workspace_id} not found")
+        user = await self._user_row(user_id)
+        if not user:
+            raise ValueError(f"User {user_id} not found")
+
+        from app.core import seed as core_seed
+
+        store = self._store(workspace_uuid, user["uuid"])
+        try:
+            return await core_seed.ensure_system_schema(store)
         finally:
             await store.close()
 

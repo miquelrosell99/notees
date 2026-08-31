@@ -128,19 +128,45 @@ Built-in plugins live under `frontend/src/plugins/builtin/`:
 |--------|------|---------|
 | OPML exporter | `frontend/src/plugins/builtin/opml_exporter/` | Export node trees to OPML 2.0. |
 | Flashcards | `frontend/src/plugins/builtin/flashcards/` | Cloze-deletion flashcard study UI. |
+| Library | `frontend/src/plugins/builtin/library/` | Source management views (table/card, Work→Edition grouping, covers). Ships disabled (`enabledByDefault: false`); enable it in the Plugin Manager. |
 | Hello (sample) | `frontend/src/plugins/builtin/hello/` | Minimal example plugin. |
 | BibTeX | `frontend/src/plugins/builtin/bibtex/` | BibTeX-related plugin stub. |
-| KOReader | `frontend/src/plugins/builtin/koreader/` | KOReader highlights integration stub. |
 | Logseq importer | `frontend/src/plugins/builtin/logseq_importer/` | Logseq Markdown-folder importer. |
 | Zotero | `frontend/src/plugins/builtin/zotero/` | Zotero integration stub. |
 
 The OPML exporter (`notees.opml_exporter`) is registered as a built-in export format and consumes the already-fetched node tree through `ExportContext.nodes_data`.
 
+### View primitives
+
+Frontend plugins compose their views from the app's own building blocks via `context.primitives` (defined in `frontend/src/plugins/core/primitives.ts`) instead of writing components from scratch:
+
+| Primitive | Purpose |
+|-----------|---------|
+| `QueryNodeCollection` | Query-driven collection: runs a QueryAST against the local store and renders results with the standard view modes. Class conditions are hierarchy-aware. |
+| `NodeCollection` | Renderer for an already-fetched node list (list/table/kanban/...). |
+| `NodeSelector` | Universal class-aware node picker; `classFilters` accept superclass UUIDs. |
+| `PropertiesSection` | Standard class-bound property panel for a node. |
+| `PageViewHeader` | Standard hub-view header chrome (title / middle / actions). |
+
+Registered views appear as top-level views (`context.registerView`) with optional sidebar rail entries (`context.registerSidebarItem`) and palette commands; everything registered through the context is torn down automatically when the plugin is disabled.
+
 ---
 
 ## Installing plugins
 
-User-installed plugins are loaded from `data/plugins/`. Each plugin is a folder containing a `manifest.json` and its entrypoint files. Enable or disable plugins through the **Plugin Manager** in the web app.
+User-installed plugins live one-folder-per-plugin under `data/plugins/` (the instance plugins folder; the Plugin Manager shows the exact path). Each folder contains a `manifest.json` and its entrypoint files.
+
+Three ways to install:
+
+1. **Git URL** — Plugin Manager → "Install from git URL" (`POST /api/plugins/install`, async job).
+2. **ZIP archive** — Plugin Manager → "Install from ZIP archive" (`POST /api/plugins/install/zip`). The archive must contain exactly one top-level folder with a valid `manifest.json`; entries with `..`, absolute paths, or symlinks are rejected, and uploads are capped at 50 MB compressed / 100 MB uncompressed.
+3. **Folder drop** — copy a plugin folder into `data/plugins/` and use "Rescan folder" (`POST /api/plugins/rescan`), or restart (the startup scan picks it up too). New folders load with their manifest's `enabledByDefault` state.
+
+Enabling or disabling a plugin through the Plugin Manager **takes effect immediately** — the backend mounts/unmounts the plugin's routes (`POST /api/plugins/<id>/enable|disable`) and the frontend loads/unloads its contributions without a page reload.
+
+**Limitation:** disabling a plugin is registration-based teardown. Routes, importers, exporters, settings schemas, side-effect handlers, and frontend contributions (views, sidebar items, commands, slash commands, NodeCollection view modes, property renderers) are removed, but background threads/tasks a plugin spawned are not forcibly cancelled and may run to completion. Enablement state is persisted in `data/plugin_enablement.json` and wins over the manifest's `enabledByDefault` on subsequent startups. Built-in plugins ship enabled unless their manifest explicitly declares `"enabledByDefault": false` (the Library plugin uses this to ship disabled).
+
+Uninstalling an external plugin (`DELETE /api/plugins/<id>`) unloads it and deletes its folder. Built-in plugins cannot be uninstalled.
 
 ---
 
@@ -151,6 +177,6 @@ User-installed plugins are loaded from `data/plugins/`. Each plugin is a folder 
 3. Implement the backend adapter(s) in the file referenced by `backend.entrypoint`.
 4. Implement the frontend setup in the file referenced by `frontend.entrypoint`.
 5. Register contributions through the provided `PluginContext` / registries.
-6. Reload the app.
+6. Use "Rescan folder" in the Plugin Manager (no app reload needed for the backend; the frontend loads the plugin's entrypoint from `data/plugins/<id>/` on enable).
 
 For the manifest schema and available permissions, see `app/plugins/core/manifest.py` and `frontend/src/plugins/core/manifest.ts`.

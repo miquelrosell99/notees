@@ -105,6 +105,26 @@ function scoreFromMatchinfo(mi: Uint8Array, totalDocs: number): number {
   return score;
 }
 
+/**
+ * Build a hierarchy-aware class-membership predicate: a node matches when any
+ * of its class_ids is the filter class itself or a subclass of it, resolved
+ * through the class_hierarchy closure table. Mirrors the AST compiler
+ * semantics (compileToSqlite.ts generateClassCondition).
+ *
+ * NOTE (Task 10): kept local for now; if Task 6 lands a shared helper at
+ * `frontend/src/core/query/classFilter.ts`, consolidate both call sites onto
+ * it.
+ */
+export function buildClassMembershipClause(
+  nodeAlias: string,
+  classUuids: string[],
+  params: (string | number)[],
+): string {
+  const placeholders = classUuids.map(() => '?').join(',');
+  params.push(...classUuids);
+  return `EXISTS (SELECT 1 FROM json_each(${nodeAlias}.class_ids) WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (${placeholders})))`;
+}
+
 function buildSearchWhere(filters: SearchFilters, params: (string | number)[]): string[] {
   const where: string[] = ['n.workspace_id = ?', 'si.content MATCH ?'];
 
@@ -123,12 +143,7 @@ function buildSearchWhere(filters: SearchFilters, params: (string | number)[]): 
   }
 
   if (filters.classUuids && filters.classUuids.length > 0) {
-    const clauses: string[] = [];
-    for (const classUuid of filters.classUuids) {
-      clauses.push(`EXISTS (SELECT 1 FROM json_each(n.class_ids) WHERE value = ?)`);
-      params.push(classUuid);
-    }
-    where.push(`(${clauses.join(' OR ')})`);
+    where.push(buildClassMembershipClause('n', filters.classUuids, params));
   }
 
   // isDaily / isUserPage / tagUuids are not represented in the new derived
@@ -167,12 +182,7 @@ function runSearchForKind(
   postFilterParams.push(kind === 'page' ? 'page' : 'block');
 
   if (filters.classUuids && filters.classUuids.length > 0) {
-    const clauses: string[] = [];
-    for (const classUuid of filters.classUuids) {
-      clauses.push(`EXISTS (SELECT 1 FROM json_each(n.class_ids) WHERE value = ?)`);
-      postFilterParams.push(classUuid);
-    }
-    postFilters.push(`(${clauses.join(' OR ')})`);
+    postFilters.push(buildClassMembershipClause('n', filters.classUuids, postFilterParams));
   }
 
   // Step 1: cheaply fetch candidate IDs without the expensive matchinfo() call.

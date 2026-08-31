@@ -162,6 +162,31 @@ class TestCompilerExecution:
         assert _execute(ast, conn) == ["page-1"]
         conn.close()
 
+    def test_class_condition_tracks_reparented_ancestors(self) -> None:
+        # X <- source <- book; reparenting source under Y must make a class:Y
+        # query match book-classed nodes.
+        ops = [
+            _op("class.create", {"classId": "x", "name": "X"}),
+            _op("class.create", {"classId": "y", "name": "Y"}),
+            _op("class.create", {"classId": "source", "name": "source"}),
+            _op("class.create", {"classId": "book", "name": "book"}),
+            _op("class.setExtends", {"classId": "source", "extendsClassIds": ["x"]}),
+            _op("class.setExtends", {"classId": "book", "extendsClassIds": ["source"]}),
+            _op("node.create", {"nodeId": "page-1", "kind": "page", "index": "0"}),
+            _op("class.assign", {"nodeId": "page-1", "classId": "book"}),
+            _op("class.setExtends", {"classId": "source", "extendsClassIds": ["y"]}),
+        ]
+        conn = replay_operations(ops)
+        ast = QueryAST(
+            root_group=GroupNode(children=[ClassCondition(class_uuid="y")])
+        )
+        assert _execute(ast, conn) == ["page-1"]
+        ast = QueryAST(
+            root_group=GroupNode(children=[ClassCondition(class_uuid="x")])
+        )
+        assert _execute(ast, conn) == []
+        conn.close()
+
     def test_content_condition_matches_text(self) -> None:
         ops = [
             _op("node.create", {"nodeId": "page-1", "kind": "page", "index": "0"}),

@@ -19,3 +19,4 @@ export {
 export { WorkspaceModal } from './WorkspaceModal';
 export { WorkspaceNameModal } from './WorkspaceNameModal';
 export { WorkspaceSwitcher } from './WorkspaceSwitcher';
+export { ClassConsolidationSection } from './ClassConsolidationSection';

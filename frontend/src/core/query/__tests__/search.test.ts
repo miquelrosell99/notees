@@ -62,9 +62,58 @@ describe('searchNodes', () => {
     createPage(store, 'n2', 'Task B');
     store.getDb().run('UPDATE node SET class_ids = ? WHERE id = ?', [JSON.stringify(['class-1']), 'n1']);
     store.getDb().run('UPDATE node SET class_ids = ? WHERE id = ?', [JSON.stringify(['class-2']), 'n2']);
+    // Class filters resolve through the class_hierarchy closure; the derived
+    // class applier always writes at least the self-pair for known classes.
+    for (const classId of ['class-1', 'class-2']) {
+      store
+        .getDb()
+        .run('INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)', [
+          classId,
+          classId,
+        ]);
+    }
 
     const results = searchNodes(store, 'Task', { classUuids: ['class-1'] });
     expect(results.map((r) => r.id)).toEqual(['n1']);
+  });
+
+  it('matches subclass instances when filtering by a superclass', async () => {
+    const store = await makeStore();
+    const db = store.getDb();
+    // Closure rows as maintained by the derived class applier: book ⊏ source,
+    // paper ⊏ source (self-pairs included).
+    for (const [classId, ancestorId] of [
+      ['source', 'source'],
+      ['book', 'book'],
+      ['book', 'source'],
+      ['paper', 'paper'],
+      ['paper', 'source'],
+    ]) {
+      db.run('INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)', [
+        classId,
+        ancestorId,
+      ]);
+    }
+
+    createPage(store, 'n1', 'Dune novel');
+    createPage(store, 'n2', 'Dune paper');
+    createPage(store, 'n3', 'Dune source itself');
+    createPage(store, 'n4', 'Dune plain notes');
+    db.run('UPDATE node SET class_ids = ? WHERE id = ?', [JSON.stringify(['book']), 'n1']);
+    db.run('UPDATE node SET class_ids = ? WHERE id = ?', [JSON.stringify(['paper']), 'n2']);
+    db.run('UPDATE node SET class_ids = ? WHERE id = ?', [JSON.stringify(['source']), 'n3']);
+
+    // Filtering by the superclass matches subclass instances and direct members.
+    const bySource = searchNodes(store, 'Dune', { classUuids: ['source'] });
+    expect(bySource.map((r) => r.id).sort()).toEqual(['n1', 'n2', 'n3']);
+
+    // Exact-subclass filters still work.
+    const byBook = searchNodes(store, 'Dune', { classUuids: ['book'] });
+    expect(byBook.map((r) => r.id)).toEqual(['n1']);
+
+    // Multiple filter classes are unioned through the closure.
+    const byBookOrPaper = searchNodes(store, 'Dune', { classUuids: ['book', 'paper'] });
+    expect(byBookOrPaper.map((r) => r.id).sort()).toEqual(['n1', 'n2']);
   });
 
   it('removes deleted nodes from results', async () => {

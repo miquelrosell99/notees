@@ -17,7 +17,7 @@ import { FilterPrefixPopup } from './FilterPrefixPopup';
 import { SuggestionPopup, NodeRef } from '@/features/content';
 import { DuplicatePageModal } from '@/features/layout/components/Modals';
 import { Button } from '@/components/ui/Button';
-import { Icon, AddIcon, CalendarIcon, CheckIcon, ChevronRightIcon } from '@/components/ui/icons';
+import { Icon, AddIcon, CalendarIcon } from '@/components/ui/icons';
 import { useCommandRegistry } from '@/stores/commandRegistry';
 import { useId } from 'react';
 
@@ -41,7 +41,6 @@ export function CommandPalette(props: CommandPaletteProps) {
     isLoading,
     debouncedSearchTerm,
     parsedDate,
-    pathInfo,
     isOpen,
     allItems,
     selectedIndex,
@@ -172,24 +171,6 @@ export function CommandPalette(props: CommandPaletteProps) {
             onSelect={handleFilterPrefixSelect}
             onClose={handleFilterPrefixClose}
           />
-        )}
-
-        {/* Hierarchical path preview — hidden when date is detected */}
-        {pathInfo && !isTypingClass && !parsedDate && (
-          <div className="command-palette__path-preview">
-            <span className="command-palette__path-label">Will create:</span>
-            <span className="command-palette__path-segments">
-              {pathInfo.segments.map((segment, index) => (
-                <span key={index}>
-                  {index > 0 && <span className="command-palette__path-separator"><ChevronRightIcon size="xs" /></span>}
-                  <span className={segment.exists ? 'command-palette__path-segment--existing' : 'command-palette__path-segment--new'}>
-                    {segment.name}
-                    {segment.exists && <span className="command-palette__path-indicator" title="Page exists"><CheckIcon size="xs" /></span>}
-                  </span>
-                </span>
-              ))}
-            </span>
-          </div>
         )}
 
         <div id={resultListId} className="command-palette__results" role="listbox" aria-label="Command palette results">

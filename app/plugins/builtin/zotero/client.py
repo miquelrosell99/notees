@@ -26,6 +26,8 @@ class ZoteroItem:
     abstract: str | None
     tags: list[str]
     citekey: str | None = None
+    isbn: str | None = None
+    publisher: str | None = None
     parent_key: str | None = None
     attachment_path: str | None = None
 
@@ -97,13 +99,26 @@ def _parse_item(data: dict[str, Any]) -> ZoteroItem:
         title=str(data.get("title", "")),
         item_type=str(data.get("itemType", "")),
         creators=[
-            {"firstName": str(c.get("firstName", "")), "lastName": str(c.get("lastName", ""))}
+            {
+                # Two-field creators carry firstName/lastName; single-field
+                # creators (typically organizations) carry only ``name``.
+                "firstName": str(c.get("firstName", "")),
+                "lastName": str(c.get("lastName", "")),
+                "name": str(c.get("name", "")),
+                "creatorType": str(c.get("creatorType", "author")),
+            }
             for c in creators
             if isinstance(c, dict)
         ],
         date=str(data.get("date")) if data.get("date") else None,
         url=str(data.get("url")) if data.get("url") else None,
         doi=str(data.get("DOI")) if data.get("DOI") else None,
+        isbn=str(data.get("ISBN")) if data.get("ISBN") else None,
+        publisher=(
+            str(data.get("publisher"))
+            if data.get("publisher")
+            else (str(data.get("publication")) if data.get("publication") else None)
+        ),
         abstract=str(data.get("abstractNote")) if data.get("abstractNote") else None,
         citekey=str(citekey) if citekey else None,
         tags=[str(t.get("tag")) for t in data.get("tags", []) if isinstance(t, dict)],

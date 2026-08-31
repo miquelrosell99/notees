@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { QueryAST } from '@/types';
@@ -31,6 +31,9 @@ export function useQueryAst(
   const [data, setData] = useState<Node[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  // Tracks whether the view has data; refreshes after store changes do not
+  // flip the view back into a loading state (same pattern as useGraphQuery).
+  const hasDataRef = useRef(false);
 
   // Stabilise object-shaped deps so callers that create a new AST/params object
   // on every render do not restart the query every render and trigger a loop.
@@ -42,6 +45,7 @@ export function useQueryAst(
       setData([]);
       setIsLoading(false);
       setError(null);
+      hasDataRef.current = false;
       return;
     }
 
@@ -49,26 +53,45 @@ export function useQueryAst(
       setData([]);
       setIsLoading(false);
       setError(null);
+      hasDataRef.current = false;
       return;
     }
 
-    setIsLoading(true);
+    let cancelled = false;
     setError(null);
 
     const run = async (): Promise<void> => {
+      if (!hasDataRef.current) {
+        setIsLoading(true);
+      }
       try {
         const nodes = await client.query<Node[]>('queryNodes', [
           { ast, runtimeParams, projectionDepth: 0 },
         ]);
+        if (cancelled) return;
         setData(nodes);
+        hasDataRef.current = true;
       } catch (err) {
-        setError(err instanceof Error ? err : new Error(String(err)));
+        if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     run();
+
+    // Re-run on store changes (local ops and synced ops both notify) so
+    // AST-driven views — Library panes, collection views, linked references —
+    // reflect mutations without a remount.
+    const unsubscribe = client.subscribe(null, () => {
+      run().catch((e) => setError(e instanceof Error ? e : new Error(String(e))));
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      hasDataRef.current = false;
+    };
     // ast/runtimeParams are intentionally replaced by their stable string keys.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, workspaceId, astKey, paramsKey]);

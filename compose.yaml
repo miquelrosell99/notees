@@ -5,8 +5,13 @@
 #   export TAG=v0.2.0   # or latest
 #   docker compose up -d
 #
-# The web frontend is baked into the backend image, so no separate
-# frontend service is needed.
+# Services:
+#   backend — all-in-one sync server (API + relay); also serves the baked-in
+#             frontend on ${NOTES_PORT:-8000}.
+#   web     — optional standalone static web client (notees-web image). Points
+#             at the sync server via NOTEES_SERVER_URL (a browser-reachable
+#             URL). Only needed if you want the web client on its own port;
+#             otherwise the backend already serves the UI.
 
 services:
   redis:
@@ -70,6 +75,20 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # Standalone static web client (optional; the backend already serves the UI).
+  # NOTEES_SERVER_URL must be a browser-reachable URL of the sync server.
+  web:
+    image: ghcr.io/miquelrosell99/notees-web:${TAG:-latest}
+    container_name: notees-web
+    restart: unless-stopped
+    ports:
+      - "${NOTEES_WEB_PORT:-8080}:80"
+    environment:
+      NOTEES_SERVER_URL: ${NOTEES_SERVER_URL:-}
+    depends_on:
+      backend:
         condition: service_healthy
 
 volumes:

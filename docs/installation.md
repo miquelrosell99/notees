@@ -113,10 +113,11 @@ docker build -f Dockerfile.web -t notees-web .
 docker run -p 8080:80 notees-web
 ```
 
-Or with Compose:
+Or with Compose (the `web` service lives in the main `compose.yaml` alongside the
+sync server; it is optional since the backend image already serves the UI):
 
 ```bash
-docker compose -f compose.web.yaml up -d
+NOTEES_SERVER_URL= docker compose up -d web
 ```
 
 To attach a sync server later, either set it at container start:

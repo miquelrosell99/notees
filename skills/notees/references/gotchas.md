@@ -85,3 +85,23 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Create text-property value blocks with `parentId` set to the owning node's UUID. Render them with `NodeCollection rootIsBlock={true}` without overwriting `parent_uuid`.
 
 **Prevent:** When adding new code that creates a block to back a text property, grep for `filterTextPropertyBlocks` and match the existing child-block pattern.
+
+## **[derived]** `getClassProperties` hides edges whose schema row is missing locally
+
+**Symptom:** An idempotent ensure/seed path re-emits a `classPropertyEdge.create` op on every workspace open even though the edge already exists, growing the op log by one op per open.
+
+**Cause:** `getClassProperties` (frontend `core/adapters/propertyQueries.ts`) resolves edges with `JOIN property_schema s ON s.id = e.property_schema_id WHERE s.active = 1`. An edge bound to a base system property whose schema row is not present in the local DB (e.g. `cover`, created server-side and not yet synced) is invisible to the JOIN, so an existence check built on it never sees the edge.
+
+**Fix:** Existence checks must query the raw `class_property_edge` table (e.g. `getClassPropertyEdgeIds`, added for the local seed ensure). Only use `getClassProperties` when schema metadata is actually needed and the schema is guaranteed present.
+
+**Prevent:** When writing idempotent backfill/ensure logic that checks class-property edges, use the raw edge query; reserve the JOINed variant for UI display.
+
+## **[testing]** Frontend vitest suite flakes under concurrent heavy load
+
+**Symptom:** `npm run test:run` fails with 1–2 errors like "Chunk count mismatch" in `src/core/persistence/__tests__/indexedDb.test.ts` (or similar persistence timing tests), but the same files pass in isolation and in an idle rerun.
+
+**Cause:** The persistence tests use fake-indexeddb with real timers; running the frontend suite concurrently with a full pytest run (or another CPU-heavy job) starves the event loop enough to break their timing assumptions.
+
+**Fix:** Treat it as a load flake, not a regression: rerun the suite idle and confirm green before investigating. Run backend and frontend full suites sequentially, not in parallel.
+
+**Prevent:** When gating a task with "full suites green", run one suite at a time; if a persistence test fails only under parallel load, rerun before touching code.

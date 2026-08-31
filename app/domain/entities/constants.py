@@ -9,6 +9,7 @@ without importing DB-schema modules.
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Date helpers
@@ -135,6 +136,19 @@ SYSTEM_CLASS_UUIDS = {
     "danger": "00000000-0000-0000-0001-000000000020",
     "success": "00000000-0000-0000-0001-000000000021",
     "cloze": "00000000-0000-0000-0001-000000000022",
+    "source": "00000000-0000-0000-0001-000000000023",
+    "book": "00000000-0000-0000-0001-000000000024",
+    "paper": "00000000-0000-0000-0001-000000000025",
+    "article": "00000000-0000-0000-0001-000000000026",
+    "thesis": "00000000-0000-0000-0001-000000000027",
+    "document": "00000000-0000-0000-0001-000000000028",
+    "agent": "00000000-0000-0000-0001-000000000029",
+    "person": "00000000-0000-0000-0001-000000000030",
+    "organization": "00000000-0000-0000-0001-000000000031",
+    "collection": "00000000-0000-0000-0001-000000000032",
+    "highlight": "00000000-0000-0000-0001-000000000033",
+    "weblink": "00000000-0000-0000-0001-000000000034",
+    "movie": "00000000-0000-0000-0001-000000000035",
 }
 
 SYSTEM_CLASS_ICONS = {
@@ -158,6 +172,19 @@ SYSTEM_CLASS_ICONS = {
     "danger": "mdiAlertCircle",
     "success": "mdiCheckCircle",
     "cloze": "mdiEyeOff",
+    "source": "mdiBookshelf",
+    "book": "mdiBookOpenVariant",
+    "paper": "mdiNewspaperVariantOutline",
+    "article": "mdiNewspaper",
+    "thesis": "mdiSchoolOutline",
+    "document": "mdiFileOutline",
+    "agent": "mdiAccountGroupOutline",
+    "person": "mdiAccountOutline",
+    "organization": "mdiDomain",
+    "collection": "mdiFolderMultipleOutline",
+    "highlight": "mdiFormatHighlight",
+    "weblink": "mdiLinkVariant",
+    "movie": "mdiMovieOpenOutline",
 }
 
 
@@ -193,6 +220,86 @@ SYSTEM_PROPERTY_UUIDS = {
     "task_priority": "00000000-0000-0000-0003-000000000004",
     "task_closed_date": "00000000-0000-0000-0003-000000000005",
     "task_recurrence": "00000000-0000-0000-0003-000000000006",
+    # Source hierarchy & attachments
+    "attachments": "00000000-0000-0000-0000-000000000011",
+    "authors": "00000000-0000-0000-0000-000000000012",
+    "isbn": "00000000-0000-0000-0000-000000000013",
+    "doi": "00000000-0000-0000-0000-000000000014",
+    "publication_date": "00000000-0000-0000-0000-000000000015",
+    "publisher": "00000000-0000-0000-0000-000000000016",
+    "role": "00000000-0000-0000-0000-000000000017",
+    # "locator" (…0018) withdrawn — highlights carry position info as text; do not reuse
+    "provenance": "00000000-0000-0000-0000-000000000019",
+    "highlight_asset": "00000000-0000-0000-0000-000000000020",
+    "given_name": "00000000-0000-0000-0000-000000000021",
+    "family_name": "00000000-0000-0000-0000-000000000022",
+    "citekey": "00000000-0000-0000-0000-000000000023",
+    "url": "00000000-0000-0000-0000-000000000024",
+}
+
+
+# ---------------------------------------------------------------------------
+# System class hierarchy & class-scoped property schemas
+# ---------------------------------------------------------------------------
+
+# Canonical extends edges between system classes, keyed by class name with
+# parent class names as values. Mirrored in
+# frontend/src/constants/systemProperties.ts and guarded by
+# tests/core/test_system_uuid_parity.py.
+SYSTEM_CLASS_EXTENDS = {
+    "book": ["source"],
+    "paper": ["source"],
+    "article": ["source"],
+    "thesis": ["source"],
+    "document": ["source"],
+    "movie": ["source"],
+    "person": ["agent"],
+    "organization": ["agent"],
+}
+
+# Class-scoped system property schemas, in canonical seed order. Keys are
+# property names (also keys of SYSTEM_PROPERTY_UUIDS); ``bindTo`` names the
+# system class the schema is bound to via a classPropertyEdge. Field names are
+# camelCase so the mirrored frontend spec stays textually identical.
+# Mirrored in frontend/src/constants/systemProperties.ts and guarded by
+# tests/core/test_system_uuid_parity.py.
+SYSTEM_PROPERTY_SCHEMA_SPECS: dict[str, dict[str, Any]] = {
+    "attachments": {"type": "node", "multi": True, "classFilter": ["asset"], "bindTo": "source"},
+    "authors": {"type": "node", "multi": True, "classFilter": ["agent"], "bindTo": "source"},
+    "isbn": {"type": "text", "bindTo": "source"},
+    "doi": {"type": "text", "bindTo": "source"},
+    "publication_date": {"type": "date", "bindTo": "source"},
+    "publisher": {"type": "text", "bindTo": "source"},
+    "role": {
+        "type": "selection",
+        "options": [
+            {"uuid": "00000000-0000-0000-0004-000000000001", "name": "representation", "sequence": 0},
+            {"uuid": "00000000-0000-0000-0004-000000000002", "name": "cover", "sequence": 1},
+            {"uuid": "00000000-0000-0000-0004-000000000003", "name": "supplement", "sequence": 2},
+            {"uuid": "00000000-0000-0000-0004-000000000004", "name": "attachment", "sequence": 3},
+            {"uuid": "00000000-0000-0000-0004-000000000005", "name": "generated", "sequence": 4},
+            {"uuid": "00000000-0000-0000-0004-000000000006", "name": "thumbnail", "sequence": 5},
+            {"uuid": "00000000-0000-0000-0004-000000000007", "name": "other", "sequence": 6},
+        ],
+        "bindTo": "asset",
+    },
+    "provenance": {"type": "text", "bindTo": "highlight"},
+    "highlight_asset": {"type": "node", "classFilter": ["asset"], "bindTo": "highlight"},
+    "given_name": {"type": "text", "bindTo": "person"},
+    "family_name": {"type": "text", "bindTo": "person"},
+    "citekey": {"type": "text", "defaultValue": "", "bindTo": "source"},
+    "url": {"type": "url", "bindTo": "weblink"},
+}
+
+
+# Extra class-property bindings for base system properties whose schemas are
+# created outside SYSTEM_PROPERTY_SCHEMA_SPECS (e.g. the global cover
+# property): seeds/backfill emit only the classPropertyEdge, never the schema.
+# ``sequence`` is the next free per-class slot (source's spec-bound schemas
+# occupy 0-6). Mirrored in frontend/src/constants/systemProperties.ts and
+# guarded by tests/core/test_system_uuid_parity.py.
+SYSTEM_EXTRA_CLASS_BINDINGS: dict[str, dict[str, Any]] = {
+    "cover": {"bindTo": "source", "sequence": 7},
 }
 
 
