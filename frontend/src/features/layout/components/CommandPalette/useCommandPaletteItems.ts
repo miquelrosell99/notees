@@ -10,6 +10,7 @@ import type { ParsedDate } from '@/utils/dateParser';
 
 interface UseCommandPaletteItemsParams {
   rawPages: Array<{ node: Node; breadcrumb?: string }>;
+  rawClasses: Node[];
   rawBlocks: Array<{ node: Node; breadcrumb?: string }>;
   rawProperties: Property[];
   searchTerm: string;
@@ -23,6 +24,7 @@ interface UseCommandPaletteItemsParams {
   recentCreatedPages: Node[];
   randomPages: Node[];
   maxPages: number;
+  maxClasses: number;
   maxBlocks: number;
   maxProperties: number;
   uuidSearch: string | null;
@@ -42,6 +44,7 @@ interface UseCommandPaletteItemsParams {
 export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): ItemEntry[] {
   const {
     rawPages,
+    rawClasses,
     rawBlocks,
     rawProperties,
     searchTerm,
@@ -55,6 +58,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     recentCreatedPages,
     randomPages,
     maxPages,
+    maxClasses,
     maxBlocks,
     maxProperties,
     uuidSearch,
@@ -163,6 +167,15 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
       items.push({ type: 'add-page', label });
     }
 
+    // Classes section — capped to maxClasses (expandable)
+    const displayedClasses = rawClasses.slice(0, maxClasses);
+    displayedClasses.forEach(node =>
+      items.push({ type: 'class', result: { node, type: 'class' } }),
+    );
+    if (rawClasses.length > maxClasses) {
+      items.push({ type: 'show-more', showMoreSection: 'classes', showMoreCount: rawClasses.length - maxClasses });
+    }
+
     // Blocks section — capped to maxBlocks (expandable)
     const displayedBlocks = rawBlocks.slice(0, maxBlocks);
     displayedBlocks.forEach(({ node, breadcrumb }) =>
@@ -188,9 +201,9 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
 
     return items;
   }, [
-    rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses,
+    rawPages, rawClasses, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses,
     parsedDate, existingDateNode, commands, pageMap, recentAccessedPages, recentCreatedPages,
-    randomPages, maxPages, maxBlocks, maxProperties, uuidSearch, appliedFilters, isTypingBoolean,
+    randomPages, maxPages, maxClasses, maxBlocks, maxProperties, uuidSearch, appliedFilters, isTypingBoolean,
     booleanOptions, suggestedPrefixes, activeFilter, formatParsedDateLabel, currentNodeUuid,
     showDevOptions, isTypingColon, isLoading, dateFormat,
   ]);

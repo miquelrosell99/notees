@@ -4,6 +4,7 @@
  * Features:
  * - Search all node names including parent hierarchy
  * - Pages section (with + Add page if no match)
+ * - Classes section
  * - Blocks section
  * - Auto-select first result for quick navigation
  * - Quick add section
@@ -81,6 +82,7 @@ export function CommandPalette(props: CommandPaletteProps) {
   const {
     dateItems,
     pageItems,
+    classItems,
     blockItems,
     propertyItems,
     quickAddItems,
@@ -433,6 +435,44 @@ export function CommandPalette(props: CommandPaletteProps) {
                   );
                 }
                 if (parsedDate) return null;
+                return (
+                  <ResultItem
+                    key={item.result?.node?.uuid}
+                    id={getResultId(globalIndex)}
+                    result={item.result!}
+                    isSelected={selectedIndex === globalIndex}
+                    onClick={() => handleSelect(globalIndex)}
+                    allNodes={searchResults}
+                    allClasses={allClasses}
+                    searchTerm={debouncedSearchTerm}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {/* Classes section */}
+          {classItems.length > 0 && (
+            <div className="command-palette__section">
+              <div className="command-palette__section-header">
+                Classes
+              </div>
+              {classItems.map((item) => {
+                const globalIndex = indexMap.get(item)!;
+                if (item.type === 'show-more') {
+                  return (
+                    <button
+                      key="show-more-classes"
+                      id={getResultId(globalIndex)}
+                      role="option"
+                      aria-selected={selectedIndex === globalIndex}
+                      className={`command-palette__result command-palette__result--show-more ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
+                      onClick={() => handleSelect(globalIndex)}
+                    >
+                      <span className="command-palette__show-more-label">Show {item.showMoreCount} more classes</span>
+                    </button>
+                  );
+                }
                 return (
                   <ResultItem
                     key={item.result?.node?.uuid}

@@ -14,7 +14,7 @@ export interface CommandPaletteProps {
 export interface SearchResult {
   node?: Node;
   property?: Property;
-  type: 'page' | 'block' | 'property';
+  type: 'page' | 'block' | 'class' | 'property';
   breadcrumb?: string;
 }
 
@@ -40,19 +40,20 @@ export interface DuplicateModalState {
 
 // Initial items shown per section — expandable via "Show more"
 export const INITIAL_MAX_PAGES = 8;
+export const INITIAL_MAX_CLASSES = 5;
 export const INITIAL_MAX_BLOCKS = 8;
 export const INITIAL_MAX_PROPERTIES = 5;
 export const EXPAND_INCREMENT = 20;
 
 export interface ItemEntry {
-  type: 'page' | 'block' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page' | 'show-more' | 'filter-prefix' | 'boolean-option';
+  type: 'page' | 'block' | 'class' | 'property' | 'add-page' | 'quick-add' | 'date' | 'command' | 'browse-page' | 'show-more' | 'filter-prefix' | 'boolean-option';
   result?: SearchResult;
   label?: string;
   parsedDate?: ParsedDate;
   existingNode?: Node;
   commandId?: string;
   browseSection?: 'recent-accessed' | 'recent-created' | 'random';
-  showMoreSection?: 'pages' | 'blocks' | 'properties';
+  showMoreSection?: 'pages' | 'classes' | 'blocks' | 'properties';
   showMoreCount?: number;
   filterPrefix?: FilterPrefixConfig;
   booleanValue?: boolean;
@@ -61,6 +62,7 @@ export interface ItemEntry {
 export interface GroupedItems {
   dateItems: ItemEntry[];
   pageItems: ItemEntry[];
+  classItems: ItemEntry[];
   blockItems: ItemEntry[];
   propertyItems: ItemEntry[];
   quickAddItems: ItemEntry[];
