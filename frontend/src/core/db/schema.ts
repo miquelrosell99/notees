@@ -1,6 +1,7 @@
 import { type Database } from 'sql.js';
 import { rebuildNodeStats } from '../derived/nodeStats';
 import { extractPlaintext } from '../derived/search';
+import { extractTextContent } from '../derived/textContent';
 
 export function createSchema(db: Database): void {
   db.exec(`
@@ -48,6 +49,7 @@ export function createSchema(db: Database): void {
       class_ids TEXT NOT NULL DEFAULT '[]',
       parent_id TEXT,
       content TEXT NOT NULL DEFAULT '[]',
+      text_content TEXT,
       icon TEXT,
       color TEXT,
       active INTEGER NOT NULL DEFAULT 1,
@@ -77,6 +79,9 @@ export function createSchema(db: Database): void {
       actor_id TEXT,
       UNIQUE(node_id, property_schema_id, idx)
     );
+
+    CREATE INDEX IF NOT EXISTS idx_property_value_schema
+    ON property_value (property_schema_id);
 
     CREATE TABLE IF NOT EXISTS property_value_tombstone (
       node_id TEXT NOT NULL,
@@ -718,5 +723,44 @@ function migrateSchema(db: Database): void {
       // Column may already exist; ignore.
     }
     db.exec('PRAGMA user_version = 15');
+  }
+
+  if (version < 16) {
+    // Precompute node.text_content (the concatenated 'text' leaves of the
+    // content JSON, mirroring json_tree semantics) so content/name query
+    // conditions read a column instead of parsing JSON per row. Backfill all
+    // existing rows in one transaction.
+    db.exec('BEGIN TRANSACTION');
+    try {
+      try {
+        db.exec('ALTER TABLE node ADD COLUMN text_content TEXT');
+      } catch {
+        // Column may already exist in some states; ignore and continue.
+      }
+      const rows = db.exec('SELECT id, content FROM node');
+      if (rows[0]?.values) {
+        for (const row of rows[0].values) {
+          const [nodeId, contentJson] = row as [string, string];
+          db.run('UPDATE node SET text_content = ? WHERE id = ?', [
+            extractTextContent(contentJson),
+            nodeId,
+          ]);
+        }
+      }
+      db.exec('COMMIT');
+      db.exec('PRAGMA user_version = 16');
+    } catch {
+      db.exec('ROLLBACK');
+      // Leave user_version at 15 so the migration retries on next startup.
+    }
+  }
+
+  if (version < 17) {
+    // Index leading with property_schema_id so the decorrelated IN subqueries
+    // emitted for custom property conditions scan only that property's rows.
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_property_value_schema ON property_value (property_schema_id)'
+    );
+    db.exec('PRAGMA user_version = 17');
   }
 }

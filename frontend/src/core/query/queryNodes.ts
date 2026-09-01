@@ -17,6 +17,7 @@ import { queryAll } from '../db/sqlite';
 import { listClasses, classRowToNode } from './classes';
 
 const SLOW_QUERY_MS = 500;
+const SLOW_QUERY_SQL_MAX_CHARS = 500;
 
 interface QueryTiming {
   sqlMs: number;
@@ -25,14 +26,21 @@ interface QueryTiming {
   rowCount: number;
   resultCount: number;
   depth: number;
+  sql?: string;
 }
 
 function logQueryTiming(method: string, timing: QueryTiming): void {
   if (timing.totalMs <= SLOW_QUERY_MS) return;
+  // Include the compiled SQL (truncated) so slow-query reports are
+  // self-diagnosing without having to reproduce the query locally.
+  const sqlInfo =
+    timing.sql !== undefined
+      ? ` sql="${timing.sql.slice(0, SLOW_QUERY_SQL_MAX_CHARS)}"`
+      : '';
   console.warn(
     `[queryNodes] Slow query ${method} took ${timing.totalMs.toFixed(1)}ms ` +
       `(sql=${timing.sqlMs.toFixed(1)}ms projection=${timing.projectionMs.toFixed(1)}ms ` +
-      `rows=${timing.rowCount} results=${timing.resultCount} depth=${timing.depth})`
+      `rows=${timing.rowCount} results=${timing.resultCount} depth=${timing.depth})${sqlInfo}`
   );
 }
 
@@ -133,6 +141,7 @@ export function queryNodes(
       rowCount: rows.length,
       resultCount: result.length,
       depth: filters.projectionDepth ?? 2,
+      sql: compiled.sql,
     });
     return result;
   }
