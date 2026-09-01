@@ -141,6 +141,11 @@ export interface NodeCollectionProps {
   
   /** Only show nodes with is_page=true in list view (filters both top-level and children) */
   pagesOnly?: boolean;
+
+  /** Render the provided `nodes` tree as-is in list view, without resolving
+   *  children from the core store (for transient/synthetic trees such as the
+   *  extended_by class hierarchy). */
+  localOnly?: boolean;
   
   /** Whether to show classes for each node in list view (default: false) */
   showClasses?: boolean;
@@ -402,6 +407,11 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   
   /** Only show nodes with is_page=true (filters both top-level and children) */
   pagesOnly?: boolean;
+
+  /** Render the provided `nodes` tree as-is, without resolving children from
+   *  the core store (for transient/synthetic trees such as the extended_by
+   *  class hierarchy). */
+  localOnly?: boolean;
   
   /** Whether list is sortable (enables drag-and-drop reordering) */
   sortable?: boolean;

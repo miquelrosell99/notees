@@ -2,6 +2,53 @@ import type React from 'react';
 import type { QueryAST } from '@/types/queryAST';
 import type { Node } from '@/types';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+
+/**
+ * Nest a flat subclass list into the class inheritance hierarchy: direct
+ * subclasses of `rootClassUuid` at the top level, each carrying its own
+ * subclasses as `children`, recursively. A class with multiple superclasses
+ * in the result set appears once, under its first listed superclass.
+ */
+export function buildClassHierarchyTree(subclasses: Node[], rootClassUuid: string): Node[] {
+  const inResult = new Set(subclasses.map((n) => n.uuid));
+  const childrenByParent = new Map<string, Node[]>();
+  const roots: Node[] = [];
+
+  for (const node of subclasses) {
+    const extendsIds = node.extends_uuid ?? [];
+    const parentUuid = extendsIds.includes(rootClassUuid)
+      ? null
+      : (extendsIds.find((id) => inResult.has(id)) ?? null);
+    if (parentUuid === null) {
+      roots.push(node);
+    } else {
+      const siblings = childrenByParent.get(parentUuid) ?? [];
+      siblings.push(node);
+      childrenByParent.set(parentUuid, siblings);
+    }
+  }
+
+  const byName = (a: Node, b: Node) =>
+    (nodeNameToText(a.name) || a.name || '').localeCompare(nodeNameToText(b.name) || b.name || '');
+
+  const attachChildren = (node: Node, visited: Set<string>): Node => {
+    // Cycle guard: extends validation prevents cycles, but corrupt data must
+    // not recurse forever.
+    if (visited.has(node.uuid)) return { ...node, children: undefined, has_children: false };
+    visited.add(node.uuid);
+    const children = (childrenByParent.get(node.uuid) ?? [])
+      .map((child) => attachChildren(child, visited))
+      .sort(byName);
+    return {
+      ...node,
+      children: children.length > 0 ? children : undefined,
+      has_children: children.length > 0,
+    };
+  };
+
+  return roots.map((root) => attachChildren(root, new Set())).sort(byName);
+}
 
 /**
  * Apply collapse level to node children recursively

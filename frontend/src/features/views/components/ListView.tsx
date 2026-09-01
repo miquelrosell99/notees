@@ -199,6 +199,7 @@ export const ListView = memo(function ListView({
   showNewBlock = true,
   hideRootBullet = false,
   rootIsBlock = false,
+  localOnly = false,
 }: NodeListViewProps) {
   const { inPropertyEditor } = useNodeCollectionContext();
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
@@ -485,6 +486,7 @@ export const ListView = memo(function ListView({
         showNewBlock={showNewBlock}
         hideRootBullet={hideRootBullet}
         rootIsBlock={rootIsBlock}
+        localOnly={localOnly}
       />
     </div>
   );

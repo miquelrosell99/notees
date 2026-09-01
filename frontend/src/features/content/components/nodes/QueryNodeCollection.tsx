@@ -51,7 +51,7 @@ import type { CardLayoutMode } from '@/stores/appStore';
 import { useProperties, useExtendedByClasses } from '@/features/properties';
 import './QueryNodeCollection.css';
 
-import { applyCollapseLevelToChildren, extractUuidsFromAST, getExecutionAST } from './QueryNodeCollection/helpers';
+import { applyCollapseLevelToChildren, buildClassHierarchyTree, extractUuidsFromAST, getExecutionAST } from './QueryNodeCollection/helpers';
 import { dedupeNodesByUuid } from '@/utils/nodeTree';
 import { queryKeys } from '@/hooks/queryKeys';
 
@@ -338,7 +338,11 @@ export function QueryNodeCollection({
 
   // Group-by is persisted per view ('none'/'page'/property UUID, or array for multi-level)
   const groupBy: NodeCollectionGroupBy = activeView?.group_by ?? defaultGroupBy;
-  const effectiveGroupBy: NodeCollectionGroupBy = viewType === 'child_pages' ? 'none' : groupBy;
+  // extended_by renders the class hierarchy as a nested list (see
+  // extendedByData below), so page grouping must stay off — classes have no
+  // containing page and would all land in a meaningless "No page" group.
+  const effectiveGroupBy: NodeCollectionGroupBy =
+    viewType === 'child_pages' || viewType === 'extended_by' ? 'none' : groupBy;
   const setGroupBy = useCallback((value: NodeCollectionGroupBy) => {
     if (!activeView || isInlineMode) return;
     updateViewMutation.mutate({ viewId: activeView.uuid, data: { group_by: value } });
@@ -488,13 +492,16 @@ export function QueryNodeCollection({
   const isExtendedBy = viewType === 'extended_by';
   const { data: extendedByRows } = useExtendedByClasses(isExtendedBy ? nodeUuid : null);
   const { data: allClassNodes = [] } = useClasses();
-  const extendedByNodes = useMemo(() => {
-    if (!isExtendedBy) return [];
+  // `flat` keeps every subclass for the header count; `tree` nests them by
+  // their direct superclass so the section renders a multi-level list.
+  const extendedByData = useMemo(() => {
+    if (!isExtendedBy) return { flat: [] as Node[], tree: [] as Node[] };
     const byUuid = new Map(allClassNodes.map(c => [c.uuid, c]));
-    return (extendedByRows ?? [])
+    const flat = (extendedByRows ?? [])
       .map(row => byUuid.get(row.uuid))
       .filter((n): n is Node => n !== undefined);
-  }, [isExtendedBy, extendedByRows, allClassNodes]);
+    return { flat, tree: buildClassHierarchyTree(flat, nodeUuid) };
+  }, [isExtendedBy, extendedByRows, allClassNodes, nodeUuid]);
   // Lazy-load the full linked-references data only when the section is expanded.
   // The cheap count query (below) runs always so the header badge renders.
   const linkedRefsExpanded = !hideContent;
@@ -698,11 +705,11 @@ export function QueryNodeCollection({
     if (viewType === 'linked_references') {
       return [...linkedReferencesBlocks, ...linkedReferencesPages];
     }
-    if (isExtendedBy) return extendedByNodes;
+    if (isExtendedBy) return extendedByData.tree;
     if (isInlineMode) return inlineQueryResults ?? [];
     if (isPseudoNode) return pseudoQueryResults ?? [];
     return queryResults ?? [];
-  }, [viewType, linkedReferencesBlocks, linkedReferencesPages, isExtendedBy, extendedByNodes, isInlineMode, inlineQueryResults, isPseudoNode, pseudoQueryResults, queryResults]);
+  }, [viewType, linkedReferencesBlocks, linkedReferencesPages, isExtendedBy, extendedByData, isInlineMode, inlineQueryResults, isPseudoNode, pseudoQueryResults, queryResults]);
   const activeAST = isInlineMode ? inlineQueryAST
     : (isPseudoNode ? pseudoNodeAST : viewExecutionAST);
   const resultNodes = useMemo(() => {
@@ -1035,6 +1042,9 @@ export function QueryNodeCollection({
   // in-memory result set size.
   const resultCount = isLinkedRefs
     ? linkedRefsCount
+    // extended_by nests subclasses into a tree, so top-level resultNodes.length
+    // would undercount — report the full subclass count instead.
+    : isExtendedBy ? extendedByData.flat.length
     : countOnlyMode ? (collapsedCount ?? 0) : resultNodes.length;
 
   // Notify parent when result count changes
@@ -1141,7 +1151,7 @@ export function QueryNodeCollection({
             leftElement={resolvedLeftElement}
             hideToolbarControls={hideToolbarControls}
             hideContent={hideContent}
-            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'kanban' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages'}
+            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'kanban' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages' && viewType !== 'extended_by'}
             groupBy={effectiveGroupBy}
             onGroupByChange={setGroupBy}
             sort={canPersistViewState ? (activeView!.sort_entries ?? []) : undefined}
@@ -1161,7 +1171,12 @@ export function QueryNodeCollection({
             can_create={can_create}
             can_edit={can_edit}
             can_delete={can_delete}
-            pagesOnly={queryPagesOnly}
+            pagesOnly={queryPagesOnly && !isExtendedBy}
+            // extended_by passes a pre-built class-hierarchy tree; localOnly
+            // makes BlockList render those synthetic children instead of
+            // re-querying the core store (which knows nothing about class
+            // inheritance nesting).
+            localOnly={isExtendedBy}
             showClasses={showClasses}
             showNewBlock={effectiveShowNewBlock}
             selectedPropertyUuids={selectedPropertyUuids}
@@ -1174,7 +1189,7 @@ export function QueryNodeCollection({
             defaultSort={viewType === 'all_pages' ? [{ key: 'name', direction: 'asc' }] : undefined}
             activeNode={nodeName ? { nodeUuid: nodeUuid, uuid: nodeUuid, name: nodeName } : undefined}
             onAddClass={handleAddClass}
-            showBreadcrumbs={viewType !== 'all_pages' && viewType !== 'child_pages'}
+            showBreadcrumbs={viewType !== 'all_pages' && viewType !== 'child_pages' && viewType !== 'extended_by'}
             hideProperties={viewType === 'all_pages' || viewType === 'child_pages'}
             queryAst={activeAST}
           />
