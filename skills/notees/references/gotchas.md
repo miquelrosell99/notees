@@ -138,6 +138,10 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 
 **Prevent:** When rendering anything that is not a node-table tree (class hierarchies, scratchpads, previews), reach for `localOnly` first and unit-test the tree builder; see `buildClassHierarchyTree` in `QueryNodeCollection/helpers.tsx` and its test.
 
+**Corollary 1 — never depend on the `options` object identity in `useBlockTree` effects.** Callers (`BlockList`) rebuild the options object inline on every render. The projection effects once listed `options` in their deps, so every render re-ran the effect; on the local-only path `buildLocalFlatNodes` + `setProjectedFlatNodes` run synchronously inside the effect → infinite render loop → React "Maximum update depth exceeded". The hook now builds a memoized `projectionOptions` from the primitive fields and skips the projection effect entirely in `localOnly` mode (the `flatNodes` memo is the single source there). If you add an option, add it to that memo's field list and dep array.
+
+**Corollary 2 — synthetic `Node.content` must be paragraph-wrapped.** Static renderers (`InlineContentStatic`, used by `BlockRow`) only extract inline children of `paragraph`/`heading` blocks; a bare `{ type: 'text' }` node at document level renders icon + blank text. `classRowToNode` wraps the class name as `[{ type: 'paragraph', children: [{ type: 'text', text: name }] }]` — copy that shape for any synthetic node content.
+
 ## **[testing]** Frontend vitest suite flakes under concurrent heavy load
 
 **Symptom:** `npm run test:run` fails with 1–2 errors like "Chunk count mismatch" in `src/core/persistence/__tests__/indexedDb.test.ts` (or similar persistence timing tests), but the same files pass in isolation and in an idle rerun.
