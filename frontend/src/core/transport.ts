@@ -36,7 +36,12 @@ export interface Transport {
    * false.
    */
   catchUp(afterSeq: number): CatchUpPage | Promise<CatchUpPage>;
-  getLatestSnapshot(): Promise<SnapshotEnvelope>;
+  /**
+   * Fetch the latest snapshot. Pass `{ includeData: false }` to request
+   * metadata only (HLC, seq cursor, restore epoch) without the snapshot
+   * payload — the returned `data` is then an empty Uint8Array.
+   */
+  getLatestSnapshot(options?: { includeData?: boolean }): Promise<SnapshotEnvelope>;
   uploadSnapshot?(snapshot: SnapshotEnvelope): Promise<void>;
   subscribe(callback: (envelope: OperationEnvelope) => void): void;
 }
@@ -101,7 +106,9 @@ export class MemoryTransport implements Transport {
     return this.relay.catchUp(this.workspaceId, afterSeq);
   }
 
-  getLatestSnapshot(): Promise<SnapshotEnvelope> {
+  // The in-memory transport never has a snapshot; the options are accepted
+  // only to satisfy the Transport interface.
+  getLatestSnapshot(_options?: { includeData?: boolean }): Promise<SnapshotEnvelope> {
     return Promise.resolve({
       snapshotId: '',
       workspaceId: this.workspaceId,

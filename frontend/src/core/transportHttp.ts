@@ -142,9 +142,10 @@ export class HttpTransport implements Transport {
     };
   }
 
-  async getLatestSnapshot(): Promise<SnapshotEnvelope> {
+  async getLatestSnapshot(options?: { includeData?: boolean }): Promise<SnapshotEnvelope> {
+    const includeData = options?.includeData !== false;
     const response = await fetchWithTimeout(
-      `${this.baseUrl}/api/relay/snapshot?workspace_id=${encodeURIComponent(this.workspaceId)}`,
+      `${this.baseUrl}/api/relay/snapshot?workspace_id=${encodeURIComponent(this.workspaceId)}${includeData ? '' : '&include_data=false'}`,
       {
         method: 'GET',
         headers: {
@@ -179,7 +180,7 @@ export class HttpTransport implements Transport {
       snapshotId: data.snapshot_id,
       workspaceId: data.workspace_id,
       hlc: data.hlc,
-      data: data.has_snapshot ? base64ToUint8Array(data.data_base64) : new Uint8Array(0),
+      data: includeData && data.has_snapshot ? base64ToUint8Array(data.data_base64) : new Uint8Array(0),
       restoreEpoch: data.restore_epoch ?? 0,
       hasSnapshot: data.has_snapshot,
       // Null for snapshots recorded before the seq cursor existed; the sync

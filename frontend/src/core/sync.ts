@@ -260,7 +260,9 @@ export class SyncEngine {
     await this.ensureWatermarksLoaded();
 
     this.reportPhase('fetching-snapshot', 'Fetching latest snapshot…');
-    const snapshot = await this.transport.getLatestSnapshot();
+    // Probe metadata first: the snapshot blob can be tens of megabytes and is
+    // discarded whenever the snapshot is not newer than our local watermark.
+    const snapshot = await this.transport.getLatestSnapshot({ includeData: false });
     const localEpoch = await this.loadRestoreEpoch();
     const localReceivedHlc = this.lastReceivedHlc;
     log.info('pull snapshot info', {
@@ -311,21 +313,24 @@ export class SyncEngine {
 
     if (snapshotIsNewer) {
       this.callbacks.onPullProgress?.({ applied: 0, total: 0 });
+      // The metadata probe carries no payload; fetch the full snapshot now
+      // that we know we will actually restore from it.
+      const fullSnapshot = await this.transport.getLatestSnapshot();
       const restoredHlc = await this.client.mutate<{ physical: number; logical: number }>(
         'restoreSnapshot',
-        [snapshot.data]
+        [fullSnapshot.data]
       );
       // The snapshot metadata HLC is the authoritative watermark the server used
       // when it created the snapshot. Some snapshots (e.g. uploaded after local
       // compaction or from clients that don't keep the operation log) report a
       // lower HLC from their operation table than their metadata claims. Using the
       // metadata HLC ensures we don't re-fetch and re-apply the entire log.
-      this.lastReceivedHlc = maxHlc(restoredHlc, snapshot.hlc);
+      this.lastReceivedHlc = maxHlc(restoredHlc, fullSnapshot.hlc);
       await this.saveWatermark(this.lastReceivedHlc, 'received');
       // Resume catch-up from the seq the snapshot covers. Null upToSeq means
       // the snapshot predates the seq cursor: replay from 0, protected by
       // operation-id dedupe.
-      this.lastReceivedSeq = snapshot.upToSeq ?? 0;
+      this.lastReceivedSeq = fullSnapshot.upToSeq ?? 0;
       await this.saveSeqCursor(this.lastReceivedSeq);
     }
 
@@ -515,7 +520,8 @@ export class SyncEngine {
       // normal case (applier update only), preserve local offline edits by
       // pushing them first.
       this.reportPhase('fetching-snapshot', 'Fetching latest snapshot…');
-      const serverSnapshot = await this.transport.getLatestSnapshot();
+      // Only restoreEpoch is read here; skip the snapshot blob entirely.
+      const serverSnapshot = await this.transport.getLatestSnapshot({ includeData: false });
       const localEpoch = await this.loadRestoreEpoch();
       const serverRestored = serverSnapshot.restoreEpoch !== localEpoch;
 

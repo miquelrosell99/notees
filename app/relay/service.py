@@ -236,6 +236,10 @@ class RelayService:
         """Return the newest snapshot for ``workspace_id``."""
         return await self._maybe_await(self._storage.get_latest_snapshot(workspace_id))
 
+    async def get_latest_snapshot_metadata(self, workspace_id: str) -> dict[str, Any] | None:
+        """Return the newest snapshot's metadata for ``workspace_id`` (no blob)."""
+        return await self._maybe_await(self._storage.get_latest_snapshot_metadata(workspace_id))
+
     async def get_latest_snapshot_for_actor(
         self,
         workspace_id: str,
@@ -248,6 +252,19 @@ class RelayService:
                 f"Actor {actor_id} cannot read workspace {workspace_id}"
             )
         return await self.get_latest_snapshot(workspace_id)
+
+    async def get_latest_snapshot_metadata_for_actor(
+        self,
+        workspace_id: str,
+        actor_id: str,
+        share_token: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Return the newest snapshot's metadata if ``actor_id`` may read the workspace."""
+        if not await self._may_read(workspace_id, actor_id, share_token):
+            raise PermissionDeniedError(
+                f"Actor {actor_id} cannot read workspace {workspace_id}"
+            )
+        return await self.get_latest_snapshot_metadata(workspace_id)
 
     async def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
