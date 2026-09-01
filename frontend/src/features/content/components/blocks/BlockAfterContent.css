@@ -155,7 +155,7 @@
   padding: var(--spacing-2) var(--spacing-3);
   overflow-x: auto;
   white-space: pre;
-  word-wrap: normal;
+  overflow-wrap: normal;
   background: transparent;
   color: var(--color-on-surface);
 }
@@ -204,19 +204,15 @@
   --callout-quote-color: var(--color-on-surface-variant);
   --callout-quote-border: var(--color-outline);
   --callout-quote-bg: var(--color-surface-container-low);
-
   --callout-warning-color: var(--color-callout-warning);
   --callout-warning-border: var(--color-callout-warning);
   --callout-warning-bg: var(--color-callout-warning-bg);
-
   --callout-tip-color: var(--color-callout-tip);
   --callout-tip-border: var(--color-callout-tip);
   --callout-tip-bg: var(--color-callout-tip-bg);
-
   --callout-danger-color: var(--color-callout-danger);
   --callout-danger-border: var(--color-callout-danger);
   --callout-danger-bg: var(--color-callout-danger-bg);
-
   --callout-success-color: var(--color-callout-success);
   --callout-success-border: var(--color-callout-success);
   --callout-success-bg: var(--color-callout-success-bg);

@@ -45,7 +45,7 @@
 }
 
 /* Mobile: let the inline row wrap and the input take a full row */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .prose-condition__inline {
     flex-wrap: wrap;
   }
@@ -60,6 +60,7 @@
     border-color: var(--color-error);
     box-shadow: var(--shadow-error-ring-ghost);
   }
+
   50% {
     border-color: var(--color-error);
     box-shadow: var(--shadow-error-ring-thick);

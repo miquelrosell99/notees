@@ -12,6 +12,7 @@
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+
   /* Let Panel component provide floating appearance with border-radius and shadow */
 }
 
@@ -35,6 +36,7 @@
 .main-content {
   flex: 1;
   overflow-y: auto;
+
   /* padding: var(--spacing-6); */
   background: var(--color-surface);
   transition: background-color var(--motion-duration-medium) var(--motion-easing-standard);
@@ -118,6 +120,7 @@
 }
 
 /* ==================== Node Border Styling ==================== */
+
 /* 
  * Thick colored border for nodes (no background color)
  * CSS variables are set via inline style from getNodeBorderStyles():
@@ -130,7 +133,7 @@
 }
 
 /* On mobile, keep the border minimal */
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .main-content.has-node-border {
     border-left-width: var(--border-width-thick);
   }
@@ -143,7 +146,9 @@
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
+
   /* Let Panel component provide floating appearance with border-radius and shadow */
+
   /* Animation properties for smooth open/close */
   transform-origin: right center;
   will-change: width, opacity, transform;
@@ -307,7 +312,7 @@
 /* ==================== Responsive Breakpoints ==================== */
 
 /* Tablet: stack layout, remove right sidebar */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .right-container--expanded,
   .right-sidebar--expanded {
     display: none;
@@ -319,7 +324,7 @@
 }
 
 /* Mobile: full-width content, no container radius */
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .main-container {
     border-radius: 0;
   }
@@ -332,6 +337,7 @@
 }
 
 /* ==================== Wide Mode ==================== */
+
 /* When wide mode is enabled, let main view content span the full width */
 .app-canvas.wide-mode .node-view {
   max-width: none;

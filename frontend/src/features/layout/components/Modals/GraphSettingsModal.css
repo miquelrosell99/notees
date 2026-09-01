@@ -24,7 +24,7 @@
 }
 
 /* Responsive: full-width settings on small screens */
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .settings-modal__container {
     max-height: 85vh;
   }
@@ -239,6 +239,7 @@
   color: var(--color-on-primary);
   border-radius: var(--shape-full);
   font: var(--font-title-large);
+
   /* Design system: zero visual noise — no shadows */
 }
 

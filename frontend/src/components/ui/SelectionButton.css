@@ -75,7 +75,7 @@
   pointer-events: auto;
 }
 
-.selection-button__option:hover:not(:disabled):not(.selection-button__option--selected) {
+.selection-button__option:hover:not(:disabled, .selection-button__option--selected) {
   color: var(--color-on-surface);
 }
 
@@ -199,7 +199,7 @@
 }
 
 /* Mobile: tighter padding to save header space */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .selection-button--sm {
     padding: var(--spacing-micro);
   }
