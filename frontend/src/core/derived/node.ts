@@ -2,6 +2,7 @@ import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
 import { loadTextCrdt, saveTextCrdt } from './crdtState';
 import { reindexNode } from './search';
+import { extractTextContent } from './textContent';
 import { deleteNodeViewsForNode } from './nodeView';
 import { queryOne } from '../db/sqlite';
 import type { ChangeNotification } from './index';
@@ -25,16 +26,18 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
   const payload = op.payload as Record<string, unknown>;
 
   if (opType === 'node.create') {
+    const contentJson = JSON.stringify((payload.initialContent as unknown[]) ?? []);
     db.run(
-      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, icon, color, active, created_at, updated_at, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, text_content, icon, color, active, created_at, updated_at, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payload.nodeId as string,
         op.envelope.workspaceId,
         payload.kind as string,
         JSON.stringify((payload.classIds as string[]) ?? []),
         (payload.parentId as string | null) ?? null,
-        JSON.stringify((payload.initialContent as unknown[]) ?? []),
+        contentJson,
+        extractTextContent(contentJson),
         (payload.icon as string | null) ?? null,
         (payload.color as string | null) ?? null,
         1,
@@ -180,8 +183,9 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
       saveTextCrdt(db, payload.nodeId as string, text);
       const ast = [{ type: 'text', text: text.toPlaintext() }];
       const contentJson = JSON.stringify(ast);
-      db.run('UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+      db.run('UPDATE node SET content = ?, text_content = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
         contentJson,
+        extractTextContent(contentJson),
         new Date().toISOString(),
         op.envelope.actorId,
         payload.nodeId as string,
@@ -195,8 +199,9 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
       if (!rawContent) return [];
       const content = Array.isArray(rawContent) ? rawContent : [rawContent];
       const contentJson = JSON.stringify(content);
-      db.run('UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+      db.run('UPDATE node SET content = ?, text_content = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
         contentJson,
+        extractTextContent(contentJson),
         new Date().toISOString(),
         op.envelope.actorId,
         payload.nodeId as string,
