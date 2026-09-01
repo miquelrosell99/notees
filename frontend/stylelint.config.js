@@ -2,9 +2,6 @@
 export default {
   extends: ['stylelint-config-standard'],
   rules: {
-    // Disallow unknown custom properties (catches typos in token names)
-    'custom-property-no-missing-generic-family-keyword': true,
-
     // Enforce token usage for common magic numbers
     // We allow 0, 1px, 2px (borders), 100%, 50%, 9999px (full radius), 1 (line-height)
     'declaration-property-value-no-unknown': null,

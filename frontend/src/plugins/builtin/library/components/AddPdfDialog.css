@@ -6,7 +6,7 @@
 
 .add-pdf__intro {
   margin: 0;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 .add-pdf__file-input {
@@ -15,7 +15,7 @@
 
 .add-pdf__progress {
   margin: 0;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
   font-size: 0.9rem;
 }
 
@@ -29,8 +29,8 @@
   margin: 0;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm, 4px);
-  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.05));
-  color: var(--color-text-secondary, #666);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
   font-size: 0.85rem;
 }
 
@@ -49,7 +49,7 @@
 
 .add-pdf__field dt {
   flex: 0 0 5.5rem;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
   font-size: 0.85rem;
 }
 
@@ -64,12 +64,12 @@
 
 .add-pdf__provider {
   margin: 0;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
   font-size: 0.85rem;
 }
 
 .add-pdf__error {
   margin: 0;
-  color: var(--color-danger, #c00);
+  color: var(--color-danger);
   font-size: 0.9rem;
 }

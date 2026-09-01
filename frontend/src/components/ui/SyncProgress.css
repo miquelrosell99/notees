@@ -28,7 +28,7 @@
 
 .sync-progress__progress {
   width: min(280px, 80vw);
-  height: 6px;
+  height: var(--bullet-dot-size);
   background: var(--color-surface-container-highest);
   border-radius: var(--radius-full);
   overflow: hidden;
