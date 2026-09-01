@@ -191,9 +191,12 @@ export function countQueryResults(
   if (!request.query_ast) return 0;
   const ast = substituteRuntimeParams(request.query_ast, request.runtime_params ?? {});
   const compiled = compileToSqlite(ast, workspaceId);
+  // The compiled SQL has no active filter; queryNodes excludes archived/trashed
+  // rows post-projection (isActiveMatch), so the COUNT must exclude them too or
+  // collapsed header badges would disagree with the expanded result set.
   const row = queryOne<{ count: number }>(
     store.getDb(),
-    `SELECT COUNT(*) AS count FROM (${compiled.sql})`,
+    `SELECT COUNT(*) AS count FROM (${compiled.sql}) WHERE active = 1`,
     compiled.params as (string | number | null | Uint8Array)[]
   );
   return row?.count ?? 0;
