@@ -327,4 +327,83 @@ describe('WorkspaceStoreClient', () => {
       mainClient.close();
     });
   });
+
+  describe('WorkerStoreClient init buffer transfer', () => {
+    function createMockWorker(): Worker {
+      return {
+        postMessage: vi.fn(),
+        terminate: vi.fn(),
+        onmessage: null,
+        onmessageerror: null,
+        onerror: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as Worker;
+    }
+
+    beforeEach(() => {
+      vi.stubGlobal(
+        'Worker',
+        function MockWorker() {
+          return createMockWorker();
+        } as unknown as typeof Worker
+      );
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    function initAndCapture(dbBytes?: Uint8Array) {
+      const worker = createMockWorker();
+      const mainClient = new WorkerStoreClient(worker);
+      const promise = mainClient.init('ws-1', 'actor-1', dbBytes ? { dbBytes } : {});
+      const calls = (worker.postMessage as ReturnType<typeof vi.fn>).mock.calls;
+      const [request, transfer] = calls[calls.length - 1] as [
+        { type: 'init'; id: number; dbBytes?: Uint8Array },
+        Transferable[],
+      ];
+      if (worker.onmessage) {
+        worker.onmessage(
+          new MessageEvent('message', { data: { type: 'init-done', id: request.id } })
+        );
+      }
+      return { mainClient, promise, request, transfer };
+    }
+
+    it('transfers the dbBytes buffer when it exactly backs the view', async () => {
+      const dbBytes = new Uint8Array(1024);
+      const { mainClient, promise, request, transfer } = initAndCapture(dbBytes);
+
+      expect(request.dbBytes).toBe(dbBytes);
+      expect(transfer).toEqual([dbBytes.buffer]);
+
+      await promise;
+      mainClient.close();
+    });
+
+    it('copies a partial view instead of detaching the caller-owned buffer', async () => {
+      const backing = new Uint8Array(1024);
+      const view = new Uint8Array(backing.buffer, 8, 16);
+      const { mainClient, promise, request, transfer } = initAndCapture(view);
+
+      expect(request.dbBytes).not.toBe(view);
+      expect(request.dbBytes).toHaveLength(16);
+      expect(transfer).toEqual([request.dbBytes!.buffer]);
+      expect(transfer).not.toContain(backing.buffer);
+
+      await promise;
+      mainClient.close();
+    });
+
+    it('posts without transferables when no dbBytes are given', async () => {
+      const { mainClient, promise, transfer } = initAndCapture();
+
+      expect(transfer).toEqual([]);
+
+      await promise;
+      mainClient.close();
+    });
+  });
 });

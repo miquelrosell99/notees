@@ -323,7 +323,8 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
   private send<T>(
     request: WorkerRequest,
     timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    transfer?: Transferable[]
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       if (this.closed) {
@@ -369,20 +370,38 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
         );
       }, timeoutMs);
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
-      this.worker.postMessage(request);
+      this.worker.postMessage(request, transfer ?? []);
     });
   }
 
   async init(workspaceId: string, actorId: string, options: WorkspaceStoreClientOptions = {}): Promise<void> {
+    // Transfer the database buffer instead of structured-cloning it: a large
+    // workspace is 100+ MB, and cloning would double the memory spike and block
+    // the main thread during init. Callers never reuse the bytes after init
+    // (loadWorkspaceDatabase returns a freshly concatenated copy each time).
+    let dbBytes = options.dbBytes;
+    const transfer: Transferable[] = [];
+    if (dbBytes) {
+      if (dbBytes.byteOffset === 0 && dbBytes.byteLength === dbBytes.buffer.byteLength) {
+        transfer.push(dbBytes.buffer);
+      } else {
+        // Partial view over a shared buffer — transferring would detach bytes the
+        // caller may still use. Copy instead (same cost as today's clone).
+        dbBytes = dbBytes.slice();
+        transfer.push(dbBytes.buffer);
+      }
+    }
     await this.send<void>(
       {
         type: 'init',
         id: generateRequestId(),
         workspaceId,
         actorId,
-        dbBytes: options.dbBytes,
+        dbBytes,
       },
-      INIT_TIMEOUT_MS
+      INIT_TIMEOUT_MS,
+      undefined,
+      transfer
     );
   }
 
