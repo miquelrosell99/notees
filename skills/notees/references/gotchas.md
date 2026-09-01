@@ -182,3 +182,13 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** `shouldInvalidate` also returns true for `scope: 'class'` and `scope: 'property'` (both rare, user-paced events, so the subtree refetch is cheap). Covered by `GetNodeTreeQuery.test.ts`.
 
 **Prevent:** When a new derived notification scope is added, check every `GraphQuery.shouldInvalidate` against it. Do not add `scope: 'node'` to tree queries — it fires per text save and would refetch the whole subtree on every debounced save.
+
+## **[imports]** Barrel-level import cycles silently unbind vitest mocks (and risk TDZ in the browser)
+
+**Symptom:** After adding a component to a feature barrel, previously-green interaction tests fail with inert event handlers (Enter/clicks do nothing) and no error output. Instrumentation shows the component's hook imports resolve to the *real* modules instead of the test's `vi.mock` replacements.
+
+**Cause:** The component statically imports barrel B (`@/features/content`), and barrel B transitively imports the barrel you exported the component from (`@/features/editor` → `./editor` index). The new export closes a static cycle (content → editor → component → content) and flips module evaluation order: the component now evaluates *during* `importOriginal()` of the mocked barrel, binding the partial real module instead of the finished mock. In a browser bundle the same cycle is a latent TDZ/eval-order hazard — the app happened to tolerate the pre-existing ordering, but any new edge can reorder it.
+
+**Fix:** Do not statically export such a component from the barrel. Lazy-load it at the non-editor consumer instead: `lazy(() => import('@/features/editor/editor/plugins/TriggerPopup').then((m) => ({ default: m.TriggerPopup })))` — dynamic `import()` adds no static edge, so the graph's evaluation order is unchanged. See `ClassPillsRow.tsx` (add-class button) for the pattern and `InlineTriggers.test.tsx` for the tests that catch it.
+
+**Prevent:** Before adding a barrel export, check the component's imports for the importing feature's own barrel (`grep` the component file for `@/features/<host>`). If present, lazy-load at the consumer rather than exporting statically.

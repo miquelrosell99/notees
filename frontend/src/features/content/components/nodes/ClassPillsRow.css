@@ -162,16 +162,3 @@
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
 }
-
-/* Clickable add-popup items */
-.class-pills-popup__item--button {
-  width: 100%;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-}
-
-.class-pills-popup__item--button:hover {
-  background: var(--color-surface-container);
-}
