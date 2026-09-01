@@ -4,9 +4,9 @@ Code maps, background material, and detailed subsystem docs. Use the tier hubs (
 
 ## Project Meta
 
-- `project-structure.md` — directory layout and documentation boundaries
-- `tech-stack.md` — languages, frameworks, versions
-- `build-and-test.md` — verification commands and dev workflow
+- `references/project-structure.md` — directory layout and documentation boundaries
+- `references/tech-stack.md` — languages, frameworks, versions
+- `references/build-and-test.md` — verification commands and dev workflow
 
 ## Legacy Agent Docs (migrated from `agents/`)
 
