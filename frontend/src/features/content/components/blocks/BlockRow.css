@@ -32,7 +32,6 @@
 .block-row[data-list-size="sm"] {
   margin: var(--spacing-hairline) 0;
   min-height: 1.3em;
-  line-height: 1.4;
   font: var(--font-body-small);
 
   /* Tighter indent for nested blocks */
@@ -115,11 +114,10 @@
   min-height: 1.5em;
   width: 100%;
   padding: var(--spacing-micro) 0;
-  line-height: 1.5;
   color: var(--color-on-surface);
   cursor: text;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
   background: none;
   border: none;
   text-align: left;

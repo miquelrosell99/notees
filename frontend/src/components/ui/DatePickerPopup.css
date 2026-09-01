@@ -78,5 +78,5 @@
   margin-bottom: var(--spacing-2);
   background: var(--color-error-container, var(--color-surface-container));
   border-radius: var(--shape-small);
-  word-break: break-word;
+  overflow-wrap: break-word;
 }

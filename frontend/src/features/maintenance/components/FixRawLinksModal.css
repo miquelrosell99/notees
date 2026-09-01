@@ -167,7 +167,7 @@
   background: var(--color-error-container);
   border-radius: var(--shape-extra-small);
   margin-bottom: var(--spacing-2);
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .rebuild-links__errors-truncated {

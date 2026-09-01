@@ -517,7 +517,6 @@
 
 .node-selector__filter-prefix {
   flex-shrink: 0;
-  font-weight: 500;
   color: var(--color-primary);
   font: var(--font-label-small);
 }

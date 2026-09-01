@@ -10,8 +10,10 @@
   padding: 0;
 }
 
+/* Header: generous padding so controls don't hug the edge */
 .classes-view__header {
   padding: var(--spacing-2) var(--spacing-6);
+  margin-bottom: 0;
 }
 
 .classes-view__content {
@@ -20,6 +22,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding: 0;
 }
 
 /* Scrollable for non-immersive views (list, card, table) */
@@ -32,16 +35,6 @@
 .classes-view__node-collection {
   flex: 1;
   min-height: 0;
-}
-
-/* Header: generous padding so controls don't hug the edge */
-.classes-view__header {
-  padding: var(--spacing-2) var(--spacing-6);
-  margin-bottom: 0;
-}
-
-.classes-view__content {
-  padding: 0;
 }
 
 @media (width <= 768px) {
