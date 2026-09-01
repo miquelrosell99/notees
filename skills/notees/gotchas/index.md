@@ -26,6 +26,12 @@ Class pills / property icons on block rows go stale until reload otherwise — t
 
 - Reference: `references/gotchas.md#query-tree-driven-surfaces-must-invalidate-on-classproperty-scopes`
 
+## **[imports]** No static barrel export for components that import the consumer's barrel
+
+It closes a barrel-level cycle, flips module evaluation order, and silently unbinds vitest mocks (inert handlers, no errors) — TDZ hazard in browser bundles too. Lazy-load the component at the consumer with dynamic `import()` instead (see `ClassPillsRow.tsx` → `LazyTriggerPopup`).
+
+- Reference: `references/gotchas.md#imports-barrel-level-import-cycles-silently-unbind-vitest-mocks-and-risk-tdz-in-the-browser`
+
 ## **[lifecycle]** One-shot async effects must not be cancelled by cleanup
 
 Reloading a deep link lands on the home view while in-app navigation works: the effect's cleanup killed the only processing run (StrictMode remount) and the "already processed" ref guard blocked the retry. Use a generation counter, not cleanup cancellation, for one-shot async route/init effects.
