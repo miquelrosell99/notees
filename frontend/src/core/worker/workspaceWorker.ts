@@ -91,6 +91,15 @@ function postResponse(response: WorkerResponse): void {
 }
 
 function postNotify(notification: WorkerMessage): void {
+  if (notification.type === 'persist-data') {
+    // The payload is a fresh copy owned by the worker (the store copies the
+    // exported bytes before invoking onPersist), so transfer the buffer instead
+    // of structured-cloning the full database on every persist. The main thread
+    // re-transfers it onward to the persist worker. The options-object form is
+    // used because the DOM lib types `self` as Window here.
+    self.postMessage(notification, { transfer: [notification.data.buffer] });
+    return;
+  }
   self.postMessage(notification);
 }
 
