@@ -27,7 +27,10 @@ export function classRowToNode(row: ClassRow): Node {
   return {
     uuid: row.id,
     name: row.name,
-    content: JSON.stringify([{ type: 'text', text: row.name }]),
+    // Static renderers (InlineContentStatic) only extract inline children of
+    // paragraph/heading blocks, so the name must be wrapped in a paragraph —
+    // a bare text node at document level renders as blank text.
+    content: JSON.stringify([{ type: 'paragraph', children: [{ type: 'text', text: row.name }] }]),
     icon: row.icon,
     color: row.color,
     parent_uuid: null,
