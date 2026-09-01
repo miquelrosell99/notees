@@ -156,6 +156,12 @@ export interface TriggerPopupProps {
   linkSearchMode?: 'all' | 'pages' | 'blocks';
   /** Class IDs to filter link results by (nodes must have at least one of these classes) */
   classFilters?: string[];
+  /** Node IDs hidden from class results (e.g. classes already applied to the target node) */
+  excludeNodeIds?: readonly string[];
+  /** Precomputed "parent has the card system class" flag. When provided, the
+   * context-block lookup below is skipped (used by non-editor hosts that
+   * already know the answer, e.g. the class-pills row). */
+  parentIsCard?: boolean;
   /** Workspace ID used to look up the context block in the core store. */
   workspaceId?: string;
   /**
@@ -184,6 +190,8 @@ export function TriggerPopup({
   contextBlockServerId,
   linkSearchMode,
   classFilters,
+  excludeNodeIds,
+  parentIsCard: parentIsCardProp,
   workspaceId,
   inline = false,
   controlledQuery,
@@ -265,9 +273,11 @@ export function TriggerPopup({
   const { data: allClasses = [], isLoading: classesLoading } = useClasses();
   const { data: allPages = [] } = usePages();
 
-  const [parentIsCard, setParentIsCard] = useState(false);
+  const [parentIsCardDetected, setParentIsCard] = useState(false);
+  const parentIsCard = parentIsCardProp ?? parentIsCardDetected;
 
   useEffect(() => {
+    if (parentIsCardProp !== undefined) return; // host provided the flag
     if (contextBlockServerId == null || workspaceId == null) {
       setParentIsCard(false);
       return;
@@ -297,7 +307,7 @@ export function TriggerPopup({
     return () => {
       cancelled = true;
     };
-  }, [contextBlockServerId, workspaceId]);
+  }, [parentIsCardProp, contextBlockServerId, workspaceId]);
 
   // Determine search mode and filter props from active filters
   const isLinkModeUnconstrained = type === 'link' && (!linkSearchMode || linkSearchMode === 'all');
@@ -342,7 +352,8 @@ export function TriggerPopup({
     () => {
       if (type === 'class') {
         const normalized = cleanQuery.toLowerCase().trim();
-        let items = allClasses;
+        const excluded = new Set(excludeNodeIds ?? []);
+        let items = allClasses.filter((c) => !excluded.has(c.uuid));
         if (normalized) {
           items = items.filter((c) => c.name.toLowerCase().includes(normalized));
         }
@@ -354,12 +365,14 @@ export function TriggerPopup({
       const items = [...pageResults, ...blockResults];
       return items;
     },
-    [allClasses, pageResults, blockResults, type, parentIsCard, cleanQuery],
+    [allClasses, pageResults, blockResults, type, parentIsCard, cleanQuery, excludeNodeIds],
   );
 
   const isLoading = type === 'class' ? classesLoading : searchLoading;
   const showCreateOption = type === 'class'
-    ? cleanQuery.trim().length > 0 && !nodeItems.some((item) => nodeNameToText(item.node.name) === cleanQuery.trim())
+    // Match against all classes, not the visible (possibly excluded) subset, so
+    // typing the exact name of an already-applied class doesn't offer a duplicate.
+    ? cleanQuery.trim().length > 0 && !allClasses.some((c) => nodeNameToText(c.name) === cleanQuery.trim())
     : showLinkTabs && linkTab === 'blocks'
       ? false
       : searchShowCreate;
