@@ -146,6 +146,7 @@ export const NodeCollection = memo(function NodeCollection({
       rootIsBlock = false,
       queryAst,
       isTransient = false,
+      localOnly = false,
       inPropertyEditor = false }: NodeCollectionProps) {
   // Resolve properties first; we need them to filter text-property value blocks
   // out of the tree before rendering.
@@ -432,6 +433,7 @@ export const NodeCollection = memo(function NodeCollection({
           showNewBlock,
           hideRootBullet,
           rootIsBlock,
+          localOnly,
         };
 
       case 'document':
@@ -640,6 +642,7 @@ export const NodeCollection = memo(function NodeCollection({
     showNewBlock,
     hideRootBullet,
     rootIsBlock,
+    localOnly,
     nodes,
     tableColumns,
     selectedPropertyUuids,
