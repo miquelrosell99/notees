@@ -99,6 +99,7 @@ async function openWorkspaceStoreClient(
 
   if (isWorkerSupported()) {
     let dbBytes = options?.dbBytes;
+    let idbRead: PerformanceMeasure | undefined;
     if (isRealBrowser() && !dbBytes) {
       // Loading a large or corrupted IndexedDB record can hang the main thread
       // indefinitely. Time it out and fall back to a fresh local database; the
@@ -121,7 +122,7 @@ async function openWorkspaceStoreClient(
       });
       const saved = await Promise.race([loadPromise, timeoutPromise]);
       performance.mark('workspace-client:idb-read-end');
-      performance.measure('workspace-client:idb-read', 'workspace-client:idb-read-start', 'workspace-client:idb-read-end');
+      idbRead = performance.measure('workspace-client:idb-read', 'workspace-client:idb-read-start', 'workspace-client:idb-read-end');
       if (saved) {
         dbBytes = saved;
       }
@@ -129,7 +130,11 @@ async function openWorkspaceStoreClient(
     performance.mark('workspace-client:worker-init-start');
     await client.init(workspaceId, actorId, { dbBytes });
     performance.mark('workspace-client:worker-init-end');
-    performance.measure('workspace-client:worker-init', 'workspace-client:worker-init-start', 'workspace-client:worker-init-end');
+    const workerInit = performance.measure('workspace-client:worker-init', 'workspace-client:worker-init-start', 'workspace-client:worker-init-end');
+    log.info(
+      `Workspace client init timings idbRead=${idbRead ? `${Math.round(idbRead.duration)}ms` : 'n/a'} ` +
+      `workerInit=${Math.round(workerInit.duration)}ms`
+    );
   } else {
     // Test mode: share the synchronous store so legacy and migrated callers
     // observe the same database during the transition.
