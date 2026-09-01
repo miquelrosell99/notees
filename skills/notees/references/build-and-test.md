@@ -38,6 +38,12 @@ docker compose -f compose.dev.yaml down && docker compose -f compose.dev.yaml up
 
 Then confirm behavior in the browser.
 
+## Dev Environment Quirks
+
+- uvicorn `--reload` does not reliably pick up mounted-source changes; after backend edits, verify the container has the new code and `docker compose -f compose.dev.yaml restart backend` (no rebuild) if in doubt.
+- `tests/` has ~20 standing environmental failures, not regressions: `tests/unit/plugins/builtin/test_pdf_lookup.py` fails collection (missing `pypdf`), `test_relay_protocol_fixtures.py` needs `/app/protocol` (not mounted), `test_system_uuid_parity.py` needs `/app/frontend` (not mounted), one WS frame-ordering flake in `test_relay_ws.py`. Rerun with `--ignore=tests/unit/plugins/builtin/test_pdf_lookup.py` to get past collection.
+- Postgres storage tests need the `notees_test` database; it is not auto-created in the dev `db` container (`TEST_DATABASE_URL` points at it). Create it once with `CREATE DATABASE notees_test;`.
+
 ## Full Build / Release
 
 See `references/agents/build-and-release.md` for production build and release details.
