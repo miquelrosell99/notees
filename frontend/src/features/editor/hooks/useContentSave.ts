@@ -13,7 +13,6 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
-import { TextCrdt } from '@/core/crdt/text';
 import { useWorkspaceStoreClient } from '@/core/hooks';
 import { useUndoManager } from '@/core/hooks';
 
@@ -118,29 +117,39 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
   const { delay = DEFAULT_TEXT_DEBOUNCE_MS } = options;
   const pendingChangesRef = useRef<Map<string, PendingChange>>(new Map());
   const earlyChangesRef = useRef<Map<string, string>>(new Map());
+  // Per-block save chains: recordSetNodeText is a full-text SET, so two
+  // concurrent saves for the same block could land out of order and let the
+  // older snapshot overwrite newer keystrokes. Chaining guarantees order.
+  const saveQueuesRef = useRef<Map<string, Promise<void>>>(new Map());
   const hasRestoredRef = useRef(false);
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client } = useWorkspaceStoreClient(workspaceId ?? '');
   const manager = useUndoManager(workspaceId ?? '');
 
-  const saveBlock = useCallback(async (blockId: string, content: string) => {
+  const saveBlock = useCallback((blockId: string, content: string): Promise<void> => {
     if (!client || !manager) {
       // Buffer edits that arrive before the workspace client and undo manager
       // are ready; they will be flushed once both become available.
       earlyChangesRef.current.set(blockId, content);
-      return;
+      return Promise.resolve();
     }
 
-    const ast = parseAST(content);
-    const converted = convertMarkdownInAST(ast);
-    const finalContent = converted !== ast ? JSON.stringify(converted) : content;
-
-    const currentState = await client.query<Uint8Array>('getTextState', [blockId]);
-    const text = new TextCrdt(currentState);
-    const current = text.toPlaintext();
-    if (current === finalContent) return;
-
-    await manager.recordSetNodeText(blockId, finalContent);
+    const prev = saveQueuesRef.current.get(blockId) ?? Promise.resolve();
+    const next = prev.catch(() => {}).then(async () => {
+      const ast = parseAST(content);
+      const converted = convertMarkdownInAST(ast);
+      const finalContent = converted !== ast ? JSON.stringify(converted) : content;
+      // The store no-ops when the text is unchanged, so no main-thread
+      // read-back/compare is needed here.
+      await manager.recordSetNodeText(blockId, finalContent);
+    });
+    saveQueuesRef.current.set(blockId, next);
+    void next.finally(() => {
+      if (saveQueuesRef.current.get(blockId) === next) {
+        saveQueuesRef.current.delete(blockId);
+      }
+    });
+    return next;
   }, [client, manager]);
 
   const flushEarlyChanges = useCallback(async () => {
@@ -175,12 +184,14 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
   const flushAll = useCallback(async () => {
     const pending = Array.from(pendingChangesRef.current.entries());
     pendingChangesRef.current.clear();
-    await Promise.all(
-      pending.map(async ([blockId, change]) => {
-        clearTimeout(change.timeoutId);
-        await saveBlock(blockId, change.content);
-      })
-    );
+    const saves = pending.map(async ([blockId, change]) => {
+      clearTimeout(change.timeoutId);
+      await saveBlock(blockId, change.content);
+    });
+    // Also await saves that are already in flight (e.g. started by an earlier
+    // blur flush) so callers that flush before refocusing never observe a
+    // store that still lags behind what the user typed.
+    await Promise.all([...saves, ...saveQueuesRef.current.values()]);
   }, [saveBlock]);
 
   const cancel = useCallback((blockId: string) => {
@@ -209,14 +220,17 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
 
     if (shouldFlushNow) {
       pendingChangesRef.current.delete(blockId);
-      // Fire-and-forget; errors are logged by the worker/client.
-      void saveBlock(blockId, content);
+      void saveBlock(blockId, content).catch((err) => {
+        console.error('[useContentSave] keystroke-interval save failed for block', blockId, err);
+      });
       return;
     }
 
     const timeoutId = setTimeout(() => {
       pendingChangesRef.current.delete(blockId);
-      void saveBlock(blockId, content);
+      void saveBlock(blockId, content).catch((err) => {
+        console.error('[useContentSave] debounced save failed for block', blockId, err);
+      });
     }, delay);
 
     pendingChangesRef.current.set(blockId, {
@@ -250,7 +264,9 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
           clearTimeout(change.timeoutId);
           await saveBlock(blockId, change.content);
         })
-      );
+      ).catch((err) => {
+        console.error('[useContentSave] unmount flush failed', err);
+      });
     };
   }, [saveBlock]);
 

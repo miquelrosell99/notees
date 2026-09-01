@@ -129,6 +129,50 @@ describe('WorkspaceStore', () => {
     expect(content[0].text).toBe('Hello');
   });
 
+  it('setNodeText appends no operation when the content is unchanged', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.setNodeText(nodeId, 'Same content');
+
+    const countOps = () =>
+      Number(
+        db.exec("SELECT COUNT(*) FROM operation WHERE op_type = 'node.updateContent'")[0]
+          .values[0][0]
+      );
+    expect(countOps()).toBe(1);
+    store.setNodeText(nodeId, 'Same content');
+    expect(countOps()).toBe(1);
+  });
+
+  it('setNodeText applies a minimal diff instead of rewriting the whole document', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    const base = 'x'.repeat(2000);
+    store.setNodeText(nodeId, base);
+    const sizeBefore = store.getTextState(nodeId).length;
+
+    const edited = `${base.slice(0, 1000)}Y${base.slice(1000)}`;
+    store.setNodeText(nodeId, edited);
+    const growth = store.getTextState(nodeId).length - sizeBefore;
+
+    // A full delete+insert rewrite would grow the CRDT state by roughly 2x the
+    // document length (tombstones + fresh insert); the diff only adds the
+    // single inserted character plus a small constant of CRDT metadata.
+    expect(growth).toBeLessThan(1000);
+    const node = store.getNode(nodeId);
+    expect(JSON.parse(node!.content)[0].text).toBe(edited);
+  });
+
   it('moves nodes between parents', async () => {
     const db = await createTestDatabase();
     const workspaceId = uuidv7();
