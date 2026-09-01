@@ -283,6 +283,7 @@ async def compact_operations(
 async def get_latest_snapshot(
     workspace_id: str = Query(...),
     share_token: str | None = Query(None),
+    include_data: bool = Query(True),
     actor_id: str = Depends(get_actor_id),
     service: RelayService = Depends(get_relay_service),
     restore_epoch: int = Depends(get_workspace_restore_epoch),
@@ -290,7 +291,8 @@ async def get_latest_snapshot(
     """Return the newest snapshot for a workspace.
 
     Clients can restore the returned SQLite database bytes and then catch up
-    only operations newer than the snapshot HLC.
+    only operations newer than the snapshot HLC. Pass ``include_data=false``
+    to fetch only the snapshot metadata (HLC, seq cursor) without the blob.
     """
     if actor_id == "anonymous" and share_token is None:
         raise HTTPException(
@@ -298,9 +300,14 @@ async def get_latest_snapshot(
             detail="Authentication or a valid share token is required.",
         )
     try:
-        snapshot = await service.get_latest_snapshot_for_actor(
-            workspace_id, actor_id, share_token
-        )
+        if include_data:
+            snapshot = await service.get_latest_snapshot_for_actor(
+                workspace_id, actor_id, share_token
+            )
+        else:
+            snapshot = await service.get_latest_snapshot_metadata_for_actor(
+                workspace_id, actor_id, share_token
+            )
     except PermissionDeniedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -321,7 +328,9 @@ async def get_latest_snapshot(
         snapshot_id=snapshot["id"],
         workspace_id=workspace_id,
         hlc=snapshot["hlc"],
-        data_base64=base64.b64encode(snapshot["data"]).decode("ascii"),
+        data_base64=(
+            base64.b64encode(snapshot["data"]).decode("ascii") if include_data else ""
+        ),
         has_snapshot=True,
         restore_epoch=restore_epoch,
         up_to_seq=snapshot["up_to_seq"],

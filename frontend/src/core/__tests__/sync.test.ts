@@ -375,4 +375,87 @@ describe('SyncEngine', () => {
     expect(storeB.getNode(nodeId2)).toBeDefined();
     expect(storeB.getNode(nodeId3)).toBeDefined();
   });
+
+  it('does not fetch snapshot data when the server snapshot is not newer', async () => {
+    const workspaceId = uuidv7();
+    const actor = uuidv7();
+    const relay = new MemoryRelay();
+
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, workspaceId, actor);
+    const client = await createClientFromStore(store);
+
+    const snapshotCalls: Array<{ includeData?: boolean } | undefined> = [];
+    const transport = new MemoryTransport(relay, workspaceId);
+    transport.getLatestSnapshot = async (options?: { includeData?: boolean }) => {
+      snapshotCalls.push(options);
+      return {
+        snapshotId: 'snap-1',
+        workspaceId,
+        // HLC (0,0) is never newer than the local watermark, so the payload
+        // must never be requested.
+        hlc: { physical: 0, logical: 0 },
+        data: new Uint8Array(0),
+        restoreEpoch: 0,
+        hasSnapshot: true,
+        upToSeq: 0,
+      };
+    };
+
+    const sync = new SyncEngine(client, transport);
+    await sync.pull();
+
+    expect(snapshotCalls).toHaveLength(1);
+    expect(snapshotCalls[0]).toEqual({ includeData: false });
+  });
+
+  it('fetches snapshot data only when the server snapshot is newer and restores from it', async () => {
+    const workspaceId = uuidv7();
+    const actorA = uuidv7();
+    const actorB = uuidv7();
+    const relay = new MemoryRelay();
+
+    const dbA = await createTestDatabase();
+    const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, new MemoryTransport(relay, workspaceId));
+
+    const nodeId1 = uuidv7();
+    const nodeId2 = uuidv7();
+    storeA.createNode({ nodeId: nodeId1, kind: 'page', parentId: null });
+    storeA.createNode({ nodeId: nodeId2, kind: 'page', parentId: null });
+    await syncA.push();
+
+    const snapshot = storeA.exportSnapshot();
+
+    const snapshotCalls: Array<{ includeData?: boolean } | undefined> = [];
+    const transportB = new MemoryTransport(relay, workspaceId);
+    transportB.getLatestSnapshot = async (options?: { includeData?: boolean }) => {
+      snapshotCalls.push(options);
+      const includeData = options?.includeData !== false;
+      return {
+        snapshotId: 'snap-1',
+        workspaceId,
+        hlc: snapshot.hlc,
+        data: includeData ? snapshot.data : new Uint8Array(0),
+        restoreEpoch: 0,
+        hasSnapshot: true,
+        upToSeq: 2,
+      };
+    };
+
+    const dbB = await createTestDatabase();
+    const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
+    const clientB = await createClientFromStore(storeB);
+    const syncB = new SyncEngine(clientB, transportB);
+
+    await syncB.pull();
+
+    // First call is the metadata probe; the second fetches the full snapshot.
+    expect(snapshotCalls).toHaveLength(2);
+    expect(snapshotCalls[0]).toEqual({ includeData: false });
+    expect(snapshotCalls[1]).toBeUndefined();
+    expect(storeB.getNode(nodeId1)).toBeDefined();
+    expect(storeB.getNode(nodeId2)).toBeDefined();
+  });
 });
