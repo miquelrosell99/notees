@@ -94,6 +94,12 @@ Serverless behavior keys off `useConnectionMode()` / `useCapabilities()` (`front
 
 Default views include `unlinked_references`, but no `.tsx` renders a `QuerySection` for it. The page-bottom "Unlinked Mentions" section uses `useUnlinkedMentions` whose `queryFn` returns `[]` (section always hides). Don't attribute worker `queryNodes` load to it.
 
+## BlockList ignores `node.children` unless `localOnly`
+
+With a core client available, `useBlockTree` re-projects every node and resolves children via the store's `getChildren`, ignoring the `children` arrays on the `nodes` prop. Synthetic/computed trees (class hierarchy, scratchpad, previews) must pass `localOnly` (plumbed `QueryNodeCollection → NodeCollection → ListView → BlockList`) and set `has_children` on parent nodes.
+
+- Reference: `references/gotchas.md#views-blocklist-ignores-nodechildren-unless-localonly`
+
 ## Dev vs Prod
 
 Development infrastructure settings in `compose.dev.yaml` must never be used in production.
