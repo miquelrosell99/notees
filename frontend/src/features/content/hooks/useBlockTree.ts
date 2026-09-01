@@ -233,6 +233,26 @@ export function useBlockTree(
   const [structureVersion, setStructureVersion] = useState(0);
   const [projectedFlatNodes, setProjectedFlatNodes] = useState<FlatNode[]>([]);
 
+  // Callers rebuild the options object on every render; depending on its
+  // identity would re-run the projection effects after every render, and the
+  // synchronous local-only setState then loops with "Maximum update depth
+  // exceeded". Depend on a memoized options object built from the primitive
+  // fields instead.
+  const projectionOptions = useMemo<UseBlockTreeOptions>(
+    () => ({
+      maxDepth,
+      pagesOnly,
+      skipPages,
+      expandAll,
+      nodeUuid,
+      readOnly,
+      showNewBlock,
+      rootIsBlock,
+      localOnly,
+    }),
+    [maxDepth, pagesOnly, skipPages, expandAll, nodeUuid, readOnly, showNewBlock, rootIsBlock, localOnly]
+  );
+
   const treeQuery = useGraphQuery(
     GetNodeTreeQuery,
     { nodeUuid: nodeUuid ?? '', maxDepth },
@@ -254,10 +274,10 @@ export function useBlockTree(
     const update = async (): Promise<void> => {
       try {
         const rows = treeData.rows;
-        const visibleIds = getVisibleNodeIds(rows, options, collapsedLookup);
+        const visibleIds = getVisibleNodeIds(rows, projectionOptions, collapsedLookup);
         const projectedNodes = await projectNodesFromClient(client, Array.from(visibleIds), 0);
         const nodeMap = new Map(projectedNodes.map((n) => [n.uuid, n]));
-        const flat = buildFlatNodesFromRows(rows, nodeMap, options, collapsedLookup);
+        const flat = buildFlatNodesFromRows(rows, nodeMap, projectionOptions, collapsedLookup);
         if (!cancelled) {
           setProjectedFlatNodes(flat);
         }
@@ -275,7 +295,7 @@ export function useBlockTree(
     return () => {
       cancelled = true;
     };
-  }, [client, nodeUuid, treeQuery.data, options, collapsedLookup, localOnly]);
+  }, [client, nodeUuid, treeQuery.data, projectionOptions, collapsedLookup, localOnly]);
 
   // Subscription-driven path for callers that pass a nodes prop without a
   // concrete root nodeUuid. This keeps the legacy static-tree behaviour intact.
@@ -285,25 +305,25 @@ export function useBlockTree(
     if (nodeUuid) {
       return;
     }
-    if (!localOnly && !client) {
+    // Local-only trees are projected synchronously by the flatNodes memo
+    // below; projectedFlatNodes is never read in that mode. Running the
+    // effect too would setState on every options-identity change and loop.
+    if (localOnly) {
+      return;
+    }
+    if (!client) {
       return;
     }
 
     let cancelled = false;
     const update = async (): Promise<void> => {
-      const flat = localOnly
-        ? buildLocalFlatNodes(nodes, options, collapsedLookup)
-        : await buildFlatNodesFromClient(client!, nodes, options, collapsedLookup);
+      const flat = await buildFlatNodesFromClient(client, nodes, projectionOptions, collapsedLookup);
       if (!cancelled) {
         setProjectedFlatNodes(flat);
       }
     };
 
     update();
-
-    if (localOnly || !client) {
-      return;
-    }
 
     const unsubscribe = client.subscribe(null, () => {
       setStructureVersion((v) => v + 1);
@@ -314,7 +334,7 @@ export function useBlockTree(
       cancelled = true;
       unsubscribe();
     };
-  }, [client, nodeUuid, nodes, options, collapsedLookup, localOnly]);
+  }, [client, nodeUuid, nodes, projectionOptions, collapsedLookup, localOnly]);
 
   // Keep structureVersion moving when the batched subtree query refreshes.
   useEffect(() => {
