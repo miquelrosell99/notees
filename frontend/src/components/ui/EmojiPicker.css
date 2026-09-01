@@ -125,6 +125,7 @@
 }
 
 /*  Item buttons  */
+
 /* Override Button size constraints so grid cells stay square */
 .ep-item.btn {
   display: flex;

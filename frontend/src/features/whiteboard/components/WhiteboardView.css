@@ -1,6 +1,9 @@
 /* ────────────────────────────────────────────────────────────── */
+
 /*  WHITEBOARD-SCOPED Z-INDEX LAYERS                             */
+
 /*  All other tokens come from variables.css                      */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view {
@@ -18,7 +21,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  WHITEBOARD VIEW CONTAINER                                    */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view {
@@ -29,12 +34,15 @@
   background-color: var(--color-background);
   user-select: none;
   -webkit-user-select: none;
+
   /* Hardware acceleration for smoother panning/zooming */
   transform: translateZ(0);
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  GRID BACKGROUND                                              */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view--grid {
@@ -43,14 +51,18 @@
     var(--color-outline-variant) var(--grid-dot-radius),
     transparent var(--grid-dot-radius)
   );
-  background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
+  background-position: var(--grid-offset-x, 0) var(--grid-offset-y, 0);
   background-size: var(--grid-size) var(--grid-size);
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  INLINE PRESENTATION (Decision 24)                             */
+
 /*  Block + `whiteboard` class → bounded canvas card in the       */
+
 /*  document flow, sharing the same canvas component.             */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view--inline {
@@ -93,7 +105,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  CANVAS LAYER                                                 */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view__canvas {
@@ -126,7 +140,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  ELEMENTS                                                      */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view__elements {
@@ -141,6 +157,7 @@
   pointer-events: auto; /* Re-enable events on elements */
   cursor: default;
   transform-origin: center;
+
   /* Smoother transforms during interaction */
   will-change: transform, left, top; 
   box-sizing: border-box;
@@ -198,7 +215,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  SELECTION STYLING                                            */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-element--locked {
@@ -214,7 +233,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  GROUP BOUNDING BOXES                                         */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-group {
@@ -236,7 +257,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  RESIZE & ROTATION HANDLES                                    */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-element__resize-handles {
@@ -319,7 +342,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  CONNECTOR ANCHORS                                            */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-element__anchor {
@@ -355,7 +380,9 @@
 .whiteboard-element__anchor--left   { top: 50%; left: 0; }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  CARD COMPONENT                                               */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-card {
@@ -442,7 +469,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  UI OVERLAYS: MINIMAP                                          */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-minimap {
@@ -477,7 +506,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  UI OVERLAYS: TOOLBAR                                          */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-toolbar {
@@ -514,7 +545,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  ZOOM LEVEL INDICATOR                                          */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-toolbar__panel {
@@ -557,12 +590,16 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  NODE CARD IN WHITEBOARD                                       */
+
 /* ────────────────────────────────────────────────────────────── */
 
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  SELECTION CARD (bounding box for all selected items)          */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view__selection-card {
@@ -572,12 +609,15 @@
   background: transparent;
   pointer-events: none;
   z-index: var(--z-50); /* above elements (20), below UI (100) */
+
   /* Stays crisp during drag/pan transforms */
   will-change: left, top, width, height;
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  UI OVERLAYS: SELECTION BOX                                    */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view__selection-box {
@@ -590,7 +630,9 @@
 }
 
 /* ────────────────────────────────────────────────────────────── */
+
 /*  CONTEXT MENU                                                  */
+
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-context-menu {
@@ -737,7 +779,7 @@
 }
 
 /* Mobile: show whiteboard connector anchors at full scale */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .whiteboard-element__anchor {
     transform: translate(-50%, -50%) scale(1);
   }

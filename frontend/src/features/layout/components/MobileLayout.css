@@ -13,16 +13,19 @@
 .mobile-canvas {
   display: flex;
   flex-direction: column;
+
   /* Use dvh so the layout doesn't jump when the browser chrome shows/hides */
   height: 100dvh;
   width: 100%;
   overflow: hidden;
   background: var(--color-background);
+
   /* Push content below the status bar on Android/iOS */
   padding-top: env(safe-area-inset-top);
 }
 
 /* ── Top bar ─────────────────────────────────────────────────── */
+
 /* TopBar already has its own height; just make it shrink-proof */
 .mobile-canvas > .top-bar-card {
   flex-shrink: 0;
@@ -34,6 +37,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+
   /* Reserve space for the Android nav bar */
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -48,13 +52,16 @@
   position: fixed;
   top: 0;
   left: 0;
+
   /* Full height, including under status bar */
   height: 100dvh;
   width: min(80vw, var(--layout-size-7xl));
   z-index: var(--z-modal);
+
   /* Slide off-screen by default; drag offset is injected via CSS variable */
   transform: translateX(calc(-100% + var(--drawer-drag-offset, 0px)));
   transition: transform var(--motion-duration-medium) var(--motion-easing-standard);
+
   /* Safe area for devices with curved edges / notches / home bars */
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
   overflow: hidden;
@@ -70,7 +77,7 @@
 }
 
 .mobile-drawer--open {
-  transform: translateX(var(--drawer-drag-offset, 0px));
+  transform: translateX(var(--drawer-drag-offset, 0));
 }
 
 /* Disable transitions while the user is actively dragging the drawer */
@@ -89,8 +96,10 @@
   min-width: 0;
   max-width: none;
   flex: 1;
+
   /* The drawer itself handles the transition — kill inner animation */
   transition: none;
+
   /* Provide a background so it isn't transparent */
   background: var(--color-surface);
   border-radius: 0 var(--shape-sheet) var(--shape-sheet) 0;
@@ -115,6 +124,7 @@
 }
 
 /* ── References bottom sheet (right-sidebar content) ─────────── */
+
 /* The desktop right sidebar is presented on mobile as a Modal bottom
    sheet (swipe-to-dismiss is handled by Modal); cap its height so the
    top bar stays visible. */

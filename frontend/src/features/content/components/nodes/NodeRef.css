@@ -18,6 +18,7 @@
   color: inherit;
   text-align: left;
   position: relative;
+
   /* Reserve a 44px minimum width so short pills stay tappable in inline flow.
      The 44px minimum *height* must not be reserved in layout: inside flex rows
      (table cells, metadata rows) it would stretch the whole row. An invisible

@@ -36,7 +36,7 @@
 }
 
 /* Mobile: smaller label column, rows keep the minimum touch-target height */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .property-row {
     grid-template-columns: minmax(100px, 140px) 1fr;
     min-height: var(--button-min-height);

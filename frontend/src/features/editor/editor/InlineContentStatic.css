@@ -30,12 +30,12 @@
 
 /* Colored block backgrounds */
 .inline-content-static[data-has-node-color="true"] {
-  background-color: rgba(var(--node-color-rgb, var(--color-node-default-rgb)), 0.08);
+  background-color: rgb(var(--node-color-rgb, var(--color-node-default-rgb)), 0.08);
   padding: var(--spacing-micro) var(--spacing-2);
   border-radius: var(--shape-small);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .inline-content-static[data-has-node-color="true"] {
     padding: var(--spacing-micro) var(--spacing-1);
   }

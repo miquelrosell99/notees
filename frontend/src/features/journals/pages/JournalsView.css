@@ -29,7 +29,7 @@
   padding: var(--spacing-4) var(--spacing-6);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .journals-view {
     max-width: 100%;
   }
@@ -53,7 +53,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .journals-view__header {
     padding-left: var(--spacing-3);
     padding-right: var(--spacing-3);
@@ -125,7 +125,7 @@
   padding: var(--spacing-2) 0 var(--spacing-4);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .journal-entry__page-header {
     padding: var(--spacing-1) 0 var(--spacing-2);
   }

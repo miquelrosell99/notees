@@ -35,7 +35,7 @@
   color: var(--color-on-surface-variant);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .trash-view__header,
   .trash-view__content {
     padding-left: var(--spacing-4);
@@ -43,7 +43,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .trash-view__header,
   .trash-view__content {
     padding-left: var(--spacing-3);

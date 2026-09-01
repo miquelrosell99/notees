@@ -13,6 +13,7 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: 15vh;
+
   /* Horizontal inset so the palette never sits flush to the screen edges on
      narrow viewports (palette max-width is var(--layout-size-11xl)). */
   padding-inline: var(--spacing-2);

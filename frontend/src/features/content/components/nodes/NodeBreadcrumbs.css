@@ -235,7 +235,7 @@
   min-width: var(--button-icon-only-xs) !important;
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .node-breadcrumb-edit-btn {
     width: var(--button-icon-only-xs) !important;
   }

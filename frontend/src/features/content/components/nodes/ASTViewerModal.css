@@ -73,12 +73,11 @@
   background: var(--color-bg-tertiary);
   border-radius: var(--radius-md);
   border: var(--border-width-default) solid var(--color-border);
-  overflow-x: auto;
+  overflow: auto;
   font-family: var(--font-mono);
   font-size: var(--font-size-button);
   line-height: 1.5;
   max-height: var(--layout-size-9xl);
-  overflow-y: auto;
 }
 
 .ast-viewer-pre.valid {

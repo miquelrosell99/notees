@@ -67,6 +67,7 @@
   --_height: var(--icon-size-md);
   --_thumb: var(--shape-extra-large);
   --_pad: var(--shape-small);
+
   width: var(--_width);
   height: var(--_height);
 }
@@ -76,6 +77,7 @@
   --_height: var(--height-xs);
   --_thumb: var(--spacing-4);
   --_pad: var(--shape-small);
+
   width: var(--_width);
   height: var(--_height);
 }
@@ -85,6 +87,7 @@
   --_height: var(--toggle-track-height-lg);
   --_thumb: var(--bullet-wrapper-size);
   --_pad: var(--shape-small);
+
   width: var(--_width);
   height: var(--_height);
 }

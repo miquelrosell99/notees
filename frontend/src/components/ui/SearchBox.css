@@ -21,6 +21,7 @@
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
+
   /* Design system: zero visual noise — no elevation shadows */
   max-height: var(--layout-size-9xl);
   overflow-y: auto;

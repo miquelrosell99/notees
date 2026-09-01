@@ -287,7 +287,7 @@
 }
 
 /* Responsive — convert table to stacked cards on narrow viewports */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .table-cell--hide-mobile {
     display: none;
   }
