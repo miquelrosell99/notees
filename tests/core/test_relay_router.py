@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -287,3 +289,49 @@ def test_snapshot_latest_returns_empty_snapshot_for_missing_workspace(
     assert response.status_code == 200
     data = response.json()
     assert data["has_snapshot"] is False
+
+
+def _seed_snapshot(storage: RelayStorage, workspace_id: str = "ws-1") -> None:
+    storage.save_envelope(_envelope("op-snap", workspace_id=workspace_id))
+    storage.create_snapshot(
+        workspace_id, Hlc(physical=1000, logical=0), data=b"snapshot-bytes"
+    )
+
+
+def test_snapshot_latest_include_data_false_omits_blob(
+    client: TestClient,
+    storage: RelayStorage,
+) -> None:
+    """include_data=false returns snapshot metadata with an empty data_base64."""
+    _seed_snapshot(storage)
+
+    response = client.get(
+        "/api/relay/snapshot",
+        params={"workspace_id": "ws-1", "include_data": "false"},
+        headers={"X-Actor-Id": "actor-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["has_snapshot"] is True
+    assert data["snapshot_id"]
+    assert data["hlc"] == {"physical": 1000, "logical": 0}
+    assert data["up_to_seq"] is not None
+    assert data["data_base64"] == ""
+
+
+def test_snapshot_latest_default_includes_blob(
+    client: TestClient,
+    storage: RelayStorage,
+) -> None:
+    """Without include_data, the endpoint keeps returning the full blob."""
+    _seed_snapshot(storage)
+
+    response = client.get(
+        "/api/relay/snapshot",
+        params={"workspace_id": "ws-1"},
+        headers={"X-Actor-Id": "actor-1"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["has_snapshot"] is True
+    assert data["data_base64"] == base64.b64encode(b"snapshot-bytes").decode("ascii")

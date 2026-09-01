@@ -114,6 +114,19 @@ class RelayStorage(ABC):
         """
 
     @abstractmethod
+    def get_latest_snapshot_metadata(self, workspace_id: str) -> dict[str, Any] | None:
+        """Return the newest snapshot for ``workspace_id`` without its blob.
+
+        Same selection semantics as :meth:`get_latest_snapshot`, but the query
+        omits the ``data`` column so callers that only need the HLC/seq cursor
+        do not pay for transferring the serialized derived-state payload.
+
+        Returns:
+            A dict with ``id``, ``hlc``, and ``up_to_seq`` keys, or ``None``
+            when no snapshot exists.
+        """
+
+    @abstractmethod
     def create_snapshot(
         self, workspace_id: str, up_to_hlc: Hlc, data: bytes = b""
     ) -> tuple[str, int]:
@@ -538,6 +551,32 @@ class SqliteRelayStorage(RelayStorage):
             "hlc": _dict_to_hlc(hlc_dict),
             "up_to_seq": latest["up_to_seq"],
             "data": latest["data"] or b"",
+        }
+
+    def get_latest_snapshot_metadata(self, workspace_id: str) -> dict[str, Any] | None:
+        cursor = self._connection.execute(
+            """
+            SELECT id, hlc, up_to_seq FROM relay_snapshot
+            WHERE workspace_id = ?
+              AND data IS NOT NULL
+              AND LENGTH(data) > 0
+            """,
+            (workspace_id,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+
+        def _hlc_key(row: sqlite3.Row) -> tuple[int, int]:
+            hlc_dict = json.loads(row["hlc"])
+            return hlc_dict["physical"], hlc_dict["logical"]
+
+        latest = max(rows, key=_hlc_key)
+        hlc_dict = json.loads(latest["hlc"])
+        return {
+            "id": latest["id"],
+            "hlc": _dict_to_hlc(hlc_dict),
+            "up_to_seq": latest["up_to_seq"],
         }
 
     def create_snapshot(
@@ -988,6 +1027,29 @@ class PostgresRelayStorage(RelayStorage):
             "hlc": _dict_to_hlc(hlc_dict),
             "up_to_seq": row["up_to_seq"],
             "data": row["data"] or b"",
+        }
+
+    async def get_latest_snapshot_metadata(self, workspace_id: str) -> dict[str, Any] | None:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, hlc, up_to_seq FROM relay_snapshot
+                WHERE workspace_id = $1
+                  AND data IS NOT NULL
+                  AND OCTET_LENGTH(data) > 0
+                ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC
+                LIMIT 1
+                """,
+                workspace_id,
+            )
+        if row is None:
+            return None
+        hlc_dict = row["hlc"]
+        return {
+            "id": str(row["id"]),
+            "hlc": _dict_to_hlc(hlc_dict),
+            "up_to_seq": row["up_to_seq"],
         }
 
     async def create_snapshot(
