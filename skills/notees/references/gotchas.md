@@ -128,6 +128,16 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 
 **Prevent:** When touching relay dedupe or push-ack logic, test with a duplicate-only batch (covered by sync.test.ts "duplicate-only batches").
 
+## **[views]** BlockList ignores `node.children` unless `localOnly`
+
+**Symptom:** You attach a computed/synthetic tree (e.g. the class inheritance hierarchy for `extended_by`) to the `nodes` prop of `NodeCollection`/`ListView`, but the list renders flat — or empty when `pagesOnly` filters the synthetic nodes out — even though each node carries `children`.
+
+**Cause:** With a core client available, `useBlockTree` (`frontend/src/features/content/hooks/useBlockTree.ts`) re-projects every node via `projectNode` and resolves children through the store's `getChildren` — the `children` arrays on the passed `nodes` are only used in the no-client fallback and in `localOnly` mode. Children that exist only in memory (class-table rows have no `node_child_order` entries) are invisible to that path.
+
+**Fix:** Pass `localOnly` (plumbed `QueryNodeCollection → NodeCollection → ListView → BlockList`) for synthetic trees, set `has_children` on parent nodes so the collapse chevron renders, and make sure `pagesOnly`/`skipPages` don't filter the node kind you are rendering. Live updates still work: the flat list recomputes when the `nodes` prop changes.
+
+**Prevent:** When rendering anything that is not a node-table tree (class hierarchies, scratchpads, previews), reach for `localOnly` first and unit-test the tree builder; see `buildClassHierarchyTree` in `QueryNodeCollection/helpers.tsx` and its test.
+
 ## **[testing]** Frontend vitest suite flakes under concurrent heavy load
 
 **Symptom:** `npm run test:run` fails with 1–2 errors like "Chunk count mismatch" in `src/core/persistence/__tests__/indexedDb.test.ts` (or similar persistence timing tests), but the same files pass in isolation and in an idle rerun.
