@@ -6,6 +6,7 @@
  */
 
 import { createDatabase } from '../db/connection';
+import type { Database } from 'sql.js';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
 import { listNodes } from '../query/listNodes';
@@ -127,6 +128,13 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
     state.workspaceId = null;
   }
 
+  // Read the schema version from the persisted file header before
+  // createDatabase runs createSchema, so we can detect that migrations ran
+  // during init (see persistNow below).
+  const persistedUserVersion = request.dbBytes
+    ? readUserVersionFromHeader(request.dbBytes)
+    : null;
+
   performance.mark('worker:sqljs-import-start');
   const db = await Promise.race([
     createDatabase(request.dbBytes),
@@ -139,6 +147,7 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   ]);
   performance.mark('worker:sqljs-import-end');
   performance.measure('worker:sqljs-import', 'worker:sqljs-import-start', 'worker:sqljs-import-end');
+  performance.mark('worker:store-setup-start');
   const store = new WorkspaceStore(db, request.workspaceId, request.actorId, {
     // Debounce persistence heavily: a 145 MB workspace should not be rewritten to
     // IndexedDB after every keystroke. The debounce timer resets on each mutation,
@@ -155,11 +164,14 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
     },
     onNotify: (notification) => postNotify(notification),
   });
+  performance.mark('worker:store-setup-end');
+  performance.measure('worker:store-setup', 'worker:store-setup-start', 'worker:store-setup-end');
 
   state.store = store;
   state.undoManager = new UndoManager(store);
   state.workspaceId = request.workspaceId;
 
+  performance.mark('worker:repairs-start');
   // Idempotent cleanup: ensure journal pages have the correct year → month → day
   // hierarchy. This fixes date nodes created before hierarchy enforcement.
   repairDatePageHierarchy(store);
@@ -167,12 +179,52 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   // Idempotent repair: rebuild the class_hierarchy closure from the class
   // table, healing clients that applied class ops with an older applier.
   repairClassHierarchy(store);
+  performance.mark('worker:repairs-end');
+  performance.measure('worker:repairs', 'worker:repairs-start', 'worker:repairs-end');
 
   registerAllQueries();
 
   performance.mark('worker:init-end');
   performance.measure('worker:init', 'worker:init-start', 'worker:init-end');
+  console.info(
+    `[workspaceWorker] init timings sqljs=${Math.round(measureDuration('worker:sqljs-import'))}ms ` +
+    `storeSetup=${Math.round(measureDuration('worker:store-setup'))}ms ` +
+    `repairs=${Math.round(measureDuration('worker:repairs'))}ms ` +
+    `total=${Math.round(measureDuration('worker:init'))}ms`
+  );
   postResponse({ type: 'init-done', id: request.id });
+
+  if (persistedUserVersion !== null && readUserVersion(db) !== persistedUserVersion) {
+    // createSchema migrations ran while opening the persisted database, but
+    // nothing on the init path schedules persistence — without any edits the
+    // migrated DB (user_version bump, backfills, new indexes) would never reach
+    // IndexedDB and the migrations would re-run on every load. Flush once so
+    // they stay durable. persistNow goes through onPersist → persist-data → the
+    // main thread's debounced IndexedDB writer, so no new plumbing is needed.
+    store.persistNow();
+  }
+}
+
+const SQLITE_HEADER_MAGIC = 'SQLite format 3\0';
+// Offset of the user_version field in the SQLite database file header
+// (4 bytes, big-endian). Reading it directly avoids parsing the whole
+// persisted database a second time just to compare schema versions.
+const SQLITE_USER_VERSION_OFFSET = 60;
+
+function readUserVersionFromHeader(bytes: Uint8Array): number | null {
+  const header = new TextDecoder().decode(bytes.subarray(0, SQLITE_HEADER_MAGIC.length));
+  if (header !== SQLITE_HEADER_MAGIC || bytes.length < SQLITE_USER_VERSION_OFFSET + 4) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset + SQLITE_USER_VERSION_OFFSET, 4);
+  return view.getUint32(0, false);
+}
+
+function readUserVersion(db: Database): number {
+  const row = db.exec('PRAGMA user_version')[0];
+  return (row?.values[0]?.[0] as number | undefined) ?? 0;
+}
+
+function measureDuration(name: string): number {
+  return performance.getEntriesByName(name, 'measure')[0]?.duration ?? 0;
 }
 
 function handleExport(request: Extract<WorkerRequest, { type: 'export' }>): void {
