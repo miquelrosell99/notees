@@ -57,6 +57,8 @@ tasks:
       zh: 梳理项目
     route: follow `workflows/profile-project.md`; write evidence-labeled conclusions
     workflow: workflows/profile-project.md
+    required_reads:
+      - architecture/index.md
     trigger_examples:
       - refresh the project profile
       - help me understand this codebase
@@ -72,6 +74,25 @@ tasks:
     trigger_examples:
       - record this rule
       - update the project skill rules
+  - id: receive-review
+    labels:
+      en: Act on review feedback
+      zh: 处理评审反馈
+    route: follow `workflows/receiving-review.md`; verify each claim before changing code
+    workflow: workflows/receiving-review.md
+    trigger_examples:
+      - address the review comments
+      - the reviewer flagged this code
+      - apply PR review feedback
+  - id: update-upstream
+    labels:
+      en: Update from upstream skill template
+      zh: 从上游 skill 模板更新
+    route: follow `workflows/update-upstream.md`
+    workflow: workflows/update-upstream.md
+    trigger_examples:
+      - upstream skill template changed
+      - sync the skill from upstream
   - id: other
     labels:
       en: Other
