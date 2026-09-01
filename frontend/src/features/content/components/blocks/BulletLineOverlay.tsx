@@ -59,9 +59,9 @@ function getBulletCenterOffset(): number {
  * Vertical center of a row's bullet glyph, measured from the actual rendered
  * glyph container so the guide lines and active thread track the bullet
  * wherever the layout places it. `.bullet-container` (not `.bullet-wrapper`)
- * is measured on purpose: the container carries the --bullet-optical-offset
- * transform that moves the dot/icon from the wrapper's geometric center down
- * to the text's optical center, and the thread must connect to the visible
+ * is measured on purpose: the container is the element that is vertically
+ * centered on the row's text line (the one-line-tall .block-ui line box is
+ * the alignment unit), and the thread must connect to the visible
  * glyph. The bullet is anchored to the first line of a (possibly multi-line)
  * block, not the row's vertical center, so the previous `rect.height / 2`
  * would drift on wrapped paragraphs. Falls back to the provided value
