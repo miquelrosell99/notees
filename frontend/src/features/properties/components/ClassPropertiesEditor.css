@@ -95,3 +95,41 @@
   background: var(--color-surface-variant);
 }
 
+/* Read-only inherited properties table */
+.class-properties-inherited__table {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-2) 0;
+}
+
+.class-properties-inherited__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.class-properties-inherited__row:hover {
+  background: var(--color-surface-variant);
+}
+
+.class-properties-inherited__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-properties-inherited__source {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+

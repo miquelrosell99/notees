@@ -10,11 +10,12 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { ClassPropertiesEditor } from './ClassPropertiesEditor';
-import type { ClassProperty, Property } from '@/types/api';
+import type { ClassProperty, InheritedProperty, Property } from '@/types/api';
 
 const mocks = vi.hoisted(() => ({
   updateMutate: vi.fn(),
   classProperties: [] as ClassProperty[],
+  inheritedProperties: [] as InheritedProperty[],
 }));
 
 const CLASS_PROPERTY: ClassProperty = {
@@ -58,6 +59,7 @@ const PROPERTY: Property = {
 // mock the whole barrel so no real queries/mutations are constructed.
 vi.mock('../hooks', () => ({
   useClassProperties: () => ({ data: mocks.classProperties, isLoading: false }),
+  useInheritedProperties: () => ({ data: mocks.inheritedProperties, isLoading: false }),
   useProperties: () => ({ data: [PROPERTY] }),
   useAddPropertyToClass: () => ({ mutate: vi.fn() }),
   useCreateProperty: () => ({ mutate: vi.fn() }),
@@ -87,10 +89,42 @@ function renderEditor() {
   return { ...utils, rerenderEditor: () => utils.rerender(makeTree()) };
 }
 
+describe('ClassPropertiesEditor inherited properties', () => {
+  const INHERITED: InheritedProperty = {
+    property_uuid: 'prop-priority',
+    property_name: 'Priority',
+    property_type: 'integer',
+    from_class_uuid: 'class-base',
+    from_class_name: 'Base Task',
+    sequence: 0,
+    default_value: null,
+    hidden: false,
+    is_overridden: false,
+  };
+
+  beforeEach(() => {
+    mocks.classProperties = [CLASS_PROPERTY];
+    mocks.inheritedProperties = [INHERITED];
+  });
+
+  it('lists inherited properties with their source class', () => {
+    renderEditor();
+    const row = screen.getByRole('button', { name: /priority/i });
+    expect(row).toHaveTextContent('Base Task');
+  });
+
+  it('omits inherited properties that are overridden by a direct edge', () => {
+    mocks.inheritedProperties = [{ ...INHERITED, is_overridden: true }];
+    renderEditor();
+    expect(screen.queryByRole('button', { name: /priority/i })).not.toBeInTheDocument();
+  });
+});
+
 describe('ClassPropertiesEditor tri-state overrides', () => {
   beforeEach(() => {
     mocks.updateMutate.mockClear();
     mocks.classProperties = [CLASS_PROPERTY];
+    mocks.inheritedProperties = [];
   });
 
   it('cycles required inherit -> on -> off -> inherit', () => {
