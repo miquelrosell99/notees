@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { TableView } from './TableView';
 import type { Node } from '@/types';
+import type * as contentModule from '@/features/content';
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ workspaceId: 'ws-1' }),
@@ -25,7 +26,7 @@ vi.mock('@/features/properties', () => ({
   PropertyCell: () => null,
 }));
 vi.mock('@/features/content', async (importActual) => {
-  const actual = await importActual<typeof import('@/features/content')>();
+  const actual = await importActual<typeof contentModule>();
   return {
     ...actual,
     useClasses: () => ({ data: [] }),

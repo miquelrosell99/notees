@@ -81,7 +81,7 @@ svg[class*="icon"],
 }
 
 .workspace-init-error__message {
-  color: var(--color-error, #ef4444);
-  max-width: 480px;
+  color: var(--color-error);
+  max-width: var(--layout-size-10xl);
   padding: 0 var(--spacing-6);
 }

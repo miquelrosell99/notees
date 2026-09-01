@@ -68,7 +68,7 @@
 }
 
 .library-view__tree-pane {
-  width: 240px;
+  width: var(--layout-size-4xl);
   flex-shrink: 0;
   border-right: var(--border-width-default) solid var(--color-outline-variant);
   overflow-y: auto;
@@ -83,7 +83,7 @@
 }
 
 .library-view__inspector-pane {
-  width: 320px;
+  width: var(--layout-size-8xl);
   flex-shrink: 0;
   border-left: var(--border-width-default) solid var(--color-outline-variant);
   overflow-y: auto;
