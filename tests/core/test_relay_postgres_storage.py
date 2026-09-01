@@ -305,6 +305,27 @@ class TestPostgresRelayStorage:
         assert up_to_seq == 0
 
     @pytest.mark.asyncio
+    async def test_get_latest_snapshot_metadata_omits_blob(
+        self, storage: PostgresRelayStorage
+    ) -> None:
+        workspace_id = "ws-pg-snapshot-metadata"
+        snapshot_id, up_to_seq = await storage.create_snapshot(
+            workspace_id, Hlc(physical=100, logical=0), data=b"snapshot-blob"
+        )
+
+        metadata = await storage.get_latest_snapshot_metadata(workspace_id)
+        assert metadata is not None
+        assert metadata["id"] == snapshot_id
+        assert metadata["hlc"] == Hlc(physical=100, logical=0)
+        assert metadata["up_to_seq"] == up_to_seq
+        assert "data" not in metadata
+
+        # The full read still returns the blob for the same snapshot.
+        latest = await storage.get_latest_snapshot(workspace_id)
+        assert latest is not None
+        assert latest["data"] == b"snapshot-blob"
+
+    @pytest.mark.asyncio
     async def test_create_compaction_segment_prunes_envelopes(
         self, storage: PostgresRelayStorage
     ) -> None:

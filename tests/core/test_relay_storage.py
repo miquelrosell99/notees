@@ -61,6 +61,26 @@ class TestSqliteRelayStorageSnapshots:
         storage = SqliteRelayStorage(":memory:")
         assert storage.get_latest_snapshot("ws-missing") is None
 
+    async def test_get_latest_snapshot_metadata_omits_blob(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.save_envelope(
+            _envelope(envelope_id="env-1", workspace_id="ws-1", hlc=Hlc(10, 0))
+        )
+        snapshot_id, up_to_seq = storage.create_snapshot(
+            "ws-1", Hlc(physical=10, logical=0), data=b"snapshot-blob"
+        )
+
+        metadata = storage.get_latest_snapshot_metadata("ws-1")
+        assert metadata is not None
+        assert metadata["id"] == snapshot_id
+        assert metadata["hlc"] == Hlc(physical=10, logical=0)
+        assert metadata["up_to_seq"] == up_to_seq
+        assert "data" not in metadata
+
+    async def test_get_latest_snapshot_metadata_returns_none_when_missing(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        assert storage.get_latest_snapshot_metadata("ws-missing") is None
+
     async def test_create_snapshot_stores_data_round_trip(self) -> None:
         storage = SqliteRelayStorage(":memory:")
         payload = b"\x00\x01\x02serialized-database-bytes"

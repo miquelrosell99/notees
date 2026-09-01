@@ -167,6 +167,12 @@ Rate limit: 600 requests/minute per actor+workspace.
 
 Return the newest snapshot (a serialized derived-state SQLite database).
 
+Query parameters: `workspace_id` (required), `share_token` (optional),
+`include_data` (optional, default `true`). With `include_data=false` the
+response carries only the snapshot metadata — `data_base64` is empty and the
+server does not read the blob from storage. Clients use this to probe whether
+the snapshot is newer than their local watermark before downloading it.
+
 Response 200 (`LatestSnapshotResponse`):
 
 ```
