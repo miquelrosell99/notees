@@ -214,6 +214,14 @@ body.notees-dragging-block .block-ui[data-row-hover="true"] .block-collapse-arro
 }
 
 @keyframes typing-pulse {
-  0%, 100% { opacity: var(--opacity-35); transform: scale(0.9); }
-  50% { opacity: var(--opacity-100); transform: scale(1.1); }
+  0%,
+  100% {
+    opacity: var(--opacity-35);
+    transform: scale(0.9);
+  }
+
+  50% {
+    opacity: var(--opacity-100);
+    transform: scale(1.1);
+  }
 }

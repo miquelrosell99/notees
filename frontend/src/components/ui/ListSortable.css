@@ -18,16 +18,11 @@
 .list-sortable__item {
   appearance: none;
   border: none;
-  background: none;
   margin: 0;
-  padding: 0;
   font: inherit;
   color: inherit;
   text-align: left;
   width: auto;
-}
-
-.list-sortable__item {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
