@@ -235,7 +235,7 @@ export function ClassView({ nodeUuid, viewMode, className = '' }: ClassViewProps
         title="Nodes"
         icon={<TableIcon size="sm" />}
         hideWhenEmpty={false}
-        defaultExpanded={true}
+        defaultExpanded={false}
         onNodeClick={handleNavigateToNode}
         onBlockCreated={(targetUuid) => addSidebarCard(targetUuid, 'block')}
         can_create={true}
