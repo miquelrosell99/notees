@@ -715,12 +715,31 @@ export class WorkspaceStore {
   /**
    * Replace the entire text content of a node with a plain string.
    * Serializable worker-compatible alternative to updateText callbacks.
+   *
+   * Uses a common-prefix/suffix diff so repeated saves only touch the changed
+   * range: a full delete+insert per save makes Yjs accumulate full-document
+   * tombstones, which slows down every subsequent load/apply and bloats the
+   * operation payload shipped to the relay.
    */
   setNodeText(nodeId: string, value: string): void {
     const text = loadTextCrdt(this.db, nodeId);
     const current = text.toPlaintext();
-    text.delete(0, current.length);
-    text.insert(0, value);
+    if (current === value) return;
+    let start = 0;
+    const minLen = Math.min(current.length, value.length);
+    while (start < minLen && current.charCodeAt(start) === value.charCodeAt(start)) start++;
+    let currentEnd = current.length;
+    let valueEnd = value.length;
+    while (
+      currentEnd > start &&
+      valueEnd > start &&
+      current.charCodeAt(currentEnd - 1) === value.charCodeAt(valueEnd - 1)
+    ) {
+      currentEnd--;
+      valueEnd--;
+    }
+    if (currentEnd > start) text.delete(start, currentEnd - start);
+    if (valueEnd > start) text.insert(start, value.slice(start, valueEnd));
     this.applyTextUpdate(nodeId, text);
   }
 

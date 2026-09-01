@@ -69,7 +69,7 @@ describe('BlockRow', () => {
     useEditorFocusStore.setState({ activeBlockId: null, pendingFocusBlockId: null });
   });
 
-  it('renders static content by default and mounts editor on click', () => {
+  it('renders static content by default and mounts editor on click', async () => {
     render(<BlockRow node={baseNode} />, { wrapper: Wrapper });
 
     expect(screen.getByText('Hello world')).toBeInTheDocument();
@@ -77,7 +77,9 @@ describe('BlockRow', () => {
 
     fireEvent.click(screen.getByText('Hello world'));
 
-    expect(screen.getByTestId('inline-editor')).toBeInTheDocument();
+    // Focus is deferred until pending debounced saves flush, so mounting the
+    // editor is async.
+    expect(await screen.findByTestId('inline-editor')).toBeInTheDocument();
   });
 
   it('does not mount editor for read-only blocks', () => {
@@ -88,12 +90,12 @@ describe('BlockRow', () => {
     expect(screen.queryByTestId('inline-editor')).not.toBeInTheDocument();
   });
 
-  it('passes the captured cursor offset to InlineEditor on mount', () => {
+  it('passes the captured cursor offset to InlineEditor on mount', async () => {
     render(<BlockRow node={baseNode} />, { wrapper: Wrapper });
 
     fireEvent.click(screen.getByText('Hello world'));
 
-    expect(screen.getByTestId('inline-editor')).toBeInTheDocument();
+    expect(await screen.findByTestId('inline-editor')).toBeInTheDocument();
     const lastCallProps = vi.mocked(CustomInlineEditor).mock.calls.at(-1)![0] as { initialCursorOffset?: number };
     expect(lastCallProps.initialCursorOffset).toBeGreaterThanOrEqual(0);
   });
