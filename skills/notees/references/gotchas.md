@@ -151,3 +151,13 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Treat it as a load flake, not a regression: rerun the suite idle and confirm green before investigating. Run backend and frontend full suites sequentially, not in parallel.
 
 **Prevent:** When gating a task with "full suites green", run one suite at a time; if a persistence test fails only under parallel load, rerun before touching code.
+
+## **[lifecycle]** One-shot async effects must not be cancelled by cleanup
+
+**Symptom:** Reloading a deep link (e.g. `/<workspace>/<node-uuid>`) lands on the home view instead of the entity; in-app navigation to the same URL works fine.
+
+**Cause:** The effect marks the input as processed (ref guard) and then starts async work, but its cleanup sets `cancelled = true`. Under React StrictMode (dev) effects mount → clean up → remount: the cleanup kills the only processing run, and the processed-guard blocks the remount from retrying, so the URL is never applied. The same kill happens on any mid-flight dependency-identity change, not just StrictMode.
+
+**Fix:** Drop cleanup-based cancellation for one-shot async route/init processing; arbitrate staleness with a monotonic generation counter checked after every `await` (see `useRouteAdapter.ts`). All side-effecting writes must be preceded by a generation check after the last await.
+
+**Prevent:** Any effect that (a) guards re-entry with an "already processed" ref and (b) awaits before writing state must either skip cleanup cancellation or reset the guard so a remount retries. Test one-shot URL/init effects under `<StrictMode>` with all guards satisfied on first mount.
