@@ -48,7 +48,7 @@
   gap: var(--spacing-6);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .node-list-view--grouped {
     gap: var(--spacing-4);
   }
@@ -164,6 +164,7 @@
 }
 
 /* ==================== Small size variant ==================== */
+
 /* Small list-view sizing is driven by data-list-size on BlockRow, BlockUI,
    Bullet, and InlineEditor. See BlockRow.css, BlockUI.css, Bullet.css, and
    InlineEditor.css for the actual rules. */
@@ -177,6 +178,11 @@
 .node-list-group {
   display: flex;
   flex-direction: column;
+}
+
+/* Group children - blocks indented from the header */
+.node-list-group__children {
+  padding-left: var(--spacing-1); /* Minimal indent, bullets provide visual hierarchy */
 }
 
 .node-list-group--collapsed .node-list-group__children {
@@ -235,17 +241,13 @@
   font-style: italic;
 }
 
-/* Group children - blocks indented from the header */
-.node-list-group__children {
-  padding-left: var(--spacing-1); /* Minimal indent, bullets provide visual hierarchy */
-}
-
 /* Ensure proper padding for items within groups */
 .node-list-group__children .node-list-item {
   padding-left: 0;
 }
 
 /* ==================== Property editor context ==================== */
+
 /* Text property blocks embed a mini list editor; keep a small minimum height
    so the cell is tappable, but let the inline editor collapse when empty. */
 

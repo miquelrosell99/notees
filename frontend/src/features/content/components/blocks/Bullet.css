@@ -121,10 +121,10 @@ body.notees-dragging-block .bullet-interactive {
   width: 100%;
   height: 100%;
   cursor: inherit;
-  /* Optical alignment: body text sits on a baseline, so its visual center is
-     below the geometric center of the line box. Nudge bullets (dots and icons)
-     down so they sit on the same optical line as the surrounding text. */
-  transform: translateY(var(--bullet-optical-offset));
+  /* The bullet wrapper lives in .block-ui, a one-line-tall (1.5em) row with
+     line-height 1.5, so the line box is the alignment unit: centering the
+     glyph vertically in the wrapper centers it on the text line. No optical
+     translateY nudges — the row grid handles alignment. */
 }
 
 /* Ghost pseudo-block bullets */
