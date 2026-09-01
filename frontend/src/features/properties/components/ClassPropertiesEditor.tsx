@@ -2,14 +2,15 @@
  * ClassPropertiesEditor - Component for editing which properties a Class has
  *
  * This allows defining which properties nodes with this class will have.
- * Properties defined here are separate from inherited properties.
+ * Direct properties are editable; properties inherited from extended classes
+ * are shown in a separate read-only table below.
  *
  * Uses ListSortable for drag-and-drop reordering.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
 import './ClassPropertiesEditor.css';
-import { useClassProperties, useAddPropertyToClass, useRemovePropertyFromClass, useReorderClassProperties, useCreateProperty, useProperties, useUpdateClassProperty } from '../hooks';
+import { useClassProperties, useInheritedProperties, useAddPropertyToClass, useRemovePropertyFromClass, useReorderClassProperties, useCreateProperty, useProperties, useUpdateClassProperty } from '../hooks';
 import { Button } from '@/components/ui/Button';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { NodeViewSection } from '@/features/content';
@@ -18,7 +19,7 @@ import { Icon, PropertiesIcon } from '@/components/ui/icons';
 import { ListSortable } from '@/components/ui/ListSortable';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { useNavigationStore } from '@/stores';
-import type { Property, PropertyCreate } from '@/types/api';
+import type { Property, PropertyCreate, InheritedProperty } from '@/types/api';
 import { getMdiClass } from '@/utils/iconDom';
 import './PropertiesSection.css';
 import { DefaultValueEditor } from './DefaultValueEditor';
@@ -28,6 +29,12 @@ import { PROPERTY_TYPE_ICONS } from '../utils/constants';
 
 function getPropertyIconPath(property: Property): string | null {
   const name = property.icon || PROPERTY_TYPE_ICONS[property.type] || 'mdiFileDocumentOutline';
+  return getMdiClass(name);
+}
+
+/** Inherited rows carry no custom icon, so fall back straight to the type default */
+function getInheritedPropertyIconPath(property: InheritedProperty): string | null {
+  const name = PROPERTY_TYPE_ICONS[property.property_type] || 'mdiFileDocumentOutline';
   return getMdiClass(name);
 }
 
@@ -130,6 +137,7 @@ export function ClassPropertiesEditor({
 
   // Fetch current class properties (direct only, not inherited)
   const { data: classProperties, isLoading } = useClassProperties(classNodeUuid, false);
+  const { data: inheritedProperties } = useInheritedProperties(classNodeUuid);
   const { data: allProperties } = useProperties();
 
   // Mutations
@@ -186,6 +194,14 @@ export function ClassPropertiesEditor({
       .filter((item): item is SortablePropertyItem => item !== null);
   }, [classProperties, allProperties]);
 
+  // Inherited properties that are overridden by a direct edge already appear in
+  // the editable list above, so the read-only table only shows the rest.
+  const inheritedItems = useMemo(() => {
+    return [...(inheritedProperties ?? [])]
+      .filter(ip => !ip.is_overridden)
+      .sort((a, b) => a.sequence - b.sequence);
+  }, [inheritedProperties]);
+
   const handleAddProperty = useCallback((property: Property) => {
     addPropertyMutation.mutate(
       { classId: classNodeUuid, propertyId: property.uuid },
@@ -235,6 +251,7 @@ export function ClassPropertiesEditor({
   }
 
   return (
+    <>
     <NodeViewSection
       title="Class Properties"
       icon={<PropertiesIcon size="sm" />}
@@ -381,5 +398,35 @@ export function ClassPropertiesEditor({
         />
       )}
     </NodeViewSection>
+
+    {/* Read-only table of properties inherited from extended classes */}
+    <NodeViewSection
+      title="Inherited Properties"
+      icon={<PropertiesIcon size="sm" />}
+      count={inheritedItems.length}
+      className="inherited-properties-section"
+      defaultExpanded={false}
+      hideWhenEmpty={true}
+    >
+      <div className="class-properties-inherited__table">
+        {inheritedItems.map((item) => {
+          const path = getInheritedPropertyIconPath(item);
+          return (
+            <button
+              key={item.property_uuid}
+              type="button"
+              className="class-properties-inherited__row"
+              title={`Open property (inherited from ${item.from_class_name})`}
+              onClick={() => openPropertyView(item.property_uuid)}
+            >
+              {path && <Icon path={path} size={0.7} />}
+              <span className="class-properties-inherited__name">{item.property_name}</span>
+              <span className="class-properties-inherited__source">{item.from_class_name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </NodeViewSection>
+    </>
   );
 }
