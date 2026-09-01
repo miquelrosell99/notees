@@ -23,6 +23,7 @@ import { MetadataIcon, TableIcon } from '@/components/ui/icons';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { getWorkspaceStoreClient } from '@/core/adapters/workspaceStoreClientAdapter';
+import { classRowToNode } from '@/core/query/classes';
 import { uuidv7 } from '@/core/uuid';
 import { nodeNameToText } from '@/features/queries';
 import type { Node } from '@/types';
@@ -80,14 +81,30 @@ export function ClassView({ nodeUuid, viewMode, className = '' }: ClassViewProps
     addClassExtends.mutate({ classId: node.uuid, extendsClassId: extendsClass.uuid });
   }, [node, addClassExtends]);
 
-  const handleCreateExtends = useCallback(async (name: string) => {
-    if (!node || !workspaceUuid) return;
+  // NodeSelector's onCreateNew contract: return the created class and the
+  // selector routes it through onAdd (handleAddExtends), which adds the
+  // extends edge — adding it here too would double-add.
+  const handleCreateExtends = useCallback(async (name: string): Promise<Node> => {
+    if (!node || !workspaceUuid) throw new Error('Class view is not ready');
     const client = getWorkspaceStoreClient(workspaceUuid);
-    if (!client) return;
+    if (!client) throw new Error('Workspace store is not ready');
     const classId = uuidv7();
-    await client.mutate<void>('createClass', [{ classId, name: nodeNameToText(name) || name }]);
-    addClassExtends.mutate({ classId: node.uuid, extendsClassId: classId });
-  }, [node, workspaceUuid, addClassExtends]);
+    const className = nodeNameToText(name) || name;
+    await client.mutate<void>('createClass', [{ classId, name: className }]);
+    const now = new Date().toISOString();
+    return classRowToNode({
+      id: classId,
+      workspaceId: workspaceUuid,
+      name: className,
+      icon: null,
+      color: null,
+      description: null,
+      extendsClassIds: [],
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }, [node, workspaceUuid]);
 
   const handleRemoveExtends = useCallback((extendsClass: Node) => {
     if (!node) return;
