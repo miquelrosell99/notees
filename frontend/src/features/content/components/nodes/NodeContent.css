@@ -14,11 +14,13 @@
   min-height: var(--layout-size-2xl);
 }
 
-/* Separator line for content sections (bullet, document, card modes) */
+/* Separator line for content sections (bullet, document, card modes).
+   Children/cards keep top margin for spacing from properties. */
 .node-content-children,
 .node-content-cards {
   padding-top: var(--spacing-4);
   border-top: var(--border-width-default) solid var(--color-outline-variant);
+  margin-top: var(--spacing-4);
 }
 
 /* Empty state placeholder sits below the content area; it does not add its
@@ -28,20 +30,10 @@
   margin-top: 0;
 }
 
-/* Children/cards keep top margin for spacing from properties. */
-.node-content-children,
-.node-content-cards {
-  margin-top: var(--spacing-4);
-}
-
 @media (width <= 768px) {
   .node-content-children,
   .node-content-cards {
     padding-top: var(--spacing-2);
-  }
-
-  .node-content-children,
-  .node-content-cards {
     margin-top: var(--spacing-2);
   }
 

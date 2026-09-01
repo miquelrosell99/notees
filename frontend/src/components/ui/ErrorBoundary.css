@@ -35,7 +35,7 @@
   font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   font-family: var(--font-family-mono);
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .error-boundary-fallback__retry {

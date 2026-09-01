@@ -113,7 +113,7 @@
   font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
   line-height: 1.5;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .task-report__phase-error strong {

@@ -42,6 +42,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden; /* Ensure only content scrolls, not the panel itself */
+  animation: panel-fade-in var(--motion-duration-long) var(--motion-easing-standard);
 }
 
 /* ==================== Panel Positions ==================== */
@@ -49,6 +50,9 @@
 /* Right of button */
 .btn-panel--right {
   left: calc(100% + var(--spacing-2));
+
+  /* Adjust transform origin based on position */
+  transform-origin: left center;
 }
 
 .btn-panel--right.btn-panel--align-start {
@@ -67,6 +71,7 @@
 /* Left of button */
 .btn-panel--left {
   right: calc(100% + var(--spacing-2));
+  transform-origin: right center;
 }
 
 .btn-panel--left.btn-panel--align-start {
@@ -85,6 +90,7 @@
 /* Below button */
 .btn-panel--bottom {
   top: calc(100% + var(--spacing-2));
+  transform-origin: top center;
 }
 
 .btn-panel--bottom.btn-panel--align-start {
@@ -103,6 +109,7 @@
 /* Above button */
 .btn-panel--top {
   bottom: calc(100% + var(--spacing-2));
+  transform-origin: bottom center;
 }
 
 .btn-panel--top.btn-panel--align-start {
@@ -193,27 +200,6 @@
     opacity: var(--opacity-100);
     transform: scale(1);
   }
-}
-
-.btn-panel {
-  animation: panel-fade-in var(--motion-duration-long) var(--motion-easing-standard);
-}
-
-/* Adjust transform origin based on position */
-.btn-panel--right {
-  transform-origin: left center;
-}
-
-.btn-panel--left {
-  transform-origin: right center;
-}
-
-.btn-panel--bottom {
-  transform-origin: top center;
-}
-
-.btn-panel--top {
-  transform-origin: bottom center;
 }
 
 /* Keep alignment transforms when animating */

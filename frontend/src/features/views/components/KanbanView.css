@@ -71,6 +71,8 @@
   font-size: var(--font-size-base);
   color: var(--color-on-surface);
   flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
 }
 
 .node-kanban-view__kanban-icon {
@@ -154,11 +156,6 @@
 .node-kanban-view__kanban-column--collapsed .node-kanban-view__kanban-count {
   writing-mode: horizontal-tb;
   transform: rotate(90deg);
-}
-
-.node-kanban-view__kanban-header {
-  cursor: pointer;
-  user-select: none;
 }
 
 .node-kanban-view__kanban-header:hover {

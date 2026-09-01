@@ -36,7 +36,7 @@
 
 .add-identifier__field dd {
   margin: 0;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .add-identifier__class {

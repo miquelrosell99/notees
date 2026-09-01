@@ -562,6 +562,70 @@
   --layout-size-13xl: 800px;
   --layout-size-14xl: 900px;
 
+  /* ==================== Responsive Breakpoints ==================== */
+
+  /* CSS custom properties cannot be used in media queries, so breakpoints are
+     hardcoded across the codebase. Keep these tokens in sync with the px values
+     in: features/layout/components/TopBar.css, features/layout/components/Layout.css,
+     features/layout/components/MobileLayout.css, features/content/pages/NodeView.css. */
+  --breakpoint-mobile: 480px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-wide: 1440px;
+
+  /* === Functional tokens === */
+
+  /* Functional shadows */
+  --shadow-table-row-gutter: 1px 0 0 0 var(--color-outline-variant);
+  --shadow-drop-target: inset 0 -2px 0 var(--color-primary);
+  --shadow-error-underline: inset 0 -2px 0 var(--color-error);
+  --shadow-presence-ring: 0 0 0 1px rgb(0 0 0 / 10%);
+  --shadow-presence-text: 0 1px 2px rgb(0 0 0 / 30%);
+
+  /* Callout semantic colors */
+  --color-callout-warning: #8f6216;
+  --color-callout-warning-bg: rgb(143 98 22 / 8%);
+  --color-callout-tip: #3a756d;
+  --color-callout-tip-bg: rgb(58 117 109 / 8%);
+  --color-callout-danger: #b04a45;
+  --color-callout-danger-bg: rgb(176 74 69 / 8%);
+  --color-callout-success: #3d7253;
+  --color-callout-success-bg: rgb(61 114 83 / 8%);
+
+  /* === Semantic functional tokens === */
+
+  /* Focus / error rings */
+  --shadow-focus-ring: 0 0 0 2px var(--color-accent);
+  --shadow-focus-ring-thick: 0 0 0 3px var(--color-accent);
+  --shadow-focus-ring-primary: 0 0 0 2px var(--color-primary);
+  --shadow-focus-ring-primary-subtle: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  --shadow-focus-ring-primary-container: 0 0 0 2px var(--color-primary-container);
+  --shadow-error-ring: 0 0 0 2px var(--color-error);
+  --shadow-error-ring-thick: 0 0 0 3px color-mix(in srgb, var(--color-error) 10%, transparent);
+  --shadow-error-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
+  --shadow-error-ring-thin: 0 0 0 1px var(--color-error);
+  --shadow-outline-ring: 0 0 0 1px var(--color-outline);
+  --shadow-inset-outline-ring: inset 0 0 0 2px var(--color-outline);
+  --shadow-inset-primary-ring: inset 0 0 0 2px var(--color-primary);
+  --shadow-inset-accent-ring: inset 0 0 0 2px var(--color-accent);
+  --shadow-focus-ring-primary-thin: 0 0 0 1px var(--color-primary);
+  --shadow-success-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
+  --shadow-error-ring-ghost: 0 0 0 0 color-mix(in srgb, var(--color-error) 40%, transparent);
+
+  /* Motion easings */
+  --motion-easing-ease: ease;
+  --motion-easing-ease-in: ease-in;
+  --motion-easing-ease-out: ease-out;
+  --motion-easing-ease-in-out: ease-in-out;
+
+  /* Default node color RGB fallback */
+  --color-node-default-rgb: 128, 128, 128;
+
+  /* Runtime-overridden node color border variables.
+     TypeScript sets these dynamically per workspace/accent color;
+     these defaults ensure the properties are never undefined. */
+  --node-border-color: transparent;
+  --node-border-solid: transparent;
 }
 
 /* ==================== Dark Theme ==================== */
@@ -750,19 +814,6 @@
 /* OLED inherits the dark accent values above; accent colors are not dimmed further
    so primary actions stay legible on pure-black surfaces. */
 
-/* ==================== Responsive Breakpoints ==================== */
-
-/* CSS custom properties cannot be used in media queries, so breakpoints are
-   hardcoded across the codebase. Keep these tokens in sync with the px values
-   in: features/layout/components/TopBar.css, features/layout/components/Layout.css,
-   features/layout/components/MobileLayout.css, features/content/pages/NodeView.css. */
-:root {
-  --breakpoint-mobile: 480px;
-  --breakpoint-tablet: 768px;
-  --breakpoint-desktop: 1024px;
-  --breakpoint-wide: 1440px;
-}
-
 /* Mobile: shallower block indent so deep trees keep usable text width */
 @media (width <= 768px) {
   :root {
@@ -780,14 +831,28 @@
 
 /* Slide up + fade */
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Slide in from right */
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(100%); }
-  to   { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Continuous rotation — for loading spinners */
@@ -810,64 +875,16 @@
 
 /* Spring scale-up — for new item appearance */
 @keyframes popIn {
-  0%   { opacity: 0; transform: scale(0.85); }
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+
   60%  { transform: scale(1.04); }
-  100% { opacity: 1; transform: scale(1); }
-}
 
-/* === Functional tokens === */
-:root {
-  /* Functional shadows */
-  --shadow-table-row-gutter: 1px 0 0 0 var(--color-outline-variant);
-  --shadow-drop-target: inset 0 -2px 0 var(--color-primary);
-  --shadow-error-underline: inset 0 -2px 0 var(--color-error);
-  --shadow-presence-ring: 0 0 0 1px rgb(0 0 0 / 10%);
-  --shadow-presence-text: 0 1px 2px rgb(0 0 0 / 30%);
-
-  /* Callout semantic colors */
-  --color-callout-warning: #8f6216;
-  --color-callout-warning-bg: rgb(143 98 22 / 8%);
-  --color-callout-tip: #3a756d;
-  --color-callout-tip-bg: rgb(58 117 109 / 8%);
-  --color-callout-danger: #b04a45;
-  --color-callout-danger-bg: rgb(176 74 69 / 8%);
-  --color-callout-success: #3d7253;
-  --color-callout-success-bg: rgb(61 114 83 / 8%);
-}
-
-/* === Semantic functional tokens === */
-:root {
-  /* Focus / error rings */
-  --shadow-focus-ring: 0 0 0 2px var(--color-accent);
-  --shadow-focus-ring-thick: 0 0 0 3px var(--color-accent);
-  --shadow-focus-ring-primary: 0 0 0 2px var(--color-primary);
-  --shadow-focus-ring-primary-subtle: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
-  --shadow-focus-ring-primary-container: 0 0 0 2px var(--color-primary-container);
-  --shadow-error-ring: 0 0 0 2px var(--color-error);
-  --shadow-error-ring-thick: 0 0 0 3px color-mix(in srgb, var(--color-error) 10%, transparent);
-  --shadow-error-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
-  --shadow-error-ring-thin: 0 0 0 1px var(--color-error);
-  --shadow-outline-ring: 0 0 0 1px var(--color-outline);
-  --shadow-inset-outline-ring: inset 0 0 0 2px var(--color-outline);
-  --shadow-inset-primary-ring: inset 0 0 0 2px var(--color-primary);
-  --shadow-inset-accent-ring: inset 0 0 0 2px var(--color-accent);
-  --shadow-focus-ring-primary-thin: 0 0 0 1px var(--color-primary);
-  --shadow-success-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
-  --shadow-error-ring-ghost: 0 0 0 0 color-mix(in srgb, var(--color-error) 40%, transparent);
-
-  /* Motion easings */
-  --motion-easing-ease: ease;
-  --motion-easing-ease-in: ease-in;
-  --motion-easing-ease-out: ease-out;
-  --motion-easing-ease-in-out: ease-in-out;
-
-  /* Default node color RGB fallback */
-  --color-node-default-rgb: 128, 128, 128;
-
-  /* Runtime-overridden node color border variables.
-     TypeScript sets these dynamically per workspace/accent color;
-     these defaults ensure the properties are never undefined. */
-  --node-border-color: transparent;
-  --node-border-solid: transparent;
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
