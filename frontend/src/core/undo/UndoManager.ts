@@ -115,6 +115,9 @@ export class UndoManager {
    */
   recordSetNodeText(nodeId: string, value: string): void {
     const previousText = this.getNodeText(nodeId);
+    // setNodeText no-ops on unchanged content; skip the undo entry too so
+    // redundant saves don't push empty steps onto the undo stack.
+    if (previousText === value) return;
     this.store.setNodeText(nodeId, value);
     const entry: UndoEntry = {
       forward: () => this.store.setNodeText(nodeId, value),

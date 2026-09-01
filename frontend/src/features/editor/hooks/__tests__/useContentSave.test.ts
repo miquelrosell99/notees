@@ -151,4 +151,63 @@ describe('useContentSave', () => {
     const text = new TextDecoder().decode(store.getTextState(blockId));
     expect(text).toContain('Direct content');
   });
+
+  it('serializes saves per block so an older in-flight save cannot overwrite a newer one', async () => {
+    const blockId = uuidv7();
+    // A manager whose recordSetNodeText never resolves until the test says so,
+    // simulating a slow worker round-trip.
+    const calls: Array<{ value: string; resolve: () => void }> = [];
+    const applied: string[] = [];
+    const manager = {
+      recordSetNodeText: vi.fn(
+        (_nodeId: string, value: string) =>
+          new Promise<void>((resolve) => {
+            calls.push({
+              value,
+              resolve: () => {
+                applied.push(value);
+                resolve();
+              },
+            });
+          })
+      ),
+    } as unknown as UndoManagerClient;
+    const client = {
+      query: vi.fn(async () => new Uint8Array()),
+    } as unknown as IWorkspaceStoreClient;
+    mocks.useWorkspaceStoreClient.mockReturnValue({ client, isLoading: false, error: null });
+    mocks.useUndoManager.mockReturnValue(manager);
+
+    const { result } = renderHook(() => useContentSave());
+
+    // Issue two flushes in quick succession; the first save stays in flight.
+    act(() => {
+      result.current.handleContentChange(blockId, 'first');
+      void result.current.flushAll();
+      result.current.handleContentChange(blockId, 'second');
+      void result.current.flushAll();
+    });
+
+    // Let any (incorrectly) concurrent saves start.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    // The second save must wait for the first to complete; without
+    // serialization both would be in flight and landing order would be
+    // undefined (recordSetNodeText is a full-text SET, last writer wins).
+    expect(calls).toHaveLength(1);
+    expect(calls[0].value).toBe('first');
+
+    await act(async () => {
+      calls[0].resolve();
+    });
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].value).toBe('second');
+
+    await act(async () => {
+      calls[1].resolve();
+    });
+    expect(applied).toEqual(['first', 'second']);
+  });
 });

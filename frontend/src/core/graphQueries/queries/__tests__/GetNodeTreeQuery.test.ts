@@ -128,4 +128,28 @@ describe('GetNodeTreeQuery', () => {
     expect(GetNodeTreeQuery.shouldInvalidate({ nodeUuid: 'page', maxDepth: -1 }, { type: 'notify', nodeId: 'page' })).toBe(true);
     expect(GetNodeTreeQuery.shouldInvalidate({ nodeUuid: 'page', maxDepth: -1 }, { type: 'notify', nodeId: 'other' })).toBe(false);
   });
+
+  it('invalidates on class and property scoped notifications, but not node-scoped text saves', () => {
+    // Class assignment on any block changes what its row renders (pills);
+    // property changes likewise (icons). Both are rare, user-paced events.
+    expect(
+      GetNodeTreeQuery.shouldInvalidate(
+        { nodeUuid: 'page', maxDepth: -1 },
+        { type: 'notify', scope: 'class', nodeId: 'block-1' }
+      )
+    ).toBe(true);
+    expect(
+      GetNodeTreeQuery.shouldInvalidate(
+        { nodeUuid: 'page', maxDepth: -1 },
+        { type: 'notify', scope: 'property', nodeId: 'block-1' }
+      )
+    ).toBe(true);
+    // Text saves fire scope 'node' per block and must NOT refetch the tree.
+    expect(
+      GetNodeTreeQuery.shouldInvalidate(
+        { nodeUuid: 'page', maxDepth: -1 },
+        { type: 'notify', scope: 'node', nodeId: 'block-1' }
+      )
+    ).toBe(false);
+  });
 });
