@@ -24,6 +24,7 @@
     opacity: var(--opacity-0);
     transform: translateY(-4px);
   }
+
   to {
     opacity: var(--opacity-100);
     transform: translateY(0);
@@ -39,6 +40,7 @@
     opacity: var(--opacity-0);
     transform: translateY(4px);
   }
+
   to {
     opacity: var(--opacity-100);
     transform: translateY(0);
@@ -124,7 +126,7 @@
 
 .trigger-popup__filter-pill-remove:hover {
   opacity: var(--opacity-100);
-  background: color-mix(in srgb, currentColor 12%, transparent);
+  background: color-mix(in srgb, currentcolor 12%, transparent);
 }
 
 /* ─── Filter suggestions ────────────────────────────────────────── */

@@ -204,5 +204,6 @@
   display: block;
   z-index: var(--z-1);
   pointer-events: auto;
+
   /* Width / height set imperatively by ResizeObserver */
 }

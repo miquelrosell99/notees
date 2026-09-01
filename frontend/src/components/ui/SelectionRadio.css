@@ -15,8 +15,7 @@
 }
 
 .radio-group--horizontal {
-  flex-direction: row;
-  flex-wrap: wrap;
+  flex-flow: row wrap;
 }
 
 /* ── Option card ─────────────────────────────────────────────── */

@@ -32,6 +32,7 @@
 .text-field:focus {
   outline: none;
   border-bottom-color: var(--color-primary);
+
   /* Second 1px line via box-shadow gives a 2px active underline without layout shift */
   box-shadow: 0 1px 0 0 var(--color-primary);
 }

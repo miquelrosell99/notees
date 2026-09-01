@@ -17,6 +17,7 @@
 }
 
 /* ==================== Calendar Header ==================== */
+
 /* Single row, two columns: date navigation left, zoom selector right */
 .calendar-header {
   display: flex;
@@ -208,9 +209,11 @@
   0% {
     transform: scale(1.15);
   }
+
   50% {
     transform: scale(1.05);
   }
+
   100% {
     transform: scale(1);
   }

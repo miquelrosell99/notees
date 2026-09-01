@@ -44,14 +44,14 @@
   padding: 0;
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .classes-view__header {
     padding-left: var(--spacing-4);
     padding-right: var(--spacing-4);
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .classes-view__header {
     padding-left: var(--spacing-3);
     padding-right: var(--spacing-3);

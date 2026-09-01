@@ -13,6 +13,7 @@
   grid-template-areas:
     "left content"
     ".    after";
+
   /* Anchor the bullet column to the top so the bullet (which lives in a
      one-line-tall .block-ui) stays centered on the first line of text even
      when the content wraps to multiple lines. `center` would vertically center
@@ -33,6 +34,7 @@
   min-height: 1.3em;
   line-height: 1.4;
   font: var(--font-body-small);
+
   /* Tighter indent for nested blocks */
   margin-left: calc(var(--node-block-depth, 0) * var(--spacing-4));
 }
@@ -154,6 +156,7 @@
 }
 
 /* ─── Selected state (block selection via Escape / keyboard / drag) ─ */
+
 /* Driven by data-selected on the bullet wrapper (set by useBlockSelection). */
 
 /* Selection overlay card */
@@ -227,7 +230,7 @@
   width: var(--shape-medium);
   height: var(--shape-medium);
   border-radius: 50%;
-  background: currentColor;
+  background: currentcolor;
   opacity: var(--opacity-50);
   flex-shrink: 0;
 }
@@ -274,6 +277,7 @@ body.notees-dragging-block .node-block:hover {
 }
 
 /* ─── Property editor context ─────────────────────────────────── */
+
 /* Text properties embed a mini block editor inside a table cell. */
 
 .block-row[data-property-editor="true"] {
@@ -288,4 +292,5 @@ body.notees-dragging-block .node-block:hover {
 }
 
 /* ─── Touch swipe indent / outdent (mobile) ─────────────────────── */
+
 /* Driven by data-swipe on the bullet wrapper (set by useTouchIndent). */

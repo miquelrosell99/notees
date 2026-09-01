@@ -45,11 +45,9 @@ svg[class*="icon"],
   width: 100dvw;
   overflow: hidden;
   background: var(--color-background);
+
   /* Safe-area for notch/home-bar devices (desktop no-ops to 0) */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 .app-workspace {

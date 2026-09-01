@@ -10,13 +10,11 @@
   font-family: var(--font-family-base);
   line-height: 1.5;
   font-weight: 400;
-
   color-scheme: light;
   color: var(--color-on-background);
   background-color: var(--color-background);
-
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  text-rendering: optimizelegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -48,6 +46,7 @@ body {
   margin: 0;
   min-width: var(--layout-body-min-width);
   min-height: 100vh;
+
   /* App UI should not behave like a selectable document. Editable areas are
      re-enabled below via [contenteditable], input, and textarea overrides. */
   user-select: none;
@@ -148,7 +147,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 
 /* Mobile: slightly smaller placeholder text */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .property-placeholder {
     font-size: 0.8em;
   }
@@ -160,7 +159,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-@media (max-width: 768px), (hover: none) {
+@media (width <= 768px), (hover: none) {
   .hover-reveal {
     opacity: var(--opacity-100) !important;
     pointer-events: auto !important;

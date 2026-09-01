@@ -6,6 +6,7 @@
 
 
 /* ==================== Top Bar Card Container ==================== */
+
 /* The card uses variant="transparent", so no container overrides are needed.
    Focus mode — dim the chrome, reveal on hover. Driven by data-focus-mode
    on the Card root (set by TopBar.tsx). */
@@ -156,6 +157,7 @@
 }
 
 /* ==================== Toolbar Buttons ==================== */
+
 /* Additional toolbar button styles work with Button component */
 
 /* ==================== Node View Controls ==================== */
@@ -174,6 +176,7 @@
 }
 
 /* ==================== Mobile TopBar ==================== */
+
 /*
  * On mobile, hide desktop-only controls (back/forward, undo/redo,
  * separators, scratchpad) to leave only the
@@ -181,7 +184,7 @@
  * The right-sidebar toggle stays visible — it is the entry point for
  * the References bottom sheet.
  */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .top-bar {
     padding: var(--spacing-2) var(--spacing-2);
     gap: var(--spacing-2);
@@ -216,7 +219,7 @@
 }
 
 /* Very small screens: hide calendar to reduce header clutter (journal is in sidebar) */
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .top-bar-calendar-container {
     display: none;
   }
@@ -235,7 +238,7 @@
   animation: spin 1s var(--motion-easing-linear) infinite;
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .auto-export-indicator {
     display: none;
   }

@@ -70,6 +70,7 @@
 
 .class-header__title:focus-visible {
   outline: none;
+
   /* Underline instead of a boxed focus ring */
   box-shadow: 0 var(--border-width-thick) 0 0 var(--color-primary);
 }

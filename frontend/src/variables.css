@@ -7,36 +7,36 @@
 
 :root {
   /* ==================== Primary (Monochrome) ==================== */
-  --color-primary: #111111;
-  --color-on-primary: #ffffff;
+  --color-primary: #111;
+  --color-on-primary: #fff;
   --color-primary-container: #f0f0f0;
-  --color-on-primary-container: #111111;
+  --color-on-primary-container: #111;
   --color-primary-hover: #1a1a1a;
-  --color-primary-pressed: #333333;
+  --color-primary-pressed: #333;
 
   /* Absolute black/white for contrast-math results (e.g. text on user-chosen colors) */
-  --color-black: #000000;
-  --color-white: #ffffff;
+  --color-black: #000;
+  --color-white: #fff;
 
   /* ==================== Secondary ==================== */
-  --color-secondary: #333333;
-  --color-on-secondary: #ffffff;
+  --color-secondary: #333;
+  --color-on-secondary: #fff;
   --color-secondary-container: #f7f7f7;
-  --color-on-secondary-container: #333333;
-  --color-secondary-hover: #555555;
-  --color-secondary-pressed: #444444;
+  --color-on-secondary-container: #333;
+  --color-secondary-hover: #555;
+  --color-secondary-pressed: #444;
 
   /* ==================== Tertiary ==================== */
-  --color-tertiary: #555555;
-  --color-on-tertiary: #ffffff;
+  --color-tertiary: #555;
+  --color-on-tertiary: #fff;
   --color-tertiary-container: #f0f0f0;
-  --color-on-tertiary-container: #333333;
-  --color-tertiary-hover: #444444;
-  --color-tertiary-pressed: #333333;
+  --color-on-tertiary-container: #333;
+  --color-tertiary-hover: #444;
+  --color-tertiary-pressed: #333;
 
   /* ==================== Error ==================== */
   --color-error: #c0392b;
-  --color-on-error: #ffffff;
+  --color-on-error: #fff;
   --color-error-container: #fdecea;
   --color-on-error-container: #611a15;
   --color-error-hover: #a83227;
@@ -44,32 +44,33 @@
 
   /* ==================== Warning ==================== */
   --color-warning: #8f6216;
-  --color-on-warning: #ffffff;
+  --color-on-warning: #fff;
   --color-warning-container: #fffbeb;
   --color-on-warning-container: #78350f;
 
   /* ==================== Success ==================== */
   --color-success: #3d7253;
-  --color-on-success: #ffffff;
+  --color-on-success: #fff;
   --color-success-container: #d1fae5;
   --color-on-success-container: #14532d;
 
   /* ==================== Background & Surface ==================== */
+
   /* Warm paper workspace — identity foundation for Notees */
   --color-background: #f5f3ef;
   --color-on-background: #1a1a1a;
-  --color-surface: #ffffff;
+  --color-surface: #fff;
   --color-on-surface: #1a1a1a;
   --color-surface-variant: #f0ede8;
   --color-on-surface-variant: #5c5c5c;
   --color-surface-dim: #e5e1d9;
-  --color-surface-bright: #ffffff;
+  --color-surface-bright: #fff;
   --color-surface-container: #faf8f4;
   --color-surface-container-active: color-mix(in srgb, var(--color-surface-container) 75%, black);
   --color-surface-container-low: #f5f3ef;
   --color-surface-container-high: #eae6df;
   --color-surface-container-highest: #dad6cf;
-  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-lowest: #fff;
   --color-inverse-surface: #1a1a1a;
   --color-inverse-on-surface: #f5f3ef;
   --color-inverse-primary: #a8a29e;
@@ -77,19 +78,19 @@
   /* ==================== Outline & Utility ==================== */
   --color-outline: #c4bfb6;
   --color-outline-variant: #e3ded6;
-  --color-shadow: rgba(0, 0, 0, 0.08);
-  --color-scrim: rgba(0, 0, 0, 0.5);
+  --color-shadow: rgb(0 0 0 / 8%);
+  --color-scrim: rgb(0 0 0 / 50%);
 
   /* ==================== State ==================== */
   --color-disabled: #d4d4d4;
   --color-on-disabled: #a3a3a3;
-  --color-hover-overlay: rgba(0, 0, 0, 0.04);
-  --color-focus-overlay: rgba(0, 0, 0, 0.08);
-  --color-pressed-overlay: rgba(0, 0, 0, 0.12);
+  --color-hover-overlay: rgb(0 0 0 / 4%);
+  --color-focus-overlay: rgb(0 0 0 / 8%);
+  --color-pressed-overlay: rgb(0 0 0 / 12%);
 
   /* ==================== Accent (monochrome default) ==================== */
   --color-accent: #404040;
-  --color-on-accent: #ffffff;
+  --color-on-accent: #fff;
   --color-accent-hover: color-mix(in srgb, var(--color-accent) 90%, black);
   --color-accent-active: color-mix(in srgb, var(--color-accent) 80%, black);
   --color-accent-subtle: #737373;
@@ -106,21 +107,18 @@
   --graph-node-path: #b4763e;
 
   /* Graph UI surfaces */
-  --graph-btn-bg: rgba(255, 255, 255, 0.8);
-  --graph-btn-border: rgba(163, 163, 163, 0.5);
-  --graph-btn-color: rgba(64, 64, 64, 0.8);
-  --graph-btn-hover-bg: rgba(245, 245, 245, 0.95);
-  --graph-btn-hover-color: #111111;
-
-  --graph-stats-bg: rgba(0, 0, 0, 0.45);
-  --graph-stats-color: rgba(82, 82, 82, 0.85);
-
-  --graph-tooltip-bg: rgba(255, 255, 255, 0.9);
-  --graph-tooltip-border: rgba(212, 212, 212, 0.7);
-  --graph-tooltip-color: rgba(40, 40, 40, 0.9);
-  --graph-tooltip-edge-color: rgba(180, 83, 9, 0.95);
-
-  --graph-fallback-msg-color: rgba(130, 130, 130, 0.65);
+  --graph-btn-bg: rgb(255 255 255 / 80%);
+  --graph-btn-border: rgb(163 163 163 / 50%);
+  --graph-btn-color: rgb(64 64 64 / 80%);
+  --graph-btn-hover-bg: rgb(245 245 245 / 95%);
+  --graph-btn-hover-color: #111;
+  --graph-stats-bg: rgb(0 0 0 / 45%);
+  --graph-stats-color: rgb(82 82 82 / 85%);
+  --graph-tooltip-bg: rgb(255 255 255 / 90%);
+  --graph-tooltip-border: rgb(212 212 212 / 70%);
+  --graph-tooltip-color: rgb(40 40 40 / 90%);
+  --graph-tooltip-edge-color: rgb(180 83 9 / 95%);
+  --graph-fallback-msg-color: rgb(130 130 130 / 65%);
 
   /* ==================== Component Height Scale ==================== */
   --height-xs: 24px;
@@ -155,6 +153,7 @@
   --border-width-thick: 2px;
   --border-width-medium: 1.5px;
   --border-width-extra-thick: 3px;
+
   /* Colored node/page borders — thicker than the standard scale because they
      serve as a strong identity signal. */
   --border-width-node-color: 4px;
@@ -178,9 +177,9 @@
   --icon-size-2xl: 40px;
 
   /* ==================== Typography ==================== */
-  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-family-display: Georgia, 'Times New Roman', serif;
-  --font-family-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  --font-family-base: 'Inter', -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-family-display: georgia, 'Times New Roman', serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', consolas, monospace;
 
   /* Font weights */
   --font-weight-regular: 400;
@@ -236,6 +235,7 @@
   --letter-spacing-section: 0.08em;
 
   /* ==================== Elevation (Box Shadows) ==================== */
+
   /* Design system: zero visual noise — elevation is always none */
   --elevation-0: none;
   --elevation-1: none;
@@ -281,7 +281,6 @@
   --motion-duration-caret-resize: 120ms;
   --motion-duration-caret-breathe: 850ms;
   --motion-duration-caret-breathe-slow: 1400ms;
-
   --motion-easing-standard: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-emphasized: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-decelerate: cubic-bezier(0, 0, 0, 1);
@@ -348,7 +347,6 @@
   --z-floating: 10002;       /* context menus / dropdowns rendered above modals */
   --z-tooltip: 10003;
   --z-skip-link: 99999;
-
   --z-0: 0;
   --z-1: 1;
   --z-2: 2;
@@ -373,10 +371,12 @@
   --topbar-height: 44px;
   --container-gap: 8px;
   --container-radius: var(--shape-large);
+
   /* Mobile bottom sheet / FAB clearance */
   --mobile-bottom-sheet-height: 72px;
 
   /* ==================== Block Layout ==================== */
+
   /* Spacing system for the block tree. All block chrome positions are
      derived from these tokens so that changes require no manual recalculation. */
   --block-indent-step: 34px;
@@ -417,6 +417,7 @@
   --panel-width-xs: 110px;
   --presence-avatar-font-size: var(--font-size-3xs);
   --qr-size: 256px;
+
   /* QR codes must keep a light mat in every theme or scanners fail;
      intentionally not themed (like --color-white). */
   --qr-background: var(--color-white);
@@ -453,6 +454,7 @@
   --spacing-7: 1.75rem;
 
   /* ==================== Legacy variable aliases ==================== */
+
   /* These map older/one-off variable names to the canonical design tokens
      so existing component CSS continues to resolve without undefined tokens. */
   --primary: var(--color-primary);
@@ -519,6 +521,7 @@
   --font-size-2xl: var(--font-size-lg);
   --page-title-size: var(--font-headline-medium);
   --z-toast: var(--z-tooltip);
+
   /* Generic layout dimensions for one-off component sizes */
   --layout-body-min-width: 320px;
   --layout-dialog-min-width: 320px;
@@ -565,7 +568,7 @@
 [data-theme="dark"] {
   /* Primary */
   --color-primary: #e5e5e5;
-  --color-on-primary: #111111;
+  --color-on-primary: #111;
   --color-primary-container: #262626;
   --color-on-primary-container: #e5e5e5;
   --color-primary-hover: #d4d4d4;
@@ -573,7 +576,7 @@
 
   /* Secondary */
   --color-secondary: #c0c0c0;
-  --color-on-secondary: #111111;
+  --color-on-secondary: #111;
   --color-secondary-container: #262626;
   --color-on-secondary-container: #d4d4d4;
   --color-secondary-hover: #d4d4d4;
@@ -581,25 +584,25 @@
 
   /* Tertiary */
   --color-tertiary: #9e9e9e;
-  --color-on-tertiary: #111111;
+  --color-on-tertiary: #111;
   --color-tertiary-container: #262626;
   --color-on-tertiary-container: #c0c0c0;
 
   /* Error */
   --color-error: #ef5550;
-  --color-on-error: #111111;
+  --color-on-error: #111;
   --color-error-container: #611a15;
   --color-on-error-container: #fdecea;
 
   /* Warning */
   --color-warning: #f28b3f;
-  --color-on-warning: #111111;
+  --color-on-warning: #111;
   --color-warning-container: #78350f;
   --color-on-warning-container: #fffbeb;
 
   /* Success */
   --color-success: #29b672;
-  --color-on-success: #111111;
+  --color-on-success: #111;
   --color-success-container: #14532d;
   --color-on-success-container: #d1fae5;
 
@@ -624,15 +627,15 @@
   /* Outline & Utility */
   --color-outline: #6b6962;
   --color-outline-variant: #2a2926;
-  --color-shadow: rgba(0, 0, 0, 0.5);
-  --color-scrim: rgba(0, 0, 0, 0.7);
+  --color-shadow: rgb(0 0 0 / 50%);
+  --color-scrim: rgb(0 0 0 / 70%);
 
   /* State */
   --color-disabled: #404040;
   --color-on-disabled: #a8a29e;
-  --color-hover-overlay: rgba(255, 255, 255, 0.05);
-  --color-focus-overlay: rgba(255, 255, 255, 0.08);
-  --color-pressed-overlay: rgba(255, 255, 255, 0.12);
+  --color-hover-overlay: rgb(255 255 255 / 5%);
+  --color-focus-overlay: rgb(255 255 255 / 8%);
+  --color-pressed-overlay: rgb(255 255 255 / 12%);
 
   /* Accent — default to sage in dark mode so primary actions stay readable */
   --color-accent: #7FB285;
@@ -650,105 +653,105 @@
   --graph-node-path: #d4a24a;
 
   /* Graph UI surfaces */
-  --graph-btn-bg: rgba(23, 23, 23, 0.75);
-  --graph-btn-border: rgba(82, 82, 82, 0.5);
-  --graph-btn-color: rgba(212, 212, 212, 0.8);
-  --graph-btn-hover-bg: rgba(38, 38, 38, 0.9);
+  --graph-btn-bg: rgb(23 23 23 / 75%);
+  --graph-btn-border: rgb(82 82 82 / 50%);
+  --graph-btn-color: rgb(212 212 212 / 80%);
+  --graph-btn-hover-bg: rgb(38 38 38 / 90%);
   --graph-btn-hover-color: #e5e5e5;
-
-  --graph-stats-bg: rgba(0, 0, 0, 0.55);
-  --graph-stats-color: rgba(163, 163, 163, 0.85);
-
-  --graph-tooltip-bg: rgba(23, 23, 23, 0.85);
-  --graph-tooltip-border: rgba(82, 82, 82, 0.5);
-  --graph-tooltip-color: rgba(212, 212, 212, 0.9);
-  --graph-tooltip-edge-color: rgba(212, 175, 55, 0.95);
-
-  --graph-fallback-msg-color: rgba(163, 163, 163, 0.55);
+  --graph-stats-bg: rgb(0 0 0 / 55%);
+  --graph-stats-color: rgb(163 163 163 / 85%);
+  --graph-tooltip-bg: rgb(23 23 23 / 85%);
+  --graph-tooltip-border: rgb(82 82 82 / 50%);
+  --graph-tooltip-color: rgb(212 212 212 / 90%);
+  --graph-tooltip-edge-color: rgb(212 175 55 / 95%);
+  --graph-fallback-msg-color: rgb(163 163 163 / 55%);
 }
 
 /* ==================== OLED Pure-Black Overrides ==================== */
 [data-oled="true"] {
-  --color-background: #000000;
+  --color-background: #000;
   --color-on-background: #e5e5e5;
-  --color-surface: #000000;
+  --color-surface: #000;
   --color-surface-variant: #0a0a0a;
-  --color-surface-dim: #000000;
-  --color-surface-bright: #111111;
-  --color-surface-container: #000000;
-  --color-surface-container-low: #000000;
+  --color-surface-dim: #000;
+  --color-surface-bright: #111;
+  --color-surface-container: #000;
+  --color-surface-container-low: #000;
   --color-surface-container-high: #0a0a0a;
   --color-surface-container-highest: #171717;
-  --color-surface-container-lowest: #000000;
+  --color-surface-container-lowest: #000;
   --color-outline-variant: #1a1a1a;
 }
 
 /* ==================== Functional Accent Colors ==================== */
+
 /* Placed after the dark theme so user-selected accent colors win in both
    light and dark modes. */
 [data-accent="monochrome"] {
   --color-accent: #404040;
   --color-accent-subtle: #737373;
-  --color-on-accent: #ffffff;
+  --color-on-accent: #fff;
 }
 
 [data-accent="sage"] {
   --color-accent: #527051;
   --color-accent-subtle: #6f8a6d;
-  --color-on-accent: #ffffff;
+  --color-on-accent: #fff;
 }
 
 [data-accent="teal"] {
   --color-accent: #2D6B5B;
   --color-accent-subtle: #5A9A8A;
-  --color-on-accent: #ffffff;
+  --color-on-accent: #fff;
 }
 
 [data-accent="rose"] {
   --color-accent: #8B5B5B;
   --color-accent-subtle: #B88B8B;
-  --color-on-accent: #ffffff;
+  --color-on-accent: #fff;
 }
 
 [data-accent="navy"] {
   --color-accent: #1E3A5F;
   --color-accent-subtle: #4E6A8F;
-  --color-on-accent: #ffffff;
+  --color-on-accent: #fff;
 }
 
 [data-accent="custom"] {
   --color-accent: var(--color-accent-custom, #404040);
-  --color-on-accent: var(--color-on-accent-custom, #ffffff);
+  --color-on-accent: var(--color-on-accent-custom, #fff);
   --color-accent-subtle: color-mix(in srgb, var(--color-accent) 72%, var(--color-on-accent));
 }
 
 /* ==================== Dark-mode accent overrides ==================== */
+
 /* Lightened/desaturated accents so primary buttons remain readable on dark surfaces. */
 [data-theme="dark"][data-accent="sage"] {
   --color-accent: #7FB285;
   --color-accent-subtle: #648868;
-  --color-on-accent: #000000;
+  --color-on-accent: #000;
 }
 
 [data-theme="dark"][data-accent="teal"] {
   --color-accent: #5DB5A0;
-  --color-on-accent: #000000;
+  --color-on-accent: #000;
 }
 
 [data-theme="dark"][data-accent="rose"] {
   --color-accent: #C98A8A;
-  --color-on-accent: #000000;
+  --color-on-accent: #000;
 }
 
 [data-theme="dark"][data-accent="navy"] {
   --color-accent: #5B7D9E;
-  --color-on-accent: #000000;
+  --color-on-accent: #000;
 }
 
 /* OLED inherits the dark accent values above; accent colors are not dimmed further
    so primary actions stay legible on pure-black surfaces. */
 
 /* ==================== Responsive Breakpoints ==================== */
+
 /* CSS custom properties cannot be used in media queries, so breakpoints are
    hardcoded across the codebase. Keep these tokens in sync with the px values
    in: features/layout/components/TopBar.css, features/layout/components/Layout.css,
@@ -761,7 +764,7 @@
 }
 
 /* Mobile: shallower block indent so deep trees keep usable text width */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   :root {
     --block-indent-step: 22px;
   }
@@ -818,18 +821,18 @@
   --shadow-table-row-gutter: 1px 0 0 0 var(--color-outline-variant);
   --shadow-drop-target: inset 0 -2px 0 var(--color-primary);
   --shadow-error-underline: inset 0 -2px 0 var(--color-error);
-  --shadow-presence-ring: 0 0 0 1px rgba(0, 0, 0, 0.1);
-  --shadow-presence-text: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-presence-ring: 0 0 0 1px rgb(0 0 0 / 10%);
+  --shadow-presence-text: 0 1px 2px rgb(0 0 0 / 30%);
 
   /* Callout semantic colors */
   --color-callout-warning: #8f6216;
-  --color-callout-warning-bg: rgba(143, 98, 22, 0.08);
+  --color-callout-warning-bg: rgb(143 98 22 / 8%);
   --color-callout-tip: #3a756d;
-  --color-callout-tip-bg: rgba(58, 117, 109, 0.08);
+  --color-callout-tip-bg: rgb(58 117 109 / 8%);
   --color-callout-danger: #b04a45;
-  --color-callout-danger-bg: rgba(176, 74, 69, 0.08);
+  --color-callout-danger-bg: rgb(176 74 69 / 8%);
   --color-callout-success: #3d7253;
-  --color-callout-success-bg: rgba(61, 114, 83, 0.08);
+  --color-callout-success-bg: rgb(61 114 83 / 8%);
 }
 
 /* === Semantic functional tokens === */

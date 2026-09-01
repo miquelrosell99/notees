@@ -11,6 +11,7 @@
   height: 100%;
   overflow: hidden;
   background: transparent;
+
   /* Prevent text selection during drag */
   user-select: none;
   -webkit-user-select: none;
@@ -24,6 +25,7 @@
   height: 100%;
   cursor: grab;
   touch-action: none; /* disable browser pan/zoom so we own all pointer events */
+
   /* Compositing hints: tell the browser this element repaints frequently
      and should be on its own GPU layer, isolated from the rest of the DOM. */
   will-change: contents;
@@ -107,6 +109,7 @@
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border: var(--border-width-default) solid var(--graph-tooltip-border);
+
   /* Design system: zero visual noise — no elevation shadows */
   color: var(--graph-tooltip-color);
   font-size: var(--font-size-sm);

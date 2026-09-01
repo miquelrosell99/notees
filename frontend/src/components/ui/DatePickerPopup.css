@@ -12,6 +12,7 @@
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
+
   /* Design system: zero visual noise — no elevation shadows */
   padding: var(--spacing-3);
   z-index: var(--z-popover);
@@ -55,6 +56,7 @@
 }
 
 /* ==================== Selected Date Indicator ==================== */
+
 /* Selected-day styles live in CalendarPopup.css, which DatePickerPopup reuses. */
 
 /*

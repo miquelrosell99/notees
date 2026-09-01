@@ -61,9 +61,11 @@
   0% {
     transform: scale(1);
   }
+
   50% {
     transform: scale(1.4);
   }
+
   100% {
     transform: scale(1.25);
   }
@@ -311,6 +313,7 @@
     opacity: var(--opacity-0);
     transform: translateX(40px);
   }
+
   to {
     opacity: var(--opacity-100);
     transform: translateX(0);
@@ -322,6 +325,7 @@
     opacity: var(--opacity-100);
     transform: translateX(0);
   }
+
   to {
     opacity: var(--opacity-0);
     transform: translateX(-40px);

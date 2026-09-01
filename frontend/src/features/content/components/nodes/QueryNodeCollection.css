@@ -94,8 +94,7 @@
 }
 
 .query-section__edit-modal .modal__content {
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden auto;
 }
 
 /* Edit form */

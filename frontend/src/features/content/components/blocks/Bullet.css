@@ -121,6 +121,7 @@ body.notees-dragging-block .bullet-interactive {
   width: 100%;
   height: 100%;
   cursor: inherit;
+
   /* The bullet wrapper lives in .block-ui, a one-line-tall (1.5em) row with
      line-height 1.5, so the line box is the alignment unit: centering the
      glyph vertically in the wrapper centers it on the text line. No optical
@@ -365,7 +366,7 @@ body.notees-dragging-block .bullet-interactive:hover .bullet-icon {
 }
 
 /* ─── Mobile: slightly smaller bullet wrapper to save horizontal space ─────── */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .bullet-sm {
     width: var(--spacing-5);
     height: var(--icon-size-md);

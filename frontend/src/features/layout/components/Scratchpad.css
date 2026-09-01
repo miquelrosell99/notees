@@ -23,6 +23,7 @@
     opacity: var(--opacity-0);
     transform: translateY(-10px);
   }
+
   to {
     opacity: var(--opacity-100);
     transform: translateY(0);

@@ -65,7 +65,7 @@
   padding: var(--spacing-1) var(--spacing-2);
   background: transparent;
   color: inherit;
-  border: var(--border-width-default) solid currentColor;
+  border: var(--border-width-default) solid currentcolor;
   border-radius: var(--radius-sm);
   cursor: pointer;
   font: inherit;

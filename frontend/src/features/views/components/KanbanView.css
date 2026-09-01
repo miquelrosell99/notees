@@ -42,6 +42,7 @@
   gap: var(--spacing-4);
   overflow-x: auto;
   padding: var(--spacing-2) 0;
+
   /* Override masonry — each kanban column is a single-column flex stack */
   column-count: unset;
   column-width: unset;

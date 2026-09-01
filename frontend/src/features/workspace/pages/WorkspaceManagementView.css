@@ -25,6 +25,7 @@
   flex-direction: column;
   padding: var(--spacing-6);
   margin: 0 auto;
+
   /* Clamp keeps the reading line comfortable on all viewports without
      hardcoding a one-off pixel width. */
   max-width: clamp(320px, 90vw, 56rem);
@@ -94,6 +95,7 @@
 /* Database grid (cards layout) */
 .workspace-management__grid {
   display: grid;
+
   /* 16rem is a token-friendly replacement for the previous 280px magic value. */
   grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
   gap: var(--spacing-4);
@@ -282,7 +284,7 @@
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .workspace-management__container {
     padding: var(--spacing-4);
   }

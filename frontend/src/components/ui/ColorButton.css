@@ -101,6 +101,7 @@
   opacity: var(--opacity-50);
   cursor: not-allowed;
 }
+
 /* Color Picker Popover */
 .color-btn-picker {
   background: var(--color-surface-container-high);

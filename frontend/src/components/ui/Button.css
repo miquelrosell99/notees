@@ -294,6 +294,7 @@
 }
 
 /* ==================== States ==================== */
+
 /* No pointer-events:none — disabled buttons must still show title tooltips. */
 .btn--disabled,
 .btn:disabled {
@@ -306,6 +307,7 @@
 }
 
 /* ==================== Loading State ==================== */
+
 /* A loading button is working, not greyed out — keep full opacity. */
 .btn--loading.btn--disabled,
 .btn--loading:disabled {

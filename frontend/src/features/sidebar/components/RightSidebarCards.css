@@ -79,9 +79,11 @@
   0% {
     background-color: var(--color-primary-container);
   }
+
   50% {
     background-color: var(--color-primary-container);
   }
+
   100% {
     background-color: transparent;
   }

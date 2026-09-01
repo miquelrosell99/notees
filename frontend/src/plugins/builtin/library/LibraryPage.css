@@ -394,7 +394,7 @@
   align-self: flex-start;
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .library-view__header,
   .library-view__sections,
   .library-view__content {

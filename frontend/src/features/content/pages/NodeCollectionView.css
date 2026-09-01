@@ -73,7 +73,7 @@
   padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .node-collection-view__header,
   .node-collection-view__results {
     padding-left: var(--spacing-4);
@@ -81,7 +81,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .node-collection-view__header,
   .node-collection-view__results {
     padding-left: var(--spacing-3);
