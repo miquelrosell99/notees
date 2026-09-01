@@ -196,7 +196,7 @@
 
 .callout-text {
   flex: 1;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Callout CSS variables (fallbacks for themes that don't define them) */

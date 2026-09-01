@@ -119,6 +119,10 @@ button.context-menu-item:hover:not(.disabled) {
   font-size: var(--font-size-md);
   color: var(--color-outline);
   margin-left: auto;
+
+  /* Arrow chevron rotates when submenu is open */
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+  display: inline-block;
 }
 
 .context-menu-item.has-submenu {
@@ -137,24 +141,32 @@ button.context-menu-item:hover:not(.disabled) {
   animation: submenu-collapse var(--motion-duration-long) var(--motion-easing-standard) forwards;
 }
 
-/* Arrow chevron rotates when submenu is open */
-.context-menu-arrow {
-  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
-  display: inline-block;
-}
-
 .context-menu-arrow--open {
   transform: rotate(90deg);
 }
 
 @keyframes submenu-expand {
-  from { opacity: var(--opacity-0); transform: translateY(calc(var(--spacing-1) * -1)); }
-  to   { opacity: var(--opacity-100); transform: translateY(0); }
+  from {
+    opacity: var(--opacity-0);
+    transform: translateY(calc(var(--spacing-1) * -1));
+  }
+
+  to {
+    opacity: var(--opacity-100);
+    transform: translateY(0);
+  }
 }
 
 @keyframes submenu-collapse {
-  from { opacity: var(--opacity-100); transform: translateY(0); }
-  to   { opacity: var(--opacity-0); transform: translateY(calc(var(--spacing-1) * -1)); }
+  from {
+    opacity: var(--opacity-100);
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: var(--opacity-0);
+    transform: translateY(calc(var(--spacing-1) * -1));
+  }
 }
 
 /* Custom content row — renders arbitrary React content inline in the menu */

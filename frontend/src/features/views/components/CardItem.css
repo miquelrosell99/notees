@@ -57,6 +57,9 @@
   grid-row: 1;
   height: auto;
   width: 100%;
+
+  /* Vertical layout covers use natural aspect ratio */
+  aspect-ratio: auto;
 }
 
 .node-card--cover-left .node-card__cover {
@@ -209,12 +212,6 @@
 
   /* Design system: zero visual noise — no elevation shadows */
   padding: var(--spacing-micro);
-}
-
-/* Vertical layout covers use natural aspect ratio */
-.node-card--cover-top .node-card__cover {
-  aspect-ratio: auto;
-  height: auto;
 }
 
 /* Masonry context: avoid breaks and fill column width. */

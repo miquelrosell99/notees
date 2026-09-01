@@ -71,10 +71,6 @@
   margin-top: var(--spacing-3);
 }
 
-.view-builder__result-preview {
-  /* Result preview container */
-}
-
 /* ==================== Result Preview ==================== */
 
 .view-builder__result-preview {

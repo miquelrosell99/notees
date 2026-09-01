@@ -18,15 +18,7 @@
   --wb-z-elements: var(--z-20);
   --wb-z-ui: var(--z-100);
   --wb-z-overlay: var(--z-1000);
-}
 
-/* ────────────────────────────────────────────────────────────── */
-
-/*  WHITEBOARD VIEW CONTAINER                                    */
-
-/* ────────────────────────────────────────────────────────────── */
-
-.whiteboard-view {
   position: relative;
   width: 100%;
   height: 100%;
@@ -38,6 +30,12 @@
   /* Hardware acceleration for smoother panning/zooming */
   transform: translateZ(0);
 }
+
+/* ────────────────────────────────────────────────────────────── */
+
+/*  WHITEBOARD VIEW CONTAINER                                    */
+
+/* ────────────────────────────────────────────────────────────── */
 
 /* ────────────────────────────────────────────────────────────── */
 
@@ -287,14 +285,57 @@
 }
 
 /* Handle Positions */
-.whiteboard-element__resize-handle--nw { top: calc(var(--spacing-xxs) * -1); left: calc(var(--spacing-xxs) * -1); cursor: nw-resize; }
-.whiteboard-element__resize-handle--n  { top: calc(var(--spacing-xxs) * -1); left: 50%; transform: translateX(-50%); cursor: n-resize; }
-.whiteboard-element__resize-handle--ne { top: calc(var(--spacing-xxs) * -1); right: calc(var(--spacing-xxs) * -1); cursor: ne-resize; }
-.whiteboard-element__resize-handle--e  { top: 50%; right: calc(var(--spacing-xxs) * -1); transform: translateY(-50%); cursor: e-resize; }
-.whiteboard-element__resize-handle--se { bottom: calc(var(--spacing-xxs) * -1); right: calc(var(--spacing-xxs) * -1); cursor: se-resize; }
-.whiteboard-element__resize-handle--s  { bottom: calc(var(--spacing-xxs) * -1); left: 50%; transform: translateX(-50%); cursor: s-resize; }
-.whiteboard-element__resize-handle--sw { bottom: calc(var(--spacing-xxs) * -1); left: calc(var(--spacing-xxs) * -1); cursor: sw-resize; }
-.whiteboard-element__resize-handle--w  { top: 50%; left: calc(var(--spacing-xxs) * -1); transform: translateY(-50%); cursor: w-resize; }
+.whiteboard-element__resize-handle--nw {
+  top: calc(var(--spacing-xxs) * -1);
+  left: calc(var(--spacing-xxs) * -1);
+  cursor: nw-resize;
+}
+
+.whiteboard-element__resize-handle--n {
+  top: calc(var(--spacing-xxs) * -1);
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: n-resize;
+}
+
+.whiteboard-element__resize-handle--ne {
+  top: calc(var(--spacing-xxs) * -1);
+  right: calc(var(--spacing-xxs) * -1);
+  cursor: ne-resize;
+}
+
+.whiteboard-element__resize-handle--e {
+  top: 50%;
+  right: calc(var(--spacing-xxs) * -1);
+  transform: translateY(-50%);
+  cursor: e-resize;
+}
+
+.whiteboard-element__resize-handle--se {
+  bottom: calc(var(--spacing-xxs) * -1);
+  right: calc(var(--spacing-xxs) * -1);
+  cursor: se-resize;
+}
+
+.whiteboard-element__resize-handle--s {
+  bottom: calc(var(--spacing-xxs) * -1);
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: s-resize;
+}
+
+.whiteboard-element__resize-handle--sw {
+  bottom: calc(var(--spacing-xxs) * -1);
+  left: calc(var(--spacing-xxs) * -1);
+  cursor: sw-resize;
+}
+
+.whiteboard-element__resize-handle--w {
+  top: 50%;
+  left: calc(var(--spacing-xxs) * -1);
+  transform: translateY(-50%);
+  cursor: w-resize;
+}
 
 /* Preserve centering transforms on edge handles when hovered */
 .whiteboard-element__resize-handle--n:hover { transform: translateX(-50%) scale(1.3); }
@@ -374,10 +415,25 @@
   transform: translate(-50%, -50%) scale(1.4);
 }
 
-.whiteboard-element__anchor--top    { top: 0; left: 50%; }
-.whiteboard-element__anchor--right  { top: 50%; left: 100%; }
-.whiteboard-element__anchor--bottom { top: 100%; left: 50%; }
-.whiteboard-element__anchor--left   { top: 50%; left: 0; }
+.whiteboard-element__anchor--top {
+  top: 0;
+  left: 50%;
+}
+
+.whiteboard-element__anchor--right {
+  top: 50%;
+  left: 100%;
+}
+
+.whiteboard-element__anchor--bottom {
+  top: 100%;
+  left: 50%;
+}
+
+.whiteboard-element__anchor--left {
+  top: 50%;
+  left: 0;
+}
 
 /* ────────────────────────────────────────────────────────────── */
 
@@ -397,9 +453,6 @@
   transition:
     box-shadow var(--motion-duration-medium) var(--motion-easing-standard),
     transform var(--motion-duration-medium) var(--motion-easing-standard);
-}
-
-.whiteboard-element:hover .whiteboard-card {
 }
 
 .whiteboard-card__header {
@@ -673,8 +726,15 @@
 }
 
 @keyframes wb-pop-in {
-  from { opacity: var(--opacity-0); transform: scale(0.95); }
-  to { opacity: var(--opacity-100); transform: scale(1); }
+  from {
+    opacity: var(--opacity-0);
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: var(--opacity-100);
+    transform: scale(1);
+  }
 }
 
 /* ─── Stroke style utility classes (applied via className on SVG elements) ─── */
