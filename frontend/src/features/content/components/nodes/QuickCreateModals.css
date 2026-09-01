@@ -33,7 +33,7 @@
   color: var(--color-error);
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .quick-create-modal__row {
     grid-template-columns: minmax(0, 1fr);
   }

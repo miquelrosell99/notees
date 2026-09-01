@@ -45,6 +45,7 @@
   text-overflow: ellipsis;
   direction: rtl;
   text-align: left;
+
   /* indent by icon width (18px) + gap (8px) so path aligns with the name */
   padding-left: calc(var(--spacing-6) + var(--spacing-micro));
   margin-bottom: var(--spacing-hairline);

@@ -34,7 +34,7 @@
   margin-top: var(--spacing-4);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .node-content-children,
   .node-content-cards {
     padding-top: var(--spacing-2);

@@ -39,7 +39,7 @@
   color: var(--color-on-surface-variant);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .whiteboards-view__header,
   .whiteboards-view__content {
     padding-left: var(--spacing-4);
@@ -47,7 +47,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .whiteboards-view__header,
   .whiteboards-view__content {
     padding-left: var(--spacing-3);

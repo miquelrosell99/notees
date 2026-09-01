@@ -16,7 +16,7 @@
 }
 
 /* Mobile: maximize width and reduce padding */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .node-view {
     max-width: 100%;
     padding: 0 var(--spacing-3) var(--spacing-4);
@@ -28,7 +28,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .node-view {
     padding: 0 var(--spacing-2) var(--spacing-3);
   }
@@ -104,6 +104,7 @@
 }
 
 /* Page header section - CSS Grid layout for pages */
+
 /* Grid: [header]     [cover] */
 .page-header-section {
   display: grid;
@@ -337,7 +338,7 @@
 /* ==================== Responsive Breakpoints ==================== */
 
 /* Tablet: reduce padding */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .page-header-section {
     grid-template-columns: 1fr;
   }
@@ -367,6 +368,7 @@
 }
 
 /* ==================== Focus Mode ==================== */
+
 /* Driven by data-focus-mode on the NodeView article root. */
 
 .node-view[data-focus-mode="true"] .node-view__banner {
@@ -390,7 +392,7 @@
 }
 
 /* Mobile: tighter spacing */
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .node-view-footer {
     flex-direction: column;
     gap: var(--spacing-2);

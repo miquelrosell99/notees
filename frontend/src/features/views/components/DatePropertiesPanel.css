@@ -4,8 +4,7 @@
   padding: var(--spacing-2);
   min-width: 15.625rem;
   max-height: var(--layout-size-9xl);
-  overflow-y: auto;
-  overflow-x: visible;
+  overflow: visible auto;
 }
 
 .date-properties-panel__list {

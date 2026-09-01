@@ -185,7 +185,7 @@
   opacity: var(--opacity-80);
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .shares-unified-view__header,
   .shares-unified-view__tabs,
   .shares-unified-view__panel {
@@ -194,7 +194,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .shares-unified-view__header,
   .shares-unified-view__tabs,
   .shares-unified-view__panel {

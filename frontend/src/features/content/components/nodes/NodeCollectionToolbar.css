@@ -59,7 +59,7 @@
 }
 
 /* Mobile: compact toolbar and hide overflow button if not needed */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .node-collection-toolbar {
     gap: var(--spacing-1);
   }

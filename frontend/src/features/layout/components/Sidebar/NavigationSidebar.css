@@ -17,6 +17,7 @@
   height: 100%;
   overflow: hidden;
   flex-shrink: 0;
+
   /* Let Card component provide floating appearance with border-radius and shadow */
 }
 
@@ -101,8 +102,7 @@
 /* ==================== Sidebar Content ==================== */
 .sidebar-content {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -434,6 +434,7 @@
 }
 
 /* ==================== Context Menu ==================== */
+
 /* Uses Panel component for base styling */
 .sidebar-context-menu {
   position: fixed;
@@ -563,8 +564,7 @@
 /* ==================== Sidebar Footer ==================== */
 .sidebar-footer {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
+  flex-flow: row wrap;
   gap: var(--spacing-micro);
   padding: var(--spacing-2) var(--spacing-2) var(--spacing-3);
 }
