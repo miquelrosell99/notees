@@ -14,6 +14,12 @@ If a bug is "local change disappears after a network mutation", check the **debo
 
 - Reference: `references/agents/operations.md`
 
+## **[lifecycle]** One-shot async effects must not be cancelled by cleanup
+
+Reloading a deep link lands on the home view while in-app navigation works: the effect's cleanup killed the only processing run (StrictMode remount) and the "already processed" ref guard blocked the retry. Use a generation counter, not cleanup cancellation, for one-shot async route/init effects.
+
+- Reference: `references/gotchas.md#lifecycle-one-shot-async-effects-must-not-be-cancelled-by-cleanup`
+
 ## Operation Log Immutability
 
 The operation log is immutable. Migrations must fix bad data by appending new operations, not by editing existing envelopes or adding client-side backward-compatibility shims.
