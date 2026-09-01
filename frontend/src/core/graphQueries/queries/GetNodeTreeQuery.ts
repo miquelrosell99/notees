@@ -105,6 +105,15 @@ export const GetNodeTreeQuery: GraphQuery<GetNodeTreeInput, GetNodeTreeOutput> =
     return { rows: getNodeTree(store.getDb(), i.nodeUuid, i.maxDepth) };
   },
   shouldInvalidate(i, n) {
-    return n.scope === 'tree' || n.scope === 'all' || n.nodeId === i.nodeUuid;
+    // 'class' and 'property' don't change the tree shape but do change what
+    // rows render (class pills, property icons), and they are rare, user-paced
+    // events — so a subtree refetch is safe and cheap.
+    return (
+      n.scope === 'tree' ||
+      n.scope === 'all' ||
+      n.scope === 'class' ||
+      n.scope === 'property' ||
+      n.nodeId === i.nodeUuid
+    );
   },
 };

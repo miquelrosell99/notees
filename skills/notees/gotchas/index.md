@@ -14,6 +14,18 @@ If a bug is "local change disappears after a network mutation", check the **debo
 
 - Reference: `references/agents/operations.md`
 
+## **[editor]** Full-text SET saves must be serialized per block; flush must await in-flight saves
+
+`useContentSave.saveBlock` fired concurrently per block lets an older full-text snapshot land last and erase newer keystrokes; the tree projection also never refreshes on `scope: 'node'` text saves, so editing surfaces must read live content via `useNode` and focus must await `flushAllContentSaves()`. `store.setNodeText` is diff-based and no-ops on unchanged content — no main-thread read-back compare needed.
+
+- Reference: `references/gotchas.md#editor-debounced-text-saves-must-be-serialized-per-block-and-awaited-on-flush`
+
+## **[query]** `GetNodeTreeQuery` must invalidate on `class`/`property` scopes
+
+Class pills / property icons on block rows go stale until reload otherwise — those notifications carry the block id, not the tree root. Never add `scope: 'node'` (fires per text save).
+
+- Reference: `references/gotchas.md#query-tree-driven-surfaces-must-invalidate-on-classproperty-scopes`
+
 ## **[lifecycle]** One-shot async effects must not be cancelled by cleanup
 
 Reloading a deep link lands on the home view while in-app navigation works: the effect's cleanup killed the only processing run (StrictMode remount) and the "already processed" ref guard blocked the retry. Use a generation counter, not cleanup cancellation, for one-shot async route/init effects.

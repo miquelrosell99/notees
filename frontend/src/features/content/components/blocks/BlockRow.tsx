@@ -219,8 +219,13 @@ export const BlockRow = memo(
       (cursorOffset?: number) => {
         if (readOnly || isLocked) return;
         pendingCursorOffsetRef.current = cursorOffset;
-        useEditorFocusStore.getState().focusBlock(node.uuid);
-        useEditorFocusStore.getState().setPendingFocus(node.uuid);
+        // Wait for pending/in-flight debounced saves before mounting the
+        // editor; otherwise a quick blur→refocus can initialize the editor
+        // with content captured before the blur flush landed.
+        void flushAllContentSaves().then(() => {
+          useEditorFocusStore.getState().focusBlock(node.uuid);
+          useEditorFocusStore.getState().setPendingFocus(node.uuid);
+        });
       },
       [node.uuid, readOnly, isLocked],
     );
@@ -255,9 +260,15 @@ export const BlockRow = memo(
       [],
     );
 
+    // Prefer the live store copy (`useNode` refetches on every notification for
+    // this block) over the tree-projection prop: text saves emit scope 'node',
+    // which does not invalidate GetNodeTreeQuery, so the projection lags behind
+    // after a save. Reading live content keeps the static view correct after
+    // blur and prevents editor remounts from initializing with stale text.
+    const liveContent = coreNode?.content ?? node.content ?? node.name;
     const contentAST = useMemo(
-      () => unwrapCrdtContentAst(parseAST(node.content ?? node.name)) as ContentAST,
-      [node.content, node.name],
+      () => unwrapCrdtContentAst(parseAST(liveContent)) as ContentAST,
+      [liveContent],
     );
     const { cycleTaskStatus } = useTaskActions(node);
 
@@ -507,7 +518,7 @@ export const BlockRow = memo(
       />
     ) : (
       <InlineContentStatic
-        name={node.content ?? node.name}
+        name={liveContent}
         placeholder={placeholder}
         blockId={node.uuid}
         onFocus={handleFocusStatic}

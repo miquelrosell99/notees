@@ -161,3 +161,24 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Drop cleanup-based cancellation for one-shot async route/init processing; arbitrate staleness with a monotonic generation counter checked after every `await` (see `useRouteAdapter.ts`). All side-effecting writes must be preceded by a generation check after the last await.
 
 **Prevent:** Any effect that (a) guards re-entry with an "already processed" ref and (b) awaits before writing state must either skip cleanup cancellation or reset the guard so a remount retries. Test one-shot URL/init effects under `<StrictMode>` with all guards satisfied on first mount.
+
+
+## **[editor]** Debounced text saves must be serialized per block and awaited on flush
+
+**Symptom:** Typed block content randomly disappears or reverts; text typed right before clicking away is lost; saving feels laggy the longer you edit one block.
+
+**Cause:** `useContentSave.saveBlock` fires fire-and-forget from both the 150ms debounce and the keystroke-interval forced flush, so two saves for the same block can be in flight at once; the worker services messages concurrently, and `recordSetNodeText` is an unconditional full-text SET — the older snapshot landing last wins. Two multipliers: (1) `BlockRow` read block content from the tree projection, which is not refreshed by `scope: 'node'` notifications, so a remounted editor initialized from stale text and its next save overwrote the flushed text; (2) `store.setNodeText` used full delete+insert per save, and `saveBlock` did a main-thread `getTextState` + full Yjs deserialize per save.
+
+**Fix:** Chain saves per block through a promise queue in `useContentSave` and make `flushAll` await in-flight queue tails, not just pending timers; derive `BlockRow` content from the live `useNode` row (`coreNode`) instead of the projection prop, and `await flushAllContentSaves()` in `handleFocusStatic` before focusing; make `setNodeText` diff-based (common prefix/suffix) and no-op on unchanged content, dropping the main-thread read-back compare. Covered by `useContentSave.test.ts` ("serializes saves per block…") and `workspaceStore.test.ts` ("setNodeText appends no operation…").
+
+**Prevent:** Any save path that issues full-text SET operations must be serialized per node and its flush must await in-flight writes. Never read "current block content" for editing surfaces from `GetNodeTreeQuery` projections — text saves only emit `scope: 'node'`, which deliberately does not invalidate the tree; read live via `useNode`/`useNodes`.
+
+## **[query]** Tree-driven surfaces must invalidate on `class`/`property` scopes
+
+**Symptom:** Adding a class to a block shows no pill until page reload; property icons on block rows go stale likewise.
+
+**Cause:** `GetNodeTreeQuery.shouldInvalidate` only matched `scope: 'tree' | 'all'` or the root node id, but class assignment emits `scope: 'class'` with the *block's* id (`derived/node.ts`) and property value changes emit `scope: 'property'` — neither matched, so `useBlockTree` never re-projected.
+
+**Fix:** `shouldInvalidate` also returns true for `scope: 'class'` and `scope: 'property'` (both rare, user-paced events, so the subtree refetch is cheap). Covered by `GetNodeTreeQuery.test.ts`.
+
+**Prevent:** When a new derived notification scope is added, check every `GraphQuery.shouldInvalidate` against it. Do not add `scope: 'node'` to tree queries — it fires per text save and would refetch the whole subtree on every debounced save.

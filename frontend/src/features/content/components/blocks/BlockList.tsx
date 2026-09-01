@@ -325,22 +325,36 @@ export function BlockList({
         return;
       }
       if (!client) return;
-      await flushAllContentSaves();
       const row = rowRefs.current.get(blockId);
       const cursor = row?.getCursorPosition() ?? 'empty';
 
-      if (cursor === 'empty' || cursor === 'end') {
-        const children = await client.query<string[]>('getChildren', [blockId]);
-        const hasChildren = children.length > 0;
-        let parentId: string | null = null;
-        if (hasChildren) {
-          // When a block already has children, create the new block as its first
-          // child instead of a sibling after the entire subtree.
-          parentId = blockId;
+      if (cursor === 'empty' || cursor === 'end' || cursor === 'start') {
+        // Resolve parent info from the already-projected tree instead of
+        // awaiting getChildren/getNode worker round-trips; fall back to the
+        // store when the row is not in the current projection. Pending text
+        // saves don't need to be flushed here: the create op is independent
+        // of them and their debounce/unmount flushes still run.
+        const flatNode = flatNodes.find((n) => n.node.uuid === blockId)?.node;
+        let hasChildren: boolean;
+        let parentId: string | null;
+        if (flatNode) {
+          hasChildren = flatNode.has_children ?? false;
+          parentId = flatNode.parent_uuid ?? null;
         } else {
-          const currentNode = await client.query<{ parentId: string | null } | undefined>('getNode', [blockId]);
+          const [children, currentNode] = await Promise.all([
+            client.query<string[]>('getChildren', [blockId]),
+            client.query<{ parentId: string | null } | undefined>('getNode', [blockId]),
+          ]);
+          if (cursor === 'start' && !currentNode) return;
+          hasChildren = children.length > 0;
           parentId = currentNode?.parentId ?? null;
-          if (!parentId && nodeUuid) {
+        }
+        if (cursor === 'empty' || cursor === 'end') {
+          if (hasChildren) {
+            // When a block already has children, create the new block as its first
+            // child instead of a sibling after the entire subtree.
+            parentId = blockId;
+          } else if (!parentId && nodeUuid) {
             parentId = nodeUuid;
           }
         }
@@ -349,22 +363,16 @@ export function BlockList({
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });
         setPendingFocus(newBlockId);
-      } else if (cursor === 'start') {
-        const currentNode = await client.query<{ parentId: string | null } | undefined>('getNode', [blockId]);
-        if (!currentNode) return;
-        const parentId = currentNode.parentId;
-        const newBlockId = await mutations.createBlock({
-          parentId,
-          contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-        });
-        setPendingFocus(newBlockId);
       } else {
+        // Split reads the block's latest text in the worker, so pending saves
+        // must be flushed first.
+        await flushAllContentSaves();
         const offset = row?.getCursorOffset() ?? 0;
         const newBlockId = await mutations.splitBlock({ blockId, atOffset: offset });
         setPendingFocus(newBlockId);
       }
     },
-    [onEnterProp, setPendingFocus, nodeUuid, client, mutations],
+    [onEnterProp, setPendingFocus, nodeUuid, client, mutations, flatNodes],
   );
 
   const handleBackspaceAtStart = useCallback(
