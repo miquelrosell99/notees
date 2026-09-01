@@ -96,7 +96,7 @@ Default views include `unlinked_references`, but no `.tsx` renders a `QuerySecti
 
 ## BlockList ignores `node.children` unless `localOnly`
 
-With a core client available, `useBlockTree` re-projects every node and resolves children via the store's `getChildren`, ignoring the `children` arrays on the `nodes` prop. Synthetic/computed trees (class hierarchy, scratchpad, previews) must pass `localOnly` (plumbed `QueryNodeCollection → NodeCollection → ListView → BlockList`) and set `has_children` on parent nodes.
+With a core client available, `useBlockTree` re-projects every node and resolves children via the store's `getChildren`, ignoring the `children` arrays on the `nodes` prop. Synthetic/computed trees (class hierarchy, scratchpad, previews) must pass `localOnly` (plumbed `QueryNodeCollection → NodeCollection → ListView → BlockList`) and set `has_children` on parent nodes. Two related traps: `useBlockTree` effects must depend on memoized primitive options, not the caller's inline `options` object (sync setState loop → "Maximum update depth exceeded"), and synthetic `Node.content` must be paragraph-wrapped or `InlineContentStatic` renders blank text.
 
 - Reference: `references/gotchas.md#views-blocklist-ignores-nodechildren-unless-localonly`
 
