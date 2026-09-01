@@ -16,6 +16,7 @@ import {
   useNodeViews, 
   useNodeViewQuery,
   useQuery_,
+  useQueryCount,
   useCreateNodeView,
   useUpdateQueryAST,
   useUpdateNodeView,
@@ -452,6 +453,12 @@ export function QueryNodeCollection({
     () => getExecutionAST(activeView?.query_ast, viewType, nodeUuid),
     [activeView, viewType, nodeUuid],
   );
+  // linked_references / extended_by have dedicated lazy data paths and never
+  // use this query; collapsed sections (hideContent) skip it too and only run
+  // a cheap COUNT query (below) for the header badge — the full query starts
+  // when the section is expanded. The `enabled` flag alone is not enough: the
+  // adapter gates execution on the AST being undefined.
+  const usesDedicatedPath = viewType === 'linked_references' || viewType === 'extended_by';
   const {
     data: queryResults,
     isLoading: queryLoading,
@@ -465,8 +472,8 @@ export function QueryNodeCollection({
     includeAllChildren: collectionViewMode === 'kanban',
     pagesOnly: queryPagesOnly,
     includeProperties: true,
-    enabled: !!activeView && !isPseudoNode && viewType !== 'linked_references' && viewType !== 'extended_by',
-    ast: viewExecutionAST,
+    enabled: !!activeView && !isPseudoNode && !usesDedicatedPath && !hideContent,
+    ast: hideContent || usesDedicatedPath ? undefined : viewExecutionAST,
   });
 
   // Pagination for linked references
@@ -621,7 +628,7 @@ export function QueryNodeCollection({
     isLoading: pseudoQueryLoading,
   } = useQuery_(
     {
-      query_ast: pseudoNodeAST ?? undefined,
+      query_ast: hideContent ? undefined : (pseudoNodeAST ?? undefined),
       runtime_params: {
         current_node_uuid: nodeUuid,
         current_node_id: nodeUuid,
@@ -633,7 +640,7 @@ export function QueryNodeCollection({
       include_properties: true,
     },
     {
-      enabled: isPseudoNode && !!pseudoNodeAST,
+      enabled: isPseudoNode && !!pseudoNodeAST && !hideContent,
       queryKey: queryKeys.pseudoNodeQuery(viewType, nodeUuid, collectionViewMode),
     }
   );
@@ -644,7 +651,7 @@ export function QueryNodeCollection({
     isLoading: inlineQueryLoading,
   } = useQuery_(
     {
-      query_ast: inlineQueryAST,
+      query_ast: hideContent ? undefined : inlineQueryAST,
       runtime_params: {
         current_node_uuid: nodeUuid,
         current_node_id: nodeUuid,
@@ -656,9 +663,35 @@ export function QueryNodeCollection({
       include_properties: true,
     },
     {
-      enabled: isInlineMode && !!inlineQueryAST,
+      enabled: isInlineMode && !!inlineQueryAST && !hideContent,
       queryKey: queryKeys.inlineQuery(nodeUuid, inlineQueryAST, collectionViewMode),
     }
+  );
+
+  // While collapsed, run only a COUNT query against the same execution AST so
+  // the header badge and hide-when-empty logic keep working without paying
+  // for full projection. linked_references / extended_by are excluded — they
+  // already have their own lazy count paths.
+  const countOnlyMode = hideContent && !isLinkedRefs && !isExtendedBy;
+  const countAST = isInlineMode ? inlineQueryAST
+    : (isPseudoNode ? pseudoNodeAST : viewExecutionAST);
+  const countQueryEnabled = countOnlyMode
+    && !!countAST
+    && !isEmptyQuery(countAST)
+    && (isInlineMode || isPseudoNode || !!activeView);
+  const {
+    data: collapsedCount,
+    isLoading: collapsedCountLoading,
+  } = useQueryCount(
+    {
+      query_ast: countAST,
+      runtime_params: {
+        current_node_uuid: nodeUuid,
+        current_node_id: nodeUuid,
+        current_node_name: nodeNameToText(nodeName),
+      },
+    },
+    { enabled: countQueryEnabled }
   );
 
   const rawResults = useMemo(() => {
@@ -679,6 +712,7 @@ export function QueryNodeCollection({
   const isQueryLoading = isLinkedRefs
     ? linkedReferencesLoading || linkedRefsCountLoading
     : isExtendedBy ? extendedByRows === undefined
+    : countOnlyMode ? collapsedCountLoading
     : isInlineMode ? inlineQueryLoading
     : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 
@@ -996,8 +1030,12 @@ export function QueryNodeCollection({
 
   // For linked references the total count (edge backlinks + property backlinks)
   // must be available even when the section is collapsed and the full hydration
-  // query is disabled. Other view types use the in-memory result set size.
-  const resultCount = isLinkedRefs ? linkedRefsCount : resultNodes.length;
+  // query is disabled. Collapsed non-linked sections use the COUNT query (the
+  // full node query only runs once expanded). Expanded sections use the
+  // in-memory result set size.
+  const resultCount = isLinkedRefs
+    ? linkedRefsCount
+    : countOnlyMode ? (collapsedCount ?? 0) : resultNodes.length;
 
   // Notify parent when result count changes
   useEffect(() => {
