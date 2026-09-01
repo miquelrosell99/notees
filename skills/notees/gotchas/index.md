@@ -78,6 +78,22 @@ Serverless behavior keys off `useConnectionMode()` / `useCapabilities()` (`front
 
 `app/db/schema/sql.py` evolves tables via guarded `ALTER TABLE` blocks (e.g. `pending_invite` dropped `node_id` at v5), but nothing fails CI when repository SQL still references the dropped column — the breakage only surfaces at runtime. After changing schema DDL, grep `app/features/**/repository.py` for the old column name.
 
+## Query hooks gate on the AST being undefined, not on `enabled`
+
+`useQueryAstAdapter` (`useExecuteQueryAdapter` / `useQueryResultsAdapter`) ignores the `enabled` option — execution is gated purely by `ast` being `undefined`. Passing `enabled: false` alone does NOT stop the worker `queryNodes` call. To suppress a query (e.g. collapsed sections), pass `ast: undefined`. Collapsed `QuerySection`s run `countQueryResults` only; the full query fires on expand.
+
+## Compiled AST SQL must stay narrow and parse-free
+
+`compileToSqlite` output is consumed for ids only (`queryNodes` reads `row.id`). Never select wide columns on the non-aggregate path (`SELECT DISTINCT n.*` materializes every matching row's full `content` JSON — ~23x slower on large result sets), and never evaluate `json_tree(n.content)` per row — node plaintext lives in the precomputed `node.text_content` column (maintained by `applyNodeOperation`; exact `json_tree key='text'` semantics). Custom property conditions use decorrelated `IN (SELECT node_id FROM property_value WHERE property_schema_id = ? …)` backed by `idx_property_value_schema`.
+
+## SQLite LIKE is ASCII case-insensitive
+
+`LIKE` ignores case for ASCII regardless of a `case_sensitive` flag, so `case_sensitive: true` is a no-op for content contains/starts_with/ends_with (only `equals` honors it). Don't add tests assuming sensitive LIKE matching.
+
+## `unlinked_references` NodeView is never executed; Unlinked Mentions is a stub
+
+Default views include `unlinked_references`, but no `.tsx` renders a `QuerySection` for it. The page-bottom "Unlinked Mentions" section uses `useUnlinkedMentions` whose `queryFn` returns `[]` (section always hides). Don't attribute worker `queryNodes` load to it.
+
 ## Dev vs Prod
 
 Development infrastructure settings in `compose.dev.yaml` must never be used in production.
