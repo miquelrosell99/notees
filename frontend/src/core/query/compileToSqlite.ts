@@ -115,6 +115,16 @@ class Compiler {
   }
 
   compile(ast: QueryAST): CompiledSql {
+    // Narrow select: callers only read `id` (queryNodes) or wrap the SQL in a
+    // COUNT subquery filtered on `active` (countQueryResults). Selecting the
+    // wide row would force SQLite to materialize every scanned node's full
+    // content JSON. No DISTINCT: the outer query has no JOINs — every scope
+    // and condition clause is a WHERE-term subquery — so each node row can
+    // appear at most once.
+    return this.compileSelect(ast, `${this.alias}.id, ${this.alias}.active`);
+  }
+
+  private compileSelect(ast: QueryAST, columns: string): CompiledSql {
     const where: string[] = [`${this.alias}.workspace_id = ${this.pushParam(this.workspaceId)}`];
 
     const scopeSql = this.generateScopeSql(ast.scope);
@@ -123,14 +133,17 @@ class Compiler {
     const groupSql = this.generateGroupSql(ast.root_group);
     if (groupSql) where.push(`(${groupSql})`);
 
-    const sql = `SELECT DISTINCT ${this.alias}.*\nFROM node ${this.alias}\nWHERE ${where.join(
+    const sql = `SELECT ${columns}\nFROM node ${this.alias}\nWHERE ${where.join(
       ' AND '
     )}\nORDER BY ${this.alias}.id`;
     return { sql, params: this.params };
   }
 
   compileAggregate(ast: QueryAST): CompiledSql {
-    const base = this.compile(ast);
+    // The aggregation SELECT references fn.kind / created_at / updated_at /
+    // class_ids, so the CTE keeps the wide row (DISTINCT is still redundant —
+    // see compile()).
+    const base = this.compileSelect(ast, `${this.alias}.*`);
     const baseCte = base.sql.replace(/\nORDER BY [^\n]+$/, '');
 
     const aggCompiler = new AggregationCompiler();
@@ -270,7 +283,10 @@ class Compiler {
   }
 
   private nameTextExpr(nodeAlias: string): string {
-    return `(SELECT group_concat(value, '') FROM json_tree(${nodeAlias}.content) WHERE key = 'text')`;
+    // The extracted text leaves are precomputed at write time into the derived
+    // text_content column (see derived/textContent.ts); reading the column
+    // avoids a per-row json_tree parse of the full content JSON.
+    return `${nodeAlias}.text_content`;
   }
 
   private generateClassCondition(condition: ClassCondition): string | undefined {
@@ -323,13 +339,16 @@ class Compiler {
     const propUuid = condition.property_uuid;
     if (!propUuid) return undefined;
     this.pushParam(propUuid);
-    const propAlias = `pv_${propName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
 
+    // Decorrelated IN subqueries instead of per-row correlated EXISTS: the
+    // subquery is materialized once (backed by idx_property_value_schema) and
+    // each node row is a cheap ephemeral-index probe. node_id is NOT NULL, so
+    // NOT IN is equivalent to NOT EXISTS here.
     if (op === 'is_empty') {
-      return `NOT EXISTS (SELECT 1 FROM property_value ${propAlias} WHERE ${propAlias}.node_id = ${this.alias}.id AND ${propAlias}.property_schema_id = ?)`;
+      return `${this.alias}.id NOT IN (SELECT node_id FROM property_value WHERE property_schema_id = ?)`;
     }
     if (op === 'is_not_empty') {
-      return `EXISTS (SELECT 1 FROM property_value ${propAlias} WHERE ${propAlias}.node_id = ${this.alias}.id AND ${propAlias}.property_schema_id = ?)`;
+      return `${this.alias}.id IN (SELECT node_id FROM property_value WHERE property_schema_id = ?)`;
     }
 
     if (op === 'in' || op === 'not_in') {
@@ -337,17 +356,16 @@ class Compiler {
       if (values.length === 0) return undefined;
       const list = placeholders(values.length);
       values.forEach((v: unknown) => this.pushParam(v));
-      const exists = `EXISTS (SELECT 1 FROM property_value ${propAlias} WHERE ${propAlias}.node_id = ${this.alias}.id AND ${propAlias}.property_schema_id = ? AND json_extract(${propAlias}.value, '$') IN (${list}))`;
-      return op === 'not_in' ? `NOT ${exists}` : exists;
+      const inClause = `${this.alias}.id IN (SELECT node_id FROM property_value WHERE property_schema_id = ? AND json_extract(property_value.value, '$') IN (${list}))`;
+      return op === 'not_in' ? `NOT (${inClause})` : inClause;
     }
 
     if (condition.value === undefined || condition.value === null) return undefined;
     this.pushParam(condition.value);
 
-    const valueExpr = `json_extract(${propAlias}.value, '$')`;
+    const valueExpr = `json_extract(property_value.value, '$')`;
     const isNumeric = condition.property_type === 'number';
-    const exists = `EXISTS (SELECT 1 FROM property_value ${propAlias} WHERE ${propAlias}.node_id = ${this.alias}.id AND ${propAlias}.property_schema_id = ? AND ${this.valueComparison(valueExpr, op, isNumeric)})`;
-    return exists;
+    return `${this.alias}.id IN (SELECT node_id FROM property_value WHERE property_schema_id = ? AND ${this.valueComparison(valueExpr, op, isNumeric)})`;
   }
 
   private generateBuiltinPropertyCondition(condition: PropertyCondition): string | undefined {
