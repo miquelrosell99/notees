@@ -16,6 +16,13 @@
  * To avoid the stale-closure race that used to live in useNavigationUrlSync,
  * each async invocation increments a generation counter; only the most recent
  * generation is allowed to update the store or clear the isProcessingUrl flag.
+ *
+ * The effect intentionally has no cleanup-based cancellation: the generation
+ * counter already invalidates stale runs when a *new* route starts processing.
+ * Cancelling on cleanup kills the only run when the effect re-fires for the
+ * same route (React StrictMode remount), and the lastRouteRef guard then
+ * blocks any retry — the URL's entity is never opened and the app stays on
+ * the home view.
  */
 import { useEffect, useCallback, useRef, useContext, useState, type MutableRefObject } from 'react';
 import { useParams } from 'react-router-dom';
@@ -165,14 +172,13 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     lastRouteRef.current = { workspaceId, entityUuid };
     const generation = ++routeGenerationRef.current;
     const isLatestGeneration = () => generation === routeGenerationRef.current;
-    let cancelled = false;
 
     isProcessingUrl.current = true;
 
     const processRoute = async (): Promise<void> => {
       try {
         await ensureWorkspace(workspaceId);
-        if (cancelled || !isLatestGeneration()) return;
+        if (!isLatestGeneration()) return;
 
         // Workspace root view selection is handled by the reactive effect below
         // because it depends on `defaultView` and `todayNote`.
@@ -183,7 +189,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
           ctx.actorId,
           ctx.transport,
         );
-        if (cancelled || !isLatestGeneration()) return;
+        if (!isLatestGeneration()) return;
 
         const rest = entityUuid.toLowerCase();
 
@@ -204,7 +210,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
           // property 404s on every page navigation.
           const node = await client.query<Node | undefined>('getNodeByUuid', [uuid]);
           if (node) {
-            if (cancelled || !isLatestGeneration()) return;
+            if (!isLatestGeneration()) return;
             log.debug('UUID resolved to node', { nodeUuid: node.uuid, is_page: node.is_page });
             const state = useNavigationStore.getState();
             if (state.currentNodeUuid !== node.uuid || state.mainViewType !== 'node') {
@@ -212,11 +218,11 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
             }
             return;
           }
-          if (cancelled || !isLatestGeneration()) return;
+          if (!isLatestGeneration()) return;
 
           if (!isDateUuid) {
             const property = await client.query<Property | undefined>('getPropertySchemaByUuid', [uuid]);
-            if (cancelled || !isLatestGeneration()) return;
+            if (!isLatestGeneration()) return;
             if (property) {
               log.debug('UUID resolved to property', { propertyUuid: property.uuid });
               const state = useNavigationStore.getState();
@@ -251,12 +257,8 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
 
     void processRoute();
 
-    return () => {
-      cancelled = true;
-      if (isLatestGeneration()) {
-        isProcessingUrl.current = false;
-      }
-    };
+    // No cleanup-based cancellation: see the header comment. Stale runs are
+    // invalidated by the generation counter when a newer route starts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     workspaceId,
