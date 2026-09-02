@@ -47,6 +47,12 @@ interface PageHeaderProps {
   focusMode?: boolean;
   /** Additional CSS class for the header root. */
   className?: string;
+  /** Icon to show when the node has no effective icon, instead of the "+" placeholder. */
+  defaultIcon?: string;
+  /** When true, blurring with an empty name reverts to the current name instead of committing. */
+  requireName?: boolean;
+  /** When false, typing "+class" in the title does not open the class suggestion popup. */
+  enableClassSuggestions?: boolean;
 }
 
 export function PageHeader({
@@ -59,6 +65,9 @@ export function PageHeader({
   embedded = false,
   focusMode = false,
   className = '',
+  defaultIcon,
+  requireName = false,
+  enableClassSuggestions = true,
 }: PageHeaderProps) {
   const currentUserId = useAuthStore((s) => s.user?.nodeUuid ?? 0);
   const titleUsers = useLivePresenceStore((s) => s.presence[page.uuid]?.[page.uuid]);
@@ -129,14 +138,14 @@ export function PageHeader({
     // Check for + trigger (class popup)
     // Match + at start of string or after whitespace, with no whitespace in the query after it
     const typingMatch = newValue.match(/(^|.*\s)\+(\S*)$/);
-    if (typingMatch && isNameEditable) {
+    if (typingMatch && isNameEditable && enableClassSuggestions) {
       const query = typingMatch[2];
       setClassQuery(query);
       setClassPopupOpen(true);
     } else {
       setClassPopupOpen(false);
     }
-  }, [isNameEditable]);
+  }, [isNameEditable, enableClassSuggestions]);
 
   // Handle class selection from + popup
   const handleClassSelect = useCallback((classNode: Node) => {
@@ -182,13 +191,19 @@ export function PageHeader({
     // Names are literal: "/" has no special meaning.
     const cleanName = newName.replace(/(^|\s)\+\S*$/, '').trimEnd() || newName;
 
+    // Required names (e.g. classes): revert instead of committing an empty name.
+    if (requireName && !cleanName.trim()) {
+      setInputValue(displayName);
+      return;
+    }
+
     if (onNameChange) {
       onNameChange(cleanName);
     } else {
       const data: NodeUpdate = { name: cleanName };
       updateNode.mutate({ nodeUuid: page.uuid, data });
     }
-  }, [page.uuid, updateNode, onNameChange]);
+  }, [page.uuid, updateNode, onNameChange, requireName, displayName]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -211,8 +226,13 @@ export function PageHeader({
     const { icon: iconName } = parseIconField(page.icon ?? '');
     // Always store color even with no explicit icon so the inherited/default icon can be tinted
     const encoded = color ? formatIconField(iconName ?? '', color) : (iconName || null);
-    updateNode.mutate({ nodeUuid: page.uuid, data: { icon: encoded } });
-  }, [page.uuid, page.icon, updateNode]);
+    // Honor the onIconChange override (property/class views persist icons elsewhere)
+    if (onIconChange) {
+      onIconChange(encoded ?? '');
+    } else {
+      updateNode.mutate({ nodeUuid: page.uuid, data: { icon: encoded } });
+    }
+  }, [page.uuid, page.icon, updateNode, onIconChange]);
 
   // Handle Ctrl+C on page title to copy page link when nothing is selected
   const handlePageTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -226,6 +246,14 @@ export function PageHeader({
       }
     }
     
+    if (e.key === 'Escape') {
+      // Revert uncommitted edits and blur (parity with the former ClassHeader).
+      e.preventDefault();
+      setInputValue(displayName);
+      e.currentTarget.blur();
+      return;
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
       const input = e.currentTarget;
       const hasSelection = input.selectionStart !== input.selectionEnd;
@@ -239,7 +267,7 @@ export function PageHeader({
       e.preventDefault();
       e.currentTarget.blur();
     }
-  }, [page.name, page.uuid, classPopupOpen]);
+  }, [page.name, page.uuid, classPopupOpen, displayName]);
 
   const handleHeaderClick = useCallback((e: React.MouseEvent) => {
     if (e.shiftKey) {
@@ -271,6 +299,13 @@ export function PageHeader({
                 icon={effectiveIcon} 
                 isPage={true}
                 size="xl" 
+                className="page-icon-large"
+              />
+            ) : defaultIcon ? (
+              <NodeIcon
+                icon={defaultIcon}
+                isPage={true}
+                size="xl"
                 className="page-icon-large"
               />
             ) : (

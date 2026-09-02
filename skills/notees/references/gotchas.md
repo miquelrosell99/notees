@@ -192,3 +192,13 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Do not statically export such a component from the barrel. Lazy-load it at the non-editor consumer instead: `lazy(() => import('@/features/editor/editor/plugins/TriggerPopup').then((m) => ({ default: m.TriggerPopup })))` — dynamic `import()` adds no static edge, so the graph's evaluation order is unchanged. See `ClassPillsRow.tsx` (add-class button) for the pattern and `InlineTriggers.test.tsx` for the tests that catch it.
 
 **Prevent:** Before adding a barrel export, check the component's imports for the importing feature's own barrel (`grep` the component file for `@/features/<host>`). If present, lazy-load at the consumer rather than exporting statically.
+
+## **[testing]** `fireEvent.blur(el, { target: { value } })` breaks controlled-input revert assertions
+
+**Symptom:** A test asserts that a controlled input reverts its value on blur (e.g. empty-name revert in `PageHeader`). The component's state demonstrably reverts (render logs show it), no commit callback fires, yet `toHaveValue()` still sees the pre-blur value and the test fails.
+
+**Cause:** Assigning `target.value` through `fireEvent` writes the DOM node directly and confuses React's controlled-input value tracker, so React's re-render with the reverted state never writes the new value back to the node.
+
+**Fix:** Set the value with `fireEvent.change` (which drives React's onChange) and then call plain `fireEvent.blur(el)` with no target overrides — the change event has already put the value in place. See `PageHeader.test.tsx` ("reverts an empty name on blur when requireName is set").
+
+**Prevent:** In jsdom tests for controlled inputs, only ever set field values via `fireEvent.change` / `userEvent`; never assign `target.value` on blur, keydown, or focus events.
