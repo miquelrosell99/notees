@@ -56,6 +56,21 @@ vi.mock('@/stores', () => ({
     selector({ addSidebarCard: vi.fn() }),
 }));
 
+// Stub the picker so tests can drive icon/color selection directly.
+vi.mock('@/components/ui/EmojiPicker', () => ({
+  EmojiPicker: (props: { onSelect: (icon: string) => void; onColorChange?: (color: string | null) => void }) => (
+    <div>
+      <button data-testid="pick-icon" onClick={() => props.onSelect('mdi-star')} />
+      <button data-testid="pick-color" onClick={() => props.onColorChange?.('red')} />
+    </div>
+  ),
+}));
+
+// Stub the class suggestion popup so tests can detect whether it opened.
+vi.mock('./SuggestionPopup', () => ({
+  SuggestionPopup: () => <div data-testid="suggestion-popup" />,
+}));
+
 function makePage(name: string): Node {
   return {
     uuid: 'page-uuid-1',
@@ -109,5 +124,73 @@ describe('PageHeader literal "/" names', () => {
       nodeUuid: 'page-uuid-1',
       data: { name: 'Pokemon/Charizard' },
     });
+  });
+});
+
+describe('PageHeader extension props', () => {
+  it('reverts an empty name on blur when requireName is set', () => {
+    const onNameChange = vi.fn();
+    render(<PageHeader page={makePage('Pokemon')} requireName onNameChange={onNameChange} />);
+
+    const title = screen.getByLabelText('Page title');
+    fireEvent.change(title, { target: { value: '' } });
+    // No target value on blur: assigning it via fireEvent confuses React's
+    // controlled-input value tracker; the change event already set the value.
+    fireEvent.blur(title);
+
+    expect(onNameChange).not.toHaveBeenCalled();
+    expect(mocks.updateNode.mutate).not.toHaveBeenCalled();
+    expect(title).toHaveValue('Pokemon');
+  });
+
+  it('reverts uncommitted edits on Escape', () => {
+    render(<PageHeader page={makePage('Pokemon')} />);
+
+    const title = screen.getByLabelText('Page title');
+    fireEvent.change(title, { target: { value: 'Typed but not committed' } });
+    fireEvent.keyDown(title, { key: 'Escape' });
+
+    expect(title).toHaveValue('Pokemon');
+    expect(mocks.updateNode.mutate).not.toHaveBeenCalled();
+  });
+
+  it('routes icon selection through the onIconChange override', () => {
+    const onIconChange = vi.fn();
+    render(<PageHeader page={makePage('Pokemon')} onIconChange={onIconChange} />);
+
+    fireEvent.click(screen.getByLabelText('Change icon'));
+    fireEvent.click(screen.getByTestId('pick-icon'));
+
+    expect(onIconChange).toHaveBeenCalledWith('mdi-star');
+    expect(mocks.updateNode.mutate).not.toHaveBeenCalled();
+  });
+
+  it('routes icon color changes through the onIconChange override', () => {
+    const onIconChange = vi.fn();
+    render(<PageHeader page={makePage('Pokemon')} onIconChange={onIconChange} />);
+
+    fireEvent.click(screen.getByLabelText('Change icon'));
+    fireEvent.click(screen.getByTestId('pick-color'));
+
+    expect(onIconChange).toHaveBeenCalledWith(JSON.stringify({ color: 'red' }));
+    expect(mocks.updateNode.mutate).not.toHaveBeenCalled();
+  });
+
+  it('does not open the class popup for "+" when enableClassSuggestions is false', () => {
+    render(<PageHeader page={makePage('Pokemon')} enableClassSuggestions={false} />);
+
+    const title = screen.getByLabelText('Page title');
+    fireEvent.change(title, { target: { value: 'Pokemon +star' } });
+
+    expect(screen.queryByTestId('suggestion-popup')).not.toBeInTheDocument();
+  });
+
+  it('opens the class popup for "+" by default', () => {
+    render(<PageHeader page={makePage('Pokemon')} />);
+
+    const title = screen.getByLabelText('Page title');
+    fireEvent.change(title, { target: { value: 'Pokemon +star' } });
+
+    expect(screen.getByTestId('suggestion-popup')).toBeInTheDocument();
   });
 });
