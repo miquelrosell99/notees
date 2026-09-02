@@ -43,9 +43,9 @@ const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNav
     onContextMenu?.(e);
   }, [onContextMenu]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
-    // Let the remove button handle its own Enter/Space activation.
-    if ((e.target as HTMLElement).closest('.sidebar-recent-remove')) {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Let the remove button and breadcrumbs handle their own Enter/Space activation.
+    if ((e.target as HTMLElement).closest('.sidebar-recent-remove, .sidebar-item-breadcrumbs-wrapper')) {
       return;
     }
     if (e.key === 'Enter' || e.key === ' ') {
@@ -57,8 +57,9 @@ const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNav
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       aria-label={node ? displayName : 'Loading recent'}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
@@ -97,7 +98,7 @@ const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNav
         }}
         title="Remove from recents"
       />
-    </button>
+    </div>
   );
 });
 
