@@ -3,8 +3,10 @@ import { useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useIsMobile } from '@/hooks';
 import { useNodeByUuid } from '@/features/content';
-import { useNodeDisplayName } from '@/features/queries';
-import { useRecents, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
+import { useNodeDisplayName, nodeNameToDisplayText } from '@/features/queries';
+import { useRecents, removeRecent, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
+import { Button } from '@/components/ui/Button';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import {
   ClockIcon,
   ChevronDownIcon,
@@ -16,24 +18,36 @@ interface RecentItemProps {
   isActive: boolean;
   onClick: (event: React.MouseEvent) => void;
   onNavigate: (nodeUuid: string) => void;
+  onRequestRemove: (nodeUuid: string) => void;
   onContextMenu?: (event: React.MouseEvent) => void;
 }
 
-const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNavigate, onContextMenu }: RecentItemProps) {
+const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNavigate, onRequestRemove, onContextMenu }: RecentItemProps) {
   const { data: node } = useNodeByUuid(nodeUuid);
   const { effectiveIcon } = useNodeDisplay(node);
   const displayName = useNodeDisplayName(node);
 
   const handleClick = useCallback((e: React.MouseEvent | { target?: never }) => {
-    // Don't navigate if clicking breadcrumbs
+    // Don't navigate if clicking the remove button or breadcrumbs
     const target = (e as React.MouseEvent).target as HTMLElement | undefined;
-    if (target?.closest('.sidebar-item-breadcrumbs-wrapper')) {
+    if (target?.closest('.sidebar-recent-remove, .sidebar-item-breadcrumbs-wrapper')) {
       return;
     }
     onClick(e as React.MouseEvent);
   }, [onClick]);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('.sidebar-recent-remove')) {
+      return;
+    }
+    onContextMenu?.(e);
+  }, [onContextMenu]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
+    // Let the remove button handle its own Enter/Space activation.
+    if ((e.target as HTMLElement).closest('.sidebar-recent-remove')) {
+      return;
+    }
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onNavigate(nodeUuid);
@@ -47,7 +61,7 @@ const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNav
       type="button"
       aria-label={node ? displayName : 'Loading recent'}
       onClick={handleClick}
-      onContextMenu={onContextMenu}
+      onContextMenu={handleContextMenu}
       onKeyDown={handleKeyDown}
       className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
     >
@@ -71,6 +85,18 @@ const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNav
           draggable={true}
         />
       </div>
+      <Button
+        aria-label="Remove from recents"
+        icon="mdi mdi-close"
+        size="xs"
+        variant="ghost"
+        className="sidebar-recent-remove hover-reveal"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRequestRemove(nodeUuid);
+        }}
+        title="Remove from recents"
+      />
     </button>
   );
 });
@@ -82,8 +108,10 @@ interface SidebarRecentsProps {
 
 export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsProps) {
   const [expanded, setExpanded] = useState(true);
+  const [pendingRemoveUuid, setPendingRemoveUuid] = useState<string | null>(null);
   const { data: recentsData } = useRecents();
   const recents = recentsData ?? [];
+  const { data: pendingRemoveNode } = useNodeByUuid(pendingRemoveUuid);
   const {
     mainViewType,
     currentNodeUuid,
@@ -117,6 +145,17 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
     onItemClick?.();
   }, [openNode, closeMobileDrawer, onItemClick]);
 
+  const handleConfirmRemove = useCallback(() => {
+    if (pendingRemoveUuid) {
+      removeRecent(pendingRemoveUuid);
+    }
+    setPendingRemoveUuid(null);
+  }, [pendingRemoveUuid]);
+
+  const handleCancelRemove = useCallback(() => {
+    setPendingRemoveUuid(null);
+  }, []);
+
   return (
     <div className="sidebar-section">
       <button
@@ -141,12 +180,23 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
                 isActive={currentNodeUuid === recent.nodeUuid && mainViewType === 'node'}
                 onClick={() => handleNavigate(recent.nodeUuid)}
                 onNavigate={handleBreadcrumbNavigate}
+                onRequestRemove={setPendingRemoveUuid}
                 onContextMenu={(e) => onContextMenu(recent.nodeUuid, e)}
               />
             ))
           )}
         </div>
       )}
+      <ConfirmationModal
+        isOpen={pendingRemoveUuid !== null}
+        title="Remove from recents"
+        message={`Remove "${nodeNameToDisplayText(pendingRemoveNode) || 'Untitled'}" from recents?`}
+        secondaryMessage="The page itself will not be deleted."
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmRemove}
+        onCancel={handleCancelRemove}
+      />
     </div>
   );
 }
