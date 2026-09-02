@@ -184,7 +184,6 @@
 
 /* Reset native <button> defaults for sidebar item rows. */
 .sidebar-favorite-item,
-.sidebar-recent-item,
 .sidebar-pinned-item {
   appearance: none;
   border: none;
