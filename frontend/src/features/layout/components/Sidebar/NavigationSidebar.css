@@ -311,6 +311,7 @@
 
 /* Remove button */
 .sidebar-favorite-remove,
+.sidebar-recent-remove,
 .sidebar-pinned-remove {
   opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short);
@@ -319,6 +320,9 @@
 .sidebar-favorite-item:hover .sidebar-favorite-remove,
 .sidebar-favorite-item:focus-within .sidebar-favorite-remove,
 .sidebar-favorite-remove:focus-visible,
+.sidebar-recent-item:hover .sidebar-recent-remove,
+.sidebar-recent-item:focus-within .sidebar-recent-remove,
+.sidebar-recent-remove:focus-visible,
 .sidebar-pinned-item:hover .sidebar-pinned-remove,
 .sidebar-pinned-item:focus-within .sidebar-pinned-remove,
 .sidebar-pinned-remove:focus-visible {
@@ -327,6 +331,7 @@
 
 @media (hover: none) {
   .sidebar-favorite-item .sidebar-favorite-remove,
+  .sidebar-recent-item .sidebar-recent-remove,
   .sidebar-pinned-item .sidebar-pinned-remove {
     opacity: var(--opacity-100);
   }
@@ -391,7 +396,9 @@
 
 .sidebar-recent-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-2);
   cursor: pointer;
   border-radius: var(--shape-small);
