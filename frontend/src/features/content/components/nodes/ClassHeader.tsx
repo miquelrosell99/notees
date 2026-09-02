@@ -1,19 +1,24 @@
 /**
- * ClassHeader — Header for the class node detail view.
+ * ClassHeader — header for the class detail view.
  *
- * Shows the class icon, name, and color. The name and icon are editable inline;
- * changes are written directly to the dedicated `class` table via the workspace
- * store client because classes are not rows in the `node` table.
+ * Thin adapter over the shared PageHeader so the class view has the same header
+ * UI as the page view. Class-specific behavior is injected via PageHeader's
+ * extension props: persistence goes to the dedicated `class` table through the
+ * workspace store client (classes are not rows in the `node` table), the fallback
+ * icon is a tag, the name is required, and the "+class" title popup is disabled.
+ *
+ * Pages encode the icon color inside the icon field; the class table keeps icon
+ * and color in separate columns. The adapter therefore encodes icon+color into
+ * the `page.icon` field handed to PageHeader (so the picker shows/preserves the
+ * current color) and splits the field back into columns on save.
  */
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { NodeIcon } from '@/components/ui/icons';
-import { EmojiPicker } from '@/components/ui/EmojiPicker';
+import { PageHeader } from './PageHeader';
 import { useWorkspaceStoreClient } from '@/core/hooks/useWorkspaceStoreClient';
 import { nodeNameToText } from '@/features/queries';
-import { formatIconField } from '@/utils/iconDom';
+import { formatIconField, parseIconField } from '@/utils/iconDom';
 import type { Node } from '@/types/api';
-import './ClassHeader.css';
 
 interface ClassHeaderProps {
   /** The class node being viewed. */
@@ -28,130 +33,50 @@ export function ClassHeader({ node, focusMode = false, className = '' }: ClassHe
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { client } = useWorkspaceStoreClient(workspaceId ?? '');
 
-  const [inputValue, setInputValue] = useState(nodeNameToText(node.name) || '');
-  const [showIconPicker, setShowIconPicker] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const titleRef = useRef<HTMLTextAreaElement>(null);
-  const iconRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    setInputValue(nodeNameToText(node.name) || '');
-  }, [node.name]);
-
-  useEffect(() => {
-    const textarea = titleRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
-  }, [inputValue]);
-
-  const displayIcon = node.icon || 'mdi-tag';
-
-  const handleSave = useCallback(
-    async (updates: { name?: string; icon?: string }) => {
-      if (!client || !workspaceId) return;
-      setIsSaving(true);
-      try {
-        await client.mutate<void>('updateClass', [
-          {
-            classId: node.uuid,
-            ...(updates.name !== undefined ? { name: updates.name } : {}),
-            ...(updates.icon !== undefined ? { icon: updates.icon } : {}),
-          },
-        ]);
-      } finally {
-        setIsSaving(false);
-      }
-    },
-    [client, node.uuid, workspaceId]
-  );
+  // Hand PageHeader a node whose icon field carries the class color in the
+  // page-style encoded form, so icon display, picker state, and color
+  // preservation behave exactly like pages.
+  const pageForHeader = useMemo(() => {
+    const { icon, color } = parseIconField(node.icon ?? '');
+    const effectiveColor = color ?? node.color ?? null;
+    const encodedIcon = icon || effectiveColor ? formatIconField(icon, effectiveColor) : null;
+    return { ...node, icon: encodedIcon };
+  }, [node]);
 
   const handleNameChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setInputValue(e.target.value);
+    (name: string) => {
+      const newName = name.trim();
+      const currentName = nodeNameToText(node.name) || '';
+      if (!client || !newName || newName === currentName) return;
+      void client.mutate<void>('updateClass', [{ classId: node.uuid, name: newName }]);
     },
-    []
+    [client, node.uuid, node.name]
   );
 
-  const handleNameBlur = useCallback(() => {
-    const newName = inputValue.trim();
-    const currentName = nodeNameToText(node.name) || '';
-    if (newName && newName !== currentName) {
-      void handleSave({ name: newName });
-    } else if (!newName) {
-      setInputValue(currentName);
-    }
-  }, [inputValue, node.name, handleSave]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        titleRef.current?.blur();
-      }
-      if (e.key === 'Escape') {
-        setInputValue(nodeNameToText(node.name) || '');
-        titleRef.current?.blur();
-      }
+  // Split PageHeader's color-encoded icon field back into the class table's
+  // separate icon and color columns.
+  const handleIconChange = useCallback(
+    (encoded: string) => {
+      if (!client) return;
+      const { icon, color } = parseIconField(encoded);
+      void client.mutate<void>('updateClass', [
+        { classId: node.uuid, icon: icon || null, color: color ?? null },
+      ]);
     },
-    [node.name]
+    [client, node.uuid]
   );
-
-  const handleIconSelect = useCallback(
-    (icon: string) => {
-      void handleSave({ icon: formatIconField(icon) });
-      setShowIconPicker(false);
-    },
-    [handleSave]
-  );
-
-  const titleSizeClass = useMemo(() => {
-    const len = inputValue.length;
-    if (len > 60) return 'class-header__title--compact';
-    if (len > 40) return 'class-header__title--medium';
-    return '';
-  }, [inputValue.length]);
 
   return (
-    <div
-      className={`class-header ${className}`}
-      data-focus-mode={focusMode || undefined}
-    >
-      <div className="class-header__row">
-        <button
-          ref={iconRef}
-          type="button"
-          className="class-header__icon-btn"
-          onClick={() => setShowIconPicker(true)}
-          aria-label="Change class icon"
-          title="Change class icon"
-        >
-          <span className="class-header__icon">
-            <NodeIcon icon={displayIcon} isPage={false} size="xl" />
-          </span>
-        </button>
-
-        <textarea
-          ref={titleRef}
-          className={`class-header__title ${titleSizeClass}`}
-          value={inputValue}
-          onChange={handleNameChange}
-          onBlur={handleNameBlur}
-          onKeyDown={handleKeyDown}
-          rows={1}
-          aria-label="Class name"
-          disabled={isSaving}
-        />
-      </div>
-
-      {showIconPicker && (
-        <EmojiPicker
-          onSelect={handleIconSelect}
-          onClose={() => setShowIconPicker(false)}
-          anchorRef={iconRef}
-        />
-      )}
-    </div>
+    <PageHeader
+      page={pageForHeader}
+      embedded
+      focusMode={focusMode}
+      className={className}
+      onNameChange={handleNameChange}
+      onIconChange={handleIconChange}
+      defaultIcon="mdi-tag"
+      requireName
+      enableClassSuggestions={false}
+    />
   );
 }
