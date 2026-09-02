@@ -44,6 +44,10 @@ The operation log is immutable. Migrations must fix bad data by appending new op
 
 - Reference: `references/agents/operations.md`
 
+## Legacy migration op formats persist in the relay and are masked as "text"
+
+Relays migrated from the pre-local-first app contain `propertySchema.create` ops with type `select` (options under `config.options` with `id` keys, not top-level `options` with `uuid` keys) and `property.set` values wrapped as `{"value": X}`. The frontend's `safePropertyType` coerces unknown types to `text`, so these schemas render as plain text with no options and their wrapped values never resolve. Fix the data by appending corrective ops — see `scripts/fix_legacy_selection_properties.py` (handles `select`/`multi_select`; legacy `checkbox`/`file`/`number` types may need the same treatment). Symptom-first triage: when a property "shows as text", check the schema's stored `type` in the relay before touching renderer code.
+
 ## Date Page Content vs Display
 
 - Stored content / search / matching use raw text extracted by `nodeNameToText`.
