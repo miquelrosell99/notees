@@ -148,7 +148,7 @@ export function CommandRegistrations() {
       setShowResetConfirm(true);
     },
     {
-      label: 'Replace local workspace from server',
+      label: 'Pull from server (replace local copy)',
       icon: 'mdi mdi-cloud-download-outline',
       palette: { category: 'tools', keywords: ['sync', 'pull', 'reset', 'local'] },
       enabled: capabilities.workspaceManagement,
