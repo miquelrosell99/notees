@@ -132,6 +132,31 @@ describe('SyncEngine', () => {
     expect(storeB.getDerivedStateVersion()).toBe(CURRENT_DERIVED_STATE_VERSION);
   });
 
+  it('reports cumulative sent counts during push', async () => {
+    const workspaceId = uuidv7();
+    const actorA = uuidv7();
+    const relay = new MemoryRelay();
+    const transport = new MemoryTransport(relay, workspaceId);
+
+    const dbA = await createTestDatabase();
+    const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, transport);
+
+    // 150 ops → two send chunks (SEND_BATCH_SIZE = 100).
+    for (let i = 0; i < 150; i++) {
+      storeA.createNode({ nodeId: uuidv7(), kind: 'block', parentId: null });
+    }
+
+    const progressReports: Array<{ sent: number; total: number }> = [];
+    await syncA.push((p) => progressReports.push({ ...p }));
+
+    expect(progressReports).toEqual([
+      { sent: 100, total: 150 },
+      { sent: 150, total: 150 },
+    ]);
+  });
+
   it('advances the push watermark when the server already has the operations (duplicate-only batches)', async () => {
     const workspaceId = uuidv7();
     const actor = uuidv7();

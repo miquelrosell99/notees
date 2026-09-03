@@ -176,12 +176,14 @@ export async function closeWorkspaceStoreClient(workspaceId: string): Promise<vo
  * This is the async-client entry point for the command palette and other
  * production UI. It delegates to the sync adapter which owns the SyncEngine.
  */
-export async function pushActiveWorkspace(): Promise<void> {
+export async function pushActiveWorkspace(
+  onProgress?: (progress: { sent: number; total: number }) => void
+): Promise<void> {
   const store = getActiveWorkspaceStore();
   if (!store) {
     throw new Error('No workspace is open');
   }
-  return pushWorkspace(store.getWorkspaceId());
+  return pushWorkspace(store.getWorkspaceId(), onProgress);
 }
 
 /**

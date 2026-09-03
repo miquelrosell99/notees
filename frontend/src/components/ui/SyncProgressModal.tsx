@@ -12,6 +12,8 @@ import './SyncProgressModal.css';
 export interface SyncProgressModalProps {
   /** Whether the modal is open */
   isOpen: boolean;
+  /** Modal title */
+  title?: string;
   /** Text shown beneath the spinner */
   label?: string;
   /** Optional progress fraction (0–1) */
@@ -22,6 +24,7 @@ export interface SyncProgressModalProps {
 
 export function SyncProgressModal({
   isOpen,
+  title = 'Syncing workspace',
   label = 'Syncing workspace…',
   progress,
   messages,
@@ -30,7 +33,7 @@ export function SyncProgressModal({
     <Modal
       isOpen={isOpen}
       onClose={() => {}}
-      title="Syncing workspace"
+      title={title}
       size="sm"
       showCloseButton={false}
       closeOnBackdrop={false}

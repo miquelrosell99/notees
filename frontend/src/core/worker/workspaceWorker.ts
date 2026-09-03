@@ -543,6 +543,15 @@ async function handleQueryBody(request: Extract<WorkerRequest, { type: 'query' }
     });
     return;
   }
+  if (request.method === 'countPendingPushOperations') {
+    const [afterHlc, now] = request.args as [Hlc, number];
+    postResponse({
+      type: 'query-result',
+      id: request.id,
+      result: state.store.countPendingPushOperations(afterHlc, now),
+    });
+    return;
+  }
   if (request.method === 'getPendingLocalOperations') {
     const [nodeIds] = request.args as [string[]];
     postResponse({
