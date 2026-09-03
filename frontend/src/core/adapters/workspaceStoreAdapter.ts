@@ -225,12 +225,15 @@ export async function syncWorkspace(workspaceId: string): Promise<void> {
 /**
  * Push any pending local operations to the server without pulling.
  */
-export async function pushWorkspace(workspaceId: string): Promise<void> {
+export async function pushWorkspace(
+  workspaceId: string,
+  onProgress?: (progress: { sent: number; total: number }) => void
+): Promise<void> {
   const entry = registry.get(workspaceId);
   if (!entry) {
     throw new Error(`Workspace ${workspaceId} is not open`);
   }
-  await entry.syncEngine.push();
+  await entry.syncEngine.push(onProgress);
   await persistWorkspace(workspaceId, entry.client);
 }
 
