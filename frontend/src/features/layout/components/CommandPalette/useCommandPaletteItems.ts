@@ -118,7 +118,10 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
       for (const cmd of commands) {
         if (cmd.requiresPage && !currentNodeUuid) continue;
         if (cmd.devOnly && !showDevOptions) continue;
-        if (cmd.label.toLowerCase().includes(lowerSearch)) {
+        // Match label and registered palette keywords — synonyms (e.g. "reset"
+        // for "Pull from server (replace local copy)") must find the command.
+        const matchesKeywords = cmd.palette?.keywords?.some((k) => k.toLowerCase().includes(lowerSearch));
+        if (cmd.label.toLowerCase().includes(lowerSearch) || matchesKeywords) {
           items.push({ type: 'command', label: cmd.label, commandId: cmd.id });
         }
       }
