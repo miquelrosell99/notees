@@ -90,7 +90,7 @@ A successful relay batch response means every envelope is persisted server-side;
 
 ## Applier changes must bump the derived-state version
 
-Any change to client-side applier logic (`frontend/src/core/derived/**`) must bump `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) and clear new derived tables in `resetDerivedState` in the same commit — nothing fails CI otherwise, and existing clients keep stale derived state while fresh installs work. But prefer a targeted idempotent startup repair (`repairClassHierarchy` / `repairDatePageHierarchy` pattern) when the state derives from one small table — a bump forces a full log replay on every client.
+Any change to client-side applier logic (`frontend/src/core/derived/**`) must bump `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) and clear new derived tables in `resetDerivedState` in the same commit — nothing fails CI otherwise, and existing clients keep stale derived state while fresh installs work. But prefer a targeted idempotent startup repair (`repairClassHierarchy` / `repairDatePageHierarchy` pattern) when the state derives from one small table — a bump forces a full log replay on every client. And until the TS appliers reconstruct `node_child_order` from legacy `node.create.index` / `node.move.newIndex` payloads, a full replay is lossy (legacy pages render childless) — only snapshot-restore pulls are safe.
 
 - Reference: `references/gotchas.md#derived-applier-changes-must-bump-the-derived-state-version`
 
