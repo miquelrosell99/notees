@@ -721,6 +721,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
       const [afterHlc, limit, now] = args as [Hlc, number, number];
       return Promise.resolve(this.store.getPendingPushOperations(afterHlc, limit, now) as T);
     }
+    if (method === 'countPendingPushOperations') {
+      const [afterHlc, now] = args as [Hlc, number];
+      return Promise.resolve(this.store.countPendingPushOperations(afterHlc, now) as T);
+    }
     if (method === 'getPendingLocalOperations') {
       const [nodeIds] = args as [string[]];
       return Promise.resolve(this.store.getPendingLocalOperations(nodeIds) as T);
