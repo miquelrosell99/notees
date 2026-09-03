@@ -88,6 +88,46 @@ describe('useCommandPaletteItems', () => {
     expect(showMore?.showMoreCount).toBe(2);
   });
 
+  it('matches commands by palette keywords, not only by label', () => {
+    const cmd = {
+      id: 'sync.pullFromServer',
+      label: 'Pull from server (replace local copy)',
+      context: 'global' as const,
+      execute: () => {},
+      palette: { category: 'tools' as const, keywords: ['sync', 'reset', 'local'] },
+    };
+
+    const { result } = renderHook(() =>
+      useCommandPaletteItems(
+        makeParams({ searchTerm: 'reset', commands: [cmd] }) as Parameters<
+          typeof useCommandPaletteItems
+        >[0],
+      ),
+    );
+
+    expect(result.current.some((item) => item.type === 'command' && item.commandId === cmd.id)).toBe(true);
+  });
+
+  it('still matches commands by label', () => {
+    const cmd = {
+      id: 'sync.pushToServer',
+      label: 'Push local changes to server',
+      context: 'global' as const,
+      execute: () => {},
+      palette: { category: 'tools' as const, keywords: ['sync', 'upload'] },
+    };
+
+    const { result } = renderHook(() =>
+      useCommandPaletteItems(
+        makeParams({ searchTerm: 'push', commands: [cmd] }) as Parameters<
+          typeof useCommandPaletteItems
+        >[0],
+      ),
+    );
+
+    expect(result.current.some((item) => item.type === 'command' && item.commandId === cmd.id)).toBe(true);
+  });
+
   it('shows no class items when there are no class matches', () => {
     const { result } = renderHook(() =>
       useCommandPaletteItems(makeParams() as Parameters<typeof useCommandPaletteItems>[0]),
