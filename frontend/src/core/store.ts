@@ -472,6 +472,33 @@ export class WorkspaceStore {
     );
   }
 
+  /**
+   * Count of operations `getPendingPushOperations` would return (same filters,
+   * no LIMIT). Used to report determinate push progress.
+   */
+  countPendingPushOperations(afterHlc: Hlc, now: number): number {
+    const row = queryOne<{ n: number }>(
+      this.db,
+      `SELECT COUNT(*) AS n
+       FROM operation o
+       JOIN sync_outbox ob ON ob.operation_id = o.id
+       WHERE o.workspace_id = ?
+         AND o.actor_id = ?
+         AND (o.hlc_physical > ? OR (o.hlc_physical = ? AND o.hlc_logical > ?))
+         AND ob.state IN ('pending','in_flight','failed')
+         AND (ob.state != 'failed' OR ob.next_retry_at <= ?)`,
+      [
+        this.workspaceId,
+        this.actorId,
+        afterHlc.physical,
+        afterHlc.physical,
+        afterHlc.logical,
+        now,
+      ]
+    );
+    return row?.n ?? 0;
+  }
+
   markOperationsInFlight(ids: string[]): void {
     if (ids.length === 0) return;
     const now = new Date().toISOString();

@@ -25,6 +25,7 @@ import {
   pullActiveWorkspace,
 } from '@/core/adapters/workspaceStoreClientAdapter';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { SyncProgressModal } from '@/components/ui/SyncProgressModal';
 import { useState } from 'react';
 
 export function CommandRegistrations() {
@@ -36,6 +37,8 @@ export function CommandRegistrations() {
   const resetNodeViewsMutation = useResetNodeViews();
   const { activeWorkspace } = useWorkspaceRole();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  // Non-null while a manual push runs; drives the locked progress modal.
+  const [pushProgress, setPushProgress] = useState<{ sent: number; total: number } | null>(null);
   const capabilities = useCapabilities();
 
   // Toggle page privacy — not modeled in the core store yet, so this is a no-op.
@@ -119,13 +122,17 @@ export function CommandRegistrations() {
         notifyWarning('No workspace active', 'Open a workspace before pushing.');
         return;
       }
-      pushActiveWorkspace()
+      setPushProgress({ sent: 0, total: 0 });
+      pushActiveWorkspace((p) => setPushProgress(p))
         .then(() => {
           notifySuccess('Push complete', 'Local changes have been pushed to the server.');
         })
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : 'Please try again.';
           notifyError('Push failed', message);
+        })
+        .finally(() => {
+          setPushProgress(null);
         });
     },
     {
@@ -156,23 +163,40 @@ export function CommandRegistrations() {
   );
 
   return (
-    <ConfirmationModal
-      isOpen={showResetConfirm}
-      title="Discard local state?"
-      message="This will delete the local copy of this workspace and rebuild it from the server. Any offline changes that have not yet synced will be lost."
-      secondaryMessage="Use this when local state looks corrupt or out of sync."
-      confirmLabel="Replace local copy"
-      cancelLabel="Cancel"
-      variant="danger"
-      onConfirm={async () => {
-        const workspaceId = activeWorkspace?.uuid;
-        if (!workspaceId) return;
-        await pullActiveWorkspace();
-        useSyncStatusStore.getState().bumpWorkspaceResetNonce();
-        notifySuccess('Local state replaced', 'Rebuilding workspace from the server…');
-        setShowResetConfirm(false);
-      }}
-      onCancel={() => setShowResetConfirm(false)}
-    />
+    <>
+      <SyncProgressModal
+        isOpen={pushProgress !== null}
+        title="Pushing local changes"
+        label={
+          pushProgress && pushProgress.total > 0
+            ? `Pushing local changes to server… ${pushProgress.sent.toLocaleString()} / ${pushProgress.total.toLocaleString()} sent`
+            : 'Pushing local changes to server…'
+        }
+        // Clamp: ops created mid-push can make sent exceed the up-front total.
+        progress={
+          pushProgress && pushProgress.total > 0
+            ? Math.min(1, pushProgress.sent / pushProgress.total)
+            : undefined
+        }
+      />
+      <ConfirmationModal
+        isOpen={showResetConfirm}
+        title="Discard local state?"
+        message="This will delete the local copy of this workspace and rebuild it from the server. Any offline changes that have not yet synced will be lost."
+        secondaryMessage="Use this when local state looks corrupt or out of sync."
+        confirmLabel="Replace local copy"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          const workspaceId = activeWorkspace?.uuid;
+          if (!workspaceId) return;
+          await pullActiveWorkspace();
+          useSyncStatusStore.getState().bumpWorkspaceResetNonce();
+          notifySuccess('Local state replaced', 'Rebuilding workspace from the server…');
+          setShowResetConfirm(false);
+        }}
+        onCancel={() => setShowResetConfirm(false)}
+      />
+    </>
   );
 }

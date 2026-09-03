@@ -155,7 +155,7 @@ export class SyncEngine {
     }
   }
 
-  async push(): Promise<void> {
+  async push(onProgress?: (progress: { sent: number; total: number }) => void): Promise<void> {
     await this.ensureWatermarksLoaded();
 
     const SEND_BATCH_SIZE = 100;
@@ -174,7 +174,14 @@ export class SyncEngine {
     });
 
     let totalPushed = 0;
+    let sent = 0;
     let hasMore = true;
+
+    // Total is measured once up front for determinate progress. It can drift if
+    // new ops are created mid-push; callers should clamp the fraction to 1.
+    const total = onProgress
+      ? await this.client.query<number>('countPendingPushOperations', [this.lastPushedHlc, Date.now()])
+      : 0;
 
     // Query and push in smaller chunks so a large local operation log does not
     // block the main thread with a single huge SELECT *. Recompute the HLC
@@ -223,6 +230,11 @@ export class SyncEngine {
             this.lastPushedHlc = ackMaxHlc;
             await this.saveWatermark(this.lastPushedHlc, 'pushed');
           }
+
+          // Progress for explicit user-triggered pushes (command palette).
+          // Count only acknowledged chunks so the number never overstates.
+          sent += chunkRows.length;
+          onProgress?.({ sent, total });
         } catch (err) {
           const error = err instanceof Error ? err : new Error(String(err));
           const attemptCounts = await this.client.query<Record<string, number>>(
