@@ -7,6 +7,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor, isSupportBadgeVisible, useEncryptionStore } from '@/stores';
+import { enableWorkspaceE2ee, unlockWorkspaceE2ee } from '@/core/e2eeSetup';
+import { clearWorkspaceKey, setWorkspaceE2eeEnabled } from '@/core/e2ee';
 import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSelectors';
 import { useWorkspaces } from '@/features/workspace';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor, TreeEditMode } from '@/stores';
@@ -102,7 +104,6 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const encryptionConfig = useEncryptionStore((s) => s.getConfig(workspaceUuid));
   const encryptionKey = useEncryptionStore((s) => s.getKey(workspaceUuid));
   const setEncryptionPasswordAction = useEncryptionStore((s) => s.setPassword);
-  const unlockEncryption = useEncryptionStore((s) => s.unlock);
   const lockEncryption = useEncryptionStore((s) => s.lock);
   const disableEncryption = useEncryptionStore((s) => s.disable);
   const encryptionEnabled = encryptionConfig.enabled;
@@ -185,6 +186,9 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     }
     try {
       await setEncryptionPasswordAction(encryptionPassword, workspaceUuid);
+      // Also enable E2EE for sync (SPEC §8): generate the workspace key,
+      // wrap it with the passphrase-derived KEK, and publish the blob.
+      await enableWorkspaceE2ee(workspaceUuid);
       setEncryptionPassword('');
       setEncryptionConfirm('');
       setEncryptionSuccess(true);
@@ -205,7 +209,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
       return;
     }
     try {
-      await unlockEncryption(encryptionPassword, workspaceUuid);
+      const ok = await unlockWorkspaceE2ee(workspaceUuid, encryptionPassword);
+      if (!ok) {
+        setEncryptionError('Wrong password, or the workspace key could not be unwrapped');
+        return;
+      }
       setEncryptionPassword('');
       setEncryptionSuccess(true);
     } catch (err) {
@@ -1181,6 +1189,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
         onConfirm={() => {
           if (workspaceUuid) {
             disableEncryption(workspaceUuid);
+            // Also detach the sync-layer E2EE key state. Previously synced
+            // encrypted envelopes on the server stay encrypted (history is
+            // immutable); new operations go out plaintext again.
+            clearWorkspaceKey(workspaceUuid);
+            setWorkspaceE2eeEnabled(workspaceUuid, false);
           }
           setShowDisableEncryptionConfirm(false);
         }}
