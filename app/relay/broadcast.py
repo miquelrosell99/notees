@@ -216,18 +216,24 @@ async def unsubscribe(workspace_id: str, websocket: WebSocket) -> None:
     await backend.unsubscribe(workspace_id)
 
 
-async def broadcast(workspace_id: str, envelopes: list[RelayEnvelope]) -> None:
+async def broadcast(
+    workspace_id: str,
+    envelopes: list[RelayEnvelope],
+    seqs: dict[str, int] | None = None,
+) -> None:
     """Send a batch of envelopes to every subscriber of ``workspace_id``.
 
     Envelopes go out as one typed ``ops`` message (camelCase wire format) per
-    saved batch, not one bare frame per envelope — see protocol/SPEC.md §4.3.
-    With the Redis backend this publishes to the workspace channel; local
-    subscribers receive the message through the Redis listener. With the
-    in-memory backend delivery happens directly.
+    saved batch, not one bare frame per envelope — see protocol/SPEC.md §5.
+    ``seqs`` carries the server-assigned seq per envelope id so receivers can
+    advance their cursor from live frames. With the Redis backend this
+    publishes to the workspace channel; local subscribers receive the message
+    through the Redis listener. With the in-memory backend delivery happens
+    directly.
     """
     if not envelopes:
         return
-    message = WsOpsMessage(envelopes=envelopes).model_dump_json(by_alias=True)
+    message = WsOpsMessage(envelopes=envelopes, seqs=seqs or {}).model_dump_json(by_alias=True)
     backend = await get_broadcast_backend()
     await backend.publish(workspace_id, message)
 

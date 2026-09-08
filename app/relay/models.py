@@ -63,6 +63,10 @@ class WsOpsMessage(BaseModel):
     One frame per saved batch instead of one frame per envelope: receivers get
     an atomic batch to apply, and a `type` discriminator removes the need to
     shape-sniff bare envelopes against control messages.
+
+    ``seqs`` maps envelope id → server-assigned seq so receivers can advance
+    their seq cursor from live frames alone. It lives on the frame, not inside
+    the envelopes, so the envelope schema (protocolVersion 1) stays unchanged.
     """
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -70,6 +74,7 @@ class WsOpsMessage(BaseModel):
     type: Literal["ops"] = "ops"
     protocol_version: int = WS_PROTOCOL_VERSION
     envelopes: list[RelayEnvelope]
+    seqs: dict[str, int] = Field(default_factory=dict)
 
 
 def _parse_hlc(value: Any) -> Hlc:
