@@ -9,6 +9,8 @@ import { useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useSyncStatusStore, type SyncStatus } from '../stores/syncStatusStore';
 import { useStorageQuota } from '@/core/hooks';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceSyncEngine } from '@/core/adapters/workspaceStoreAdapter';
 import { Icon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 
@@ -33,10 +35,23 @@ function formatBytes(bytes: number): string {
 export function SyncStatusIndicator(): ReactNode {
   const { status, pendingCount, failedCount, lastError } = useSyncStatusStore();
   const { quota, isWarning, isCritical } = useStorageQuota();
+  const workspaceUuid = useCurrentWorkspaceUuid();
   const [open, setOpen] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const config = STATUS_CONFIG[status];
+
+  const handleRetry = async (): Promise<void> => {
+    const engine = workspaceUuid ? getWorkspaceSyncEngine(workspaceUuid) : undefined;
+    if (!engine) return;
+    setRetrying(true);
+    try {
+      await engine.retryQuarantined();
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   return (
     <div className="sync-status-indicator">
@@ -89,6 +104,17 @@ export function SyncStatusIndicator(): ReactNode {
               {pendingCount > 0 && failedCount > 0 && ' · '}
               {failedCount > 0 && `${failedCount} failed`}
             </p>
+          )}
+          {failedCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleRetry()}
+              disabled={retrying}
+              title="Requeue failed changes and push them now"
+            >
+              {retrying ? 'Retrying…' : 'Retry now'}
+            </Button>
           )}
           {lastError && (
             <p className="sync-status-indicator__last-error" title={lastError}>

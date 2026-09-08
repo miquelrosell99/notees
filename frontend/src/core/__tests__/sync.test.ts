@@ -484,3 +484,69 @@ describe('SyncEngine', () => {
     expect(storeB.getNode(nodeId2)).toBeDefined();
   });
 });
+
+
+describe('SyncEngine outbox status + quarantine recovery', () => {
+  it('quarantines ops after the backoff schedule and recovers them via retryQuarantined', async () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    vi.setSystemTime(now);
+
+    const workspaceId = uuidv7();
+    const actor = uuidv7();
+    const relay = new MemoryRelay();
+
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, workspaceId, actor);
+    const client = await createClientFromStore(store);
+
+    let shouldFail = true;
+    const transport = new MemoryTransport(relay, workspaceId);
+    const originalSendBatch = transport.sendBatch.bind(transport);
+    transport.sendBatch = (envelopes) => {
+      if (shouldFail) {
+        throw new Error('network error');
+      }
+      return originalSendBatch(envelopes);
+    };
+
+    const countReports: Array<{ pending: number; failed: number; quarantined: number }> = [];
+    const sync = new SyncEngine(client, transport, {
+      onOutboxCounts: (counts) => countReports.push({ ...counts }),
+    });
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+
+    // RETRY_DELAYS_MS has 5 entries; the 6th failed attempt quarantines.
+    const backoffs = [5_000, 15_000, 60_000, 300_000, 1_800_000];
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await expect(sync.push()).rejects.toThrow('network error');
+      vi.advanceTimersByTime((backoffs[attempt] ?? 0) + 1);
+    }
+
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(0);
+    const stuck = store.getOutboxStatusCounts({ physical: 0, logical: 0 });
+    expect(stuck.pending).toBe(0);
+    expect(stuck.failed).toBe(0);
+    expect(stuck.quarantined).toBe(1);
+
+    // Quarantined ops are not picked up by normal pushes.
+    await sync.push();
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(0);
+
+    // The UI surfaced the quarantine through the counts callback.
+    expect(countReports.at(-1)).toEqual({ pending: 0, failed: 0, quarantined: 1 });
+
+    // Explicit retry requeues and pushes once connectivity is back.
+    shouldFail = false;
+    await sync.retryQuarantined();
+
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(1);
+    const recovered = store.getOutboxStatusCounts({ physical: 0, logical: 0 });
+    expect(recovered).toEqual({ pending: 0, failed: 0, quarantined: 0 });
+    expect(countReports.at(-1)).toEqual({ pending: 0, failed: 0, quarantined: 0 });
+
+    vi.useRealTimers();
+  });
+});
