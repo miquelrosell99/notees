@@ -16,19 +16,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = pytest.mark.unit
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key.
-
-    This avoids requiring a PostgreSQL connection for WorkspaceKeyStorage in
-    unit tests.
-    """
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 class InterleavingRelayStorage(SqliteRelayStorage):
     """Relay storage that starts a concurrent sync right after each save.
 
@@ -71,9 +58,7 @@ class CountingRelayStorage(SqliteRelayStorage):
         node_id: str | None = None,
     ) -> tuple[list[RelayEnvelope], int | None]:
         self.paginated_calls += 1
-        return super().get_catch_up_paginated(
-            workspace_id, after_seq, limit=limit, node_id=node_id
-        )
+        return super().get_catch_up_paginated(workspace_id, after_seq, limit=limit, node_id=node_id)
 
 
 async def _make_store(
@@ -86,7 +71,6 @@ async def _make_store(
         actor_id=actor_id,
         relay_storage=relay_storage or SqliteRelayStorage(":memory:"),
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -108,9 +92,7 @@ class TestWorkspaceStore:
         await store.create_node("node-1", "page")
         await store.set_property("pv-1", "node-1", "schema-1", {"text": "done"})
 
-        rows = await store.query(
-            "SELECT * FROM property_value WHERE node_id = ?", ("node-1",)
-        )
+        rows = await store.query("SELECT * FROM property_value WHERE node_id = ?", ("node-1",))
         assert len(rows) == 1
         assert rows[0]["property_schema_id"] == "schema-1"
         assert json.loads(rows[0]["value"]) == {"text": "done"}
@@ -160,9 +142,7 @@ class TestWorkspaceStore:
 
         node_rows = await reader.query("SELECT * FROM node WHERE id = ?", ("node-1",))
         assert len(node_rows) == 1
-        activity_rows = await reader.query(
-            "SELECT * FROM activity_log WHERE node_id = ?", ("node-1",)
-        )
+        activity_rows = await reader.query("SELECT * FROM activity_log WHERE node_id = ?", ("node-1",))
         assert len(activity_rows) == 1
 
         await reader.close()
@@ -201,7 +181,9 @@ class TestWorkspaceStore:
         assert all(result is not None for result in results)
         assert all(result.id == op.id for result, op in zip(results, operations, strict=True))
 
-        rows = await store.query("SELECT id, kind FROM node WHERE id IN (?, ?, ?) ORDER BY id", ("batch-1", "batch-2", "batch-3"))
+        rows = await store.query(
+            "SELECT id, kind FROM node WHERE id IN (?, ?, ?) ORDER BY id", ("batch-1", "batch-2", "batch-3")
+        )
         assert len(rows) == 3
         kinds = {row["id"]: row["kind"] for row in rows}
         assert kinds == {"batch-1": "page", "batch-2": "page", "batch-3": "block"}
@@ -252,9 +234,7 @@ class TestWorkspaceStore:
         assert node_rows[0]["kind"] == "page"
         assert node_rows[1]["kind"] == "block"
 
-        property_rows = await reader.query(
-            "SELECT value FROM property_value WHERE node_id = ?", ("node-1",)
-        )
+        property_rows = await reader.query("SELECT value FROM property_value WHERE node_id = ?", ("node-1",))
         assert len(property_rows) == 1
         assert json.loads(property_rows[0]["value"]) == {"text": "hello"}
 
@@ -286,9 +266,7 @@ class TestWorkspaceStore:
         # The 5 old operations are covered by the snapshot (reflected in the
         # restored applied_operation_id table), and the 3 new operations are
         # fetched and applied during catch-up.
-        applied_rows = await reader.query(
-            "SELECT COUNT(*) FROM applied_operation_id"
-        )
+        applied_rows = await reader.query("SELECT COUNT(*) FROM applied_operation_id")
         assert applied_rows[0][0] == 8
 
         snapshot = relay.get_latest_snapshot("ws-1")
@@ -296,14 +274,10 @@ class TestWorkspaceStore:
         newer_envelopes = relay.get_catch_up("ws-1", snapshot["up_to_seq"] or 0)
         assert len(newer_envelopes) == 3
 
-        old_rows = await reader.query(
-            "SELECT COUNT(*) FROM node WHERE id LIKE 'old-node-%'"
-        )
+        old_rows = await reader.query("SELECT COUNT(*) FROM node WHERE id LIKE 'old-node-%'")
         assert old_rows[0][0] == 5
 
-        new_rows = await reader.query(
-            "SELECT COUNT(*) FROM node WHERE id LIKE 'new-node-%'"
-        )
+        new_rows = await reader.query("SELECT COUNT(*) FROM node WHERE id LIKE 'new-node-%'")
         assert new_rows[0][0] == 3
 
         await reader.close()
@@ -349,9 +323,7 @@ class TestWorkspaceStore:
         await store.create_class("child-1", "Child")
         await store.set_class_extends("child-1", ["parent-1"])
 
-        rows = await store.query(
-            "SELECT extends_class_ids FROM class WHERE id = ?", ("child-1",)
-        )
+        rows = await store.query("SELECT extends_class_ids FROM class WHERE id = ?", ("child-1",))
         assert len(rows) == 1
         assert json.loads(rows[0]["extends_class_ids"]) == ["parent-1"]
 
@@ -491,9 +463,7 @@ class TestClassExtendsCycleValidation:
         with pytest.raises(ValueError, match="inheritance cycle"):
             await store.set_class_extends("b", ["a"])
 
-        rows = await store.query(
-            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?", ("b",)
-        )
+        rows = await store.query("SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?", ("b",))
         assert {row["ancestor_id"] for row in rows} == {"b"}
 
         await store.close()
@@ -513,9 +483,7 @@ class TestClassExtendsCycleValidation:
         await store.create_class("book", "book")
         await store.set_class_extends("book", ["source"])
 
-        rows = await store.query(
-            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?", ("book",)
-        )
+        rows = await store.query("SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?", ("book",))
         assert {row["ancestor_id"] for row in rows} == {"book", "source", "x"}
 
         await store.close()

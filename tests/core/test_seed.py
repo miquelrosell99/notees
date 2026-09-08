@@ -30,7 +30,6 @@ from app.domain.entities.constants import (
     SYSTEM_PROPERTY_UUIDS,
 )
 from app.relay.storage import SqliteRelayStorage
-from tests.core.fakes import FakeKeyStorage
 
 pytestmark = pytest.mark.unit
 
@@ -62,7 +61,6 @@ def _make_store(workspace_id: str = "ws-1", actor_id: str = "actor-1") -> Worksp
         actor_id=actor_id,
         relay_storage=SqliteRelayStorage(":memory:"),
         db_path=":memory:",
-        key_storage=FakeKeyStorage(),
     )
 
 
@@ -178,9 +176,7 @@ def test_seed_derives_class_scoped_property_schemas_and_edges() -> None:
 
     edges = {
         (row["class_id"], row["property_schema_id"]): row["sequence"]
-        for row in conn.execute(
-            "SELECT class_id, property_schema_id, sequence FROM class_property_edge"
-        ).fetchall()
+        for row in conn.execute("SELECT class_id, property_schema_id, sequence FROM class_property_edge").fetchall()
     }
     assert len(edges) == SCHEMA_COUNT + EXTRA_BINDING_COUNT
     expected_sequences = _edge_sequences()

@@ -17,7 +17,6 @@ from app.core.sync import SyncEngine
 from app.core.transport import MemoryRelay, MemoryTransport
 from app.core.workspace_store import WorkspaceStore
 from app.relay.storage import SqliteRelayStorage
-from tests.core.fakes import FakeKeyStorage
 
 pytestmark = [pytest.mark.unit, pytest.mark.stress]
 
@@ -77,7 +76,6 @@ class TestMultiClientConvergenceBurst:
                 actor_id=f"actor-{i}",
                 db_path=":memory:",
                 relay_storage=SqliteRelayStorage(":memory:"),
-                key_storage=FakeKeyStorage(),
             )
             clients.append(store)
             syncs.append(SyncEngine(store, MemoryTransport(relay, workspace_id)))
@@ -102,31 +100,18 @@ class TestMultiClientConvergenceBurst:
         elapsed = time.perf_counter() - start
 
         total_ops = client_count * burst_size
-        print(
-            f"convergence_burst({client_count} clients x {burst_size} ops): "
-            f"{elapsed:.3f}s"
-        )
+        print(f"convergence_burst({client_count} clients x {burst_size} ops): {elapsed:.3f}s")
 
-        expected_nodes = {
-            f"actor{i}-node-{j:04d}"
-            for i in range(client_count)
-            for j in range(burst_size)
-        }
+        expected_nodes = {f"actor{i}-node-{j:04d}" for i in range(client_count) for j in range(burst_size)}
 
         first_nodes = {row["id"] for row in await clients[0].list_nodes()}
-        assert first_nodes == expected_nodes, (
-            f"Client 0 has {len(first_nodes)} nodes, expected {len(expected_nodes)}"
-        )
+        assert first_nodes == expected_nodes, f"Client 0 has {len(first_nodes)} nodes, expected {len(expected_nodes)}"
 
         for store in clients[1:]:
             nodes = {row["id"] for row in await store.list_nodes()}
-            assert nodes == first_nodes, (
-                f"Client node set mismatch: {len(nodes)} vs {len(first_nodes)}"
-            )
+            assert nodes == first_nodes, f"Client node set mismatch: {len(nodes)} vs {len(first_nodes)}"
 
-        assert elapsed < max(5.0, total_ops / 400), (
-            f"Burst convergence for {total_ops} ops took {elapsed:.3f}s"
-        )
+        assert elapsed < max(5.0, total_ops / 400), f"Burst convergence for {total_ops} ops took {elapsed:.3f}s"
 
         for store in clients:
             await store.close()

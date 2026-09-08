@@ -48,13 +48,9 @@ pytestmark = pytest.mark.unit
 
 DEDUPE_PROTECTED: frozenset[str] = frozenset({"link.click"})
 
-NO_BACKEND_APPLIER: frozenset[str] = frozenset(
-    {"node.addAlias", "node.removeAlias", "node.permanentDelete"}
-)
+NO_BACKEND_APPLIER: frozenset[str] = frozenset({"node.addAlias", "node.removeAlias", "node.permanentDelete"})
 
-IDEMPOTENT_BY_DESIGN: frozenset[str] = (
-    KNOWN_OP_TYPES - DEDUPE_PROTECTED - NO_BACKEND_APPLIER
-)
+IDEMPOTENT_BY_DESIGN: frozenset[str] = KNOWN_OP_TYPES - DEDUPE_PROTECTED - NO_BACKEND_APPLIER
 
 # ---------------------------------------------------------------------------
 # Per-op-type minimal valid payload fixtures.
@@ -315,8 +311,7 @@ def _snapshot_database(conn: sqlite3.Connection) -> dict[str, list[tuple[Any, ..
     tables = [
         row[0]
         for row in conn.execute(
-            "SELECT name FROM sqlite_master "
-            "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
         )
     ]
     return {
@@ -333,13 +328,6 @@ def _changed_tables(
     after: dict[str, list[tuple[Any, ...]]],
 ) -> list[str]:
     return sorted(table for table in before if before[table] != after.get(table))
-
-
-class _FixedKeyStorage:
-    """In-memory key storage avoiding PostgreSQL in unit tests."""
-
-    async def get_or_create_master_key(self, workspace_id: str, secret_key: str) -> bytes:
-        return b"0" * 32
 
 
 class _FakeRelayStorage:
@@ -369,9 +357,7 @@ class _FakeRelayStorage:
         node_id: str | None = None,
     ) -> tuple[list[RelayEnvelope], int | None]:
         # seq = insertion order (server-assigned, monotonic, dedupe-stable).
-        ordered = [
-            envelope for envelope in self._envelopes if envelope.workspace_id == workspace_id
-        ]
+        ordered = [envelope for envelope in self._envelopes if envelope.workspace_id == workspace_id]
         page = ordered[after_seq : after_seq + limit]
         next_after_seq = after_seq + limit if len(ordered) > after_seq + limit else None
         return page, next_after_seq
@@ -399,8 +385,7 @@ class TestRegistryCoverage:
         union = IDEMPOTENT_BY_DESIGN | DEDUPE_PROTECTED | NO_BACKEND_APPLIER
         total = len(IDEMPOTENT_BY_DESIGN) + len(DEDUPE_PROTECTED) + len(NO_BACKEND_APPLIER)
         assert union == KNOWN_OP_TYPES, (
-            f"unclassified: {sorted(KNOWN_OP_TYPES - union)}, "
-            f"unknown: {sorted(union - KNOWN_OP_TYPES)}"
+            f"unclassified: {sorted(KNOWN_OP_TYPES - union)}, unknown: {sorted(union - KNOWN_OP_TYPES)}"
         )
         assert len(union) == total, "buckets must be disjoint"
 
@@ -456,8 +441,7 @@ class TestDedupeProtected:
         after = _snapshot_database(conn)
 
         assert before != after, (
-            f"{op_type} is classified DEDUPE_PROTECTED but its applier is "
-            "idempotent; move it to IDEMPOTENT_BY_DESIGN."
+            f"{op_type} is classified DEDUPE_PROTECTED but its applier is idempotent; move it to IDEMPOTENT_BY_DESIGN."
         )
         conn.close()
 
@@ -475,7 +459,6 @@ class TestDedupeProtected:
             actor_id="actor-1",
             relay_storage=relay,  # type: ignore[arg-type]
             db_path=":memory:",
-            key_storage=_FixedKeyStorage(),  # type: ignore[arg-type]
         )
         await store.sync()
         conn = await store.get_db()

@@ -7,7 +7,9 @@ import json
 
 from fastapi import Depends, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
+from pyrate_limiter import Duration, Limiter, Rate
 
+from app.rate_limit import PerKeyBucketFactory
 from app.relay.broadcast import broadcast, subscribe, unsubscribe
 from app.relay.dependencies import (
     get_actor_id_ws,
@@ -18,6 +20,11 @@ from app.relay.dependencies import (
 from app.relay.models import BatchRequest, WsHelloMessage
 from app.relay.permissions import PermissionChecker, PermissionDeniedError
 from app.relay.service import RelayService
+
+# Per-actor/workspace connection attempts per minute. Generous enough for
+# reconnect-with-backoff clients, bounded so the previously unlimited
+# endpoint cannot be used for connection churn.
+_relay_ws_limiter = Limiter(PerKeyBucketFactory([Rate(60, Duration.MINUTE)]))
 
 
 async def websocket_endpoint(
@@ -55,6 +62,14 @@ async def websocket_endpoint(
         return
 
     if not await permissions.can_read(workspace_id, actor_id):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    allowed = await _relay_ws_limiter.try_acquire_async(
+        f"relay:ws:{actor_id}:{workspace_id}",
+        blocking=False,
+    )
+    if not allowed:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 

@@ -46,7 +46,9 @@ Rate limit: 600 requests per minute, keyed by actor and workspace. The default/r
 
 ### `/api/relay/snapshot` (GET)
 
-Query parameters: `workspace_id`, optional `share_token`, optional `include_data` (default `true`). Returns the newest snapshot as base64-encoded SQLite bytes, plus its HLC, the covered `up_to_seq` cursor, and the workspace `restore_epoch`. Clients can restore the snapshot and then catch up only operations past `up_to_seq`. With `include_data=false` only the metadata is returned (`data_base64` is empty), so clients can cheaply check whether the snapshot is newer before downloading it.
+Query parameters: `workspace_id`, optional `include_data` (default `true`). Requires an authenticated workspace member — public share tokens are not accepted because the snapshot contains the full derived database (share readers use node-filtered catch-up instead). Returns the newest snapshot as base64-encoded SQLite bytes, plus its HLC, the covered `up_to_seq` cursor, and the workspace `restore_epoch`. Clients can restore the snapshot and then catch up only operations past `up_to_seq`. With `include_data=false` only the metadata is returned (`data_base64` is empty), so clients can cheaply check whether the snapshot is newer before downloading it.
+
+Rate limit: 60 requests per minute, keyed by actor and workspace.
 
 ### `/api/relay/snapshot` (POST)
 

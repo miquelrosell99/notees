@@ -213,13 +213,6 @@ class TestEpubHandler:
 # ── Core orchestration over WorkspaceStore ──────────────────────────────────
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(self, workspace_id: str, secret_key: str) -> bytes:
-        return b"0" * 32
-
-
 @pytest_asyncio.fixture
 async def harness(tmp_path):
     relay = SqliteRelayStorage(":memory:")
@@ -228,7 +221,6 @@ async def harness(tmp_path):
         actor_id=ACTOR,
         relay_storage=relay,
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
     asset_service = AssetService(WS, ACTOR, store, assets_dir=tmp_path / "assets")
     registry = PluginRegistry()

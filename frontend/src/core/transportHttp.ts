@@ -80,7 +80,6 @@ export class HttpTransport implements Transport {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Actor-Id': this.actorId,
       },
       credentials: 'include',
       body: JSON.stringify({ envelopes }),
@@ -109,7 +108,6 @@ export class HttpTransport implements Transport {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Actor-Id': this.actorId,
       },
       credentials: 'include',
       body: JSON.stringify({
@@ -148,9 +146,6 @@ export class HttpTransport implements Transport {
       `${this.baseUrl}/api/relay/snapshot?workspace_id=${encodeURIComponent(this.workspaceId)}${includeData ? '' : '&include_data=false'}`,
       {
         method: 'GET',
-        headers: {
-          'X-Actor-Id': this.actorId,
-        },
         credentials: 'include',
       }
     );
@@ -200,7 +195,6 @@ export class HttpTransport implements Transport {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Actor-Id': this.actorId,
       },
       credentials: 'include',
       body: JSON.stringify({

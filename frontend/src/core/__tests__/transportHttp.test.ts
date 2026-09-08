@@ -37,7 +37,9 @@ describe('HttpTransport', () => {
     expect(url).toBe('http://localhost:8000/api/relay/batch');
     expect(init?.method).toBe('POST');
     expect(init?.credentials).toBe('include');
-    expect((init?.headers as Record<string, string>)['X-Actor-Id']).toBe(actorId);
+    // Identity comes from the auth cookie only; the server ignores and the
+    // client no longer sends a caller-supplied X-Actor-Id header.
+    expect((init?.headers as Record<string, string>)['X-Actor-Id']).toBeUndefined();
     const body = JSON.parse((init?.body as string) ?? '{}');
     expect(body.envelopes).toHaveLength(1);
     expect(body.envelopes[0]).toEqual(envelope);

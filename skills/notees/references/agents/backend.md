@@ -22,9 +22,9 @@ The backend follows a feature-first hexagonal architecture:
 
 ## Local-first Core
 
-- **Operation log**: `app/core/operation.py` defines immutable operations. The relay stores encrypted envelopes; clients derive SQLite state by applying operations.
+- **Operation log**: `app/core/operation.py` defines immutable operations. The relay stores envelopes with plaintext JSON payloads (confidentiality is transport-level TLS/Tailscale); clients derive SQLite state by applying operations.
 - **Derived appliers**: `app/core/derived/` contains appliers that project operations into queryable tables (node, child order, property values, edges, assets, tasks, activity, shares).
-- **Relay**: `app/relay/` is the production sync path. It accepts encrypted batches, enforces permissions via unencrypted routing metadata, and serves catch-up queries.
+- **Relay**: `app/relay/` is the production sync path. It accepts batches from authenticated principals (the `X-Actor-Id` header is never trusted), enforces permissions via unencrypted routing metadata, and serves catch-up queries.
 - **WorkspaceStore**: `app/core/workspace_store.py` provides a server-side `(workspace_id, actor_id)` store for feature islands that still need derived state during the transition.
 
 ## Post-Migration Boundary Changes

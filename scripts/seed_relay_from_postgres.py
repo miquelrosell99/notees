@@ -54,6 +54,25 @@ DEFAULT_RELAY_URL = "http://localhost:8001"
 BATCH_SIZE = 100
 
 
+def _bearer_headers() -> dict[str, str]:
+    """Return Authorization headers for relay HTTP calls.
+
+    The relay derives actor identity from authenticated credentials only; the
+    old ``X-Actor-Id`` header is no longer trusted. HTTP seeding therefore
+    requires a valid access token (workspace owner or admin) via the
+    ``NOTEES_ACCESS_TOKEN`` environment variable. ``--direct`` mode writes to
+    storage directly and needs no token.
+    """
+    token = os.getenv("NOTEES_ACCESS_TOKEN")
+    if not token:
+        raise ValueError(
+            "NOTEES_ACCESS_TOKEN must be set to a valid access token for HTTP "
+            "seeding (the relay no longer accepts X-Actor-Id identity). "
+            "Use --direct to seed via storage without HTTP auth."
+        )
+    return {"Authorization": f"Bearer {token}"}
+
+
 def _default_relay_storage_path() -> str:
     """Return the on-disk path used by the running backend for relay storage."""
     db_path = Path(settings.database_dir) / "relay" / "relay.db"
@@ -143,13 +162,12 @@ async def _seed_workspace(
         posted = len(envelopes)
     else:
         posted = 0
-        async with httpx.AsyncClient(base_url=relay_url) as client:
+        async with httpx.AsyncClient(base_url=relay_url, headers=_bearer_headers()) as client:
             for i in range(0, len(envelopes), BATCH_SIZE):
                 batch = envelopes[i : i + BATCH_SIZE]
                 response = await client.post(
                     "/api/relay/batch",
                     json={"envelopes": batch},
-                    headers={"x-actor-id": actor_id},
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -179,7 +197,6 @@ def _envelope_to_dict(envelope: RelayEnvelope) -> dict:
 async def _fetch_relay_operations(
     client: httpx.AsyncClient | None,
     workspace_uuid: str,
-    actor_id: str,
     storage: SqliteRelayStorage | None = None,
 ) -> list[dict]:
     """Page through relay catch-up, either via HTTP or directly from storage."""
@@ -204,7 +221,6 @@ async def _fetch_relay_operations(
         response = await client.post(
             "/api/relay/catch-up",
             json=payload,
-            headers={"x-actor-id": actor_id},
         )
         response.raise_for_status()
         data = response.json()
@@ -263,20 +279,15 @@ async def _smoke_test_workspace(
         print(f"  Smoke test skipped: workspace {workspace_uuid} not found")
         return False
 
-    owner_uuid = await _fetch_workspace_owner_uuid(conn, workspace_int_id)
-    actor_id = owner_uuid or "system"
-
     expected_report = build_reconciliation_report(operations)
 
     if direct:
         relay_envelopes = await _fetch_relay_operations(
-            None, workspace_uuid, actor_id, storage=storage
+            None, workspace_uuid, storage=storage
         )
     else:
-        async with httpx.AsyncClient(base_url=relay_url) as client:
-            relay_envelopes = await _fetch_relay_operations(
-                client, workspace_uuid, actor_id
-            )
+        async with httpx.AsyncClient(base_url=relay_url, headers=_bearer_headers()) as client:
+            relay_envelopes = await _fetch_relay_operations(client, workspace_uuid)
 
     actual_counts = _derive_counts_from_relay(workspace_uuid, secret_key, relay_envelopes)
 

@@ -18,15 +18,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = [pytest.mark.unit, pytest.mark.stress]
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 async def _make_store(
     workspace_id: str,
     actor_id: str,
@@ -37,7 +28,6 @@ async def _make_store(
         actor_id=actor_id,
         relay_storage=relay_storage,
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -74,8 +64,7 @@ class TestRelayStorageOverhead:
             # A node.create op with a small payload serializes to a few hundred
             # bytes. Allow a generous ceiling to stay green on slow CI disks.
             assert bytes_per_op < 2_500, (
-                f"Relay storage overhead was {bytes_per_op:.1f} B/op "
-                f"for {count} ops (total {db_size} bytes)"
+                f"Relay storage overhead was {bytes_per_op:.1f} B/op for {count} ops (total {db_size} bytes)"
             )
         finally:
             Path(db_path).unlink(missing_ok=True)
@@ -105,9 +94,7 @@ class TestRelayStorageOverhead:
         for i in range(count):
             await writer.create_node(f"node-{i:06d}", "block")
             if i % 10 == 0:
-                await writer.set_property(
-                    f"pv-{i:06d}", f"node-{i:06d}", "schema-1", {"text": f"value-{i}"}
-                )
+                await writer.set_property(f"pv-{i:06d}", f"node-{i:06d}", "schema-1", {"text": f"value-{i}"})
         await writer.close()
 
         reader = await _make_store("ws-derived-size", "actor-b", relay)
@@ -116,18 +103,12 @@ class TestRelayStorageOverhead:
         # Export the in-memory derived database and compare to relay size.
         derived_bytes = len(reader._conn.serialize(name="main"))
         relay_bytes = relay.get_operation_size_estimate("ws-derived-size")
-        print(
-            f"derived_size({count}): {derived_bytes} bytes vs "
-            f"relay estimate {relay_bytes} bytes"
-        )
+        print(f"derived_size({count}): {derived_bytes} bytes vs relay estimate {relay_bytes} bytes")
 
         # The serialized SQLite database has fixed page overhead, so it can be
         # larger than the raw ciphertext sum. The meaningful bound is per-node
         # derived overhead, which should stay well under a few KB per node.
         bytes_per_node = derived_bytes / count
         print(f"derived_overhead({count}): {bytes_per_node:.1f} B/node")
-        assert bytes_per_node < 3_000, (
-            f"Derived state overhead was {bytes_per_node:.1f} B/node "
-            f"for {count} nodes"
-        )
+        assert bytes_per_node < 3_000, f"Derived state overhead was {bytes_per_node:.1f} B/node for {count} nodes"
         await reader.close()

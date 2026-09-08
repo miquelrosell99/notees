@@ -17,7 +17,6 @@ from app.relay.dependencies import (
     get_workspace_restore_epoch,
     require_workspace_owner_or_admin,
 )
-from app.relay.key_router import router as key_router
 from app.relay.models import (
     BatchRequest,
     CatchUpPaginatedResponse,
@@ -35,11 +34,10 @@ from app.relay.websocket import websocket_endpoint
 
 router = APIRouter(prefix="/api/relay", tags=["relay"])
 
-router.include_router(key_router)
-
-# Per-actor/workspace batch submission limit: 30,000 envelopes per minute.
-# The frontend currently pushes one envelope per request during catch-up, so
-# this needs to be high enough for initial sync of large workspaces.
+# Per-actor/workspace batch submission limit: 30,000 envelopes per minute,
+# counted per envelope (not per request) inside the handler, where the parsed
+# batch size is known. The frontend pushes in 100-envelope chunks, so this
+# allows ~300 chunk requests per minute.
 _relay_batch_limiter = Limiter(PerKeyBucketFactory([Rate(30_000, Duration.MINUTE)]))
 
 # Per-actor catch-up request limit: 600 requests per minute.
@@ -47,21 +45,20 @@ _relay_batch_limiter = Limiter(PerKeyBucketFactory([Rate(30_000, Duration.MINUTE
 # needs ~10 requests, so the old 60/min limit was too easy to hit.
 _relay_catchup_limiter = Limiter(PerKeyBucketFactory([Rate(600, Duration.MINUTE)]))
 
+# Snapshot downloads serve a full derived-database blob; keep them scarcer
+# than catch-up pages.
+_relay_snapshot_limiter = Limiter(PerKeyBucketFactory([Rate(60, Duration.MINUTE)]))
+
+# Stats are cheap but were previously unlimited.
+_relay_stats_limiter = Limiter(PerKeyBucketFactory([Rate(120, Duration.MINUTE)]))
+
+# Snapshot/compact uploads are owner/admin-only maintenance operations.
+_relay_admin_limiter = Limiter(PerKeyBucketFactory([Rate(30, Duration.MINUTE)]))
+
 
 def _workspace_id_from_path_or_query(request: Request) -> str | None:
     """Return a workspace id from the request path/query parameters, if any."""
     return request.path_params.get("workspace_id") or request.query_params.get("workspace_id")
-
-
-async def relay_batch_identifier(request: Request) -> str:
-    """Rate-limit key combining actor and target workspace.
-
-    The workspace id is taken from path or query parameters only; the request
-    body is never reparsed, avoiding stream-consumption races and JSON errors.
-    """
-    actor = await user_identifier(request)
-    workspace_id = _workspace_id_from_path_or_query(request)
-    return f"relay:batch:{actor}:{workspace_id or 'unknown'}"
 
 
 async def relay_catchup_identifier(request: Request) -> str:
@@ -71,17 +68,50 @@ async def relay_catchup_identifier(request: Request) -> str:
     return f"relay:catchup:{actor}:{workspace_id or 'unknown'}"
 
 
-@router.post(
-    "/batch",
-    dependencies=[
-        Depends(
-            RateLimiter(
-                limiter=_relay_batch_limiter,
-                identifier=relay_batch_identifier,
-            )
-        ),
-    ],
-)
+async def relay_snapshot_identifier(request: Request) -> str:
+    """Rate-limit key for snapshot downloads (per actor and workspace)."""
+    actor = await user_identifier(request)
+    workspace_id = _workspace_id_from_path_or_query(request)
+    return f"relay:snapshot:{actor}:{workspace_id or 'unknown'}"
+
+
+async def relay_stats_identifier(request: Request) -> str:
+    """Rate-limit key for relay stats (per actor and workspace)."""
+    actor = await user_identifier(request)
+    workspace_id = _workspace_id_from_path_or_query(request)
+    return f"relay:stats:{actor}:{workspace_id or 'unknown'}"
+
+
+async def relay_admin_identifier(request: Request) -> str:
+    """Rate-limit key for snapshot/compact uploads (per actor and workspace)."""
+    actor = await user_identifier(request)
+    workspace_id = _workspace_id_from_path_or_query(request)
+    return f"relay:admin:{actor}:{workspace_id or 'unknown'}"
+
+
+async def _enforce_batch_rate_limit(batch: BatchRequest, actor_id: str) -> None:
+    """Charge the batch rate limiter per envelope, not per request.
+
+    Runs inside the handler because the envelope count and target workspace
+    are only known after the body is parsed; the dependency-level identifier
+    deliberately never reparses the request body.
+    """
+    workspace_ids = {envelope.workspace_id for envelope in batch.envelopes}
+    workspace_id = workspace_ids.pop() if len(workspace_ids) == 1 else "unknown"
+    key = f"relay:batch:user:{actor_id}:{workspace_id}"
+    allowed = await _relay_batch_limiter.try_acquire_async(
+        key,
+        weight=max(len(batch.envelopes), 1),
+        blocking=False,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Relay batch rate limit exceeded (30,000 envelopes per minute).",
+        )
+
+
+@router.post("/batch")
 async def receive_batch(
     batch: BatchRequest,
     response: Response,
@@ -94,6 +124,7 @@ async def receive_batch(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to submit batches.",
         )
+    await _enforce_batch_rate_limit(batch, actor_id)
     try:
         saved = await service.receive_batch(batch, actor_id)
     except PermissionDeniedError as exc:
@@ -191,8 +222,8 @@ async def catch_up(
     dependencies=[
         Depends(
             RateLimiter(
-                limiter=_relay_batch_limiter,
-                identifier=relay_batch_identifier,
+                limiter=_relay_admin_limiter,
+                identifier=relay_admin_identifier,
             )
         ),
     ],
@@ -237,8 +268,8 @@ async def create_snapshot(
     dependencies=[
         Depends(
             RateLimiter(
-                limiter=_relay_batch_limiter,
-                identifier=relay_batch_identifier,
+                limiter=_relay_admin_limiter,
+                identifier=relay_admin_identifier,
             )
         ),
     ],
@@ -279,10 +310,19 @@ async def compact_operations(
     )
 
 
-@router.get("/snapshot")
+@router.get(
+    "/snapshot",
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_snapshot_limiter,
+                identifier=relay_snapshot_identifier,
+            )
+        ),
+    ],
+)
 async def get_latest_snapshot(
     workspace_id: str = Query(...),
-    share_token: str | None = Query(None),
     include_data: bool = Query(True),
     actor_id: str = Depends(get_actor_id),
     service: RelayService = Depends(get_relay_service),
@@ -293,21 +333,22 @@ async def get_latest_snapshot(
     Clients can restore the returned SQLite database bytes and then catch up
     only operations newer than the snapshot HLC. Pass ``include_data=false``
     to fetch only the snapshot metadata (HLC, seq cursor) without the blob.
+
+    Snapshots contain the full derived database for the workspace, so they
+    are served to authenticated workspace members only. Public share tokens
+    are deliberately not accepted here: share readers get node-filtered
+    catch-up instead of a full-workspace download.
     """
-    if actor_id == "anonymous" and share_token is None:
+    if actor_id == "anonymous":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication or a valid share token is required.",
+            detail="Authentication required to read snapshots.",
         )
     try:
         if include_data:
-            snapshot = await service.get_latest_snapshot_for_actor(
-                workspace_id, actor_id, share_token
-            )
+            snapshot = await service.get_latest_snapshot_for_actor(workspace_id, actor_id)
         else:
-            snapshot = await service.get_latest_snapshot_metadata_for_actor(
-                workspace_id, actor_id, share_token
-            )
+            snapshot = await service.get_latest_snapshot_metadata_for_actor(workspace_id, actor_id)
     except PermissionDeniedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -340,7 +381,17 @@ async def get_latest_snapshot(
 router.add_api_websocket_route("/ws/{workspace_id}", websocket_endpoint)
 
 
-@router.get("/stats")
+@router.get(
+    "/stats",
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_stats_limiter,
+                identifier=relay_stats_identifier,
+            )
+        ),
+    ],
+)
 async def get_relay_stats(
     workspace_id: str = Query(...),
     actor_id: str = Depends(get_actor_id),

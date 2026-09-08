@@ -36,7 +36,6 @@ pytestmark = pytest.mark.unit
 WS = "ws-1"
 ACTOR = "actor-1"
 
-
 # ---------------------------------------------------------------------------
 # In-test PDF generation
 # ---------------------------------------------------------------------------
@@ -159,13 +158,6 @@ class TestExtractPdfIdentifiers:
 # ---------------------------------------------------------------------------
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(self, workspace_id: str, secret_key: str) -> bytes:
-        return b"0" * 32
-
-
 class FakeSettingsRepository:
     def __init__(self, store: dict) -> None:
         self._store = store
@@ -189,7 +181,6 @@ async def harness(tmp_path):
             actor_id=actor_uuid,
             relay_storage=relay,
             db_path=":memory:",
-            key_storage=FixedKeyStorage(),
         )
 
     async def settings_factory(workspace_id: int, user_id: int):
@@ -217,7 +208,6 @@ async def harness(tmp_path):
         actor_id=ACTOR,
         relay_storage=relay,
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
     await store.sync()
     asset_service = AssetService(WS, ACTOR, store, assets_dir=tmp_path / "assets")

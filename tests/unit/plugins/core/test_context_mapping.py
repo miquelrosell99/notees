@@ -15,15 +15,6 @@ from app.plugins.core.registry import PluginRegistry
 from app.relay.storage import SqliteRelayStorage
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 class _TestRelay:
     """Shared in-memory relay storage for a single test context."""
 
@@ -40,7 +31,6 @@ async def _make_workspace_store_factory(
             actor_id=actor_uuid,
             relay_storage=relay.relay,
             db_path=":memory:",
-            key_storage=FixedKeyStorage(),
         )
 
     return factory
@@ -54,11 +44,7 @@ async def _settings_repository_factory(_workspace_id: int, _user_id: int) -> dic
 async def _make_context(
     permissions: set[str] | None = None,
 ) -> PluginContext:
-    permissions = (
-        {"write_nodes", "read_nodes", "write_properties", "settings"}
-        if permissions is None
-        else permissions
-    )
+    permissions = {"write_nodes", "read_nodes", "write_properties", "settings"} if permissions is None else permissions
     relay = _TestRelay()
     return PluginContext(
         plugin_id="notees.test",
@@ -136,9 +122,7 @@ async def test_upsert_page_by_external_id_updates_existing_by_property() -> None
 async def test_upsert_page_by_external_id_falls_back_to_name_and_class() -> None:
     context = await _make_context()
     source_class_uuid = uuidv7()
-    existing = await context.create_page(
-        "ws-1", "actor-1", "@doe2023", class_uuids=[source_class_uuid]
-    )
+    existing = await context.create_page("ws-1", "actor-1", "@doe2023", class_uuids=[source_class_uuid])
 
     doi_schema_uuid = uuidv7()
     page_uuid = await context.upsert_page_by_external_id(

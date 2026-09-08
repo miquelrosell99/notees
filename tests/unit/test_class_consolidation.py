@@ -22,13 +22,6 @@ WS = "ws-1"
 ACTOR = "actor-1"
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(self, workspace_id: str, secret_key: str) -> bytes:
-        return b"0" * 32
-
-
 @pytest_asyncio.fixture
 async def store() -> WorkspaceStore:
     relay = SqliteRelayStorage(":memory:")
@@ -37,7 +30,6 @@ async def store() -> WorkspaceStore:
         actor_id=ACTOR,
         relay_storage=relay,
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
     await store.sync()
     yield store

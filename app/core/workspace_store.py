@@ -23,7 +23,6 @@ from app.core.derived.class_hierarchy import class_extends_would_cycle
 from app.core.operation import Operation, OperationEnvelope
 from app.core.uuid import uuidv7
 from app.logging_config import get_logger
-from app.relay.key_storage import WorkspaceKeyStorage
 from app.relay.models import RelayEnvelope
 from app.relay.storage import RelayStorage
 
@@ -55,13 +54,10 @@ class WorkspaceStore:
         *,
         relay_storage: RelayStorage | None = None,
         db_path: str | None = None,
-        key_storage: WorkspaceKeyStorage | None = None,
     ) -> None:
         self.workspace_id = workspace_id
         self._actor_id = actor_id
         self.actor_id = actor_id
-        self._key_storage = key_storage or WorkspaceKeyStorage()
-        self._master_key: bytes | None = None
 
         if relay_storage is not None:
             self._relay_storage = relay_storage
@@ -146,12 +142,6 @@ class WorkspaceStore:
         self._ensure_applied_table()
         self._conn.commit()
         return self._conn
-
-    async def _get_master_key(self) -> bytes:
-        """Return the workspace master key, fetching it once per instance."""
-        if self._master_key is None:
-            self._master_key = await self._key_storage.get_or_create_master_key(self.workspace_id, settings.secret_key)
-        return self._master_key
 
     def _advance_clock(self) -> Hlc:
         """Generate the next HLC for a local operation."""

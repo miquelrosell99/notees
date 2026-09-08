@@ -73,11 +73,6 @@ ROLE = SYSTEM_PROPERTY_UUIDS["role"]
 PUB_DATE = SYSTEM_PROPERTY_UUIDS["publication_date"]
 
 
-class FixedKeyStorage:
-    async def get_or_create_master_key(self, workspace_id: str, secret_key: str) -> bytes:
-        return b"0" * 32
-
-
 def _class_query_ast(class_uuid: str) -> dict:
     return {
         "type": "query",
@@ -86,9 +81,7 @@ def _class_query_ast(class_uuid: str) -> dict:
         "root_group": {
             "type": "group",
             "logic": "AND",
-            "children": [
-                {"type": "condition", "condition_type": "class", "class_uuid": class_uuid}
-            ],
+            "children": [{"type": "condition", "condition_type": "class", "class_uuid": class_uuid}],
         },
     }
 
@@ -132,19 +125,10 @@ def test_template_resolves_tokens_and_modifiers():
 
 
 def test_template_missing_token_falls_back_to_title_then_uuid():
-    assert (
-        render_filename_template("{citekey}", {}, title="Dune", fallback_uuid="u").strip()
-        == "Dune"
-    )
-    assert (
-        render_filename_template("{citekey}", {}, title="", fallback_uuid="uuid-9")
-        == "uuid-9"
-    )
+    assert render_filename_template("{citekey}", {}, title="Dune", fallback_uuid="u").strip() == "Dune"
+    assert render_filename_template("{citekey}", {}, title="", fallback_uuid="uuid-9") == "uuid-9"
     # Unknown token names also fall back.
-    assert (
-        render_filename_template("{nonexistent}", {}, title="Dune", fallback_uuid="u")
-        == "Dune"
-    )
+    assert render_filename_template("{nonexistent}", {}, title="Dune", fallback_uuid="u") == "Dune"
 
 
 def test_template_ext_alias():
@@ -315,11 +299,20 @@ def _attachment(uuid: str, name: str, role: str | None = "representation", mime:
 
 
 class _NoopServices:
-    async def select_node_ids(self, query): return []
-    async def build_node_contexts(self, ids): return []
-    async def open_asset_stream(self, asset_uuid): return None
-    async def get_asset_metadata(self, asset_uuid): return None
-    async def resolve_class_names(self, node_uuid): return []
+    async def select_node_ids(self, query):
+        return []
+
+    async def build_node_contexts(self, ids):
+        return []
+
+    async def open_asset_stream(self, asset_uuid):
+        return None
+
+    async def get_asset_metadata(self, asset_uuid):
+        return None
+
+    async def resolve_class_names(self, node_uuid):
+        return []
 
 
 def test_bibliographic_provider_manifest_and_skip_report():
@@ -336,13 +329,9 @@ def test_bibliographic_provider_manifest_and_skip_report():
         ),
         _node("src-2", "Attachment-less", attachments=[]),
     ]
-    manifest = provider.generate_manifest(
-        {"filename_template": "/{class}/{citekey}.{ext}"}, nodes, _NoopServices()
-    )
+    manifest = provider.generate_manifest({"filename_template": "/{class}/{citekey}.{ext}"}, nodes, _NoopServices())
     # Only the representation attachment is exported (default role filter).
-    assert [(f.asset_uuid, f.relative_path) for f in manifest.files] == [
-        ("asset-1", "/book/herbert1965.epub")
-    ]
+    assert [(f.asset_uuid, f.relative_path) for f in manifest.files] == [("asset-1", "/book/herbert1965.epub")]
     assert [s.node_uuid for s in manifest.skipped] == ["src-2"]
 
 
@@ -392,9 +381,7 @@ def test_bibliographic_provider_multiple_attachments_and_collisions():
             attachments=[_attachment("asset-c", "messiah.epub")],
         ),
     ]
-    manifest = provider.generate_manifest(
-        {"filename_template": "{citekey}.{ext}"}, nodes, _NoopServices()
-    )
+    manifest = provider.generate_manifest({"filename_template": "{citekey}.{ext}"}, nodes, _NoopServices())
     paths = {f.asset_uuid: f.relative_path for f in manifest.files}
     assert paths["asset-a"] == "herbert1965.pdf"
     assert paths["asset-b"] == "herbert1965.epub"
@@ -522,9 +509,7 @@ async def test_engine_rejects_invalid_provider_paths(tmp_path: Path):
     nodes = [_node("src-1", "Dune", attachments=[_attachment("asset-1", "dune.epub")])]
     services = FakeServices(nodes, {"asset-1": b"bytes"})
     profile = _profile(tmp_path)
-    report, managed = await reconcile_profile(
-        profile, tmp_path / "out", {}, services, lambda _: EvilProvider()
-    )
+    report, managed = await reconcile_profile(profile, tmp_path / "out", {}, services, lambda _: EvilProvider())
     assert len(report.invalid) == 1
     assert managed == {}
     assert not (tmp_path / "etc").exists()
@@ -558,7 +543,6 @@ def _make_store(relay, workspace=WS, actor=ACTOR, db_path=":memory:"):
         actor_id=actor,
         relay_storage=relay,
         db_path=db_path,
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -664,8 +648,13 @@ def _make_context(settings_repo: FakeSettingsRepo, store: WorkspaceStore) -> Plu
     return PluginContext(
         plugin_id="notees.export_profiles",
         permissions={
-            "read_nodes", "read_properties", "read_assets",
-            "settings", "router", "export", "background_sync",
+            "read_nodes",
+            "read_properties",
+            "read_assets",
+            "settings",
+            "router",
+            "export",
+            "background_sync",
         },
         registry=PluginRegistry(),
         port_factories={
@@ -796,9 +785,7 @@ async def acceptance(tmp_path, relay):
     service = _make_continuous(
         context,
         debounce=0.0,
-        services_factory=lambda s: WorkspaceExportServices(
-            s, AssetFileService(WS, assets_dir)
-        ),
+        services_factory=lambda s: WorkspaceExportServices(s, AssetFileService(WS, assets_dir)),
         store=store,
     )
     yield store, asset_service, settings_repo, service, tmp_path
@@ -844,9 +831,7 @@ async def _make_book_with_attachment(store, asset_service, tmp_path, *, citekey=
 async def test_acceptance_upload_rename_detach_and_startup(acceptance):
     store, asset_service, settings_repo, service, tmp_path = acceptance
     export_root = tmp_path / "exports"
-    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(
-        export_root
-    )
+    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(export_root)
     profile = _profile(tmp_path)
     settings_repo.data[1]["plugin:notees.export_profiles:profiles"] = [profile.to_dict()]
 
@@ -863,9 +848,7 @@ async def test_acceptance_upload_rename_detach_and_startup(acceptance):
     assert reports[0].unchanged == 1
 
     # Citekey edit → file moves.
-    await store.set_property(
-        property_value_id=uuidv7(), node_id=source_uuid, schema_id=CITEKEY, value="herbert1969"
-    )
+    await store.set_property(property_value_id=uuidv7(), node_id=source_uuid, schema_id=CITEKEY, value="herbert1969")
     await store.sync()
     reports = await service.reconcile_for_user(WS, ACTOR)
     moved = export_root / ACTOR / "books" / "book" / "herbert1969.epub"
@@ -885,9 +868,7 @@ async def test_acceptance_upload_rename_detach_and_startup(acceptance):
 async def test_acceptance_two_users_disjoint_roots(acceptance):
     store, asset_service, settings_repo, service, tmp_path = acceptance
     export_root = tmp_path / "exports"
-    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(
-        export_root
-    )
+    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(export_root)
     profile = _profile(tmp_path)
     settings_repo.data[1]["plugin:notees.export_profiles:profiles"] = [profile.to_dict()]
     await _make_book_with_attachment(store, asset_service, tmp_path)
@@ -904,9 +885,7 @@ async def test_acceptance_two_users_disjoint_roots(acceptance):
 async def test_acceptance_collection_profile_tracks_membership(acceptance):
     store, asset_service, settings_repo, service, tmp_path = acceptance
     export_root = tmp_path / "exports"
-    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(
-        export_root
-    )
+    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(export_root)
 
     collection_uuid = uuidv7()
     await store.create_node(
@@ -974,9 +953,7 @@ async def test_acceptance_collection_profile_tracks_membership(acceptance):
 async def test_acceptance_source_deleted_removes_file(acceptance):
     store, asset_service, settings_repo, service, tmp_path = acceptance
     export_root = tmp_path / "exports"
-    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(
-        export_root
-    )
+    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(export_root)
     profile = _profile(tmp_path)
     settings_repo.data[1]["plugin:notees.export_profiles:profiles"] = [profile.to_dict()]
     source_uuid, _ = await _make_book_with_attachment(store, asset_service, tmp_path)
@@ -995,9 +972,7 @@ async def test_acceptance_source_deleted_removes_file(acceptance):
 async def test_acceptance_startup_rebuilds_tree_from_scratch(acceptance):
     store, asset_service, settings_repo, service, tmp_path = acceptance
     export_root = tmp_path / "exports"
-    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(
-        export_root
-    )
+    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(export_root)
     profile = _profile(tmp_path)
     settings_repo.data[1]["plugin:notees.export_profiles:profiles"] = [profile.to_dict()]
     await _make_book_with_attachment(store, asset_service, tmp_path)
@@ -1015,17 +990,13 @@ async def test_hook_triggers_reconciliation_end_to_end(acceptance):
     """The registered op listener fires on store ops and reconciles (Decision 13)."""
     store, asset_service, settings_repo, service, tmp_path = acceptance
     export_root = tmp_path / "exports"
-    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(
-        export_root
-    )
+    settings_repo.data.setdefault(1, {})["plugin:notees.export_profiles:export_root"] = str(export_root)
     profile = _profile(tmp_path)
     settings_repo.data[1]["plugin:notees.export_profiles:profiles"] = [profile.to_dict()]
 
     op_listeners.register(service.handle_operation)
     try:
-        source_uuid, asset_uuid = await _make_book_with_attachment(
-            store, asset_service, tmp_path
-        )
+        source_uuid, asset_uuid = await _make_book_with_attachment(store, asset_service, tmp_path)
         await service.flush()
         exported = export_root / ACTOR / "books" / "book" / "herbert1965.epub"
         assert exported.exists()

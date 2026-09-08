@@ -19,15 +19,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"\x00" * 32
-
-
 async def _make_store(
     workspace_id: str = "ws-import-0001",
     actor_id: str = "actor-importer",
@@ -37,7 +28,6 @@ async def _make_store(
         actor_id=actor_id,
         relay_storage=SqliteRelayStorage(":memory:"),
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -103,9 +93,7 @@ This is the imported body paragraph.
 
         # 5. Replaying from the relay (server-side sync) is idempotent.
         await store.sync()
-        node_rows_after_sync = await store.query(
-            "SELECT id FROM node WHERE id = ?", (node_uuid,)
-        )
+        node_rows_after_sync = await store.query("SELECT id FROM node WHERE id = ?", (node_uuid,))
         assert len(node_rows_after_sync) == 1
 
         await store.close()

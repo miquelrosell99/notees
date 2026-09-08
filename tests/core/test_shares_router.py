@@ -41,15 +41,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = pytest.mark.unit
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 async def _make_test_store(
     workspace_id: str = "ws-uuid-1",
     actor_id: str = "actor-1",
@@ -60,7 +51,6 @@ async def _make_test_store(
         actor_id=actor_id,
         relay_storage=relay_storage or SqliteRelayStorage(":memory:"),
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -133,9 +123,7 @@ class FakeShareRepository:
         return [s for s in self._public.values() if s.node_uuid == node_uuid and s.active]
 
     async def list_shares_for_workspace(self, workspace_id: int) -> list[PublicShare]:
-        return [
-            s for s in self._public.values() if s.workspace_id == workspace_id and s.active
-        ]
+        return [s for s in self._public.values() if s.workspace_id == workspace_id and s.active]
 
     async def delete_share(self, share_uuid: str) -> bool:
         share = self._public.get(share_uuid)
@@ -155,9 +143,7 @@ class FakeShareRepository:
             if share.id == share_id:
                 share.password_hash = password_hash
 
-    async def list_share_inbox(
-        self, user_id: int, page: int, page_size: int
-    ) -> tuple[int, list[Any]]:
+    async def list_share_inbox(self, user_id: int, page: int, page_size: int) -> tuple[int, list[Any]]:
         total = len(self._inbox_entries)
         offset = (page - 1) * page_size
         return total, self._inbox_entries[offset : offset + page_size]
@@ -193,19 +179,13 @@ class FakeShareRepository:
         self._user_shares[row["uuid"]] = row
         return row
 
-    async def list_node_user_shares(
-        self, node_uuid: str, workspace_id: int, user_id: int
-    ) -> list[Any]:
+    async def list_node_user_shares(self, node_uuid: str, workspace_id: int, user_id: int) -> list[Any]:
         return [r for r in self._user_shares.values() if r["node_uuid"] == node_uuid]
 
-    async def revoke_user_share(
-        self, share_id: int, workspace_id: int, user_id: int
-    ) -> dict[str, Any] | None:
+    async def revoke_user_share(self, share_id: int, workspace_id: int, user_id: int) -> dict[str, Any] | None:
         return None
 
-    async def get_node_user_share_by_uuid(
-        self, share_uuid: str
-    ) -> dict[str, Any] | None:
+    async def get_node_user_share_by_uuid(self, share_uuid: str) -> dict[str, Any] | None:
         return self._user_shares.get(share_uuid)
 
     async def revoke_user_share_by_uuid(
@@ -283,7 +263,6 @@ async def shares_client() -> AsyncGenerator[AsyncClient, None]:
                 actor_id="owner-uuid-1",
                 relay_storage=relay_storage,
                 db_path=":memory:",
-                key_storage=FixedKeyStorage(),
             )
 
         return factory
@@ -297,16 +276,10 @@ async def shares_client() -> AsyncGenerator[AsyncClient, None]:
     test_app.dependency_overrides[require_read_or_write_scope] = _override_require_scope
     test_app.dependency_overrides[require_write_scope] = _override_require_scope
     test_app.dependency_overrides[get_share_repository] = _override_get_share_repository
-    test_app.dependency_overrides[
-        get_share_repository_for_public
-    ] = _override_get_share_repository_for_public
+    test_app.dependency_overrides[get_share_repository_for_public] = _override_get_share_repository_for_public
     test_app.dependency_overrides[get_share_service] = _override_get_share_service
-    test_app.dependency_overrides[
-        get_public_workspace_store
-    ] = _override_get_public_workspace_store
-    test_app.dependency_overrides[
-        get_workspace_store_factory
-    ] = _override_get_workspace_store_factory
+    test_app.dependency_overrides[get_public_workspace_store] = _override_get_public_workspace_store
+    test_app.dependency_overrides[get_workspace_store_factory] = _override_get_workspace_store_factory
 
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -343,14 +316,10 @@ class TestPublicShares:
         assert rows[0]["expiry_date"] == "2026-12-31"
         assert rows[0]["workspace_id"] == "ws-uuid-1"
 
-    async def test_list_node_public_shares_reads_derived_table(
-        self, shares_client: AsyncClient
-    ) -> None:
+    async def test_list_node_public_shares_reads_derived_table(self, shares_client: AsyncClient) -> None:
         store = _store(shares_client)
         await store.create_node(TEST_NODE_UUID, "page")
-        await store.create_public_share(
-            share_id="share-1", node_uuid=TEST_NODE_UUID, slug="slug-1"
-        )
+        await store.create_public_share(share_id="share-1", node_uuid=TEST_NODE_UUID, slug="slug-1")
         await store.sync()
 
         response = await shares_client.get(f"/{TEST_NODE_UUID}/shares")
@@ -427,9 +396,7 @@ class TestUserShares:
         )
         assert len(rows) == 0
 
-    async def test_list_node_user_shares_reads_derived_table(
-        self, shares_client: AsyncClient
-    ) -> None:
+    async def test_list_node_user_shares_reads_derived_table(self, shares_client: AsyncClient) -> None:
         store = _store(shares_client)
         await store.create_node(TEST_NODE_UUID, "page")
         await store.grant_user_share(
@@ -473,9 +440,7 @@ def _repo(client: AsyncClient) -> FakeShareRepository:
 
 
 class TestShareInbox:
-    async def test_share_inbox_enriches_from_derived_store(
-        self, shares_client: AsyncClient
-    ) -> None:
+    async def test_share_inbox_enriches_from_derived_store(self, shares_client: AsyncClient) -> None:
         store = _store(shares_client)
         repo = _repo(shares_client)
         await store.create_node(TEST_NODE_UUID, "page")
@@ -553,14 +518,10 @@ class TestPublicRouter:
         assert response.status_code == 403
 
         # Wrong password via header -> 403.
-        response = await shares_client.get(
-            f"/public/n/{share_uuid}", headers={"X-Share-Password": "wrong-password"}
-        )
+        response = await shares_client.get(f"/public/n/{share_uuid}", headers={"X-Share-Password": "wrong-password"})
         assert response.status_code == 403
 
         # Correct password via header -> 200.
-        response = await shares_client.get(
-            f"/public/n/{share_uuid}", headers={"X-Share-Password": "s3cret-share-pass"}
-        )
+        response = await shares_client.get(f"/public/n/{share_uuid}", headers={"X-Share-Password": "s3cret-share-pass"})
         assert response.status_code == 200
         assert response.json()["node"]["display_name"] == "Secret"
