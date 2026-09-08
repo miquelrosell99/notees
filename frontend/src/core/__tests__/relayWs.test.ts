@@ -17,7 +17,10 @@ class FakeSocket implements WebSocketLike {
     }
   });
 
-  constructor(public url: string) {
+  readonly url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeSocket.instances.push(this);
   }
 
