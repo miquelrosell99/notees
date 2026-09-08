@@ -129,6 +129,11 @@ export interface IWorkspaceStoreClient {
   query<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T>;
   subscribe(nodeId: string | null, callback: ((notification?: NotifyChangeMessage) => void) | (() => void)): () => void;
   subscribeProgress(callback: (applied: number, total: number) => void): () => void;
+  /**
+   * Flush buffered persist-data to IndexedDB immediately (best-effort
+   * durability hook for pagehide / visibilitychange-hidden).
+   */
+  flushPendingPersist(): void;
   close(): void;
   /** True if the client has been closed or the underlying worker terminated. */
   isClosed(): boolean;

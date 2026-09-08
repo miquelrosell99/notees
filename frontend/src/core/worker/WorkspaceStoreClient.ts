@@ -133,6 +133,8 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
   private pendingPersistData = new Map<string, Uint8Array>();
   private persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private persistInFlight = new Set<string>();
+  /** Set by flushPendingPersist: the next persist-data skips the debounce. */
+  private persistASAP = false;
   private pendingPersistRequests = new Map<number, PersistRequest>();
   private persistRequestId = 0;
   private closed = false;
@@ -216,6 +218,26 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     );
   }
 
+  /**
+   * Flush buffered persist-data to IndexedDB immediately, skipping the
+   * coalescing debounce, and make the NEXT persist-data message (e.g. the
+   * worker's response to a pagehide ``persistNow``) flush immediately too.
+   * Best-effort durability hook for pagehide / visibilitychange-hidden.
+   */
+  flushPendingPersist(): void {
+    this.persistASAP = true;
+    for (const workspaceId of this.pendingPersistData.keys()) {
+      const timer = this.persistTimers.get(workspaceId);
+      if (timer) {
+        clearTimeout(timer);
+        this.persistTimers.delete(workspaceId);
+      }
+      if (!this.persistInFlight.has(workspaceId)) {
+        void this.flushPersist(workspaceId);
+      }
+    }
+  }
+
   private async flushPersist(workspaceId: string): Promise<void> {
     const data = this.pendingPersistData.get(workspaceId);
     if (!data) return;
@@ -283,6 +305,20 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
       // endBatch; writing the entire workspace DB to IndexedDB twice in a row
       // blocks the main thread and causes the UI to freeze/blank.
       this.pendingPersistData.set(msg.workspaceId, msg.data);
+      if (this.persistASAP) {
+        // A pagehide/hidden flush is in progress: skip the debounce so the
+        // data reaches IndexedDB before the page can be killed.
+        this.persistASAP = false;
+        const timer = this.persistTimers.get(msg.workspaceId);
+        if (timer) {
+          clearTimeout(timer);
+          this.persistTimers.delete(msg.workspaceId);
+        }
+        if (!this.persistInFlight.has(msg.workspaceId)) {
+          void this.flushPersist(msg.workspaceId);
+        }
+        return;
+      }
       this.schedulePersist(msg.workspaceId);
       return;
     }
@@ -561,6 +597,10 @@ class InlineStoreClient implements IWorkspaceStoreClient {
   async export(): Promise<Uint8Array> {
     if (!this.store) throw new Error('Store not initialized');
     return this.store.export();
+  }
+
+  flushPendingPersist(): void {
+    // Inline mode has no buffered persist queue; persistence is synchronous.
   }
 
   mutate<T>(method: string, args: unknown[]): Promise<T> {
