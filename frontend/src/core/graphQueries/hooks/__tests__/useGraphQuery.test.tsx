@@ -29,6 +29,7 @@ function createMockClient(): IWorkspaceStoreClient & { emit: (n?: NotifyChangeMe
       return () => listeners.delete(callback);
     },
     subscribeProgress: () => () => {},
+    flushPendingPersist: () => {},
     close: vi.fn(),
     isClosed: () => false,
     emit: (notification) => {
