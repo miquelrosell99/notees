@@ -570,6 +570,59 @@ export class WorkspaceStore {
   }
 
   /**
+   * Outbox backlog for status reporting: pending/failed ops above the push
+   * watermark (mirrors push semantics) plus ALL quarantined ops, which sit
+   * outside push semantics and need explicit user action to recover.
+   */
+  getOutboxStatusCounts(afterHlc: Hlc): { pending: number; failed: number; quarantined: number } {
+    const row = queryOne<{ pending: number; failed: number; quarantined: number }>(
+      this.db,
+      `SELECT
+         SUM(CASE WHEN ob.state IN ('pending','in_flight') THEN 1 ELSE 0 END) AS pending,
+         SUM(CASE WHEN ob.state = 'failed' THEN 1 ELSE 0 END) AS failed,
+         SUM(CASE WHEN ob.state = 'quarantined' THEN 1 ELSE 0 END) AS quarantined
+       FROM operation o
+       JOIN sync_outbox ob ON ob.operation_id = o.id
+       WHERE o.workspace_id = ?
+         AND o.actor_id = ?
+         AND (
+           ob.state = 'quarantined'
+           OR (o.hlc_physical > ? OR (o.hlc_physical = ? AND o.hlc_logical > ?))
+         )`,
+      [
+        this.workspaceId,
+        this.actorId,
+        afterHlc.physical,
+        afterHlc.physical,
+        afterHlc.logical,
+      ]
+    );
+    return {
+      pending: row?.pending ?? 0,
+      failed: row?.failed ?? 0,
+      quarantined: row?.quarantined ?? 0,
+    };
+  }
+
+  /**
+   * Move quarantined ops back to pending so the next push retries them.
+   * Returns the number of ops requeued.
+   */
+  requeueQuarantinedOperations(): number {
+    this.db.run(
+      `UPDATE sync_outbox
+       SET state = 'pending',
+           attempt_count = 0,
+           next_retry_at = NULL,
+           last_error = NULL,
+           updated_at = ?
+       WHERE state = 'quarantined'`,
+      [new Date().toISOString()]
+    );
+    return this.db.getRowsModified();
+  }
+
+  /**
    * Return local operations that are not yet acknowledged by the server and that
    * affect any of the given node ids. Used by the sync engine to detect semantic
    * conflicts between remote operations and local pending edits.

@@ -21,12 +21,24 @@ export interface SyncPullProgress {
   total: number;
 }
 
+export interface OutboxStatusCounts {
+  pending: number;
+  failed: number;
+  quarantined: number;
+}
+
 export interface SyncEngineCallbacks {
   onPush?: (envelopeCount: number) => void;
   onPull?: (envelopeCount: number) => void;
   onPullProgress?: (progress: SyncPullProgress | null) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: SyncStatus, error: Error | null) => void;
+  /**
+   * Called with the current outbox backlog after pushes and pulls so the UI
+   * can show honest pending/failed counts (including quarantined ops, which
+   * are otherwise invisible).
+   */
+  onOutboxCounts?: (counts: OutboxStatusCounts) => void;
   /**
    * Called when the sync engine detects a semantic conflict between remote
    * operations and local pending operations (e.g. concurrent moves of the same
@@ -157,6 +169,7 @@ export class SyncEngine {
 
   async push(onProgress?: (progress: { sent: number; total: number }) => void): Promise<void> {
     await this.ensureWatermarksLoaded();
+    await this.reportOutboxCounts();
 
     const SEND_BATCH_SIZE = 100;
     const QUERY_BATCH_SIZE = 1000;
@@ -193,7 +206,10 @@ export class SyncEngine {
         Date.now(),
       ]);
 
-      if (rows.length === 0) return;
+      if (rows.length === 0) {
+        await this.reportOutboxCounts();
+        return;
+      }
 
       hasMore = rows.length === QUERY_BATCH_SIZE;
       totalPushed += rows.length;
@@ -242,13 +258,20 @@ export class SyncEngine {
             [chunkIds]
           );
           const maxAttempt = Math.max(0, ...Object.values(attemptCounts));
-          const delayIndex = Math.min(maxAttempt - 1, RETRY_DELAYS_MS.length - 1);
-          const nextRetryAt = delayIndex >= 0 ? Date.now() + RETRY_DELAYS_MS[delayIndex] : null;
+          // After the backoff schedule is exhausted the op quarantines
+          // (nextRetryAt = null) and stops auto-retrying; it only comes back
+          // through an explicit retry (retryQuarantined).
+          const delayIndex = maxAttempt - 1;
+          const nextRetryAt =
+            delayIndex >= 0 && delayIndex < RETRY_DELAYS_MS.length
+              ? Date.now() + RETRY_DELAYS_MS[delayIndex]
+              : null;
           await this.client.mutate('markOperationsFailed', [
             chunkIds,
             error.message,
             nextRetryAt,
           ]);
+          await this.reportOutboxCounts();
           this.setStatus('error', error);
           this.callbacks.onError?.(error);
           throw error;
@@ -256,7 +279,32 @@ export class SyncEngine {
       }
     }
 
+    await this.reportOutboxCounts();
     this.callbacks.onPush?.(totalPushed);
+  }
+
+  /** Report the current outbox backlog; never breaks sync on failure. */
+  private async reportOutboxCounts(): Promise<void> {
+    if (!this.callbacks.onOutboxCounts) return;
+    try {
+      const counts = await this.client.query<OutboxStatusCounts>('getOutboxStatusCounts', [
+        this.lastPushedHlc,
+      ]);
+      this.callbacks.onOutboxCounts(counts);
+    } catch (err) {
+      log.warn('Failed to report outbox counts', { error: String(err) });
+    }
+  }
+
+  /**
+   * Requeue quarantined ops (which exhausted their backoff schedule and are
+   * otherwise stuck forever) and push them immediately.
+   */
+  async retryQuarantined(): Promise<void> {
+    await this.ensureWatermarksLoaded();
+    await this.client.mutate('requeueQuarantinedOperations', []);
+    await this.reportOutboxCounts();
+    await this.syncOnce();
   }
 
   private async sendBatchViaSend(envelopes: OperationEnvelope[]): Promise<{ savedIds: string[] }> {
@@ -460,6 +508,7 @@ export class SyncEngine {
       await this.client.mutate('schedulePersist', []);
     }
     this.reportPhase('synced', 'Synced');
+    await this.reportOutboxCounts();
     this.callbacks.onPull?.(envelopes.length);
 
     // Upload a snapshot when the server has no snapshot or an older one.
