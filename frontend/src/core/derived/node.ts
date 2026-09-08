@@ -1,7 +1,8 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
 import { loadTextCrdt, saveTextCrdt } from './crdtState';
-import { claimNodeField, compareLww, maxNodeFieldRecordByPrefix, nodeFieldClaimLost, type LwwRecord } from './lww';
+import { claimNodeField, compareLww, nodeFieldClaimLost, type LwwRecord } from './lww';
+import { claimClassMembership, maxClassMembershipRecord, recomputeClassIds } from './classMembership';
 import { reindexNode } from './search';
 import { extractTextContent } from './textContent';
 import { deleteNodeViewsForNode } from './nodeView';
@@ -49,6 +50,11 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
         op.envelope.actorId,
       ]
     );
+    // Seed the OR-Set membership table from the create payload so the
+    // materialized class_ids and the membership set stay consistent on replay.
+    for (const classId of (payload.classIds as string[]) ?? []) {
+      claimClassMembership(db, payload.nodeId as string, classId, incoming, true);
+    }
     reindexNode(db, payload.nodeId as string);
     return [{ scope: 'node', nodeId: payload.nodeId as string }];
   }
@@ -105,6 +111,7 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
     db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_version WHERE node_id = ?', [nodeId]);
     db.run('DELETE FROM node_field_lww WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM class_member_set WHERE node_id = ?', [nodeId]);
     deleteNodeViewsForNode(db, nodeId);
     return [{ scope: 'all', nodeId }];
   }
@@ -174,10 +181,10 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
       notifications.push({ scope: 'node', nodeId });
     }
     // Wholesale class-set replace: wins only against BOTH the wholesale
-    // record and every per-element membership record, so a reordered
-    // assign/unassign is neither regressed nor lost. Stamps per-element
-    // records for old ∪ new so older element ops stay blocked.
-    const maxElement = maxNodeFieldRecordByPrefix(db, nodeId, 'class_member');
+    // record and every membership claim, so a reordered assign/unassign is
+    // neither regressed nor lost. Element claims are recorded for old ∪ new
+    // (present only for the new set) so older element ops stay blocked.
+    const maxElement = maxClassMembershipRecord(db, nodeId);
     if (
       claimNodeField(db, nodeId, 'class_ids', incoming) &&
       (!maxElement || compareLww(incoming, maxElement) > 0)
@@ -187,44 +194,24 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
       ]);
       const oldIds = new Set(row ? (JSON.parse(row.class_ids) as string[]) : []);
       const newIds = new Set((payload.classIds as string[]) ?? []);
-      db.run('UPDATE node SET class_ids = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
-        JSON.stringify(Array.from(newIds)),
-        now,
-        op.envelope.actorId,
-        nodeId,
-      ]);
       for (const classId of new Set([...oldIds, ...newIds])) {
-        claimNodeField(db, nodeId, `class_member:${classId}`, incoming);
+        claimClassMembership(db, nodeId, classId, incoming, newIds.has(classId));
       }
+      recomputeClassIds(db, nodeId, op.envelope.actorId);
       notifications.push({ scope: 'node', nodeId });
     }
     return notifications;
   }
 
   if (opType === 'class.assign' || opType === 'class.unassign') {
-    // Per-element membership LWW: add/remove claims resolve per class id, so
+    // OR-Set membership: claims resolve per class id (add-wins on ties), so
     // concurrent memberships from different actors survive and any arrival
     // order converges. Also loses to a newer wholesale convert replace.
     const nodeId = payload.nodeId as string;
     const classId = payload.classId as string;
     if (nodeFieldClaimLost(db, nodeId, 'class_ids', incoming)) return [];
-    if (!claimNodeField(db, nodeId, `class_member:${classId}`, incoming)) return [];
-    const row = queryOne<{ class_ids: string }>(db, 'SELECT class_ids FROM node WHERE id = ?', [
-      nodeId,
-    ]);
-    if (!row) return [];
-    const ids = new Set(JSON.parse(row.class_ids) as string[]);
-    if (opType === 'class.assign') {
-      ids.add(classId);
-    } else {
-      ids.delete(classId);
-    }
-    db.run('UPDATE node SET class_ids = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
-      JSON.stringify(Array.from(ids)),
-      new Date().toISOString(),
-      op.envelope.actorId,
-      nodeId,
-    ]);
+    if (!claimClassMembership(db, nodeId, classId, incoming, opType === 'class.assign')) return [];
+    recomputeClassIds(db, nodeId, op.envelope.actorId);
     return [{ scope: 'class', nodeId, relatedIds: [classId] }];
   }
 

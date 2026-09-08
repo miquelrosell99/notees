@@ -393,6 +393,16 @@ export function createSchema(db: Database): void {
       PRIMARY KEY (node_id, field)
     );
 
+    CREATE TABLE IF NOT EXISTS class_member_set (
+      node_id TEXT NOT NULL,
+      class_id TEXT NOT NULL,
+      hlc_physical INTEGER NOT NULL,
+      hlc_logical INTEGER NOT NULL,
+      actor_id TEXT NOT NULL,
+      present INTEGER NOT NULL,
+      PRIMARY KEY (node_id, class_id)
+    );
+
     CREATE TABLE IF NOT EXISTS node_view (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -824,5 +834,43 @@ function migrateSchema(db: Database): void {
       )
     `);
     db.exec('PRAGMA user_version = 19');
+  }
+
+  if (version < 20) {
+    // OR-Set (add-wins) class membership. Backfilled from node.class_ids so
+    // existing state is preserved; future assign/unassign/convert claims
+    // resolve per element and recompute class_ids from the set. The v18
+    // per-element class LWW records in node_field_lww are superseded.
+    db.exec('BEGIN TRANSACTION');
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS class_member_set (
+          node_id TEXT NOT NULL,
+          class_id TEXT NOT NULL,
+          hlc_physical INTEGER NOT NULL,
+          hlc_logical INTEGER NOT NULL,
+          actor_id TEXT NOT NULL,
+          present INTEGER NOT NULL,
+          PRIMARY KEY (node_id, class_id)
+        )
+      `);
+      const rows = db.exec('SELECT id, class_ids FROM node');
+      for (const row of rows[0]?.values ?? []) {
+        const [nodeId, classIdsJson] = row as [string, string];
+        for (const classId of JSON.parse(classIdsJson || '[]') as string[]) {
+          db.run(
+            `INSERT OR IGNORE INTO class_member_set (node_id, class_id, hlc_physical, hlc_logical, actor_id, present)
+             VALUES (?, ?, 0, 0, '', 1)`,
+            [nodeId, classId]
+          );
+        }
+      }
+      db.run("DELETE FROM node_field_lww WHERE field = 'class_ids' OR field LIKE 'class_member:%'");
+      db.exec('COMMIT');
+      db.exec('PRAGMA user_version = 20');
+    } catch {
+      db.exec('ROLLBACK');
+      // Leave user_version at 19 so the migration retries on next startup.
+    }
   }
 }

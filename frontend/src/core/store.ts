@@ -81,7 +81,7 @@ const DEFAULT_VIEW_NAMES: Record<string, string> = {
  * repairClassHierarchy) over a bump when the affected state can be recomputed
  * from a small local table — a rebuild replays the entire log.
  */
-export const CURRENT_DERIVED_STATE_VERSION = 4;
+export const CURRENT_DERIVED_STATE_VERSION = 5;
 
 export class WorkspaceStore {
   private clock: Clock;
@@ -289,6 +289,7 @@ export class WorkspaceStore {
       this.db.run('DELETE FROM node_alias');
       this.db.run('DELETE FROM node_version');
       this.db.run('DELETE FROM node_field_lww');
+      this.db.run('DELETE FROM class_member_set');
       this.db.run('DELETE FROM node_view');
       this.db.run('DELETE FROM user_favorite');
 
