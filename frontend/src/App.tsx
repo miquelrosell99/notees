@@ -49,6 +49,7 @@ import { createHttpTransport } from '@/core/transportHttp';
 import {
   getOrCreateWorkspaceStore,
   getWorkspaceSyncEngine,
+  isWorkspaceTabFollower,
   closeWorkspaceStore,
 } from '@/core/adapters/workspaceStoreAdapter';
 import { Button } from '@/components/ui/Button';
@@ -509,8 +510,9 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
         const syncEngine = getWorkspaceSyncEngine(workspaceId);
         // Local mode has no server to sync with; skip visibility-triggered sync
-        // and the realtime channel.
-        if (syncEngine && !isLocalSession) {
+        // and the realtime channel. Follower tabs proxy to the leader tab,
+        // whose sync engine and realtime channel are the only ones that run.
+        if (syncEngine && !isLocalSession && !isWorkspaceTabFollower(workspaceId)) {
           unregisterVisibilityRef.current = registerVisibilitySync(syncEngine);
           syncEngine.startRealtime({ workspaceId });
         }
