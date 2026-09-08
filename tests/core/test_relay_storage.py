@@ -493,3 +493,31 @@ class TestSqliteRelayStorageLegacyRows:
         envelopes = storage.get_catch_up("ws-1", 0)
         assert len(envelopes) == 1
         assert envelopes[0].timestamp.timestamp() == pytest.approx(1_700_000_000)
+
+
+class TestSqliteRelayStorageSnapshotRetention:
+    async def test_snapshots_are_retained_up_to_the_cap(self) -> None:
+        """Only the newest MAX_SNAPSHOTS_PER_WORKSPACE snapshots are kept."""
+        from app.relay.storage import MAX_SNAPSHOTS_PER_WORKSPACE
+
+        storage = SqliteRelayStorage(":memory:")
+        storage.save_envelope(
+            _envelope(envelope_id="env-1", workspace_id="ws-1", hlc=Hlc(10, 0))
+        )
+
+        kept_ids: list[str] = []
+        total = MAX_SNAPSHOTS_PER_WORKSPACE + 3
+        for i in range(total):
+            snapshot_id, _ = storage.create_snapshot(
+                "ws-1", Hlc(physical=(i + 1) * 10, logical=0), data=f"snap-{i}".encode()
+            )
+            kept_ids.append(snapshot_id)
+
+        stats = storage.get_workspace_stats("ws-1")
+        assert stats["snapshot_count"] == MAX_SNAPSHOTS_PER_WORKSPACE
+
+        # The newest snapshot is always the one served.
+        latest = storage.get_latest_snapshot("ws-1")
+        assert latest is not None
+        assert latest["id"] == kept_ids[-1]
+        assert latest["hlc"] == Hlc(physical=total * 10, logical=0)
