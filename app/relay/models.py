@@ -268,3 +268,20 @@ class RelayStatsResponse(BaseModel):
     compacted_operation_count: int
     max_hlc: Hlc
     restore_epoch: int = 0
+
+
+class EncryptionKeyRequest(BaseModel):
+    """Store a workspace's wrapped E2EE key blob (SPEC §8)."""
+
+    workspace_id: str
+    wrapped_key: str
+
+
+class EncryptionKeyResponse(BaseModel):
+    """The workspace's wrapped E2EE key blob, when E2EE is enabled."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    workspace_id: str
+    wrapped_key: str | None = None
+    enabled: bool

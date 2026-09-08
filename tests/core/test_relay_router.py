@@ -431,3 +431,69 @@ async def test_receive_batch_checks_permissions_once_per_batch(
 
     assert len(saved) == 10
     assert batch_calls == [10]
+
+
+def test_batch_accepts_encrypted_payloads(client: TestClient) -> None:
+    """E2EE payloads ($e marker) skip op-type field validation (SPEC §8)."""
+    envelope = _envelope("op-e2ee")
+    body = envelope.model_dump(by_alias=True, mode="json")
+    # A node.create payload without nodeId/kind would 422 in plaintext;
+    # encrypted it is opaque and accepted.
+    body["payload"] = {"$e": {"iv": "aXY=", "ct": "Y3Q="}}
+    body["protocolVersion"] = 2
+
+    response = client.post("/api/relay/batch", json={"envelopes": [body]})
+    assert response.status_code == 200
+    assert response.json()["saved_ids"] == ["op-e2ee"]
+
+
+def test_batch_rejects_malformed_encrypted_marker(client: TestClient) -> None:
+    envelope = _envelope("op-e2ee-bad")
+    body = envelope.model_dump(by_alias=True, mode="json")
+    body["payload"] = {"$e": {"iv": 123, "ct": "Y3Q="}}
+
+    response = client.post("/api/relay/batch", json={"envelopes": [body]})
+    assert response.status_code == 422
+
+
+def test_encryption_key_endpoints(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """GET/PUT round trip; anonymous rejected; members see enabled state."""
+    from datetime import UTC, datetime
+
+    from app.dependencies import get_current_user
+    from app.models import User
+
+    application = _mount_relay(FastAPI(), storage, permissions)
+    application.dependency_overrides[get_current_user] = lambda: User(
+        id="1",
+        uuid="actor-1",
+        email="admin@test",
+        role="admin",
+        created_at=datetime.now(UTC),
+    )
+    client = TestClient(application)
+
+    # Anonymous cannot read the record.
+    anon = _unauthenticated_client(storage, permissions)
+    assert anon.get("/api/relay/encryption-key", params={"workspace_id": "ws-1"}).status_code == 401
+
+    # No record yet → disabled.
+    response = client.get("/api/relay/encryption-key", params={"workspace_id": "ws-1"})
+    assert response.status_code == 200
+    assert response.json() == {"workspaceId": "ws-1", "wrappedKey": None, "enabled": False}
+
+    # Owner/admin stores the wrapped blob; members can read it back.
+    put = client.put(
+        "/api/relay/encryption-key",
+        json={"workspace_id": "ws-1", "wrapped_key": '{"v":1,"salt":"c2FsdA==","wk":"d2s="}'},
+    )
+    assert put.status_code == 200
+    assert put.json()["enabled"] is True
+
+    response = client.get("/api/relay/encryption-key", params={"workspace_id": "ws-1"})
+    assert response.status_code == 200
+    assert response.json()["wrappedKey"] == '{"v":1,"salt":"c2FsdA==","wk":"d2s="}'
+    assert response.json()["enabled"] is True

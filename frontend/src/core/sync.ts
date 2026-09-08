@@ -8,6 +8,7 @@ import {
   type Operation,
 } from './types/operation';
 import type { OperationEnvelope } from './crypto';
+import { decryptEnvelopePayload, getWorkspaceKey, isEncryptedPayload } from './e2ee';
 import { detectConflicts, type SyncConflictInput } from './syncConflicts';
 import type { IWorkspaceStoreClient } from './worker/workerProtocol';
 import type { Transport } from './transport';
@@ -452,11 +453,21 @@ export class SyncEngine {
     envelopes: OperationEnvelope[],
     seqs: Record<string, number>
   ): Promise<void> {
-    for (const env of envelopes) {
+    const workspaceId = await this.client.query<string>('getWorkspaceId', []);
+    // E2EE: live frames arrive encrypted; a locked workspace fails loud here
+    // (the drain drops the frame, and the next pull fails the same way).
+    let incoming = envelopes;
+    if (envelopes.some((env) => isEncryptedPayload(env.payload))) {
+      const key = getWorkspaceKey(workspaceId);
+      if (!key) {
+        throw new Error('Workspace is end-to-end encrypted and locked: enter the passphrase to sync.');
+      }
+      incoming = await Promise.all(envelopes.map((env) => decryptEnvelopePayload(key, env)));
+    }
+    for (const env of incoming) {
       assertSupportedProtocolVersion(env);
     }
-    const sorted = [...envelopes].sort((a, b) => (seqs[a.id] ?? 0) - (seqs[b.id] ?? 0));
-    const workspaceId = await this.client.query<string>('getWorkspaceId', []);
+    const sorted = [...incoming].sort((a, b) => (seqs[a.id] ?? 0) - (seqs[b.id] ?? 0));
     const ops = sorted.map((env) =>
       createOperation(
         {

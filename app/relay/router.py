@@ -23,6 +23,8 @@ from app.relay.models import (
     CatchUpRequest,
     CompactRequest,
     CompactResponse,
+    EncryptionKeyRequest,
+    EncryptionKeyResponse,
     LatestSnapshotResponse,
     RelayStatsResponse,
     SnapshotRequest,
@@ -379,6 +381,75 @@ async def get_latest_snapshot(
 
 
 router.add_api_websocket_route("/ws/{workspace_id}", websocket_endpoint)
+
+
+@router.get(
+    "/encryption-key",
+    response_model=EncryptionKeyResponse,
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_stats_limiter,
+                identifier=relay_stats_identifier,
+            )
+        ),
+    ],
+)
+async def get_encryption_key(
+    workspace_id: str = Query(...),
+    actor_id: str = Depends(get_actor_id),
+    service: RelayService = Depends(get_relay_service),
+) -> EncryptionKeyResponse:
+    """Return the workspace's wrapped E2EE key blob (members only, SPEC §8).
+
+    The blob is opaque: it is the workspace key wrapped client-side with a
+    passphrase-derived KEK, so the server cannot unwrap it. ``enabled`` is
+    false when the workspace has no E2EE key registered.
+    """
+    if actor_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to read the workspace encryption key.",
+        )
+    try:
+        wrapped_key = await service.get_workspace_wrapped_key(workspace_id, actor_id)
+    except PermissionDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    return EncryptionKeyResponse(
+        workspace_id=workspace_id,
+        wrapped_key=wrapped_key,
+        enabled=wrapped_key is not None,
+    )
+
+
+@router.put(
+    "/encryption-key",
+    response_model=EncryptionKeyResponse,
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_admin_limiter,
+                identifier=relay_admin_identifier,
+            )
+        ),
+    ],
+)
+async def put_encryption_key(
+    request: EncryptionKeyRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    service: RelayService = Depends(get_relay_service),
+) -> EncryptionKeyResponse:
+    """Store the workspace's wrapped E2EE key blob. Owner or admin only."""
+    await require_workspace_owner_or_admin(request.workspace_id, user)
+    await service.set_workspace_wrapped_key(request.workspace_id, request.wrapped_key)
+    return EncryptionKeyResponse(
+        workspace_id=request.workspace_id,
+        wrapped_key=request.wrapped_key,
+        enabled=True,
+    )
 
 
 @router.get(

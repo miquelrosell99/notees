@@ -7,6 +7,13 @@ import { uuidv7 } from '../uuid';
  * a bump. Must match the backend's PROTOCOL_VERSION in app/core/operation.py.
  */
 export const PROTOCOL_VERSION = 1;
+/**
+ * Highest envelope protocol version this client can consume. Encrypted
+ * envelopes (E2EE, SPEC §8) carry version 2; plaintext stays 1 so older
+ * clients keep working on plaintext workspaces and fail loud only when they
+ * meet an encrypted one.
+ */
+export const SUPPORTED_PROTOCOL_VERSION = 2;
 
 export interface OperationEnvelope {
   id: string;
@@ -340,10 +347,10 @@ export function assertSupportedProtocolVersion(envelope: { protocolVersion?: num
         `this client requires protocol ${PROTOCOL_VERSION}. Upgrade the peer.`
     );
   }
-  if (version > PROTOCOL_VERSION) {
+  if (version > SUPPORTED_PROTOCOL_VERSION) {
     throw new Error(
       `Unsupported relay protocol version ${version} on envelope ${envelope.id ?? '<unknown>'}; ` +
-        `this client supports up to ${PROTOCOL_VERSION}. Upgrade the client.`
+        `this client supports up to ${SUPPORTED_PROTOCOL_VERSION}. Upgrade the client.`
     );
   }
   return version;
@@ -356,6 +363,6 @@ export function validateOperation(op: Operation): boolean {
   if (typeof env.hlc?.physical !== 'number' || typeof env.hlc?.logical !== 'number') return false;
   if (!Array.isArray(env.affectedNodeIds)) return false;
   if (!OP_TYPES.has(env.opType)) return false;
-  if (env.protocolVersion === undefined || env.protocolVersion > PROTOCOL_VERSION) return false;
+  if (env.protocolVersion === undefined || env.protocolVersion > SUPPORTED_PROTOCOL_VERSION) return false;
   return true;
 }

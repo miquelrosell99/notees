@@ -341,6 +341,20 @@ class RelayService:
             )
         return await self._maybe_await(self._storage.get_workspace_stats(workspace_id))
 
+    async def get_workspace_wrapped_key(self, workspace_id: str, actor_id: str) -> str | None:
+        """Return the workspace's wrapped E2EE key blob if the actor may read."""
+        if not await self._may_read(workspace_id, actor_id):
+            raise PermissionDeniedError(
+                f"Actor {actor_id} cannot read workspace {workspace_id}"
+            )
+        return await self._maybe_await(self._storage.get_workspace_wrapped_key(workspace_id))
+
+    async def set_workspace_wrapped_key(self, workspace_id: str, wrapped_key: str) -> None:
+        """Store the workspace's wrapped E2EE key blob (owner/admin via router)."""
+        return await self._maybe_await(
+            self._storage.set_workspace_wrapped_key(workspace_id, wrapped_key)
+        )
+
     async def _may_read(
         self,
         workspace_id: str,
