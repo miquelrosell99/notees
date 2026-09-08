@@ -1,19 +1,8 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
-import { compareHlc, type Hlc } from '../clock';
+import { compareLww, type LwwRecord } from './lww';
 import { queryOne } from '../db/sqlite';
 import type { ChangeNotification } from './index';
-
-interface LwwRecord {
-  hlc: Hlc;
-  actorId: string;
-}
-
-function compareLww(incoming: LwwRecord, existing: LwwRecord): number {
-  const hlcCmp = compareHlc(incoming.hlc, existing.hlc);
-  if (hlcCmp !== 0) return hlcCmp;
-  return incoming.actorId.localeCompare(existing.actorId);
-}
 
 function recordFromRow(
   row: { hlc_physical: number; hlc_logical: number; actor_id: string | null } | undefined,
