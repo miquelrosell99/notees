@@ -5,6 +5,8 @@ import { ensureLocalWorkspace } from '../seed';
 import { WorkspaceStore } from '../store';
 import type { Transport } from '../transport';
 import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import { electWorkspaceTab, type TabRole } from '../worker/tabLeadership';
+import { startTabRpcServer, RemoteStoreClient, type TabRpcServer } from '../worker/tabRpc';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
 import {
   closeWorkspaceStoreClient,
@@ -23,6 +25,10 @@ interface RegistryEntry {
   syncEngine: SyncEngine;
   client: IWorkspaceStoreClient;
   unsubscribeFavorites: () => void;
+  /** Leader-tab RPC server for follower tabs; undefined on followers. */
+  rpcServer?: TabRpcServer;
+  /** True when this tab proxies to the leader tab's store (multi-tab). */
+  isFollower: boolean;
 }
 
 const registry = new Map<string, RegistryEntry>();
@@ -110,12 +116,27 @@ async function openWorkspaceStore(
     existing.unsubscribeFavorites();
     clearFavoritesCache(workspaceId);
     existing.syncEngine.stopAutoSync();
+    existing.rpcServer?.close();
     existing.client.close();
     registry.delete(workspaceId);
     await deleteWorkspaceDatabase(workspaceId);
   }
 
   report('loading-persisted-db', 'Loading local workspace data…');
+
+  // Multi-tab election: one tab leads (worker + sync engine + IndexedDB
+  // writes), follower tabs proxy to it over BroadcastChannel. On takeover
+  // (leader tab closed) the simplest correct move is a reload: the tab
+  // re-runs the normal open path as leader against the latest persisted
+  // bytes. jsdom/tests have no Web Locks and always lead.
+  const tabRole: TabRole = isRealBrowser()
+    ? (
+        await electWorkspaceTab(workspaceId, actorId, () => {
+          window.location.reload();
+        })
+      ).role
+    : 'leader';
+
   // Load the persisted database once and reuse the bytes for both the legacy
   // synchronous store and the new worker-backed client. This avoids two
   // concurrent/sequential IndexedDB reads, which can timeout on large workspaces.
@@ -135,13 +156,20 @@ async function openWorkspaceStore(
 
   // The SyncEngine operates on the worker-owned database in real browsers. In
   // jsdom/tests the inline client wraps this same synchronous store so legacy
-  // and migrated callers observe the same data.
+  // and migrated callers observe the same data. Follower tabs proxy every
+  // call to the leader tab instead of opening their own worker.
   report('worker-init', 'Starting database engine…');
+  const isFollower = tabRole === 'follower';
   let client: IWorkspaceStoreClient;
-  if (isWorkerSupported()) {
+  let rpcServer: TabRpcServer | undefined;
+  if (isFollower) {
+    client = new RemoteStoreClient();
+    await client.init(workspaceId, actorId);
+  } else if (isWorkerSupported()) {
     client = await getOrCreateWorkspaceStoreClient(workspaceId, actorId, transport, {
       dbBytes: savedBytes,
     });
+    rpcServer = startTabRpcServer(client, workspaceId, actorId);
   } else {
     client = createWorkspaceStoreClient();
     await client.init(workspaceId, actorId, { store });
@@ -150,7 +178,7 @@ async function openWorkspaceStore(
   report('opening-store', 'Preparing workspace…');
   const syncEngine = new SyncEngine(client, transport, options.syncCallbacks);
   const unsubscribeFavorites = subscribeFavorites(workspaceId, client);
-  registry.set(workspaceId, { store, syncEngine, client, unsubscribeFavorites });
+  registry.set(workspaceId, { store, syncEngine, client, unsubscribeFavorites, rpcServer, isFollower });
 
   // Prime the synchronous favorites cache before the workspace is considered
   // fully opened. Failures are logged but must not block workspace open.
@@ -166,6 +194,11 @@ async function openWorkspaceStore(
   // Instead, the client seeds the workspace itself: there is no server-side
   // seed in local mode, and without it the workspace would boot empty (no
   // Inbox, no system classes). Idempotent: a no-op once content exists.
+  // Follower tabs skip both: the leader tab owns the sync engine and seeds.
+  if (isFollower) {
+    report('ready', 'Ready');
+    return store;
+  }
   if (getConnectionMode(useConnectionStore.getState().healthy) !== 'local') {
     report('sync-initialize', 'Connecting to server…');
     await syncEngine.initialize();
@@ -207,10 +240,22 @@ export async function closeWorkspaceStore(workspaceId: string): Promise<void> {
   entry.unsubscribeFavorites();
   clearFavoritesCache(workspaceId);
   entry.syncEngine.stopAutoSync();
-  await persistWorkspace(workspaceId, entry.client);
+  entry.rpcServer?.close();
+  // Follower tabs own nothing to persist — the leader tab's store is the
+  // single writer.
+  if (!entry.isFollower) {
+    await persistWorkspace(workspaceId, entry.client);
+  }
   entry.client.close();
   registry.delete(workspaceId);
-  await closeWorkspaceStoreClient(workspaceId);
+  if (!entry.isFollower) {
+    await closeWorkspaceStoreClient(workspaceId);
+  }
+}
+
+/** True when this tab proxies to another (leader) tab for the workspace. */
+export function isWorkspaceTabFollower(workspaceId: string): boolean {
+  return registry.get(workspaceId)?.isFollower ?? false;
 }
 
 export async function syncWorkspace(workspaceId: string): Promise<void> {
@@ -251,6 +296,7 @@ export async function pullWorkspace(workspaceId: string): Promise<void> {
     entry.unsubscribeFavorites();
     clearFavoritesCache(workspaceId);
     entry.syncEngine.stopAutoSync();
+    entry.rpcServer?.close();
     entry.client.close();
     registry.delete(workspaceId);
   }
