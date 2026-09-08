@@ -78,24 +78,3 @@ export function nodeFieldClaimLost(
   const existing = readNodeFieldRecord(db, nodeId, field);
   return existing !== undefined && compareLww(incoming, existing) <= 0;
 }
-
-/**
- * Return the newest LWW record among fields with the given prefix
- * (e.g. per-element ``class_member:<id>`` records), or undefined.
- */
-export function maxNodeFieldRecordByPrefix(
-  db: Database,
-  nodeId: string,
-  fieldPrefix: string
-): LwwRecord | undefined {
-  const row = queryOne<{ hlc_physical: number; hlc_logical: number; actor_id: string }>(
-    db,
-    `SELECT hlc_physical, hlc_logical, actor_id FROM node_field_lww
-     WHERE node_id = ? AND field >= ? AND field < ?
-     ORDER BY hlc_physical DESC, hlc_logical DESC, actor_id DESC
-     LIMIT 1`,
-    [nodeId, `${fieldPrefix}:`, `${fieldPrefix};`]
-  );
-  if (!row) return undefined;
-  return { hlc: { physical: row.hlc_physical, logical: row.hlc_logical }, actorId: row.actor_id };
-}
