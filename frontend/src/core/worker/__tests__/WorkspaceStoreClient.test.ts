@@ -407,3 +407,103 @@ describe('WorkspaceStoreClient', () => {
     });
   });
 });
+
+
+interface PersistPost {
+  type: string;
+  id: number;
+  workspaceId: string;
+  data: Uint8Array;
+}
+
+class FakeWorker {
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onmessageerror: (() => void) | null = null;
+  onerror: ((event: ErrorEvent) => void) | null = null;
+  postMessage = vi.fn();
+  terminate = vi.fn();
+}
+
+describe('WorkerStoreClient pagehide persistence flush', () => {
+  beforeEach(() => {
+    vi.stubGlobal('Worker', FakeWorker);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  function createClient(): {
+    client: WorkerStoreClient;
+    persistWorker: FakeWorker;
+  } {
+    const mainWorker = new FakeWorker();
+    const client = new WorkerStoreClient(mainWorker as unknown as Worker);
+    const internals = client as unknown as {
+      persistWorker: FakeWorker;
+      pendingPersistData: Map<string, Uint8Array>;
+      handleMessage: (msg: unknown) => void;
+    };
+    return { client, persistWorker: internals.persistWorker };
+  }
+
+  it('flushPendingPersist flushes buffered data immediately, skipping the debounce', () => {
+    const { client, persistWorker } = createClient();
+    const internals = client as unknown as {
+      pendingPersistData: Map<string, Uint8Array>;
+      handleMessage: (msg: unknown) => void;
+    };
+
+    internals.handleMessage({
+      type: 'persist-data',
+      workspaceId: 'ws-1',
+      data: new Uint8Array([1, 2, 3]),
+    });
+    // Buffered behind the 1 s coalescing debounce; nothing written yet.
+    expect(persistWorker.postMessage).not.toHaveBeenCalled();
+
+    client.flushPendingPersist();
+
+    expect(persistWorker.postMessage).toHaveBeenCalledTimes(1);
+    const posted = persistWorker.postMessage.mock.calls[0][0] as PersistPost;
+    expect(posted.type).toBe('persist');
+    expect(posted.workspaceId).toBe('ws-1');
+    expect(internals.pendingPersistData.size).toBe(0);
+
+    // The cleared debounce timer must not fire a second flush.
+    vi.advanceTimersByTime(5_000);
+    expect(persistWorker.postMessage).toHaveBeenCalledTimes(1);
+
+    client.close();
+  });
+
+  it('after flushPendingPersist, the next persist-data flushes immediately', () => {
+    const { client, persistWorker } = createClient();
+    const internals = client as unknown as {
+      handleMessage: (msg: unknown) => void;
+    };
+
+    // Pagehide happened with nothing buffered; the worker's persistNow reply
+    // arrives afterwards and must not sit in the 1 s debounce.
+    client.flushPendingPersist();
+    internals.handleMessage({
+      type: 'persist-data',
+      workspaceId: 'ws-1',
+      data: new Uint8Array([4, 5, 6]),
+    });
+
+    expect(persistWorker.postMessage).toHaveBeenCalledTimes(1);
+
+    // The ASAP flag is one-shot: subsequent data coalesces normally again.
+    internals.handleMessage({
+      type: 'persist-data',
+      workspaceId: 'ws-1',
+      data: new Uint8Array([7, 8, 9]),
+    });
+    expect(persistWorker.postMessage).toHaveBeenCalledTimes(1);
+
+    client.close();
+  });
+});
