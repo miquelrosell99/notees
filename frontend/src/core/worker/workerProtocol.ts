@@ -16,6 +16,12 @@ export interface InitRequest {
   actorId: string;
   /** Persisted database bytes, if any. */
   dbBytes?: Uint8Array;
+  /**
+   * When true, open the workspace database via wa-sqlite on OPFS (durable,
+   * incremental page-level persistence) instead of sql.js in-memory +
+   * whole-DB exports. dbBytes then act as one-time migration seed bytes.
+   */
+  useOpfs?: boolean;
 }
 
 export interface ExportRequest {
@@ -123,7 +129,7 @@ export type WorkerMessage = WorkerResponse | NotifyChangeMessage | ApplyProgress
 // ─── Client interface (lives here to avoid circular imports) ────────────────
 
 export interface IWorkspaceStoreClient {
-  init(workspaceId: string, actorId: string, options?: { dbBytes?: Uint8Array; store?: WorkspaceStore }): Promise<void>;
+  init(workspaceId: string, actorId: string, options?: { dbBytes?: Uint8Array; store?: WorkspaceStore; useOpfs?: boolean }): Promise<void>;
   export(): Promise<Uint8Array>;
   mutate<T>(method: string, args: unknown[]): Promise<T>;
   query<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T>;
