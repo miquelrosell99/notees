@@ -370,6 +370,15 @@ export function createSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_node_version_node
     ON node_version (node_id, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS node_field_lww (
+      node_id TEXT NOT NULL,
+      field TEXT NOT NULL,
+      hlc_physical INTEGER NOT NULL,
+      hlc_logical INTEGER NOT NULL,
+      actor_id TEXT NOT NULL,
+      PRIMARY KEY (node_id, field)
+    );
+
     CREATE TABLE IF NOT EXISTS node_view (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -762,5 +771,22 @@ function migrateSchema(db: Database): void {
       'CREATE INDEX IF NOT EXISTS idx_property_value_schema ON property_value (property_schema_id)'
     );
     db.exec('PRAGMA user_version = 17');
+  }
+
+  if (version < 18) {
+    // Per-field LWW records for scalar node columns (icon, color, active,
+    // parent, kind, class_ids) so late-arriving remote ops cannot regress
+    // newer values. Records accumulate as ops arrive; no backfill needed.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS node_field_lww (
+        node_id TEXT NOT NULL,
+        field TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL,
+        hlc_logical INTEGER NOT NULL,
+        actor_id TEXT NOT NULL,
+        PRIMARY KEY (node_id, field)
+      )
+    `);
+    db.exec('PRAGMA user_version = 18');
   }
 }
