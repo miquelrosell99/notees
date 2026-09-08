@@ -591,26 +591,100 @@ export class SyncEngine {
       await this.saveSeqCursor(this.lastReceivedSeq);
     }
 
-    // Page the server by seq cursor until hasMore is false. This keeps the
-    // sync logic simple and lets us apply the full batch in sorted order.
-    // Memory use is modest: 115k envelopes is a few megabytes of JSON.
+    // Page the server by seq cursor, applying each page before fetching the
+    // next so a large backlog never accumulates in memory. Pages arrive in
+    // seq order; envelopes within a page are applied in (HLC, id) order, and
+    // the cursor advances per applied page so a crash mid-backlog resumes
+    // from the last applied page instead of from zero.
     log.info('pull catching up', {
       afterSeq: this.lastReceivedSeq,
     });
-    const envelopes: OperationEnvelope[] = [];
+    const workspaceId = await this.client.query<string>('getWorkspaceId', []);
     let afterSeq = this.lastReceivedSeq;
-    // The final page has no next cursor; adopt the last cursor we saw. Any
-    // envelopes on that page are above it and will be re-fetched on the next
-    // pull — operation-id dedupe makes that safe.
-    let finalSeq = afterSeq;
+    let totalEnvelopes = 0;
+    const previousReceivedHlc = this.lastReceivedHlc;
     for (;;) {
       const page = await this.transport.catchUp(afterSeq);
-      envelopes.push(...page.envelopes);
-      if (page.nextAfterSeq !== null) {
-        finalSeq = page.nextAfterSeq;
+      const pageEnvelopes = page.envelopes;
+      totalEnvelopes += pageEnvelopes.length;
+      this.reportPhase('catching-up', `Catching up with server… ${totalEnvelopes} operations`);
+
+      if (pageEnvelopes.length > 0) {
+        // Fail loud when a peer speaks a newer protocol than we understand:
+        // applying operations we cannot interpret would silently corrupt
+        // derived state. The error propagates to syncOnce, which surfaces it
+        // via the 'error' status and onError callback.
+        for (const env of pageEnvelopes) {
+          assertSupportedProtocolVersion(env);
+        }
+
+        pageEnvelopes.sort((a, b) => {
+          const cmp = compareHlc(a.hlc, b.hlc);
+          if (cmp !== 0) return cmp;
+          return a.id.localeCompare(b.id);
+        });
+
+        const ops = pageEnvelopes.map((env) =>
+          createOperation(
+            {
+              id: env.id,
+              workspaceId,
+              actorId: env.actorId,
+              hlc: env.hlc,
+              affectedNodeIds: env.affectedNodeIds,
+              opType: env.opType,
+            },
+            env.payload
+          )
+        );
+
+        // Apply the page in the worker. The worker runs off the main thread,
+        // so we no longer need to chunk and yield to keep the UI responsive.
+        this.reportPhase('applying-operations', `Applying ${ops.length.toLocaleString()} operations…`);
+        this.callbacks.onPullProgress?.({ applied: 0, total: ops.length });
+        const unsubscribeProgress = this.client.subscribeProgress((applied, total) => {
+          this.reportPhase('applying-operations', `Applying ${applied.toLocaleString()} / ${total.toLocaleString()} operations…`);
+          this.callbacks.onPullProgress?.({ applied, total });
+        });
+        await this.client.mutate('startBatch', []);
+        try {
+          const applied = await this.client.mutate<number>('applyMany', [ops]);
+          this.callbacks.onPullProgress?.({ applied, total: ops.length });
+        } finally {
+          unsubscribeProgress();
+          await this.client.mutate('endBatch', []);
+        }
+
+        // Detect semantic conflicts between the remote operations we just
+        // applied and any local operations that are still pending.
+        const affectedNodeIds = new Set<string>();
+        for (const op of ops) {
+          for (const nodeId of op.envelope.affectedNodeIds) {
+            affectedNodeIds.add(nodeId);
+          }
+        }
+        if (affectedNodeIds.size > 0) {
+          const localPendingOps = await this.client.query<Operation[]>('getPendingLocalOperations', [
+            Array.from(affectedNodeIds),
+          ]);
+          const conflicts = detectConflicts(ops, localPendingOps);
+          this.emitConflicts(conflicts);
+        }
+
+        for (const op of ops) {
+          this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, op.envelope.hlc);
+        }
+        await this.saveWatermark(this.lastReceivedHlc, 'received');
       }
-      this.reportPhase('catching-up', `Catching up with server… ${envelopes.length} operations`);
-      this.callbacks.onPullProgress?.({ applied: 0, total: envelopes.length });
+
+      // Advance the cursor per page. The final page carries a cursor too (the
+      // router sets next_after_seq on it), so the tail is not re-fetched.
+      if (page.nextAfterSeq !== null && page.nextAfterSeq > this.lastReceivedSeq) {
+        this.lastReceivedSeq = page.nextAfterSeq;
+        await this.saveSeqCursor(this.lastReceivedSeq);
+      }
+      this.callbacks.onPullProgress?.({ applied: 0, total: totalEnvelopes });
+
       if (!page.hasMore) break;
       if (page.nextAfterSeq === null) {
         // Defensive: a server that reports hasMore without a cursor would loop
@@ -620,78 +694,8 @@ export class SyncEngine {
       }
       afterSeq = page.nextAfterSeq;
     }
-    log.info('pull catch-up result', { envelopeCount: envelopes.length });
+    log.info('pull catch-up result', { envelopeCount: totalEnvelopes });
 
-    // Fail loud when a peer speaks a newer protocol than we understand:
-    // applying operations we cannot interpret would silently corrupt derived
-    // state. The error propagates to syncOnce, which surfaces it via the
-    // 'error' status and onError callback.
-    for (const env of envelopes) {
-      assertSupportedProtocolVersion(env);
-    }
-
-    envelopes.sort((a, b) => {
-      const cmp = compareHlc(a.hlc, b.hlc);
-      if (cmp !== 0) return cmp;
-      return a.id.localeCompare(b.id);
-    });
-
-    const workspaceId = await this.client.query<string>('getWorkspaceId', []);
-    const ops = envelopes.map((env) =>
-      createOperation(
-        {
-          id: env.id,
-          workspaceId,
-          actorId: env.actorId,
-          hlc: env.hlc,
-          affectedNodeIds: env.affectedNodeIds,
-          opType: env.opType,
-        },
-        env.payload
-      )
-    );
-
-    // Apply the full batch in the worker. The worker runs off the main thread,
-    // so we no longer need to chunk and yield to keep the UI responsive.
-    this.reportPhase('applying-operations', `Applying ${ops.length.toLocaleString()} operations…`);
-    this.callbacks.onPullProgress?.({ applied: 0, total: ops.length });
-    const unsubscribeProgress = this.client.subscribeProgress((applied, total) => {
-      this.reportPhase('applying-operations', `Applying ${applied.toLocaleString()} / ${total.toLocaleString()} operations…`);
-      this.callbacks.onPullProgress?.({ applied, total });
-    });
-    await this.client.mutate('startBatch', []);
-    try {
-      const applied = await this.client.mutate<number>('applyMany', [ops]);
-      this.callbacks.onPullProgress?.({ applied, total: ops.length });
-    } finally {
-      unsubscribeProgress();
-      await this.client.mutate('endBatch', []);
-    }
-
-    // Detect semantic conflicts between the remote operations we just applied
-    // and any local operations that are still pending (not yet acknowledged).
-    const affectedNodeIds = new Set<string>();
-    for (const op of ops) {
-      for (const nodeId of op.envelope.affectedNodeIds) {
-        affectedNodeIds.add(nodeId);
-      }
-    }
-    if (affectedNodeIds.size > 0) {
-      const localPendingOps = await this.client.query<Operation[]>('getPendingLocalOperations', [
-        Array.from(affectedNodeIds),
-      ]);
-      const conflicts = detectConflicts(ops, localPendingOps);
-      this.emitConflicts(conflicts);
-    }
-
-    const previousReceivedHlc = this.lastReceivedHlc;
-    for (const op of ops) {
-      this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, op.envelope.hlc);
-    }
-
-    this.lastReceivedSeq = finalSeq;
-    await this.saveSeqCursor(this.lastReceivedSeq);
-    await this.saveWatermark(this.lastReceivedHlc, 'received');
     await this.saveRestoreEpoch(snapshot.restoreEpoch);
     // Flush the SQLite DB to IndexedDB so the watermark and operation log survive
     // a page reload. Large catch-ups need an immediate flush because a lot of state
@@ -699,15 +703,15 @@ export class SyncEngine {
     // with a 100+ MB IndexedDB write right now; the debounced scheduler will flush
     // the watermark and the single applied operation within a few hundred ms.
     const hlcAdvanced = compareHlc(this.lastReceivedHlc, previousReceivedHlc) > 0;
-    if (envelopes.length > 10) {
+    if (totalEnvelopes > 10) {
       await this.client.mutate('persistNow', []);
-    } else if (envelopes.length > 0 || hlcAdvanced) {
+    } else if (totalEnvelopes > 0 || hlcAdvanced) {
       await this.client.mutate('schedulePersist', []);
     }
     this.reportPhase('synced', 'Synced');
     await this.reportOutboxCounts();
     await this.reportParkedChanges();
-    this.callbacks.onPull?.(envelopes.length);
+    this.callbacks.onPull?.(totalEnvelopes);
 
     // Upload a snapshot when the server has no snapshot or an older one.
     // This helps the next device open quickly. Keep it best-effort.

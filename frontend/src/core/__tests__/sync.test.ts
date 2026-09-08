@@ -712,3 +712,49 @@ describe('SyncEngine realtime (relay WebSocket)', () => {
     engineA.stopRealtime();
   });
 });
+
+  it('applies each catch-up page before fetching the next (no full-backlog buffering)', async () => {
+    const workspaceId = uuidv7();
+    const actorA = uuidv7();
+    const actorB = uuidv7();
+    const relay = new MemoryRelay();
+
+    const dbA = await createTestDatabase();
+    const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, new MemoryTransport(relay, workspaceId));
+
+    const nodeIds = [uuidv7(), uuidv7(), uuidv7()];
+    for (const nodeId of nodeIds) {
+      storeA.createNode({ nodeId, kind: 'page', parentId: null });
+    }
+    await syncA.push();
+
+    const events: string[] = [];
+    const transportB = new MemoryTransport(relay, workspaceId);
+    transportB.catchUp = (afterSeq: number) => {
+      events.push(`catchUp:${afterSeq}`);
+      return relay.catchUp(workspaceId, afterSeq, 2);
+    };
+
+    const dbB = await createTestDatabase();
+    const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
+    const clientB = await createClientFromStore(storeB);
+    const originalMutate = clientB.mutate.bind(clientB);
+    const mutateSpy = vi.spyOn(clientB, 'mutate').mockImplementation((method, args) => {
+      if (method === 'applyMany') {
+        events.push(`applyMany:${(args[0] as unknown[]).length}`);
+      }
+      return originalMutate(method, args);
+    });
+
+    const syncB = new SyncEngine(clientB, transportB);
+    await syncB.pull();
+
+    // Two pages (2 + 1 ops): each page is applied before the next fetch.
+    expect(events).toEqual(['catchUp:0', 'applyMany:2', 'catchUp:2', 'applyMany:1']);
+    expect(mutateSpy).toHaveBeenCalledWith('applyMany', expect.anything());
+    for (const nodeId of nodeIds) {
+      expect(storeB.getNode(nodeId)).toBeDefined();
+    }
+  });
