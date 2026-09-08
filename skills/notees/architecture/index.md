@@ -9,7 +9,7 @@ Notees is local-first. The authoritative data model is an immutable operation lo
 - **Operation log** (`app/core/operation.py`): immutable, ordered by Hybrid Logical Clock (HLC). All mutations append operations; last-write-wins ordering makes new operations authoritative on next sync.
 - **Relay** (`app/relay/`): operation relay server; the only sync path between clients. Endpoints derive actor identity from authenticated credentials only — the `X-Actor-Id` header is never trusted.
 - **Backend** (`app/`): FastAPI feature-first hexagonal architecture. Domain services depend on repository ports, not framework or driver details.
-- **Frontend runtime** (`frontend/src/core/`): sql.js/IndexedDB SQLite + core hooks + sync engine; the sole data path for the web client. Multi-tab: one leader tab per (workspace, actor) elected via Web Locks owns the worker, sync engine, realtime channel, and IndexedDB writes; follower tabs proxy over BroadcastChannel (`frontend/src/core/worker/tabLeadership.ts`, `tabRpc.ts`).
+- **Frontend runtime** (`frontend/src/core/`): wa-sqlite/OPFS SQLite (single persistence engine; the workspace database is a real OPFS file, durable on commit — sql.js remains only as the in-memory test DB) + core hooks + sync engine; the sole data path for the web client. Multi-tab: one leader tab per (workspace, actor) elected via Web Locks owns the worker, sync engine, realtime channel, and OPFS file handles; follower tabs proxy over BroadcastChannel (`frontend/src/core/worker/tabLeadership.ts`, `tabRpc.ts`).
 - **Derived stores**: client-side SQLite materializes nodes, hierarchy (adjacency list via `parent_id`), links, and QueryAST collections from the operation log.
 
 ## Data Model

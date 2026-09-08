@@ -52,7 +52,7 @@ The spine (op log + server seq + snapshots) and transport (WS acceleration, curs
 | 3a — Merge semantics (collections) | Class membership OR-Set (`class_member_set`, schema v20, add-wins at equal HLC); derived-state v5 | ✅ `318209c8` |
 | 3b — Merge semantics (structure) | Legacy positional child-order backfill (`node.create.index`/`node.move.newIndex`); replay structure-safe (closes 121k-op gotcha); derived-state v5 | ✅ `318209c8` |
 | 4 — E2EE (Track C) | Client-side AES-GCM encryption of envelope payloads + snapshot blobs; per-workspace key wrapped with passphrase-derived KEK, blob stored server-side (`GET/PUT /api/relay/encryption-key`); encrypted envelopes carry protocolVersion 2; server skips payload validation for `$e`; SPEC §8 rewritten. **v1 limits documented:** passphrase = sharing mechanism (no per-member X25519 yet), rotation re-wraps only | ✅ `7feed0fd` |
-| 2 — OPFS durability | wa-sqlite + OPFS VFS (opt-in flag, Security settings toggle): durable-on-commit page-level writes; one-time IndexedDB-blob → OPFS migration seed with sql.js fallback; snapshot restores stay file-backed (`replaceWithSnapshot`). **Deferred:** make OPFS the default once proven in production; then delete the export→IndexedDB pipeline for good | ✅ `58a5f258` |
+| 2 — OPFS durability | wa-sqlite + OPFS, **single engine (no flag, no fallback pipeline)** ✅ `e438a79a`: worker always opens OPFS (memory VFS in tests), existing workspaces auto-convert via initialBytes seed + `verifyMigratedDatabase`; legacy export→IndexedDB pipeline deleted (persist worker, coalescing, pagehide flush, settings toggle) | ✅ done |
 
 Execution order: 3a → 3b → 4 → 2 (no-dependency items first; OPFS last because it touches the layer everything sits on).
 
