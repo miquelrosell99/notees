@@ -39,6 +39,8 @@ export interface SyncStatusState {
       lastError?: string | null;
     },
   ) => void;
+  /** Update the outbox backlog counts without touching the headline status. */
+  setOutboxCounts: (pendingCount: number, failedCount: number) => void;
   setWorkspaceInitializing: (workspaceId: string, isInitializing: boolean) => void;
   setWorkspacePullProgress: (workspaceId: string, pullProgress: SyncPullProgress | null) => void;
   getWorkspaceProgress: (workspaceId: string) => WorkspaceSyncProgress;
@@ -64,6 +66,7 @@ export const useSyncStatusStore = create<SyncStatusState>((set, get) => ({
       failedCount: opts?.failedCount ?? state.failedCount,
       lastError: opts?.lastError !== undefined ? opts.lastError : state.lastError,
     })),
+  setOutboxCounts: (pendingCount, failedCount) => set({ pendingCount, failedCount }),
   setWorkspaceInitializing: (workspaceId, isInitializing) =>
     set((state) => ({
       workspaceProgress: {
