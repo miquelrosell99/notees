@@ -508,9 +508,11 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         // so the workspace is fully initialized at this point.
         useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
         const syncEngine = getWorkspaceSyncEngine(workspaceId);
-        // Local mode has no server to sync with; skip visibility-triggered sync.
+        // Local mode has no server to sync with; skip visibility-triggered sync
+        // and the realtime channel.
         if (syncEngine && !isLocalSession) {
           unregisterVisibilityRef.current = registerVisibilitySync(syncEngine);
+          syncEngine.startRealtime({ workspaceId });
         }
       })
       .catch((err) => {
@@ -530,6 +532,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       unregisterVisibilityRef.current = null;
       if (workspaceId) {
         log.info('[WorkspaceStoreInitializer] Cleaning up workspace', { workspaceId });
+        getWorkspaceSyncEngine(workspaceId)?.stopRealtime();
         useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
         closeWorkspaceStore(workspaceId).catch((err) => {
           log.error(`Failed to close workspace ${workspaceId}`, err);
