@@ -14,14 +14,8 @@ export interface InitRequest {
   id: number;
   workspaceId: string;
   actorId: string;
-  /** Persisted database bytes, if any. */
+  /** Persisted database bytes, if any (one-time OPFS migration seed). */
   dbBytes?: Uint8Array;
-  /**
-   * When true, open the workspace database via wa-sqlite on OPFS (durable,
-   * incremental page-level persistence) instead of sql.js in-memory +
-   * whole-DB exports. dbBytes then act as one-time migration seed bytes.
-   */
-  useOpfs?: boolean;
 }
 
 export interface ExportRequest {
@@ -118,28 +112,17 @@ export interface ApplyProgressMessage {
   total: number;
 }
 
-export interface PersistDataMessage {
-  type: 'persist-data';
-  workspaceId: string;
-  data: Uint8Array;
-}
-
-export type WorkerMessage = WorkerResponse | NotifyChangeMessage | ApplyProgressMessage | PersistDataMessage;
+export type WorkerMessage = WorkerResponse | NotifyChangeMessage | ApplyProgressMessage;
 
 // ─── Client interface (lives here to avoid circular imports) ────────────────
 
 export interface IWorkspaceStoreClient {
-  init(workspaceId: string, actorId: string, options?: { dbBytes?: Uint8Array; store?: WorkspaceStore; useOpfs?: boolean }): Promise<void>;
+  init(workspaceId: string, actorId: string, options?: { dbBytes?: Uint8Array; store?: WorkspaceStore }): Promise<void>;
   export(): Promise<Uint8Array>;
   mutate<T>(method: string, args: unknown[]): Promise<T>;
   query<T>(method: string, args: unknown[], signal?: AbortSignal): Promise<T>;
   subscribe(nodeId: string | null, callback: ((notification?: NotifyChangeMessage) => void) | (() => void)): () => void;
   subscribeProgress(callback: (applied: number, total: number) => void): () => void;
-  /**
-   * Flush buffered persist-data to IndexedDB immediately (best-effort
-   * durability hook for pagehide / visibilitychange-hidden).
-   */
-  flushPendingPersist(): void;
   close(): void;
   /** True if the client has been closed or the underlying worker terminated. */
   isClosed(): boolean;

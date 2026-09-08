@@ -1117,6 +1117,7 @@ export class WaSqliteDatabase {
    */
   async replaceWithSnapshot(data: Uint8Array): Promise<void> {
     this.assertOpen();
+    validateSqliteImage(data);
 
     // Close the current handle.
     for (const stmt of Array.from(this.openStatements)) {
@@ -1275,6 +1276,29 @@ function sanitizeName(name: string): string {
   return sanitized;
 }
 
+// The 16-byte magic every SQLite database file starts with.
+const SQLITE_FILE_HEADER = 'SQLite format 3\0';
+// Smallest possible valid database image is one 100-byte header page.
+const SQLITE_MIN_IMAGE_BYTES = 100;
+
+/** Cheap structural validation of a complete SQLite database image. */
+function validateSqliteImage(data: Uint8Array): void {
+  if (data.byteLength < SQLITE_MIN_IMAGE_BYTES) {
+    throw new WaSqliteError(
+      `Invalid snapshot: ${data.byteLength} bytes is too small to be a SQLite database image`,
+      -1
+    );
+  }
+  for (let i = 0; i < SQLITE_FILE_HEADER.length; ++i) {
+    if (data[i] !== SQLITE_FILE_HEADER.charCodeAt(i)) {
+      throw new WaSqliteError(
+        'Invalid snapshot: missing the 16-byte "SQLite format 3" header of a SQLite database image',
+        -1
+      );
+    }
+  }
+}
+
 function isOpfsAvailable(): boolean {
   return (
     typeof navigator !== 'undefined' &&
@@ -1282,6 +1306,8 @@ function isOpfsAvailable(): boolean {
     typeof navigator.storage.getDirectory === 'function'
   );
 }
+
+export { isOpfsAvailable };
 
 function openDatabase(module: WaSqliteModule, fileName: string, vfsName: string): number {
   const outPtr = module._malloc(4);
@@ -1385,4 +1411,67 @@ export async function createWaSqliteDatabase(
 /** Type guard for the wa-sqlite adapter (vs. a sql.js Database). */
 export function isWaSqliteDatabase(db: unknown): db is WaSqliteDatabase {
   return db instanceof WaSqliteDatabase;
+}
+
+export interface MigrationVerificationResult {
+  ok: boolean;
+  reason?: string;
+}
+
+// Offset of the user_version field in the SQLite database header.
+const SQLITE_HEADER_USER_VERSION_OFFSET = 60;
+// Minimum header size needed to read user_version (offset 60, 4 bytes).
+const SQLITE_HEADER_MIN_BYTES = 64;
+
+/**
+ * Verifies that a database seeded via `initialBytes` (one-time migration
+ * from sql.js/IndexedDB) landed intact:
+ *
+ * - `PRAGMA user_version` of the opened database must match the value stored
+ *   in the source image header (bytes 60-63, big-endian uint32).
+ * - `PRAGMA integrity_check` must return 'ok'.
+ *
+ * When `initialBytes` is undefined or too short to contain a header there is
+ * nothing to compare against: returns `{ ok: true, reason: 'no-source-bytes' }`.
+ */
+export async function verifyMigratedDatabase(
+  db: WaSqliteDatabase,
+  initialBytes?: Uint8Array
+): Promise<MigrationVerificationResult> {
+  if (!initialBytes || initialBytes.byteLength < SQLITE_HEADER_MIN_BYTES) {
+    return { ok: true, reason: 'no-source-bytes' };
+  }
+
+  const sourceVersion = new DataView(
+    initialBytes.buffer,
+    initialBytes.byteOffset,
+    initialBytes.byteLength
+  ).getUint32(SQLITE_HEADER_USER_VERSION_OFFSET, false);
+
+  const versionRows = db.exec('PRAGMA user_version');
+  const dbVersion = versionRows[0]?.values[0]?.[0];
+  if (typeof dbVersion !== 'number') {
+    return { ok: false, reason: 'could not read PRAGMA user_version from the database' };
+  }
+  // The database's version must be at least the source's: schema migrations
+  // legitimately bump user_version when the seeded database is opened, so
+  // equality would reject every migration-with-upgrade. A LOWER version than
+  // the source means the seed did not land.
+  if (dbVersion < sourceVersion) {
+    return {
+      ok: false,
+      reason: `user_version regression: source image has ${sourceVersion}, database has ${dbVersion}`,
+    };
+  }
+
+  const integrityRows = db.exec('PRAGMA integrity_check');
+  const integrity = integrityRows[0]?.values[0]?.[0];
+  if (integrity !== 'ok') {
+    return {
+      ok: false,
+      reason: `integrity_check failed: ${typeof integrity === 'string' ? integrity : 'no result'}`,
+    };
+  }
+
+  return { ok: true };
 }

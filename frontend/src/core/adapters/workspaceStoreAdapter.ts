@@ -228,11 +228,6 @@ export function getWorkspaceSyncEngine(workspaceId: string): SyncEngine | undefi
   return registry.get(workspaceId)?.syncEngine;
 }
 
-async function persistWorkspace(workspaceId: string, client: IWorkspaceStoreClient): Promise<void> {
-  const bytes = await client.export();
-  await saveWorkspaceDatabase(workspaceId, bytes);
-}
-
 export async function closeWorkspaceStore(workspaceId: string): Promise<void> {
   const entry = registry.get(workspaceId);
   if (!entry) return;
@@ -241,11 +236,6 @@ export async function closeWorkspaceStore(workspaceId: string): Promise<void> {
   clearFavoritesCache(workspaceId);
   entry.syncEngine.stopAutoSync();
   entry.rpcServer?.close();
-  // Follower tabs own nothing to persist — the leader tab's store is the
-  // single writer.
-  if (!entry.isFollower) {
-    await persistWorkspace(workspaceId, entry.client);
-  }
   entry.client.close();
   registry.delete(workspaceId);
   if (!entry.isFollower) {
@@ -264,7 +254,6 @@ export async function syncWorkspace(workspaceId: string): Promise<void> {
     throw new Error(`Workspace ${workspaceId} is not open`);
   }
   await entry.syncEngine.syncOnce();
-  await persistWorkspace(workspaceId, entry.client);
 }
 
 /**
@@ -279,7 +268,6 @@ export async function pushWorkspace(
     throw new Error(`Workspace ${workspaceId} is not open`);
   }
   await entry.syncEngine.push(onProgress);
-  await persistWorkspace(workspaceId, entry.client);
 }
 
 /**

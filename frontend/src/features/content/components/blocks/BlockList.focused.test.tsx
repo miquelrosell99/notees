@@ -149,7 +149,6 @@ const {
     init: async () => {},
     export: async () => new Uint8Array(),
     subscribeProgress: () => () => {},
-    flushPendingPersist: () => {},
     async mutate<T>(method: string, args: unknown[]): Promise<T> {
       const fn = (mockStore as unknown as Record<string, unknown>)[method];
       if (typeof fn !== 'function') {

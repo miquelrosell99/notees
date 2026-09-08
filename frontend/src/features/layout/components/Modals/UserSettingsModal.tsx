@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom';
 import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor, isSupportBadgeVisible, useEncryptionStore } from '@/stores';
 import { enableWorkspaceE2ee, unlockWorkspaceE2ee } from '@/core/e2eeSetup';
 import { clearWorkspaceKey, setWorkspaceE2eeEnabled } from '@/core/e2ee';
-import { isOpfsPersistenceEnabled, setOpfsPersistenceEnabled } from '@/core/adapters/workspaceStoreClientAdapter';
 import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSelectors';
 import { useWorkspaces } from '@/features/workspace';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor, TreeEditMode } from '@/stores';
@@ -109,8 +108,6 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const disableEncryption = useEncryptionStore((s) => s.disable);
   const encryptionEnabled = encryptionConfig.enabled;
   const encryptionUnlocked = encryptionKey !== null;
-  const [opfsEnabled, setOpfsEnabled] = useState(() => isOpfsPersistenceEnabled());
-  const [opfsChanged, setOpfsChanged] = useState(false);
 
   // Keep the custom hex text input in sync with the persisted value.
   useEffect(() => {
@@ -983,36 +980,6 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <h3 className="settings-section__title">Two-Factor Authentication</h3>
                 <Card>
                   <TwoFactorSettings />
-                </Card>
-              </div>
-
-              <div className="settings-section">
-                <h3 className="settings-section__title">Local Persistence</h3>
-                <Card>
-                  <p className="settings-section__subtitle">
-                    OPFS persistence stores the workspace database as a real file in your browser,
-                    writing only changed pages on every commit instead of rewriting the whole
-                    database periodically. More durable, faster on large workspaces. Experimental:
-                    your data migrates automatically on next reload, and the old copy is kept.
-                  </p>
-                  <label className="settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={opfsEnabled}
-                      onChange={(e) => {
-                        setOpfsPersistenceEnabled(e.target.checked);
-                        setOpfsEnabled(e.target.checked);
-                        setOpfsChanged(true);
-                      }}
-                    />
-                    <span>Use OPFS persistence (experimental)</span>
-                  </label>
-                  {opfsChanged && (
-                    <p className="settings-section__subtitle">
-                      Takes effect after a reload. The migration from the current storage happens
-                      automatically on next open.
-                    </p>
-                  )}
                 </Card>
               </div>
 
