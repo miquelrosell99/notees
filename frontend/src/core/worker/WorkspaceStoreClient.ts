@@ -39,7 +39,6 @@ import {
   type NotifyChangeMessage,
   generateRequestId,
 } from './workerProtocol';
-import { getLogger } from '@/utils/logger';
 import {
   buildBacklinks,
   buildBreadcrumbs,
@@ -80,11 +79,6 @@ export interface WorkspaceStoreClientOptions {
   dbBytes?: Uint8Array;
   /** Optional existing store to use directly (test shim to share state). */
   store?: WorkspaceStore;
-  /**
-   * Open the database via wa-sqlite on OPFS (durable incremental persistence)
-   * instead of sql.js in-memory + whole-DB exports. Forwarded to the worker.
-   */
-  useOpfs?: boolean;
 }
 
 interface PendingRequest {
@@ -120,28 +114,12 @@ function isWorkerSupported(): boolean {
   return !navigator.userAgent.includes('jsdom');
 }
 
-const persistLog = getLogger('persist');
-
-interface PersistRequest {
-  resolve: () => void;
-  reject: (err: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-}
-
 export class WorkerStoreClient implements IWorkspaceStoreClient {
   private worker: Worker;
-  private persistWorker: Worker;
   private pending = new Map<number, PendingRequest>();
   private listeners = new Map<string | null, Set<(notification?: NotifyChangeMessage) => void>>();
   private progressListeners = new Set<(applied: number, total: number) => void>();
   private inFlightQueries = new Map<string, Promise<unknown>>();
-  private pendingPersistData = new Map<string, Uint8Array>();
-  private persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private persistInFlight = new Set<string>();
-  /** Set by flushPendingPersist: the next persist-data skips the debounce. */
-  private persistASAP = false;
-  private pendingPersistRequests = new Map<number, PersistRequest>();
-  private persistRequestId = 0;
   private closed = false;
 
   constructor(worker: Worker) {
@@ -160,27 +138,6 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
       this.rejectAllPending(new Error(`Worker error: ${err.message}`));
       this.terminate();
     };
-
-    // Offload IndexedDB persistence to a dedicated worker so the main thread
-    // stays responsive while a 100+ MB SQLite snapshot is written.
-    this.persistWorker = new Worker(new URL('./persistWorker.ts', import.meta.url), {
-      type: 'module',
-    });
-    this.persistWorker.onmessage = (event: MessageEvent<unknown>) => {
-      const msg = event.data as { type: 'persist-done' | 'persist-error'; id: number; message?: string };
-      const pending = this.pendingPersistRequests.get(msg.id);
-      if (!pending) return;
-      this.pendingPersistRequests.delete(msg.id);
-      clearTimeout(pending.timer);
-      if (msg.type === 'persist-error') {
-        pending.reject(new Error(msg.message ?? 'Persist worker error'));
-      } else {
-        pending.resolve();
-      }
-    };
-    this.persistWorker.onerror = (err) => {
-      console.error('[WorkspaceStoreClient] Persist worker error:', err);
-    };
   }
 
   private rejectAllPending(error: Error): void {
@@ -195,96 +152,7 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     if (this.closed) return;
     this.closed = true;
     this.worker.terminate();
-    this.persistWorker.terminate();
-    for (const pending of this.pendingPersistRequests.values()) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error('Worker closed'));
-    }
-    this.pendingPersistRequests.clear();
     this.listeners.clear();
-  }
-
-  private schedulePersist(workspaceId: string): void {
-    const existing = this.persistTimers.get(workspaceId);
-    if (existing) {
-      clearTimeout(existing);
-    }
-    this.persistTimers.set(
-      workspaceId,
-      setTimeout(() => {
-        this.persistTimers.delete(workspaceId);
-        if (this.persistInFlight.has(workspaceId)) {
-          // A save is already running; flushPersist will schedule another pass
-          // if newer data arrived in the meantime.
-          return;
-        }
-        void this.flushPersist(workspaceId);
-      }, 1000)
-    );
-  }
-
-  /**
-   * Flush buffered persist-data to IndexedDB immediately, skipping the
-   * coalescing debounce, and make the NEXT persist-data message (e.g. the
-   * worker's response to a pagehide ``persistNow``) flush immediately too.
-   * Best-effort durability hook for pagehide / visibilitychange-hidden.
-   */
-  flushPendingPersist(): void {
-    this.persistASAP = true;
-    for (const workspaceId of this.pendingPersistData.keys()) {
-      const timer = this.persistTimers.get(workspaceId);
-      if (timer) {
-        clearTimeout(timer);
-        this.persistTimers.delete(workspaceId);
-      }
-      if (!this.persistInFlight.has(workspaceId)) {
-        void this.flushPersist(workspaceId);
-      }
-    }
-  }
-
-  private async flushPersist(workspaceId: string): Promise<void> {
-    const data = this.pendingPersistData.get(workspaceId);
-    if (!data) return;
-
-    this.persistInFlight.add(workspaceId);
-    this.pendingPersistData.delete(workspaceId);
-    const start = performance.now();
-    const id = ++this.persistRequestId;
-    try {
-      persistLog.debug('[persist] offloading IndexedDB save', {
-        workspaceId,
-        bytes: data.length,
-      });
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          this.pendingPersistRequests.delete(id);
-          reject(new Error('Persist worker timeout'));
-        }, 60_000);
-        this.pendingPersistRequests.set(id, { resolve, reject, timer });
-        // Transfer the underlying buffer so the main thread does not have to
-        // structured-clone 100+ MB on every keystroke.
-        this.persistWorker.postMessage(
-          { type: 'persist', id, workspaceId, data },
-          [data.buffer]
-        );
-      });
-      persistLog.debug('[persist] IndexedDB save complete', {
-        workspaceId,
-        durationMs: Math.round(performance.now() - start),
-      });
-    } catch (err) {
-      console.error(
-        `[WorkspaceStoreClient] Failed to persist workspace ${workspaceId}:`,
-        err
-      );
-    } finally {
-      this.persistInFlight.delete(workspaceId);
-      // If more data arrived while we were writing, schedule another flush.
-      if (this.pendingPersistData.has(workspaceId)) {
-        this.schedulePersist(workspaceId);
-      }
-    }
   }
 
   private handleMessage(msg: WorkerMessage): void {
@@ -301,30 +169,6 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
           // ignore listener errors
         }
       }
-      return;
-    }
-
-    if (msg.type === 'persist-data') {
-      // Coalesce rapid persist requests in a debounced window. The worker can
-      // fire onPersist immediately after a tiny remote sync and again after
-      // endBatch; writing the entire workspace DB to IndexedDB twice in a row
-      // blocks the main thread and causes the UI to freeze/blank.
-      this.pendingPersistData.set(msg.workspaceId, msg.data);
-      if (this.persistASAP) {
-        // A pagehide/hidden flush is in progress: skip the debounce so the
-        // data reaches IndexedDB before the page can be killed.
-        this.persistASAP = false;
-        const timer = this.persistTimers.get(msg.workspaceId);
-        if (timer) {
-          clearTimeout(timer);
-          this.persistTimers.delete(msg.workspaceId);
-        }
-        if (!this.persistInFlight.has(msg.workspaceId)) {
-          void this.flushPersist(msg.workspaceId);
-        }
-        return;
-      }
-      this.schedulePersist(msg.workspaceId);
       return;
     }
 
@@ -439,7 +283,6 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
         workspaceId,
         actorId,
         dbBytes,
-        useOpfs: options.useOpfs,
       },
       INIT_TIMEOUT_MS,
       undefined,
@@ -550,23 +393,11 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
     this.closed = true;
     this.worker.postMessage({ type: 'close' });
     this.worker.terminate();
-    this.persistWorker.terminate();
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(new Error('Worker closed'));
     }
     this.pending.clear();
-    for (const pending of this.pendingPersistRequests.values()) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error('Worker closed'));
-    }
-    this.pendingPersistRequests.clear();
-    for (const timer of this.persistTimers.values()) {
-      clearTimeout(timer);
-    }
-    this.persistTimers.clear();
-    this.pendingPersistData.clear();
-    this.persistInFlight.clear();
     this.listeners.clear();
   }
 
@@ -603,10 +434,6 @@ class InlineStoreClient implements IWorkspaceStoreClient {
   async export(): Promise<Uint8Array> {
     if (!this.store) throw new Error('Store not initialized');
     return this.store.export();
-  }
-
-  flushPendingPersist(): void {
-    // Inline mode has no buffered persist queue; persistence is synchronous.
   }
 
   mutate<T>(method: string, args: unknown[]): Promise<T> {

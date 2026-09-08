@@ -5,8 +5,7 @@
  * (mutations, queries, sync apply, export) happens here, off the main thread.
  */
 
-import { createDatabase } from '../db/connection';
-import { createWaSqliteDatabase } from '../db/waSqliteDatabase';
+import { createWaSqliteDatabase, isOpfsAvailable, verifyMigratedDatabase, type WaSqliteDatabase } from '../db/waSqliteDatabase';
 import { createSchema } from '../db/schema';
 import type { Database } from 'sql.js';
 import { WorkspaceStore } from '../store';
@@ -94,19 +93,8 @@ function postResponse(response: WorkerResponse): void {
 }
 
 function postNotify(notification: WorkerMessage): void {
-  if (notification.type === 'persist-data') {
-    // The payload is a fresh copy owned by the worker (the store copies the
-    // exported bytes before invoking onPersist), so transfer the buffer instead
-    // of structured-cloning the full database on every persist. The main thread
-    // re-transfers it onward to the persist worker. The options-object form is
-    // used because the DOM lib types `self` as Window here.
-    self.postMessage(notification, { transfer: [notification.data.buffer] });
-    return;
-  }
   self.postMessage(notification);
 }
-
-const INIT_SQL_TIMEOUT_MS = 60_000;
 
 /**
  * Maximum number of operations to apply in a single synchronous chunk inside
@@ -138,51 +126,55 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
     : null;
 
   performance.mark('worker:sqljs-import-start');
-  // OPFS mode: wa-sqlite with an OPFS VFS gives durable, incremental
-  // page-level persistence — no whole-DB exports, no IndexedDB writes, no
-  // 30 s debounce window. dbBytes (the last sql.js export) act as one-time
-  // migration seed; the OPFS file wins once it exists.
-  const db = request.useOpfs
-    ? ((await createWaSqliteDatabase({
+  // Single persistence engine: wa-sqlite — the workspace database is a real
+  // OPFS file, durable on every commit. dbBytes (the last sql.js export) act
+  // as the one-time migration seed; the OPFS file wins once it exists.
+  // Environments without OPFS (jsdom/tests) use the same engine with an
+  // ephemeral in-memory VFS instead — no second engine, just no file.
+  // Retry briefly: a previous leader tab's OPFS sync access handles can
+  // linger for a moment after it closes (exclusive-lock contention).
+  const vfs = isOpfsAvailable() ? 'opfs' : 'memory';
+  let db: Database | null = null;
+  let lastOpenError: unknown = null;
+  for (let attempt = 0; attempt < 3 && db === null; attempt++) {
+    try {
+      db = (await createWaSqliteDatabase({
         name: request.workspaceId,
-        vfs: 'opfs',
+        vfs,
         initialBytes: request.dbBytes,
-      })) as unknown as Database)
-    : await Promise.race([
-        createDatabase(request.dbBytes),
-        new Promise<never>((_, reject) => {
-          setTimeout(
-            () => reject(new Error('sql.js initialization timed out in worker')),
-            INIT_SQL_TIMEOUT_MS
-          );
-        }),
-      ]);
-  if (request.useOpfs) {
-    // createWaSqliteDatabase opens the raw file; schema/migrations run here,
-    // exactly like createDatabase does for the sql.js path.
-    createSchema(db);
+      })) as unknown as Database;
+    } catch (err) {
+      lastOpenError = err;
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+      }
+    }
+  }
+  if (db === null) {
+    throw new Error(
+      `Failed to open the OPFS workspace database after 3 attempts: ${String(lastOpenError)}`
+    );
+  }
+  // createWaSqliteDatabase opens the raw file; schema/migrations run here.
+  createSchema(db);
+  // Verify a just-migrated database (seeded from the sql.js export): the
+  // file must pass integrity_check and carry the source's user_version.
+  // A failed verification means the migration is untrustworthy — fail loud
+  // instead of running on a corrupt store.
+  const migrationCheck = await verifyMigratedDatabase(
+    db as unknown as WaSqliteDatabase,
+    request.dbBytes
+  );
+  if (!migrationCheck.ok) {
+    throw new Error(`OPFS migration verification failed: ${migrationCheck.reason}`);
   }
   performance.mark('worker:sqljs-import-end');
   performance.measure('worker:sqljs-import', 'worker:sqljs-import-start', 'worker:sqljs-import-end');
   performance.mark('worker:store-setup-start');
   const store = new WorkspaceStore(db, request.workspaceId, request.actorId, {
-    // Debounce persistence heavily: a 145 MB workspace should not be rewritten to
-    // IndexedDB after every keystroke. The debounce timer resets on each mutation,
-    // so continuous typing only flushes once the user pauses.
+    // OPFS persists on every commit; the export→IndexedDB pipeline is gone.
     persistDebounceMs: 30_000,
-    onPersist: request.useOpfs
-      ? // OPFS persists on every commit; the export→IndexedDB pipeline is
-        // not needed and its whole-DB cost is pure waste.
-        async () => {}
-      : async (data) => {
-          // Send the exported database back to the main thread so it can be persisted
-          // to IndexedDB. The main thread owns IndexedDB access; serialising the full
-          // DB inside the worker and posting it avoids blocking the main thread's UI
-          // work while still keeping persistence off the synchronous mutation path.
-          // Copy the bytes before posting in case sql.js returns a view into WASM
-          // memory that could be mutated by later DB operations.
-          postNotify({ type: 'persist-data', workspaceId: request.workspaceId, data: new Uint8Array(data) });
-        },
+    onPersist: async () => {},
     onNotify: (notification) => postNotify(notification),
   });
   performance.mark('worker:store-setup-end');

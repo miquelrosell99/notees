@@ -23,29 +23,6 @@ const log = getLogger('workspaceStoreClientAdapter');
 
 const LOAD_PERSISTED_DB_TIMEOUT_MS = 60_000;
 
-const OPFS_FLAG_KEY = 'notees:opfs-persistence';
-
-/**
- * OPFS persistence (wa-sqlite) is opt-in per browser while it proves out.
- * When enabled, the workspace worker opens the database on OPFS (durable,
- * incremental writes) instead of sql.js in-memory + IndexedDB exports.
- */
-export function isOpfsPersistenceEnabled(): boolean {
-  try {
-    return isRealBrowser() && localStorage.getItem(OPFS_FLAG_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-export function setOpfsPersistenceEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(OPFS_FLAG_KEY, enabled ? '1' : '0');
-  } catch {
-    // Storage access may be restricted; the flag simply stays unset.
-  }
-}
-
 interface ClientEntry {
   client: IWorkspaceStoreClient;
   actorId: string;
@@ -53,35 +30,6 @@ interface ClientEntry {
 
 const clientRegistry = new Map<string, ClientEntry>();
 const pendingOpens = new Map<string, Promise<IWorkspaceStoreClient>>();
-
-let pageHidePersistRegistered = false;
-
-/**
- * Flush every open workspace to IndexedDB when the page is hidden or
- * unloaded. The worker store debounces persistence heavily (30 s), so
- * without this hook an abrupt tab close loses applied-but-unpersisted ops.
- * Best-effort: visibilitychange(hidden) fires well before a kill in most
- * browsers; pagehide is the last-resort attempt. Registered once, lazily,
- * when the first real-browser client opens.
- */
-function registerPageHidePersist(): void {
-  if (pageHidePersistRegistered || !isRealBrowser()) return;
-  pageHidePersistRegistered = true;
-  const flush = (): void => {
-    for (const entry of clientRegistry.values()) {
-      if (entry.client.isClosed()) continue;
-      // Flush whatever the main thread already buffered, then ask the worker
-      // store to bypass its debounce and export now; the resulting
-      // persist-data message flushes immediately (persistASAP).
-      entry.client.flushPendingPersist();
-      void entry.client.mutate('persistNow', []).catch(() => undefined);
-    }
-  };
-  window.addEventListener('pagehide', flush);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flush();
-  });
-}
 
 function isWorkerSupported(): boolean {
   if (typeof Worker === 'undefined') return false;
@@ -150,7 +98,6 @@ async function openWorkspaceStoreClient(
   const client = createWorkspaceStoreClient();
 
   if (isWorkerSupported()) {
-    registerPageHidePersist();
     let dbBytes = options?.dbBytes;
     let idbRead: PerformanceMeasure | undefined;
     if (isRealBrowser() && !dbBytes) {
@@ -181,18 +128,7 @@ async function openWorkspaceStoreClient(
       }
     }
     performance.mark('workspace-client:worker-init-start');
-    const useOpfs = isOpfsPersistenceEnabled();
-    try {
-      await client.init(workspaceId, actorId, { dbBytes, useOpfs });
-    } catch (err) {
-      if (!useOpfs) throw err;
-      // OPFS unavailable or failed (old browser, quota, VFS error): fall back
-      // to the sql.js path rather than blocking the workspace from opening.
-      log.warn('OPFS persistence init failed; falling back to sql.js', {
-        error: String(err),
-      });
-      await client.init(workspaceId, actorId, { dbBytes, useOpfs: false });
-    }
+    await client.init(workspaceId, actorId, { dbBytes });
     performance.mark('workspace-client:worker-init-end');
     const workerInit = performance.measure('workspace-client:worker-init', 'workspace-client:worker-init-start', 'workspace-client:worker-init-end');
     log.info(
