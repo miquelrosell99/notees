@@ -93,6 +93,21 @@ class PostgresPermissionChecker(PermissionChecker):
             )
             return row is not None
 
+    async def can_write_batch(
+        self,
+        workspace_id: str,
+        actor_id: str,
+        affected_node_ids_batch: list[list[str]],
+    ) -> bool:
+        """Single batch-level write check.
+
+        Write permission is workspace-scoped (owner or active write share) —
+        node-level routing metadata is client-supplied and best-effort
+        (protocol/SPEC.md §9), so one check covers the whole batch. This
+        turns ~2 sequential queries per envelope into 2 per batch.
+        """
+        return await self.can_write(workspace_id, actor_id, [])
+
     async def can_read_public_share(
         self,
         workspace_id: str,
