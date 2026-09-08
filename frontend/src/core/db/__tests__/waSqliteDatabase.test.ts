@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { webcrypto } from 'node:crypto';
 import type { Database } from 'sql.js';
-import { createWaSqliteDatabase, isWaSqliteDatabase, type WaSqliteDatabase } from '../waSqliteDatabase';
+import {
+  createWaSqliteDatabase,
+  isWaSqliteDatabase,
+  verifyMigratedDatabase,
+  type WaSqliteDatabase,
+} from '../waSqliteDatabase';
 import { queryOne, queryAll, transaction } from '../sqlite';
 
 beforeAll(() => {
@@ -284,5 +289,99 @@ describe('waSqliteDatabase (memory vfs)', () => {
     const bytes = db.export();
     db.close();
     await expect(db.replaceWithSnapshot(bytes)).rejects.toThrow('Database closed');
+  });
+
+  it('replaceWithSnapshot rejects invalid images before touching the database', async () => {
+    const db = await createTestDb('snapshot-garbage');
+    try {
+      db.run('CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT)');
+      db.run("INSERT INTO t(v) VALUES ('still-here')");
+
+      // Too small to be a database image.
+      await expect(db.replaceWithSnapshot(new Uint8Array(10))).rejects.toThrow(
+        /too small to be a SQLite database image/
+      );
+
+      // Right size, wrong magic header.
+      const garbage = new Uint8Array(4096).fill(0xab);
+      await expect(db.replaceWithSnapshot(garbage)).rejects.toThrow(
+        /missing the 16-byte "SQLite format 3" header/
+      );
+
+      // The healthy database was never closed or modified.
+      expect(db.exec('SELECT v FROM t')[0].values).toEqual([['still-here']]);
+      db.run("INSERT INTO t(v) VALUES (?)", ['after-reject']);
+      expect(db.exec('SELECT COUNT(*) FROM t')[0].values[0][0]).toBe(2);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('verifyMigratedDatabase passes after a normal initialBytes migration', async () => {
+    const source = await createTestDb('verify-source');
+    let bytes: Uint8Array;
+    try {
+      source.run('CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT)');
+      source.run("INSERT INTO t(v) VALUES ('migrated')");
+      source.run('PRAGMA user_version = 7');
+      bytes = source.export();
+    } finally {
+      source.close();
+    }
+
+    const db = await createTestDb('verify-target', bytes);
+    try {
+      const result = await verifyMigratedDatabase(db, bytes);
+      expect(result).toEqual({ ok: true });
+      expect(db.exec('PRAGMA user_version')[0].values[0][0]).toBe(7);
+      expect(db.exec('SELECT v FROM t')[0].values).toEqual([['migrated']]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('verifyMigratedDatabase fails when the source user_version does not match', async () => {
+    const source = await createTestDb('verify-doctored-source');
+    let bytes: Uint8Array;
+    try {
+      source.run('CREATE TABLE t(id INTEGER PRIMARY KEY)');
+      source.run('PRAGMA user_version = 7');
+      bytes = source.export();
+    } finally {
+      source.close();
+    }
+
+    const db = await createTestDb('verify-doctored-target', bytes);
+    try {
+      // Doctor a copy of the source image: user_version 7 -> 42 at header
+      // bytes 60-63 (big-endian uint32).
+      const doctored = bytes.slice();
+      new DataView(doctored.buffer, doctored.byteOffset).setUint32(60, 42, false);
+
+      const result = await verifyMigratedDatabase(db, doctored);
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain('user_version regression');
+      expect(result.reason).toContain('42');
+      expect(result.reason).toContain('7');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('verifyMigratedDatabase returns no-source-bytes without initialBytes', async () => {
+    const db = await createTestDb('verify-no-bytes');
+    try {
+      db.run('CREATE TABLE t(id INTEGER PRIMARY KEY)');
+      expect(await verifyMigratedDatabase(db, undefined)).toEqual({
+        ok: true,
+        reason: 'no-source-bytes',
+      });
+      expect(await verifyMigratedDatabase(db, new Uint8Array(10))).toEqual({
+        ok: true,
+        reason: 'no-source-bytes',
+      });
+    } finally {
+      db.close();
+    }
   });
 });

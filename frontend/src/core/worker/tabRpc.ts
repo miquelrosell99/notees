@@ -171,8 +171,7 @@ export function startTabRpcServer(
 
 /**
  * IWorkspaceStoreClient proxy that forwards every call to the leader tab.
- * The leader owns persistence, so flushPendingPersist is a no-op here and
- * close() only detaches this tab.
+ * The leader owns persistence, and close() only detaches this tab.
  */
 export class RemoteStoreClient implements IWorkspaceStoreClient {
   private channel: ChannelLike | null = null;
@@ -326,10 +325,6 @@ export class RemoteStoreClient implements IWorkspaceStoreClient {
     return () => {
       this.progressListeners.delete(callback);
     };
-  }
-
-  flushPendingPersist(): void {
-    // The leader tab owns persistence; nothing is buffered here.
   }
 
   close(): void {
