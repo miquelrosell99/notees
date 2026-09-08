@@ -26,6 +26,8 @@ export interface SyncStatusState {
   status: SyncStatus;
   pendingCount: number;
   failedCount: number;
+  /** Un-synced ops parked by a server restore, awaiting explicit recovery. */
+  parkedCount: number;
   lastError: string | null;
   /** Per-workspace initialization state so switching workspaces doesn't fight. */
   workspaceProgress: Record<string, WorkspaceSyncProgress>;
@@ -41,6 +43,8 @@ export interface SyncStatusState {
   ) => void;
   /** Update the outbox backlog counts without touching the headline status. */
   setOutboxCounts: (pendingCount: number, failedCount: number) => void;
+  /** Update the parked (server-restore recovery) count. */
+  setParkedCount: (parkedCount: number) => void;
   setWorkspaceInitializing: (workspaceId: string, isInitializing: boolean) => void;
   setWorkspacePullProgress: (workspaceId: string, pullProgress: SyncPullProgress | null) => void;
   getWorkspaceProgress: (workspaceId: string) => WorkspaceSyncProgress;
@@ -56,6 +60,7 @@ export const useSyncStatusStore = create<SyncStatusState>((set, get) => ({
   status: 'synced',
   pendingCount: 0,
   failedCount: 0,
+  parkedCount: 0,
   lastError: null,
   workspaceProgress: {},
   workspaceResetNonce: 0,
@@ -67,6 +72,7 @@ export const useSyncStatusStore = create<SyncStatusState>((set, get) => ({
       lastError: opts?.lastError !== undefined ? opts.lastError : state.lastError,
     })),
   setOutboxCounts: (pendingCount, failedCount) => set({ pendingCount, failedCount }),
+  setParkedCount: (parkedCount) => set({ parkedCount }),
   setWorkspaceInitializing: (workspaceId, isInitializing) =>
     set((state) => ({
       workspaceProgress: {
