@@ -40,6 +40,13 @@ export interface SyncEngineCallbacks {
    */
   onOutboxCounts?: (counts: OutboxStatusCounts) => void;
   /**
+   * Called when un-synced local ops were parked into the recovery branch
+   * (or are found parked from an earlier session) because a server restore
+   * invalidated local state. The user can re-push them via
+   * recoverParkedChanges().
+   */
+  onParkedChanges?: (count: number) => void;
+  /**
    * Called when the sync engine detects a semantic conflict between remote
    * operations and local pending operations (e.g. concurrent moves of the same
    * node, or a local edit vs a remote delete).
@@ -307,6 +314,48 @@ export class SyncEngine {
     await this.syncOnce();
   }
 
+  /**
+   * Park un-acknowledged local ops before a server-restore wipe so they are
+   * not silently discarded. Returns the number parked.
+   */
+  private async parkUnsyncedOperations(): Promise<number> {
+    const parked = await this.client.mutate<number>('parkUnsyncedOperations', ['server-restore']);
+    if (parked > 0) {
+      log.warn('Parked un-synced local operations before server-restore rebuild', { parked });
+      this.callbacks.onParkedChanges?.(parked);
+    }
+    return parked;
+  }
+
+  /** Emit the parked-changes callback when ops are waiting in the recovery branch. */
+  private async reportParkedChanges(): Promise<void> {
+    if (!this.callbacks.onParkedChanges) return;
+    try {
+      const count = await this.client.query<number>('countParkedOperations', []);
+      if (count > 0) {
+        this.callbacks.onParkedChanges(count);
+      }
+    } catch (err) {
+      log.warn('Failed to report parked changes', { error: String(err) });
+    }
+  }
+
+  /**
+   * Re-push ops parked by a server restore: they re-enter the outbox, are
+   * re-applied locally, and push on the next sync. Their effects resolve
+   * against the restored server state through normal LWW/CRDT semantics.
+   */
+  async recoverParkedChanges(): Promise<void> {
+    await this.ensureWatermarksLoaded();
+    const requeued = await this.client.mutate<number>('requeueParkedOperations', []);
+    if (requeued > 0) {
+      log.info('Recovered parked operations', { requeued });
+    }
+    this.callbacks.onParkedChanges?.(0);
+    await this.reportOutboxCounts();
+    await this.syncOnce();
+  }
+
   private async sendBatchViaSend(envelopes: OperationEnvelope[]): Promise<{ savedIds: string[] }> {
     const savedIds: string[] = [];
     for (const envelope of envelopes) {
@@ -338,8 +387,10 @@ export class SyncEngine {
     // the restored server converges to the correct state.
     if (snapshot.restoreEpoch !== localEpoch) {
       // A server restore means the server's derived state may differ from ours.
-      // Clear derived tables as well as the operation log so the next catch-up
-      // rebuilds everything from a clean baseline.
+      // Park un-synced local ops first so the wipe does not silently discard
+      // them, then clear derived tables as well as the operation log so the
+      // next catch-up rebuilds everything from a clean baseline.
+      await this.parkUnsyncedOperations();
       await this.client.mutate('resetDerivedState', []);
       await this.client.mutate('clearOperationLog', []);
       this.lastReceivedHlc = { physical: 0, logical: 0 };
@@ -509,6 +560,7 @@ export class SyncEngine {
     }
     this.reportPhase('synced', 'Synced');
     await this.reportOutboxCounts();
+    await this.reportParkedChanges();
     this.callbacks.onPull?.(envelopes.length);
 
     // Upload a snapshot when the server has no snapshot or an older one.
@@ -570,6 +622,8 @@ export class SyncEngine {
       // derived database while the user is waiting can freeze lower-powered
       // machines. Uploads happen later during background auto-sync.
       await this.syncOnce({ skipSnapshotUpload: true });
+      // Surface ops parked by a server restore in a previous session.
+      await this.reportParkedChanges();
       return;
     }
 
@@ -587,10 +641,14 @@ export class SyncEngine {
       const serverRestored = serverSnapshot.restoreEpoch !== localEpoch;
 
       if (serverRestored) {
-        console.warn(
+        // The server was restored from a backup: local un-synced ops may not
+        // exist server-side anymore. Park them into the recovery branch
+        // instead of silently discarding them with the wipe below.
+        log.warn(
           `Server restore_epoch ${serverSnapshot.restoreEpoch} differs from local ${localEpoch}; ` +
-            'skipping local push and rebuilding from server.'
+            'parking un-synced local ops and rebuilding from server.'
         );
+        await this.parkUnsyncedOperations();
       } else {
         this.reportPhase('pushing-local', 'Sending local changes…');
         await this.push();

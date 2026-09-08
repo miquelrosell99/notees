@@ -623,6 +623,82 @@ export class WorkspaceStore {
   }
 
   /**
+   * Park every un-acknowledged outbox op into recovery_operation before a
+   * server-restore wipe discards the local operation log. Parked ops survive
+   * `clearOperationLog` and can be re-pushed via `requeueParkedOperations`.
+   * Returns the number of ops parked.
+   */
+  parkUnsyncedOperations(reason: string): number {
+    const now = new Date().toISOString();
+    transaction(this.db, () => {
+      this.db.run(
+        `INSERT OR IGNORE INTO recovery_operation (
+           id, workspace_id, actor_id, hlc_physical, hlc_logical,
+           affected_node_ids, op_type, payload, timestamp, parked_at, reason
+         )
+         SELECT o.id, o.workspace_id, o.actor_id, o.hlc_physical, o.hlc_logical,
+                o.affected_node_ids, o.op_type, o.payload, o.timestamp, ?, ?
+         FROM operation o
+         JOIN sync_outbox ob ON ob.operation_id = o.id
+         WHERE o.workspace_id = ?
+           AND o.actor_id = ?
+           AND ob.state != 'acknowledged'`,
+        [now, reason, this.workspaceId, this.actorId]
+      );
+    });
+    return this.db.getRowsModified();
+  }
+
+  /** Number of ops parked in the recovery branch. */
+  countParkedOperations(): number {
+    const row = queryOne<{ n: number }>(
+      this.db,
+      'SELECT COUNT(*) AS n FROM recovery_operation WHERE workspace_id = ? AND actor_id = ?',
+      [this.workspaceId, this.actorId]
+    );
+    return row?.n ?? 0;
+  }
+
+  /**
+   * Move parked ops back into the operation log (re-applied to derived state,
+   * re-queued in the outbox as pending) so the next push sends them again.
+   * The server lost them in the restore, so its id-dedupe accepts them; their
+   * re-application resolves against rebuilt server state through the normal
+   * LWW/CRDT semantics. Returns the requeued count.
+   */
+  requeueParkedOperations(): number {
+    const rows = queryAll<OperationRow>(
+      this.db,
+      `SELECT id, workspace_id, actor_id, hlc_physical, hlc_logical, affected_node_ids, op_type, payload
+       FROM recovery_operation
+       WHERE workspace_id = ? AND actor_id = ?
+       ORDER BY hlc_physical ASC, hlc_logical ASC, id ASC`,
+      [this.workspaceId, this.actorId]
+    );
+    if (rows.length === 0) return 0;
+    const ops: Operation[] = rows.map((row) => ({
+      envelope: {
+        id: row.id,
+        protocolVersion: PROTOCOL_VERSION,
+        workspaceId: row.workspace_id,
+        actorId: row.actor_id,
+        hlc: { physical: row.hlc_physical, logical: row.hlc_logical },
+        affectedNodeIds: JSON.parse(row.affected_node_ids) as string[],
+        opType: row.op_type,
+      },
+      payload: JSON.parse(row.payload) as unknown,
+    }));
+    // applyMany inserts into the log, enqueues own-actor ops in the outbox,
+    // and applies derived effects — exactly the re-queue semantics needed.
+    this.applyMany(ops);
+    this.db.run('DELETE FROM recovery_operation WHERE workspace_id = ? AND actor_id = ?', [
+      this.workspaceId,
+      this.actorId,
+    ]);
+    return ops.length;
+  }
+
+  /**
    * Return local operations that are not yet acknowledged by the server and that
    * affect any of the given node ids. Used by the sync engine to detect semantic
    * conflicts between remote operations and local pending edits.

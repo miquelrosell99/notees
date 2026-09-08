@@ -33,11 +33,12 @@ function formatBytes(bytes: number): string {
 }
 
 export function SyncStatusIndicator(): ReactNode {
-  const { status, pendingCount, failedCount, lastError } = useSyncStatusStore();
+  const { status, pendingCount, failedCount, parkedCount, lastError } = useSyncStatusStore();
   const { quota, isWarning, isCritical } = useStorageQuota();
   const workspaceUuid = useCurrentWorkspaceUuid();
   const [open, setOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const config = STATUS_CONFIG[status];
@@ -50,6 +51,17 @@ export function SyncStatusIndicator(): ReactNode {
       await engine.retryQuarantined();
     } finally {
       setRetrying(false);
+    }
+  };
+
+  const handleRecover = async (): Promise<void> => {
+    const engine = workspaceUuid ? getWorkspaceSyncEngine(workspaceUuid) : undefined;
+    if (!engine) return;
+    setRecovering(true);
+    try {
+      await engine.recoverParkedChanges();
+    } finally {
+      setRecovering(false);
     }
   };
 
@@ -96,7 +108,7 @@ export function SyncStatusIndicator(): ReactNode {
               </span>
             </p>
           )}
-          {pendingCount === 0 && failedCount === 0 ? (
+          {pendingCount === 0 && failedCount === 0 && parkedCount === 0 ? (
             <p className="sync-status-indicator__empty">All changes are saved.</p>
           ) : (
             <p className="sync-status-indicator__summary">
@@ -115,6 +127,23 @@ export function SyncStatusIndicator(): ReactNode {
             >
               {retrying ? 'Retrying…' : 'Retry now'}
             </Button>
+          )}
+          {parkedCount > 0 && (
+            <div className="sync-status-indicator__parked">
+              <p className="sync-status-indicator__summary">
+                The server was restored from a backup. {parkedCount} unsent change
+                {parkedCount === 1 ? '' : 's'} kept aside.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleRecover()}
+                disabled={recovering}
+                title="Re-apply the parked changes and push them to the server"
+              >
+                {recovering ? 'Recovering…' : 'Recover changes'}
+              </Button>
+            </div>
           )}
           {lastError && (
             <p className="sync-status-indicator__last-error" title={lastError}>

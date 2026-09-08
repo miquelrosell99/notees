@@ -251,6 +251,20 @@ export function createSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_sync_outbox_state
     ON sync_outbox (state);
 
+    CREATE TABLE IF NOT EXISTS recovery_operation (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      hlc_physical INTEGER NOT NULL,
+      hlc_logical INTEGER NOT NULL,
+      affected_node_ids TEXT NOT NULL,
+      op_type TEXT NOT NULL,
+      payload BLOB NOT NULL,
+      timestamp TEXT NOT NULL,
+      parked_at TEXT NOT NULL,
+      reason TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS node_stats (
       node_id TEXT PRIMARY KEY,
       child_count INTEGER NOT NULL DEFAULT 0,
@@ -788,5 +802,27 @@ function migrateSchema(db: Database): void {
       )
     `);
     db.exec('PRAGMA user_version = 18');
+  }
+
+  if (version < 19) {
+    // Recovery branch for un-synced local ops: before a server-restore wipe
+    // discards the local operation log, pending ops are parked here so the
+    // user can re-push them instead of losing them silently.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS recovery_operation (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL,
+        hlc_logical INTEGER NOT NULL,
+        affected_node_ids TEXT NOT NULL,
+        op_type TEXT NOT NULL,
+        payload BLOB NOT NULL,
+        timestamp TEXT NOT NULL,
+        parked_at TEXT NOT NULL,
+        reason TEXT NOT NULL
+      )
+    `);
+    db.exec('PRAGMA user_version = 19');
   }
 }
