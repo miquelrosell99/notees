@@ -215,3 +215,24 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Identity must come only from validated credentials (JWT cookie/Bearer). In tests, simulate an authenticated principal with a dependency override (`dependency_overrides[get_actor_id] = lambda: "actor-1"`), never by sending identity headers; add at least one test that hits the *real* dependency with no credentials and asserts 401. See `tests/core/test_relay_router.py::_mount_relay` (`authenticated_actor=None` path).
 
 **Prevent:** When adding an authenticated endpoint, write the no-credentials test first. Treat any `headers.get("x-actor-id" / "x-user-id" ...)` fallback in auth code as a finding, not a convenience.
+
+
+## **[sync]** Whole-set LWW on a read-modify-write collection diverges under op reordering
+
+**Symptom:** A replay-equivalence test fails: the same op set applied in HLC order vs shuffled order yields different `class_ids` sets (e.g. `[classB]` vs `[]`).
+
+**Cause:** Guarding a *whole collection* with one LWW record while mutating it read-modify-write is not order-independent: an `unassign(t26)` applied first claims the set at t26 against an empty base, so a later-arriving `assign(t22)` is blocked and the element is lost. Membership add/remove is per-element state, not single-writer state.
+
+**Fix:** Claim per element (`class_member:<classId>`) for assign/unassign. Wholesale replaces (`node.convert`) must beat BOTH the wholesale record and the max per-element record, and must stamp per-element records for old ∪ new so older element ops stay blocked. See `frontend/src/core/derived/node.ts` + `derived/lww.ts` (`claimNodeField`, `nodeFieldClaimLost`, `maxNodeFieldRecordByPrefix`).
+
+**Prevent:** When adding an LWW guard to a collection-valued field, write the shuffled-arrival test first (`derived/__tests__/nodeLww.test.ts` "replay equivalence"); if the collection is mutated by add/remove ops, guard per element, never per whole value.
+
+## **[testing]** MemoryRelay does not dedupe by envelope id — assert unique ids, not counts
+
+**Symptom:** A sync test asserts `relay.catchUp(...).envelopes` has length N and fails with N+1, showing the same envelope id twice.
+
+**Cause:** `MemoryRelay`/`MemoryTransport` (frontend test doubles) append without the real server's `ON CONFLICT (id) DO NOTHING` dedupe, so legitimately re-pushed duplicate envelopes appear twice. This is harness behavior, not a product bug.
+
+**Fix:** Assert `new Set(envelopes.map(e => e.id)).size` or filter by id when the exact server-side dedupe matters; use raw counts only when no duplicate re-push is expected (see sync.test.ts "duplicate-only batches" and the server-restore recovery test).
+
+**Prevent:** When writing sync-engine tests that involve re-pushes (watermark resets, recovery flows), default to unique-id assertions.
