@@ -119,6 +119,18 @@ class RelayStorage(ABC):
         """
 
     @abstractmethod
+    def get_workspace_wrapped_key(self, workspace_id: str) -> str | None:
+        """Return the workspace's wrapped E2EE key blob, or ``None``.
+
+        The blob is opaque to the server (workspace key wrapped with a
+        passphrase-derived KEK client-side; SPEC §8).
+        """
+
+    @abstractmethod
+    def set_workspace_wrapped_key(self, workspace_id: str, wrapped_key: str) -> None:
+        """Store or replace the workspace's wrapped E2EE key blob."""
+
+    @abstractmethod
     def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         """Return the newest snapshot for ``workspace_id``.
 
@@ -334,6 +346,12 @@ class SqliteRelayStorage(RelayStorage):
             );
             CREATE INDEX IF NOT EXISTS idx_compacted_segment_workspace
                 ON compacted_operation_segment (workspace_id);
+
+            CREATE TABLE IF NOT EXISTS workspace_encryption_key (
+                workspace_id TEXT PRIMARY KEY,
+                wrapped_key TEXT NOT NULL,
+                updated_at TEXT
+            );
             """
         )
         # Snapshots recorded before the seq cursor existed have NULL up_to_seq.
@@ -552,6 +570,27 @@ class SqliteRelayStorage(RelayStorage):
             (workspace_id, *envelope_ids),
         )
         return {row["id"]: int(row["seq"]) for row in cursor.fetchall()}
+
+    def get_workspace_wrapped_key(self, workspace_id: str) -> str | None:
+        cursor = self._connection.execute(
+            "SELECT wrapped_key FROM workspace_encryption_key WHERE workspace_id = ?",
+            (workspace_id,),
+        )
+        row = cursor.fetchone()
+        return row["wrapped_key"] if row else None
+
+    def set_workspace_wrapped_key(self, workspace_id: str, wrapped_key: str) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO workspace_encryption_key (workspace_id, wrapped_key, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(workspace_id) DO UPDATE SET
+              wrapped_key = excluded.wrapped_key,
+              updated_at = excluded.updated_at
+            """,
+            (workspace_id, wrapped_key, datetime.now(UTC).isoformat()),
+        )
+        self._connection.commit()
 
     def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         cursor = self._connection.execute(
@@ -1065,6 +1104,30 @@ class PostgresRelayStorage(RelayStorage):
                 envelope_ids,
             )
         return {row["id"]: int(row["seq"]) for row in rows}
+
+    async def get_workspace_wrapped_key(self, workspace_id: str) -> str | None:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT wrapped_key FROM workspace_encryption_key WHERE workspace_id = $1",
+                workspace_id,
+            )
+        return row["wrapped_key"] if row else None
+
+    async def set_workspace_wrapped_key(self, workspace_id: str, wrapped_key: str) -> None:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            await conn.execute(
+                """
+                INSERT INTO workspace_encryption_key (workspace_id, wrapped_key)
+                VALUES ($1, $2)
+                ON CONFLICT (workspace_id) DO UPDATE SET
+                  wrapped_key = excluded.wrapped_key,
+                  updated_at = now()
+                """,
+                workspace_id,
+                wrapped_key,
+            )
 
     async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         pool = await self._get_pool()

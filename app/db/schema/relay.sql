@@ -94,6 +94,15 @@ CREATE TABLE IF NOT EXISTS compacted_operation_segment (
 CREATE INDEX IF NOT EXISTS idx_compacted_segment_workspace
     ON compacted_operation_segment (workspace_id);
 
+-- E2EE (protocol/SPEC.md §8): the workspace key wrapped client-side with a
+-- passphrase-derived KEK. Opaque to the server — the KEK never leaves clients,
+-- so the server operator cannot unwrap workspace contents.
+CREATE TABLE IF NOT EXISTS workspace_encryption_key (
+    workspace_id TEXT PRIMARY KEY,
+    wrapped_key TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Dropped: idx_compacted_segment_to_hlc indexed the TEXT extraction of the
 -- numeric HLC fields (lexicographic order, so '10' < '9') and no query used
 -- it. The DROP removes it from databases where it was already created.

@@ -90,6 +90,22 @@ def _validate_node_update_content(payload: dict[str, Any]) -> str | None:
     return None
 
 
+def is_encrypted_payload(payload: Any) -> bool:
+    """Return ``True`` for E2EE-encrypted payloads (protocol/SPEC.md §8).
+
+    Encrypted payloads are opaque to the server — the op-type field checks
+    cannot apply — so validation only verifies the marker's shape.
+    """
+    if not isinstance(payload, dict) or set(payload.keys()) != {"$e"}:
+        return False
+    marker = payload["$e"]
+    return (
+        isinstance(marker, dict)
+        and isinstance(marker.get("iv"), str)
+        and isinstance(marker.get("ct"), str)
+    )
+
+
 def validate_payload(op_type: str, payload: dict[str, Any]) -> str | None:
     """Validate payload structure for ``op_type``.
 
@@ -102,6 +118,13 @@ def validate_payload(op_type: str, payload: dict[str, Any]) -> str | None:
 
     if not isinstance(payload, dict):
         return "Payload must be an object/dictionary."
+
+    # E2EE payloads are opaque ciphertext; structural field checks cannot
+    # apply (SPEC §8). A malformed marker is rejected instead.
+    if "$e" in payload:
+        if not is_encrypted_payload(payload):
+            return "Encrypted payload must have the shape {'$e': {'iv': str, 'ct': str}}."
+        return None
 
     if op_type == "node.updateContent":
         return _validate_node_update_content(payload)

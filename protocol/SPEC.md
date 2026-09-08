@@ -309,7 +309,9 @@ catch-up compatibility for older clients is unaffected. Control messages
 
 `PROTOCOL_VERSION` (backend: `app/core/operation.py`, re-exported from
 `app/relay/models.py`; frontend: `frontend/src/core/types/operation.ts`)
-is currently **1**. Both repos must keep the constant and this spec in sync.
+is currently **1** for plaintext envelopes. Encrypted envelopes (§8) carry
+version **2**; clients accept versions up to `SUPPORTED_PROTOCOL_VERSION`
+(currently **2**). Both repos must keep the constants and this spec in sync.
 
 Rules:
 
@@ -341,40 +343,64 @@ Rules:
   `PROTOCOL_VERSION`. Receivers must fail loud on a `hello`/`ops` with a
   framing version newer than their own.
 
-## 8. Workspace key management
+## 8. End-to-end encryption (E2EE)
 
-Prototype server-side key wrapping (moves to client-side E2EE later).
-Base path: `/api/relay/keys`. Bodies are snake_case.
+Workspaces opt into E2EE individually. The model:
 
-- `GET /{workspace_id}` → `KeyResponse`: `{"workspace_id": str,
-  "user_id": str, "ciphertext": str, "iv": str, "key_version": int}` —
-  the caller's wrapped copy of the workspace master key. `ciphertext`/`iv`
-  are base64 AES-GCM values; `key_version` identifies the master key
-  generation.
-- `POST /{workspace_id}/invite` — owner/admin only. Request
-  (`InviteKeyRequest`): `{"target_user_id": str}`. Response: `KeyResponse`
-  for the target user.
-- `POST /{workspace_id}/rotate` — owner/admin only. Request
-  (`RotateKeyRequest`): empty body. Response (`RotateKeyResponse`):
-  `{"workspace_id": str, "key_version": int}` — the key is re-wrapped for
-  all members under the new version.
+- **Workspace key (WK)**: random AES-256-GCM, generated client-side on
+  enable. It never leaves clients unwrapped.
+- **KEK**: derived from the user's passphrase with PBKDF2-HMAC-SHA256
+  (250k iterations, random 16-byte salt). WK is wrapped (AES-GCM) with the
+  KEK; the wrapped blob is a JSON string
+  `{"v": 1, "salt": base64, "wk": base64(iv || ciphertext)}` stored
+  server-side so other devices can unwrap it after the user enters the
+  passphrase. The server operator cannot unwrap it — the KEK never leaves
+  clients.
+- **Encrypted envelopes** carry `protocolVersion` **2** and payload
+  `{"$e": {"iv": base64, "ct": base64}}` (AES-GCM of the UTF-8 JSON
+  payload). Plaintext envelopes stay at version 1, so older clients keep
+  working on plaintext workspaces and **fail loud** (§7) exactly when they
+  meet an encrypted envelope. Clients accept versions ≤ 2.
+- **Encrypted snapshots** are raw `iv || ciphertext` bytes (no JSON/base64
+  wrapper) — the blob is opaque to the server either way. Snapshots written
+  before E2EE was enabled are plaintext and pass through (detected by the
+  SQLite magic header).
+- The server **skips op-type payload validation** for `$e` payloads
+  (ciphertext is opaque); a malformed `$e` marker is rejected.
+- Routing metadata (`workspaceId`, `actorId`, `affectedNodeIds`, `opType`,
+  HLC, `seq`) stays plaintext — see §9.
+
+Key record endpoints (bodies snake_case; rate limited with stats/admin):
+
+- `GET /api/relay/encryption-key?workspace_id=...` — members only.
+  Response: `{"workspace_id": str, "wrapped_key": str | null,
+  "enabled": bool}`.
+- `PUT /api/relay/encryption-key` — owner/admin only. Request:
+  `{"workspace_id": str, "wrapped_key": str}`.
+
+**v1 limitations (explicit):** the passphrase is the key-sharing mechanism —
+there is no per-member X25519 wrapping yet, so member removal cannot
+cryptographically revoke access (change the passphrase + re-wrap to rotate);
+key rotation re-wraps WK but does not re-encrypt history. Local devices keep
+plaintext derived state (E2EE protects the relay, not the device).
 
 ## 9. Trust model
 
 The relay is a **semi-trusted** component. Envelope routing metadata
 (`workspaceId`, `actorId`, `affectedNodeIds`, `opType`, HLC) is
 client-supplied plaintext; the server uses it for permission checks but
-cannot verify it against payload contents (payloads are opaque JSON — and
-will be ciphertext once client-side E2EE lands). A malicious client can
-therefore lie about `affectedNodeIds` to evade node-level permission checks.
+cannot verify it against payload contents (payloads are opaque JSON — or
+ciphertext for E2EE workspaces, §8). A malicious client can therefore lie
+about `affectedNodeIds` to evade node-level permission checks.
 
 Consequences:
 
 - Do not build a security boundary on per-node routing metadata. Workspace
   membership and authentication are the real boundary; node-level checks are
   best-effort UX/accident protection.
-- Server-side key wrapping (§8) means the server operator can read all
-  workspace contents. Self-hosting + transport encryption is the current
-  confidentiality story — see `docs/faq.md`.
+- For plaintext workspaces the server operator can read all workspace
+  contents (self-hosting + TLS/Tailscale is the confidentiality story — see
+  `docs/faq.md`). For E2EE workspaces (§8) the operator sees only routing
+  metadata, sizes, and timing.
 - The server-assigned `seq` (§2.1) is the only server-trusted ordering;
   client-supplied HLC is causality metadata, never an ordering authority.
