@@ -23,15 +23,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = pytest.mark.unit
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 async def _make_test_store(
     workspace_id: str = "ws-uuid-1",
     actor_id: str = "actor-1",
@@ -41,7 +32,6 @@ async def _make_test_store(
         actor_id=actor_id,
         relay_storage=SqliteRelayStorage(":memory:"),
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -139,7 +129,9 @@ class TestMarkdownImport:
         store = _store(import_client)
         existing_uuid = "page-uuid-existing"
         await store.create_node(existing_uuid, "page")
-        await store.update_content(existing_uuid, [{"type": "paragraph", "children": [{"type": "text", "text": "Existing"}]}])
+        await store.update_content(
+            existing_uuid, [{"type": "paragraph", "children": [{"type": "text", "text": "Existing"}]}]
+        )
         await store.sync()
 
         response = await import_client.post(
@@ -198,9 +190,7 @@ class TestMarkdownImport:
         assert response.status_code == 200, response.text
         node_uuid = response.json()[0]["node_uuid"]
 
-        node_rows = await store.query(
-            "SELECT class_ids FROM node WHERE id = ?", (node_uuid,)
-        )
+        node_rows = await store.query("SELECT class_ids FROM node WHERE id = ?", (node_uuid,))
         assert len(node_rows) == 1
         assert class_uuid in node_rows[0]["class_ids"]
 
@@ -210,7 +200,7 @@ class TestMarkdownImport:
             json={
                 "items": [
                     {
-                        "content": "---\nicon: \"📝\"\ncolor: \"#ff0000\"\nproperties:\n  Status: Done\n---\n# Title\n",
+                        "content": '---\nicon: "📝"\ncolor: "#ff0000"\nproperties:\n  Status: Done\n---\n# Title\n',
                     }
                 ],
             },
@@ -225,6 +215,7 @@ class TestMarkdownImport:
         )
         by_name = {row["property_schema_id"]: row["value"] for row in prop_rows}
         import json
+
         assert '"📝"' in by_name.values() or json.loads(list(by_name.values())[0]) == "📝"
         values = {json.loads(v) for v in by_name.values()}
         assert "📝" in values
@@ -251,9 +242,7 @@ class TestMarkdownImport:
         assert response.status_code == 200, response.text
         node_uuid = response.json()[0]["node_uuid"]
 
-        node_rows = await store.query(
-            "SELECT parent_id FROM node WHERE id = ?", (node_uuid,)
-        )
+        node_rows = await store.query("SELECT parent_id FROM node WHERE id = ?", (node_uuid,))
         assert len(node_rows) == 1
         assert node_rows[0]["parent_id"] == parent_uuid
 

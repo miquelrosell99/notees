@@ -67,11 +67,6 @@ DOI = SYSTEM_PROPERTY_UUIDS["doi"]
 PUB_DATE = SYSTEM_PROPERTY_UUIDS["publication_date"]
 
 
-class FixedKeyStorage:
-    async def get_or_create_master_key(self, workspace_id: str, secret_key: str) -> bytes:
-        return b"0" * 32
-
-
 def _attachment(
     uuid: str,
     name: str,
@@ -155,9 +150,7 @@ def test_acquisition_feed_entry_fields_and_links():
         publication_date="1965-08-01",
         cover=_attachment("asset-cover", "cover.jpg", role=None, mime="image/jpeg"),
     )
-    root = _parse(
-        build_acquisition_feed(FEED_BASE, f"{FEED_ID}:all", "All publications", [entry], "/opds/all")
-    )
+    root = _parse(build_acquisition_feed(FEED_BASE, f"{FEED_ID}:all", "All publications", [entry], "/opds/all"))
     assert root.tag == f"{ATOM}feed"
     parsed = root.find(f"{ATOM}entry")
     assert parsed is not None
@@ -189,9 +182,7 @@ def test_acquisition_feed_entry_fields_and_links():
 
 def test_feed_never_leaks_internal_paths_or_hashes():
     entry = _entry(cover=_attachment("asset-cover", "c.png", role=None, mime="image/png"))
-    xml = build_acquisition_feed(
-        FEED_BASE, f"{FEED_ID}:all", "All", [entry], "/opds/all"
-    ).decode()
+    xml = build_acquisition_feed(FEED_BASE, f"{FEED_ID}:all", "All", [entry], "/opds/all").decode()
     # Asset hashes and storage paths must not appear; only opaque UUID URLs.
     assert "hash-asset-1" not in xml
     assert "hash-asset-cover" not in xml
@@ -229,7 +220,6 @@ def _make_store(relay) -> WorkspaceStore:
         actor_id=ACTOR,
         relay_storage=relay,
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -250,9 +240,7 @@ async def _seed_system_schema(store: WorkspaceStore) -> None:
 
 
 async def _set(store: WorkspaceStore, node_id: str, schema: str, value, index: int = 0) -> None:
-    await store.set_property(
-        property_value_id=uuidv7(), node_id=node_id, schema_id=schema, value=value, index=index
-    )
+    await store.set_property(property_value_id=uuidv7(), node_id=node_id, schema_id=schema, value=value, index=index)
 
 
 async def _create_asset_node(store: WorkspaceStore, name: str, role: str | None) -> str:
@@ -539,9 +527,7 @@ async def test_router_info_and_settings(store, app_client):
     assert data["publication_count"] == 1
     assert data["classes"] == [{"name": "book", "count": 1}]
 
-    put = await client.put(
-        "/api/plugins/notees.opds/settings", json={"saved_query_id": "query-1"}
-    )
+    put = await client.put("/api/plugins/notees.opds/settings", json={"saved_query_id": "query-1"})
     assert put.status_code == 200
     assert settings_repo.data[1]["plugin:notees.opds:catalog"] == {"saved_query_id": "query-1"}
 
@@ -607,9 +593,7 @@ async def test_basic_auth_success_resolves_context(monkeypatch):
     monkeypatch.setattr(opds_dependencies, "_get_workspace_context_cached", fake_workspace_context)
     monkeypatch.setattr(opds_dependencies, "get_workspace_uuid", fake_workspace_uuid)
 
-    agen = opds_dependencies.get_opds_request_context(
-        _basic_request("reader@example.com", "s3cret"), credentials=None
-    )
+    agen = opds_dependencies.get_opds_request_context(_basic_request("reader@example.com", "s3cret"), credentials=None)
     ctx = await agen.__anext__()
     assert ctx.workspace_id == 7
     assert ctx.workspace_uuid == WS

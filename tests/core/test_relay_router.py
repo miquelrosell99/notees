@@ -7,9 +7,12 @@ import base64
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pyrate_limiter import Duration, Limiter, Rate
 
 from app.core.clock import Hlc
+from app.rate_limit import PerKeyBucketFactory
 from app.relay.dependencies import (
+    get_actor_id,
     get_effective_permission_checker,
     get_permission_checker,
     get_relay_storage,
@@ -34,9 +37,19 @@ def permissions() -> PermissionChecker:
     return StubPermissionChecker()
 
 
-@pytest.fixture
-def app(storage: RelayStorage, permissions: PermissionChecker) -> FastAPI:
-    application = FastAPI()
+def _mount_relay(
+    application: FastAPI,
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+    *,
+    authenticated_actor: str | None = "actor-1",
+) -> FastAPI:
+    """Mount the relay router with test doubles.
+
+    ``authenticated_actor`` overrides ``get_actor_id`` to simulate a valid
+    authenticated principal; pass ``None`` to keep the production dependency
+    (which only trusts real JWT credentials) for security tests.
+    """
 
     def _get_storage() -> RelayStorage:
         return storage
@@ -56,7 +69,14 @@ def app(storage: RelayStorage, permissions: PermissionChecker) -> FastAPI:
     application.dependency_overrides[get_effective_permission_checker] = _get_permissions
     application.dependency_overrides[get_workspace_restore_epoch] = _get_restore_epoch
     application.dependency_overrides[_catch_up_restore_epoch] = _get_catch_up_restore_epoch
+    if authenticated_actor is not None:
+        application.dependency_overrides[get_actor_id] = lambda: authenticated_actor
     return application
+
+
+@pytest.fixture
+def app(storage: RelayStorage, permissions: PermissionChecker) -> FastAPI:
+    return _mount_relay(FastAPI(), storage, permissions)
 
 
 @pytest.fixture
@@ -86,33 +106,13 @@ def _envelope(
 
 def test_relay_router_mounted_and_reachable(storage: RelayStorage, permissions: PermissionChecker) -> None:
     """Verify the relay router is reachable via TestClient once mounted."""
-    application = FastAPI()
-
-    def _get_storage() -> RelayStorage:
-        return storage
-
-    def _get_permissions() -> PermissionChecker:
-        return permissions
-
-    async def _get_restore_epoch(workspace_id: str) -> int:  # noqa: ARG001
-        return 0
-
-    async def _get_catch_up_restore_epoch(request: CatchUpRequest) -> int:  # noqa: ARG001
-        return 0
-
-    application.include_router(router)
-    application.dependency_overrides[get_relay_storage] = _get_storage
-    application.dependency_overrides[get_permission_checker] = _get_permissions
-    application.dependency_overrides[get_effective_permission_checker] = _get_permissions
-    application.dependency_overrides[get_workspace_restore_epoch] = _get_restore_epoch
-    application.dependency_overrides[_catch_up_restore_epoch] = _get_catch_up_restore_epoch
+    application = _mount_relay(FastAPI(), storage, permissions)
 
     with TestClient(application) as client:
         envelope = _envelope("op-mounted")
         response = client.post(
             "/api/relay/batch",
             json={"envelopes": [envelope.model_dump(by_alias=True, mode="json")]},
-            headers={"x-actor-id": "actor-1"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -125,7 +125,6 @@ def test_receive_batch(client: TestClient) -> None:
     response = client.post(
         "/api/relay/batch",
         json={"envelopes": [envelope.model_dump(by_alias=True, mode="json")]},
-        headers={"x-actor-id": "actor-1"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -133,16 +132,16 @@ def test_receive_batch(client: TestClient) -> None:
     assert data["saved_ids"] == ["op-1"]
 
 
-def test_receive_batch_overwrites_client_actor_id(
+def test_receive_batch_ignores_spoofed_actor_header(
     client: TestClient,
     storage: RelayStorage,
 ) -> None:
-    """Envelope actor_id is overwritten with the authenticated actor to prevent impersonation."""
+    """A caller-supplied X-Actor-Id header must not override the authenticated principal."""
     envelope = _envelope("op-1", actor_id="device-actor-1")
     response = client.post(
         "/api/relay/batch",
         json={"envelopes": [envelope.model_dump(by_alias=True, mode="json")]},
-        headers={"x-actor-id": "user-actor-1"},
+        headers={"x-actor-id": "attacker-actor"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -151,7 +150,7 @@ def test_receive_batch_overwrites_client_actor_id(
 
     saved = storage.get_catch_up("ws-1", 0)
     assert len(saved) == 1
-    assert saved[0].actor_id == "user-actor-1"
+    assert saved[0].actor_id == "actor-1"
 
 
 def test_receive_batch_rejects_cross_workspace_envelopes(client: TestClient) -> None:
@@ -166,7 +165,6 @@ def test_receive_batch_rejects_cross_workspace_envelopes(client: TestClient) -> 
                 second.model_dump(by_alias=True, mode="json"),
             ]
         },
-        headers={"x-actor-id": "actor-1"},
     )
     assert response.status_code == 422
 
@@ -181,7 +179,6 @@ async def test_catch_up_returns_newer_envelopes(client: TestClient, storage: Rel
     response = client.post(
         "/api/relay/catch-up",
         json={"workspace_id": "ws-1", "after_seq": 1},
-        headers={"x-actor-id": "actor-1"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -189,7 +186,9 @@ async def test_catch_up_returns_newer_envelopes(client: TestClient, storage: Rel
     assert data["envelopes"][0]["id"] == "op-2"
 
 
-def test_catch_up_rejects_permission_denied(client: TestClient, permissions: PermissionChecker) -> None:
+def test_catch_up_rejects_permission_denied(
+    storage: RelayStorage,
+) -> None:
     class DenyAll(PermissionChecker):
         async def can_write(self, workspace_id: str, actor_id: str, affected_node_ids: list[str]) -> bool:
             return False
@@ -197,21 +196,12 @@ def test_catch_up_rejects_permission_denied(client: TestClient, permissions: Per
         async def can_read(self, workspace_id: str, actor_id: str) -> bool:
             return False
 
-    async def _get_catch_up_restore_epoch(request: CatchUpRequest) -> int:  # noqa: ARG001
-        return 0
-
-    app = FastAPI()
-    app.include_router(router)
-    app.dependency_overrides[get_relay_storage] = lambda: SqliteRelayStorage()
-    app.dependency_overrides[get_permission_checker] = lambda: DenyAll()
-    app.dependency_overrides[get_effective_permission_checker] = lambda: DenyAll()
-    app.dependency_overrides[_catch_up_restore_epoch] = _get_catch_up_restore_epoch
-    deny_client = TestClient(app)
+    deny_app = _mount_relay(FastAPI(), storage, DenyAll())
+    deny_client = TestClient(deny_app)
 
     response = deny_client.post(
         "/api/relay/catch-up",
         json={"workspace_id": "ws-1", "after_seq": 0},
-        headers={"x-actor-id": "actor-1"},
     )
     assert response.status_code == 403
 
@@ -239,7 +229,6 @@ async def test_catch_up_paginated_pages_through_envelopes(
         response = client.post(
             "/api/relay/catch-up",
             json=payload,
-            headers={"x-actor-id": "actor-1"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -263,7 +252,6 @@ async def test_catch_up_paginated_pages_through_envelopes(
     response = client.post(
         "/api/relay/catch-up",
         json={"workspace_id": "ws-1", "after_seq": data["next_after_seq"], "limit": 3},
-        headers={"x-actor-id": "actor-1"},
     )
     assert response.status_code == 200
     tail = response.json()
@@ -284,7 +272,6 @@ def test_snapshot_latest_returns_empty_snapshot_for_missing_workspace(
     response = client.get(
         "/api/relay/snapshot",
         params={"workspace_id": "00000000-0000-0000-0000-000000000001"},
-        headers={"X-Actor-Id": "00000000-0000-0000-0000-000000000002"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -293,9 +280,7 @@ def test_snapshot_latest_returns_empty_snapshot_for_missing_workspace(
 
 def _seed_snapshot(storage: RelayStorage, workspace_id: str = "ws-1") -> None:
     storage.save_envelope(_envelope("op-snap", workspace_id=workspace_id))
-    storage.create_snapshot(
-        workspace_id, Hlc(physical=1000, logical=0), data=b"snapshot-bytes"
-    )
+    storage.create_snapshot(workspace_id, Hlc(physical=1000, logical=0), data=b"snapshot-bytes")
 
 
 def test_snapshot_latest_include_data_false_omits_blob(
@@ -308,7 +293,6 @@ def test_snapshot_latest_include_data_false_omits_blob(
     response = client.get(
         "/api/relay/snapshot",
         params={"workspace_id": "ws-1", "include_data": "false"},
-        headers={"X-Actor-Id": "actor-1"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -329,9 +313,94 @@ def test_snapshot_latest_default_includes_blob(
     response = client.get(
         "/api/relay/snapshot",
         params={"workspace_id": "ws-1"},
-        headers={"X-Actor-Id": "actor-1"},
     )
     assert response.status_code == 200
     data = response.json()
     assert data["has_snapshot"] is True
     assert data["data_base64"] == base64.b64encode(b"snapshot-bytes").decode("ascii")
+
+
+def _unauthenticated_client(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> TestClient:
+    """Client whose requests carry no valid JWT, hitting the real auth dependency."""
+    return TestClient(_mount_relay(FastAPI(), storage, permissions, authenticated_actor=None))
+
+
+def test_batch_rejects_x_actor_id_without_credentials(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """The X-Actor-Id header alone must not authenticate a batch submission."""
+    anon = _unauthenticated_client(storage, permissions)
+    envelope = _envelope("op-anon")
+    response = anon.post(
+        "/api/relay/batch",
+        json={"envelopes": [envelope.model_dump(by_alias=True, mode="json")]},
+        headers={"x-actor-id": "actor-1"},
+    )
+    assert response.status_code == 401
+    assert storage.get_catch_up("ws-1", 0) == []
+
+
+def test_catch_up_rejects_x_actor_id_without_credentials(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """The X-Actor-Id header alone must not authenticate a catch-up read."""
+    anon = _unauthenticated_client(storage, permissions)
+    response = anon.post(
+        "/api/relay/catch-up",
+        json={"workspace_id": "ws-1", "after_seq": 0},
+        headers={"x-actor-id": "actor-1"},
+    )
+    assert response.status_code == 401
+
+
+def test_snapshot_rejects_anonymous_share_token(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """Public share tokens are not accepted for full-workspace snapshot reads."""
+    _seed_snapshot(storage)
+    anon = _unauthenticated_client(storage, permissions)
+    response = anon.get(
+        "/api/relay/snapshot",
+        params={"workspace_id": "ws-1", "share_token": "any-token"},
+    )
+    assert response.status_code == 401
+
+
+def test_stats_rejects_anonymous(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    anon = _unauthenticated_client(storage, permissions)
+    response = anon.get(
+        "/api/relay/stats",
+        params={"workspace_id": "ws-1"},
+        headers={"x-actor-id": "actor-1"},
+    )
+    assert response.status_code == 401
+
+
+def test_batch_rate_limit_counts_envelopes_not_requests(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The batch limiter charges per envelope: 2 batches of 3 exceed a 5/min limit."""
+    small_limiter = Limiter(PerKeyBucketFactory([Rate(5, Duration.MINUTE)]))
+    monkeypatch.setattr("app.relay.router._relay_batch_limiter", small_limiter)
+
+    first = client.post(
+        "/api/relay/batch",
+        json={"envelopes": [_envelope(f"op-a{i}").model_dump(by_alias=True, mode="json") for i in range(3)]},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/api/relay/batch",
+        json={"envelopes": [_envelope(f"op-b{i}").model_dump(by_alias=True, mode="json") for i in range(3)]},
+    )
+    assert second.status_code == 429

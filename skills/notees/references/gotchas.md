@@ -204,3 +204,14 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Set the value with `fireEvent.change` (which drives React's onChange) and then call plain `fireEvent.blur(el)` with no target overrides — the change event has already put the value in place. See `PageHeader.test.tsx` ("reverts an empty name on blur when requireName is set").
 
 **Prevent:** In jsdom tests for controlled inputs, only ever set field values via `fireEvent.change` / `userEvent`; never assign `target.value` on blur, keydown, or focus events.
+
+
+## **[auth]** Tests that "authenticate" via identity headers mask auth bypasses
+
+**Symptom:** An endpoint's test suite is green, yet in production anyone can act as any user by setting a header (the relay accepted `X-Actor-Id` with no credentials until 2026-09; `app/relay/dependencies.py`).
+
+**Cause:** When the production auth dependency has a header "fallback" for convenience, and tests exercise endpoints by sending that header, no test ever covers the unauthenticated path — the bypass is invisible by construction. The header exists *because* tests (and a script) used it, and tests pass *because* the header is trusted: a self-sealing hole.
+
+**Fix:** Identity must come only from validated credentials (JWT cookie/Bearer). In tests, simulate an authenticated principal with a dependency override (`dependency_overrides[get_actor_id] = lambda: "actor-1"`), never by sending identity headers; add at least one test that hits the *real* dependency with no credentials and asserts 401. See `tests/core/test_relay_router.py::_mount_relay` (`authenticated_actor=None` path).
+
+**Prevent:** When adding an authenticated endpoint, write the no-credentials test first. Treat any `headers.get("x-actor-id" / "x-user-id" ...)` fallback in auth code as a finding, not a convenience.

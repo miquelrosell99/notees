@@ -2,12 +2,12 @@
 
 ## Core Invariant: Operation Log as Source of Truth
 
-Notees is local-first. The authoritative data model is an immutable operation log. PostgreSQL persists the encrypted relay log, snapshots/compaction segments, users, workspace membership, share metadata; the client-side SQLite database is a derived view.
+Notees is local-first. The authoritative data model is an immutable operation log. PostgreSQL persists the relay operation log (payloads are plaintext JSON; confidentiality is transport-level TLS/Tailscale — client-side E2EE is a roadmap item), snapshots/compaction segments, users, workspace membership, share metadata; the client-side SQLite database is a derived view.
 
 ## Layers
 
 - **Operation log** (`app/core/operation.py`): immutable, ordered by Hybrid Logical Clock (HLC). All mutations append operations; last-write-wins ordering makes new operations authoritative on next sync.
-- **Relay** (`app/relay/`): encrypted operation relay server; the only sync path between clients.
+- **Relay** (`app/relay/`): operation relay server; the only sync path between clients. Endpoints derive actor identity from authenticated credentials only — the `X-Actor-Id` header is never trusted.
 - **Backend** (`app/`): FastAPI feature-first hexagonal architecture. Domain services depend on repository ports, not framework or driver details.
 - **Frontend runtime** (`frontend/src/core/`): sql.js/IndexedDB SQLite + core hooks + sync engine; the sole data path for the web client.
 - **Derived stores**: client-side SQLite materializes nodes, hierarchy (adjacency list via `parent_id`), links, and QueryAST collections from the operation log.
