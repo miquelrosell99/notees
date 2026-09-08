@@ -223,7 +223,8 @@ def test_websocket_batch_is_broadcast_to_other_client(
         )
 
         # Broadcasts are typed `ops` messages carrying the batch; envelopes
-        # inside use the camelCase wire format, same as HTTP.
+        # inside use the camelCase wire format, same as HTTP. The frame-level
+        # `seqs` map carries the server-assigned seq per envelope id.
         received = receiver.receive_json()
         assert received["type"] == "ops"
         assert received["protocolVersion"] == 2
@@ -231,6 +232,7 @@ def test_websocket_batch_is_broadcast_to_other_client(
         assert received["envelopes"][0]["id"] == "op-1"
         assert received["envelopes"][0]["workspaceId"] == "ws-1"
         assert received["envelopes"][0]["protocolVersion"] == 1
+        assert received["seqs"]["op-1"] > 0
 
         # Sender also receives the broadcast (idempotently) before the ack.
         broadcast_to_sender = sender.receive_json()
@@ -240,6 +242,36 @@ def test_websocket_batch_is_broadcast_to_other_client(
         ack = sender.receive_json()
         assert ack["type"] == "ack"
         assert ack["saved_ids"] == ["op-1"]
+
+
+def test_http_batch_is_broadcast_to_ws_subscribers(
+    client: TestClient,
+    auth_patch: None,
+) -> None:
+    """Ops pushed over HTTP POST /batch are broadcast to WS subscribers.
+
+    The broadcast happens in the service after commit, so the ingest path
+    (HTTP or WS) does not matter.
+    """
+    envelope = _envelope("op-http-1", workspace_id="ws-1", actor_id="actor-1")
+
+    with client.websocket_connect(
+        "/api/relay/ws/ws-1",
+        headers={"Authorization": "Bearer valid-token"},
+    ) as receiver:
+        _assert_hello(receiver)
+
+        response = client.post(
+            "/api/relay/batch",
+            json={"envelopes": [envelope.model_dump(by_alias=True, mode="json")]},
+            headers={"Authorization": "Bearer valid-token"},
+        )
+        assert response.status_code == 200
+
+        received = receiver.receive_json()
+        assert received["type"] == "ops"
+        assert [e["id"] for e in received["envelopes"]] == ["op-http-1"]
+        assert received["seqs"]["op-http-1"] > 0
 
 
 def test_websocket_malformed_json_is_handled(

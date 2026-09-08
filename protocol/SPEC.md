@@ -259,13 +259,24 @@ All server→client frames are **typed messages** — receivers must dispatch on
   - `{"type": "ack", "saved_ids": [...]}` — after a submitted batch is saved.
   - `{"type": "error", "message": "..."}` — malformed JSON, wrong message
     type, invalid envelopes, or permission errors.
-  - `{"type": "ops", "protocolVersion": 2, "envelopes": [<envelope>, ...]}` —
-    one message per saved batch, broadcast to all subscribers (including,
-    currently, the sender). Receivers should apply each batch atomically.
+  - `{"type": "ops", "protocolVersion": 2, "envelopes": [<envelope>, ...],
+    "seqs": {<envelopeId>: int, ...}}` —
+    one message per saved batch, broadcast to all subscribers after commit
+    (including, currently, the sender), whichever path the batch arrived on
+    (HTTP `POST /batch` or a WS `batch` frame). Receivers should apply each
+    batch atomically. `seqs` maps envelope id → server-assigned seq so
+    receivers can advance their seq cursor from the live stream alone; it
+    lives on the frame, not inside the envelopes, so the envelope schema
+    (protocolVersion 1) is unchanged.
 
 **Resume algorithm.** The client stores a seq cursor: the highest seq it has
 applied, seeded from `0`, from a snapshot's `up_to_seq`, or from
-`hello.latestSeq` once fully caught up. On every (re)connect:
+`hello.latestSeq` once fully caught up. The subscription is registered
+*before* the server reads `latestSeq`, closing the connect-time race: ops
+committed before the read are covered by `hello.latestSeq`, ops committed
+after it are delivered live. Live `ops` frames may therefore arrive before
+`hello`; clients must buffer them and reconcile by their `seqs` once `hello`
+lands. On every (re)connect:
 
 1. Read `hello.latestSeq` (and `restoreEpoch`; a changed epoch means wipe
    local state and resync from seq 0).
@@ -273,9 +284,13 @@ applied, seeded from `0`, from a snapshot's `up_to_seq`, or from
    (§4.2) from `after_seq = stored cursor` and page until `has_more` is
    false, adopting each page's `next_after_seq` (the final page's cursor
    covers the tail).
-3. Only then accept live `ops` messages. (The channel does not currently
-   buffer ops during catch-up; a client that wants a hard guarantee may
-   reconnect and re-compare after catching up.)
+3. Then drain buffered `ops` frames: apply each batch atomically and advance
+   the cursor to the frame's `seqs` values (id-dedupe makes overlaps with
+   catch-up harmless). Keep accepting live `ops` frames the same way.
+
+The WebSocket is an acceleration path, never a second consistency model: a
+dropped socket is indistinguishable from a delayed one because the seq
+cursor remains the authoritative recovery mechanism.
 
 `hello` and `ops` carry `protocolVersion` = the **WS framing version**
 (`WS_PROTOCOL_VERSION`, currently **2**), which is versioned independently of

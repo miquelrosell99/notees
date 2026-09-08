@@ -24,8 +24,8 @@ Do **not** rewrite the sync architecture. The foundation (immutable op log, serv
 | ~~P0~~ ✅ | Atomic snapshot creation with `up_to_seq` (`LOCK TABLE … SHARE ROW EXCLUSIVE` in one tx) | done 2026-09-08 |
 | ~~P0~~ ✅ | Fix rate limiting: per-envelope batch charging; snapshot 60/min, stats 120/min, admin 30/min, WS 60/min | done 2026-09-08 |
 | ~~P0~~ ✅ | Docs honesty: plaintext relay documented in SPEC/project-rules/architecture/backend.md; E2EE = Track C | done 2026-09-08 |
-| P0/P1 | Replay/order correctness: HLC guards on non-LWW appliers (`derived/node.ts:54-154`); 121k-op regression fixture; invariant #2 test | `frontend/src/core/derived/` |
-| P1 | Realtime: broadcast after commit in `receive_batch`; `seq` in WS `ops` frames; subscribe-before-hello; web client connects with catch-up resume; WS strictly an acceleration path | `app/relay/service.py:101-105`, `websocket.py:61-101`, `models.py:108` |
+| P0/P1 | ~~Replay/order correctness: HLC guards on non-LWW appliers (`derived/node.ts:54-154`); 121k-op regression fixture; invariant #2 test~~ ✅ done 2026-09-08 (`1dfbcc33`): per-field `node_field_lww` guards (schema v18), per-element class membership LWW, convergent convert; replay-equivalence test in `nodeLww.test.ts` (the 121k production log itself is not in this environment — the invariant test protects the failure mode generically) | `frontend/src/core/derived/` |
+| P1 | ~~Realtime backend: broadcast after commit in `receive_batch`; `seq` in WS `ops` frames; subscribe-before-hello~~ ✅ done 2026-09-08 (this commit). **Remaining (Track A):** web client connects with catch-up resume; unify/retire legacy collab layer | `app/relay/service.py`, `websocket.py`, `models.py` |
 | P1 | Honest sync status: populate `pendingCount`/`failedCount`/`offline`; quarantined-op surfacing and recovery UX | `syncStatusStore.ts:55-56`, `store.ts:537-554` |
 | P1 | Persistence flush on `pagehide`/`beforeunload` (mitigation until Track B) | `workspaceWorker.ts:151-156`, `main.tsx:55-67` |
 | P1 | Server-restore recovery branch: park local un-synced ops instead of discarding (currently `console.warn` only) | `frontend/src/core/sync.ts:540-545` |

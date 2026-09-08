@@ -102,7 +102,30 @@ class RelayService:
         saved_map = {envelope.id: envelope for envelope in validated}
         saved = [saved_map[saved_id] for saved_id in saved_ids]
         await self._notify_operation_listeners(saved)
+        await self._broadcast_saved(workspace_id, saved)
         return saved
+
+    async def _broadcast_saved(self, workspace_id: str, saved: list[RelayEnvelope]) -> None:
+        """Forward a committed batch to WebSocket subscribers.
+
+        This is the single broadcast point for both ingest paths (HTTP
+        ``POST /batch`` and WS ``batch`` frames), so subscribers see every
+        committed op regardless of how it arrived. The frame carries the
+        server-assigned seq per envelope so receivers can advance their seq
+        cursor from the live stream. Broadcast failures never break ingest —
+        clients recover through the seq-cursor catch-up.
+        """
+        if not saved:
+            return
+        from app.relay.broadcast import broadcast
+
+        try:
+            seqs = await self._maybe_await(
+                self._storage.get_envelope_seqs(workspace_id, [e.id for e in saved])
+            )
+            await broadcast(workspace_id, saved, seqs)
+        except Exception:  # noqa: BLE001
+            logger.exception("Broadcast failed for workspace %s", workspace_id)
 
     @staticmethod
     async def _notify_operation_listeners(saved: list[RelayEnvelope]) -> None:
