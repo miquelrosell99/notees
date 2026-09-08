@@ -25,15 +25,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = pytest.mark.unit
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 async def _make_test_store(
     workspace_id: str = "ws-uuid-1",
     actor_id: str = "actor-1",
@@ -43,7 +34,6 @@ async def _make_test_store(
         actor_id=actor_id,
         relay_storage=SqliteRelayStorage(":memory:"),
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -232,9 +222,7 @@ class TestCompletions:
         )
         completion_uuid = create_response.json()["completion_uuid"]
 
-        delete_response = await tasks_client.delete(
-            f"/tasks/task-uuid-1/completions/{completion_uuid}"
-        )
+        delete_response = await tasks_client.delete(f"/tasks/task-uuid-1/completions/{completion_uuid}")
         assert delete_response.status_code == 200
         assert delete_response.json() == {"deleted": True}
 
@@ -245,9 +233,7 @@ class TestCompletions:
         store = _store(tasks_client)
         await _make_task_node(store, "task-uuid-1")
 
-        response = await tasks_client.delete(
-            "/tasks/task-uuid-1/completions/missing-uuid"
-        )
+        response = await tasks_client.delete("/tasks/task-uuid-1/completions/missing-uuid")
         assert response.status_code == 404
 
     async def test_completion_pagination(self, tasks_client: AsyncClient) -> None:

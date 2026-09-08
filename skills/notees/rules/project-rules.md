@@ -8,8 +8,8 @@ Notees is a self-hosted, privacy-first, local-first note-taking application. Thi
 
 ## Architecture
 
-- **Source of truth is the immutable operation log** (`app/core/operation.py`). PostgreSQL stores the encrypted relay log, snapshots/compaction segments, users, workspace membership, and share metadata; client-side SQLite is a derived view.
-- **Sync path**: the encrypted operation relay (`app/relay/`) is the only sync path.
+- **Source of truth is the immutable operation log** (`app/core/operation.py`). PostgreSQL stores the relay operation log (payloads are plaintext JSON — confidentiality is transport-level TLS/Tailscale; client-side E2EE is a roadmap item), snapshots/compaction segments, users, workspace membership, and share metadata; client-side SQLite is a derived view.
+- **Sync path**: the operation relay (`app/relay/`) is the only sync path. Relay endpoints derive actor identity from authenticated credentials only; the `X-Actor-Id` header is never trusted.
 - **Frontend data path**: `frontend/src/core/` (sql.js/IndexedDB SQLite + core hooks + sync engine) is the sole data path.
 - Backend is feature-first hexagonal. Domain services use repository port interfaces only — never FastAPI or asyncpg directly.
 

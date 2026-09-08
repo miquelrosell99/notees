@@ -11,13 +11,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = pytest.mark.unit
 
 
-class FixedKeyStorage:
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 async def _make_store(
     workspace_id: str = "ws-1",
     actor_id: str = "actor-1",
@@ -28,7 +21,6 @@ async def _make_store(
         actor_id=actor_id,
         relay_storage=relay_storage or SqliteRelayStorage(":memory:"),
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -57,9 +49,7 @@ class TestClassQueries:
     async def test_list_classes_ignores_inactive_classes(self) -> None:
         store = await _make_store()
         await store.create_class("class-1", "One")
-        await store.apply(
-            store._build_operation("class.delete", {"classId": "class-1"}, ["class-1"])
-        )
+        await store.apply(store._build_operation("class.delete", {"classId": "class-1"}, ["class-1"]))
 
         results = await list_classes(store, "ws-1")
 

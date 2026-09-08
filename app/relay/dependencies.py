@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
 
 import asyncpg
 from fastapi import Depends, HTTPException, Request, WebSocket, status
@@ -16,7 +15,6 @@ from app.db.connection import get_pool
 from app.dependencies import get_current_user
 from app.features import auth as auth_module
 from app.models import User
-from app.relay.key_management import KeyManagementService
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
 from app.relay.permissions_postgres import PostgresPermissionChecker
 from app.relay.service import RelayService
@@ -26,7 +24,6 @@ _security = HTTPBearer(auto_error=False)
 
 _storage_instance: RelayStorage | None = None
 _permission_checker_instance: PermissionChecker | None = None
-_key_management_service_instance: KeyManagementService | None = None
 
 
 def _is_test_environment() -> bool:
@@ -124,22 +121,17 @@ async def get_effective_permission_checker() -> PermissionChecker:
     return PostgresPermissionChecker(pool)
 
 
-def _actor_id_from_headers(headers: Any) -> str:
-    """Return the actor id from request/websocket headers."""
-    return headers.get("x-actor-id", "anonymous")
-
-
 async def get_actor_id(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(_security),  # noqa: B008
 ) -> str:
     """Extract the actor id for the relay HTTP request.
 
-    Prefers the authenticated user id (from request state or a valid JWT Bearer
-    token), then the HTTPOnly ``access_token`` cookie used by the rest of the
-    app, falls back to the ``X-Actor-Id`` header, and finally defaults to
-    ``anonymous``. This keeps relay authentication aligned with the existing
-    cookie-based auth system.
+    Identity comes only from authenticated credentials: the request state, a
+    valid JWT Bearer token, or the HTTPOnly ``access_token`` cookie used by the
+    rest of the app. The caller-supplied ``X-Actor-Id`` header is never
+    trusted; without valid credentials the actor is ``anonymous`` and the
+    endpoints reject the request.
     """
     user_id = getattr(request.state, "user_id", None)
     if user_id:
@@ -158,7 +150,7 @@ async def get_actor_id(
                 if user:
                     return str(user["uuid"])
 
-    return _actor_id_from_headers(request.headers)
+    return "anonymous"
 
 
 async def get_actor_id_ws(websocket: WebSocket) -> str:
@@ -220,11 +212,3 @@ async def get_workspace_restore_epoch(workspace_id: str) -> int:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Database error reading restore_epoch: {exc}",
         ) from exc
-
-
-def get_key_management_service() -> KeyManagementService:
-    """Return the shared workspace key-management service."""
-    global _key_management_service_instance
-    if _key_management_service_instance is None:
-        _key_management_service_instance = KeyManagementService()
-    return _key_management_service_instance

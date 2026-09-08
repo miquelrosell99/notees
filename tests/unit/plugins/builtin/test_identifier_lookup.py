@@ -216,13 +216,6 @@ class TestOpenLibraryProvider:
             await provider.lookup("9780441172719")
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(self, workspace_id: str, secret_key: str) -> bytes:
-        return b"0" * 32
-
-
 class FakeSettingsRepository:
     """Dict-backed settings repository (workspace settings)."""
 
@@ -248,7 +241,6 @@ async def harness():
             actor_id=actor_uuid,
             relay_storage=relay,
             db_path=":memory:",
-            key_storage=FixedKeyStorage(),
         )
 
     async def settings_factory(workspace_id: int, user_id: int):
@@ -277,7 +269,6 @@ async def harness():
             actor_id=ACTOR,
             relay_storage=relay,
             db_path=":memory:",
-            key_storage=FixedKeyStorage(),
         )
         await store.sync()
         return store

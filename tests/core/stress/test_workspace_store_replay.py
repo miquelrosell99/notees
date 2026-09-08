@@ -19,15 +19,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = [pytest.mark.unit, pytest.mark.stress]
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 async def _make_store(
     workspace_id: str,
     actor_id: str,
@@ -38,7 +29,6 @@ async def _make_store(
         actor_id=actor_id,
         relay_storage=relay_storage,
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -80,8 +70,7 @@ class TestWorkspaceStoreReplay:
         rows = await reader.query("SELECT COUNT(*) FROM node")
         assert rows[0][0] == count
         assert elapsed < _replay_timeout_s(count), (
-            f"Replay of {count} ops took {elapsed:.3f}s "
-            f"(bound {_replay_timeout_s(count):.3f}s)"
+            f"Replay of {count} ops took {elapsed:.3f}s (bound {_replay_timeout_s(count):.3f}s)"
         )
         print(f"replay({count}) elapsed: {elapsed:.3f}s")
         await reader.close()
@@ -115,8 +104,7 @@ class TestWorkspaceStoreReplay:
         # faster than replaying everything from scratch.
         full_bound = _replay_timeout_s(count)
         assert elapsed < full_bound * 0.75, (
-            f"Snapshot-accelerated replay of {count} ops took {elapsed:.3f}s "
-            f"(expected < {full_bound * 0.75:.3f}s)"
+            f"Snapshot-accelerated replay of {count} ops took {elapsed:.3f}s (expected < {full_bound * 0.75:.3f}s)"
         )
         print(f"snapshot_replay({count}) elapsed: {elapsed:.3f}s")
         await reader.close()
@@ -130,9 +118,7 @@ class TestWorkspaceStoreReplay:
         for i in range(count):
             await writer.create_node(f"node-{i:06d}", "block")
             if i % 100 == 0:
-                await writer.set_property(
-                    f"pv-{i:06d}", f"node-{i:06d}", "schema-1", {"text": f"v{i}"}
-                )
+                await writer.set_property(f"pv-{i:06d}", f"node-{i:06d}", "schema-1", {"text": f"v{i}"})
         await writer.close()
 
         reader = await _make_store("ws-idempotent", "actor-b", relay)
@@ -142,9 +128,7 @@ class TestWorkspaceStoreReplay:
 
         node_rows = await reader.query("SELECT COUNT(*) FROM node")
         property_rows = await reader.query("SELECT COUNT(*) FROM property_value")
-        applied_rows = await reader.query(
-            "SELECT COUNT(*) FROM applied_operation_id"
-        )
+        applied_rows = await reader.query("SELECT COUNT(*) FROM applied_operation_id")
         property_count = (count - 1) // 100 + 1
         assert node_rows[0][0] == count
         assert property_rows[0][0] == property_count
@@ -170,9 +154,7 @@ class TestWorkspaceStoreReplay:
         max_hlc = relay.get_max_hlc("ws-compact")
         latest_snapshot = relay.get_latest_snapshot("ws-compact")
         snapshot_data = latest_snapshot["data"] if latest_snapshot else b""
-        result = relay.create_compaction_segment(
-            "ws-compact", max_hlc, prune=True, data=snapshot_data
-        )
+        result = relay.create_compaction_segment("ws-compact", max_hlc, prune=True, data=snapshot_data)
         assert result["operation_count"] == count
 
         remaining = relay.count_operations("ws-compact")
