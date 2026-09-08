@@ -104,6 +104,17 @@ class RelayStorage(ABC):
         """
 
     @abstractmethod
+    def get_envelope_seqs(
+        self, workspace_id: str, envelope_ids: list[str]
+    ) -> dict[str, int]:
+        """Return the server-assigned seq for each stored envelope id.
+
+        Used to attach authoritative sequence numbers to WebSocket ``ops``
+        frames so receivers can advance their seq cursor without a catch-up
+        round trip. Ids that are not stored are omitted.
+        """
+
+    @abstractmethod
     def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         """Return the newest snapshot for ``workspace_id``.
 
@@ -525,6 +536,18 @@ class SqliteRelayStorage(RelayStorage):
         )
         row = cursor.fetchone()
         return int(row[0]) if row and row[0] is not None else 0
+
+    def get_envelope_seqs(
+        self, workspace_id: str, envelope_ids: list[str]
+    ) -> dict[str, int]:
+        if not envelope_ids:
+            return {}
+        placeholders = ", ".join("?" for _ in envelope_ids)
+        cursor = self._connection.execute(
+            f"SELECT id, seq FROM relay_envelope WHERE workspace_id = ? AND id IN ({placeholders})",  # noqa: S608
+            (workspace_id, *envelope_ids),
+        )
+        return {row["id"]: int(row["seq"]) for row in cursor.fetchall()}
 
     def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         cursor = self._connection.execute(
@@ -1004,6 +1027,20 @@ class PostgresRelayStorage(RelayStorage):
                 workspace_id,
             )
         return int(row[0]) if row and row[0] is not None else 0
+
+    async def get_envelope_seqs(
+        self, workspace_id: str, envelope_ids: list[str]
+    ) -> dict[str, int]:
+        if not envelope_ids:
+            return {}
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            rows = await conn.fetch(
+                "SELECT id, seq FROM relay_envelope WHERE workspace_id = $1 AND id = ANY($2::text[])",
+                workspace_id,
+                envelope_ids,
+            )
+        return {row["id"]: int(row["seq"]) for row in rows}
 
     async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         pool = await self._get_pool()
