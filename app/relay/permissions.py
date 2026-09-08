@@ -21,6 +21,23 @@ class PermissionChecker(ABC):
     ) -> bool:
         """Return ``True`` if ``actor_id`` may write the given operation."""
 
+    async def can_write_batch(
+        self,
+        workspace_id: str,
+        actor_id: str,
+        affected_node_ids_batch: list[list[str]],
+    ) -> bool:
+        """Return ``True`` if ``actor_id`` may write every envelope in a batch.
+
+        Default implementation loops :meth:`can_write`; adapters whose checks
+        are workspace-scoped (node ids unused) should override with a single
+        query per batch instead of two queries per envelope.
+        """
+        for affected_node_ids in affected_node_ids_batch:
+            if not await self.can_write(workspace_id, actor_id, affected_node_ids):
+                return False
+        return True
+
     @abstractmethod
     async def can_read(self, workspace_id: str, actor_id: str) -> bool:
         """Return ``True`` if ``actor_id`` may read operations for ``workspace_id``."""

@@ -87,16 +87,14 @@ class RelayService:
                 envelope = envelope.model_copy(update={"actor_id": actor_id})
             validated.append(envelope)
 
-        for envelope in validated:
-            can_write = await self._permissions.can_write(
-                workspace_id,
-                actor_id,
-                envelope.affected_node_ids,
+        if not await self._permissions.can_write_batch(
+            workspace_id,
+            actor_id,
+            [envelope.affected_node_ids for envelope in validated],
+        ):
+            raise PermissionDeniedError(
+                f"Write denied for actor {actor_id} in workspace {workspace_id}"
             )
-            if not can_write:
-                raise PermissionDeniedError(
-                    f"Write denied for actor {actor_id} in workspace {workspace_id}"
-                )
 
         saved_ids = await self._maybe_await(self._storage.save_envelopes(validated))
         saved_map = {envelope.id: envelope for envelope in validated}
