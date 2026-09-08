@@ -117,6 +117,24 @@ describe('node scalar-field LWW guards', () => {
     expect(JSON.parse(nodeRow(db, nodeId)!.class_ids)).not.toContain(classId);
   });
 
+  it('OR-Set: a concurrent assign and unassign at the same HLC leaves the class present', async () => {
+    for (const order of ['assign-first', 'unassign-first'] as const) {
+      const db = await createTestDatabase();
+      const nodeId = uuidv7();
+      const classId = uuidv7();
+      createNode(db, nodeId);
+
+      const assign = makeOp('class.assign', { nodeId, classId }, { hlc: { physical: 10, logical: 0 }, actorId: 'actor-a' });
+      const unassign = makeOp('class.unassign', { nodeId, classId }, { hlc: { physical: 10, logical: 0 }, actorId: 'actor-b' });
+      for (const op of order === 'assign-first' ? [assign, unassign] : [unassign, assign]) {
+        applyOperation(db, op);
+      }
+
+      // Add-wins on a full tie, in either arrival order.
+      expect(JSON.parse(nodeRow(db, nodeId)!.class_ids)).toContain(classId);
+    }
+  });
+
   it('equal HLCs resolve deterministically by actor id', async () => {
     const db = await createTestDatabase();
     const nodeId = uuidv7();

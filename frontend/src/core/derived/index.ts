@@ -29,13 +29,21 @@ export function applyOperation(db: Database, op: Operation): ChangeNotification[
     notifications.push(...applyClassOperation(db, op));
   }
 
+  // For node.move the child-order backfill needs the OLD parent id, which the
+  // node applier overwrites — run it first (mirrors the node.delete pattern).
+  if (op.envelope.opType === 'node.move') {
+    notifications.push(...applyChildOrderOperation(db, op));
+  }
+
   notifications.push(...applyNodeOperation(db, op));
 
   if (op.envelope.opType !== 'node.delete') {
     notifications.push(...applyClassOperation(db, op));
   }
 
-  notifications.push(...applyChildOrderOperation(db, op));
+  if (op.envelope.opType !== 'node.move') {
+    notifications.push(...applyChildOrderOperation(db, op));
+  }
   notifications.push(...applyPropertyOperation(db, op));
   notifications.push(...applyNodeViewOperation(db, op));
   notifications.push(...applyAssetOperation(db, op));

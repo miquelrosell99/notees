@@ -95,8 +95,84 @@ export function loadTreeCrdtClean(db: Database, nodeId: string): TreeCrdt {
   return clean;
 }
 
+/**
+ * Persist a tree CRDT and materialize it into node_child_order.
+ * Shared by the treeUpdate path and the legacy positional-payload backfill.
+ */
+function persistTreeState(db: Database, nodeId: string, tree: TreeCrdt): ChangeNotification[] {
+  const children = tree.toArray();
+  saveTreeCrdt(db, nodeId, tree);
+  getCleanCache(db).set(nodeId, new TreeCrdt(tree.getState()));
+
+  db.run('DELETE FROM node_child_order WHERE parent_id = ?', [nodeId]);
+  const stmt = db.prepare('INSERT INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)');
+  try {
+    for (let i = 0; i < children.length; i++) {
+      stmt.run([nodeId, children[i], i.toString().padStart(10, '0')]);
+    }
+  } catch (insertErr) {
+    const err = insertErr instanceof Error ? insertErr : new Error(String(insertErr));
+    throw new Error(
+      `Failed to insert child order for parent ${nodeId} (children=${children.length}): ${err.message}`
+    );
+  } finally {
+    stmt.free();
+  }
+
+  return [{ scope: 'tree', nodeId, relatedIds: children }];
+}
+
 export function applyChildOrderOperation(db: Database, op: Operation): ChangeNotification[] {
+  const { opType } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
+
+  // Legacy positional payloads (pre-treeUpdate ops and migration-era writers).
+  // Without this backfill, replaying an old operation log reconstructs almost
+  // no child order at all (the 121k-op production replay collapsed 25,531
+  // rows to 76) — and any hard rebuild was structure-destroying.
+  //
+  // node.create { parentId, index }: insert into the parent's tree.
+  // Runs AFTER the node applier; the parent id comes from the payload.
+  if (opType === 'node.create') {
+    const parentId = (payload.parentId as string | null) ?? null;
+    const index = payload.index;
+    if (!parentId || typeof index !== 'number') return [];
+    const tree = loadTreeCrdtClean(db, parentId);
+    tree.insert(payload.nodeId as string, Math.min(Math.max(index, 0), tree.toArray().length));
+    return persistTreeState(db, parentId, tree);
+  }
+
+  // node.move { newParentId, newIndex }: cross-parent move or reorder. Runs
+  // BEFORE the node applier (see derived/index.ts) so the old parent id is
+  // still available for cleaning the old tree. Current-era moves carry no
+  // newIndex (their treeUpdates do the work), so there is no double-apply.
+  if (opType === 'node.move') {
+    const newParentId = (payload.newParentId as string | null) ?? null;
+    const newIndex = payload.newIndex;
+    if (typeof newIndex !== 'number') return [];
+    const nodeId = payload.nodeId as string;
+    const notifications: ChangeNotification[] = [];
+    const oldParentRow = queryAll<{ parent_id: string | null }>(
+      db,
+      'SELECT parent_id FROM node WHERE id = ?',
+      [nodeId]
+    );
+    const oldParentId = oldParentRow[0]?.parent_id ?? null;
+    if (oldParentId && oldParentId !== newParentId) {
+      const oldTree = loadTreeCrdtClean(db, oldParentId);
+      oldTree.delete(nodeId);
+      notifications.push(...persistTreeState(db, oldParentId, oldTree));
+    }
+    if (newParentId) {
+      const newTree = loadTreeCrdtClean(db, newParentId);
+      // insert() would duplicate a child already present (same-parent reorder).
+      newTree.delete(nodeId);
+      newTree.insert(nodeId, Math.min(Math.max(newIndex, 0), newTree.toArray().length));
+      notifications.push(...persistTreeState(db, newParentId, newTree));
+    }
+    return notifications;
+  }
+
   if (!payload.treeUpdate) return [];
 
   const treeUpdate = Array.isArray(payload.treeUpdate)
@@ -104,7 +180,6 @@ export function applyChildOrderOperation(db: Database, op: Operation): ChangeNot
     : (payload.treeUpdate as Uint8Array);
 
   const nodeId = payload.nodeId as string;
-  const cleanCache = getCleanCache(db);
   const logged = getLoggedSet(db);
   // Start from a clean tree. If this parent was already repaired this session,
   // the cached copy avoids a DB read and a full CRDT rebuild.
@@ -140,23 +215,5 @@ export function applyChildOrderOperation(db: Database, op: Operation): ChangeNot
       children = tree.toArray();
     }
   }
-  saveTreeCrdt(db, nodeId, tree);
-  cleanCache.set(nodeId, new TreeCrdt(tree.getState()));
-
-  db.run('DELETE FROM node_child_order WHERE parent_id = ?', [nodeId]);
-  const stmt = db.prepare('INSERT INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)');
-  try {
-    for (let i = 0; i < children.length; i++) {
-      stmt.run([nodeId, children[i], i.toString().padStart(10, '0')]);
-    }
-  } catch (insertErr) {
-    const err = insertErr instanceof Error ? insertErr : new Error(String(insertErr));
-    throw new Error(
-      `Failed to insert child order for parent ${nodeId} (children=${children.length}): ${err.message}`
-    );
-  } finally {
-    stmt.free();
-  }
-
-  return [{ scope: 'tree', nodeId, relatedIds: children }];
+  return persistTreeState(db, nodeId, tree);
 }
