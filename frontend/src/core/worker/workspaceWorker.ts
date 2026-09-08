@@ -6,6 +6,8 @@
  */
 
 import { createDatabase } from '../db/connection';
+import { createWaSqliteDatabase } from '../db/waSqliteDatabase';
+import { createSchema } from '../db/schema';
 import type { Database } from 'sql.js';
 import { WorkspaceStore } from '../store';
 import { queryAll, queryOne } from '../db/sqlite';
@@ -136,15 +138,30 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
     : null;
 
   performance.mark('worker:sqljs-import-start');
-  const db = await Promise.race([
-    createDatabase(request.dbBytes),
-    new Promise<never>((_, reject) => {
-      setTimeout(
-        () => reject(new Error('sql.js initialization timed out in worker')),
-        INIT_SQL_TIMEOUT_MS
-      );
-    }),
-  ]);
+  // OPFS mode: wa-sqlite with an OPFS VFS gives durable, incremental
+  // page-level persistence — no whole-DB exports, no IndexedDB writes, no
+  // 30 s debounce window. dbBytes (the last sql.js export) act as one-time
+  // migration seed; the OPFS file wins once it exists.
+  const db = request.useOpfs
+    ? ((await createWaSqliteDatabase({
+        name: request.workspaceId,
+        vfs: 'opfs',
+        initialBytes: request.dbBytes,
+      })) as unknown as Database)
+    : await Promise.race([
+        createDatabase(request.dbBytes),
+        new Promise<never>((_, reject) => {
+          setTimeout(
+            () => reject(new Error('sql.js initialization timed out in worker')),
+            INIT_SQL_TIMEOUT_MS
+          );
+        }),
+      ]);
+  if (request.useOpfs) {
+    // createWaSqliteDatabase opens the raw file; schema/migrations run here,
+    // exactly like createDatabase does for the sql.js path.
+    createSchema(db);
+  }
   performance.mark('worker:sqljs-import-end');
   performance.measure('worker:sqljs-import', 'worker:sqljs-import-start', 'worker:sqljs-import-end');
   performance.mark('worker:store-setup-start');
@@ -153,15 +170,19 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
     // IndexedDB after every keystroke. The debounce timer resets on each mutation,
     // so continuous typing only flushes once the user pauses.
     persistDebounceMs: 30_000,
-    onPersist: async (data) => {
-      // Send the exported database back to the main thread so it can be persisted
-      // to IndexedDB. The main thread owns IndexedDB access; serialising the full
-      // DB inside the worker and posting it avoids blocking the main thread's UI
-      // work while still keeping persistence off the synchronous mutation path.
-      // Copy the bytes before posting in case sql.js returns a view into WASM
-      // memory that could be mutated by later DB operations.
-      postNotify({ type: 'persist-data', workspaceId: request.workspaceId, data: new Uint8Array(data) });
-    },
+    onPersist: request.useOpfs
+      ? // OPFS persists on every commit; the export→IndexedDB pipeline is
+        // not needed and its whole-DB cost is pure waste.
+        async () => {}
+      : async (data) => {
+          // Send the exported database back to the main thread so it can be persisted
+          // to IndexedDB. The main thread owns IndexedDB access; serialising the full
+          // DB inside the worker and posting it avoids blocking the main thread's UI
+          // work while still keeping persistence off the synchronous mutation path.
+          // Copy the bytes before posting in case sql.js returns a view into WASM
+          // memory that could be mutated by later DB operations.
+          postNotify({ type: 'persist-data', workspaceId: request.workspaceId, data: new Uint8Array(data) });
+        },
     onNotify: (notification) => postNotify(notification),
   });
   performance.mark('worker:store-setup-end');

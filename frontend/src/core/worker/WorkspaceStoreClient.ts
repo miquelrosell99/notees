@@ -80,6 +80,11 @@ export interface WorkspaceStoreClientOptions {
   dbBytes?: Uint8Array;
   /** Optional existing store to use directly (test shim to share state). */
   store?: WorkspaceStore;
+  /**
+   * Open the database via wa-sqlite on OPFS (durable incremental persistence)
+   * instead of sql.js in-memory + whole-DB exports. Forwarded to the worker.
+   */
+  useOpfs?: boolean;
 }
 
 interface PendingRequest {
@@ -434,6 +439,7 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
         workspaceId,
         actorId,
         dbBytes,
+        useOpfs: options.useOpfs,
       },
       INIT_TIMEOUT_MS,
       undefined,

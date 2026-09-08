@@ -23,6 +23,29 @@ const log = getLogger('workspaceStoreClientAdapter');
 
 const LOAD_PERSISTED_DB_TIMEOUT_MS = 60_000;
 
+const OPFS_FLAG_KEY = 'notees:opfs-persistence';
+
+/**
+ * OPFS persistence (wa-sqlite) is opt-in per browser while it proves out.
+ * When enabled, the workspace worker opens the database on OPFS (durable,
+ * incremental writes) instead of sql.js in-memory + IndexedDB exports.
+ */
+export function isOpfsPersistenceEnabled(): boolean {
+  try {
+    return isRealBrowser() && localStorage.getItem(OPFS_FLAG_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setOpfsPersistenceEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(OPFS_FLAG_KEY, enabled ? '1' : '0');
+  } catch {
+    // Storage access may be restricted; the flag simply stays unset.
+  }
+}
+
 interface ClientEntry {
   client: IWorkspaceStoreClient;
   actorId: string;
@@ -158,7 +181,18 @@ async function openWorkspaceStoreClient(
       }
     }
     performance.mark('workspace-client:worker-init-start');
-    await client.init(workspaceId, actorId, { dbBytes });
+    const useOpfs = isOpfsPersistenceEnabled();
+    try {
+      await client.init(workspaceId, actorId, { dbBytes, useOpfs });
+    } catch (err) {
+      if (!useOpfs) throw err;
+      // OPFS unavailable or failed (old browser, quota, VFS error): fall back
+      // to the sql.js path rather than blocking the workspace from opening.
+      log.warn('OPFS persistence init failed; falling back to sql.js', {
+        error: String(err),
+      });
+      await client.init(workspaceId, actorId, { dbBytes, useOpfs: false });
+    }
     performance.mark('workspace-client:worker-init-end');
     const workerInit = performance.measure('workspace-client:worker-init', 'workspace-client:worker-init-start', 'workspace-client:worker-init-end');
     log.info(

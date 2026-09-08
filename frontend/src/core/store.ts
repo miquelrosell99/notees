@@ -35,6 +35,7 @@ import { uuidv7 } from './uuid';
 import type { NotifyScope, NotifyChangeMessage } from './worker/workerProtocol';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { createDatabase } from './db/connection';
+import { isWaSqliteDatabase } from './db/waSqliteDatabase';
 
 export interface NodeRow {
   id: string;
@@ -1842,7 +1843,14 @@ export class WorkspaceStore {
 
   /** Restore from an arbitrary snapshot blob and return its HLC. */
   async restoreSnapshot(data: Uint8Array): Promise<{ physical: number; logical: number }> {
-    this.db = await createDatabase(data);
+    if (isWaSqliteDatabase(this.db)) {
+      // OPFS-backed store: replace the file contents in place so the database
+      // stays durably file-backed (a plain createDatabase would silently
+      // revert the workspace to the in-memory sql.js path).
+      await this.db.replaceWithSnapshot(data);
+    } else {
+      this.db = await createDatabase(data);
+    }
     // Ensure the schema is present in case the snapshot predates a schema change.
     createSchema(this.db);
     // Older server snapshots were generated before the frontend enforced a
