@@ -236,3 +236,14 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Assert `new Set(envelopes.map(e => e.id)).size` or filter by id when the exact server-side dedupe matters; use raw counts only when no duplicate re-push is expected (see sync.test.ts "duplicate-only batches" and the server-restore recovery test).
 
 **Prevent:** When writing sync-engine tests that involve re-pushes (watermark resets, recovery flows), default to unique-id assertions.
+
+
+## **[testing]** The frontend's real typecheck is `tsc -b --noEmit`, not `tsc --noEmit`
+
+**Symptom:** Code passes `npx tsc --noEmit` cleanly but fails CI/lint with errors like `TS1294 erasableSyntaxOnly`, `TS2322 Uint8Array<ArrayBufferLike> not assignable to BufferSource`, or `TS6133` unused declarations — in files you were sure typechecked.
+
+**Cause:** The frontend's canonical typecheck (`"typecheck": "tsc -b --noEmit"` in package.json, also run by `npm run lint`) uses the project-references build config, which is stricter than the default config plain `tsc --noEmit` picks up: `erasableSyntaxOnly` (no constructor parameter properties), TS 5.7 `Uint8Array<ArrayBufferLike>` generics (WebCrypto `BufferSource` params reject them), and `noUnusedLocals/Parameters`. Interface changes (e.g. adding a required method to `IWorkspaceStoreClient`) also only surface in mock-heavy test files under the build config.
+
+**Fix:** Always verify frontend changes with `cd frontend && npx tsc -b --noEmit` (or `npm run lint`), never plain `tsc --noEmit`. For WebCrypto calls, copy into a fresh `new Uint8Array(...)` instead of casting.
+
+**Prevent:** Run `tsc -b` before every frontend commit; treat "it passed tsc" claims without `-b` as unverified.
