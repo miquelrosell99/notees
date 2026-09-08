@@ -288,6 +288,7 @@ export class WorkspaceStore {
       this.db.run('DELETE FROM plugin_op_log');
       this.db.run('DELETE FROM node_alias');
       this.db.run('DELETE FROM node_version');
+      this.db.run('DELETE FROM node_field_lww');
       this.db.run('DELETE FROM node_view');
       this.db.run('DELETE FROM user_favorite');
 

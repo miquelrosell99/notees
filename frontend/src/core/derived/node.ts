@@ -1,6 +1,7 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
 import { loadTextCrdt, saveTextCrdt } from './crdtState';
+import { claimNodeField, compareLww, maxNodeFieldRecordByPrefix, nodeFieldClaimLost, type LwwRecord } from './lww';
 import { reindexNode } from './search';
 import { extractTextContent } from './textContent';
 import { deleteNodeViewsForNode } from './nodeView';
@@ -24,6 +25,7 @@ function recordNodeVersion(
 export function applyNodeOperation(db: Database, op: Operation): ChangeNotification[] {
   const { opType } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
+  const incoming: LwwRecord = { hlc: op.envelope.hlc, actorId: op.envelope.actorId };
 
   if (opType === 'node.create') {
     const contentJson = JSON.stringify((payload.initialContent as unknown[]) ?? []);
@@ -52,33 +54,39 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
   }
 
   if (opType === 'node.updateIcon') {
+    const nodeId = payload.nodeId as string;
+    if (!claimNodeField(db, nodeId, 'icon', incoming)) return [];
     db.run('UPDATE node SET icon = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
       (payload.icon as string | null) ?? null,
       new Date().toISOString(),
       op.envelope.actorId,
-      payload.nodeId as string,
+      nodeId,
     ]);
-    return [{ scope: 'node', nodeId: payload.nodeId as string }];
+    return [{ scope: 'node', nodeId }];
   }
 
   if (opType === 'node.updateColor') {
+    const nodeId = payload.nodeId as string;
+    if (!claimNodeField(db, nodeId, 'color', incoming)) return [];
     db.run('UPDATE node SET color = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
       (payload.color as string | null) ?? null,
       new Date().toISOString(),
       op.envelope.actorId,
-      payload.nodeId as string,
+      nodeId,
     ]);
-    return [{ scope: 'node', nodeId: payload.nodeId as string }];
+    return [{ scope: 'node', nodeId }];
   }
 
   if (opType === 'node.archive' || opType === 'node.restore') {
+    const nodeId = payload.nodeId as string;
+    if (!claimNodeField(db, nodeId, 'active', incoming)) return [];
     db.run('UPDATE node SET active = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
       opType === 'node.restore' ? 1 : 0,
       new Date().toISOString(),
       op.envelope.actorId,
-      payload.nodeId as string,
+      nodeId,
     ]);
-    return [{ scope: 'node', nodeId: payload.nodeId as string }];
+    return [{ scope: 'node', nodeId }];
   }
 
   if (opType === 'node.permanentDelete' || opType === 'node.delete') {
@@ -96,6 +104,7 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_version WHERE node_id = ?', [nodeId]);
+    db.run('DELETE FROM node_field_lww WHERE node_id = ?', [nodeId]);
     deleteNodeViewsForNode(db, nodeId);
     return [{ scope: 'all', nodeId }];
   }
@@ -129,48 +138,94 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
   }
 
   if (opType === 'node.move') {
+    const nodeId = payload.nodeId as string;
+    if (!claimNodeField(db, nodeId, 'parent', incoming)) return [];
     db.run('UPDATE node SET parent_id = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
       (payload.newParentId as string | null) ?? null,
       new Date().toISOString(),
       op.envelope.actorId,
-      payload.nodeId as string,
+      nodeId,
     ]);
-    return [{ scope: 'tree', nodeId: payload.nodeId as string }];
+    return [{ scope: 'tree', nodeId }];
   }
 
   if (opType === 'node.convert') {
-    db.run(
-      'UPDATE node SET kind = ?, parent_id = ?, class_ids = ?, updated_at = ?, updated_by = ? WHERE id = ?',
-      [
+    // convert writes three LWW fields at once; claim each independently so a
+    // newer move/assign on one field is not regressed by an older convert.
+    const nodeId = payload.nodeId as string;
+    const now = new Date().toISOString();
+    const notifications: ChangeNotification[] = [];
+    if (claimNodeField(db, nodeId, 'kind', incoming)) {
+      db.run('UPDATE node SET kind = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
         payload.kind as string,
-        (payload.parentId as string | null) ?? null,
-        JSON.stringify((payload.classIds as string[]) ?? []),
-        new Date().toISOString(),
+        now,
         op.envelope.actorId,
-        payload.nodeId as string,
-      ]
-    );
-    return [{ scope: 'node', nodeId: payload.nodeId as string }];
+        nodeId,
+      ]);
+      notifications.push({ scope: 'node', nodeId });
+    }
+    if (claimNodeField(db, nodeId, 'parent', incoming)) {
+      db.run('UPDATE node SET parent_id = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+        (payload.parentId as string | null) ?? null,
+        now,
+        op.envelope.actorId,
+        nodeId,
+      ]);
+      notifications.push({ scope: 'node', nodeId });
+    }
+    // Wholesale class-set replace: wins only against BOTH the wholesale
+    // record and every per-element membership record, so a reordered
+    // assign/unassign is neither regressed nor lost. Stamps per-element
+    // records for old ∪ new so older element ops stay blocked.
+    const maxElement = maxNodeFieldRecordByPrefix(db, nodeId, 'class_member');
+    if (
+      claimNodeField(db, nodeId, 'class_ids', incoming) &&
+      (!maxElement || compareLww(incoming, maxElement) > 0)
+    ) {
+      const row = queryOne<{ class_ids: string }>(db, 'SELECT class_ids FROM node WHERE id = ?', [
+        nodeId,
+      ]);
+      const oldIds = new Set(row ? (JSON.parse(row.class_ids) as string[]) : []);
+      const newIds = new Set((payload.classIds as string[]) ?? []);
+      db.run('UPDATE node SET class_ids = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
+        JSON.stringify(Array.from(newIds)),
+        now,
+        op.envelope.actorId,
+        nodeId,
+      ]);
+      for (const classId of new Set([...oldIds, ...newIds])) {
+        claimNodeField(db, nodeId, `class_member:${classId}`, incoming);
+      }
+      notifications.push({ scope: 'node', nodeId });
+    }
+    return notifications;
   }
 
   if (opType === 'class.assign' || opType === 'class.unassign') {
+    // Per-element membership LWW: add/remove claims resolve per class id, so
+    // concurrent memberships from different actors survive and any arrival
+    // order converges. Also loses to a newer wholesale convert replace.
+    const nodeId = payload.nodeId as string;
+    const classId = payload.classId as string;
+    if (nodeFieldClaimLost(db, nodeId, 'class_ids', incoming)) return [];
+    if (!claimNodeField(db, nodeId, `class_member:${classId}`, incoming)) return [];
     const row = queryOne<{ class_ids: string }>(db, 'SELECT class_ids FROM node WHERE id = ?', [
-      payload.nodeId as string,
+      nodeId,
     ]);
     if (!row) return [];
     const ids = new Set(JSON.parse(row.class_ids) as string[]);
     if (opType === 'class.assign') {
-      ids.add(payload.classId as string);
+      ids.add(classId);
     } else {
-      ids.delete(payload.classId as string);
+      ids.delete(classId);
     }
     db.run('UPDATE node SET class_ids = ?, updated_at = ?, updated_by = ? WHERE id = ?', [
       JSON.stringify(Array.from(ids)),
       new Date().toISOString(),
       op.envelope.actorId,
-      payload.nodeId as string,
+      nodeId,
     ]);
-    return [{ scope: 'class', nodeId: payload.nodeId as string, relatedIds: [payload.classId as string] }];
+    return [{ scope: 'class', nodeId, relatedIds: [classId] }];
   }
 
   if (opType === 'node.updateContent') {
