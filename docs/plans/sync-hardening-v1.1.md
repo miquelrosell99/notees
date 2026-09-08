@@ -49,8 +49,8 @@ The spine (op log + server seq + snapshots) and transport (WS acceleration, curs
 
 | Layer | Work | Status |
 |---|---|---|
-| 3a — Merge semantics (collections) | Class membership: per-element LWW → **OR-Set** (add-wins with HLC tombstones) so concurrent assign/unassign never loses an element. Derived-layer only; op schema unchanged | pending |
-| 3b — Merge semantics (structure) | Child order fully convergent on replay: appliers backfill legacy `node.create.index` / `node.move.newIndex` payloads into `node_child_order` (closes the 121k-op replay gotcha — hard rebuilds become structure-safe); `node.move` ordering guarded end-to-end | pending |
+| 3a — Merge semantics (collections) | Class membership OR-Set (`class_member_set`, schema v20, add-wins at equal HLC); derived-state v5 | ✅ `318209c8` |
+| 3b — Merge semantics (structure) | Legacy positional child-order backfill (`node.create.index`/`node.move.newIndex`); replay structure-safe (closes 121k-op gotcha); derived-state v5 | ✅ `318209c8` |
 | 4 — E2EE (Track C) | Client-side AES-GCM encryption of envelope payloads + snapshot blobs; per-workspace key wrapped per member (X25519), passphrase recovery, rotation on member removal; plaintext routing metadata (`workspaceId/actorId/seq/opType`) documented in SPEC §8/§9; server skips op-payload validation for encrypted envelopes; PROTOCOL_VERSION bump per SPEC §7 | pending |
 | 2 — OPFS durability | wa-sqlite + OPFS VFS behind a feature flag: durable-on-commit page-level writes replace whole-DB `db.export()` dumps; one-time IndexedDB-blob → OPFS migration with rollback-safe fallback; then delete the export→postMessage→IndexedDB pipeline (persist worker, coalescing, pagehide flush becomes unnecessary). **Approved by user 2026-09-08** (dependency sign-off for `wa-sqlite`) | pending |
 
