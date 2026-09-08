@@ -24,10 +24,14 @@ from app.core.clock import Hlc
 from app.db.connection import acquire_connection, get_pool
 from app.relay.models import RelayEnvelope
 
+# Snapshots are full derived-database copies; without a cap every client
+# post-pull upload grows relay_snapshot unboundedly. Keep only the newest
+# few per workspace (ordered by HLC, matching get_latest_snapshot).
+MAX_SNAPSHOTS_PER_WORKSPACE = 5
+
 
 class RelayStorage(ABC):
     """Abstract port for persisting and retrieving relay operation envelopes."""
-
     @abstractmethod
     def save_envelope(self, envelope: RelayEnvelope) -> None:
         """Persist ``envelope``. Callers should dedupe via ``envelope_exists``."""
@@ -653,6 +657,26 @@ class SqliteRelayStorage(RelayStorage):
             ),
         )
         if commit:
+            # Bound snapshot growth; compaction-referenced snapshots are
+            # exempt (recovery point for pruned operations).
+            self._connection.execute(
+                """
+                DELETE FROM relay_snapshot
+                WHERE workspace_id = ?
+                  AND id NOT IN (
+                    SELECT id FROM relay_snapshot
+                    WHERE workspace_id = ?
+                    ORDER BY json_extract(hlc, '$.physical') DESC,
+                             json_extract(hlc, '$.logical') DESC
+                    LIMIT ?
+                  )
+                  AND id NOT IN (
+                    SELECT snapshot_id FROM compacted_operation_segment
+                    WHERE workspace_id = ?
+                  )
+                """,
+                (workspace_id, workspace_id, MAX_SNAPSHOTS_PER_WORKSPACE, workspace_id),
+            )
             self._connection.commit()
         return snapshot_id, up_to_seq
 
@@ -1140,6 +1164,27 @@ class PostgresRelayStorage(RelayStorage):
             state_hash,
             data,
             up_to_seq,
+        )
+        # Bound snapshot growth: keep only the newest few per workspace.
+        # Snapshots referenced by a compaction segment are exempt — they are
+        # the recovery point for the pruned operations they cover.
+        await conn.execute(
+            """
+            DELETE FROM relay_snapshot
+            WHERE workspace_id = $1
+              AND id NOT IN (
+                SELECT id FROM relay_snapshot
+                WHERE workspace_id = $1
+                ORDER BY (hlc->>'physical')::bigint DESC, (hlc->>'logical')::bigint DESC
+                LIMIT $2
+              )
+              AND id NOT IN (
+                SELECT snapshot_id FROM compacted_operation_segment
+                WHERE workspace_id = $1
+              )
+            """,
+            workspace_id,
+            MAX_SNAPSHOTS_PER_WORKSPACE,
         )
         return str(row["id"]), int(up_to_seq)
 
