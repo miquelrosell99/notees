@@ -472,6 +472,15 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
             });
           }
         },
+        onParkedChanges: (count) => {
+          const s = useSyncStatusStore.getState();
+          s.setParkedCount(count);
+          if (count > 0) {
+            s.setStatus('error', {
+              lastError: `The server was restored. ${count} unsent change${count === 1 ? '' : 's'} kept aside — open sync status to recover.`,
+            });
+          }
+        },
         onPullProgress: (p) => {
           useSyncStatusStore.getState().setWorkspacePullProgress(workspaceId, p);
         },

@@ -549,4 +549,59 @@ describe('SyncEngine outbox status + quarantine recovery', () => {
 
     vi.useRealTimers();
   });
+
+  it('parks un-synced ops on server restore and recovers them via recoverParkedChanges', async () => {
+    const workspaceId = uuidv7();
+    const actor = uuidv7();
+    const relay = new MemoryRelay();
+
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, workspaceId, actor);
+    const client = await createClientFromStore(store);
+
+    const transport = new MemoryTransport(relay, workspaceId);
+    const parkedReports: number[] = [];
+    const sync = new SyncEngine(client, transport, {
+      onParkedChanges: (count) => parkedReports.push(count),
+    });
+
+    // One op already on the server, one local edit never pushed.
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    await sync.push();
+    store.updateText(nodeId, (text) => text.insert(0, 'unsent edit'));
+    expect(relay.catchUp(workspaceId, 0).envelopes).toHaveLength(1);
+
+    // The server reports a new restore epoch: local state is invalidated.
+    transport.getLatestSnapshot = async () => ({
+      snapshotId: '',
+      workspaceId,
+      hlc: { physical: 0, logical: 0 },
+      data: new Uint8Array(0),
+      restoreEpoch: 42,
+      hasSnapshot: false,
+      upToSeq: null,
+    });
+
+    await sync.pull();
+
+    // The un-sent op was parked, not discarded; the wipe still happened: the
+    // node came back from the re-pulled create op, but the unsent edit is gone.
+    expect(parkedReports).toContain(1);
+    expect(store.countParkedOperations()).toBe(1);
+    expect(store.getNode(nodeId)).toBeDefined();
+    expect(store.getNode(nodeId)!.content).not.toContain('unsent edit');
+
+    // Recovery re-applies the parked op locally and re-pushes it.
+    await sync.recoverParkedChanges();
+
+    expect(parkedReports.at(-1)).toBe(0);
+    expect(store.countParkedOperations()).toBe(0);
+    expect(store.getNode(nodeId)!.content).toContain('unsent edit');
+    // MemoryRelay does not dedupe by id (the real server does), so the
+    // re-pushed create op appears twice; unique ids are the real assertion.
+    const ids = new Set(relay.catchUp(workspaceId, 0).envelopes.map((e) => e.id));
+    expect(ids.size).toBe(2);
+  });
+
 });
