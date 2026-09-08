@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from pyrate_limiter import Duration, Limiter, Rate
 
 from app.rate_limit import PerKeyBucketFactory
-from app.relay.broadcast import broadcast, subscribe, unsubscribe
+from app.relay.broadcast import subscribe, unsubscribe
 from app.relay.dependencies import (
     get_actor_id_ws,
     get_effective_permission_checker,
@@ -48,14 +48,19 @@ async def websocket_endpoint(
           "latestSeq": S }
           — S is the highest server-assigned seq for the workspace; clients
           compare it against their stored seq cursor and run HTTP catch-up
-          before accepting live ops when they are behind.
+          before accepting live ops when they are behind. The subscription is
+          active before S is read, so live `ops` frames may arrive before
+          hello; clients buffer them and reconcile by their per-envelope
+          `seqs` once hello lands.
       Client -> Server:
         { "type": "batch", "envelopes": [...] }
       Server -> Client:
         { "type": "ack", "saved_ids": [...] }
         { "type": "error", "message": "..." }
-        { "type": "ops", "protocolVersion": 2, "envelopes": [...] }
-          — one message per saved batch, broadcast to all subscribers
+        { "type": "ops", "protocolVersion": 2, "envelopes": [...],
+          "seqs": {envelopeId: seq, ...} }
+          — one message per saved batch, broadcast to all subscribers after
+          commit, whichever path (HTTP or WS) the batch arrived on
     """
     if actor_id == "anonymous":
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -73,12 +78,17 @@ async def websocket_endpoint(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    latest_seq = await service.get_latest_seq(workspace_id)
     await websocket.accept()
+    # Subscribe BEFORE reading latest_seq: ops committed before the read are
+    # covered by hello.latestSeq (client catch-up), ops committed after the
+    # read are delivered live because the subscription is already active.
+    # Frames may therefore arrive before hello; clients buffer them and
+    # reconcile by the per-envelope seqs after the hello lands.
+    await subscribe(workspace_id, websocket)
+    latest_seq = await service.get_latest_seq(workspace_id)
     await websocket.send_text(
         WsHelloMessage(restore_epoch=restore_epoch, latest_seq=latest_seq).model_dump_json(by_alias=True)
     )
-    await subscribe(workspace_id, websocket)
 
     try:
         while True:
@@ -110,9 +120,8 @@ async def websocket_endpoint(
                 await websocket.send_json({"type": "error", "message": str(exc)})
                 continue
 
-            if saved:
-                await broadcast(workspace_id, saved)
-
+            # receive_batch already broadcast the committed batch to all
+            # subscribers (including this sender).
             await websocket.send_json({"type": "ack", "saved_ids": [envelope.id for envelope in saved]})
     finally:
         await unsubscribe(workspace_id, websocket)
