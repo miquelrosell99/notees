@@ -1,5 +1,6 @@
 import { compareHlc, maxHlc, type Hlc } from './clock';
 import { CURRENT_DERIVED_STATE_VERSION } from './store';
+import { RelayWsClient, type RelayWsHello, type WebSocketLike } from './relayWs';
 import {
   assertSupportedProtocolVersion,
   createOperation,
@@ -88,6 +89,11 @@ export class SyncEngine {
   private watermarksLoaded = false;
   /** In-flight sync promise so concurrent calls (auto-sync + visibility + manual) share one run. */
   private inFlightSync: Promise<void> | null = null;
+  /** Realtime channel state (WS is an acceleration path; the seq cursor stays authoritative). */
+  private wsClient: RelayWsClient | null = null;
+  private wsBuffer: Array<{ envelopes: OperationEnvelope[]; seqs: Record<string, number> }> = [];
+  private wsDraining = false;
+  private pullInFlight = false;
 
   constructor(client: IWorkspaceStoreClient, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
     this.client = client;
@@ -356,6 +362,134 @@ export class SyncEngine {
     await this.syncOnce();
   }
 
+  /**
+   * Start the realtime channel: committed ops are pushed to this client over
+   * the relay WebSocket and applied immediately. Strictly an acceleration
+   * path — the seq cursor + HTTP catch-up remain the recovery mechanism, so
+   * visibility/online-triggered syncs stay registered alongside.
+   */
+  startRealtime(options: {
+    workspaceId: string;
+    baseUrl?: string;
+    createSocket?: (url: string) => WebSocketLike;
+  }): void {
+    if (this.wsClient) return;
+    this.wsClient = new RelayWsClient({
+      workspaceId: options.workspaceId,
+      baseUrl: options.baseUrl,
+      createSocket: options.createSocket,
+      callbacks: {
+        onHello: (hello) => this.handleWsHello(hello),
+        onOps: (envelopes, seqs) => this.handleWsOps(envelopes, seqs),
+        onFatal: (message) => {
+          log.error('Realtime channel stopped fatally', { message });
+          const error = new Error(message);
+          this.setStatus('error', error);
+          this.callbacks.onError?.(error);
+        },
+        onClose: () => {
+          // Reconnect is handled inside RelayWsClient; no status change — a
+          // dropped socket is indistinguishable from a delayed one.
+        },
+      },
+    });
+    this.wsClient.connect();
+  }
+
+  /** Close the realtime channel intentionally (workspace switch/teardown). */
+  stopRealtime(): void {
+    this.wsClient?.close();
+    this.wsClient = null;
+    this.wsBuffer = [];
+  }
+
+  private handleWsHello(hello: RelayWsHello): void {
+    // Behind → catch up over HTTP (pull also handles restoreEpoch mismatch);
+    // pull's finally drains any buffered frames. Not behind → drain now.
+    if (hello.latestSeq > this.lastReceivedSeq) {
+      void this.syncOnce().catch((err) => {
+        log.warn('Sync after WS hello failed', { error: String(err) });
+      });
+    } else {
+      this.drainWsBuffer();
+    }
+  }
+
+  private handleWsOps(envelopes: OperationEnvelope[], seqs: Record<string, number>): void {
+    if (envelopes.length === 0) return;
+    this.wsBuffer.push({ envelopes, seqs });
+    // Buffer while a pull is in flight so the pull's seq cursor cannot
+    // regress past frames we already applied; the pull drains us at the end.
+    if (!this.pullInFlight) {
+      this.drainWsBuffer();
+    }
+  }
+
+  private drainWsBuffer(): void {
+    if (this.wsDraining || this.wsBuffer.length === 0 || this.pullInFlight) return;
+    this.wsDraining = true;
+    void (async () => {
+      try {
+        while (this.wsBuffer.length > 0 && !this.pullInFlight) {
+          const frame = this.wsBuffer.shift();
+          if (!frame) break;
+          await this.applyWsFrame(frame.envelopes, frame.seqs);
+        }
+      } catch (err) {
+        // Drop the remaining buffer: unapplied frames never advanced the seq
+        // cursor, so the next pull re-fetches them through catch-up.
+        log.warn('Failed to apply realtime ops; next pull will catch up', {
+          error: String(err),
+        });
+        this.wsBuffer = [];
+      } finally {
+        this.wsDraining = false;
+      }
+    })();
+  }
+
+  private async applyWsFrame(
+    envelopes: OperationEnvelope[],
+    seqs: Record<string, number>
+  ): Promise<void> {
+    for (const env of envelopes) {
+      assertSupportedProtocolVersion(env);
+    }
+    const sorted = [...envelopes].sort((a, b) => (seqs[a.id] ?? 0) - (seqs[b.id] ?? 0));
+    const workspaceId = await this.client.query<string>('getWorkspaceId', []);
+    const ops = sorted.map((env) =>
+      createOperation(
+        {
+          id: env.id,
+          workspaceId,
+          actorId: env.actorId,
+          hlc: env.hlc,
+          affectedNodeIds: env.affectedNodeIds,
+          opType: env.opType,
+        },
+        env.payload
+      )
+    );
+    await this.client.mutate('applyMany', [ops]);
+
+    let maxSeq = this.lastReceivedSeq;
+    let maxRecvHlc = this.lastReceivedHlc;
+    for (const env of envelopes) {
+      const seq = seqs[env.id];
+      if (seq !== undefined && seq > maxSeq) maxSeq = seq;
+      if (compareHlc(env.hlc, maxRecvHlc) > 0) maxRecvHlc = env.hlc;
+    }
+    if (maxSeq > this.lastReceivedSeq) {
+      this.lastReceivedSeq = maxSeq;
+      await this.saveSeqCursor(maxSeq);
+    }
+    if (compareHlc(maxRecvHlc, this.lastReceivedHlc) > 0) {
+      this.lastReceivedHlc = maxRecvHlc;
+      await this.saveWatermark(maxRecvHlc, 'received');
+    }
+    await this.reportOutboxCounts();
+  }
+
   private async sendBatchViaSend(envelopes: OperationEnvelope[]): Promise<{ savedIds: string[] }> {
     const savedIds: string[] = [];
     for (const envelope of envelopes) {
@@ -366,6 +500,18 @@ export class SyncEngine {
   }
 
   async pull(options: { ignoreSnapshot?: boolean; skipSnapshotUpload?: boolean } = {}): Promise<void> {
+    // Realtime frames are buffered while a pull runs so the pull's seq cursor
+    // cannot regress past frames already applied; they drain in the finally.
+    this.pullInFlight = true;
+    try {
+      await this.pullInternal(options);
+    } finally {
+      this.pullInFlight = false;
+      this.drainWsBuffer();
+    }
+  }
+
+  private async pullInternal(options: { ignoreSnapshot?: boolean; skipSnapshotUpload?: boolean } = {}): Promise<void> {
     await this.ensureWatermarksLoaded();
 
     this.reportPhase('fetching-snapshot', 'Fetching latest snapshot…');

@@ -605,3 +605,110 @@ describe('SyncEngine outbox status + quarantine recovery', () => {
   });
 
 });
+
+
+describe('SyncEngine realtime (relay WebSocket)', () => {
+  class FakeSocket {
+    static instances: FakeSocket[] = [];
+    readyState = 0;
+    onopen: ((event: Event) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onerror: ((event: Event) => void) | null = null;
+    onclose: ((event: CloseEvent) => void) | null = null;
+    close = vi.fn();
+
+    constructor(public url: string) {
+      FakeSocket.instances.push(this);
+    }
+
+    emitOpen(): void {
+      this.onopen?.(new Event('open'));
+    }
+
+    emitMessage(frame: unknown): void {
+      this.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent);
+    }
+  }
+
+  function lastSocket(): FakeSocket {
+    const socket = FakeSocket.instances.at(-1);
+    if (!socket) throw new Error('no socket created');
+    return socket;
+  }
+
+  async function createStoreAndEngine(workspaceId: string, actor: string, relay: MemoryRelay) {
+    const db = await createTestDatabase();
+    const store = new WorkspaceStore(db, workspaceId, actor);
+    const client = await createClientFromStore(store);
+    const engine = new SyncEngine(client, new MemoryTransport(relay, workspaceId));
+    return { store, client, engine };
+  }
+
+  it('applies live ops frames and advances the seq cursor', async () => {
+    FakeSocket.instances = [];
+    const workspaceId = uuidv7();
+    const relay = new MemoryRelay();
+    const { store: storeA, client: clientA, engine: engineA } = await createStoreAndEngine(workspaceId, uuidv7(), relay);
+    const { store: storeB, engine: engineB } = await createStoreAndEngine(workspaceId, uuidv7(), relay);
+
+    // B commits an op to the relay.
+    const nodeId = uuidv7();
+    storeB.createNode({ nodeId, kind: 'page', parentId: null });
+    await engineB.push();
+    const envelopes = relay.catchUp(workspaceId, 0).envelopes;
+
+    engineA.startRealtime({
+      workspaceId,
+      baseUrl: 'http://localhost:8001',
+      createSocket: (url) => new FakeSocket(url),
+    });
+    const socket = lastSocket();
+    socket.emitOpen();
+    // hello says we are NOT behind (cursor 0 == latestSeq 0 in this harness),
+    // then a live frame delivers B's batch with its server seqs.
+    socket.emitMessage({ type: 'hello', protocolVersion: 2, restoreEpoch: 0, latestSeq: 0 });
+    socket.emitMessage({
+      type: 'ops',
+      protocolVersion: 2,
+      envelopes,
+      seqs: { [envelopes[0].id]: 7 },
+    });
+
+    await vi.waitFor(() => {
+      expect(storeA.getNode(nodeId)).toBeDefined();
+    });
+    const watermarks = await clientA.query<{ receivedSeq: number }>('loadWatermarks', []);
+    expect(watermarks.receivedSeq).toBe(7);
+
+    engineA.stopRealtime();
+  });
+
+  it('catches up over HTTP when hello.latestSeq is ahead of the cursor', async () => {
+    FakeSocket.instances = [];
+    const workspaceId = uuidv7();
+    const relay = new MemoryRelay();
+    const { store: storeA, engine: engineA } = await createStoreAndEngine(workspaceId, uuidv7(), relay);
+    const { store: storeB, engine: engineB } = await createStoreAndEngine(workspaceId, uuidv7(), relay);
+
+    const nodeId = uuidv7();
+    storeB.createNode({ nodeId, kind: 'page', parentId: null });
+    await engineB.push();
+
+    engineA.startRealtime({
+      workspaceId,
+      baseUrl: 'http://localhost:8001',
+      createSocket: (url) => new FakeSocket(url),
+    });
+    const socket = lastSocket();
+    socket.emitOpen();
+    // hello reports the server is ahead: the engine must run an HTTP catch-up
+    // (the seq cursor is authoritative, not the live stream).
+    socket.emitMessage({ type: 'hello', protocolVersion: 2, restoreEpoch: 0, latestSeq: 50 });
+
+    await vi.waitFor(() => {
+      expect(storeA.getNode(nodeId)).toBeDefined();
+    });
+
+    engineA.stopRealtime();
+  });
+});
