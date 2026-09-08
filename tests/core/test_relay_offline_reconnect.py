@@ -16,7 +16,6 @@ from app.core.sync import SyncEngine
 from app.core.transport import MemoryRelay, MemoryTransport
 from app.core.workspace_store import WorkspaceStore
 from app.relay.storage import SqliteRelayStorage
-from tests.core.fakes import FakeKeyStorage
 
 pytestmark = pytest.mark.unit
 
@@ -31,7 +30,6 @@ def _make_store(actor_id: str) -> WorkspaceStore:
         actor_id=actor_id,
         db_path=":memory:",
         relay_storage=SqliteRelayStorage(":memory:"),
-        key_storage=FakeKeyStorage(),
     )
 
 

@@ -1057,8 +1057,16 @@ class PostgresRelayStorage(RelayStorage):
     ) -> tuple[str, int]:
         if conn is None:
             pool = await self._get_pool()
-            async with acquire_connection(pool) as owned_conn:
+            async with acquire_connection(pool) as owned_conn, owned_conn.transaction():
                 return await self.create_snapshot(workspace_id, up_to_hlc, data=data, conn=owned_conn)
+        # Serialize against concurrent envelope inserts so the recorded
+        # up_to_seq cannot skip an op that commits between the MAX(seq) read
+        # below and the snapshot INSERT. SHARE ROW EXCLUSIVE conflicts with
+        # the ROW EXCLUSIVE lock taken by INSERT, so envelope writes wait
+        # until this transaction commits. Snapshots are rare and the critical
+        # section is only a few statements. No-op when the caller already
+        # holds the lock in this transaction (e.g. compaction).
+        await conn.execute("LOCK TABLE relay_envelope IN SHARE ROW EXCLUSIVE MODE")
         if not data:
             segment_count = await conn.fetchval(
                 "SELECT COUNT(*) FROM compacted_operation_segment WHERE workspace_id = $1",

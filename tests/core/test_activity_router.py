@@ -24,15 +24,6 @@ from app.relay.storage import SqliteRelayStorage
 pytestmark = pytest.mark.unit
 
 
-class FixedKeyStorage:
-    """In-memory key storage that returns a fixed 32-byte master key."""
-
-    async def get_or_create_master_key(
-        self, workspace_id: str, secret_key: str
-    ) -> bytes:
-        return b"0" * 32
-
-
 async def _make_test_store(
     workspace_id: str = "ws-uuid-1",
     actor_id: str = "actor-1",
@@ -42,7 +33,6 @@ async def _make_test_store(
         actor_id=actor_id,
         relay_storage=SqliteRelayStorage(":memory:"),
         db_path=":memory:",
-        key_storage=FixedKeyStorage(),
     )
 
 
@@ -137,9 +127,7 @@ class TestNodeActivity:
         await store.record_activity(activity_id, "page-uuid-1", "edited")
         await store.sync()
 
-        delete_response = await activity_client.delete(
-            f"/activity/node/page-uuid-1/{activity_id}"
-        )
+        delete_response = await activity_client.delete(f"/activity/node/page-uuid-1/{activity_id}")
         assert delete_response.status_code == 200
         assert delete_response.json() == {"success": True}
 
@@ -200,9 +188,7 @@ class TestLinkClicks:
         await store.record_link_click("source-uuid-1", "target-uuid-1")
         await store.sync()
 
-        response = await activity_client.get(
-            "/activity/link/click/source-uuid-1/target-uuid-1"
-        )
+        response = await activity_client.get("/activity/link/click/source-uuid-1/target-uuid-1")
         assert response.status_code == 200
         body = response.json()
         assert body["click_count"] == 1

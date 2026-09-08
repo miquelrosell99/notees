@@ -108,7 +108,8 @@ Known op types at protocol version 1: `node.create`, `node.delete`,
 ## 4. HTTP endpoints
 
 Base path: `/api/relay`. Authentication is the session JWT (HTTPOnly cookie
-or `Authorization: Bearer`); the frontend also sends an `X-Actor-Id` header.
+or `Authorization: Bearer`). Actor identity is derived from the authenticated
+principal only; a caller-supplied `X-Actor-Id` header is never trusted.
 Request/response bodies below are snake_case unless they contain envelopes
 (envelopes are camelCase, §1). Fixtures: `protocol/fixtures/`.
 
@@ -123,9 +124,10 @@ Response 200: `{"saved_count": int, "saved_ids": [string, ...]}`.
 Duplicate ids are silently ignored (idempotent retry-safe).
 
 Errors: 401 unauthenticated, 403 no write permission, 422 validation
-(unknown op type, negative HLC, batch/size limits §6).
+(unknown op type, negative HLC, batch/size limits §6), 429 rate limited.
 
-Rate limit: 30,000 envelopes/minute per actor+workspace.
+Rate limit: 30,000 envelopes/minute per actor+workspace, charged per
+envelope (not per request).
 
 ### 4.2 `POST /catch-up`
 
@@ -167,11 +169,16 @@ Rate limit: 600 requests/minute per actor+workspace.
 
 Return the newest snapshot (a serialized derived-state SQLite database).
 
-Query parameters: `workspace_id` (required), `share_token` (optional),
+Query parameters: `workspace_id` (required),
 `include_data` (optional, default `true`). With `include_data=false` the
 response carries only the snapshot metadata — `data_base64` is empty and the
 server does not read the blob from storage. Clients use this to probe whether
 the snapshot is newer than their local watermark before downloading it.
+
+Snapshots contain the full derived database for the workspace, so they are
+served to authenticated workspace members only. Public share tokens are not
+accepted here: share readers use node-filtered catch-up (§4.2) instead of a
+full-workspace download.
 
 Response 200 (`LatestSnapshotResponse`):
 
@@ -187,9 +194,12 @@ cursor (`after_seq = up_to_seq`). `up_to_seq` is `null` only for snapshots
 recorded before the seq cursor existed; in that case clients catch up from
 `after_seq = 0` and rely on operation-id dedupe.
 
+Rate limit: 60 requests/minute per actor+workspace.
+
 ### 4.4 `POST /snapshot`
 
 Upload/create a snapshot. Owner or admin only.
+Rate limit: 30 requests/minute per actor+workspace (shared with §4.5).
 
 Request (`SnapshotRequest`) — `protocol/fixtures/snapshot-request.json`:
 `{"workspace_id": str, "up_to_hlc": {physical, logical}, "data_base64": str}`
@@ -206,6 +216,7 @@ seq cursor.
 
 Compact envelopes up to an HLC into a snapshot segment and optionally prune
 them. Owner or admin only.
+Rate limit: 30 requests/minute per actor+workspace (shared with §4.4).
 
 Request (`CompactRequest`): `{"workspace_id": str, "up_to_hlc": {...},
 "prune": bool = true, "data_base64": str}`. `data_base64` must be non-empty
@@ -215,6 +226,8 @@ Response 200 (`CompactResponse`): `{"snapshot_id": str, "segment_id": str,
 "workspace_id": str, "up_to_hlc": {...}, "operation_count": int}`
 
 ### 4.6 `GET /stats?workspace_id=...`
+
+Rate limit: 120 requests/minute per actor+workspace.
 
 Response 200 (`RelayStatsResponse`):
 
@@ -229,6 +242,7 @@ Response 200 (`RelayStatsResponse`):
 
 `GET /api/relay/ws/{workspace_id}` (upgraded). Same auth as HTTP; anonymous
 connections and actors without read access are closed with code 1008.
+Connection attempts are rate limited to 60/minute per actor+workspace.
 
 All server→client frames are **typed messages** — receivers must dispatch on
 `type` and must not shape-sniff. Message protocol (JSON text frames):
@@ -274,7 +288,7 @@ catch-up compatibility for older clients is unaffected. Control messages
 - `MAX_BATCH_SIZE = 1000` envelopes per batch (`BatchRequest`).
 - `MAX_ENVELOPE_SIZE_BYTES = 1 MB` per envelope payload (serialized JSON).
 - Catch-up page size: default 1000, server clamp [1, 10,000].
-- Rate limits: see §4.1 / §4.2.
+- Rate limits: see §4.1–§4.6 and §5.
 
 ## 7. Versioning policy
 
