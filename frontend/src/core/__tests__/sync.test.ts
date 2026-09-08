@@ -617,7 +617,10 @@ describe('SyncEngine realtime (relay WebSocket)', () => {
     onclose: ((event: CloseEvent) => void) | null = null;
     close = vi.fn();
 
-    constructor(public url: string) {
+    readonly url: string;
+
+    constructor(url: string) {
+      this.url = url;
       FakeSocket.instances.push(this);
     }
 

@@ -113,7 +113,7 @@ describe('HttpTransport E2EE', () => {
     const envelope = makeEnvelope();
     const seenBodies: string[] = [];
     const mockFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-      if (typeof url === 'string' && url.includes('/api/relay/batch')) {
+      if (url.includes('/api/relay/batch')) {
         seenBodies.push(init?.body as string);
         return new Response(JSON.stringify({ saved_count: 1, saved_ids: [envelope.id] }), { status: 200 });
       }
@@ -158,7 +158,7 @@ describe('HttpTransport E2EE', () => {
 
     const plaintextDbBytes = new TextEncoder().encode('SQLite format 3\0fake-db-bytes');
     const seen: string[] = [];
-    const mockFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+    const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         seen.push(init.body as string);
         return new Response(JSON.stringify({ snapshot_id: 's1' }), { status: 200 });

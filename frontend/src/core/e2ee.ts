@@ -87,13 +87,20 @@ export function readWrappedKeySalt(wrapped: string): string | null {
   }
 }
 
+function asBufferSource(bytes: Uint8Array): BufferSource {
+  // TS 5.7 types Uint8Array as Uint8Array<ArrayBufferLike>, which is not
+  // assignable to BufferSource (SharedArrayBuffer is excluded). Copy into a
+  // freshly allocated ArrayBuffer-backed view.
+  return new Uint8Array(bytes);
+}
+
 /** Unwrap a wrapped blob with the passphrase-derived KEK. */
 export async function unwrapWorkspaceKey(wrapped: string, kek: CryptoKey): Promise<CryptoKey> {
   const parsed = JSON.parse(wrapped) as { wk?: string };
   if (typeof parsed.wk !== 'string') throw new Error('Invalid wrapped workspace key blob');
   const packed = fromBase64(parsed.wk);
-  const iv = packed.subarray(0, IV_BYTES);
-  const ct = packed.subarray(IV_BYTES);
+  const iv = asBufferSource(packed.subarray(0, IV_BYTES));
+  const ct = asBufferSource(packed.subarray(IV_BYTES));
   const raw = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, ct);
   return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, true, [
     'encrypt',
@@ -109,8 +116,8 @@ export async function encryptPayload(key: CryptoKey, payload: unknown): Promise<
 }
 
 export async function decryptPayload(key: CryptoKey, payload: EncryptedPayload): Promise<unknown> {
-  const iv = fromBase64(payload.$e.iv);
-  const ct = fromBase64(payload.$e.ct);
+  const iv = asBufferSource(fromBase64(payload.$e.iv));
+  const ct = asBufferSource(fromBase64(payload.$e.ct));
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
   return JSON.parse(new TextDecoder().decode(plain));
 }
@@ -133,9 +140,9 @@ export async function encryptBytes(key: CryptoKey, data: Uint8Array): Promise<Ui
 }
 
 export async function decryptBytes(key: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
-  const iv = data.subarray(0, IV_BYTES);
-  const ct = data.subarray(IV_BYTES);
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct as BufferSource);
+  const iv = asBufferSource(data.subarray(0, IV_BYTES));
+  const ct = asBufferSource(data.subarray(IV_BYTES));
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
   return new Uint8Array(plain);
 }
 

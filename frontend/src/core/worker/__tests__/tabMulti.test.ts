@@ -55,12 +55,14 @@ class FakeLockManager {
 class FakeChannel implements ChannelLike {
   private static hubs = new Map<string, Set<FakeChannel>>();
   private readonly listeners = new Set<(event: MessageEvent) => void>();
+  private readonly name: string;
 
   static reset(): void {
     FakeChannel.hubs = new Map();
   }
 
-  constructor(private readonly name: string) {
+  constructor(name: string) {
+    this.name = name;
     const set = FakeChannel.hubs.get(name) ?? new Set();
     set.add(this);
     FakeChannel.hubs.set(name, set);
