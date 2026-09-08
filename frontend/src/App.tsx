@@ -450,8 +450,26 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
             s.setStatus('syncing');
           } else if (status === 'error') {
             s.setStatus('error', { lastError: error?.message ?? 'Sync error' });
+          } else if (!navigator.onLine) {
+            s.setStatus('offline');
+          } else if (s.pendingCount > 0) {
+            // The engine is idle but the outbox still has undispatched ops
+            // (e.g. waiting on backoff) — don't claim "all saved".
+            s.setStatus('syncing');
           } else {
             s.setStatus('synced');
+          }
+        },
+        onOutboxCounts: (counts) => {
+          const s = useSyncStatusStore.getState();
+          const failed = counts.failed + counts.quarantined;
+          s.setOutboxCounts(counts.pending, failed);
+          // Quarantined ops exhausted their retries and are stuck until the
+          // user retries them — that is an error state, not "all saved".
+          if (counts.quarantined > 0) {
+            s.setStatus('error', {
+              lastError: `${counts.quarantined} change${counts.quarantined === 1 ? '' : 's'} could not be sent. Open sync status to retry.`,
+            });
           }
         },
         onPullProgress: (p) => {
@@ -510,6 +528,23 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
       }
     };
   }, [workspaceId, actorId, workspaceResetNonce, retryNonce, authVerified, isLocalSession]);
+
+  // Reflect browser connectivity in the sync status. The visibility-sync
+  // registration handles re-syncing on 'online'; this only drives the status.
+  useEffect(() => {
+    const handleOffline = (): void => {
+      useSyncStatusStore.getState().setStatus('offline');
+    };
+    const handleOnline = (): void => {
+      useSyncStatusStore.getState().setStatus('syncing');
+    };
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
 
   const isWaitingForWorkspaces = !!user && authVerified && isLoadingWorkspaces;
   const isReady =
