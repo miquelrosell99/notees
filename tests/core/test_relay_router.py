@@ -404,3 +404,30 @@ def test_batch_rate_limit_counts_envelopes_not_requests(
         json={"envelopes": [_envelope(f"op-b{i}").model_dump(by_alias=True, mode="json") for i in range(3)]},
     )
     assert second.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_receive_batch_checks_permissions_once_per_batch(
+    storage: RelayStorage,
+) -> None:
+    """The write permission check runs once per batch, not per envelope."""
+    batch_calls: list[int] = []
+
+    class CountingChecker(StubPermissionChecker):
+        async def can_write_batch(
+            self,
+            workspace_id: str,
+            actor_id: str,
+            affected_node_ids_batch: list[list[str]],
+        ) -> bool:
+            batch_calls.append(len(affected_node_ids_batch))
+            return True
+
+    service = RelayService(storage, CountingChecker())
+    envelopes = [_envelope(f"op-{i}") for i in range(10)]
+    batch = type("Batch", (), {"envelopes": envelopes})()
+
+    saved = await service.receive_batch(batch, "actor-1")
+
+    assert len(saved) == 10
+    assert batch_calls == [10]
