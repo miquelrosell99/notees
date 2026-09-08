@@ -55,6 +55,15 @@ import {
 import { Button } from '@/components/ui/Button';
 import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
 import {
+  getWorkspaceKey,
+  registerWorkspaceKey,
+  setWorkspaceE2eeEnabled,
+  unwrapWorkspaceKey,
+} from '@/core/e2ee';
+import { fetchEncryptionKeyRecord } from '@/core/e2eeApi';
+import { useEncryptionStore } from '@/stores/encryptionStore';
+import { E2eeUnlockModal } from '@/features/sync/components/E2eeUnlockModal';
+import {
   useSyncStatusStore,
   DEFAULT_PROGRESS,
   SyncConflictListener,
@@ -375,6 +384,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
   const [readyWorkspaceId, setReadyWorkspaceId] = useState<string | null>(null);
   const [initError, setInitError] = useState<Error | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [e2eeGateWorkspace, setE2eeGateWorkspace] = useState<string | null>(null);
   const [phaseMessage, setPhaseMessage] = useState<string>('Loading workspaces…');
   const unregisterVisibilityRef = useRef<(() => void) | null>(null);
   const isInitializing = useSyncStatusStore((s) =>
@@ -429,11 +439,49 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
 
     let cancelled = false;
     setInitError(null);
+    setE2eeGateWorkspace(null);
     setPhaseMessage('Loading workspaces…');
     const transport = createHttpTransport(workspaceId, actorId);
 
     useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, true);
-    getOrCreateWorkspaceStore(workspaceId, actorId, transport, {
+    void (async () => {
+      // E2EE gate (SPEC §8): discover the workspace encryption record before
+      // opening. An enabled workspace whose key is not in memory blocks on
+      // the unlock modal instead of syncing plaintext or ciphertext garbage.
+      if (!isLocalSession) {
+        try {
+          const record = await fetchEncryptionKeyRecord(workspaceId);
+          if (cancelled) return;
+          if (record.enabled && record.wrappedKey) {
+            setWorkspaceE2eeEnabled(workspaceId, true);
+            if (!getWorkspaceKey(workspaceId)) {
+              // Try a previously derived KEK on this device before prompting.
+              const kek = useEncryptionStore.getState().getKey(workspaceId);
+              let unlocked = false;
+              if (kek) {
+                try {
+                  registerWorkspaceKey(workspaceId, await unwrapWorkspaceKey(record.wrappedKey, kek));
+                  unlocked = true;
+                } catch {
+                  // Device KEK is stale; fall through to the unlock modal.
+                }
+              }
+              if (!unlocked) {
+                useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
+                setE2eeGateWorkspace(workspaceId);
+                return;
+              }
+            }
+          } else {
+            setWorkspaceE2eeEnabled(workspaceId, false);
+          }
+        } catch {
+          // Record fetch failed (offline, pre-E2EE server): proceed; an
+          // actually encrypted workspace fails loud at the transport boundary.
+        }
+      }
+      if (cancelled) return;
+      getOrCreateWorkspaceStore(workspaceId, actorId, transport, {
       // Local-mode seed uses the session's display name for the user page.
       // Read imperatively: the name is fixed for a session and must not
       // retrigger workspace init.
@@ -527,6 +575,7 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
           useSyncStatusStore.getState().setWorkspaceInitializing(workspaceId, false);
         }
       });
+    })();
 
     return () => {
       cancelled = true;
@@ -630,6 +679,15 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
 
   return (
     <>
+      {e2eeGateWorkspace && (
+        <E2eeUnlockModal
+          workspaceId={e2eeGateWorkspace}
+          onUnlocked={() => {
+            setE2eeGateWorkspace(null);
+            setRetryNonce((n) => n + 1);
+          }}
+        />
+      )}
       {shouldRenderChildren &&
         (ctx ? (
           <WorkspaceStoreProvider actorId={ctx.actorId} transport={ctx.transport}>

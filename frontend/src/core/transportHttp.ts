@@ -1,9 +1,24 @@
 import type { Hlc } from './clock';
 import type { OperationEnvelope } from './crypto';
 import type { CatchUpPage, SnapshotEnvelope, SendBatchResult, Transport } from './transport';
+import {
+  decryptBytes,
+  decryptEnvelopePayload,
+  encryptBytes,
+  encryptEnvelopePayload,
+  getWorkspaceKey,
+  isEncryptedPayload,
+  isWorkspaceE2eeEnabled,
+} from './e2ee';
 import { getServerUrl } from '@/config/serverUrl';
 
 const REQUEST_TIMEOUT_MS = 60_000;
+
+const LOCKED_WORKSPACE_ERROR =
+  'Workspace is end-to-end encrypted and locked: enter the encryption passphrase to sync.';
+
+/** SQLite database files start with this magic string; ciphertext never does. */
+const SQLITE_MAGIC = 'SQLite format 3\0';
 
 // Snapshot upload is best-effort and uses JSON-in-base64. Very large snapshots
 // can exceed browser string allocation limits during JSON.stringify, so skip
@@ -69,6 +84,18 @@ export class HttpTransport implements Transport {
     this.baseUrl = (baseUrl ?? getServerUrl() ?? '').replace(/\/$/, '');
   }
 
+  /**
+   * Resolve the workspace key for an E2EE-enabled workspace, or undefined
+   * for a plaintext workspace. A locked workspace (enabled, no key in
+   * memory) fails loud rather than silently downgrading to plaintext.
+   */
+  private requireKey(): CryptoKey | undefined {
+    if (!isWorkspaceE2eeEnabled(this.workspaceId)) return undefined;
+    const key = getWorkspaceKey(this.workspaceId);
+    if (!key) throw new Error(LOCKED_WORKSPACE_ERROR);
+    return key;
+  }
+
   async send(envelope: OperationEnvelope): Promise<SendBatchResult> {
     return this.sendBatch([envelope]);
   }
@@ -76,13 +103,18 @@ export class HttpTransport implements Transport {
   async sendBatch(envelopes: OperationEnvelope[]): Promise<SendBatchResult> {
     if (envelopes.length === 0) return { savedIds: [] };
 
+    const key = this.requireKey();
+    const outgoing = key
+      ? await Promise.all(envelopes.map((envelope) => encryptEnvelopePayload(key, envelope)))
+      : envelopes;
+
     const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       credentials: 'include',
-      body: JSON.stringify({ envelopes }),
+      body: JSON.stringify({ envelopes: outgoing }),
     });
 
     if (response.status === 403) {
@@ -133,8 +165,16 @@ export class HttpTransport implements Transport {
       next_after_seq: number | null;
       has_more: boolean;
     };
+    let envelopes = data.envelopes ?? [];
+    if (envelopes.some((envelope) => isEncryptedPayload(envelope.payload))) {
+      const key = getWorkspaceKey(this.workspaceId);
+      if (!key) throw new Error(LOCKED_WORKSPACE_ERROR);
+      envelopes = await Promise.all(
+        envelopes.map((envelope) => decryptEnvelopePayload(key, envelope))
+      );
+    }
     return {
-      envelopes: data.envelopes ?? [],
+      envelopes,
       nextAfterSeq: data.next_after_seq ?? null,
       hasMore: data.has_more ?? false,
     };
@@ -175,7 +215,7 @@ export class HttpTransport implements Transport {
       snapshotId: data.snapshot_id,
       workspaceId: data.workspace_id,
       hlc: data.hlc,
-      data: includeData && data.has_snapshot ? base64ToUint8Array(data.data_base64) : new Uint8Array(0),
+      data: includeData && data.has_snapshot ? await this.decodeSnapshot(data.data_base64) : new Uint8Array(0),
       restoreEpoch: data.restore_epoch ?? 0,
       hasSnapshot: data.has_snapshot,
       // Null for snapshots recorded before the seq cursor existed; the sync
@@ -184,8 +224,30 @@ export class HttpTransport implements Transport {
     };
   }
 
+  /** Decode a downloaded snapshot blob, decrypting when E2EE is enabled. */
+  private async decodeSnapshot(dataBase64: string): Promise<Uint8Array> {
+    const bytes = base64ToUint8Array(dataBase64);
+    if (!isWorkspaceE2eeEnabled(this.workspaceId) || bytes.length === 0) return bytes;
+    // Snapshots written before E2EE was enabled are plaintext; pass them
+    // through (ciphertext never starts with the SQLite magic string).
+    const header = new TextDecoder().decode(bytes.subarray(0, SQLITE_MAGIC.length));
+    if (header === SQLITE_MAGIC) return bytes;
+    const key = getWorkspaceKey(this.workspaceId);
+    if (!key) throw new Error(LOCKED_WORKSPACE_ERROR);
+    return decryptBytes(key, bytes);
+  }
+
   async uploadSnapshot(snapshot: SnapshotEnvelope): Promise<void> {
-    if (snapshot.data.length > MAX_SNAPSHOT_UPLOAD_BYTES) {
+    let data = snapshot.data;
+    if (isWorkspaceE2eeEnabled(this.workspaceId)) {
+      const key = getWorkspaceKey(this.workspaceId);
+      if (!key) {
+        // Locked: snapshot upload is best-effort; skip rather than fail sync.
+        return;
+      }
+      data = await encryptBytes(key, data);
+    }
+    if (data.length > MAX_SNAPSHOT_UPLOAD_BYTES) {
       // Avoid "allocation size overflow" and similar errors when the derived
       // database is too large to serialize into a JSON body in this browser.
       return;
@@ -200,7 +262,7 @@ export class HttpTransport implements Transport {
       body: JSON.stringify({
         workspace_id: snapshot.workspaceId,
         up_to_hlc: snapshot.hlc,
-        data_base64: uint8ArrayToBase64(snapshot.data),
+        data_base64: uint8ArrayToBase64(data),
       }),
     });
 
