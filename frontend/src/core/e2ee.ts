@@ -247,6 +247,12 @@ export function getLatestKeyVersion(workspaceId: string): number | null {
   return Math.max(...ring.keys());
 }
 
+/** All registered key versions for a workspace (ascending). */
+export function getWorkspaceKeyVersions(workspaceId: string): number[] {
+  const ring = workspaceKeyRings.get(workspaceId);
+  return ring ? Array.from(ring.keys()).sort((a, b) => a - b) : [];
+}
+
 export function clearWorkspaceKey(workspaceId: string): void {
   workspaceKeyRings.delete(workspaceId);
 }
