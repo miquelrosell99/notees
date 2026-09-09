@@ -89,7 +89,7 @@ describe('e2ee crypto core', () => {
     const data = new Uint8Array([1, 2, 3, 250, 251, 252]);
     const encrypted = await encryptBytes(wk, data);
     expect(encrypted).not.toEqual(data);
-    expect(Array.from(await decryptBytes(wk, encrypted))).toEqual(Array.from(data));
+    expect(Array.from(await decryptBytes(encrypted, () => wk))).toEqual(Array.from(data));
   });
 
   it('stamps protocolVersion 2 on encrypted envelopes', async () => {

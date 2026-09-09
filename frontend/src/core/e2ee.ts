@@ -26,7 +26,7 @@ const PAYLOAD_MARKER = '$e';
 const IV_BYTES = 12;
 
 export interface EncryptedPayload {
-  $e: { iv: string; ct: string };
+  $e: { iv: string; ct: string; kv?: number };
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -54,7 +54,6 @@ export function isEncryptedPayload(payload: unknown): payload is EncryptedPayloa
     typeof (payload as EncryptedPayload).$e?.ct === 'string'
   );
 }
-
 /** Generate a fresh random workspace key. */
 export async function generateWorkspaceKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
@@ -108,11 +107,17 @@ export async function unwrapWorkspaceKey(wrapped: string, kek: CryptoKey): Promi
   ]);
 }
 
-export async function encryptPayload(key: CryptoKey, payload: unknown): Promise<EncryptedPayload> {
+export async function encryptPayload(
+  key: CryptoKey,
+  payload: unknown,
+  keyVersion = 1
+): Promise<EncryptedPayload> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const encoded = new TextEncoder().encode(JSON.stringify(payload));
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
-  return { $e: { iv: toBase64(iv), ct: toBase64(new Uint8Array(ct)) } };
+  const marker: EncryptedPayload['$e'] = { iv: toBase64(iv), ct: toBase64(new Uint8Array(ct)) };
+  if (keyVersion > 1) marker.kv = keyVersion;
+  return { $e: marker };
 }
 
 export async function decryptPayload(key: CryptoKey, payload: EncryptedPayload): Promise<unknown> {
@@ -123,23 +128,54 @@ export async function decryptPayload(key: CryptoKey, payload: EncryptedPayload):
 }
 
 /**
- * Encrypt snapshot bytes: raw layout iv || ciphertext (no JSON/base64 —
- * snapshots are already opaque bytes on the wire).
+ * Encrypt snapshot bytes. Format v2: UTF-8 JSON `{v, kv, iv, ct}` so the key
+ * version travels with the blob (rotation keeps history decryptable) and the
+ * SQLite-magic plaintext check keeps working (JSON never starts with it).
  */
-export async function encryptBytes(key: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
+export async function encryptBytes(
+  key: CryptoKey,
+  data: Uint8Array,
+  keyVersion = 1
+): Promise<Uint8Array> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const ct = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    data as unknown as BufferSource
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, asBufferSource(data));
+  return new TextEncoder().encode(
+    JSON.stringify({ v: 2, kv: keyVersion, iv: toBase64(iv), ct: toBase64(new Uint8Array(ct)) })
   );
-  const packed = new Uint8Array(IV_BYTES + ct.byteLength);
-  packed.set(iv, 0);
-  packed.set(new Uint8Array(ct), IV_BYTES);
-  return packed;
 }
 
-export async function decryptBytes(key: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
+/**
+ * Decrypt snapshot bytes. ``resolveKey`` maps a key version to a CryptoKey
+ * (return undefined for unknown versions). Reads both the v2 JSON format and
+ * the raw ``iv || ct`` format written by the first E2EE cut (always kv=1).
+ */
+export async function decryptBytes(
+  data: Uint8Array,
+  resolveKey: (keyVersion: number) => CryptoKey | undefined
+): Promise<Uint8Array> {
+  if (data[0] === 0x7b) {
+    // '{' — v2 JSON header.
+    const parsed = JSON.parse(new TextDecoder().decode(data)) as {
+      v?: number;
+      kv?: number;
+      iv?: string;
+      ct?: string;
+    };
+    if (parsed.v === 2 && parsed.iv && parsed.ct) {
+      const key = resolveKey(parsed.kv ?? 1);
+      if (!key) throw new Error(`No workspace key for key version ${parsed.kv ?? 1}`);
+      const plain = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: asBufferSource(fromBase64(parsed.iv)) },
+        key,
+        asBufferSource(fromBase64(parsed.ct))
+      );
+      return new Uint8Array(plain);
+    }
+    // Not a v2 header despite the leading brace — fall through to raw.
+  }
+  // Raw iv || ct (first E2EE cut).
+  const key = resolveKey(1);
+  if (!key) throw new Error('No workspace key for key version 1');
   const iv = asBufferSource(data.subarray(0, IV_BYTES));
   const ct = asBufferSource(data.subarray(IV_BYTES));
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
@@ -149,12 +185,13 @@ export async function decryptBytes(key: CryptoKey, data: Uint8Array): Promise<Ui
 /** Encrypt an envelope's payload and mark it protocolVersion 2. */
 export async function encryptEnvelopePayload(
   key: CryptoKey,
-  envelope: OperationEnvelope
+  envelope: OperationEnvelope,
+  keyVersion = 1
 ): Promise<OperationEnvelope> {
   return {
     ...envelope,
     protocolVersion: PROTOCOL_VERSION_ENCRYPTED,
-    payload: await encryptPayload(key, envelope.payload),
+    payload: await encryptPayload(key, envelope.payload, keyVersion),
   };
 }
 
@@ -170,21 +207,48 @@ export async function decryptEnvelopePayload(
   };
 }
 
-// ─── In-memory workspace key registry ───────────────────────────────────────
+// ─── Key ring (rotation-aware) ──────────────────────────────────────────────
+//
+// Per workspace, a map of keyVersion → CryptoKey. Rotations (member removal)
+// add a new version; history stays readable with older versions. Envelope
+// markers carry `kv` when the version is > 1; snapshots are encrypted with
+// the latest version.
 
-const workspaceKeys = new Map<string, CryptoKey>();
+const workspaceKeyRings = new Map<string, Map<number, CryptoKey>>();
 const enabledWorkspaces = new Set<string>();
 
-export function registerWorkspaceKey(workspaceId: string, key: CryptoKey): void {
-  workspaceKeys.set(workspaceId, key);
+/** Register a workspace key; version 1 is the initial/passphrase-era key. */
+export function registerWorkspaceKey(workspaceId: string, key: CryptoKey, version = 1): void {
+  let ring = workspaceKeyRings.get(workspaceId);
+  if (!ring) {
+    ring = new Map();
+    workspaceKeyRings.set(workspaceId, ring);
+  }
+  ring.set(version, key);
 }
 
+/** The latest (current) workspace key, or undefined when locked. */
 export function getWorkspaceKey(workspaceId: string): CryptoKey | undefined {
-  return workspaceKeys.get(workspaceId);
+  const version = getLatestKeyVersion(workspaceId);
+  return version === null ? undefined : workspaceKeyRings.get(workspaceId)?.get(version);
+}
+
+/** The workspace key at a specific version (for decrypting history). */
+export function getWorkspaceKeyForVersion(
+  workspaceId: string,
+  version: number
+): CryptoKey | undefined {
+  return workspaceKeyRings.get(workspaceId)?.get(version);
+}
+
+export function getLatestKeyVersion(workspaceId: string): number | null {
+  const ring = workspaceKeyRings.get(workspaceId);
+  if (!ring || ring.size === 0) return null;
+  return Math.max(...ring.keys());
 }
 
 export function clearWorkspaceKey(workspaceId: string): void {
-  workspaceKeys.delete(workspaceId);
+  workspaceKeyRings.delete(workspaceId);
 }
 
 /**
@@ -202,4 +266,104 @@ export function setWorkspaceE2eeEnabled(workspaceId: string, enabled: boolean): 
 
 export function isWorkspaceE2eeEnabled(workspaceId: string): boolean {
   return enabledWorkspaces.has(workspaceId);
+}
+
+
+// ─── E2EE v2: per-member X25519 key wrapping ────────────────────────────────
+//
+// Each user has an X25519 identity keypair per device; the public key is
+// published server-side. The workspace owner wraps WK for each member:
+// ECDH(ownerPrivate, memberPublic) → AES-GCM. Rotation on member removal
+// creates a new WK (new key version) wrapped for remaining members only —
+// removed members keep old-version history (they had the key) but cannot
+// read new ops. v1 passphrase blobs ({v:1}) remain readable.
+
+export interface MemberWrappedKey {
+  v: 2;
+  /** Sender's X25519 public key (base64 raw) — the member derives the shared key from it. */
+  from: string;
+  iv: string;
+  ct: string;
+  /** Workspace key version this blob carries. */
+  kv: number;
+}
+
+export async function generateIdentityKeyPair(): Promise<CryptoKeyPair> {
+  return crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+}
+
+export async function exportPublicKey(key: CryptoKey): Promise<string> {
+  return toBase64(new Uint8Array(await crypto.subtle.exportKey('raw', key)));
+}
+
+export async function importPublicKey(base64: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey('raw', asBufferSource(fromBase64(base64)), { name: 'X25519' }, true, []);
+}
+
+export async function exportPrivateKey(key: CryptoKey): Promise<string> {
+  return toBase64(new Uint8Array(await crypto.subtle.exportKey('pkcs8', key)));
+}
+
+export async function importPrivateKey(base64: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey('pkcs8', asBufferSource(fromBase64(base64)), { name: 'X25519' }, true, [
+    'deriveBits',
+  ]);
+}
+
+async function deriveSharedKey(myPrivate: CryptoKey, theirPublic: CryptoKey): Promise<CryptoKey> {
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'X25519', public: theirPublic },
+    myPrivate,
+    256
+  );
+  return crypto.subtle.importKey('raw', bits, { name: 'AES-GCM', length: 256 }, false, [
+    'encrypt',
+    'decrypt',
+  ]);
+}
+
+/** Wrap WK for a member, signed by the sender's public key so the member can derive the shared key. */
+export async function wrapWorkspaceKeyForMember(
+  workspaceKey: CryptoKey,
+  myPrivateKey: CryptoKey,
+  myPublicKeyBase64: string,
+  theirPublicKeyBase64: string,
+  keyVersion: number
+): Promise<string> {
+  const theirPublic = await importPublicKey(theirPublicKeyBase64);
+  const shared = await deriveSharedKey(myPrivateKey, theirPublic);
+  const raw = await crypto.subtle.exportKey('raw', workspaceKey);
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, shared, raw);
+  const blob: MemberWrappedKey = {
+    v: 2,
+    from: myPublicKeyBase64,
+    iv: toBase64(iv),
+    ct: toBase64(new Uint8Array(ct)),
+    kv: keyVersion,
+  };
+  return JSON.stringify(blob);
+}
+
+/** Unwrap a member blob with my private key. Returns key + its version. */
+export async function unwrapWorkspaceKeyAsMember(
+  wrapped: string,
+  myPrivateKey: CryptoKey
+): Promise<{ key: CryptoKey; keyVersion: number }> {
+  const blob = JSON.parse(wrapped) as Partial<MemberWrappedKey>;
+  if (blob.v !== 2 || !blob.from || !blob.iv || !blob.ct || !blob.kv) {
+    throw new Error('Invalid member-wrapped workspace key blob');
+  }
+  const senderPublic = await importPublicKey(blob.from);
+  const shared = await deriveSharedKey(myPrivateKey, senderPublic);
+  const raw = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: asBufferSource(fromBase64(blob.iv)) },
+    shared,
+    asBufferSource(fromBase64(blob.ct))
+  );
+  const key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, true, [
+    'encrypt',
+    'decrypt',
+  ]);
+  return { key, keyVersion: blob.kv };
 }
