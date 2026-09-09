@@ -385,28 +385,52 @@ Workspaces opt into E2EE individually. The model:
   payload). Plaintext envelopes stay at version 1, so older clients keep
   working on plaintext workspaces and **fail loud** (§7) exactly when they
   meet an encrypted envelope. Clients accept versions ≤ 2.
-- **Encrypted snapshots** are raw `iv || ciphertext` bytes (no JSON/base64
-  wrapper) — the blob is opaque to the server either way. Snapshots written
-  before E2EE was enabled are plaintext and pass through (detected by the
-  SQLite magic header).
+- **Encrypted snapshots** are self-describing bytes: UTF-8 JSON
+  `{v: 2, kv, iv, ct}` (the key version travels with the blob so rotated
+  workspaces keep history readable). Pre-rotation blobs written as raw
+  `iv || ct` by the first E2EE cut still decrypt (always kv=1). Snapshots
+  written before E2EE was enabled are plaintext and pass through
+  (detected by the SQLite magic header).
 - The server **skips op-type payload validation** for `$e` payloads
   (ciphertext is opaque); a malformed `$e` marker is rejected.
 - Routing metadata (`workspaceId`, `actorId`, `affectedNodeIds`, `opType`,
   HLC, `seq`) stays plaintext — see §9.
 
-Key record endpoints (bodies snake_case; rate limited with stats/admin):
+Key record endpoints (requests snake_case, responses camelCase; rate
+limited with stats/admin):
 
 - `GET /api/relay/encryption-key?workspace_id=...` — members only.
-  Response: `{"workspace_id": str, "wrapped_key": str | null,
-  "enabled": bool}`.
-- `PUT /api/relay/encryption-key` — owner/admin only. Request:
-  `{"workspace_id": str, "wrapped_key": str}`.
+  Response: `{"workspaceId": str, "wrappedKey": str | null, "enabled": bool,
+  "memberKeys": [{"wrappedKey": str, "keyVersion": int}, ...]}` —
+  `wrappedKey` is the passphrase blob; `memberKeys` holds only the
+  **caller's** per-version wrapped copies.
+- `PUT /api/relay/encryption-key` — owner/admin only; stores the
+  passphrase blob. Request: `{"workspace_id": str, "wrapped_key": str}`.
+- `PUT /api/relay/user-public-key` — any authenticated user; publishes the
+  caller's X25519 identity public key (one per device, generated
+  client-side, persisted locally). Request: `{"public_key": str}`.
+- `GET /api/relay/user-public-key?user_id=...` — any authenticated user.
+  Response: `{"userId": str, "publicKey": str | null}`.
+- `PUT /api/relay/encryption-key/members` — owner/admin only; upserts
+  member-wrapped copies: `{"workspace_id": str, "members": [{"user_id": str,
+  "wrapped_key": str, "key_version": int}, ...]}`. A wrapped blob is
+  `{"v": 2, "from": <sender X25519 public key base64>, "iv", "ct", "kv"}` —
+  WK encrypted with AES-GCM under the ECDH(owner, member) shared key.
+- `DELETE /api/relay/encryption-key/members/{workspace_id}/{user_id}` —
+  owner/admin only; deletes that member's copies (member removal).
 
-**v1 limitations (explicit):** the passphrase is the key-sharing mechanism —
-there is no per-member X25519 wrapping yet, so member removal cannot
-cryptographically revoke access (change the passphrase + re-wrap to rotate);
-key rotation re-wraps WK but does not re-encrypt history. Local devices keep
-plaintext derived state (E2EE protects the relay, not the device).
+**v2 semantics:** enabling wraps WK for the owner (kv=1) plus a passphrase
+blob (recovery); owners re-wrap for every member who has published a key
+(a sweep runs when an E2EE workspace opens, covering invitees' first
+login); member removal deletes their copies and **rotates** — a fresh WK
+at the next version, wrapped for remaining members only. Removed members
+keep old-version history (they had the key) but cannot read new ops.
+
+**Remaining limits:** device private keys are stored unencrypted on the
+device (device-trusted model); there is no cross-device key sync for the
+identity itself (each device has its own identity, and the sweep wraps per
+user, not per device — a member's second device needs an owner sweep after
+it publishes, or the passphrase path).
 
 ## 9. Trust model
 
