@@ -103,6 +103,26 @@ CREATE TABLE IF NOT EXISTS workspace_encryption_key (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- E2EE v2 (protocol/SPEC.md §8): per-member X25519 key wrapping. Each user
+-- publishes an X25519 identity public key; the workspace key is wrapped per
+-- member with an ECDH-derived key. Blobs are opaque ciphertext to the server.
+CREATE TABLE IF NOT EXISTS user_public_key (
+    user_id TEXT PRIMARY KEY,
+    public_key TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- One row per (member, key version): rotation re-wraps every held version so
+-- new devices can still unwrap history encrypted under older workspace keys.
+CREATE TABLE IF NOT EXISTS workspace_member_key (
+    workspace_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    wrapped_key TEXT NOT NULL,
+    key_version INTEGER NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (workspace_id, user_id, key_version)
+);
+
 -- Dropped: idx_compacted_segment_to_hlc indexed the TEXT extraction of the
 -- numeric HLC fields (lexicographic order, so '10' < '9') and no query used
 -- it. The DROP removes it from databases where it was already created.

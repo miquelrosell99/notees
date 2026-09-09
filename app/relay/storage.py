@@ -131,6 +131,36 @@ class RelayStorage(ABC):
         """Store or replace the workspace's wrapped E2EE key blob."""
 
     @abstractmethod
+    def get_user_public_key(self, user_id: str) -> str | None:
+        """Return the user's published X25519 public key, or ``None``."""
+
+    @abstractmethod
+    def set_user_public_key(self, user_id: str, public_key: str) -> None:
+        """Store or replace the user's published X25519 public key."""
+
+    @abstractmethod
+    def get_member_keys(self, workspace_id: str, user_id: str) -> list[dict[str, Any]]:
+        """Return the member's wrapped workspace-key copies, ordered by key version.
+
+        Each row is a dict with ``wrapped_key`` and ``key_version`` keys; a
+        member can hold several versions so rotation keeps history readable.
+        """
+
+    @abstractmethod
+    def set_member_key(
+        self, workspace_id: str, user_id: str, key_version: int, wrapped_key: str
+    ) -> None:
+        """Store or replace one wrapped workspace-key copy for a member."""
+
+    @abstractmethod
+    def delete_member_keys(self, workspace_id: str, user_id: str) -> int:
+        """Delete all wrapped workspace-key copies for a member.
+
+        Returns:
+            The number of rows deleted.
+        """
+
+    @abstractmethod
     def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         """Return the newest snapshot for ``workspace_id``.
 
@@ -351,6 +381,21 @@ class SqliteRelayStorage(RelayStorage):
                 workspace_id TEXT PRIMARY KEY,
                 wrapped_key TEXT NOT NULL,
                 updated_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS user_public_key (
+                user_id TEXT PRIMARY KEY,
+                public_key TEXT NOT NULL,
+                updated_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS workspace_member_key (
+                workspace_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                wrapped_key TEXT NOT NULL,
+                key_version INTEGER NOT NULL,
+                updated_at TEXT,
+                PRIMARY KEY (workspace_id, user_id, key_version)
             );
             """
         )
@@ -591,6 +636,64 @@ class SqliteRelayStorage(RelayStorage):
             (workspace_id, wrapped_key, datetime.now(UTC).isoformat()),
         )
         self._connection.commit()
+
+    def get_user_public_key(self, user_id: str) -> str | None:
+        cursor = self._connection.execute(
+            "SELECT public_key FROM user_public_key WHERE user_id = ?",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        return row["public_key"] if row else None
+
+    def set_user_public_key(self, user_id: str, public_key: str) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO user_public_key (user_id, public_key, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+              public_key = excluded.public_key,
+              updated_at = excluded.updated_at
+            """,
+            (user_id, public_key, datetime.now(UTC).isoformat()),
+        )
+        self._connection.commit()
+
+    def get_member_keys(self, workspace_id: str, user_id: str) -> list[dict[str, Any]]:
+        cursor = self._connection.execute(
+            """
+            SELECT wrapped_key, key_version FROM workspace_member_key
+            WHERE workspace_id = ? AND user_id = ?
+            ORDER BY key_version ASC
+            """,
+            (workspace_id, user_id),
+        )
+        return [
+            {"wrapped_key": row["wrapped_key"], "key_version": row["key_version"]}
+            for row in cursor.fetchall()
+        ]
+
+    def set_member_key(
+        self, workspace_id: str, user_id: str, key_version: int, wrapped_key: str
+    ) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO workspace_member_key (workspace_id, user_id, wrapped_key, key_version, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(workspace_id, user_id, key_version) DO UPDATE SET
+              wrapped_key = excluded.wrapped_key,
+              updated_at = excluded.updated_at
+            """,
+            (workspace_id, user_id, wrapped_key, key_version, datetime.now(UTC).isoformat()),
+        )
+        self._connection.commit()
+
+    def delete_member_keys(self, workspace_id: str, user_id: str) -> int:
+        cursor = self._connection.execute(
+            "DELETE FROM workspace_member_key WHERE workspace_id = ? AND user_id = ?",
+            (workspace_id, user_id),
+        )
+        self._connection.commit()
+        return cursor.rowcount
 
     def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         cursor = self._connection.execute(
@@ -1128,6 +1231,75 @@ class PostgresRelayStorage(RelayStorage):
                 workspace_id,
                 wrapped_key,
             )
+
+    async def get_user_public_key(self, user_id: str) -> str | None:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT public_key FROM user_public_key WHERE user_id = $1",
+                user_id,
+            )
+        return row["public_key"] if row else None
+
+    async def set_user_public_key(self, user_id: str, public_key: str) -> None:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_public_key (user_id, public_key)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id) DO UPDATE SET
+                  public_key = excluded.public_key,
+                  updated_at = now()
+                """,
+                user_id,
+                public_key,
+            )
+
+    async def get_member_keys(self, workspace_id: str, user_id: str) -> list[dict[str, Any]]:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT wrapped_key, key_version FROM workspace_member_key
+                WHERE workspace_id = $1 AND user_id = $2
+                ORDER BY key_version ASC
+                """,
+                workspace_id,
+                user_id,
+            )
+        return [{"wrapped_key": row["wrapped_key"], "key_version": row["key_version"]} for row in rows]
+
+    async def set_member_key(
+        self, workspace_id: str, user_id: str, key_version: int, wrapped_key: str
+    ) -> None:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            await conn.execute(
+                """
+                INSERT INTO workspace_member_key (workspace_id, user_id, wrapped_key, key_version)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (workspace_id, user_id, key_version) DO UPDATE SET
+                  wrapped_key = excluded.wrapped_key,
+                  updated_at = now()
+                """,
+                workspace_id,
+                user_id,
+                wrapped_key,
+                key_version,
+            )
+
+    async def delete_member_keys(self, workspace_id: str, user_id: str) -> int:
+        pool = await self._get_pool()
+        async with acquire_connection(pool) as conn:
+            result = await conn.execute(
+                "DELETE FROM workspace_member_key WHERE workspace_id = $1 AND user_id = $2",
+                workspace_id,
+                user_id,
+            )
+        # asyncpg DELETE returns "DELETE N"
+        parts = result.split()
+        return int(parts[-1]) if parts else 0
 
     async def get_latest_snapshot(self, workspace_id: str) -> dict[str, Any] | None:
         pool = await self._get_pool()

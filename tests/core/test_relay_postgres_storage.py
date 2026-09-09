@@ -404,3 +404,48 @@ class TestPostgresRelayStorage:
             await storage.create_snapshot(
                 workspace_id, Hlc(physical=2, logical=0), data=b""
             )
+
+
+class TestPostgresRelayStorageE2eeV2:
+    """Per-member wrapped keys and published user public keys (SPEC §8, v2)."""
+
+    @pytest.mark.asyncio
+    async def test_user_public_key_round_trip_and_upsert(self, storage: PostgresRelayStorage) -> None:
+        assert await storage.get_user_public_key("user-1") is None
+
+        await storage.set_user_public_key("user-1", "pk-v1")
+        assert await storage.get_user_public_key("user-1") == "pk-v1"
+
+        await storage.set_user_public_key("user-1", "pk-v2")
+        assert await storage.get_user_public_key("user-1") == "pk-v2"
+        assert await storage.get_user_public_key("user-2") is None
+
+    @pytest.mark.asyncio
+    async def test_member_keys_versions_ordering_and_upsert(self, storage: PostgresRelayStorage) -> None:
+        await storage.set_member_key("ws-1", "user-1", 2, "wk-v2")
+        await storage.set_member_key("ws-1", "user-1", 1, "wk-v1")
+        await storage.set_member_key("ws-1", "user-2", 1, "wk-other")
+
+        rows = await storage.get_member_keys("ws-1", "user-1")
+        assert rows == [
+            {"wrapped_key": "wk-v1", "key_version": 1},
+            {"wrapped_key": "wk-v2", "key_version": 2},
+        ]
+
+        await storage.set_member_key("ws-1", "user-1", 1, "wk-v1-new")
+        rows = await storage.get_member_keys("ws-1", "user-1")
+        assert rows == [
+            {"wrapped_key": "wk-v1-new", "key_version": 1},
+            {"wrapped_key": "wk-v2", "key_version": 2},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_delete_member_keys(self, storage: PostgresRelayStorage) -> None:
+        await storage.set_member_key("ws-1", "user-1", 1, "wk-v1")
+        await storage.set_member_key("ws-1", "user-1", 2, "wk-v2")
+        await storage.set_member_key("ws-1", "user-2", 1, "wk-other")
+
+        assert await storage.delete_member_keys("ws-1", "user-1") == 2
+        assert await storage.get_member_keys("ws-1", "user-1") == []
+        assert await storage.get_member_keys("ws-1", "user-2") == [{"wrapped_key": "wk-other", "key_version": 1}]
+        assert await storage.delete_member_keys("ws-1", "user-1") == 0
