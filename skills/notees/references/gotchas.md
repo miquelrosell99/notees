@@ -269,3 +269,14 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** After editing `version` in `pyproject.toml`, run `uv lock` and commit both files together, then re-tag. (v3.0.0 needed exactly this.)
 
 **Prevent:** Release checklist: version bump → `uv lock` → changelog → commit → tag. Or bump with `uv version`-style tooling that keeps the lock in sync. And remember CI builds the *tag*, not your working tree: `git status` must be clean before tagging, and for a load-bearing symbol verify it in the tag (`git show <tag>:<path> | grep <symbol>`) — v3.0.0's first build also shipped an uncommitted export and an unstaged deletion.
+
+
+## **[db]** The workspace SQLite wasm is a vendored build — engine swaps must diff compile-time feature modules
+
+**Symptom:** Opening any workspace fails with `sqlite3_prepare_v2 failed (1): no such module: fts4` minutes after an engine swap that passed all tests.
+
+**Cause:** FTS3/4/5 (and RTREE) are compile-time SQLite options, not runtime loadables. The stock `wa-sqlite` npm dist wasm is compiled with *no* FTS module, while `search_index` is an FTS4 virtual table (`frontend/src/core/db/schema.ts`). Two masking effects hid this in tests: `CREATE VIRTUAL TABLE IF NOT EXISTS` short-circuits when the table already exists (never loading the module), and the test seeds were built with sql.js (which ships FTS4), so every seeded DB already had `search_index`. The error only surfaced on the first statement *touching* the table (sync apply, search) or on a fresh DB.
+
+**Fix:** The frontend uses a vendored FTS-enabled build at `frontend/src/core/db/wa-sqlite-fts/` (compiled from the npm wa-sqlite@1.0.0 source commit with `-DSQLITE_ENABLE_FTS3 -DSQLITE_ENABLE_FTS3_PARENTHESIS -DSQLITE_ENABLE_FTS5`; rebuild via `frontend/scripts/build-wa-sqlite-fts.sh`). The glue is loaded with an explicit `locateFile` + `wasmBinary` — never its default `new URL(..., import.meta.url)` wasm resolution, which bundlers relocate and which throws under vitest's stubbed worker globals.
+
+**Prevent:** When swapping or upgrading any embedded wasm/native engine, diff `PRAGMA compile_options` (or equivalent) between old and new builds and test schema creation on a **fresh** database — seed-based tests only prove the upgrade reads old files, not that it can still create what the schema needs. When upgrading wa-sqlite, rerun the build script instead of copying the npm dist wasm.
