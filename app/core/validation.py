@@ -81,10 +81,13 @@ def _validate_node_update_content(payload: dict[str, Any]) -> str | None:
     if payload["nodeId"] is None:
         return "Required payload field 'nodeId' for node.updateContent cannot be null."
 
-    if not any(key in payload for key in ("crdtUpdate", "textUpdate", "content", "treeUpdate")):
+    if not any(
+        key in payload
+        for key in ("crdtUpdate", "textUpdate", "textUpdateB64", "content", "treeUpdate", "treeUpdateB64")
+    ):
         return (
             "node.updateContent payload must include one of: "
-            "crdtUpdate, textUpdate, content, treeUpdate"
+            "crdtUpdate, textUpdate, textUpdateB64, content, treeUpdate, treeUpdateB64"
         )
 
     return None
