@@ -3,7 +3,7 @@ import type { Operation } from '../types/operation';
 import { loadTextCrdt, saveTextCrdt } from './crdtState';
 import { claimNodeField, compareLww, nodeFieldClaimLost, type LwwRecord } from './lww';
 import { claimClassMembership, maxClassMembershipRecord, recomputeClassIds } from './classMembership';
-import { reindexNode } from './search';
+import { reindexNode, removeSearchIndexEntry } from './search';
 import { extractTextContent } from './textContent';
 import { deleteNodeViewsForNode } from './nodeView';
 import { queryOne } from '../db/sqlite';
@@ -107,7 +107,7 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
     db.run('DELETE FROM edge WHERE source_id = ? OR target_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_link WHERE source_id = ? OR target_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM crdt_state WHERE node_id = ?', [nodeId]);
-    db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
+    removeSearchIndexEntry(db, nodeId);
     db.run('DELETE FROM class_hierarchy WHERE class_id = ? OR ancestor_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_alias WHERE alias_node_id = ? OR canonical_node_id = ?', [nodeId, nodeId]);
     db.run('DELETE FROM node_version WHERE node_id = ?', [nodeId]);

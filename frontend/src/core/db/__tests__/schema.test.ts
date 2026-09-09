@@ -17,7 +17,7 @@ describe('schema', () => {
 
     const versionRow = db.exec('PRAGMA user_version')[0];
     const version = versionRow?.values[0]?.[0] as number;
-    expect(version).toBe(20);
+    expect(version).toBe(21);
 
     const schemaIndex = queryOne<{ name: string }>(
       db,
@@ -159,7 +159,7 @@ describe('schema migration to version 16 (node.text_content)', () => {
     createSchema(db);
 
     const versionRow = db.exec('PRAGMA user_version')[0];
-    expect(versionRow?.values[0]?.[0]).toBe(20);
+    expect(versionRow?.values[0]?.[0]).toBe(21);
 
     const rows = queryOne<{ text_content: string | null }>(
       db,
@@ -193,7 +193,7 @@ describe('schema migration to version 17 (idx_property_value_schema)', () => {
     createSchema(db);
 
     const versionRow = db.exec('PRAGMA user_version')[0];
-    expect(versionRow?.values[0]?.[0]).toBe(20);
+    expect(versionRow?.values[0]?.[0]).toBe(21);
 
     const index = queryOne<{ name: string }>(
       db,

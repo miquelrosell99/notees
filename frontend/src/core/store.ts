@@ -280,6 +280,7 @@ export class WorkspaceStore {
       this.db.run('DELETE FROM property_schema');
       this.db.run('DELETE FROM class_property_edge');
       this.db.run('DELETE FROM search_index');
+      this.db.run('DELETE FROM search_index_docid');
       this.db.run('DELETE FROM node_asset');
       this.db.run('DELETE FROM task_completion');
       this.db.run('DELETE FROM task_recurrence');
