@@ -1,5 +1,50 @@
 # Notees Changelog
 
+## 3.0.0 — Sync hardening: security boundary, realtime, E2EE, single-engine OPFS
+
+**Date:** 2026-09-09
+
+The full sync-hardening program (`docs/plans/sync-hardening-v1.1.md`). Breaking
+changes are marked **[breaking]**.
+
+### Security
+
+- **[breaking]** Relay endpoints derive actor identity from authenticated credentials only; the `X-Actor-Id` header is no longer trusted (closes an impersonation bypass).
+- **[breaking]** `GET /api/relay/snapshot` no longer accepts share tokens; snapshots are members-only (closes a full-workspace leak via public shares).
+- Rate limits now charge per envelope on batch and cover snapshot/stats/WS surfaces.
+- Snapshot creation is atomic with its recorded `up_to_seq` (table lock in one transaction).
+- The unused server-side key-management prototype (`/api/relay/keys/*`) is removed.
+
+### Realtime
+
+- Every committed batch (HTTP or WS) is broadcast to relay WS subscribers; `ops` frames carry per-envelope `seqs`; the WS subscribes before `hello` (connect race closed). The web client connects with catch-up resume — WS is strictly an acceleration path over the seq cursor.
+- Presence (focus/blur/typing, users list) rides the relay WS. **[breaking]** `/api/ws/live` and `LiveSyncManager` are removed.
+
+### Sync engine
+
+- Scalar node fields (icon/color/active/parent/kind) resolve last-write-wins per field; class membership is an OR-Set (add-wins on ties); any op arrival order converges (derived-state v5).
+- Legacy positional child-order payloads (`node.create.index`, `node.move.newIndex`) are backfilled on replay — full-log replay is no longer structure-destroying.
+- Sync status is honest: real pending/failed counts, offline state, quarantined-op retry, parked-changes recovery after a server restore (un-synced local ops are no longer discarded).
+- Catch-up applies page-by-page with per-page cursor advance (no full-backlog buffering); write permission checks run once per batch; snapshots retain the newest 5 per workspace.
+
+### End-to-end encryption (opt-in per workspace)
+
+- Workspace payloads and snapshots encrypt client-side (AES-GCM, random per-workspace key); the relay sees only routing metadata. Encrypted envelopes carry `protocolVersion` 2 (older clients fail loud).
+- Key sharing: passphrase-derived KEK blob (recovery) plus per-member X25519/ECDH-wrapped copies (v2). Silent unlock via device identity; owner wrap sweep on open; **[breaking-era semantics]** member removal rotates the workspace key (forward secrecy for new ops).
+
+### Persistence **[breaking]**
+
+- Single persistence engine: the workspace database is a wa-sqlite OPFS file, durable on every commit. The sql.js in-memory + whole-DB export → IndexedDB pipeline is removed. Existing workspaces convert automatically on first open (seed + integrity verification; the old IndexedDB record is left inert).
+
+### Wire format
+
+- **[breaking]** Snapshot blobs move to binary endpoints (`GET/PUT /api/relay/snapshot/data`); `GET /snapshot` is metadata-only.
+- Yjs updates ship as base64 incremental deltas (`textUpdateB64`/`treeUpdateB64`); legacy full-state payloads still apply.
+
+### Docs
+
+- `protocol/SPEC.md`: §4.3/§4.4 binary snapshots, §5 presence frames + seq frames, §7 supported versions ≤ 2, §8 E2EE v1/v2.
+
 ## 2.0.0 — Local-first architecture complete (Phases 6–9)
 
 **Date:** 2026-07-18
