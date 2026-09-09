@@ -268,4 +268,4 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 
 **Fix:** After editing `version` in `pyproject.toml`, run `uv lock` and commit both files together, then re-tag. (v3.0.0 needed exactly this.)
 
-**Prevent:** Release checklist: version bump → `uv lock` → changelog → commit → tag. Or bump with `uv version`-style tooling that keeps the lock in sync.
+**Prevent:** Release checklist: version bump → `uv lock` → changelog → commit → tag. Or bump with `uv version`-style tooling that keeps the lock in sync. And remember CI builds the *tag*, not your working tree: `git status` must be clean before tagging, and for a load-bearing symbol verify it in the tag (`git show <tag>:<path> | grep <symbol>`) — v3.0.0's first build also shipped an uncommitted export and an unstaged deletion.
