@@ -48,12 +48,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency metadata and install production dependencies
+# Copy dependency metadata and install production dependencies.
+# --no-install-project: the notees package itself is installed after the
+# source is copied below (modern uv builds editable projects at sync time,
+# and the package directory does not exist in this layer yet).
 COPY uv.lock pyproject.toml ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy application code
 COPY app/ ./app/
+RUN uv sync --frozen --no-dev
 
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/frontend/dist ./app/static/dist
