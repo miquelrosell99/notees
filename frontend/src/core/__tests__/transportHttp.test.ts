@@ -151,7 +151,10 @@ describe('HttpTransport', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain('/api/relay/snapshot');
-    expect(init?.method).toBe('POST');
+    expect(url).toContain('/api/relay/snapshot/data');
+    expect(init?.method).toBe('PUT');
+    // Raw binary body — no base64/JSON wrapping.
+    expect(init?.body).toBeInstanceOf(Uint8Array);
+    expect((init?.headers as Record<string, string>)['Content-Type']).toBe('application/octet-stream');
   });
 });

@@ -167,12 +167,11 @@ Rate limit: 600 requests/minute per actor+workspace.
 
 ### 4.3 `GET /snapshot?workspace_id=...`
 
-Return the newest snapshot (a serialized derived-state SQLite database).
+Return the newest snapshot's **metadata** (a snapshot is a serialized
+derived-state SQLite database).
 
-Query parameters: `workspace_id` (required),
-`include_data` (optional, default `true`). With `include_data=false` the
-response carries only the snapshot metadata — `data_base64` is empty and the
-server does not read the blob from storage. Clients use this to probe whether
+Query parameters: `workspace_id` (required). The response is metadata only
+— `hlc`, `up_to_seq`, `restore_epoch`. Clients probe this to decide whether
 the snapshot is newer than their local watermark before downloading it.
 
 Snapshots contain the full derived database for the workspace, so they are
@@ -184,25 +183,28 @@ Response 200 (`LatestSnapshotResponse`):
 
 ```
 {"snapshot_id": str, "workspace_id": str, "hlc": {physical, logical},
- "data_base64": str, "has_snapshot": bool, "restore_epoch": int,
- "up_to_seq": int | null}
+ "has_snapshot": bool, "restore_epoch": int, "up_to_seq": int | null}
 ```
 
-`has_snapshot: false` returns empty `snapshot_id`/`data_base64` and HLC zero.
-Clients restore the bytes, then catch up from the snapshot's `up_to_seq`
-cursor (`after_seq = up_to_seq`). `up_to_seq` is `null` only for snapshots
-recorded before the seq cursor existed; in that case clients catch up from
-`after_seq = 0` and rely on operation-id dedupe.
+`has_snapshot: false` returns empty `snapshot_id` and HLC zero.
 
-Rate limit: 60 requests/minute per actor+workspace.
+### 4.3.1 `GET /snapshot/data?workspace_id=...`
 
-### 4.4 `POST /snapshot`
+Return the newest snapshot's blob as a raw binary body
+(`application/octet-stream`). 404 when no snapshot exists. Same auth as
+§4.3 (members only). Clients restore the bytes, then catch up from the
+snapshot's `up_to_seq` cursor (`after_seq = up_to_seq`). `up_to_seq` is
+`null` only for snapshots recorded before the seq cursor existed; in that
+case clients catch up from `after_seq = 0` and rely on operation-id dedupe.
 
-Upload/create a snapshot. Owner or admin only.
+Rate limit: 60 requests/minute per actor+workspace (shared with §4.3).
+
+### 4.4 `PUT /snapshot/data?workspace_id=...&physical=...&logical=...`
+
+Upload/create a snapshot. Owner or admin only. The request body is the raw
+snapshot bytes (`application/octet-stream`; no base64/JSON wrapping); the
+covered HLC travels as the `physical`/`logical` query parameters.
 Rate limit: 30 requests/minute per actor+workspace (shared with §4.5).
-
-Request (`SnapshotRequest`) — `protocol/fixtures/snapshot-request.json`:
-`{"workspace_id": str, "up_to_hlc": {physical, logical}, "data_base64": str}`
 
 Response 200 (`SnapshotResponse`):
 `{"snapshot_id": str, "workspace_id": str, "up_to_hlc": {physical, logical},
@@ -255,10 +257,30 @@ All server→client frames are **typed messages** — receivers must dispatch on
   mid-sync and can detect missed operations.
 - Client → Server: `{"type": "batch", "envelopes": [<envelope>, ...]}` —
   same shape and limits as `POST /batch`.
+- Client → Server: `{"type": "presence", "action": "focus"|"blur"|"typing",
+  "blockUuid": "..."}` — ephemeral collaboration presence (who is focused or
+  typing on which block). Presence is never persisted and never affects the
+  seq cursor, snapshots, or catch-up. Malformed presence frames (unknown
+  action, missing/non-string `blockUuid`) get an `error` frame and the
+  connection stays open.
 - Server → Client:
   - `{"type": "ack", "saved_ids": [...]}` — after a submitted batch is saved.
   - `{"type": "error", "message": "..."}` — malformed JSON, wrong message
     type, invalid envelopes, or permission errors.
+  - `{"type": "presence", "action": "user_focus"|"user_blur"|"user_typing",
+    "blockUuid": "...", "user": {"id": "<actorId>", "name": "<display name>",
+    "color": "#hex"}}` — broadcast to every subscriber **except the sender**.
+    A `focus` auto-blurs the connection's previously focused block (a
+    `user_blur` for the old block precedes the `user_focus`); a `user_blur` is
+    also broadcast when a connection with a focused block drops. `user_typing`
+    is broadcast-only — receivers expire it locally.
+  - `{"type": "presence", "action": "users_list", "users": [{"user": {...},
+    "blockUuid": "..."}, ...]}` — snapshot of other connected users' focused
+    blocks, sent right after `hello` (possibly empty). The snapshot is
+    per-worker: with multiple Uvicorn workers it only covers connections on
+    the receiving worker; cross-worker users_list accuracy is out of scope.
+    Live `user_focus`/`user_blur` frames still reach every subscriber via the
+    Redis fan-out.
   - `{"type": "ops", "protocolVersion": 2, "envelopes": [<envelope>, ...],
     "seqs": {<envelopeId>: int, ...}}` —
     one message per saved batch, broadcast to all subscribers after commit
@@ -296,7 +318,9 @@ cursor remains the authoritative recovery mechanism.
 (`WS_PROTOCOL_VERSION`, currently **2**), which is versioned independently of
 the envelope schema version (§7): the envelope fields did not change, so HTTP
 catch-up compatibility for older clients is unaffected. Control messages
-(`ack`, `error`) keep their snake_case keys (`saved_ids`).
+(`ack`, `error`) keep their snake_case keys (`saved_ids`). New frame types
+(e.g. `presence`) are additive and do not bump the framing version: receivers
+must ignore frame types they do not know.
 
 ## 6. Limits
 
