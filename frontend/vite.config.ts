@@ -96,11 +96,6 @@ export default defineConfig(({ mode }) => ({
       '@/core': path.resolve(__dirname, './src/core'),
     },
   },
-  optimizeDeps: {
-    // wa-sqlite's .mjs must stay next to its .wasm sibling; dep pre-bundling
-    // relocates the module and breaks the default wasm resolution.
-    exclude: ['wa-sqlite'],
-  },
   server: {
     port: 5173,
     host: '0.0.0.0',

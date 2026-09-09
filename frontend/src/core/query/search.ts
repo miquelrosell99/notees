@@ -1,11 +1,11 @@
 /**
  * SQLite-backed full-text search over the derived search_index table.
  *
- * sql.js ships with the FTS4 extension, so we use a real FTS4 virtual table
- * (see frontend/src/core/db/schema.ts). This gives tokenisation, prefix
- * matching, and ranked results without recompiling the WASM build. If we ever
- * switch to a custom SQLite build with FTS5, only the ranking formula below
- * needs to change; callers stay the same.
+ * The vendored wa-sqlite build (frontend/src/core/db/wa-sqlite-fts/) ships
+ * FTS4, so we use a real FTS4 virtual table (see
+ * frontend/src/core/db/schema.ts). This gives tokenisation, prefix matching,
+ * and ranked results. If we ever migrate to FTS5 (also compiled in), only
+ * the ranking formula below needs to change; callers stay the same.
  */
 
 import { queryAll } from '../db/sqlite';
