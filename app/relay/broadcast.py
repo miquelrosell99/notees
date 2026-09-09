@@ -7,16 +7,17 @@ Provides two implementations:
 * :class:`RedisBroadcastBackend` — Redis pub/sub fan-out, used in production so
   multiple Uvicorn workers can forward envelopes to every connected client.
 
-The public API (``subscribe``, ``unsubscribe``, ``broadcast``) is unchanged so
-``app/relay/websocket.py`` needs no modifications.
+``broadcast`` is the typed path for committed ops; ``broadcast_frame`` fans
+out arbitrary frames (presence) with optional sender exclusion.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import WebSocketDisconnect
 
@@ -41,6 +42,11 @@ logger = get_logger(__name__)
 
 # workspace_id -> set of locally connected WebSocket objects
 _registry: dict[str, set[WebSocket]] = {}
+
+# WebSocket -> per-connection tag used for sender exclusion in
+# broadcast_frame (see subscribe). Presence connections register a unique tag
+# so their own frames never echo back to them.
+_socket_tags: dict[WebSocket, str] = {}
 
 # Protects mutation of and iteration over the local registry
 _lock = asyncio.Lock()
@@ -121,6 +127,19 @@ class RedisBroadcastBackend(BroadcastBackend):
                 channel = self._decode(msg.get("channel", ""))
                 workspace_id = channel.rsplit(":", 1)[-1]
                 data = self._decode(msg.get("data", ""))
+                # Wrapped frames (see broadcast_frame) carry a sender tag that
+                # must not receive the frame; strip the wrapper before delivery.
+                if data.startswith('{"_skip":'):
+                    try:
+                        wrapper = json.loads(data)
+                        await _deliver_local(
+                            workspace_id,
+                            json.dumps(wrapper["frame"]),
+                            exclude_tag=wrapper["_skip"],
+                        )
+                    except (KeyError, TypeError, json.JSONDecodeError):
+                        logger.warning("Ignoring malformed wrapped broadcast frame")
+                    continue
                 await _deliver_local(workspace_id, data)
         except asyncio.CancelledError:
             raise
@@ -150,9 +169,7 @@ async def get_broadcast_backend() -> BroadcastBackend:
                 _backend_instance = backend
                 logger.info("Using Redis pub/sub for WebSocket broadcasts")
             except Exception as exc:  # pragma: no cover
-                logger.warning(
-                    "Redis broadcast unavailable, falling back to memory: %s", exc
-                )
+                logger.warning("Redis broadcast unavailable, falling back to memory: %s", exc)
                 _backend_instance = MemoryBroadcastBackend()
         else:
             _backend_instance = MemoryBroadcastBackend()
@@ -170,17 +187,20 @@ def _get_connections(workspace_id: str) -> set[WebSocket]:
     return _registry[workspace_id]
 
 
-async def _deliver_local(workspace_id: str, message: str) -> None:
+async def _deliver_local(workspace_id: str, message: str, exclude_tag: str | None = None) -> None:
     """Send ``message`` to every local subscriber of ``workspace_id``.
 
     Disconnected or closing sockets are removed from the registry without
-    interrupting delivery to the remaining subscribers.
+    interrupting delivery to the remaining subscribers. Sockets whose tag
+    matches ``exclude_tag`` are skipped (sender exclusion for presence frames).
     """
     async with _lock:
         connections = list(_registry.get(workspace_id, set()))
 
     stale: set[WebSocket] = set()
     for websocket in connections:
+        if exclude_tag is not None and _socket_tags.get(websocket) == exclude_tag:
+            continue
         with contextlib.suppress(WebSocketDisconnect, RuntimeError):
             await websocket.send_text(message)
             continue
@@ -188,17 +208,24 @@ async def _deliver_local(workspace_id: str, message: str) -> None:
 
     if stale:
         async with _lock:
-            connections = _registry.get(workspace_id)
-            if connections is not None:
-                connections -= stale
-                if not connections:
+            connections_set = _registry.get(workspace_id)
+            if connections_set is not None:
+                connections_set -= stale
+                if not connections_set:
                     del _registry[workspace_id]
+            for websocket in stale:
+                _socket_tags.pop(websocket, None)
 
 
-async def subscribe(workspace_id: str, websocket: WebSocket) -> None:
-    """Add ``websocket`` to the local subscriber list and subscribe the process."""
+async def subscribe(workspace_id: str, websocket: WebSocket, *, tag: str | None = None) -> None:
+    """Add ``websocket`` to the local subscriber list and subscribe the process.
+
+    ``tag`` marks the socket for sender exclusion in :func:`broadcast_frame`.
+    """
     async with _lock:
         _get_connections(workspace_id).add(websocket)
+        if tag is not None:
+            _socket_tags[websocket] = tag
     backend = await get_broadcast_backend()
     await backend.subscribe(workspace_id)
 
@@ -206,6 +233,7 @@ async def subscribe(workspace_id: str, websocket: WebSocket) -> None:
 async def unsubscribe(workspace_id: str, websocket: WebSocket) -> None:
     """Remove ``websocket`` and unsubscribe the process if it was the last one."""
     async with _lock:
+        _socket_tags.pop(websocket, None)
         connections = _registry.get(workspace_id)
         if connections is None:
             return
@@ -238,6 +266,30 @@ async def broadcast(
     await backend.publish(workspace_id, message)
 
 
+async def broadcast_frame(
+    workspace_id: str,
+    frame: dict[str, Any],
+    *,
+    exclude_tag: str | None = None,
+) -> None:
+    """Serialize an arbitrary frame and fan it out to workspace subscribers.
+
+    Used for ephemeral presence frames (protocol/SPEC.md §5); ``broadcast``
+    remains the typed path for committed ops. When ``exclude_tag`` is given,
+    local sockets registered with that tag (see ``subscribe``) never receive
+    the frame, so a sender does not get its own presence echo. With the Redis
+    backend the tag travels in an internal wrapper so the publishing worker's
+    own listener skips the sender as well; the wrapper never reaches clients.
+    """
+    backend = await get_broadcast_backend()
+    if exclude_tag is None:
+        await backend.publish(workspace_id, json.dumps(frame))
+    elif isinstance(backend, RedisBroadcastBackend):
+        await backend.publish(workspace_id, json.dumps({"_skip": exclude_tag, "frame": frame}))
+    else:
+        await _deliver_local(workspace_id, json.dumps(frame), exclude_tag=exclude_tag)
+
+
 def reset_broadcast_backend() -> None:
     """Reset the shared backend and local registry. Intended for tests only."""
     global _backend_instance
@@ -248,3 +300,4 @@ def reset_broadcast_backend() -> None:
                 task.cancel()
         _backend_instance = None
     _registry.clear()
+    _socket_tags.clear()

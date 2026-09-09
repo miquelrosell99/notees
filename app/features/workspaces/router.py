@@ -349,10 +349,7 @@ async def _run_export_job(
 
         # Build a fresh service instance; request-scoped dependencies must not
         # be passed into background tasks.
-        from app.models import User
-
-        user = User(id=user_id, email="")
-        workspace_io_service = await _get_workspace_io_service(user)
+        workspace_io_service = await _get_workspace_io_service(user_id)
 
         if format == "dump":
             if include_assets:
