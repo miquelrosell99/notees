@@ -76,6 +76,18 @@ export function makeDbNodeLinkResolver(db: Database) {
   };
 }
 
+/**
+ * Remove a node's FTS entry, addressing the row by docid. Filtering
+ * search_index by its notindexed node_id column is a full docstore scan
+ * (O(n) per statement); the map lookup + rowid delete is O(log n).
+ */
+export function removeSearchIndexEntry(db: Database, nodeId: string): void {
+  db.run('DELETE FROM search_index WHERE docid = (SELECT docid FROM search_index_docid WHERE node_id = ?)', [
+    nodeId,
+  ]);
+  db.run('DELETE FROM search_index_docid WHERE node_id = ?', [nodeId]);
+}
+
 export function reindexNode(db: Database, nodeId: string): void {
   const row = queryOne<{ content: string }>(db, 'SELECT content FROM node WHERE id = ?', [nodeId]);
   if (!row) return;
@@ -83,20 +95,24 @@ export function reindexNode(db: Database, nodeId: string): void {
   const content = JSON.parse(row.content) as unknown[];
   const ast = Array.isArray(content) ? (content as ASTDocument) : [];
   if (ast.length === 0) {
-    db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
+    removeSearchIndexEntry(db, nodeId);
     return;
   }
 
   const plaintext = extractPlaintext(content, makeDbNodeLinkResolver(db));
 
   if (plaintext.length === 0) {
-    db.run('DELETE FROM search_index WHERE node_id = ?', [nodeId]);
+    removeSearchIndexEntry(db, nodeId);
     return;
   }
 
-  db.run(
-    `INSERT OR REPLACE INTO search_index(docid, node_id, content)
-     VALUES ((SELECT docid FROM search_index WHERE node_id = ?), ?, ?)`,
-    [nodeId, nodeId, plaintext],
-  );
+  db.run('DELETE FROM search_index WHERE docid = (SELECT docid FROM search_index_docid WHERE node_id = ?)', [
+    nodeId,
+  ]);
+  db.run('INSERT INTO search_index (node_id, content) VALUES (?, ?)', [nodeId, plaintext]);
+  // last_insert_rowid() is the docid of the row just inserted on this
+  // connection; keep the map in sync for the next reindex/delete.
+  db.run('INSERT OR REPLACE INTO search_index_docid (node_id, docid) VALUES (?, last_insert_rowid())', [
+    nodeId,
+  ]);
 }

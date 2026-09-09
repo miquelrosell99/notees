@@ -213,11 +213,24 @@ export function createSchema(db: Database): void {
     -- sufficient for ranked full-text search. If we ever migrate to FTS5
     -- (also compiled in), only this schema statement and the ranking formula
     -- need to change.
+    -- The vendored wa-sqlite build (db/wa-sqlite-fts/) ships FTS4, which is
+    -- sufficient for ranked full-text search. If we ever migrate to FTS5
+    -- (also compiled in), only this schema statement and the ranking formula
+    -- need to change.
     CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts4(
       node_id,
       content,
       notindexed=node_id,
       tokenize=unicode61
+    );
+
+    -- FTS4 cannot index the notindexed node_id column, so lookup/delete by
+    -- node_id is a full docstore scan (O(n) per statement, O(n^2) on replay).
+    -- All search_index maintenance goes through this node_id -> docid map so
+    -- FTS rows are addressed by rowid instead. Backfilled by migration v21.
+    CREATE TABLE IF NOT EXISTS search_index_docid (
+      node_id TEXT PRIMARY KEY,
+      docid INTEGER NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS app_meta (
@@ -872,6 +885,28 @@ function migrateSchema(db: Database): void {
     } catch {
       db.exec('ROLLBACK');
       // Leave user_version at 19 so the migration retries on next startup.
+    }
+  }
+
+  if (version < 21) {
+    // Backfill the search_index docid map for existing databases. FTS4 cannot
+    // index the notindexed node_id column, so per-op maintenance by node_id
+    // scanned the whole docstore — replaying a large operation log went
+    // quadratic and workspace open appeared to hang. From here on, FTS rows
+    // are addressed by docid via search_index_docid.
+    db.exec('BEGIN TRANSACTION');
+    try {
+      const mapCount = db.exec('SELECT COUNT(*) FROM search_index_docid')[0]?.values[0]?.[0] as number;
+      if (mapCount === 0) {
+        db.exec(
+          'INSERT OR IGNORE INTO search_index_docid (node_id, docid) SELECT node_id, docid FROM search_index'
+        );
+      }
+      db.exec('COMMIT');
+      db.exec('PRAGMA user_version = 21');
+    } catch {
+      db.exec('ROLLBACK');
+      // Leave user_version at 20 so the migration retries on next startup.
     }
   }
 }
