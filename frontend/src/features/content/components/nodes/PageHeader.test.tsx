@@ -47,7 +47,7 @@ vi.mock('@/features/collab', () => {
   );
   return {
     useLivePresenceStore,
-    liveSyncManager: { sendFocus: vi.fn(), sendBlur: vi.fn() },
+    usePresenceChannel: () => ({ sendPresence: vi.fn() }),
   };
 });
 

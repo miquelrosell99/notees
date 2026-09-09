@@ -19,7 +19,7 @@ import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { useNavigationStore } from '@/stores';
 import { useAuthStore } from '@/features/auth';
-import { useLivePresenceStore, liveSyncManager } from '@/features/collab';
+import { useLivePresenceStore, usePresenceChannel } from '@/features/collab';
 import type { Node, NodeUpdate } from '@/types';
 import { NodeIcon, Icon } from '@/components/ui/icons';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
@@ -70,6 +70,7 @@ export function PageHeader({
   enableClassSuggestions = true,
 }: PageHeaderProps) {
   const currentUserId = useAuthStore((s) => s.user?.nodeUuid ?? 0);
+  const presenceChannel = usePresenceChannel();
   const titleUsers = useLivePresenceStore((s) => s.presence[page.uuid]?.[page.uuid]);
   const titleLockedBy = useMemo(
     () => (titleUsers ?? []).filter((u) => u.nodeUuid !== currentUserId),
@@ -321,11 +322,11 @@ export function PageHeader({
                 value={inputValue}
                 onChange={(e) => handleInputChange(e.target.value)}
                 onFocus={() => {
-                  liveSyncManager.sendFocus(page.uuid);
+                  presenceChannel.sendPresence('focus', page.uuid);
                   useLivePresenceStore.getState().setLocalFocus(page.uuid, page.uuid);
                 }}
                 onBlur={(e) => {
-                  liveSyncManager.sendBlur(page.uuid);
+                  presenceChannel.sendPresence('blur', page.uuid);
                   useLivePresenceStore.getState().setLocalFocus(page.uuid, null);
                   handleNameChange(e.target.value);
                 }}

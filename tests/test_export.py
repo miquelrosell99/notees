@@ -1,4 +1,8 @@
 """Tests for the export rendering module."""
+import asyncio
+
+import pytest
+
 from app.infrastructure.export.rendering import (
     build_body_class,
     build_toc_html,
@@ -194,3 +198,23 @@ class TestBuildBodyClass:
         cls = build_body_class("technical", "flat", "compact", "hierarchical")
         assert "theme-technical" in cls
         assert "theme-modern" not in cls
+
+
+@pytest.mark.asyncio
+async def test_workspace_export_job_completes(authenticated_client, test_user):
+    """Background workspace export job builds its service without a fake User."""
+    workspace_uuid = test_user["workspace_uuid"]
+    response = await authenticated_client.post(f"/api/v1/workspaces/{workspace_uuid}/export-job")
+    assert response.status_code == 200
+    job_uuid = response.json()["job_uuid"]
+
+    status_payload = {}
+    for _ in range(100):
+        status_response = await authenticated_client.get(f"/api/v1/workspaces/export-jobs/{job_uuid}")
+        assert status_response.status_code == 200
+        status_payload = status_response.json()
+        if status_payload["status"] in ("completed", "failed"):
+            break
+        await asyncio.sleep(0.1)
+
+    assert status_payload["status"] == "completed", status_payload

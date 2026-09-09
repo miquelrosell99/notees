@@ -1,205 +1,89 @@
 /**
- * useLivePageSync — React hook that wires a page into the lightweight
- * live-sync WebSocket.  It automatically connects when the nodeUuid
- * becomes available and disconnects on unmount or page change.
+ * useLivePageSync — React hook that wires a page into workspace presence over
+ * the relay WebSocket (the same channel that carries realtime ops).
  *
  * Responsibilities:
- * - Drive LiveSyncManager connect/disconnect lifecycle
- * - Apply remote block updates to TanStack Query cache (skipping the
- *   block the local user is currently editing to avoid cursor jumps)
+ * - Subscribe to presence frames from the workspace's SyncEngine
  * - Forward presence events into livePresenceStore
+ * - Expose the realtime connection status for the page header
+ *
+ * Presence is ephemeral: frames are never persisted and never affect the
+ * sync seq cursor.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { liveSyncManager, useLivePresenceStore, type PresenceUser } from '@/features/collab';
+import { useEffect, useState } from 'react';
+import { useLivePresenceStore, type PresenceUser } from '@/features/collab';
 import { useAuthStore } from '@/features/auth';
-import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { useNotificationStore } from '@/stores/notificationStore';
-import { useWorkspaces } from '@/features/workspace';
 import { useCapabilities } from '@/config/capabilities';
-
-import type { Node } from '@/types';
-import { updateNodeInTreeCaches, updateNodeInFlatCaches, updateNodeInListCaches } from '@/hooks/cacheUtils';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceSyncEngine } from '@/core/adapters/workspaceStoreAdapter';
+import type { RelayPresenceUser, RelayWsStatus } from '@/core/relayWs';
 
 interface UseLivePageSyncOptions {
   /** Page UUID to sync.  If null/empty the hook is a no-op. */
   nodeUuid: string | null | undefined;
-  /** Server node ID of the page (for cache invalidation). */
+  /** Server node ID of the page (unused; kept for caller compatibility). */
   pageId?: string | null;
   /** When false, the hook is a no-op and always reports 'idle'. */
   enabled?: boolean;
 }
 
-/**
- * Apply a remote block update to all relevant TanStack Query caches.
- * This mirrors the optimistic update logic in useUpdateNode but is
- * triggered by a WebSocket message rather than a local mutation.
- */
-function applyRemoteBlockUpdate(
-  queryClient: ReturnType<typeof useQueryClient>,
-  blockId: string,
-  name: string,
-) {
-  const updater = (node: Node): Node => ({ ...node, name });
+export type LivePageSyncStatus = RelayWsStatus | 'idle';
 
-  updateNodeInTreeCaches(queryClient, blockId, updater);
-  updateNodeInFlatCaches(queryClient, blockId, updater);
-  updateNodeInListCaches(queryClient, blockId, updater);
+function toPresenceUser(user: RelayPresenceUser): PresenceUser {
+  return { nodeUuid: user.id, name: user.name, color: user.color };
 }
 
 export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOptions) {
-  const queryClient = useQueryClient();
-  const unsubRef = useRef<(() => void) | null>(null);
   const authVerified = useAuthStore((s) => s.authVerified);
-  // The live-sync WebSocket is server-only; never connect in local mode.
+  // Presence rides the relay WebSocket, which is server-only; local mode and
+  // follower tabs have no realtime channel and stay 'idle'.
   const capabilities = useCapabilities();
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' | 'unauthorized'>('idle');
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const [connectionStatus, setConnectionStatus] = useState<LivePageSyncStatus>('idle');
 
-  const { data: workspacesData } = useWorkspaces({ enabled: authVerified });
-  const activeWorkspace = useMemo(() => {
-    if (!workspacesData?.items) return null;
-    return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
-  }, [workspacesData]);
   useEffect(() => {
-    if (!enabled || !nodeUuid || !authVerified || !capabilities.collabPresence) return;
-
-    const unsubStatus = liveSyncManager.onStatusChange(setConnectionStatus);
-
-    try {
-      liveSyncManager.connect(
-        nodeUuid,
-        activeWorkspace?.uuid ?? null,
-      );
-    } catch (err) {
-      console.warn('[useLivePageSync] Failed to connect live sync, retrying...', err);
+    if (!enabled || !nodeUuid || !authVerified || !capabilities.collabPresence || !workspaceUuid) {
+      return;
     }
+    const engine = getWorkspaceSyncEngine(workspaceUuid);
+    if (!engine) return;
+
+    const unsubStatus = engine.subscribeRealtimeStatus(setConnectionStatus);
 
     const presence = useLivePresenceStore.getState();
 
-    const notifications = useNotificationStore.getState();
-
-    const unsub = liveSyncManager.onMessage((msg) => {
+    const unsub = engine.subscribePresence((frame) => {
       try {
-        switch (msg.type) {
+        switch (frame.action) {
           case 'user_focus': {
-            presence.setUserFocus(nodeUuid, msg.block_uuid, msg.user);
+            presence.setUserFocus(nodeUuid, frame.blockUuid, toPresenceUser(frame.user));
             break;
           }
           case 'user_blur': {
-            presence.removeUserFocus(nodeUuid, msg.block_uuid, msg.user_id);
-            presence.clearUserTyping(nodeUuid, msg.block_uuid, msg.user_id);
+            presence.removeUserFocus(nodeUuid, frame.blockUuid, frame.user.id);
+            presence.clearUserTyping(nodeUuid, frame.blockUuid, frame.user.id);
             break;
           }
           case 'user_typing': {
-            presence.setUserTyping(nodeUuid, msg.block_uuid, msg.user, 3000);
-            break;
-          }
-          case 'block_locked': {
-            const user: PresenceUser = {
-              nodeUuid: msg.user_id,
-              name: 'User',
-              color: '',
-            };
-            const usersOnBlock = presence.getUsersOnBlock(nodeUuid, msg.block_uuid);
-            const existing = usersOnBlock.find((u) => u.nodeUuid === msg.user_id);
-            if (existing) {
-              user.name = existing.name;
-              user.color = existing.color;
-            }
-            presence.setLockOwner(nodeUuid, msg.block_uuid, user);
-            // If the local user was queued, they now hold the lock.
-            presence.setQueued(nodeUuid, msg.block_uuid, false);
-            presence.setConflict(nodeUuid, msg.block_uuid, null);
-            break;
-          }
-          case 'lock_granted': {
-            presence.setQueued(nodeUuid, msg.block_uuid, false);
-            presence.setConflict(nodeUuid, msg.block_uuid, null);
-            useEditorFocusStore.getState().setPendingFocus(msg.block_uuid);
-            notifications.success('Lock available', 'You can now edit this block.');
-            break;
-          }
-          case 'block_lock_denied': {
-            if (msg.reason === 'already_locked' && msg.locked_by) {
-              presence.setLockOwner(nodeUuid, msg.block_uuid, msg.locked_by);
-              if (msg.queued) {
-                presence.setQueued(nodeUuid, msg.block_uuid, true);
-                notifications.info(
-                  'Block locked',
-                  `${msg.locked_by.name} is editing this block. You will be notified when it is available.`,
-                );
-              }
-            } else if (msg.reason === 'lock_lost') {
-              presence.setConflict(nodeUuid, msg.block_uuid, { reason: 'lock_lost' });
-              notifications.warning(
-                'Edit conflict',
-                'Your changes could not be saved because the lock was released. Please refresh the block.',
-              );
-            }
-            break;
-          }
-          case 'block_lock_released':
-          case 'lock_expired': {
-            presence.removeLockOwner(nodeUuid, msg.block_uuid);
-            presence.removeUserFocus(nodeUuid, msg.block_uuid, msg.user_id);
-            presence.clearUserTyping(nodeUuid, msg.block_uuid, msg.user_id);
-            if (msg.type === 'lock_expired') {
-              const localFocus = presence.getLocalFocus(nodeUuid);
-              if (localFocus === msg.block_uuid) {
-                presence.setConflict(nodeUuid, msg.block_uuid, { reason: 'lock_expired' });
-                notifications.warning(
-                  'Lock expired',
-                  'Your lock on this block expired due to inactivity. Click to resume editing.',
-                );
-              }
-            }
+            presence.setUserTyping(nodeUuid, frame.blockUuid, toPresenceUser(frame.user), 3000);
             break;
           }
           case 'users_list': {
-            for (const u of msg.users) {
-              const { block_uuid, ...user } = u;
-              presence.setUserFocus(nodeUuid, block_uuid, user);
+            for (const u of frame.users) {
+              presence.setUserFocus(nodeUuid, u.blockUuid, toPresenceUser(u.user));
             }
-            break;
-          }
-          case 'block_updated': {
-            const localFocus = presence.getLocalFocus(nodeUuid);
-            if (localFocus === msg.block_uuid) {
-              return;
-            }
-            applyRemoteBlockUpdate(
-              queryClient,
-              msg.block_id,
-              msg.name,
-            );
-            const typingUser: PresenceUser = {
-              nodeUuid: msg.user_id,
-              name: 'User',
-              color: '',
-            };
-            const usersOnBlock = presence.getUsersOnBlock(nodeUuid, msg.block_uuid);
-            const existing = usersOnBlock.find((u) => u.nodeUuid === msg.user_id);
-            if (existing) {
-              typingUser.name = existing.name;
-              typingUser.color = existing.color;
-            }
-            presence.setUserTyping(nodeUuid, msg.block_uuid, typingUser, 3000);
             break;
           }
         }
       } catch (err) {
-        console.warn('[useLivePageSync] Error handling live-sync message:', err);
+        console.warn('[useLivePageSync] Error handling presence frame:', err);
       }
     });
-
-    unsubRef.current = unsub;
 
     return () => {
       unsub();
       unsubStatus();
-      liveSyncManager.disconnect();
-      unsubRef.current = null;
       if (nodeUuid) {
         useLivePresenceStore.setState((state) => ({
           presence: { ...state.presence, [nodeUuid]: {} },
@@ -211,7 +95,7 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
         }));
       }
     };
-  }, [nodeUuid, queryClient, enabled, authVerified, activeWorkspace?.uuid, capabilities.collabPresence]);
+  }, [nodeUuid, enabled, authVerified, workspaceUuid, capabilities.collabPresence]);
 
   return connectionStatus;
 }

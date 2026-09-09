@@ -1,6 +1,6 @@
 import { compareHlc, maxHlc, type Hlc } from './clock';
 import { CURRENT_DERIVED_STATE_VERSION } from './store';
-import { RelayWsClient, type RelayWsHello, type WebSocketLike } from './relayWs';
+import { RelayWsClient, type RelayPresenceAction, type RelayPresenceFrame, type RelayWsHello, type RelayWsStatus, type WebSocketLike } from './relayWs';
 import {
   assertSupportedProtocolVersion,
   createOperation,
@@ -8,7 +8,7 @@ import {
   type Operation,
 } from './types/operation';
 import type { OperationEnvelope } from './crypto';
-import { decryptEnvelopePayload, getWorkspaceKey, isEncryptedPayload } from './e2ee';
+import { decryptEnvelopePayload, getWorkspaceKeyForVersion, isEncryptedPayload } from './e2ee';
 import { detectConflicts, type SyncConflictInput } from './syncConflicts';
 import type { IWorkspaceStoreClient } from './worker/workerProtocol';
 import type { Transport } from './transport';
@@ -95,6 +95,9 @@ export class SyncEngine {
   private wsBuffer: Array<{ envelopes: OperationEnvelope[]; seqs: Record<string, number> }> = [];
   private wsDraining = false;
   private pullInFlight = false;
+  /** Presence frame subscribers (ephemeral; never touch the seq cursor). */
+  private presenceListeners = new Set<(frame: RelayPresenceFrame) => void>();
+  private realtimeStatusListeners = new Set<(status: RelayWsStatus) => void>();
 
   constructor(client: IWorkspaceStoreClient, transport: Transport, callbacks: SyncEngineCallbacks = {}) {
     this.client = client;
@@ -382,6 +385,20 @@ export class SyncEngine {
       callbacks: {
         onHello: (hello) => this.handleWsHello(hello),
         onOps: (envelopes, seqs) => this.handleWsOps(envelopes, seqs),
+        onPresence: (frame) => {
+          for (const listener of this.presenceListeners) {
+            try {
+              listener(frame);
+            } catch (err) {
+              log.warn('Presence listener failed', { error: String(err) });
+            }
+          }
+        },
+        onStatusChange: (status) => {
+          for (const listener of this.realtimeStatusListeners) {
+            listener(status);
+          }
+        },
         onFatal: (message) => {
           log.error('Realtime channel stopped fatally', { message });
           const error = new Error(message);
@@ -402,6 +419,32 @@ export class SyncEngine {
     this.wsClient?.close();
     this.wsClient = null;
     this.wsBuffer = [];
+  }
+
+  /**
+   * Send an ephemeral presence frame (focus/blur/typing) for a block. A safe
+   * no-op when the realtime channel is not started or not currently open.
+   */
+  sendPresence(action: RelayPresenceAction, blockUuid: string): void {
+    this.wsClient?.send({ type: 'presence', action, blockUuid });
+  }
+
+  /** Subscribe to presence frames from workspace peers. Returns an unsubscribe. */
+  subscribePresence(listener: (frame: RelayPresenceFrame) => void): () => void {
+    this.presenceListeners.add(listener);
+    return () => this.presenceListeners.delete(listener);
+  }
+
+  /** Realtime channel status; 'disconnected' when no realtime channel runs. */
+  getRealtimeStatus(): RelayWsStatus {
+    return this.wsClient?.getStatus() ?? 'disconnected';
+  }
+
+  /** Subscribe to realtime status changes; emits the current status first. */
+  subscribeRealtimeStatus(listener: (status: RelayWsStatus) => void): () => void {
+    this.realtimeStatusListeners.add(listener);
+    listener(this.getRealtimeStatus());
+    return () => this.realtimeStatusListeners.delete(listener);
   }
 
   private handleWsHello(hello: RelayWsHello): void {
@@ -458,11 +501,16 @@ export class SyncEngine {
     // (the drain drops the frame, and the next pull fails the same way).
     let incoming = envelopes;
     if (envelopes.some((env) => isEncryptedPayload(env.payload))) {
-      const key = getWorkspaceKey(workspaceId);
-      if (!key) {
-        throw new Error('Workspace is end-to-end encrypted and locked: enter the passphrase to sync.');
-      }
-      incoming = await Promise.all(envelopes.map((env) => decryptEnvelopePayload(key, env)));
+      incoming = await Promise.all(
+        envelopes.map(async (env) => {
+          if (!isEncryptedPayload(env.payload)) return env;
+          const key = getWorkspaceKeyForVersion(workspaceId, env.payload.$e.kv ?? 1);
+          if (!key) {
+            throw new Error('Workspace is end-to-end encrypted and locked: enter the passphrase to sync.');
+          }
+          return decryptEnvelopePayload(key, env);
+        })
+      );
     }
     for (const env of incoming) {
       assertSupportedProtocolVersion(env);

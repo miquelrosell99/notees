@@ -616,6 +616,9 @@ describe('SyncEngine realtime (relay WebSocket)', () => {
     onerror: ((event: Event) => void) | null = null;
     onclose: ((event: CloseEvent) => void) | null = null;
     close = vi.fn();
+    send = vi.fn((data: string) => {
+      void data;
+    });
 
     readonly url: string;
 
@@ -713,6 +716,90 @@ describe('SyncEngine realtime (relay WebSocket)', () => {
     });
 
     engineA.stopRealtime();
+  });
+
+  it('fans out presence frames to subscribers without touching the seq cursor', async () => {
+    FakeSocket.instances = [];
+    const workspaceId = uuidv7();
+    const relay = new MemoryRelay();
+    const { client: clientA, engine: engineA } = await createStoreAndEngine(workspaceId, uuidv7(), relay);
+
+    const frames: unknown[] = [];
+    const unsubscribe = engineA.subscribePresence((frame) => frames.push(frame));
+
+    engineA.startRealtime({
+      workspaceId,
+      baseUrl: 'http://localhost:8001',
+      createSocket: (url) => new FakeSocket(url),
+    });
+    const socket = lastSocket();
+    socket.readyState = 1;
+    socket.emitOpen();
+    socket.emitMessage({ type: 'hello', protocolVersion: 2, restoreEpoch: 0, latestSeq: 0 });
+    socket.emitMessage({
+      type: 'presence',
+      action: 'user_focus',
+      blockUuid: 'block-1',
+      user: { id: 'user-2', name: 'Bob', color: '#3b82f6' },
+    });
+
+    expect(frames).toEqual([
+      {
+        type: 'presence',
+        action: 'user_focus',
+        blockUuid: 'block-1',
+        user: { id: 'user-2', name: 'Bob', color: '#3b82f6' },
+      },
+    ]);
+
+    // Presence never advances the authoritative seq cursor.
+    const watermarks = await clientA.query<{ receivedSeq: number }>('loadWatermarks', []);
+    expect(watermarks.receivedSeq).toBe(0);
+
+    unsubscribe();
+    socket.emitMessage({
+      type: 'presence',
+      action: 'user_blur',
+      blockUuid: 'block-1',
+      user: { id: 'user-2', name: 'Bob', color: '#3b82f6' },
+    });
+    expect(frames).toHaveLength(1);
+
+    engineA.stopRealtime();
+  });
+
+  it('sendPresence writes presence frames over the realtime socket', async () => {
+    FakeSocket.instances = [];
+    const workspaceId = uuidv7();
+    const relay = new MemoryRelay();
+    const { engine: engineA } = await createStoreAndEngine(workspaceId, uuidv7(), relay);
+
+    // No realtime channel: a safe no-op, and the status is disconnected.
+    engineA.sendPresence('focus', 'block-1');
+    expect(engineA.getRealtimeStatus()).toBe('disconnected');
+
+    engineA.startRealtime({
+      workspaceId,
+      baseUrl: 'http://localhost:8001',
+      createSocket: (url) => new FakeSocket(url),
+    });
+    const socket = lastSocket();
+    const statuses: string[] = [];
+    const unsubStatus = engineA.subscribeRealtimeStatus((s) => statuses.push(s));
+    expect(statuses).toEqual(['connecting']);
+
+    socket.readyState = 1;
+    socket.emitOpen();
+    expect(engineA.getRealtimeStatus()).toBe('connected');
+
+    engineA.sendPresence('focus', 'block-1');
+    expect(socket.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: 'presence', action: 'focus', blockUuid: 'block-1' })
+    );
+
+    unsubStatus();
+    engineA.stopRealtime();
+    expect(engineA.getRealtimeStatus()).toBe('disconnected');
   });
 });
 

@@ -20,6 +20,7 @@ from app.relay.dependencies import (
 )
 from app.relay.models import RelayEnvelope
 from app.relay.permissions import PermissionChecker, StubPermissionChecker
+from app.relay.presence import build_presence_user
 from app.relay.router import router
 from app.relay.storage import RelayStorage, SqliteRelayStorage
 
@@ -55,9 +56,13 @@ def client(app: FastAPI) -> TestClient:
 
 @pytest.fixture(autouse=True)
 def clear_broadcast_registry() -> None:
+    from app.relay import websocket as relay_ws_module
+
     reset_broadcast_backend()
+    relay_ws_module._presence_connections.clear()  # noqa: SLF001
     yield
     reset_broadcast_backend()
+    relay_ws_module._presence_connections.clear()  # noqa: SLF001
 
 
 @pytest.fixture
@@ -100,6 +105,10 @@ def _assert_hello(websocket, latest_seq: int = 0) -> None:
     assert hello["protocolVersion"] == 2
     assert hello["restoreEpoch"] == 0
     assert hello["latestSeq"] == latest_seq
+    # The presence snapshot immediately follows hello.
+    users_list = websocket.receive_json()
+    assert users_list["type"] == "presence"
+    assert users_list["action"] == "users_list"
 
 
 def test_websocket_connect_with_valid_actor(client: TestClient, auth_patch: None) -> None:
@@ -117,9 +126,7 @@ def test_websocket_connect_with_valid_actor(client: TestClient, auth_patch: None
 
 def test_websocket_connect_without_auth_is_rejected(client: TestClient) -> None:
     """A connection without a valid JWT cookie/Bearer token is rejected."""
-    with pytest.raises(WebSocketDisconnect), client.websocket_connect(
-        "/api/relay/ws/ws-1"
-    ):
+    with pytest.raises(WebSocketDisconnect), client.websocket_connect("/api/relay/ws/ws-1"):
         pass  # pragma: no cover
 
 
@@ -187,11 +194,13 @@ def test_websocket_connect_permission_denied(monkeypatch: pytest.MonkeyPatch) ->
     app.dependency_overrides[get_effective_permission_checker] = lambda: DenyAll()
     app.dependency_overrides[get_workspace_restore_epoch] = lambda: 0
 
-    with TestClient(app) as deny_client, pytest.raises(
-        WebSocketDisconnect
-    ), deny_client.websocket_connect(
-        "/api/relay/ws/ws-1",
-        headers={"Authorization": "Bearer valid-token"},
+    with (
+        TestClient(app) as deny_client,
+        pytest.raises(WebSocketDisconnect),
+        deny_client.websocket_connect(
+            "/api/relay/ws/ws-1",
+            headers={"Authorization": "Bearer valid-token"},
+        ),
     ):
         pass  # pragma: no cover
 
@@ -293,3 +302,130 @@ def test_websocket_malformed_json_is_handled(
         websocket.send_json({"type": "batch", "envelopes": []})
         ack = websocket.receive_json()
         assert ack["type"] == "ack"
+
+
+# --- Presence frames (protocol/SPEC.md §5) -----------------------------------
+
+# The auth_patch fixture resolves every token to actor-1 without a users-table
+# row, so presence users fall back to the derived default name/color.
+_ACTOR_USER = build_presence_user({"uuid": "actor-1", "is_active": True}, "actor-1")
+
+
+def _connect_ws(client: TestClient):
+    return client.websocket_connect(
+        "/api/relay/ws/ws-1",
+        headers={"Authorization": "Bearer valid-token"},
+    )
+
+
+def test_presence_focus_broadcast_to_other_connection_only(
+    client: TestClient,
+    auth_patch: None,
+) -> None:
+    """A focus frame is broadcast to other connections but never echoed back."""
+    with _connect_ws(client) as sender, _connect_ws(client) as receiver:
+        _assert_hello(sender)
+        _assert_hello(receiver)
+
+        sender.send_json({"type": "presence", "action": "focus", "blockUuid": "block-1"})
+
+        frame = receiver.receive_json()
+        assert frame == {
+            "type": "presence",
+            "action": "user_focus",
+            "blockUuid": "block-1",
+            "user": _ACTOR_USER,
+        }
+
+        # The sender's next frame is the ack for a batch, proving no echo.
+        sender.send_json({"type": "batch", "envelopes": []})
+        ack = sender.receive_json()
+        assert ack["type"] == "ack"
+
+
+def test_presence_second_focus_auto_blurs_previous_block(
+    client: TestClient,
+    auth_patch: None,
+) -> None:
+    """Focusing a second block broadcasts user_blur for the previous one."""
+    with _connect_ws(client) as sender, _connect_ws(client) as receiver:
+        _assert_hello(sender)
+        _assert_hello(receiver)
+
+        sender.send_json({"type": "presence", "action": "focus", "blockUuid": "block-1"})
+        assert receiver.receive_json()["action"] == "user_focus"
+
+        sender.send_json({"type": "presence", "action": "focus", "blockUuid": "block-2"})
+        blur = receiver.receive_json()
+        assert blur == {
+            "type": "presence",
+            "action": "user_blur",
+            "blockUuid": "block-1",
+            "user": _ACTOR_USER,
+        }
+        focus = receiver.receive_json()
+        assert focus["action"] == "user_focus"
+        assert focus["blockUuid"] == "block-2"
+
+
+def test_presence_disconnect_broadcasts_user_blur(
+    client: TestClient,
+    auth_patch: None,
+) -> None:
+    """Dropping a connection with a focused block broadcasts a final blur."""
+    with _connect_ws(client) as receiver:
+        _assert_hello(receiver)
+        with _connect_ws(client) as sender:
+            _assert_hello(sender)
+            sender.send_json({"type": "presence", "action": "focus", "blockUuid": "block-9"})
+            assert receiver.receive_json()["action"] == "user_focus"
+
+        frame = receiver.receive_json()
+        assert frame == {
+            "type": "presence",
+            "action": "user_blur",
+            "blockUuid": "block-9",
+            "user": _ACTOR_USER,
+        }
+
+
+def test_presence_users_list_sent_after_hello(
+    client: TestClient,
+    auth_patch: None,
+) -> None:
+    """A new connection gets a snapshot of other users' focused blocks."""
+    with _connect_ws(client) as first:
+        _assert_hello(first)
+        first.send_json({"type": "presence", "action": "focus", "blockUuid": "block-1"})
+
+        with _connect_ws(client) as second:
+            hello = second.receive_json()
+            assert hello["type"] == "hello"
+            snapshot = second.receive_json()
+            assert snapshot == {
+                "type": "presence",
+                "action": "users_list",
+                "users": [{"user": _ACTOR_USER, "blockUuid": "block-1"}],
+            }
+
+
+def test_presence_malformed_frame_gets_error(
+    client: TestClient,
+    auth_patch: None,
+) -> None:
+    """Malformed presence frames get an error frame; the connection stays open."""
+    with _connect_ws(client) as websocket:
+        _assert_hello(websocket)
+
+        websocket.send_json({"type": "presence", "action": "dance", "blockUuid": "block-1"})
+        response = websocket.receive_json()
+        assert response["type"] == "error"
+        assert "presence" in response["message"]
+
+        websocket.send_json({"type": "presence", "action": "focus"})
+        assert websocket.receive_json()["type"] == "error"
+
+        # Connection remains usable for both presence and batch frames.
+        websocket.send_json({"type": "presence", "action": "typing", "blockUuid": "block-1"})
+        websocket.send_json({"type": "batch", "envelopes": []})
+        assert websocket.receive_json()["type"] == "ack"

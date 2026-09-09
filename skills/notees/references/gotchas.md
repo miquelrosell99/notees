@@ -247,3 +247,14 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Always verify frontend changes with `cd frontend && npx tsc -b --noEmit` (or `npm run lint`), never plain `tsc --noEmit`. For WebCrypto calls, copy into a fresh `new Uint8Array(...)` instead of casting.
 
 **Prevent:** Run `tsc -b` before every frontend commit; treat "it passed tsc" claims without `-b` as unverified.
+
+
+## **[background-jobs]** Background tasks must not fabricate partial Pydantic models
+
+**Symptom:** A background job endpoint fails with `N validation errors for User … input_value={'id': '1', 'email': ''}`; after fixing that, `TypeError: object PosixPath can't be used in 'await' expression` from the same call chain.
+
+**Cause:** `_run_export_job` (workspaces router) built `User(id=user_id, email="")` just to satisfy `_get_workspace_io_service`'s parameter, which broke as soon as the `User` response model required `uuid`/`created_at`. The same factory also awaited the sync `get_data_dir()` (`app/utils/paths.py`), so every export path through `_get_workspace_io_service` was dead at runtime with no test catching it.
+
+**Fix:** Pass primitive ids straight into the service factory — `_get_workspace_io_service(user_id)` already accepts `int | str | None`; never `await` sync path helpers. `_run_node_export_job` (`app/features/export/router.py`) shows the correct idiom: build the repository from `str(user_id)`.
+
+**Prevent:** Background tasks run outside the request lifecycle — construct services from ids/primitives, not request-scoped models. After adding a required field to a Pydantic model, grep all construction sites (`Model(**`, `Model(id=`) for partial fabrications. Endpoint tests must await background job completion and assert `status == "completed"`, not just the 202-style kickoff response.

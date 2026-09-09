@@ -16,6 +16,9 @@ class FakeSocket implements WebSocketLike {
       this.emitClose(code);
     }
   });
+  send = vi.fn((data: string) => {
+    void data;
+  });
 
   readonly url: string;
 
@@ -162,5 +165,130 @@ describe('RelayWsClient', () => {
     lastSocket().emitClose(1006);
     vi.advanceTimersByTime(10_000);
     expect(FakeSocket.instances).toHaveLength(2);
+  });
+});
+
+describe('RelayWsClient presence + status', () => {
+  beforeEach(() => {
+    FakeSocket.instances = [];
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('dispatches presence frames to onPresence and still ignores unknown types', () => {
+    const presence = vi.fn();
+    const client = new RelayWsClient({
+      workspaceId: uuidv7(),
+      baseUrl: 'http://localhost:8001',
+      callbacks: { onHello: vi.fn(), onOps: vi.fn(), onPresence: presence },
+      createSocket: (url) => new FakeSocket(url),
+    });
+    client.connect();
+    const socket = lastSocket();
+    socket.emitOpen();
+
+    const frame = {
+      type: 'presence',
+      action: 'user_focus',
+      blockUuid: 'block-1',
+      user: { id: 'user-1', name: 'Alice', color: '#ef4444' },
+    };
+    socket.emitMessage(frame);
+    expect(presence).toHaveBeenCalledWith(frame);
+
+    const list = {
+      type: 'presence',
+      action: 'users_list',
+      users: [{ user: { id: 'user-1', name: 'Alice', color: '#ef4444' }, blockUuid: 'block-1' }],
+    };
+    socket.emitMessage(list);
+    expect(presence).toHaveBeenCalledWith(list);
+
+    // Unknown frame types are ignored (additive framing, SPEC §5).
+    socket.emitMessage({ type: 'something_new', payload: 1 });
+    expect(presence).toHaveBeenCalledTimes(2);
+
+    client.close();
+  });
+
+  it('send() serializes frames only while the socket is open', () => {
+    const client = new RelayWsClient({
+      workspaceId: uuidv7(),
+      baseUrl: 'http://localhost:8001',
+      callbacks: { onHello: vi.fn(), onOps: vi.fn() },
+      createSocket: (url) => new FakeSocket(url),
+    });
+
+    // No socket yet: safe no-op.
+    client.send({ type: 'presence', action: 'focus', blockUuid: 'b1' });
+
+    client.connect();
+    const socket = lastSocket();
+    // Connecting but not open: still a no-op.
+    client.send({ type: 'presence', action: 'focus', blockUuid: 'b1' });
+    expect(socket.send).not.toHaveBeenCalled();
+
+    socket.emitOpen();
+    client.send({ type: 'presence', action: 'focus', blockUuid: 'b1' });
+    expect(socket.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: 'presence', action: 'focus', blockUuid: 'b1' })
+    );
+
+    client.close();
+    client.send({ type: 'presence', action: 'blur', blockUuid: 'b1' });
+    expect(socket.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports realtime status transitions', () => {
+    const statuses: string[] = [];
+    const client = new RelayWsClient({
+      workspaceId: uuidv7(),
+      baseUrl: 'http://localhost:8001',
+      callbacks: { onHello: vi.fn(), onOps: vi.fn(), onStatusChange: (s) => statuses.push(s) },
+      createSocket: (url) => new FakeSocket(url),
+      reconnectDelaysMs: [1_000],
+    });
+    expect(client.getStatus()).toBe('disconnected');
+
+    client.connect();
+    expect(client.getStatus()).toBe('connecting');
+    lastSocket().emitOpen();
+    expect(client.getStatus()).toBe('connected');
+
+    lastSocket().emitClose(1006);
+    expect(client.getStatus()).toBe('disconnected');
+
+    // Reconnect: back to connecting.
+    vi.advanceTimersByTime(1_000);
+    expect(client.getStatus()).toBe('connecting');
+    lastSocket().emitOpen();
+    expect(client.getStatus()).toBe('connected');
+
+    client.close();
+    expect(client.getStatus()).toBe('disconnected');
+    expect(statuses).toEqual([
+      'connecting',
+      'connected',
+      'disconnected',
+      'connecting',
+      'connected',
+      'disconnected',
+    ]);
+  });
+
+  it('reports error status on a fatal framing version', () => {
+    const client = new RelayWsClient({
+      workspaceId: uuidv7(),
+      baseUrl: 'http://localhost:8001',
+      callbacks: { onHello: vi.fn(), onOps: vi.fn(), onFatal: vi.fn() },
+      createSocket: (url) => new FakeSocket(url),
+    });
+    client.connect();
+    lastSocket().emitOpen();
+    lastSocket().emitMessage({ type: 'hello', protocolVersion: 99, restoreEpoch: 0, latestSeq: 0 });
+    expect(client.getStatus()).toBe('error');
   });
 });

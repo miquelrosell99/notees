@@ -12,8 +12,10 @@
  * Framing (WS_PROTOCOL_VERSION = 2, protocol/SPEC.md §5):
  *   server → client: hello { protocolVersion, restoreEpoch, latestSeq }
  *   server → client: ops { protocolVersion, envelopes, seqs }
+ *   client → server: presence { action, blockUuid }
+ *   server → client: presence { action: user_focus|user_blur|user_typing|users_list, ... }
  * A peer speaking a newer framing version is rejected loudly (no silent
- * degradation, no reconnect loop).
+ * degradation, no reconnect loop). Unknown frame types are ignored.
  */
 
 import type { OperationEnvelope } from './crypto';
@@ -26,6 +28,8 @@ export const RELAY_WS_PROTOCOL_VERSION = 2;
 
 const DEFAULT_RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 
+const WS_OPEN = 1;
+
 /** Minimal socket surface so tests can inject a fake. */
 export interface WebSocketLike {
   readonly readyState: number;
@@ -34,6 +38,7 @@ export interface WebSocketLike {
   onerror: ((event: Event) => void) | null;
   onclose: ((event: CloseEvent) => void) | null;
   close(code?: number, reason?: string): void;
+  send?(data: string): void;
 }
 
 export interface RelayWsHello {
@@ -41,9 +46,27 @@ export interface RelayWsHello {
   latestSeq: number;
 }
 
+export interface RelayPresenceUser {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export type RelayPresenceFrame =
+  | { type: 'presence'; action: 'user_focus' | 'user_blur' | 'user_typing'; blockUuid: string; user: RelayPresenceUser }
+  | { type: 'presence'; action: 'users_list'; users: Array<{ user: RelayPresenceUser; blockUuid: string }> };
+
+export type RelayPresenceAction = 'focus' | 'blur' | 'typing';
+
+export type RelayWsStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
+
 export interface RelayWsCallbacks {
   onHello: (hello: RelayWsHello) => void;
   onOps: (envelopes: OperationEnvelope[], seqs: Record<string, number>) => void;
+  /** Ephemeral presence frames (never persisted, never affect the seq cursor). */
+  onPresence?: (frame: RelayPresenceFrame) => void;
+  /** Connection status changes (for presence/sync indicators). */
+  onStatusChange?: (status: RelayWsStatus) => void;
   /** Fatal framing errors (e.g. newer protocol version); the client stops. */
   onFatal?: (message: string) => void;
   onClose?: (code: number) => void;
@@ -79,6 +102,7 @@ export class RelayWsClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
   private fatal = false;
+  private status: RelayWsStatus = 'disconnected';
 
   constructor(options: RelayWsClientOptions) {
     this.workspaceId = options.workspaceId;
@@ -88,15 +112,33 @@ export class RelayWsClient {
     this.reconnectDelays = options.reconnectDelaysMs ?? DEFAULT_RECONNECT_DELAYS_MS;
   }
 
+  getStatus(): RelayWsStatus {
+    return this.status;
+  }
+
+  private setStatus(status: RelayWsStatus): void {
+    if (this.status === status) return;
+    this.status = status;
+    this.callbacks.onStatusChange?.(status);
+  }
+
+  /** Send a frame (e.g. presence); a safe no-op while the socket is not open. */
+  send(frame: object): void {
+    if (this.socket?.readyState !== WS_OPEN || typeof this.socket.send !== 'function') return;
+    this.socket.send(JSON.stringify(frame));
+  }
+
   connect(): void {
     if (this.socket || this.fatal) return;
     this.intentionalClose = false;
     const url = relayWsUrl(this.workspaceId, this.baseUrl);
     const socket = this.createSocket(url);
     this.socket = socket;
+    this.setStatus('connecting');
 
     socket.onopen = () => {
       this.reconnectAttempt = 0;
+      this.setStatus('connected');
     };
     socket.onmessage = (event) => {
       this.handleMessage(event);
@@ -106,12 +148,14 @@ export class RelayWsClient {
     };
     socket.onclose = (event) => {
       this.socket = null;
+      this.setStatus('disconnected');
       this.callbacks.onClose?.(event.code);
       if (this.intentionalClose || this.fatal) return;
       // 1008 = policy violation (auth/permission). Reconnecting would churn;
       // surface it and stop — re-auth reinitializes the workspace anyway.
       if (event.code === 1008) {
         this.fatal = true;
+        this.setStatus('error');
         this.callbacks.onFatal?.('Relay WebSocket rejected (auth or permission).');
         return;
       }
@@ -129,6 +173,7 @@ export class RelayWsClient {
     const socket = this.socket;
     this.socket = null;
     socket?.close();
+    this.setStatus('disconnected');
   }
 
   private scheduleReconnect(): void {
@@ -161,6 +206,7 @@ export class RelayWsClient {
         // Fail loud: a newer framing version may carry semantics we cannot
         // interpret. Stop instead of silently desyncing.
         this.fatal = true;
+        this.setStatus('error');
         this.callbacks.onFatal?.(
           `Relay WebSocket speaks framing version ${typed.protocolVersion}, we understand ${RELAY_WS_PROTOCOL_VERSION}.`
         );
@@ -190,7 +236,13 @@ export class RelayWsClient {
       this.callbacks.onOps(ops.envelopes ?? [], ops.seqs ?? {});
       return;
     }
+
+    if (typed.type === 'presence') {
+      this.callbacks.onPresence?.(typed as unknown as RelayPresenceFrame);
+      return;
+    }
     // ack/error frames target WS-push clients; the web client pushes over
-    // HTTP, so they are safely ignored here.
+    // HTTP, so they are safely ignored here. Unknown frame types are ignored
+    // too — new frame types are additive at framing version 2 (SPEC §5).
   }
 }

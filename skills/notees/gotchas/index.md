@@ -106,6 +106,12 @@ Serverless behavior keys off `useConnectionMode()` / `useCapabilities()` (`front
 
 `app/db/schema/sql.py` evolves tables via guarded `ALTER TABLE` blocks (e.g. `pending_invite` dropped `node_id` at v5), but nothing fails CI when repository SQL still references the dropped column — the breakage only surfaces at runtime. After changing schema DDL, grep `app/features/**/repository.py` for the old column name.
 
+## **[background-jobs]** Background tasks must not fabricate partial Pydantic models
+
+Background jobs run outside the request lifecycle and must build services from primitive ids (`_get_workspace_io_service(user_id)` accepts `int | str | None`), never `User(id=..., email="")`-style partial models that break the moment the model gains a required field. Sync helpers like `get_data_dir()` must not be awaited.
+
+- Reference: `references/gotchas.md#background-jobs-background-tasks-must-not-fabricate-partial-pydantic-models`
+
 ## Query hooks gate on the AST being undefined, not on `enabled`
 
 `useQueryAstAdapter` (`useExecuteQueryAdapter` / `useQueryResultsAdapter`) ignores the `enabled` option — execution is gated purely by `ast` being `undefined`. Passing `enabled: false` alone does NOT stop the worker `queryNodes` call. To suppress a query (e.g. collapsed sections), pass `ast: undefined`. Collapsed `QuerySection`s run `countQueryResults` only; the full query fires on expand.

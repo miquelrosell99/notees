@@ -56,11 +56,7 @@ def get_relay_storage() -> RelayStorage:
     """
     global _storage_instance
     if _storage_instance is None:
-        _storage_instance = (
-            SqliteRelayStorage(_default_db_path())
-            if _is_test_environment()
-            else PostgresRelayStorage()
-        )
+        _storage_instance = SqliteRelayStorage(_default_db_path()) if _is_test_environment() else PostgresRelayStorage()
     return _storage_instance
 
 
@@ -153,12 +149,11 @@ async def get_actor_id(
     return "anonymous"
 
 
-async def get_actor_id_ws(websocket: WebSocket) -> str:
-    """Extract the actor id for the relay WebSocket connection.
+async def get_ws_user(websocket: WebSocket) -> dict | None:
+    """Return the authenticated user dict for a relay WebSocket, or None.
 
     Validates the same JWT cookie or Bearer token used by the HTTP relay
-    endpoints. The ``X-Actor-Id`` header is not trusted on its own; without a
-    valid token the connection is treated as anonymous.
+    endpoints. The ``X-Actor-Id`` header is not trusted on its own.
     """
     jwt_token = websocket.cookies.get("access_token")
     auth_header = websocket.headers.get("Authorization", "")
@@ -172,8 +167,19 @@ async def get_actor_id_ws(websocket: WebSocket) -> str:
             if user_id:
                 user = await auth_module.get_user_by_id(str(user_id))
                 if user:
-                    return str(user["uuid"])
+                    return user
 
+    return None
+
+
+async def get_actor_id_ws(user: dict | None = Depends(get_ws_user)) -> str:
+    """Extract the actor id for the relay WebSocket connection.
+
+    Identity comes only from the authenticated user; without a valid token the
+    connection is treated as anonymous.
+    """
+    if user:
+        return str(user["uuid"])
     return "anonymous"
 
 
