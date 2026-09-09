@@ -7,6 +7,7 @@ import {
   verifyMigratedDatabase,
   type WaSqliteDatabase,
 } from '../waSqliteDatabase';
+import { createSchema } from '../schema';
 import { queryOne, queryAll, transaction } from '../sqlite';
 
 beforeAll(() => {
@@ -211,6 +212,37 @@ describe('waSqliteDatabase (memory vfs)', () => {
 
       const typeCount = db.exec('SELECT COUNT(*) FROM node WHERE type = ?', ['block']);
       expect(typeCount[0].values[0][0]).toBe(3);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('runs createSchema on a fresh database and serves FTS4/FTS5 queries', async () => {
+    // Regression: the stock wa-sqlite dist wasm ships without any FTS module
+    // ("no such module: fts4"), which broke workspace open the moment a
+    // statement touched the FTS4 search_index. The vendored build at
+    // ../wa-sqlite-fts/ must keep FTS3/4/5 compiled in.
+    const db = await createTestDb('fts');
+    try {
+      createSchema(db as unknown as Database);
+
+      db.run('INSERT INTO search_index (node_id, content) VALUES (?, ?)', [
+        'n1',
+        'buy milk and eggs',
+      ]);
+      db.run('INSERT INTO search_index (node_id, content) VALUES (?, ?)', ['n2', 'call mom']);
+      const prefix = db.exec('SELECT node_id FROM search_index WHERE content MATCH ?', ['mil*']);
+      expect(prefix[0].values).toEqual([['n1']]);
+      // matchinfo('pcx') is the ranking blob search.ts scores with.
+      const ranked = db.exec("SELECT matchinfo(search_index, 'pcx') FROM search_index WHERE content MATCH ?", [
+        'milk',
+      ]);
+      expect(ranked[0].values).toHaveLength(1);
+
+      // FTS5 is compiled in for a future search migration.
+      db.exec('CREATE VIRTUAL TABLE ft5 USING fts5(content)');
+      db.run('INSERT INTO ft5 (content) VALUES (?)', ['hello world']);
+      expect(db.exec("SELECT rowid FROM ft5 WHERE ft5 MATCH 'hello'")[0].values).toEqual([[1]]);
     } finally {
       db.close();
     }
