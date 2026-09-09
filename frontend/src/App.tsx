@@ -56,11 +56,13 @@ import { Button } from '@/components/ui/Button';
 import { registerVisibilitySync } from '@/core/serviceWorker/syncOnVisibility';
 import {
   getWorkspaceKey,
+  isWorkspaceE2eeEnabled,
   registerWorkspaceKey,
   setWorkspaceE2eeEnabled,
   unwrapWorkspaceKey,
 } from '@/core/e2ee';
 import { fetchEncryptionKeyRecord } from '@/core/e2eeApi';
+import { unlockWithMemberKeys, wrapSweep } from '@/core/e2eeSetup';
 import { useEncryptionStore } from '@/stores/encryptionStore';
 import { E2eeUnlockModal } from '@/features/sync/components/E2eeUnlockModal';
 import {
@@ -452,18 +454,21 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         try {
           const record = await fetchEncryptionKeyRecord(workspaceId);
           if (cancelled) return;
-          if (record.enabled && record.wrappedKey) {
+          if (record.enabled && (record.wrappedKey || record.memberKeys.length > 0)) {
             setWorkspaceE2eeEnabled(workspaceId, true);
             if (!getWorkspaceKey(workspaceId)) {
-              // Try a previously derived KEK on this device before prompting.
-              const kek = useEncryptionStore.getState().getKey(workspaceId);
-              let unlocked = false;
-              if (kek) {
-                try {
-                  registerWorkspaceKey(workspaceId, await unwrapWorkspaceKey(record.wrappedKey, kek));
-                  unlocked = true;
-                } catch {
-                  // Device KEK is stale; fall through to the unlock modal.
+              // v2: unwrap my member-wrapped copies with my device identity.
+              let unlocked = await unlockWithMemberKeys(workspaceId, actorId).catch(() => false);
+              if (!unlocked) {
+                // v1 fallback: try a previously derived KEK on this device.
+                const kek = useEncryptionStore.getState().getKey(workspaceId);
+                if (kek && record.wrappedKey) {
+                  try {
+                    registerWorkspaceKey(workspaceId, await unwrapWorkspaceKey(record.wrappedKey, kek));
+                    unlocked = true;
+                  } catch {
+                    // Device KEK is stale; fall through to the unlock modal.
+                  }
                 }
               }
               if (!unlocked) {
@@ -563,6 +568,13 @@ function WorkspaceStoreInitializer({ children }: { children: React.ReactNode }) 
         if (syncEngine && !isLocalSession && !isWorkspaceTabFollower(workspaceId)) {
           unregisterVisibilityRef.current = registerVisibilitySync(syncEngine);
           syncEngine.startRealtime({ workspaceId });
+        }
+        // E2EE v2: owners/admins re-wrap the workspace key for members who
+        // published a key since the last sweep (e.g. invitees' first login).
+        if (!isLocalSession && !isWorkspaceTabFollower(workspaceId) && isWorkspaceE2eeEnabled(workspaceId)) {
+          void wrapSweep(workspaceId, actorId).catch((err) => {
+            log.warn('E2EE member wrap sweep failed', { error: String(err) });
+          });
         }
       })
       .catch((err) => {

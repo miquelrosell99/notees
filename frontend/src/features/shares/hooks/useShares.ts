@@ -3,6 +3,9 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sharesKeys } from '@/hooks/queryKeys';
+import { isWorkspaceE2eeEnabled } from '@/core/e2ee';
+import { rotateWorkspaceKey } from '@/core/e2eeSetup';
+import { useAuthStore } from '@/stores';
 import {
   createShare,
   listNodeShares,
@@ -171,8 +174,19 @@ export function useRemoveWorkspaceMember() {
       workspaceUuid: string;
       memberUserUuid: string;
     }) => removeWorkspaceMember(workspaceUuid, memberUserUuid),
-    onSuccess: (_, { workspaceUuid }) => {
+    onSuccess: (_, { workspaceUuid, memberUserUuid }) => {
       queryClient.invalidateQueries({ queryKey: sharesKeys.workspaceMembers(workspaceUuid) });
+      // E2EE v2: rotate the workspace key so the removed member cannot read
+      // future operations (their wrapped copies are deleted; remaining
+      // members get re-wrapped copies of every version).
+      if (isWorkspaceE2eeEnabled(workspaceUuid)) {
+        const myUuid = useAuthStore.getState().user?.uuid;
+        if (myUuid) {
+          void rotateWorkspaceKey(workspaceUuid, myUuid, memberUserUuid).catch((err) => {
+            console.error('E2EE key rotation after member removal failed:', err);
+          });
+        }
+      }
     },
   });
 }
