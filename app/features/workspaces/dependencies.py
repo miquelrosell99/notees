@@ -92,7 +92,7 @@ async def _get_workspace_io_service(user_id: int | str | None = None) -> Workspa
         actor_id = str(user_id)
 
     pool = await get_pool()
-    data_dir = await get_data_dir()
+    data_dir = get_data_dir()
     return WorkspaceIOService(
         repo=_make_workspace_io_repository(pool),
         data_dir=Path(data_dir),

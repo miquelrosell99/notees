@@ -43,7 +43,6 @@ from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.features.agents import router as agents_router
-from app.features.collab import live_sync_ws_router
 from app.features.collab import router as events_router
 from app.features.export import auto_export_router
 from app.features.export.router import router as export_router
@@ -590,11 +589,7 @@ app.include_router(v1_router)
 
 # Plugin routers are mounted in lifespan after plugins are loaded.
 
-# Mount WebSocket router separately — it cannot inherit HTTP-only dependencies
-# like RateLimiter because WebSocket scopes lack an HTTP Request object.
-app.include_router(live_sync_ws_router, prefix="/api")
-
-# Mount operation relay router.
+# Mount operation relay router (ops + presence over one WebSocket channel).
 app.include_router(relay_router)
 
 # Mount external agent API router.
