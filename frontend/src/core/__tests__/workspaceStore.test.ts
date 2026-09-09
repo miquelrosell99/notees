@@ -76,7 +76,7 @@ describe('WorkspaceStore', () => {
     expect(content[0].text).toBe('Hello world');
   });
 
-  it('emits textUpdate ops with a content mirror of the serialized AST', async () => {
+  it('emits base64 Yjs delta text ops with a content mirror of the serialized AST', async () => {
     const db = await createTestDatabase();
     const workspaceId = uuidv7();
     const actorId = uuidv7();
@@ -91,8 +91,16 @@ describe('WorkspaceStore', () => {
     expect(result).toHaveLength(1);
     expect(result[0].values).toHaveLength(1);
     const payload = JSON.parse(result[0].values[0][0] as string) as Record<string, unknown>;
-    expect(Array.isArray(payload.textUpdate)).toBe(true);
+    expect(typeof payload.textUpdateB64).toBe('string');
+    expect(payload.textUpdate).toBeUndefined();
     expect(payload.content).toBe(ast);
+
+    // A second edit ships only the delta, not the full document history.
+    store.updateText(nodeId, (text) => text.insert(ast.length, '!'));
+    const second = db.exec("SELECT payload FROM operation WHERE op_type = 'node.updateContent' ORDER BY rowid DESC LIMIT 1");
+    const deltaPayload = JSON.parse(second[0].values[0][0] as string) as Record<string, unknown>;
+    const deltaBytes = atob(deltaPayload.textUpdateB64 as string).length;
+    expect(deltaBytes).toBeLessThan(200);
   });
 
   it('sets node text', async () => {
