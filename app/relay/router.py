@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import base64
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
+from app.core.clock import Hlc
 from app.dependencies import get_current_user
 from app.models import User
 from app.rate_limit import PerKeyBucketFactory, user_identifier
@@ -27,7 +26,6 @@ from app.relay.models import (
     EncryptionKeyResponse,
     LatestSnapshotResponse,
     RelayStatsResponse,
-    SnapshotRequest,
     SnapshotResponse,
 )
 from app.relay.permissions import PermissionDeniedError
@@ -218,8 +216,8 @@ async def catch_up(
     )
 
 
-@router.post(
-    "/snapshot",
+@router.put(
+    "/snapshot/data",
     response_model=SnapshotResponse,
     dependencies=[
         Depends(
@@ -230,21 +228,25 @@ async def catch_up(
         ),
     ],
 )
-async def create_snapshot(
-    request: SnapshotRequest,
+async def upload_snapshot_data(
+    request: Request,
+    workspace_id: str = Query(...),
+    physical: int = Query(...),
+    logical: int = Query(...),
     user: User = Depends(get_current_user),  # noqa: B008
     service: RelayService = Depends(get_relay_service),
 ) -> SnapshotResponse:
-    """Create a relay snapshot up to the given HLC.
+    """Create a relay snapshot from a raw binary body (no base64-in-JSON).
 
     Requires admin role or workspace ownership.
     """
-    await require_workspace_owner_or_admin(request.workspace_id, user)
+    await require_workspace_owner_or_admin(workspace_id, user)
+    data = await request.body()
     try:
         snapshot_id, up_to_seq = await service.create_snapshot(
-            request.workspace_id,
-            request.up_to_hlc,
-            data=request.data,
+            workspace_id,
+            Hlc(physical=physical, logical=logical),
+            data=data,
         )
     except PermissionDeniedError as exc:
         raise HTTPException(
@@ -258,8 +260,8 @@ async def create_snapshot(
         ) from exc
     return SnapshotResponse(
         snapshot_id=snapshot_id,
-        workspace_id=request.workspace_id,
-        up_to_hlc=request.up_to_hlc,
+        workspace_id=workspace_id,
+        up_to_hlc=Hlc(physical=physical, logical=logical),
         up_to_seq=up_to_seq,
     )
 
@@ -325,16 +327,16 @@ async def compact_operations(
 )
 async def get_latest_snapshot(
     workspace_id: str = Query(...),
-    include_data: bool = Query(True),
     actor_id: str = Depends(get_actor_id),
     service: RelayService = Depends(get_relay_service),
     restore_epoch: int = Depends(get_workspace_restore_epoch),
 ) -> LatestSnapshotResponse:
-    """Return the newest snapshot for a workspace.
+    """Return the newest snapshot's metadata (HLC, seq cursor) — no blob.
 
-    Clients can restore the returned SQLite database bytes and then catch up
-    only operations newer than the snapshot HLC. Pass ``include_data=false``
-    to fetch only the snapshot metadata (HLC, seq cursor) without the blob.
+    The blob is served as a raw binary body by ``GET /snapshot/data``;
+    splitting metadata from data keeps the probe cheap and avoids the
+    +33% base64 overhead and full-buffer JSON allocation on large
+    workspaces.
 
     Snapshots contain the full derived database for the workspace, so they
     are served to authenticated workspace members only. Public share tokens
@@ -347,10 +349,7 @@ async def get_latest_snapshot(
             detail="Authentication required to read snapshots.",
         )
     try:
-        if include_data:
-            snapshot = await service.get_latest_snapshot_for_actor(workspace_id, actor_id)
-        else:
-            snapshot = await service.get_latest_snapshot_metadata_for_actor(workspace_id, actor_id)
+        snapshot = await service.get_latest_snapshot_metadata_for_actor(workspace_id, actor_id)
     except PermissionDeniedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -362,7 +361,6 @@ async def get_latest_snapshot(
             snapshot_id="",
             workspace_id=workspace_id,
             hlc={"physical": 0, "logical": 0},
-            data_base64="",
             has_snapshot=False,
             restore_epoch=restore_epoch,
         )
@@ -371,12 +369,53 @@ async def get_latest_snapshot(
         snapshot_id=snapshot["id"],
         workspace_id=workspace_id,
         hlc=snapshot["hlc"],
-        data_base64=(
-            base64.b64encode(snapshot["data"]).decode("ascii") if include_data else ""
-        ),
         has_snapshot=True,
         restore_epoch=restore_epoch,
         up_to_seq=snapshot["up_to_seq"],
+    )
+
+
+@router.get(
+    "/snapshot/data",
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_snapshot_limiter,
+                identifier=relay_snapshot_identifier,
+            )
+        ),
+    ],
+)
+async def get_latest_snapshot_data(
+    workspace_id: str = Query(...),
+    actor_id: str = Depends(get_actor_id),
+    service: RelayService = Depends(get_relay_service),
+) -> Response:
+    """Return the newest snapshot's blob as a raw binary body (404 if none).
+
+    Members only, same rule as the metadata endpoint.
+    """
+    if actor_id == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to read snapshots.",
+        )
+    try:
+        snapshot = await service.get_latest_snapshot_for_actor(workspace_id, actor_id)
+    except PermissionDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
+    if snapshot is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No snapshot for this workspace.",
+        )
+    return Response(
+        content=snapshot["data"],
+        media_type="application/octet-stream",
     )
 
 

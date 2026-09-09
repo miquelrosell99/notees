@@ -46,13 +46,15 @@ Rate limit: 600 requests per minute, keyed by actor and workspace. The default/r
 
 ### `/api/relay/snapshot` (GET)
 
-Query parameters: `workspace_id`, optional `include_data` (default `true`). Requires an authenticated workspace member — public share tokens are not accepted because the snapshot contains the full derived database (share readers use node-filtered catch-up instead). Returns the newest snapshot as base64-encoded SQLite bytes, plus its HLC, the covered `up_to_seq` cursor, and the workspace `restore_epoch`. Clients can restore the snapshot and then catch up only operations past `up_to_seq`. With `include_data=false` only the metadata is returned (`data_base64` is empty), so clients can cheaply check whether the snapshot is newer before downloading it.
+Query parameters: `workspace_id`. Requires an authenticated workspace member — public share tokens are not accepted because the snapshot contains the full derived database (share readers use node-filtered catch-up instead). Returns the newest snapshot's metadata: HLC, the covered `up_to_seq` cursor, and the workspace `restore_epoch`. The blob itself is served as a raw binary body by `GET /api/relay/snapshot/data` (404 when none); clients probe the metadata first, then download the blob only when it is newer than their local watermark, restore it, and catch up operations past `up_to_seq`.
 
 Rate limit: 60 requests per minute, keyed by actor and workspace.
 
-### `/api/relay/snapshot` (POST)
+### `/api/relay/snapshot` (GET)
 
-Creates a relay snapshot up to the provided HLC. Requires workspace ownership or admin role.
+Metadata only, see above. `GET /api/relay/snapshot/data` returns the blob as
+`application/octet-stream` (404 when none); `PUT /api/relay/snapshot/data`
+with a raw binary body and `physical`/`logical` query params uploads one.
 
 ### `/api/relay/compact`
 

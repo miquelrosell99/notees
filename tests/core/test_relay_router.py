@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -283,31 +281,11 @@ def _seed_snapshot(storage: RelayStorage, workspace_id: str = "ws-1") -> None:
     storage.create_snapshot(workspace_id, Hlc(physical=1000, logical=0), data=b"snapshot-bytes")
 
 
-def test_snapshot_latest_include_data_false_omits_blob(
+def test_snapshot_latest_returns_metadata_only(
     client: TestClient,
     storage: RelayStorage,
 ) -> None:
-    """include_data=false returns snapshot metadata with an empty data_base64."""
-    _seed_snapshot(storage)
-
-    response = client.get(
-        "/api/relay/snapshot",
-        params={"workspace_id": "ws-1", "include_data": "false"},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["has_snapshot"] is True
-    assert data["snapshot_id"]
-    assert data["hlc"] == {"physical": 1000, "logical": 0}
-    assert data["up_to_seq"] is not None
-    assert data["data_base64"] == ""
-
-
-def test_snapshot_latest_default_includes_blob(
-    client: TestClient,
-    storage: RelayStorage,
-) -> None:
-    """Without include_data, the endpoint keeps returning the full blob."""
+    """GET /snapshot serves metadata only; the blob moved to /snapshot/data."""
     _seed_snapshot(storage)
 
     response = client.get(
@@ -317,7 +295,25 @@ def test_snapshot_latest_default_includes_blob(
     assert response.status_code == 200
     data = response.json()
     assert data["has_snapshot"] is True
-    assert data["data_base64"] == base64.b64encode(b"snapshot-bytes").decode("ascii")
+    assert data["snapshot_id"]
+    assert data["hlc"] == {"physical": 1000, "logical": 0}
+    assert data["up_to_seq"] is not None
+    assert "data_base64" not in data
+
+
+def test_snapshot_data_binary_round_trip(
+    client: TestClient,
+    storage: RelayStorage,
+) -> None:
+    """PUT binary upload + GET binary download; 404 when no snapshot exists."""
+    missing = client.get("/api/relay/snapshot/data", params={"workspace_id": "ws-missing"})
+    assert missing.status_code == 404
+
+    _seed_snapshot(storage)
+    response = client.get("/api/relay/snapshot/data", params={"workspace_id": "ws-1"})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/octet-stream"
+    assert response.content == b"snapshot-bytes"
 
 
 def _unauthenticated_client(

@@ -157,20 +157,28 @@ describe('HttpTransport E2EE', () => {
     setWorkspaceE2eeEnabled(WORKSPACE_ID, true);
 
     const plaintextDbBytes = new TextEncoder().encode('SQLite format 3\0fake-db-bytes');
-    const seen: string[] = [];
-    const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
-      if (init?.method === 'POST') {
-        seen.push(init.body as string);
+    const uploaded: Uint8Array[] = [];
+    const mockFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') {
+        // Binary upload: body is the (encrypted) snapshot bytes.
+        expect(String(url)).toContain('/api/relay/snapshot/data');
+        uploaded.push(new Uint8Array(init.body as Uint8Array));
         return new Response(JSON.stringify({ snapshot_id: 's1' }), { status: 200 });
       }
-      // GET: return the uploaded blob back (base64 of the encrypted bytes)
-      const uploaded = JSON.parse(seen[0]);
+      if (String(url).includes('/api/relay/snapshot/data')) {
+        // Binary download: raw bytes of the uploaded blob.
+        const bytes = uploaded[0];
+        return new Response(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, {
+          status: 200,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        });
+      }
+      // Metadata probe.
       return new Response(
         JSON.stringify({
           snapshot_id: 's1',
           workspace_id: WORKSPACE_ID,
           hlc: { physical: 1, logical: 0 },
-          data_base64: uploaded.data_base64,
           has_snapshot: true,
           restore_epoch: 0,
           up_to_seq: 3,
@@ -191,8 +199,8 @@ describe('HttpTransport E2EE', () => {
       upToSeq: null,
     });
 
-    const uploaded = JSON.parse(seen[0]);
-    expect(atob(uploaded.data_base64)).not.toContain('SQLite format 3');
+    // The uploaded body is ciphertext — the SQLite magic is not visible.
+    expect(new TextDecoder().decode(uploaded[0])).not.toContain('SQLite format 3');
 
     const downloaded = await transport.getLatestSnapshot();
     expect(new TextDecoder().decode(downloaded.data)).toBe('SQLite format 3\0fake-db-bytes');
