@@ -36,6 +36,7 @@ import type { NotifyScope, NotifyChangeMessage } from './worker/workerProtocol';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { createDatabase } from './db/connection';
 import { isWaSqliteDatabase } from './db/waSqliteDatabase';
+import { bytesToBase64 } from '@/utils/base64';
 
 export interface NodeRow {
   id: string;
@@ -848,7 +849,13 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
-  private applyTextUpdate(nodeId: string, text: TextCrdt): void {
+  private applyTextUpdate(nodeId: string, text: TextCrdt, sinceStateVector?: Uint8Array): void {
+    // Ship only the changes since the author's previous state (delta), not
+    // the full CRDT state: a busy document would otherwise resend its entire
+    // Yjs history on every keystroke. Base64 keeps the wire payload compact
+    // (JSON byte arrays cost ~3.7x). Receivers merge deltas idempotently via
+    // Y.applyUpdate, and still accept legacy full-state `textUpdate` arrays.
+    const update = sinceStateVector ? text.getUpdateSince(sinceStateVector) : text.getState();
     const op = createOperation(
       {
         workspaceId: this.workspaceId,
@@ -860,15 +867,16 @@ export class WorkspaceStore {
       // The text CRDT plaintext is the serialized content AST; mirror it in
       // `content` so non-CRDT clients can read node content without decoding
       // the Yjs update.
-      { nodeId, textUpdate: Array.from(text.getState()), content: text.toPlaintext() }
+      { nodeId, textUpdateB64: bytesToBase64(update), content: text.toPlaintext() }
     );
     this.apply(op);
   }
 
   updateText(nodeId: string, editor: (text: TextCrdt) => void): void {
     const text = loadTextCrdt(this.db, nodeId);
+    const before = text.getStateVector();
     editor(text);
-    this.applyTextUpdate(nodeId, text);
+    this.applyTextUpdate(nodeId, text, before);
   }
 
   /**
@@ -882,6 +890,7 @@ export class WorkspaceStore {
    */
   setNodeText(nodeId: string, value: string): void {
     const text = loadTextCrdt(this.db, nodeId);
+    const before = text.getStateVector();
     const current = text.toPlaintext();
     if (current === value) return;
     let start = 0;
@@ -899,7 +908,7 @@ export class WorkspaceStore {
     }
     if (currentEnd > start) text.delete(start, currentEnd - start);
     if (valueEnd > start) text.insert(start, value.slice(start, valueEnd));
-    this.applyTextUpdate(nodeId, text);
+    this.applyTextUpdate(nodeId, text, before);
   }
 
   /**
@@ -908,8 +917,9 @@ export class WorkspaceStore {
    */
   insertNodeText(nodeId: string, index: number, value: string): void {
     const text = loadTextCrdt(this.db, nodeId);
+    const before = text.getStateVector();
     text.insert(index, value);
-    this.applyTextUpdate(nodeId, text);
+    this.applyTextUpdate(nodeId, text, before);
   }
 
   /**
@@ -918,8 +928,9 @@ export class WorkspaceStore {
    */
   deleteNodeText(nodeId: string, index: number, length: number): void {
     const text = loadTextCrdt(this.db, nodeId);
+    const before = text.getStateVector();
     text.delete(index, length);
-    this.applyTextUpdate(nodeId, text);
+    this.applyTextUpdate(nodeId, text, before);
   }
 
   /**
@@ -979,6 +990,7 @@ export class WorkspaceStore {
 
     if (oldParentId !== null) {
       const oldTree = loadTreeCrdtClean(this.db, oldParentId);
+      const oldBefore = oldTree.getStateVector();
       oldTree.delete(nodeId);
       saveTreeCrdt(this.db, oldParentId, oldTree);
       const oldUpdateOp = createOperation(
@@ -989,13 +1001,14 @@ export class WorkspaceStore {
           affectedNodeIds: [oldParentId],
           opType: 'node.updateContent',
         },
-        { nodeId: oldParentId, treeUpdate: Array.from(oldTree.getState()) }
+        { nodeId: oldParentId, treeUpdateB64: bytesToBase64(oldTree.getUpdateSince(oldBefore)) }
       );
       this.apply(oldUpdateOp);
     }
 
     if (newParentId !== null) {
       const newTree = loadTreeCrdtClean(this.db, newParentId);
+      const newBefore = newTree.getStateVector();
       newTree.insert(nodeId, newTree.toArray().length);
       saveTreeCrdt(this.db, newParentId, newTree);
       const newUpdateOp = createOperation(
@@ -1006,7 +1019,7 @@ export class WorkspaceStore {
           affectedNodeIds: [newParentId],
           opType: 'node.updateContent',
         },
-        { nodeId: newParentId, treeUpdate: Array.from(newTree.getState()) }
+        { nodeId: newParentId, treeUpdateB64: bytesToBase64(newTree.getUpdateSince(newBefore)) }
       );
       this.apply(newUpdateOp);
     }

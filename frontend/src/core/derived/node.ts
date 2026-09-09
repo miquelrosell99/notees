@@ -7,6 +7,7 @@ import { reindexNode } from './search';
 import { extractTextContent } from './textContent';
 import { deleteNodeViewsForNode } from './nodeView';
 import { queryOne } from '../db/sqlite';
+import { base64ToBytes } from '@/utils/base64';
 import type { ChangeNotification } from './index';
 
 function recordNodeVersion(
@@ -216,10 +217,15 @@ export function applyNodeOperation(db: Database, op: Operation): ChangeNotificat
   }
 
   if (opType === 'node.updateContent') {
-    if (payload.textUpdate) {
-      const textUpdate = Array.isArray(payload.textUpdate)
-        ? new Uint8Array(payload.textUpdate as number[])
-        : (payload.textUpdate as Uint8Array);
+    if (payload.textUpdate || payload.textUpdateB64) {
+      // textUpdateB64 is the current wire format (base64 delta since the
+      // author's prior state); legacy full-state `textUpdate` byte arrays
+      // still apply — Yjs updates merge idempotently either way.
+      const textUpdate = payload.textUpdateB64
+        ? base64ToBytes(payload.textUpdateB64 as string)
+        : Array.isArray(payload.textUpdate)
+          ? new Uint8Array(payload.textUpdate as number[])
+          : (payload.textUpdate as Uint8Array);
       const text = loadTextCrdt(db, payload.nodeId as string);
       text.applyUpdate(textUpdate);
       saveTextCrdt(db, payload.nodeId as string, text);

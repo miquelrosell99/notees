@@ -40,6 +40,16 @@ export class TextCrdt {
     return Y.encodeStateAsUpdate(this.doc);
   }
 
+  /** Current state vector — capture before an edit to compute its delta. */
+  getStateVector(): Uint8Array {
+    return Y.encodeStateVector(this.doc);
+  }
+
+  /** Incremental update containing only changes since ``stateVector``. */
+  getUpdateSince(stateVector: Uint8Array): Uint8Array {
+    return Y.encodeStateAsUpdate(this.doc, stateVector);
+  }
+
   applyUpdate(update: Uint8Array): void {
     Y.applyUpdate(this.doc, update);
   }
