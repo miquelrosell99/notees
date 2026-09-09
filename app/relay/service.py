@@ -355,6 +355,46 @@ class RelayService:
             self._storage.set_workspace_wrapped_key(workspace_id, wrapped_key)
         )
 
+    async def get_user_public_key(self, user_id: str) -> str | None:
+        """Return a user's published X25519 public key (any authenticated caller)."""
+        return await self._maybe_await(self._storage.get_user_public_key(user_id))
+
+    async def set_user_public_key(self, actor_id: str, public_key: str) -> None:
+        """Publish the caller's own X25519 public key; anonymous actors rejected."""
+        if actor_id == "anonymous":
+            raise PermissionDeniedError("Anonymous actors cannot publish a public key")
+        return await self._maybe_await(self._storage.set_user_public_key(actor_id, public_key))
+
+    async def get_member_keys(
+        self, workspace_id: str, actor_id: str, user_id: str
+    ) -> list[dict[str, Any]]:
+        """Return a member's wrapped workspace-key copies.
+
+        Members may read only their own wrapped copies, and only when they can
+        read the workspace at all.
+        """
+        if actor_id != user_id:
+            raise PermissionDeniedError(
+                f"Actor {actor_id} cannot read member keys for {user_id}"
+            )
+        if not await self._may_read(workspace_id, actor_id):
+            raise PermissionDeniedError(
+                f"Actor {actor_id} cannot read workspace {workspace_id}"
+            )
+        return await self._maybe_await(self._storage.get_member_keys(workspace_id, user_id))
+
+    async def set_member_key(
+        self, workspace_id: str, user_id: str, key_version: int, wrapped_key: str
+    ) -> None:
+        """Store one wrapped workspace-key copy for a member (owner/admin via router)."""
+        return await self._maybe_await(
+            self._storage.set_member_key(workspace_id, user_id, key_version, wrapped_key)
+        )
+
+    async def delete_member_keys(self, workspace_id: str, user_id: str) -> int:
+        """Delete all wrapped workspace-key copies for a member (owner/admin via router)."""
+        return await self._maybe_await(self._storage.delete_member_keys(workspace_id, user_id))
+
     async def _may_read(
         self,
         workspace_id: str,

@@ -521,3 +521,64 @@ class TestSqliteRelayStorageSnapshotRetention:
         assert latest is not None
         assert latest["id"] == kept_ids[-1]
         assert latest["hlc"] == Hlc(physical=total * 10, logical=0)
+
+
+class TestSqliteRelayStorageE2eeV2:
+    """Per-member wrapped keys and published user public keys (SPEC §8, v2)."""
+
+    def test_user_public_key_round_trip_and_upsert(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        assert storage.get_user_public_key("user-1") is None
+
+        storage.set_user_public_key("user-1", "pk-v1")
+        assert storage.get_user_public_key("user-1") == "pk-v1"
+
+        storage.set_user_public_key("user-1", "pk-v2")
+        assert storage.get_user_public_key("user-1") == "pk-v2"
+
+        # Other users are unaffected.
+        assert storage.get_user_public_key("user-2") is None
+
+    def test_member_keys_multiple_versions_ordered(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.set_member_key("ws-1", "user-1", 2, "wk-v2")
+        storage.set_member_key("ws-1", "user-1", 1, "wk-v1")
+
+        rows = storage.get_member_keys("ws-1", "user-1")
+        assert rows == [
+            {"wrapped_key": "wk-v1", "key_version": 1},
+            {"wrapped_key": "wk-v2", "key_version": 2},
+        ]
+
+    def test_member_key_upsert_replaces_same_version(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.set_member_key("ws-1", "user-1", 1, "wk-old")
+        storage.set_member_key("ws-1", "user-1", 1, "wk-new")
+
+        rows = storage.get_member_keys("ws-1", "user-1")
+        assert rows == [{"wrapped_key": "wk-new", "key_version": 1}]
+
+    def test_member_keys_scoped_to_workspace_and_user(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.set_member_key("ws-1", "user-1", 1, "wk-a")
+        storage.set_member_key("ws-1", "user-2", 1, "wk-b")
+        storage.set_member_key("ws-2", "user-1", 1, "wk-c")
+
+        assert storage.get_member_keys("ws-1", "user-1") == [{"wrapped_key": "wk-a", "key_version": 1}]
+        assert storage.get_member_keys("ws-1", "user-2") == [{"wrapped_key": "wk-b", "key_version": 1}]
+        assert storage.get_member_keys("ws-2", "user-1") == [{"wrapped_key": "wk-c", "key_version": 1}]
+        assert storage.get_member_keys("ws-2", "user-2") == []
+
+    def test_delete_member_keys_removes_all_versions(self) -> None:
+        storage = SqliteRelayStorage(":memory:")
+        storage.set_member_key("ws-1", "user-1", 1, "wk-v1")
+        storage.set_member_key("ws-1", "user-1", 2, "wk-v2")
+        storage.set_member_key("ws-1", "user-2", 1, "wk-other")
+
+        deleted = storage.delete_member_keys("ws-1", "user-1")
+        assert deleted == 2
+        assert storage.get_member_keys("ws-1", "user-1") == []
+        assert storage.get_member_keys("ws-1", "user-2") == [{"wrapped_key": "wk-other", "key_version": 1}]
+
+        # Deleting again is a no-op.
+        assert storage.delete_member_keys("ws-1", "user-1") == 0

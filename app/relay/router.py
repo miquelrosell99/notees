@@ -25,8 +25,14 @@ from app.relay.models import (
     EncryptionKeyRequest,
     EncryptionKeyResponse,
     LatestSnapshotResponse,
+    MemberKeyEntry,
+    MemberKeysDeleteResponse,
+    MemberKeysRequest,
+    MemberKeysResponse,
     RelayStatsResponse,
     SnapshotResponse,
+    UserPublicKeyRequest,
+    UserPublicKeyResponse,
 )
 from app.relay.permissions import PermissionDeniedError
 from app.relay.service import RelayService
@@ -452,6 +458,9 @@ async def get_encryption_key(
         )
     try:
         wrapped_key = await service.get_workspace_wrapped_key(workspace_id, actor_id)
+        # The wrapped-key read above already gated workspace membership; this
+        # fetches only the caller's own per-member wrapped copies (E2EE v2).
+        member_keys = await service.get_member_keys(workspace_id, actor_id, actor_id)
     except PermissionDeniedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -461,6 +470,7 @@ async def get_encryption_key(
         workspace_id=workspace_id,
         wrapped_key=wrapped_key,
         enabled=wrapped_key is not None,
+        member_keys=[MemberKeyEntry(**row) for row in member_keys],
     )
 
 
@@ -489,6 +499,111 @@ async def put_encryption_key(
         wrapped_key=request.wrapped_key,
         enabled=True,
     )
+
+
+@router.put(
+    "/user-public-key",
+    response_model=UserPublicKeyResponse,
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_admin_limiter,
+                identifier=relay_admin_identifier,
+            )
+        ),
+    ],
+)
+async def put_user_public_key(
+    request: UserPublicKeyRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    service: RelayService = Depends(get_relay_service),
+) -> UserPublicKeyResponse:
+    """Publish the caller's X25519 identity public key (E2EE v2, SPEC §8).
+
+    Keyed by the caller's uuid: users can only publish for themselves.
+    """
+    await service.set_user_public_key(str(user.uuid), request.public_key)
+    return UserPublicKeyResponse(user_id=str(user.uuid), public_key=request.public_key)
+
+
+@router.get(
+    "/user-public-key",
+    response_model=UserPublicKeyResponse,
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_stats_limiter,
+                identifier=relay_stats_identifier,
+            )
+        ),
+    ],
+)
+async def get_user_public_key(
+    user_id: str = Query(...),
+    _user: User = Depends(get_current_user),  # noqa: B008
+    service: RelayService = Depends(get_relay_service),
+) -> UserPublicKeyResponse:
+    """Return any user's published X25519 public key (authenticated callers)."""
+    public_key = await service.get_user_public_key(user_id)
+    return UserPublicKeyResponse(user_id=user_id, public_key=public_key)
+
+
+@router.put(
+    "/encryption-key/members",
+    response_model=MemberKeysResponse,
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_admin_limiter,
+                identifier=relay_admin_identifier,
+            )
+        ),
+    ],
+)
+async def put_member_keys(
+    request: MemberKeysRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    service: RelayService = Depends(get_relay_service),
+) -> MemberKeysResponse:
+    """Upsert wrapped workspace-key copies for members. Owner or admin only.
+
+    Only the submitted rows are written; other members' rows are untouched so
+    incremental joins and rotation re-wraps can share the endpoint.
+    """
+    await require_workspace_owner_or_admin(request.workspace_id, user)
+    for member in request.members:
+        await service.set_member_key(
+            request.workspace_id, member.user_id, member.key_version, member.wrapped_key
+        )
+    return MemberKeysResponse(workspace_id=request.workspace_id, stored=len(request.members))
+
+
+@router.delete(
+    "/encryption-key/members/{workspace_id}/{user_id}",
+    response_model=MemberKeysDeleteResponse,
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limiter=_relay_admin_limiter,
+                identifier=relay_admin_identifier,
+            )
+        ),
+    ],
+)
+async def delete_member_keys(
+    workspace_id: str,
+    user_id: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+    service: RelayService = Depends(get_relay_service),
+) -> MemberKeysDeleteResponse:
+    """Delete all wrapped-key copies of one member. Owner or admin only.
+
+    Part of member removal: the owner then rotates the workspace key and
+    re-wraps it for the remaining members (E2EE v2, SPEC §8).
+    """
+    await require_workspace_owner_or_admin(workspace_id, user)
+    deleted = await service.delete_member_keys(workspace_id, user_id)
+    return MemberKeysDeleteResponse(workspace_id=workspace_id, user_id=user_id, deleted=deleted)
 
 
 @router.get(

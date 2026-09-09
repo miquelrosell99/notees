@@ -20,10 +20,19 @@ __all__ = [
     "CatchUpResponse",
     "CompactRequest",
     "CompactResponse",
+    "EncryptionKeyRequest",
+    "EncryptionKeyResponse",
+    "MemberKeyEntry",
+    "MemberKeyPut",
+    "MemberKeysDeleteResponse",
+    "MemberKeysRequest",
+    "MemberKeysResponse",
     "RelayEnvelope",
     "LatestSnapshotResponse",
     "RelayStatsResponse",
     "SnapshotResponse",
+    "UserPublicKeyRequest",
+    "UserPublicKeyResponse",
     "WsHelloMessage",
     "WsOpsMessage",
 ]
@@ -252,11 +261,78 @@ class EncryptionKeyRequest(BaseModel):
     wrapped_key: str
 
 
+class MemberKeyEntry(BaseModel):
+    """One wrapped copy of the workspace key for the caller, at a key version.
+
+    Rotation keeps every held version so new devices can unwrap history
+    encrypted under older workspace keys (E2EE v2, SPEC §8).
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    wrapped_key: str
+    key_version: int
+
+
 class EncryptionKeyResponse(BaseModel):
-    """The workspace's wrapped E2EE key blob, when E2EE is enabled."""
+    """The workspace's wrapped E2EE key blob, when E2EE is enabled.
+
+    ``member_keys`` carries only the caller's own per-member wrapped copies
+    (E2EE v2); it is empty for v1 passphrase-wrapped workspaces.
+    """
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     workspace_id: str
     wrapped_key: str | None = None
     enabled: bool
+    member_keys: list[MemberKeyEntry] = Field(default_factory=list)
+
+
+class UserPublicKeyRequest(BaseModel):
+    """Publish the caller's X25519 identity public key (E2EE v2, SPEC §8)."""
+
+    public_key: str
+
+
+class UserPublicKeyResponse(BaseModel):
+    """A user's published X25519 public key, when one exists."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    user_id: str
+    public_key: str | None = None
+
+
+class MemberKeyPut(BaseModel):
+    """One member's wrapped workspace-key copy submitted by an owner/admin."""
+
+    user_id: str
+    wrapped_key: str
+    key_version: int
+
+
+class MemberKeysRequest(BaseModel):
+    """Upsert wrapped workspace-key copies for workspace members (E2EE v2)."""
+
+    workspace_id: str
+    members: list[MemberKeyPut]
+
+
+class MemberKeysResponse(BaseModel):
+    """Result of upserting member wrapped-key copies."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    workspace_id: str
+    stored: int
+
+
+class MemberKeysDeleteResponse(BaseModel):
+    """Result of deleting a member's wrapped-key copies (member removal)."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    workspace_id: str
+    user_id: str
+    deleted: int
