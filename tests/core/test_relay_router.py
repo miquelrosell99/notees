@@ -479,7 +479,7 @@ def test_encryption_key_endpoints(
     # No record yet → disabled.
     response = client.get("/api/relay/encryption-key", params={"workspace_id": "ws-1"})
     assert response.status_code == 200
-    assert response.json() == {"workspaceId": "ws-1", "wrappedKey": None, "enabled": False}
+    assert response.json() == {"workspaceId": "ws-1", "wrappedKey": None, "enabled": False, "memberKeys": []}
 
     # Owner/admin stores the wrapped blob; members can read it back.
     put = client.put(
@@ -493,3 +493,228 @@ def test_encryption_key_endpoints(
     assert response.status_code == 200
     assert response.json()["wrappedKey"] == '{"v":1,"salt":"c2FsdA==","wk":"d2s="}'
     assert response.json()["enabled"] is True
+
+
+
+# ─── E2EE v2: published user public keys + per-member wrapped keys (SPEC §8) ──
+
+
+def _user_override(application: FastAPI, uuid: str, role: str = "admin") -> None:
+    """Override get_current_user with a user whose uuid is ``uuid``."""
+    from datetime import UTC, datetime
+
+    from app.dependencies import get_current_user
+    from app.models import User
+
+    application.dependency_overrides[get_current_user] = lambda: User(
+        id="1",
+        uuid=uuid,
+        email=f"{uuid}@test",
+        role=role,
+        created_at=datetime.now(UTC),
+    )
+
+
+def test_user_public_key_round_trip(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """Publish, read back, and re-publish (upsert) the caller's public key."""
+    application = _mount_relay(FastAPI(), storage, permissions)
+    _user_override(application, "actor-1")
+    client = TestClient(application)
+
+    put = client.put("/api/relay/user-public-key", json={"public_key": "pk-actor-1"})
+    assert put.status_code == 200
+    assert put.json() == {"userId": "actor-1", "publicKey": "pk-actor-1"}
+
+    response = client.get("/api/relay/user-public-key", params={"user_id": "actor-1"})
+    assert response.status_code == 200
+    assert response.json() == {"userId": "actor-1", "publicKey": "pk-actor-1"}
+
+    # Re-publishing replaces the stored key.
+    client.put("/api/relay/user-public-key", json={"public_key": "pk-rotated"})
+    response = client.get("/api/relay/user-public-key", params={"user_id": "actor-1"})
+    assert response.json()["publicKey"] == "pk-rotated"
+
+
+def test_user_public_key_fetch_other_user_and_missing(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """Any authenticated user can fetch another user's key; unknown → null."""
+    publisher_app = _mount_relay(FastAPI(), storage, permissions)
+    _user_override(publisher_app, "actor-1")
+    TestClient(publisher_app).put("/api/relay/user-public-key", json={"public_key": "pk-actor-1"})
+
+    reader_app = _mount_relay(FastAPI(), storage, permissions, authenticated_actor="actor-2")
+    _user_override(reader_app, "actor-2")
+    reader = TestClient(reader_app)
+
+    response = reader.get("/api/relay/user-public-key", params={"user_id": "actor-1"})
+    assert response.status_code == 200
+    assert response.json() == {"userId": "actor-1", "publicKey": "pk-actor-1"}
+
+    missing = reader.get("/api/relay/user-public-key", params={"user_id": "nobody"})
+    assert missing.status_code == 200
+    assert missing.json() == {"userId": "nobody", "publicKey": None}
+
+
+def test_user_public_key_rejects_anonymous(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    anon = _unauthenticated_client(storage, permissions)
+    assert anon.put("/api/relay/user-public-key", json={"public_key": "pk"}).status_code == 401
+    assert anon.get("/api/relay/user-public-key", params={"user_id": "actor-1"}).status_code == 401
+
+
+def test_member_keys_put_and_get_scoped_to_caller(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """PUT upserts member rows; GET /encryption-key returns only the caller's copies."""
+    application = _mount_relay(FastAPI(), storage, permissions)
+    _user_override(application, "actor-1")
+    client = TestClient(application)
+
+    put = client.put(
+        "/api/relay/encryption-key/members",
+        json={
+            "workspace_id": "ws-1",
+            "members": [
+                {"user_id": "actor-1", "wrapped_key": "wk-a1", "key_version": 1},
+                {"user_id": "actor-2", "wrapped_key": "wk-a2", "key_version": 1},
+            ],
+        },
+    )
+    assert put.status_code == 200
+    assert put.json() == {"workspaceId": "ws-1", "stored": 2}
+
+    response = client.get("/api/relay/encryption-key", params={"workspace_id": "ws-1"})
+    assert response.status_code == 200
+    assert response.json()["memberKeys"] == [{"wrappedKey": "wk-a1", "keyVersion": 1}]
+
+    # A second member sees a disjoint set (only their own wrapped copies).
+    other_app = _mount_relay(FastAPI(), storage, permissions, authenticated_actor="actor-2")
+    _user_override(other_app, "actor-2")
+    other = TestClient(other_app)
+    response = other.get("/api/relay/encryption-key", params={"workspace_id": "ws-1"})
+    assert response.json()["memberKeys"] == [{"wrappedKey": "wk-a2", "keyVersion": 1}]
+
+    # Upserting one member's row leaves the other member's rows untouched.
+    put = client.put(
+        "/api/relay/encryption-key/members",
+        json={
+            "workspace_id": "ws-1",
+            "members": [{"user_id": "actor-1", "wrapped_key": "wk-a1-new", "key_version": 1}],
+        },
+    )
+    assert put.json()["stored"] == 1
+    assert client.get(
+        "/api/relay/encryption-key", params={"workspace_id": "ws-1"}
+    ).json()["memberKeys"] == [{"wrappedKey": "wk-a1-new", "keyVersion": 1}]
+    assert other.get(
+        "/api/relay/encryption-key", params={"workspace_id": "ws-1"}
+    ).json()["memberKeys"] == [{"wrappedKey": "wk-a2", "keyVersion": 1}]
+
+
+def test_member_keys_multiple_versions_returned_ordered(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """Rotation keeps every held key version; reads come back ordered by version."""
+    application = _mount_relay(FastAPI(), storage, permissions)
+    _user_override(application, "actor-1")
+    client = TestClient(application)
+
+    client.put(
+        "/api/relay/encryption-key/members",
+        json={
+            "workspace_id": "ws-1",
+            "members": [{"user_id": "actor-1", "wrapped_key": "wk-v2", "key_version": 2}],
+        },
+    )
+    client.put(
+        "/api/relay/encryption-key/members",
+        json={
+            "workspace_id": "ws-1",
+            "members": [{"user_id": "actor-1", "wrapped_key": "wk-v1", "key_version": 1}],
+        },
+    )
+
+    response = client.get("/api/relay/encryption-key", params={"workspace_id": "ws-1"})
+    assert response.json()["memberKeys"] == [
+        {"wrappedKey": "wk-v1", "keyVersion": 1},
+        {"wrappedKey": "wk-v2", "keyVersion": 2},
+    ]
+
+
+def test_member_keys_delete_removes_member_rows(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+) -> None:
+    """DELETE drops all of a member's versions (member-removal rotation flow)."""
+    application = _mount_relay(FastAPI(), storage, permissions)
+    _user_override(application, "actor-1")
+    client = TestClient(application)
+
+    client.put(
+        "/api/relay/encryption-key/members",
+        json={
+            "workspace_id": "ws-1",
+            "members": [
+                {"user_id": "actor-1", "wrapped_key": "wk-a1", "key_version": 1},
+                {"user_id": "actor-2", "wrapped_key": "wk-a2-v1", "key_version": 1},
+                {"user_id": "actor-2", "wrapped_key": "wk-a2-v2", "key_version": 2},
+            ],
+        },
+    )
+
+    deleted = client.delete("/api/relay/encryption-key/members/ws-1/actor-2")
+    assert deleted.status_code == 200
+    assert deleted.json() == {"workspaceId": "ws-1", "userId": "actor-2", "deleted": 2}
+
+    # The removed member's copies are gone; the owner's remain.
+    other_app = _mount_relay(FastAPI(), storage, permissions, authenticated_actor="actor-2")
+    _user_override(other_app, "actor-2")
+    other = TestClient(other_app)
+    assert other.get(
+        "/api/relay/encryption-key", params={"workspace_id": "ws-1"}
+    ).json()["memberKeys"] == []
+    assert client.get(
+        "/api/relay/encryption-key", params={"workspace_id": "ws-1"}
+    ).json()["memberKeys"] == [{"wrappedKey": "wk-a1", "keyVersion": 1}]
+
+
+def test_member_keys_reject_anonymous_and_non_owner(
+    storage: RelayStorage,
+    permissions: PermissionChecker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Member-key writes require authentication and owner/admin rights."""
+    body = {
+        "workspace_id": "ws-1",
+        "members": [{"user_id": "actor-2", "wrapped_key": "wk", "key_version": 1}],
+    }
+
+    # Anonymous callers are rejected by the auth dependency before any gate.
+    anon = _unauthenticated_client(storage, permissions)
+    assert anon.put("/api/relay/encryption-key/members", json=body).status_code == 401
+    assert anon.delete("/api/relay/encryption-key/members/ws-1/actor-2").status_code == 401
+
+    # A non-owner, non-admin user is rejected by the workspace gate. The gate
+    # needs the Postgres pool for non-admin users, so simulate its denial.
+    from fastapi import HTTPException
+
+    async def _deny(workspace_id: str, user: object) -> None:
+        raise HTTPException(status_code=403, detail="Admin or workspace owner access required")
+
+    monkeypatch.setattr("app.relay.router.require_workspace_owner_or_admin", _deny)
+    application = _mount_relay(FastAPI(), storage, permissions, authenticated_actor="actor-2")
+    _user_override(application, "actor-2", role="user")
+    client = TestClient(application)
+
+    assert client.put("/api/relay/encryption-key/members", json=body).status_code == 403
+    assert client.delete("/api/relay/encryption-key/members/ws-1/actor-2").status_code == 403
+    assert storage.get_member_keys("ws-1", "actor-2") == []
