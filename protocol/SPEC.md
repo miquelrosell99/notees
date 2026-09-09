@@ -151,7 +151,7 @@ Response 200 (`CatchUpPaginatedResponse`) —
 
 ```
 {"envelopes": [<envelope>, ...], "next_after_seq": int | null,
- "has_more": bool, "restore_epoch": int}
+ "has_more": bool, "restore_epoch": int, "total_remaining": int}
 ```
 
 Envelopes are returned in ascending `seq` order. `next_after_seq` is the
@@ -159,7 +159,10 @@ cursor to adopt and pass back as `after_seq` while `has_more` is true. On the
 final page (`has_more: false`) `next_after_seq` is still set to the last
 envelope's seq, so HTTP-only clients adopt it directly as their stored cursor
 without re-fetching the tail on the next pull. WS clients may instead adopt
-`hello.latestSeq` (§5). `restore_epoch` changes when the
+`hello.latestSeq` (§5). `total_remaining` is the number of envelopes with
+`seq > after_seq`, including this page — `applied_so_far + total_remaining`
+is the grand total, so clients can render global catch-up progress instead of
+per-page resets. `restore_epoch` changes when the
 server was restored from backup — clients must wipe local state and resync
 when it differs from their stored epoch.
 

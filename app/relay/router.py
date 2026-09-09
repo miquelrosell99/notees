@@ -190,7 +190,7 @@ async def catch_up(
         limit = min(request.limit, 10_000)
         if limit < 1:
             limit = 1000
-        envelopes, next_after_seq = await service.catch_up_paginated(
+        envelopes, next_after_seq, total_remaining = await service.catch_up_paginated(
             request.workspace_id,
             actor_id,
             request.after_seq,
@@ -219,6 +219,7 @@ async def catch_up(
         next_after_seq=next_after_seq,
         has_more=has_more,
         restore_epoch=restore_epoch,
+        total_remaining=total_remaining,
     )
 
 
