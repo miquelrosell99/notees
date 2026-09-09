@@ -258,3 +258,14 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Pass primitive ids straight into the service factory — `_get_workspace_io_service(user_id)` already accepts `int | str | None`; never `await` sync path helpers. `_run_node_export_job` (`app/features/export/router.py`) shows the correct idiom: build the repository from `str(user_id)`.
 
 **Prevent:** Background tasks run outside the request lifecycle — construct services from ids/primitives, not request-scoped models. After adding a required field to a Pydantic model, grep all construction sites (`Model(**`, `Model(id=`) for partial fabrications. Endpoint tests must await background job completion and assert `status == "completed"`, not just the 202-style kickoff response.
+
+
+## **[release]** Version bumps must update `uv.lock` — the Dockerfile runs `uv sync --frozen`
+
+**Symptom:** The tag-triggered release workflow fails at `uv sync --frozen --no-dev` right after a version bump; the image never builds.
+
+**Cause:** `pyproject.toml` and `uv.lock` carry the project version separately, and `--frozen` fails when they disagree. The bump commits cleanly and all tests pass locally — nothing warns you until CI.
+
+**Fix:** After editing `version` in `pyproject.toml`, run `uv lock` and commit both files together, then re-tag. (v3.0.0 needed exactly this.)
+
+**Prevent:** Release checklist: version bump → `uv lock` → changelog → commit → tag. Or bump with `uv version`-style tooling that keeps the lock in sync.
