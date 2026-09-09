@@ -23,7 +23,6 @@ __all__ = [
     "RelayEnvelope",
     "LatestSnapshotResponse",
     "RelayStatsResponse",
-    "SnapshotRequest",
     "SnapshotResponse",
     "WsHelloMessage",
     "WsOpsMessage",
@@ -170,33 +169,6 @@ class CatchUpPaginatedResponse(BaseModel):
     restore_epoch: int = 0
 
 
-class SnapshotRequest(BaseModel):
-    """Request a snapshot up to a given HLC."""
-
-    workspace_id: str
-    up_to_hlc: Hlc
-    data_base64: str = ""
-
-    @field_validator("up_to_hlc", mode="before")
-    @classmethod
-    def _validate_hlc(cls, value: Any) -> Hlc:
-        hlc = _parse_hlc(value)
-        if hlc.physical < 0 or hlc.logical < 0:
-            raise ValueError("HLC components must be non-negative")
-        return hlc
-
-    @property
-    def data(self) -> bytes:
-        import base64
-
-        if not self.data_base64:
-            return b""
-        try:
-            return base64.b64decode(self.data_base64)
-        except Exception as exc:
-            raise ValueError("Invalid base64 snapshot data") from exc
-
-
 class SnapshotResponse(BaseModel):
     """Snapshot creation response."""
 
@@ -207,12 +179,15 @@ class SnapshotResponse(BaseModel):
 
 
 class LatestSnapshotResponse(BaseModel):
-    """Latest available snapshot for a workspace."""
+    """Latest snapshot metadata for a workspace.
+
+    Metadata only — the blob is served separately as a binary body by
+    ``GET /api/relay/snapshot/data`` (no base64-in-JSON).
+    """
 
     snapshot_id: str
     workspace_id: str
     hlc: Hlc
-    data_base64: str
     has_snapshot: bool
     restore_epoch: int = 0
     up_to_seq: int | None = None

@@ -21,7 +21,6 @@ from app.relay.models import (
     CatchUpPaginatedResponse,
     CatchUpRequest,
     RelayEnvelope,
-    SnapshotRequest,
     WsHelloMessage,
     WsOpsMessage,
 )
@@ -36,7 +35,6 @@ FIXTURE_MODELS: dict[str, tuple[type[BaseModel], bool]] = {
     "batch-request.json": (BatchRequest, True),
     "catch-up-request.json": (CatchUpRequest, False),
     "catch-up-response.json": (CatchUpPaginatedResponse, True),
-    "snapshot-request.json": (SnapshotRequest, False),
     "ws-hello.json": (WsHelloMessage, True),
     "ws-ops.json": (WsOpsMessage, True),
 }
