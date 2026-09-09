@@ -280,3 +280,14 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** The frontend uses a vendored FTS-enabled build at `frontend/src/core/db/wa-sqlite-fts/` (compiled from the npm wa-sqlite@1.0.0 source commit with `-DSQLITE_ENABLE_FTS3 -DSQLITE_ENABLE_FTS3_PARENTHESIS -DSQLITE_ENABLE_FTS5`; rebuild via `frontend/scripts/build-wa-sqlite-fts.sh`). The glue is loaded with an explicit `locateFile` + `wasmBinary` — never its default `new URL(..., import.meta.url)` wasm resolution, which bundlers relocate and which throws under vitest's stubbed worker globals.
 
 **Prevent:** When swapping or upgrading any embedded wasm/native engine, diff `PRAGMA compile_options` (or equivalent) between old and new builds and test schema creation on a **fresh** database — seed-based tests only prove the upgrade reads old files, not that it can still create what the schema needs. When upgrading wa-sqlite, rerun the build script instead of copying the npm dist wasm.
+
+
+## **[db]** Never filter or delete an FTS4 table by a `notindexed` column — keep a docid map
+
+**Symptom:** Applying a large operation backlog gets slower page over page (e.g. 10k-op chunks going 3s → 30s → 140s), so workspace catch-up after a full replay appears to hang in a "constant loop".
+
+**Cause:** FTS3/4 virtual tables support efficient access only via `MATCH` and `rowid`/`docid`. An equality predicate on a `notindexed` column (`WHERE node_id = ?` on `search_index`) is a full docstore scan, so per-op index maintenance costs O(indexed rows) and a whole-log replay goes O(n²).
+
+**Fix:** Address FTS rows by docid through a side mapping table (`search_index_docid`: node_id → docid; schema v21 backfills it). Replace is `DELETE ... WHERE docid = (SELECT docid FROM map ...)` + `INSERT` + map upsert with `last_insert_rowid()`; never `INSERT OR REPLACE ... (SELECT docid FROM search_index WHERE node_id = ?)`. See `frontend/src/core/derived/search.ts` (`reindexNode` / `removeSearchIndexEntry`). Measured: 40k reindexes went from quadratic (30s for the last 5k) to flat (~240ms per 5k).
+
+**Prevent:** Any new `WHERE`/`DELETE` against an FTS table may only use `MATCH` or `docid`/`rowid`. When a sync path can replay the whole log (fresh seq cursor, snapshot-less restore), benchmark per-op appliers against tens of thousands of rows — constant-per-batch timings in a growing table are the signature of a hidden scan.
