@@ -56,6 +56,15 @@ The spine (op log + server seq + snapshots) and transport (WS acceleration, curs
 
 Execution order: 3a → 3b → 4 → 2 (no-dependency items first; OPFS last because it touches the layer everything sits on).
 
+## Follow-up program (agreed 2026-09-09)
+
+| Work | Scope | Status |
+|---|---|---|
+| Collab unification | Presence rides the relay WS (one channel per workspace); retired `/api/ws/live` + LiveSyncManager + the TanStack cache-patching path; also fixed a latent background-export bug found in flight | ✅ `42596e11` |
+| Wire: snapshot binary | `GET /snapshot` is metadata-only; blob moves to `GET/PUT /snapshot/data` (octet-stream) | ✅ `79e77291` |
+| Wire: Yjs deltas | `textUpdateB64`/`treeUpdateB64` base64 incremental updates (state-vector deltas); legacy full-state arrays still apply; Python applier keeps the content mirror and never stores deltas as state | ✅ `44007c0a` |
+| E2EE v2 | Per-device X25519 identity, per-member ECDH-wrapped workspace keys (all key versions), silent member-key unlock, owner wrap sweep on open, rotation on member removal (forward secrecy for new ops) | ✅ `b818096f` + `044e3964` + `1633aa40` |
+
 ## Explicitly out of scope
 
 - Replacing the op-log protocol or storage model.
