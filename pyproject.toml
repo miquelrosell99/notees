@@ -7,7 +7,7 @@ packages = ["app", "app.core", "app.core.migration", "app.core.query_ast", "app.
 
 [project]
 name = "notees"
-version = "0.1.0"
+version = "3.0.0"
 description = "Self-hosted note-taking application with bidirectional linking"
 readme = "README.md"
 license = {text = "AGPL-3.0"}
