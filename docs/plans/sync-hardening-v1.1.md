@@ -1,6 +1,9 @@
 # Plan — Sync Hardening v1.1
 
-Agreed 2026-09-08 after a full sync assessment (backend relay, frontend engine, protocol spec, history).
+status: done
+distilled_to: skills/notees/references/gotchas.md (auth-header testing, LWW-collection convergence, MemoryRelay dedupe, tsc -b typecheck), skills/notees/architecture/index.md (leader-tab model, wa-sqlite/OPFS engine), protocol/SPEC.md (all protocol changes), docs/CHANGELOG.md (v3.0.0)
+
+Agreed 2026-09-08 after a full sync assessment (backend relay, frontend engine, protocol spec, history). Completed 2026-09-09; released as v3.0.0.
 
 ## Verdict
 
