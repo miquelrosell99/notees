@@ -134,6 +134,12 @@ With a core client available, `useBlockTree` re-projects every node and resolves
 
 - Reference: `references/gotchas.md#views-blocklist-ignores-nodechildren-unless-localonly`
 
+## **[db]** The workspace SQLite wasm is a vendored build with FTS — engine swaps must diff compile-time feature modules
+
+Stock `wa-sqlite` dist ships no FTS module, but `search_index` is FTS4: any engine swap/upgrade that uses the stock wasm breaks workspace open with "no such module: fts4" — masked in tests because `CREATE VIRTUAL TABLE IF NOT EXISTS` short-circuits on seeded DBs. Use the vendored build (`frontend/src/core/db/wa-sqlite-fts/`, rebuild via `frontend/scripts/build-wa-sqlite-fts.sh`) and verify engine changes on a fresh database, not only seeded bytes.
+
+- Reference: `references/gotchas.md#db-the-workspace-sqlite-wasm-is-a-vendored-build--engine-swaps-must-diff-compile-time-feature-modules`
+
 ## Dev vs Prod
 
 Development infrastructure settings in `compose.dev.yaml` must never be used in production.
