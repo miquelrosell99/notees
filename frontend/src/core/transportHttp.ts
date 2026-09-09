@@ -26,18 +26,6 @@ const SQLITE_MAGIC = 'SQLite format 3\0';
 // from the operation log for large workspaces.
 const MAX_SNAPSHOT_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-function uint8ArrayToBase64(bytes: Uint8Array): string {
-  // Avoid spreading large arrays into String.fromCharCode, which throws
-  // "too many function arguments" for snapshots > ~100 KB.
-  const CHUNK_SIZE = 0x8000; // 32 KB
-  let result = '';
-  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-    const chunk = bytes.subarray(i, i + CHUNK_SIZE);
-    result += String.fromCharCode(...chunk);
-  }
-  return btoa(result);
-}
-
 async function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit,
@@ -51,15 +39,6 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timeoutId);
   }
-}
-
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
 }
 
 export interface HttpTransportOptions {
@@ -182,8 +161,10 @@ export class HttpTransport implements Transport {
 
   async getLatestSnapshot(options?: { includeData?: boolean }): Promise<SnapshotEnvelope> {
     const includeData = options?.includeData !== false;
+    // Metadata first (cheap probe); the blob comes from the binary endpoint
+    // below — no base64-in-JSON.
     const response = await fetchWithTimeout(
-      `${this.baseUrl}/api/relay/snapshot?workspace_id=${encodeURIComponent(this.workspaceId)}${includeData ? '' : '&include_data=false'}`,
+      `${this.baseUrl}/api/relay/snapshot?workspace_id=${encodeURIComponent(this.workspaceId)}`,
       {
         method: 'GET',
         credentials: 'include',
@@ -205,7 +186,6 @@ export class HttpTransport implements Transport {
       snapshot_id: string;
       workspace_id: string;
       hlc: Hlc;
-      data_base64: string;
       has_snapshot: boolean;
       restore_epoch: number;
       up_to_seq: number | null;
@@ -215,7 +195,7 @@ export class HttpTransport implements Transport {
       snapshotId: data.snapshot_id,
       workspaceId: data.workspace_id,
       hlc: data.hlc,
-      data: includeData && data.has_snapshot ? await this.decodeSnapshot(data.data_base64) : new Uint8Array(0),
+      data: includeData && data.has_snapshot ? await this.fetchSnapshotData() : new Uint8Array(0),
       restoreEpoch: data.restore_epoch ?? 0,
       hasSnapshot: data.has_snapshot,
       // Null for snapshots recorded before the seq cursor existed; the sync
@@ -224,9 +204,25 @@ export class HttpTransport implements Transport {
     };
   }
 
+  /** Fetch the snapshot blob from the binary endpoint (raw bytes). */
+  private async fetchSnapshotData(): Promise<Uint8Array> {
+    const response = await fetchWithTimeout(
+      `${this.baseUrl}/api/relay/snapshot/data?workspace_id=${encodeURIComponent(this.workspaceId)}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Snapshot data fetch failed (${response.status}): ${text}`);
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return this.decodeSnapshot(bytes);
+  }
+
   /** Decode a downloaded snapshot blob, decrypting when E2EE is enabled. */
-  private async decodeSnapshot(dataBase64: string): Promise<Uint8Array> {
-    const bytes = base64ToUint8Array(dataBase64);
+  private async decodeSnapshot(bytes: Uint8Array): Promise<Uint8Array> {
     if (!isWorkspaceE2eeEnabled(this.workspaceId) || bytes.length === 0) return bytes;
     // Snapshots written before E2EE was enabled are plaintext; pass them
     // through (ciphertext never starts with the SQLite magic string).
@@ -253,17 +249,19 @@ export class HttpTransport implements Transport {
       return;
     }
 
-    const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/snapshot`, {
-      method: 'POST',
+    // Raw binary body — no base64-in-JSON (+33% size, full-buffer memory).
+    const params = new URLSearchParams({
+      workspace_id: this.workspaceId,
+      physical: String(snapshot.hlc.physical),
+      logical: String(snapshot.hlc.logical),
+    });
+    const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/snapshot/data?${params}`, {
+      method: 'PUT',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/octet-stream',
       },
       credentials: 'include',
-      body: JSON.stringify({
-        workspace_id: snapshot.workspaceId,
-        up_to_hlc: snapshot.hlc,
-        data_base64: uint8ArrayToBase64(data),
-      }),
+      body: data as unknown as BodyInit,
     });
 
     if (!response.ok) {

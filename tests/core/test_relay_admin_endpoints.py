@@ -36,12 +36,14 @@ def _envelope(
 async def test_create_snapshot_as_owner(
     auth_client: AsyncClient, test_user: dict
 ) -> None:
-    response = await auth_client.post(
-        "/api/relay/snapshot",
-        json={
+    response = await auth_client.put(
+        "/api/relay/snapshot/data",
+        params={
             "workspace_id": test_user["workspace_uuid"],
-            "up_to_hlc": {"physical": 0, "logical": 0},
+            "physical": 0,
+            "logical": 0,
         },
+        content=b"snapshot-bytes",
     )
     assert response.status_code == 200
     data = response.json()
@@ -54,12 +56,14 @@ async def test_create_snapshot_rejects_up_to_hlc_ahead_of_log(
     auth_client: AsyncClient, test_user: dict
 ) -> None:
     """Snapshots whose HLC exceeds the current maximum envelope HLC are rejected."""
-    response = await auth_client.post(
-        "/api/relay/snapshot",
-        json={
+    response = await auth_client.put(
+        "/api/relay/snapshot/data",
+        params={
             "workspace_id": test_user["workspace_uuid"],
-            "up_to_hlc": {"physical": 9_999_999_999_999, "logical": 0},
+            "physical": 9_999_999_999_999,
+            "logical": 0,
         },
+        content=b"snapshot-bytes",
     )
     assert response.status_code == 422
 
@@ -87,12 +91,14 @@ async def test_compact_as_owner(
 async def test_snapshot_rejects_unknown_workspace(
     auth_client: AsyncClient, test_user: dict
 ) -> None:
-    response = await auth_client.post(
-        "/api/relay/snapshot",
-        json={
+    response = await auth_client.put(
+        "/api/relay/snapshot/data",
+        params={
             "workspace_id": "00000000-0000-0000-0000-000000000000",
-            "up_to_hlc": {"physical": 100, "logical": 0},
+            "physical": 100,
+            "logical": 0,
         },
+        content=b"snapshot-bytes",
     )
     assert response.status_code == 404
 
