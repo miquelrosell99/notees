@@ -661,12 +661,21 @@ export class SyncEngine {
     const workspaceId = await this.client.query<string>('getWorkspaceId', []);
     let afterSeq = this.lastReceivedSeq;
     let totalEnvelopes = 0;
+    // Cumulative progress across pages: the server reports how many envelopes
+    // remain past the cursor (including the current page), so the grand total
+    // is ops already applied plus that remainder.
+    let appliedOps = 0;
+    let grandTotal = 0;
     const previousReceivedHlc = this.lastReceivedHlc;
     for (;;) {
       const page = await this.transport.catchUp(afterSeq);
       const pageEnvelopes = page.envelopes;
       totalEnvelopes += pageEnvelopes.length;
-      this.reportPhase('catching-up', `Catching up with server… ${totalEnvelopes} operations`);
+      grandTotal = appliedOps + page.totalRemaining;
+      this.reportPhase(
+        'catching-up',
+        `Catching up with server… ${totalEnvelopes.toLocaleString()} / ${grandTotal.toLocaleString()} operations`
+      );
 
       if (pageEnvelopes.length > 0) {
         // Fail loud when a peer speaks a newer protocol than we understand:
@@ -699,16 +708,24 @@ export class SyncEngine {
 
         // Apply the page in the worker. The worker runs off the main thread,
         // so we no longer need to chunk and yield to keep the UI responsive.
-        this.reportPhase('applying-operations', `Applying ${ops.length.toLocaleString()} operations…`);
-        this.callbacks.onPullProgress?.({ applied: 0, total: ops.length });
-        const unsubscribeProgress = this.client.subscribeProgress((applied, total) => {
-          this.reportPhase('applying-operations', `Applying ${applied.toLocaleString()} / ${total.toLocaleString()} operations…`);
-          this.callbacks.onPullProgress?.({ applied, total });
+        this.reportPhase(
+          'applying-operations',
+          `Applying ${appliedOps.toLocaleString()} / ${grandTotal.toLocaleString()} operations…`
+        );
+        this.callbacks.onPullProgress?.({ applied: appliedOps, total: grandTotal });
+        const unsubscribeProgress = this.client.subscribeProgress((applied, _total) => {
+          const cumulative = appliedOps + applied;
+          this.reportPhase(
+            'applying-operations',
+            `Applying ${cumulative.toLocaleString()} / ${grandTotal.toLocaleString()} operations…`
+          );
+          this.callbacks.onPullProgress?.({ applied: cumulative, total: grandTotal });
         });
         await this.client.mutate('startBatch', []);
         try {
           const applied = await this.client.mutate<number>('applyMany', [ops]);
-          this.callbacks.onPullProgress?.({ applied, total: ops.length });
+          appliedOps += applied;
+          this.callbacks.onPullProgress?.({ applied: appliedOps, total: grandTotal });
         } finally {
           unsubscribeProgress();
           await this.client.mutate('endBatch', []);
@@ -742,7 +759,7 @@ export class SyncEngine {
         this.lastReceivedSeq = page.nextAfterSeq;
         await this.saveSeqCursor(this.lastReceivedSeq);
       }
-      this.callbacks.onPullProgress?.({ applied: 0, total: totalEnvelopes });
+      this.callbacks.onPullProgress?.({ applied: appliedOps, total: grandTotal });
 
       if (!page.hasMore) break;
       if (page.nextAfterSeq === null) {

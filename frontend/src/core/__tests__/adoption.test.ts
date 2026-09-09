@@ -89,7 +89,7 @@ class FakeServerTransport implements Transport {
   }
 
   catchUp(): CatchUpPage {
-    return { envelopes: [], nextAfterSeq: null, hasMore: false };
+    return { envelopes: [], nextAfterSeq: null, hasMore: false, totalRemaining: 0 };
   }
 
   getLatestSnapshot(): Promise<SnapshotEnvelope> {

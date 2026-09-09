@@ -176,6 +176,9 @@ class CatchUpPaginatedResponse(BaseModel):
     next_after_seq: int | None = None
     has_more: bool = False
     restore_epoch: int = 0
+    # Number of envelopes with seq greater than the request's after_seq
+    # (including this page) — lets clients render global catch-up progress.
+    total_remaining: int = 0
 
 
 class SnapshotResponse(BaseModel):

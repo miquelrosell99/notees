@@ -30,7 +30,12 @@ class MockHttpTransport implements Transport {
   }
 
   async catchUp(_afterSeq: number): Promise<CatchUpPage> {
-    return { envelopes: this.catchUpEnvelopes, nextAfterSeq: null, hasMore: false };
+    return {
+      envelopes: this.catchUpEnvelopes,
+      nextAfterSeq: null,
+      hasMore: false,
+      totalRemaining: this.catchUpEnvelopes.length,
+    };
   }
 
   async getLatestSnapshot(): Promise<SnapshotEnvelope> {
