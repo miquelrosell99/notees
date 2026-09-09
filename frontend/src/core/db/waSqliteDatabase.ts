@@ -4,7 +4,11 @@
  * The frontend data layer is written against sql.js' synchronous `Database`
  * API (`run` / `exec` / `prepare` / `export` / `getRowsModified` / `close`).
  * This module re-implements that exact surface on top of wa-sqlite's SYNC
- * wasm build (`wa-sqlite/dist/wa-sqlite.mjs`) so callers do not change.
+ * wasm build (vendored at `./wa-sqlite-fts/`, compiled from the npm
+ * wa-sqlite@1.0.0 source commit with FTS3/FTS4/FTS5 enabled — the stock
+ * wa-sqlite dist wasm ships no FTS module at all, while `search_index` is an
+ * FTS4 virtual table) so callers do not change. Rebuild with
+ * `frontend/scripts/build-wa-sqlite-fts.sh` when upgrading wa-sqlite.
  *
  * Key design points:
  *
@@ -33,7 +37,10 @@
  *   reading the database file from disk).
  */
 
-import SQLiteESMFactory from 'wa-sqlite/dist/wa-sqlite.mjs';
+// Extensionless on purpose: TS resolves the sibling wa-sqlite.d.ts, while
+// Vite resolves wa-sqlite.mjs (first in its default resolve.extensions).
+import SQLiteESMFactory from './wa-sqlite-fts/wa-sqlite';
+import waSqliteWasmUrl from './wa-sqlite-fts/wa-sqlite.wasm?url';
 import {
   SQLITE_OK,
   SQLITE_ROW,
@@ -139,32 +146,49 @@ function isNodeRuntime(): boolean {
 /**
  * Loads (and caches) the wa-sqlite Emscripten module.
  *
- * - Real browsers: default init, which resolves `wa-sqlite.wasm` relative to
- *   the module URL. NOTE for integrators: with Vite you may need
- *   `optimizeDeps.exclude: ['wa-sqlite']` (or pass `wasmBinary` explicitly)
- *   because pre-bundling relocates the .mjs away from its .wasm sibling.
- * - Node / jsdom (vitest): the .wasm is read from disk and passed as
- *   `wasmBinary` (browsers' fetch-based loader cannot handle file URLs).
+ * The wasm binary is always loaded explicitly from the vendored FTS build —
+ * never via the .mjs' default `new URL('wa-sqlite.wasm', import.meta.url)`
+ * resolution, which bundlers relocate:
+ * - Real browsers: the `?url` import gives a bundler-emitted URL; fetch it
+ *   and pass the bytes as `wasmBinary`.
+ * - Node / jsdom (vitest): the vendored .wasm is read from disk (browsers'
+ *   fetch-based loader cannot handle file URLs).
  */
 function loadWaSqliteModule(wasmBinary?: ArrayBuffer | Uint8Array): Promise<WaSqliteModule> {
   if (cachedModulePromise && !wasmBinary) return cachedModulePromise;
 
+  // locateFile is always set: without it the Emscripten glue eagerly computes
+  // `new URL('wa-sqlite.wasm', import.meta.url)` at factory init — even when
+  // wasmBinary makes the result unused — which breaks under vitest's stubbed
+  // worker globals and bundler relocation alike.
+  const moduleConfig = { locateFile: () => waSqliteWasmUrl };
+
   const promise = (async (): Promise<WaSqliteModule> => {
     if (wasmBinary) {
-      return (await SQLiteESMFactory({ wasmBinary })) as WaSqliteModule;
+      return (await SQLiteESMFactory({ ...moduleConfig, wasmBinary })) as WaSqliteModule;
     }
     if (isRealBrowser()) {
-      return (await SQLiteESMFactory()) as WaSqliteModule;
+      const response = await fetch(waSqliteWasmUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch wa-sqlite wasm (${response.status}): ${waSqliteWasmUrl}`);
+      }
+      return (await SQLiteESMFactory({
+        ...moduleConfig,
+        wasmBinary: await response.arrayBuffer(),
+      })) as WaSqliteModule;
     }
     if (isNodeRuntime()) {
       const { readFile } = await import('node:fs/promises');
       const { createRequire } = await import('node:module');
+      // createRequire, not `new URL('./wa-sqlite.wasm', import.meta.url)`:
+      // Vite's asset transform rewrites that literal into a dev-server URL,
+      // which fs cannot read under vitest.
       const nodeRequire = createRequire(import.meta.url);
-      const wasmPath = nodeRequire.resolve('wa-sqlite/dist/wa-sqlite.wasm');
+      const wasmPath = nodeRequire.resolve('./wa-sqlite-fts/wa-sqlite.wasm');
       const bytes = await readFile(wasmPath);
-      return (await SQLiteESMFactory({ wasmBinary: bytes })) as WaSqliteModule;
+      return (await SQLiteESMFactory({ ...moduleConfig, wasmBinary: bytes })) as WaSqliteModule;
     }
-    return (await SQLiteESMFactory()) as WaSqliteModule;
+    return (await SQLiteESMFactory(moduleConfig)) as WaSqliteModule;
   })();
 
   if (!wasmBinary) cachedModulePromise = promise;
@@ -1262,11 +1286,7 @@ export interface WaSqliteDatabaseOptions {
    * become the initial database content. Existing data always wins.
    */
   initialBytes?: Uint8Array;
-  /**
-   * Optional explicit wasm binary. Use in browser bundles when the default
-   * `new URL('wa-sqlite.wasm', import.meta.url)` resolution is broken by the
-   * bundler (mirrors the repo's sql.js approach of fetching the wasm itself).
-   */
+  /** Optional explicit wasm binary; overrides the vendored FTS build. */
   wasmBinary?: ArrayBuffer | Uint8Array;
 }
 

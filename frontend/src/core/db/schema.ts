@@ -138,9 +138,6 @@ export function createSchema(db: Database): void {
       tree_state BLOB
     );
 
-    -- sql.js ships with the FTS4 extension, which is sufficient for ranked
-    -- full-text search. If we ever switch to a custom SQLite build with FTS5,
-    -- only this schema statement and the ranking formula need to change.
     CREATE TABLE IF NOT EXISTS class (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -212,6 +209,10 @@ export function createSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_class_property_edge_property
     ON class_property_edge (property_schema_id);
 
+    -- The vendored wa-sqlite build (db/wa-sqlite-fts/) ships FTS4, which is
+    -- sufficient for ranked full-text search. If we ever migrate to FTS5
+    -- (also compiled in), only this schema statement and the ranking formula
+    -- need to change.
     CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts4(
       node_id,
       content,
