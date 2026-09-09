@@ -252,3 +252,34 @@ describe('replay equivalence (any permitted arrival order converges)', () => {
     expect(JSON.parse(reference!.class_ids).sort()).toEqual([classB].sort());
   });
 });
+
+
+describe('legacy full-state CRDT payloads still apply', () => {
+  it('a legacy textUpdate byte array merges (pre-delta wire format)', async () => {
+    const db = await createTestDatabase();
+    const nodeId = uuidv7();
+    createNode(db, nodeId);
+
+    // Build a full-state Yjs update the way pre-delta clients emitted it.
+    const { TextCrdt } = await import('../../crdt/text');
+    const text = new TextCrdt();
+    text.insert(0, 'legacy hello');
+    const fullState = Array.from(text.getState());
+
+    applyOperation(
+      db,
+      makeOp(
+        'node.updateContent',
+        { nodeId, textUpdate: fullState },
+        { hlc: { physical: 10, logical: 0 } }
+      )
+    );
+
+    const row = queryOne<{ text_content: string }>(
+      db,
+      'SELECT text_content FROM node WHERE id = ?',
+      [nodeId]
+    );
+    expect(row?.text_content).toContain('legacy hello');
+  });
+});

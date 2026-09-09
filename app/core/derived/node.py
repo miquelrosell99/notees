@@ -269,9 +269,19 @@ def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
       mirror so non-CRDT clients can read it; otherwise the node content is
       set to a minimal text placeholder because the server does not interpret
       Yjs updates.
+    * ``textUpdateB64`` — the current web-client wire format: a base64
+      *incremental* Yjs update (delta since the author's previous state). The
+      server cannot merge Yjs deltas without a CRDT library, so it does NOT
+      overwrite ``crdt_state`` (which continues to hold the last full state);
+      the node content is still written from the ``content`` mirror, which
+      always travels with the delta.
     * ``treeUpdate`` — a Yjs array update for child-order CRDT state. Stored in
       ``crdt_state.tree_state`` without touching ``node.content``.
+    * ``treeUpdateB64`` — base64 incremental tree update; like textUpdateB64,
+      ``crdt_state.tree_state`` is left untouched (last full state wins).
     """
+    import base64
+
     from app.core.clock import compare_hlc
 
     payload = op.payload
@@ -280,6 +290,55 @@ def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
     incoming_hlc = op.envelope.hlc
 
     text_update = payload.get("textUpdate")
+    text_update_b64 = payload.get("textUpdateB64")
+    if text_update_b64 is not None and text_update is None:
+        # Delta wire format: apply the content mirror only. crdt_state is
+        # intentionally not overwritten — a delta is not a state, and the
+        # server cannot merge it without a CRDT library.
+        if not isinstance(text_update_b64, str):
+            return
+        try:
+            base64.b64decode(text_update_b64)
+        except ValueError:
+            return
+        content_mirror = payload.get("content")
+        if isinstance(content_mirror, str) and content_mirror:
+            try:
+                parsed = json.loads(content_mirror)
+            except ValueError:
+                parsed = None
+            # Keep the column valid JSON: store a serialized AST verbatim,
+            # wrap anything else as a plain text node.
+            if isinstance(parsed, list):
+                content_json = content_mirror
+            else:
+                content_json = json.dumps([{"type": "text", "text": content_mirror}])
+        elif isinstance(content_mirror, list):
+            content_json = json.dumps(content_mirror)
+        elif isinstance(content_mirror, dict):
+            content_json = json.dumps([content_mirror])
+        else:
+            content_json = json.dumps([{"type": "text", "text": ""}])
+        conn.execute(
+            """
+            UPDATE node
+            SET content = ?, updated_at = ?, updated_by = ?,
+                hlc_physical = ?, hlc_logical = ?
+            WHERE id = ?
+            """,
+            (
+                content_json,
+                ts,
+                op.envelope.actor_id,
+                incoming_hlc.physical,
+                incoming_hlc.logical,
+                node_id,
+            ),
+        )
+        reindex_node(conn, node_id)
+        rebuild_edges_for_node(conn, op)
+        return
+
     if text_update is not None:
         if isinstance(text_update, list):
             blob = bytes(text_update)
@@ -336,6 +395,11 @@ def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
         return
 
     tree_update = payload.get("treeUpdate")
+    if tree_update is None and payload.get("treeUpdateB64") is not None:
+        # Delta wire format: crdt_state.tree_state keeps the last full state —
+        # the server cannot merge Yjs deltas without a CRDT library. Child
+        # order on the server is derived from node.parent_id elsewhere.
+        return
     if tree_update is not None:
         if isinstance(tree_update, list):
             blob = bytes(tree_update)

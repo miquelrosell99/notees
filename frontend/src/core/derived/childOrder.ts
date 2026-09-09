@@ -3,6 +3,7 @@ import type { Operation } from '../types/operation';
 import { queryAll } from '../db/sqlite';
 import { loadTreeCrdt, saveTreeCrdt } from './crdtState';
 import { TreeCrdt } from '../crdt/tree';
+import { base64ToBytes } from '@/utils/base64';
 import type { ChangeNotification } from './index';
 
 // Tracks which parent CRDTs have already been logged as repaired per database
@@ -173,11 +174,15 @@ export function applyChildOrderOperation(db: Database, op: Operation): ChangeNot
     return notifications;
   }
 
-  if (!payload.treeUpdate) return [];
+  if (!payload.treeUpdate && !payload.treeUpdateB64) return [];
 
-  const treeUpdate = Array.isArray(payload.treeUpdate)
-    ? new Uint8Array(payload.treeUpdate as number[])
-    : (payload.treeUpdate as Uint8Array);
+  // treeUpdateB64 is the current wire format (base64 delta); legacy
+  // full-state `treeUpdate` byte arrays still merge correctly.
+  const treeUpdate = payload.treeUpdateB64
+    ? base64ToBytes(payload.treeUpdateB64 as string)
+    : Array.isArray(payload.treeUpdate)
+      ? new Uint8Array(payload.treeUpdate as number[])
+      : (payload.treeUpdate as Uint8Array);
 
   const nodeId = payload.nodeId as string;
   const logged = getLoggedSet(db);
