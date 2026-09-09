@@ -172,23 +172,26 @@ class TestPostgresRelayStorage:
         ]
         await storage.save_envelopes(envelopes)
 
-        page, next_after_seq = await storage.get_catch_up_paginated(
+        page, next_after_seq, remaining = await storage.get_catch_up_paginated(
             workspace_id, 0, limit=2
         )
         assert len(page) == 2
         assert next_after_seq == page[-1].seq
+        assert remaining == 5
 
-        page2, next_after_seq2 = await storage.get_catch_up_paginated(
+        page2, next_after_seq2, remaining2 = await storage.get_catch_up_paginated(
             workspace_id, next_after_seq, limit=2
         )
         assert len(page2) == 2
         assert next_after_seq2 == page2[-1].seq
+        assert remaining2 == 3
 
-        page3, next_after_seq3 = await storage.get_catch_up_paginated(
+        page3, next_after_seq3, remaining3 = await storage.get_catch_up_paginated(
             workspace_id, next_after_seq2, limit=2
         )
         assert len(page3) == 1
         assert next_after_seq3 is None
+        assert remaining3 == 1
 
     @pytest.mark.asyncio
     async def test_get_catch_up_paginated_tolerates_pruned_cursor(
@@ -216,11 +219,12 @@ class TestPostgresRelayStorage:
         cursor = (await storage.get_catch_up(workspace_id, 0))[0].seq
         await storage.prune_envelopes(workspace_id, Hlc(physical=1, logical=0))
 
-        results, next_after_seq = await storage.get_catch_up_paginated(
+        results, next_after_seq, remaining = await storage.get_catch_up_paginated(
             workspace_id, cursor, limit=10
         )
         assert [envelope.id for envelope in results] == ["env-b"]
         assert next_after_seq is None
+        assert remaining == 1
 
     @pytest.mark.asyncio
     async def test_get_catch_up_paginated_by_seq_includes_concurrent_insert(
@@ -246,11 +250,12 @@ class TestPostgresRelayStorage:
         )
         await storage.save_envelopes([first, second])
 
-        page1, after1 = await storage.get_catch_up_paginated(
+        page1, after1, remaining1 = await storage.get_catch_up_paginated(
             workspace_id, 0, limit=1
         )
         assert [envelope.id for envelope in page1] == [first.id]
         assert after1 == page1[-1].seq
+        assert remaining1 == 2
 
         # Inserted after page 1 with an id and HLC that both sort before the
         # cursor envelope's — the seq cursor still picks it up on page 2.
@@ -262,12 +267,13 @@ class TestPostgresRelayStorage:
         )
         await storage.save_envelope(concurrent)
 
-        page2, after2 = await storage.get_catch_up_paginated(
+        page2, after2, remaining2 = await storage.get_catch_up_paginated(
             workspace_id, after1, limit=10
         )
         ids = [envelope.id for envelope in page2]
         assert ids == [second.id, concurrent.id]
         assert after2 is None
+        assert remaining2 == 2
 
     @pytest.mark.asyncio
     async def test_count_operations_and_size_estimate(self, storage: PostgresRelayStorage) -> None:

@@ -231,6 +231,10 @@ async def test_catch_up_paginated_pages_through_envelopes(
         assert response.status_code == 200
         data = response.json()
 
+        # Global progress contract: total_remaining covers this page plus all
+        # later pages, so applied + total_remaining stays at the grand total.
+        assert data["total_remaining"] == 10 - len(all_ids)
+
         page_ids = [envelope["id"] for envelope in data["envelopes"]]
         all_ids.extend(page_ids)
         # has_more signals a full page; next_after_seq is the cursor to adopt
@@ -255,6 +259,7 @@ async def test_catch_up_paginated_pages_through_envelopes(
     tail = response.json()
     assert tail["envelopes"] == []
     assert tail["has_more"] is False
+    assert tail["total_remaining"] == 0
 
 
 def test_snapshot_latest_requires_workspace_id(client: TestClient) -> None:

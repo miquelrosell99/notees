@@ -216,9 +216,10 @@ class TestSqliteRelayStoragePagination:
         )
         storage.save_envelopes([first, second])
 
-        page1, after1 = storage.get_catch_up_paginated(workspace_id, 0, limit=1)
+        page1, after1, remaining1 = storage.get_catch_up_paginated(workspace_id, 0, limit=1)
         assert [envelope.id for envelope in page1] == [first.id]
         assert after1 == page1[-1].seq
+        assert remaining1 == 2
 
         # Inserted after page 1 with an id and HLC that both sort before the
         # cursor envelope's — the seq cursor still picks it up on page 2.
@@ -229,12 +230,13 @@ class TestSqliteRelayStoragePagination:
         )
         storage.save_envelope(concurrent)
 
-        page2, after2 = storage.get_catch_up_paginated(
+        page2, after2, remaining2 = storage.get_catch_up_paginated(
             workspace_id, after1, limit=10
         )
         ids = [envelope.id for envelope in page2]
         assert ids == [second.id, concurrent.id]
         assert after2 is None
+        assert remaining2 == 2
 
     def test_get_catch_up_paginated_tolerates_pruned_cursor(self) -> None:
         """A seq cursor below pruned rows still yields the remaining rows —
@@ -252,9 +254,10 @@ class TestSqliteRelayStoragePagination:
         )
         storage.prune_envelopes("ws-1", Hlc(physical=1, logical=0))
 
-        results, next_after_seq = storage.get_catch_up_paginated("ws-1", 1, limit=10)
+        results, next_after_seq, remaining = storage.get_catch_up_paginated("ws-1", 1, limit=10)
         assert [envelope.id for envelope in results] == ["env-b"]
         assert next_after_seq is None
+        assert remaining == 1
 
     def test_get_catch_up_paginated_pages_by_seq(self) -> None:
         storage = SqliteRelayStorage(":memory:")
@@ -268,17 +271,20 @@ class TestSqliteRelayStoragePagination:
         ]
         storage.save_envelopes(envelopes)
 
-        page1, after1 = storage.get_catch_up_paginated("ws-1", 0, limit=2)
+        page1, after1, remaining1 = storage.get_catch_up_paginated("ws-1", 0, limit=2)
         assert [envelope.id for envelope in page1] == ["env-01", "env-02"]
         assert after1 == page1[-1].seq
+        assert remaining1 == 5
 
-        page2, after2 = storage.get_catch_up_paginated("ws-1", after1, limit=2)
+        page2, after2, remaining2 = storage.get_catch_up_paginated("ws-1", after1, limit=2)
         assert [envelope.id for envelope in page2] == ["env-03", "env-04"]
         assert after2 == page2[-1].seq
+        assert remaining2 == 3
 
-        page3, after3 = storage.get_catch_up_paginated("ws-1", after2, limit=2)
+        page3, after3, remaining3 = storage.get_catch_up_paginated("ws-1", after2, limit=2)
         assert [envelope.id for envelope in page3] == ["env-05"]
         assert after3 is None
+        assert remaining3 == 1
 
 
 class TestSqliteRelayStorageCatchUp:
@@ -314,11 +320,12 @@ class TestSqliteRelayStorageCatchUp:
         )
 
         old_seq = storage.get_catch_up("ws-1", 0)[0].seq
-        results, next_after_seq = storage.get_catch_up_paginated(
+        results, next_after_seq, remaining = storage.get_catch_up_paginated(
             "ws-1", old_seq, limit=10
         )
         assert [envelope.id for envelope in results] == ["env-new"]
         assert next_after_seq is None
+        assert remaining == 1
 
 
 class TestSqliteRelayStorageSeq:

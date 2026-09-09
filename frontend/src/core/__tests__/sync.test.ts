@@ -345,6 +345,50 @@ describe('SyncEngine', () => {
     expect(catchUpArgs[0]).toBe(2);
   });
 
+  it('reports catch-up progress cumulatively against the grand total', async () => {
+    const workspaceId = uuidv7();
+    const actorA = uuidv7();
+    const actorB = uuidv7();
+    const relay = new MemoryRelay();
+
+    const dbA = await createTestDatabase();
+    const storeA = new WorkspaceStore(dbA, workspaceId, actorA);
+    const clientA = await createClientFromStore(storeA);
+    const syncA = new SyncEngine(clientA, new MemoryTransport(relay, workspaceId));
+
+    for (let i = 0; i < 5; i++) {
+      storeA.createNode({ nodeId: uuidv7(), kind: 'page', parentId: null });
+    }
+    await syncA.push();
+
+    const transportB = new MemoryTransport(relay, workspaceId);
+    transportB.catchUp = (afterSeq: number) => relay.catchUp(workspaceId, afterSeq, 2);
+
+    const progress: Array<{ applied: number; total: number }> = [];
+    const dbB = await createTestDatabase();
+    const storeB = new WorkspaceStore(dbB, workspaceId, actorB);
+    const clientB = await createClientFromStore(storeB);
+    const syncB = new SyncEngine(clientB, transportB, {
+      onPullProgress: (p) => {
+        if (p) progress.push({ applied: p.applied, total: p.total });
+      },
+    });
+
+    await syncB.pull();
+
+    // 5 ops in pages of 2: the bar must climb to the grand total and never
+    // reset to a per-page window.
+    expect(progress.length).toBeGreaterThan(0);
+    for (const p of progress) {
+      expect(p.total).toBe(5);
+    }
+    const appliedSeries = progress.map((p) => p.applied);
+    expect(appliedSeries[appliedSeries.length - 1]).toBe(5);
+    for (let i = 1; i < appliedSeries.length; i++) {
+      expect(appliedSeries[i]).toBeGreaterThanOrEqual(appliedSeries[i - 1]);
+    }
+  });
+
   it('resumes catch-up from a restored snapshot upToSeq', async () => {
     const workspaceId = uuidv7();
     const actorA = uuidv7();

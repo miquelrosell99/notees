@@ -25,6 +25,12 @@ export interface CatchUpPage {
   /** Seq of the last envelope when the page is full; null on the final page. */
   nextAfterSeq: number | null;
   hasMore: boolean;
+  /**
+   * Envelopes with seq greater than the requested cursor, including this
+   * page. Combined with the count already applied, this yields the grand
+   * total so progress can be reported globally instead of per page.
+   */
+  totalRemaining: number;
 }
 
 export interface Transport {
@@ -69,7 +75,8 @@ export class MemoryRelay {
 
   catchUp(workspaceId: string, afterSeq: number, limit = 10_000): CatchUpPage {
     const list = this.envelopes.get(workspaceId) ?? [];
-    const page = list.filter((entry) => entry.seq > afterSeq).slice(0, limit);
+    const remaining = list.filter((entry) => entry.seq > afterSeq);
+    const page = remaining.slice(0, limit);
     // Mirror the backend: the page is "full" when it hits the limit, and only
     // then is a next cursor returned.
     const hasMore = page.length === limit;
@@ -77,6 +84,7 @@ export class MemoryRelay {
       envelopes: page.map((entry) => entry.envelope),
       nextAfterSeq: hasMore ? page[page.length - 1].seq : null,
       hasMore,
+      totalRemaining: remaining.length,
     };
   }
 }

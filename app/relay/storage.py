@@ -68,7 +68,7 @@ class RelayStorage(ABC):
         after_seq: int = 0,
         limit: int = 1000,
         node_id: str | None = None,
-    ) -> tuple[list[RelayEnvelope], int | None]:
+    ) -> tuple[list[RelayEnvelope], int | None, int]:
         """Return a page of envelopes with ``seq`` greater than ``after_seq``.
 
         When ``node_id`` is provided, only envelopes whose ``affected_node_ids``
@@ -76,7 +76,9 @@ class RelayStorage(ABC):
 
         Results are sorted by ``seq``. The returned ``next_after_seq`` is the
         seq of the last envelope when the page is full, indicating that more
-        results may be available.
+        results may be available. The returned ``total_remaining`` is the number
+        of matching envelopes with ``seq`` greater than ``after_seq`` (including
+        this page), so clients can render global catch-up progress.
         """
 
     @abstractmethod
@@ -533,7 +535,7 @@ class SqliteRelayStorage(RelayStorage):
         after_seq: int = 0,
         limit: int = 1000,
         node_id: str | None = None,
-    ) -> tuple[list[RelayEnvelope], int | None]:
+    ) -> tuple[list[RelayEnvelope], int | None, int]:
         params: list[Any] = [workspace_id, after_seq]
         node_filter = ""
         if node_id is not None:
@@ -552,7 +554,16 @@ class SqliteRelayStorage(RelayStorage):
         )
         results = [self._row_to_envelope(row) for row in cursor.fetchall()]
         next_after_seq = results[-1].seq if len(results) == limit else None
-        return results, next_after_seq
+        total_remaining = self._connection.execute(
+            f"""
+            SELECT COUNT(*) FROM relay_envelope
+            WHERE workspace_id = ?
+              AND seq > ?
+              {node_filter}
+            """,
+            tuple(params),
+        ).fetchone()[0]
+        return results, next_after_seq, total_remaining
 
     def envelope_exists(self, envelope_id: str) -> bool:
         cursor = self._connection.execute(
@@ -1114,7 +1125,7 @@ class PostgresRelayStorage(RelayStorage):
         after_seq: int = 0,
         limit: int = 1000,
         node_id: str | None = None,
-    ) -> tuple[list[RelayEnvelope], int | None]:
+    ) -> tuple[list[RelayEnvelope], int | None, int]:
         pool = await self._get_pool()
         node_filter_sql = ""
         args: list[Any] = [workspace_id, after_seq, limit]
@@ -1134,9 +1145,24 @@ class PostgresRelayStorage(RelayStorage):
                 """,
                 *args,
             )
+            count_args: list[Any] = [workspace_id, after_seq]
+            count_filter_sql = ""
+            if node_id is not None:
+                count_filter_sql = "AND affected_node_ids @> $3::jsonb"
+                count_args.append(json.dumps([node_id]))
+            count_row = await conn.fetchrow(
+                f"""
+                SELECT COUNT(*) FROM relay_envelope
+                WHERE workspace_id = $1
+                  AND seq > $2
+                  {count_filter_sql}
+                """,
+                *count_args,
+            )
         results = [self._row_to_envelope(row) for row in rows]
         next_after_seq = results[-1].seq if len(results) == limit else None
-        return results, next_after_seq
+        total_remaining = int(count_row[0]) if count_row else 0
+        return results, next_after_seq, total_remaining
 
     async def envelope_exists(self, envelope_id: str) -> bool:
         pool = await self._get_pool()

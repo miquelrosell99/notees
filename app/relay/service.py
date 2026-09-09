@@ -189,8 +189,12 @@ class RelayService:
         limit: int = 1000,
         share_token: str | None = None,
         share_node_id: str | None = None,
-    ) -> tuple[list[RelayEnvelope], int | None]:
+    ) -> tuple[list[RelayEnvelope], int | None, int]:
         """Return a paginated page of operations with seq greater than ``after_seq``.
+
+        The third element is the total number of matching envelopes with
+        ``seq`` greater than ``after_seq`` (including this page), for global
+        progress reporting.
 
         Raises:
             PermissionDeniedError: If ``actor_id`` is not allowed to read the

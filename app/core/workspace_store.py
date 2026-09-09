@@ -373,7 +373,7 @@ class WorkspaceStore:
             # operation history at once, and check already-applied ids with a
             # single query per batch rather than per envelope.
             while True:
-                envelopes, next_after_seq = await self._maybe_await(
+                envelopes, next_after_seq, _total_remaining = await self._maybe_await(
                     self._relay_storage.get_catch_up_paginated(
                         self.workspace_id,
                         after_seq,
