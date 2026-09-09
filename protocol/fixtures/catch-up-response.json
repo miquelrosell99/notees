@@ -22,5 +22,6 @@
   ],
   "next_after_seq": null,
   "has_more": false,
-  "restore_epoch": 0
+  "restore_epoch": 0,
+  "total_remaining": 1
 }

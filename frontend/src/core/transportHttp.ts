@@ -156,6 +156,7 @@ export class HttpTransport implements Transport {
       envelopes: OperationEnvelope[];
       next_after_seq: number | null;
       has_more: boolean;
+      total_remaining?: number;
     };
     let envelopes = data.envelopes ?? [];
     if (envelopes.some((envelope) => isEncryptedPayload(envelope.payload))) {
@@ -172,6 +173,9 @@ export class HttpTransport implements Transport {
       envelopes,
       nextAfterSeq: data.next_after_seq ?? null,
       hasMore: data.has_more ?? false,
+      // Older servers omit the field; fall back to the page size so progress
+      // degrades to per-page reporting instead of NaN.
+      totalRemaining: data.total_remaining ?? envelopes.length,
     };
   }
 

@@ -118,7 +118,7 @@ class TestRelayCatchUpPerformance:
         page = 0
         while True:
             page += 1
-            results, next_after_seq = await service.catch_up_paginated(
+            results, next_after_seq, _remaining = await service.catch_up_paginated(
                 WORKSPACE_ID,
                 ACTOR_ID,
                 after_seq,
@@ -145,11 +145,11 @@ class TestRelayCatchUpPerformance:
         service = RelayService(storage, StubPermissionChecker())
 
         # Skip the first 500 envelopes by seq.
-        first_page, _ = await service.catch_up_paginated(
+        first_page, _, _remaining = await service.catch_up_paginated(
             WORKSPACE_ID, ACTOR_ID, 0, limit=500
         )
         cursor_seq = first_page[-1].seq
-        results, next_after_seq = await service.catch_up_paginated(
+        results, next_after_seq, _remaining = await service.catch_up_paginated(
             WORKSPACE_ID,
             ACTOR_ID,
             cursor_seq,
