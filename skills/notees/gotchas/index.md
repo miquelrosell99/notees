@@ -140,6 +140,12 @@ Stock `wa-sqlite` dist ships no FTS module, but `search_index` is FTS4: any engi
 
 - Reference: `references/gotchas.md#db-the-workspace-sqlite-wasm-is-a-vendored-build--engine-swaps-must-diff-compile-time-feature-modules`
 
+## **[db]** Never filter/delete an FTS4 table by a `notindexed` column — keep a docid map
+
+`WHERE node_id = ?` on `search_index` is a full docstore scan; per-op maintenance went O(n²) on log replay and workspace catch-up appeared to hang in a loop. All FTS maintenance goes through `search_index_docid` (schema v21) — `reindexNode`/`removeSearchIndexEntry` address rows by docid only.
+
+- Reference: `references/gotchas.md#db-never-filter-or-delete-an-fts4-table-by-a-notindexed-column--keep-a-docid-map`
+
 ## Dev vs Prod
 
 Development infrastructure settings in `compose.dev.yaml` must never be used in production.
