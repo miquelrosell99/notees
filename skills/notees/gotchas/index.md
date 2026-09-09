@@ -106,6 +106,8 @@ Serverless behavior keys off `useConnectionMode()` / `useCapabilities()` (`front
 
 `app/db/schema/sql.py` evolves tables via guarded `ALTER TABLE` blocks (e.g. `pending_invite` dropped `node_id` at v5), but nothing fails CI when repository SQL still references the dropped column — the breakage only surfaces at runtime. After changing schema DDL, grep `app/features/**/repository.py` for the old column name.
 
+The same applies to cross-layer return shapes: extending `RelayStorage.get_catch_up_paginated`'s tuple broke `app/core/workspace_store.py` `sync()`'s unpacker at runtime (500 on any endpoint that calls it) while its test file stayed green, and the real mypy error drowned in ~177 pre-existing ones. After changing a shared signature, grep **all of `app/`**, `scripts/`, and `tests/` for unpackers/callers — not just the tests adjacent to the layer you edited.
+
 ## **[background-jobs]** Background tasks must not fabricate partial Pydantic models
 
 Background jobs run outside the request lifecycle and must build services from primitive ids (`_get_workspace_io_service(user_id)` accepts `int | str | None`), never `User(id=..., email="")`-style partial models that break the moment the model gains a required field. Sync helpers like `get_data_dir()` must not be awaited.
