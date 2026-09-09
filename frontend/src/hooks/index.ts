@@ -31,7 +31,6 @@ export * from './useCopiedState';
 export * from './useDebouncedValue';
 export * from './useNotifications';
 export * from './useWindowFocusActiveBlock';
-export { useLiveSyncStatus } from '@/features/collab';
 export * from './useCommandPaletteSearch';
 export * from './useListDragSort';
 export { useFocusMode } from './useFocusMode';

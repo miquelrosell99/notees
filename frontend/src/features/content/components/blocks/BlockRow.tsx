@@ -17,7 +17,7 @@ import { BulletLine } from './BulletLine';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useModalStore } from '@/stores/modalStore';
 import { useUIStateStore } from '@/features/sync';
-import { liveSyncManager, useLivePresenceStore } from '@/features/collab';
+import { useLivePresenceStore, usePresenceChannel } from '@/features/collab';
 import { parseAST, parseLinkId, buildLinkId, unwrapCrdtContentAst } from '@/lib/astBuilder';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { ConvertToPageModal } from '@/features/content/components/nodes/ConvertToPageModal';
@@ -161,6 +161,7 @@ export const BlockRow = memo(
     const setCollapsed = useUIStateStore((s) => s.setCollapsed);
 
     const currentUserId = useAuthStore((s) => s.user?.nodeUuid ?? 0);
+    const presenceChannel = usePresenceChannel();
 
     // Scalar presence state is combined into one subscription to reduce the
     // per-row subscription count in large virtualized lists.
@@ -350,8 +351,10 @@ export const BlockRow = memo(
     }, [node.uuid, mutations]);
 
     const handleRequestLock = useCallback(() => {
+      // Server-side block locks were removed in sync protocol v2; there is no
+      // request_lock message anymore. The local queued state is kept so the
+      // (currently never-populated) lock UI keeps its existing behavior.
       if (!nodeUuid) return;
-      liveSyncManager.sendRequestLock(node.uuid);
       useLivePresenceStore.getState().setQueued(nodeUuid, node.uuid, true);
     }, [node.uuid, nodeUuid]);
 
@@ -363,8 +366,8 @@ export const BlockRow = memo(
         return;
       }
       useLivePresenceStore.getState().setConflict(nodeUuid, node.uuid, null);
-      liveSyncManager.sendFocus(node.uuid);
-    }, [node.uuid, nodeUuid]);
+      presenceChannel.sendPresence('focus', node.uuid);
+    }, [node.uuid, nodeUuid, presenceChannel]);
 
     const classDetails = useResolvedClassDetails(node.classes_uuid, { skipNodesFallback: true });
 
