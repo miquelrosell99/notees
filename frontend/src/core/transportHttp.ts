@@ -6,7 +6,9 @@ import {
   decryptEnvelopePayload,
   encryptBytes,
   encryptEnvelopePayload,
+  getLatestKeyVersion,
   getWorkspaceKey,
+  getWorkspaceKeyForVersion,
   isEncryptedPayload,
   isWorkspaceE2eeEnabled,
 } from './e2ee';
@@ -75,6 +77,16 @@ export class HttpTransport implements Transport {
     return key;
   }
 
+  /** Current key version (1 when only the initial key exists). */
+  private currentKeyVersion(): number {
+    return getLatestKeyVersion(this.workspaceId) ?? 1;
+  }
+
+  /** Key lookup by version for decrypting history (rotation-aware). */
+  private keyForVersion(version: number): CryptoKey | undefined {
+    return getWorkspaceKeyForVersion(this.workspaceId, version);
+  }
+
   async send(envelope: OperationEnvelope): Promise<SendBatchResult> {
     return this.sendBatch([envelope]);
   }
@@ -83,8 +95,9 @@ export class HttpTransport implements Transport {
     if (envelopes.length === 0) return { savedIds: [] };
 
     const key = this.requireKey();
+    const keyVersion = this.currentKeyVersion();
     const outgoing = key
-      ? await Promise.all(envelopes.map((envelope) => encryptEnvelopePayload(key, envelope)))
+      ? await Promise.all(envelopes.map((envelope) => encryptEnvelopePayload(key, envelope, keyVersion)))
       : envelopes;
 
     const response = await fetchWithTimeout(`${this.baseUrl}/api/relay/batch`, {
@@ -146,10 +159,13 @@ export class HttpTransport implements Transport {
     };
     let envelopes = data.envelopes ?? [];
     if (envelopes.some((envelope) => isEncryptedPayload(envelope.payload))) {
-      const key = getWorkspaceKey(this.workspaceId);
-      if (!key) throw new Error(LOCKED_WORKSPACE_ERROR);
       envelopes = await Promise.all(
-        envelopes.map((envelope) => decryptEnvelopePayload(key, envelope))
+        envelopes.map(async (envelope) => {
+          if (!isEncryptedPayload(envelope.payload)) return envelope;
+          const key = this.keyForVersion(envelope.payload.$e.kv ?? 1);
+          if (!key) throw new Error(LOCKED_WORKSPACE_ERROR);
+          return decryptEnvelopePayload(key, envelope);
+        })
       );
     }
     return {
@@ -228,9 +244,8 @@ export class HttpTransport implements Transport {
     // through (ciphertext never starts with the SQLite magic string).
     const header = new TextDecoder().decode(bytes.subarray(0, SQLITE_MAGIC.length));
     if (header === SQLITE_MAGIC) return bytes;
-    const key = getWorkspaceKey(this.workspaceId);
-    if (!key) throw new Error(LOCKED_WORKSPACE_ERROR);
-    return decryptBytes(key, bytes);
+    if (!getWorkspaceKey(this.workspaceId)) throw new Error(LOCKED_WORKSPACE_ERROR);
+    return decryptBytes(bytes, (kv) => this.keyForVersion(kv));
   }
 
   async uploadSnapshot(snapshot: SnapshotEnvelope): Promise<void> {
@@ -241,7 +256,7 @@ export class HttpTransport implements Transport {
         // Locked: snapshot upload is best-effort; skip rather than fail sync.
         return;
       }
-      data = await encryptBytes(key, data);
+      data = await encryptBytes(key, data, this.currentKeyVersion());
     }
     if (data.length > MAX_SNAPSHOT_UPLOAD_BYTES) {
       // Avoid "allocation size overflow" and similar errors when the derived
