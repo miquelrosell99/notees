@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor, isSupportBadgeVisible, useEncryptionStore } from '@/stores';
-import { enableWorkspaceE2ee, unlockWorkspaceE2ee } from '@/core/e2eeSetup';
+import { enableWorkspaceE2ee, unlockWithMemberKeys, unlockWorkspaceE2ee } from '@/core/e2eeSetup';
 import { clearWorkspaceKey, setWorkspaceE2eeEnabled } from '@/core/e2ee';
 import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSelectors';
 import { useWorkspaces } from '@/features/workspace';
@@ -187,8 +187,14 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     try {
       await setEncryptionPasswordAction(encryptionPassword, workspaceUuid);
       // Also enable E2EE for sync (SPEC §8): generate the workspace key,
-      // wrap it with the passphrase-derived KEK, and publish the blob.
-      await enableWorkspaceE2ee(workspaceUuid);
+      // wrap it with the passphrase-derived KEK, and publish the blob, plus
+      // a v2 member-wrapped copy for myself (device identity).
+      const userUuid = user?.uuid;
+      if (!userUuid) {
+        setEncryptionError('No authenticated user');
+        return;
+      }
+      await enableWorkspaceE2ee(workspaceUuid, userUuid);
       setEncryptionPassword('');
       setEncryptionConfirm('');
       setEncryptionSuccess(true);
@@ -209,7 +215,15 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
       return;
     }
     try {
-      const ok = await unlockWorkspaceE2ee(workspaceUuid, encryptionPassword);
+      // v2 first: member-wrapped keys need only my device identity.
+      const userUuid = user?.uuid;
+      let ok = false;
+      if (userUuid) {
+        ok = await unlockWithMemberKeys(workspaceUuid, userUuid).catch(() => false);
+      }
+      if (!ok) {
+        ok = await unlockWorkspaceE2ee(workspaceUuid, encryptionPassword);
+      }
       if (!ok) {
         setEncryptionError('Wrong password, or the workspace key could not be unwrapped');
         return;
