@@ -18,7 +18,7 @@ from .class_hierarchy import delete_class_hierarchy_for_node
 from .crdt_state import delete_crdt_state_for_node
 from .edge import rebuild_edges_for_node
 from .node_view import delete_node_views_for_node
-from .search import reindex_node
+from .search import reindex_node, remove_search_index_entry
 
 
 def node_exists(conn: sqlite3.Connection, node_id: str | None) -> bool:
@@ -180,7 +180,7 @@ def apply_node_delete(conn: sqlite3.Connection, op: Operation) -> None:
         (node_id, node_id),
     )
     delete_crdt_state_for_node(conn, node_id)
-    conn.execute("DELETE FROM search_index WHERE node_id = ?", (node_id,))
+    remove_search_index_entry(conn, node_id)
     delete_class_hierarchy_for_node(conn, node_id)
     delete_node_views_for_node(conn, node_id)
 

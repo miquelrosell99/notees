@@ -223,6 +223,15 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts4(
     tokenize=unicode61
 );
 
+-- FTS4 cannot index the notindexed node_id column, so lookup/delete by
+-- node_id is a full docstore scan (O(n) per statement, O(n^2) on replay).
+-- All search_index maintenance goes through this node_id -> docid map so
+-- FTS rows are addressed by rowid instead. Backfilled by create_derived_schema.
+CREATE TABLE IF NOT EXISTS search_index_docid (
+    node_id TEXT PRIMARY KEY,
+    docid INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -489,3 +498,16 @@ def create_derived_schema(conn: sqlite3.Connection) -> None:
         except sqlite3.OperationalError:
             # Column already exists; ignore.
             pass
+
+    # Backfill the search_index docid map for existing databases. FTS4 cannot
+    # index the notindexed node_id column, so per-op maintenance by node_id
+    # scanned the whole docstore — server-side catch-up on a large backlog
+    # went quadratic and held the workspace sync lock long enough to time out
+    # API requests queued behind it.
+    (map_count,) = conn.execute("SELECT COUNT(*) FROM search_index_docid").fetchone()
+    if map_count == 0:
+        conn.execute(
+            "INSERT OR IGNORE INTO search_index_docid (node_id, docid) "
+            "SELECT node_id, docid FROM search_index"
+        )
+        conn.commit()
