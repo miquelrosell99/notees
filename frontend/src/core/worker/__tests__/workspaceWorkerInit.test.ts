@@ -1,8 +1,9 @@
 /**
  * Tests for workspace worker init (single-engine wa-sqlite era):
  * opening with migration-seed bytes must initialize cleanly and run schema
- * migrations on the opened database; the migrated state is durable in the
- * file/VFS itself, so no persist-data messages are emitted.
+ * migrations on the opened database. In jsdom (memory persistence mode) the
+ * durable state lives in the file/VFS itself, so no persist-data messages
+ * are emitted; the IndexedDB fallback mode is covered separately below.
  *
  * The worker module is loaded with a stubbed `self` so the real handleInit
  * runs in-process (memory VFS — jsdom has no OPFS) and its postMessage
@@ -89,5 +90,65 @@ describe('workspaceWorker init (wa-sqlite, memory VFS in tests)', () => {
 
     expect(messages().some((m) => m.type === 'init-done')).toBe(true);
     expect(messages().some((m) => m.type === 'error')).toBe(false);
+  });
+
+  it('falls back to IndexedDB persistence when a real browser has no OPFS', async () => {
+    // Simulate Zen/Firefox-with-dom.fs.disabled: navigator exists, no
+    // storage.getDirectory, IndexedDB present, not jsdom.
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/155.0' });
+    vi.stubGlobal('indexedDB', {});
+    try {
+      const db = await createTestDatabase();
+      const bytes = db.export();
+      db.close();
+
+      await initWith(bytes, 10, 'ws-idb-fallback');
+      expect(messages().some((m) => m.type === 'init-done')).toBe(true);
+      expect(messages().some((m) => m.type === 'error')).toBe(false);
+
+      // persistNow must ship a full-database snapshot to the main thread,
+      // transferred (not cloned) for large workspaces.
+      posted.length = 0;
+      await onmessage()({ data: { type: 'mutate', id: 11, method: 'persistNow', args: [] } });
+      const persistMsgs = posted.filter(
+        (p) => (p.message as { type: string }).type === 'persist-data'
+      );
+      expect(persistMsgs).toHaveLength(1);
+      const snapshot = (persistMsgs[0].message as { bytes: Uint8Array }).bytes;
+      expect(new TextDecoder().decode(snapshot.slice(0, 16))).toBe('SQLite format 3\0');
+      expect(persistMsgs[0].transfer).toContain(snapshot.buffer);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('choosePersistenceMode', () => {
+  it('prefers opfs whenever available', async () => {
+    const { choosePersistenceMode } = await import('../workspaceWorker');
+    expect(
+      choosePersistenceMode({ opfsAvailable: true, realBrowser: true, idbAvailable: true })
+    ).toBe('opfs');
+  });
+
+  it('falls back to indexeddb in a real browser without opfs', async () => {
+    const { choosePersistenceMode } = await import('../workspaceWorker');
+    expect(
+      choosePersistenceMode({ opfsAvailable: false, realBrowser: true, idbAvailable: true })
+    ).toBe('indexeddb');
+  });
+
+  it('fails loud in a real browser with neither opfs nor indexeddb', async () => {
+    const { choosePersistenceMode } = await import('../workspaceWorker');
+    expect(() =>
+      choosePersistenceMode({ opfsAvailable: false, realBrowser: true, idbAvailable: false })
+    ).toThrow(/cannot persist local data/);
+  });
+
+  it('uses ephemeral memory outside real browsers (jsdom/tests)', async () => {
+    const { choosePersistenceMode } = await import('../workspaceWorker');
+    expect(
+      choosePersistenceMode({ opfsAvailable: false, realBrowser: false, idbAvailable: false })
+    ).toBe('memory');
   });
 });
