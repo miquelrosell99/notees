@@ -89,6 +89,31 @@ Payload conventions:
   every target in the envelope's `affectedNodeIds`.
 - `plugin.op` payloads are `{pluginId, opType, data}` — namespaced per plugin.
 
+`node.updateContent` is the most frequent op in the system. Its payload is
+`nodeId` plus at least one update carrier (`NodeUpdateContentPayload` in
+`frontend/src/core/types/operation.ts`; server applier:
+`apply_node_update_content` in `app/core/derived/node.py`):
+
+- `content` — plaintext mirror: the serialized content AST as a JSON string,
+  or bare plaintext. Servers store a JSON-parseable mirror verbatim and wrap
+  anything else as a plain text node. A legacy AST (List or single dict) is
+  also accepted.
+- `textUpdateB64` — base64 *incremental* Yjs delta (the current web-client
+  wire format, always accompanied by the `content` mirror). Servers without a
+  CRDT library must NOT merge deltas: `crdt_state` keeps the last full state
+  and node content is written from the mirror.
+- Legacy carriers: `textUpdate` / `treeUpdate` (full-state Yjs updates as
+  byte arrays, stored in `crdt_state`), `treeUpdateB64` (base64 delta; last
+  full state wins), and `crdtUpdate` (direct AST; merged last-write-wins by
+  the operation HLC).
+
+Derived node content can hold the CRDT text wrapper
+`[{type:'text', text:'<real AST JSON>'}]` (or the paragraph-wrapped
+equivalent), because the inline editor stores the serialized AST inside the
+text CRDT. Clients must run an unwrap step before parsing or rendering — web:
+`unwrapCrdtContentAst` (`frontend/src/lib/astBuilder.ts:561`); Flutter:
+`unwrapCrdtContentAst` (`notees-flutter/lib/core/utils/ast_stringifier.dart`).
+
 Known op types at protocol version 1: `node.create`, `node.delete`,
 `node.move`, `node.updateContent`, `node.updateIcon`, `node.updateColor`,
 `node.addAlias`, `node.removeAlias`, `node.archive`, `node.restore`,

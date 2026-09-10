@@ -17,7 +17,7 @@ For installation, configuration, usage, plugin development, and troubleshooting,
 
 ## 1. High-level architecture
 
-Notees is a local-first, privacy-first note application. The authoritative source of truth is an immutable **operation log** stored on the server as a relay (payloads are plaintext JSON; confidentiality comes from transport encryption such as TLS/Tailscale) and replayed in the browser. The client builds a derived **SQLite** database (via `sql.js`/WebAssembly) from that log. All reads the UI performs run against the local SQLite store; writes append local operations that are asynchronously pushed to the server.
+Notees is a local-first, privacy-first note application. The authoritative source of truth is an immutable **operation log** stored on the server as a relay (payloads are plaintext JSON; confidentiality comes from transport encryption such as TLS/Tailscale) and replayed in the browser. The client builds a derived **SQLite** database (via wa-sqlite/WebAssembly, persisted as an OPFS file) from that log. All reads the UI performs run against the local SQLite store; writes append local operations that are asynchronously pushed to the server.
 
 ```
 Browser UI (React)
@@ -26,7 +26,7 @@ Browser UI (React)
 GraphQuery / Projection layer   ←── hooks such as useGraphQuery, useBlockTree
        │
        ▼
-Web Worker  ←── owns the sql.js Database
+Web Worker  ←── owns the wa-sqlite Database (OPFS file)
        │
        ├── applyOperation()  →  derived tables (node, edge, node_stats, …)
        └── query / mutate dispatch
@@ -403,7 +403,7 @@ Purpose: fetch a full `Node` view model for a page. Still uses `projectNode(stor
 ### Opening a page
 
 1. `App.tsx` initialises the workspace store client for the route's `workspaceId`.
-2. The worker loads a persisted SQLite dump from IndexedDB (or falls back to a fresh DB) and replays any pending local operations.
+2. The worker opens the workspace's durable OPFS database via wa-sqlite (on browsers without OPFS it falls back to the in-memory VFS plus debounced full-database snapshots to IndexedDB) and replays any pending local operations.
 3. `WorkspaceStoreInitializer` starts the sync engine, which pulls remote operations in a batched `applyMany` call.
 4. `PageView` renders. It calls `useNode(nodeUuid)` and `useBlockTree(...)`.
 5. `useBlockTree` uses `GetNodeTreeQuery` to fetch the page subtree in one worker round-trip. `NodeTreeProjection.getVisibleNodeIds()` decides which rows are visible given collapsed state. `projectNodesFromClient()` projects only those visible ids to the legacy `Node` shape.
@@ -501,7 +501,7 @@ There is no separate in-memory graph cache beyond the SQLite database itself.
 
 ### Local SQLite
 
-The worker owns one `sql.js` `Database` per workspace. It is serialised to a `Uint8Array` and persisted to IndexedDB periodically / on close. On load the worker imports the bytes and checks `PRAGMA user_version` to run migrations.
+The worker owns one wa-sqlite `Database` per workspace (`frontend/src/core/db/waSqliteDatabase.ts`, a sql.js-compatible synchronous adapter). The preferred persistence backend is a real OPFS file, durable on every commit. Browsers without OPFS fall back to the in-memory VFS plus debounced full-database snapshots written to IndexedDB from the main thread. A browser with neither OPFS nor IndexedDB fails loud. On load the worker checks `PRAGMA user_version` to run migrations; legacy sql.js/IndexedDB dumps seed the OPFS file on first open after an integrity check.
 
 ### Sync protocol
 

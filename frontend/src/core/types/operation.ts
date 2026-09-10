@@ -177,6 +177,40 @@ export interface NodeColorUpdatePayload {
   color: string | null;
 }
 
+/**
+ * `node.updateContent` payload — the most frequent op in the system.
+ * `nodeId` plus at least one update carrier (server validation:
+ * app/core/validation.py). Server-side semantics live in
+ * `apply_node_update_content` (app/core/derived/node.py).
+ */
+export interface NodeUpdateContentPayload {
+  nodeId: string;
+  /**
+   * Plaintext mirror of the node content. Current clients send a string: the
+   * serialized content AST as JSON, or bare plaintext. Servers keep the
+   * column valid JSON — a JSON-parseable mirror is stored verbatim, anything
+   * else is wrapped as a plain text node. A legacy AST (List or single dict)
+   * is also accepted and stored as-is.
+   */
+  content?: string | Array<Record<string, unknown>> | Record<string, unknown>;
+  /**
+   * Base64 *incremental* Yjs text update (delta since the author's previous
+   * state) — the current web-client wire format, always accompanied by the
+   * `content` mirror. Servers without a CRDT library must NOT merge deltas:
+   * `crdt_state` keeps the last full state and node content is written from
+   * the mirror only.
+   */
+  textUpdateB64?: string;
+  /** Legacy full-state Yjs text update as a byte array; stored in `crdt_state.text_state`. */
+  textUpdate?: number[];
+  /** Legacy direct AST payload from migration scripts and tools; merged last-write-wins by the operation HLC. */
+  crdtUpdate?: Array<Record<string, unknown>> | Record<string, unknown>;
+  /** Legacy full-state Yjs child-order update as a byte array; stored in `crdt_state.tree_state`. */
+  treeUpdate?: number[];
+  /** Base64 incremental tree update; like `textUpdateB64`, `crdt_state.tree_state` keeps the last full state. */
+  treeUpdateB64?: string;
+}
+
 export interface PluginOpPayload {
   pluginId: string;
   opType: string;

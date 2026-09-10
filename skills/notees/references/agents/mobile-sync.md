@@ -1,120 +1,126 @@
-# Mobile Sync — Pre-M1 Validation Notes
+# Mobile Sync — Flutter Relay Contract
 
-This document records the answers to the Pre-M1 validation questions from
-`refactor_plan.md` and notes mobile-specific constraints for the local-first
-sync architecture.
+Reference for the Notees Flutter app's sync contract, verified against the
+mobile implementation (`notees-flutter/lib/`) and the relay backend
+(`app/relay/`). The field-level wire contract lives in `protocol/SPEC.md`;
+this document covers the mobile-specific flow and pitfalls.
 
-## Validation Answers
+## Sync path: relay envelopes + seq cursor
 
-### 1. Can `OperationIntent` carry block ID, parent ID, content delta, and op type cleanly?
+The operation relay is the **only** sync path. There is no WebSocket
+requirement, no version vectors, and no whole-node state sync.
 
-**Status: Pass (with new models in Phase 1).**
+- **Push**: pending envelopes are dequeued from the local `relay_outbox`
+  table and pushed in chunks of 100 to `POST /api/relay/batch`
+  (`SyncV2Service.flush`, `lib/domain/services/sync_v2_service.dart`). The
+  response is a whole-batch ack: `{saved_count, saved_ids}`; the server
+  silently ignores duplicate envelope ids, so `saved_ids` may omit ids the
+  client sent (retry-safe). On success the whole chunk is applied to the
+  local cache and removed from the outbox. 401/403 are retried (token
+  refresh); other 4xx responses quarantine the chunk (state `quarantined`,
+  surfaced in the flush error list, never dropped silently); network/5xx
+  errors retry with backoff (`[5, 15, 60, 300, 1800]` seconds).
+- **Pull**: `POST /api/relay/catch-up` with the persisted `after_seq` cursor
+  (SPEC §4.2), paged via `next_after_seq`/`has_more`. The cursor is persisted
+  after every page, so a mid-page crash only re-fetches the tail; re-applied
+  envelopes are deduped by operation id against the local `relay_operations`
+  table. On the final page `next_after_seq` is still set (last envelope's
+  seq) — adopt it as the stored cursor.
+- **Actor id**: once authenticated, envelopes are stamped with the user's
+  uuid (from `/auth/me`), matching the web client so actor-keyed state
+  (favorites) is consistent across devices. Before login the per-install
+  device `clientId` is used.
 
-The current frontend uses `MutationIntent` (`frontend/src/runtime/types.ts`) and
-the backend uses whole-node state sync (`app/domain/entities/sync.py`). Neither
-has an `OperationIntent` type today. Phase 1 introduces
-`app/domain/entities/sync_v2.py` with `OperationIntent`, covering:
+## Snapshots: probe, then blob
 
-- `block_id` / `node_uuid`
-- `parent_id` for tree ops
-- `content_delta` / `content_ast` for text edits
-- `op_type` discriminator
+Snapshot restore is two-step (`RelayClient`, `lib/data/repositories/relay_client.dart`):
 
-The existing `MutationIntent` → `Operation` mapping in
-`frontend/src/sync/intents.ts` maps cleanly to the new model without
-restructuring.
+1. **Probe** `GET /api/relay/snapshot?workspace_id=...` — metadata only
+   (`hlc`, `up_to_seq`, `restore_epoch`); cheap even on large workspaces.
+   Members only; share tokens are not accepted.
+2. **Blob** `GET /api/relay/snapshot/data?workspace_id=...` — raw binary
+   (`application/octet-stream`), 404 when no snapshot exists. Download only
+   when the probe says the snapshot is newer than the local watermark
+   (`up_to_seq > cursor_seq`; HLC comparison is the fallback for pre-cursor
+   snapshots with `up_to_seq: null`).
 
-### 2. Can `SyncService` wrap a mixed batch of tree + text ops in a single PostgreSQL transaction?
+After a restore, catch up from `after_seq = up_to_seq` (or `0` with op-id
+dedupe when `up_to_seq` is null). A `restore_epoch` mismatch between the
+server and the stored watermark means the server was restored from backup:
+wipe the local cache and watermarks and resync.
 
-**Status: Pass.**
+## `node.updateContent`: string content, legacy List
 
-The backend uses request-scoped connections (`app/db/connection.py`) and
-`get_transaction()`. `NodeService` already exposes atomic methods such as
-`create_block`, `move_node`, and `update_node`. `SyncServiceV2.apply_batch()`
-calls these inside a single transaction and advances per-node version vectors
-atomically.
+The server accepts several carriers (SPEC §3;
+`apply_node_update_content` in `app/core/derived/node.py`):
 
-### 3. Does `live_sync_ws.py` support generic `broadcast_ops(room_id, ops[])` without lock-coupling?
+- **Current format** (web): `content` is a **string** — the serialized
+  content AST as JSON, or bare plaintext — accompanied by `textUpdateB64`, a
+  base64 *incremental* Yjs delta. Servers without a CRDT library must NOT
+  merge deltas; `crdt_state` keeps the last full state and node content comes
+  from the `content` mirror. A JSON-parseable mirror is stored verbatim;
+  anything else is wrapped as a plain text node.
+- **Legacy List form**: `content` as an AST array (or single dict). Still
+  accepted by the server and by the mobile appliers (`RelayAppliers` in
+  `lib/domain/services/relay_appliers.dart` serializes it to the string
+  format). The mobile producer currently emits this form
+  (`OperationPayloads.nodeUpdateContent`) without CRDT updates.
+- Content updates are last-write-wins: both server and mobile skip
+  `updateContent` ops whose HLC is not newer than the last applied one
+  (`node_content_hlc` table locally).
 
-**Status: Pass (after Phase 1).**
+## Name derivation: CRDT unwrap
 
-Before Phase 1, `live_sync_ws.py` only had page-scoped presence/lock
-broadcasts. Phase 1 removes lock state and adds `broadcast_ops(page_uuid, ops,
-sender_id)`, reusing the existing `_broadcast` helper and Redis pubsub channel
-for cross-instance fan-out.
+Derived node content (the mobile cache's `name` column) can hold the CRDT
+text wrapper `[{type:'text', text:'<real AST JSON>'}]` (or the
+paragraph-wrapped equivalent) because the web inline editor stores the
+serialized AST inside the text CRDT. Never render `name` directly: run
+`unwrapCrdtContentAst` first, then `astToPlainText`
+(`lib/core/utils/ast_stringifier.dart`; web equivalent:
+`unwrapCrdtContentAst` in `frontend/src/lib/astBuilder.ts:561`).
 
-### 4. Does the Flutter side have an `OperationIntent` equivalent that can queue to sqflite?
+## Local database and migrations
 
-**Status: Pass (mechanism exists; models need alignment).**
+Local state lives in a sqflite_sqlcipher database (`AppDatabase`,
+`lib/data/local/app_database.dart`, schema version 15): `relay_outbox`,
+`relay_operations`, `sync_watermark` (holds `cursor_seq` and
+`restore_epoch`), `node_cache`, search index, favorites, task, class,
+property-schema and share mirrors.
 
-The mobile app already has:
+Client-side migrations must be **idempotent**: upgrade paths from versions
+predating a table create it at its *current* shape, so every column ALTER
+goes through `_addColumnIfMissing` (a `PRAGMA table_info` guard). An
+unguarded `ALTER TABLE ... ADD COLUMN` fails with "duplicate column name" on
+exactly those upgrade paths.
 
-- `sqflite: ^2.4.1` in `notees-flutter/pubspec.yaml`.
-- An offline queue abstraction in `notees-flutter/lib/domain/services/offline_queue.dart`.
-- `notees-flutter/lib/domain/services/editor_save_service.dart` for debounced editor saves.
+## Protocol version and E2EE stance
 
-These existing services can be extended with the same `OperationIntent` shape
-used by the web client and queued to a local `outbox` table. The sync protocol
-contract is the same HTTP/JSON API, so the mobile implementation is a
-straightforward parallel of the web SyncManager.
+The mobile client speaks `protocolVersion` 1 (`kRelayProtocolVersion`) and
+**rejects any envelope with a newer version** at parse time
+(`FormatException` in `OperationEnvelope.fromJson`). Encrypted envelopes
+(E2EE, SPEC §8) carry version 2 with payload `{"$e": {iv, ct}}`, so an
+E2EE workspace fails loud on mobile instead of syncing ciphertext it cannot
+read. Mobile is plaintext-only: confidentiality comes from the transport
+layer (TLS/Tailscale).
 
-### 5. Does mobile `sqflite` include FTS5?
+## Undo is client-side
 
-**Status: Not yet verified; fallback documented.**
+The server-side undo stack is removed: every `/undo/*` endpoint returns
+**410 Gone** (`app/features/undo/router.py`). Undo is implemented
+client-side by generating inverse operations (`property.unset` for
+`property.set`, `node.delete` for created nodes, etc.) and appending them to
+the local operation log.
 
-`sqflite` uses the SQLite version shipped with Android/iOS. FTS5 is available
-on:
+## Gotchas
 
-- Android: API 24+ (Android 7.0+) usually ships FTS5.
-- iOS: system SQLite generally includes FTS5 on modern versions.
-
-However, `sqflite` does **not** bundle `sqlite3` by default and does not
-guarantee FTS5. If FTS5 is unavailable at runtime, the fallback plan is:
-
-1. **Trigram index fallback**: create a `node_fts` table with
-   `CREATE INDEX idx_node_fts_text ON node_fts USING gin (text gin_trgm_ops)`
-   (server side) or a local `LIKE '%term%'` with a cached word index on mobile.
-2. **Dart search library**: use a pure-Dart n-gram index over node names and
-   block text, rebuilt incrementally on sync.
-
-The offline search milestone (M5) should begin with a runtime probe:
-
-```sql
-SELECT fts5('test');
-```
-
-If this throws, switch to the trigram/Dart fallback.
-
-## Recommended Mobile Sync Data Model
-
-```text
-outbox
-  - id (auto-increment)
-  - op JSON (OperationIntent)
-  - attempt_count INTEGER
-  - last_error TEXT
-  - next_retry_at DATETIME
-  - created_at DATETIME
-
-local_nodes (mirror of server node rows)
-  - uuid TEXT PRIMARY KEY
-  - parent_uuid TEXT
-  - name TEXT
-  - content TEXT (JSON AST)
-  - sequence REAL
-  - is_deleted INTEGER
-  - updated_at TEXT
-  - vector TEXT (JSON version vector)
-
-ui_state (device-local)
-  - node_uuid TEXT PRIMARY KEY
-  - collapsed INTEGER
-  - zoom_root TEXT
-```
-
-## Next Steps for Mobile
-
-1. Define Dart `OperationIntent` models matching the OpenAPI contract.
-2. Implement `OutboxService` with exponential backoff.
-3. Add runtime FTS5 probe and fallback index.
-4. Wire `workmanager` for background sync once the web v2 protocol is stable.
+- **`GET /api/workspaces/` needs the trailing slash.** Without it, the
+  server's SPA fallback answers 404 before Starlette's slash redirect can
+  run (`app/main.py`). The response is a `PaginatedResponse`: workspaces are
+  under `items` (`{uuid, name, is_active}`), not a bare array.
+- **Null-content guard**: never enqueue an `update_content`/`update_node`
+  op with null content — the payload would omit `content`, the server
+  rejects it with 422, and the op lands in quarantine. `SyncV2Service.enqueue`
+  skips such ops and logs instead.
+- **Unknown op types**: `RelayAppliers` ignores op types it does not know
+  (with a debug log) rather than failing the pull; asset/activity/share-link/
+  view ops have no local derived representation by design.
