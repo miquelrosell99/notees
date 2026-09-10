@@ -74,7 +74,6 @@ async def _create_snapshot_for_workspace(
         actor_id=actor_id,
         relay_storage=storage,
         db_path=":memory:",
-        key_storage=None,
     )
 
     await store.sync()
