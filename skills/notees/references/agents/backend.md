@@ -53,14 +53,14 @@ The backend follows a feature-first hexagonal architecture:
 The fleet audit identified a number of drift items. The following have been resolved during the migration:
 
 - **Router-level SQL**: Direct `await conn.` calls and raw SQL were removed from routers; persistence operations now live in domain services and repository implementations.
-- **UndoService SQL**: `UndoService` no longer contains SQL; all undo persistence is handled by the `UndoRepository` interface inside `app/features/undo/`.
+- **UndoService SQL**: The server-side undo stack was removed entirely; `app/features/undo/` is now only a router whose `/undo/*` endpoints return `410 Gone`. Undo is client-side inverse operations appended to the local operation log.
 - **Auth persistence**: Direct database access in `app/auth.py` was moved into `app/features/auth/`.
 - **Concrete repository imports**: Routers and services depend on repository ports from their feature's `port.py` or `app/domain/ports.py`; concrete `Postgres*` implementations are wired in feature `dependencies.py` or `app/dependencies.py`.
 - **Invite password validation**: `InviteAcceptRequest` enforces the same password-complexity rules as other account endpoints.
 - **Pydantic request bodies**: Raw `request.json()` calls in `app/routers/sync.py` and `app/routers/nodes/favorites.py` were replaced with Pydantic models.
 - **Asset caching**: The service worker caches `/api/assets/` responses with a CacheFirst strategy.
 - **Export rendering port**: Rendering, YAML frontmatter, static share paths, and PDF generation were moved from `app/node_export.py` into `app/infrastructure/export/`. `ExportService` now depends on the `NodeExportRenderer` port, and `HtmlPdfExportRenderer` is wired through `app/dependencies.py`.
-- **Legacy nodes/properties removal**: `app/features/nodes/` and `app/features/properties/` were deleted in Phase 8. Their responsibilities now live in the operation-log core (`app/core/`) and the encrypted relay (`app/relay/`).
+- **Legacy nodes/properties removal**: `app/features/nodes/` and `app/features/properties/` were deleted in Phase 8. Their responsibilities now live in the operation-log core (`app/core/`) and the relay (`app/relay/`).
 - **PropertyService / NodeService**: The legacy property and node services were removed; behavior is now expressed as operations and derived appliers.
 - **Email sender port**: Email sending and public-URL building extracted from `WorkspaceService` and `PostgresShareRepository` into the `EmailSender` port (`app/domain/ports.py`) and `SmtpEmailSender` adapter (`app/infrastructure/email.py`). `ShareService` inside `app/features/shares/` orchestrates repository + email port.
 - **Full backend feature-first re-layout**: Every major feature was moved from layer-first directories into `app/features/<feature>/`, including `auth`, `activity`, `assets`, `admin`, `export`, `nodes`, `notifications`, `properties`, `shares`, `sync`, `tasks`, `undo`, and `workspaces`. Each feature owns its router, service, repository port, and PostgreSQL implementation.
