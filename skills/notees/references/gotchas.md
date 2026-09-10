@@ -291,3 +291,14 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Address FTS rows by docid through a side mapping table (`search_index_docid`: node_id → docid; schema v21 backfills it). Replace is `DELETE ... WHERE docid = (SELECT docid FROM map ...)` + `INSERT` + map upsert with `last_insert_rowid()`; never `INSERT OR REPLACE ... (SELECT docid FROM search_index WHERE node_id = ?)`. See `frontend/src/core/derived/search.ts` (`reindexNode` / `removeSearchIndexEntry`). Measured: 40k reindexes went from quadratic (30s for the last 5k) to flat (~240ms per 5k).
 
 **Prevent:** Any new `WHERE`/`DELETE` against an FTS table may only use `MATCH` or `docid`/`rowid`. When a sync path can replay the whole log (fresh seq cursor, snapshot-less restore), benchmark per-op appliers against tens of thousands of rows — constant-per-batch timings in a growing table are the signature of a hidden scan.
+
+
+## **[query]** Persisted query cache + `staleTime: Infinity` + truthiness loaded-checks = eternal boot gates
+
+**Symptom:** App hangs on a fullscreen "Loading…" gate after boot; the query that would clear it never fires (nothing in server logs), and the cache status is `success`.
+
+**Cause:** The TanStack query cache is persisted (`notees-query-cache[-<workspace>]` in IndexedDB, restored on every load). A poisoned entry (e.g. `data: null` from a historical bad response) with `staleTime: Infinity` never refetches, and a gate written as `if (!data) return;` treats falsy-but-present data as "still loading" forever.
+
+**Fix:** Distinguish *not loaded* (`data === undefined`) from *bad data* (anything else). For payloads with a known shape, validate instead of trusting truthiness — e.g. a settings document must be an object; on violation, refetch once, then fall back to defaults (`AppRoutes.tsx` enrollment-settings effect; regression test `AppRoutes.poisonedSettings.test.tsx`).
+
+**Prevent:** Never write `if (!queryData) return;` as a "not loaded yet" check for queries whose cache is persisted — `undefined` is the only "not loaded" state. Boot gates on `staleTime: Infinity` queries must tolerate and self-heal malformed persisted data, because whatever can be cached once is cached forever.
