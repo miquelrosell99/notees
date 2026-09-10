@@ -114,6 +114,12 @@ Background jobs run outside the request lifecycle and must build services from p
 
 - Reference: `references/gotchas.md#background-jobs-background-tasks-must-not-fabricate-partial-pydantic-models`
 
+## **[query]** Persisted query cache + `staleTime: Infinity` + truthiness loaded-checks = eternal boot gates
+
+A poisoned persisted cache entry (`status: success`, `data: null`) never refetches with `staleTime: Infinity`, and `if (!data) return;` reads it as "still loading" — the boot hung on the fullscreen loader with zero network traffic. Only `undefined` means "not loaded"; validate payload shape and self-heal (refetch once, then defaults).
+
+- Reference: `references/gotchas.md#query-persisted-query-cache--staletime-infinity--truthiness-loaded-checks--eternal-boot-gates`
+
 ## Query hooks gate on the AST being undefined, not on `enabled`
 
 `useQueryAstAdapter` (`useExecuteQueryAdapter` / `useQueryResultsAdapter`) ignores the `enabled` option — execution is gated purely by `ast` being `undefined`. Passing `enabled: false` alone does NOT stop the worker `queryNodes` call. To suppress a query (e.g. collapsed sections), pass `ast: undefined`. Collapsed `QuerySection`s run `countQueryResults` only; the full query fires on expand.
