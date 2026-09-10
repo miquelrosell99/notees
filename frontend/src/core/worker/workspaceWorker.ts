@@ -5,7 +5,7 @@
  * (mutations, queries, sync apply, export) happens here, off the main thread.
  */
 
-import { createWaSqliteDatabase, isOpfsAvailable, verifyMigratedDatabase, type WaSqliteDatabase } from '../db/waSqliteDatabase';
+import { createWaSqliteDatabase, isOpfsAvailable, isRealBrowser, verifyMigratedDatabase, type WaSqliteDatabase } from '../db/waSqliteDatabase';
 import { createSchema } from '../db/schema';
 import type { Database } from 'sql.js';
 import { WorkspaceStore } from '../store';
@@ -96,6 +96,13 @@ function postNotify(notification: WorkerMessage): void {
   self.postMessage(notification);
 }
 
+/** Post a message with a transferred buffer (Window-typed `self` hides this overload). */
+function postTransfer(message: WorkerMessage, transfer: Transferable[]): void {
+  (
+    self as unknown as { postMessage: (msg: WorkerMessage, transfer: Transferable[]) => void }
+  ).postMessage(message, transfer);
+}
+
 /**
  * Maximum number of operations to apply in a single synchronous chunk inside
  * `applyMany`. Large initial sync replays can contain 100k+ operations; running
@@ -108,6 +115,40 @@ const APPLY_MANY_CHUNK_SIZE = 1_000;
 
 /** Log worker operations that take longer than this so future hangs are easy to diagnose. */
 const SLOW_QUERY_MS = 500;
+
+export type PersistenceMode = 'opfs' | 'indexeddb' | 'memory';
+
+/**
+ * Pick the persistence backend for the workspace database.
+ *
+ * - `opfs`: durable file, synced on every commit (preferred).
+ * - `indexeddb`: browsers without OPFS (Firefox forks with the File System
+ *   API disabled, private windows). The engine runs on the in-memory VFS and
+ *   the store's debounced `onPersist` ships full-database snapshots to the
+ *   main thread, which writes them to IndexedDB. Durability window: up to the
+ *   persist debounce (30s) on a hard crash — the pre-OPFS design's tradeoff.
+ * - `memory`: jsdom/tests only. A real browser with neither OPFS nor
+ *   IndexedDB cannot persist anything and must fail loud instead of silently
+ *   running an ephemeral database that replays the full operation log on
+ *   every open.
+ */
+export function choosePersistenceMode(options: {
+  opfsAvailable: boolean;
+  realBrowser: boolean;
+  idbAvailable: boolean;
+}): PersistenceMode {
+  const { opfsAvailable, realBrowser, idbAvailable } = options;
+  if (opfsAvailable) return 'opfs';
+  if (realBrowser && idbAvailable) return 'indexeddb';
+  if (realBrowser) {
+    throw new Error(
+      'This browser session cannot persist local data: neither OPFS nor IndexedDB is available. ' +
+        'Notees stores workspaces locally and requires persistent storage. ' +
+        'Check for private-browsing or restrictive storage settings.'
+    );
+  }
+  return 'memory';
+}
 
 async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Promise<void> {
   performance.mark('worker:init-start');
@@ -126,14 +167,21 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
     : null;
 
   performance.mark('worker:sqljs-import-start');
-  // Single persistence engine: wa-sqlite — the workspace database is a real
-  // OPFS file, durable on every commit. dbBytes (the last sql.js export) act
-  // as the one-time migration seed; the OPFS file wins once it exists.
-  // Environments without OPFS (jsdom/tests) use the same engine with an
-  // ephemeral in-memory VFS instead — no second engine, just no file.
+  // Single persistence engine: wa-sqlite. Preferred backend is a real OPFS
+  // file, durable on every commit. Browsers without OPFS fall back to the
+  // in-memory VFS plus debounced full-database snapshots to IndexedDB
+  // (persist-data messages; the main thread writes the chunks). dbBytes (the
+  // last IndexedDB snapshot) seed the database in both modes; the durable
+  // backend wins once it exists.
   // Retry briefly: a previous leader tab's OPFS sync access handles can
   // linger for a moment after it closes (exclusive-lock contention).
-  const vfs = isOpfsAvailable() ? 'opfs' : 'memory';
+  const persistence = choosePersistenceMode({
+    opfsAvailable: isOpfsAvailable(),
+    realBrowser: isRealBrowser(),
+    idbAvailable: typeof indexedDB !== 'undefined',
+  });
+  console.info(`[workspaceWorker] opening database persistence=${persistence}`);
+  const vfs = persistence === 'opfs' ? 'opfs' : 'memory';
   let db: Database | null = null;
   let lastOpenError: unknown = null;
   for (let attempt = 0; attempt < 3 && db === null; attempt++) {
@@ -172,9 +220,17 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   performance.measure('worker:sqljs-import', 'worker:sqljs-import-start', 'worker:sqljs-import-end');
   performance.mark('worker:store-setup-start');
   const store = new WorkspaceStore(db, request.workspaceId, request.actorId, {
-    // OPFS persists on every commit; the export→IndexedDB pipeline is gone.
     persistDebounceMs: 30_000,
-    onPersist: async () => {},
+    // OPFS mode persists on every commit, so export traffic is unnecessary.
+    // IndexedDB fallback mode ships full-database snapshots to the main
+    // thread, which writes them to IndexedDB. The store passes a freshly
+    // copied buffer, so transferring it (instead of cloning) is safe.
+    onPersist:
+      persistence === 'indexeddb'
+        ? (data) => {
+            postTransfer({ type: 'persist-data', bytes: data }, [data.buffer as Transferable]);
+          }
+        : async () => {},
     onNotify: (notification) => postNotify(notification),
   });
   performance.mark('worker:store-setup-end');
@@ -210,10 +266,11 @@ async function handleInit(request: Extract<WorkerRequest, { type: 'init' }>): Pr
   if (persistedUserVersion !== null && readUserVersion(db) !== persistedUserVersion) {
     // createSchema migrations ran while opening the persisted database, but
     // nothing on the init path schedules persistence — without any edits the
-    // migrated DB (user_version bump, backfills, new indexes) would never reach
-    // IndexedDB and the migrations would re-run on every load. Flush once so
-    // they stay durable. persistNow goes through onPersist → persist-data → the
-    // main thread's debounced IndexedDB writer, so no new plumbing is needed.
+    // migrated DB (user_version bump, backfills, new indexes) would never
+    // become durable and the migrations would re-run on every load. Flush once
+    // so they stay durable. persistNow goes through onPersist — a no-op in
+    // OPFS mode (the file is already durable) or a persist-data snapshot in
+    // IndexedDB fallback mode.
     store.persistNow();
   }
 }

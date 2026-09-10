@@ -14,9 +14,12 @@ import {
   pullWorkspace,
 } from './workspaceStoreAdapter';
 import type { Transport } from '../transport';
-import { createWorkspaceStoreClient } from '../worker/WorkspaceStoreClient';
+import {
+  createWorkspaceStoreClient,
+  WorkerStoreClient,
+} from '../worker/WorkspaceStoreClient';
 import type { IWorkspaceStoreClient } from '../worker/workerProtocol';
-import { loadWorkspaceDatabase } from '../persistence/indexedDb';
+import { loadWorkspaceDatabase, saveWorkspaceDatabase } from '../persistence/indexedDb';
 import { getLogger } from '@/utils/logger';
 
 const log = getLogger('workspaceStoreClientAdapter');
@@ -98,6 +101,20 @@ async function openWorkspaceStoreClient(
   const client = createWorkspaceStoreClient();
 
   if (isWorkerSupported()) {
+    // IndexedDB fallback persistence: in browsers without OPFS the worker
+    // runs in-memory and ships full-database snapshots as persist-data
+    // messages; write them here. In OPFS mode no such messages arrive, so the
+    // handler is inert. Fire-and-forget: snapshot writes must not block the
+    // client's message loop, and failures only shrink the durability window.
+    if (client instanceof WorkerStoreClient) {
+      client.setPersistDataHandler((bytes) => {
+        void saveWorkspaceDatabase(workspaceId, bytes).catch((err: unknown) => {
+          log.warn(`Failed to persist workspace ${workspaceId} to IndexedDB`, {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      });
+    }
     let dbBytes = options?.dbBytes;
     let idbRead: PerformanceMeasure | undefined;
     if (isRealBrowser() && !dbBytes) {

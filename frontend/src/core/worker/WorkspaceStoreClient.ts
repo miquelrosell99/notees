@@ -161,6 +161,17 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
       return;
     }
 
+    if (msg.type === 'persist-data') {
+      // IndexedDB fallback persistence: the worker ships full-database
+      // snapshots; the adapter's handler writes them to IndexedDB.
+      try {
+        this.persistDataHandler?.(msg.bytes);
+      } catch {
+        // Persistence is best-effort; a handler error must not kill the client.
+      }
+      return;
+    }
+
     if (msg.type === 'apply-progress') {
       for (const cb of this.progressListeners) {
         try {
@@ -204,6 +215,12 @@ export class WorkerStoreClient implements IWorkspaceStoreClient {
   }
 
   private cancelledIds = new Set<number>();
+  private persistDataHandler?: (bytes: Uint8Array) => void;
+
+  /** Register the handler for worker→main IndexedDB persistence snapshots. */
+  setPersistDataHandler(handler: ((bytes: Uint8Array) => void) | undefined): void {
+    this.persistDataHandler = handler;
+  }
 
   private send<T>(
     request: WorkerRequest,

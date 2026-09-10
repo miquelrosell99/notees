@@ -132,7 +132,7 @@ const SQLITE_TRANSIENT = -1;
 
 let cachedModulePromise: Promise<WaSqliteModule> | null = null;
 
-function isRealBrowser(): boolean {
+export function isRealBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
   // jsdom (unit tests) is not a real browser; dedicated workers in a real
   // browser have no window/document but are real browsers.
@@ -1421,7 +1421,15 @@ export async function createWaSqliteDatabase(
   await vfs.isReady;
 
   if (options.initialBytes) {
-    await vfs.seedFile(fileName, options.initialBytes);
+    const seeded = await vfs.seedFile(fileName, options.initialBytes);
+    // Open-time persistence diagnostic: seeded=true means no prior OPFS
+    // database existed (first migration, or OPFS was evicted/unavailable);
+    // seeded=false means the durable file won and the seed was ignored.
+    console.info(
+      `[waSqlite] opfs open name=${safeName} seeded=${seeded} seedBytes=${options.initialBytes.byteLength}`
+    );
+  } else {
+    console.info(`[waSqlite] opfs open name=${safeName} (no seed bytes)`);
   }
 
   const db = openDatabase(module, fileName, vfsName);

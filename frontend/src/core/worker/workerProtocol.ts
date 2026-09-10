@@ -112,7 +112,22 @@ export interface ApplyProgressMessage {
   total: number;
 }
 
-export type WorkerMessage = WorkerResponse | NotifyChangeMessage | ApplyProgressMessage;
+/**
+ * Full-database snapshot bytes for IndexedDB persistence. Only posted when the
+ * worker runs in the IndexedDB fallback persistence mode (browsers without
+ * OPFS); in OPFS mode the database file is durable on every commit and no
+ * export traffic exists.
+ */
+export interface PersistDataMessage {
+  type: 'persist-data';
+  bytes: Uint8Array;
+}
+
+export type WorkerMessage =
+  | WorkerResponse
+  | NotifyChangeMessage
+  | ApplyProgressMessage
+  | PersistDataMessage;
 
 // ─── Client interface (lives here to avoid circular imports) ────────────────
 
