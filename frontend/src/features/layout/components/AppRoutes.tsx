@@ -313,15 +313,32 @@ function AuthenticatedShell() {
   // workspace shell renders, so startup routing respects the backend source of
   // truth (e.g. `default_view`). Local mode has no server settings: the
   // client-persisted settings store (with its defaults) is the source of truth.
+  //
+  // undefined means the query has not returned yet. Any non-object payload
+  // (null, empty string) is not a settings document — the backend always
+  // returns an object — and a poisoned persisted cache entry can hold it
+  // forever because staleTime is Infinity. Retry the fetch once, then proceed
+  // with defaults; never hang the boot on a cache artifact.
+  const enrollmentRetryRef = useRef(false);
   useLayoutEffect(() => {
     if (isLocalSession) {
       if (!settingsSynced) setSettingsSynced(true);
       return;
     }
-    if (!enrollmentSettings || settingsSynced) return;
+    if (enrollmentSettings === undefined || settingsSynced) return;
+    if (enrollmentSettings === null || typeof enrollmentSettings !== 'object') {
+      if (!enrollmentRetryRef.current) {
+        enrollmentRetryRef.current = true;
+        void queryClient.refetchQueries({ queryKey: settingsKeys.all });
+        return;
+      }
+      syncUserSettingsFromBackend({});
+      setSettingsSynced(true);
+      return;
+    }
     syncUserSettingsFromBackend(enrollmentSettings);
     setSettingsSynced(true);
-  }, [isLocalSession, enrollmentSettings, settingsSynced]);
+  }, [isLocalSession, enrollmentSettings, settingsSynced, queryClient]);
 
   const needsEnrollment = enrollmentSettings
     ? String(enrollmentSettings['enrollment_completed']) !== 'true'
