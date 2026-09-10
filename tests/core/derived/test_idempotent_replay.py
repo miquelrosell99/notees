@@ -355,12 +355,12 @@ class _FakeRelayStorage:
         after_seq: int = 0,
         limit: int = 1000,
         node_id: str | None = None,
-    ) -> tuple[list[RelayEnvelope], int | None]:
+    ) -> tuple[list[RelayEnvelope], int | None, int]:
         # seq = insertion order (server-assigned, monotonic, dedupe-stable).
         ordered = [envelope for envelope in self._envelopes if envelope.workspace_id == workspace_id]
         page = ordered[after_seq : after_seq + limit]
         next_after_seq = after_seq + limit if len(ordered) > after_seq + limit else None
-        return page, next_after_seq
+        return page, next_after_seq, len(ordered) - after_seq
 
     def close(self) -> None:
         pass
