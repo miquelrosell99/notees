@@ -108,7 +108,7 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 
 **Corollary — a bump is the expensive option; prefer targeted startup repairs.** A bump forces every client to replay the full operation log (minutes on large workspaces), and before 2026-08 the version was stamped *before* the rebuild, so an interrupted rebuild persisted wiped tables marked current — no retry, broken client. When the affected state derives from one small local table (e.g. `class_hierarchy` from `class.extends_class_ids`), add an idempotent startup repair instead (`repairClassHierarchy` / `repairDatePageHierarchy` pattern, wired into both store-init paths). The version is now stamped in `SyncEngine.initialize` only after the rebuild's pull succeeds; keep it that way.
 
-**Corollary — a full replay does not reconstruct legacy child order.** The TS appliers write `node_child_order` only from `treeUpdate` payloads (`derived/childOrder.ts`); legacy `node.create` (`index`) and `node.move` (`newIndex`) payloads are ignored (the retired Python applier used them). Verified 2026-09 by replaying a 121k-op production log through the real appliers: child order collapsed from 25,531 rows / 10,351 parents to 76 rows / 47 parents, so every page whose blocks predate `treeUpdate` renders with zero children. Until the appliers backfill those payloads, treat any hard rebuild (version bump, `ignoreSnapshot` pull) as structure-destroying; snapshot-restore pulls (`pullWorkspace`, fresh client) are the safe path.
+**Corollary — a full replay does not reconstruct legacy child order.** The TS appliers write `node_child_order` from `treeUpdate` payloads plus a positional backfill (`derived/childOrder.ts:137-175`) that only accepts **numeric** `index`/`newIndex`. Migration-era ops carry float ranks as **strings** (`"0.0"`, `"0.5"`, `"-1.0"` — `str(sequence)` from `app/core/migration/nodes.py:196`), so they are silently skipped: verified 2026-09 on a 121k-op production log, child order collapsed from 25,531 rows / 10,351 parents to 76 rows / 47 parents, and every page whose blocks predate `treeUpdate` rendered with zero children. **Resolved 2026-09-14 by data migration** (not applier change): the log was replayed offline with rank-aware legacy semantics (`frontend/scripts/migrate_legacy_structure.ts`, runner `run_migration.mjs`) and 10,392 corrective full-state `treeUpdate` ops were appended to the relay — after those, a replay converges to correct child order regardless of the skipped legacy payloads. If a *different* legacy log is ever imported, re-run the same harness against it; the TS applier itself still skips string ranks by design.
 
 ## **[query]** Persisted system views store an empty `query_ast`
 
@@ -302,3 +302,25 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Distinguish *not loaded* (`data === undefined`) from *bad data* (anything else). For payloads with a known shape, validate instead of trusting truthiness — e.g. a settings document must be an object; on violation, refetch once, then fall back to defaults (`AppRoutes.tsx` enrollment-settings effect; regression test `AppRoutes.poisonedSettings.test.tsx`).
 
 **Prevent:** Never write `if (!queryData) return;` as a "not loaded yet" check for queries whose cache is persisted — `undefined` is the only "not loaded" state. Boot gates on `staleTime: Infinity` queries must tolerate and self-heal malformed persisted data, because whatever can be cached once is cached forever.
+
+
+## **[sync]** Class lifecycle ops need LWW guards — catch-up applies pages in seq order, not global HLC order
+
+**Symptom:** A deleted class reappears after every full replay, no matter how many times it is deleted.
+
+**Cause:** Catch-up sorts envelopes by HLC *within* a page only (`frontend/src/core/sync.ts`); pages arrive in server seq order. Backfilled ops carry old HLCs at high seqs, so an old `class.create` applies *after* a newer `class.delete`. `class.create`/`update`/`delete`/`setExtends` were last-applied-wins (`INSERT OR REPLACE … active=1`), so the stale create resurrected the class.
+
+**Fix:** Per-class LWW records (`class_lww` table, schema v22; `claimClassLifecycle` in `frontend/src/core/derived/lww.ts`); losing ops are skipped. No `CURRENT_DERIVED_STATE_VERSION` bump — the corrective `class.delete` appended to the log heals persisted DBs via normal catch-up. Regression tests: `frontend/src/core/derived/__tests__/classLww.test.ts`.
+
+**Prevent:** Any applier that overwrites a row without comparing op HLC is exposed to seq-vs-HLC reordering whenever the log contains backfilled (old-HLC, high-seq) ops. Node fields and class membership already claim LWW records; extend the pattern to any new lifecycle-style op.
+
+
+## **[scripts]** Dumping jsonb via `COPY … TO STDOUT` corrupts backslashes — use plain `SELECT row_to_json`
+
+**Symptom:** A JSONL dump of `relay_envelope` produced with `COPY (SELECT row_to_json(…)) TO STDOUT` fails strict `JSON.parse` on ~25% of lines; a targeted `\\"` repair still leaves `\uXXXX` escapes and literal backslashes doubled (silently corrupting nested AST strings, e.g. `ñ` → `\u00f1` as literal text).
+
+**Cause:** COPY text format applies its own backslash escaping on output, on top of JSON's.
+
+**Fix:** Dump with plain query output instead: `psql -q -A -t -c "SELECT row_to_json(t) FROM (…) t" > out.jsonl`, then verify every line parses strictly before feeding it to a replay/migration harness.
+
+**Prevent:** Any pipeline that dumps jsonb for offline processing must validate the dump with a strict parse of every line before use (the 2026-09-14 legacy-structure migration caught 1,306 corrupted content mirrors this way — see `data/backups/migration_validation_20260914_clean.md`).
