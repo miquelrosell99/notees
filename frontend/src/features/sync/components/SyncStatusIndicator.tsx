@@ -1,18 +1,13 @@
 /**
  * SyncStatusIndicator — toolbar widget showing the v2 sync state.
  *
- * Displays a compact icon for synced / syncing / offline / error.
- * Clicking opens a popover with the pending/failed operation queue.
+ * Non-interactive status icon for synced / syncing / offline / error.
  */
 
-import { useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useSyncStatusStore, type SyncStatus } from '../stores/syncStatusStore';
-import { useStorageQuota } from '@/core/hooks';
-import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
-import { getWorkspaceSyncEngine } from '@/core/adapters/workspaceStoreAdapter';
 import { Icon } from '@/components/ui/icons';
-import { Button } from '@/components/ui/Button';
+import './SyncStatusIndicator.css';
 
 const STATUS_CONFIG: Record<
   SyncStatus,
@@ -24,134 +19,23 @@ const STATUS_CONFIG: Record<
   error: { label: 'Sync error', icon: 'mdi-alert-circle-outline', color: 'var(--color-danger)' },
 };
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(units.length - 1, Math.floor(Math.log10(bytes) / 3));
-  const value = bytes / 10 ** (i * 3);
-  return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-}
-
 export function SyncStatusIndicator(): ReactNode {
-  const { status, pendingCount, failedCount, parkedCount, lastError } = useSyncStatusStore();
-  const { quota, isWarning, isCritical } = useStorageQuota();
-  const workspaceUuid = useCurrentWorkspaceUuid();
-  const [open, setOpen] = useState(false);
-  const [retrying, setRetrying] = useState(false);
-  const [recovering, setRecovering] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
+  const { status, lastError } = useSyncStatusStore();
   const config = STATUS_CONFIG[status];
 
-  const handleRetry = async (): Promise<void> => {
-    const engine = workspaceUuid ? getWorkspaceSyncEngine(workspaceUuid) : undefined;
-    if (!engine) return;
-    setRetrying(true);
-    try {
-      await engine.retryQuarantined();
-    } finally {
-      setRetrying(false);
-    }
-  };
-
-  const handleRecover = async (): Promise<void> => {
-    const engine = workspaceUuid ? getWorkspaceSyncEngine(workspaceUuid) : undefined;
-    if (!engine) return;
-    setRecovering(true);
-    try {
-      await engine.recoverParkedChanges();
-    } finally {
-      setRecovering(false);
-    }
-  };
-
   return (
-    <div className="sync-status-indicator">
-      <Button
-        ref={buttonRef}
-        variant="ghost"
+    <span
+      className="sync-status-indicator"
+      role="status"
+      title={lastError ?? config.label}
+      aria-label={lastError ?? config.label}
+    >
+      <Icon
+        path={config.icon}
         size="sm"
-        onClick={() => setOpen((v) => !v)}
-        title={lastError ?? config.label}
-        aria-label={config.label}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        <Icon
-          path={config.icon}
-          size="sm"
-          color={config.color}
-          className={config.spin ? 'sync-status-indicator__icon--spin' : ''}
-        />
-      </Button>
-
-      {open && (
-        <div
-          className="sync-status-indicator__popover"
-          role="dialog"
-          aria-label="Sync status"
-        >
-          <div className="sync-status-indicator__popover-header">
-            <strong>{config.label}</strong>
-            {pendingCount > 0 && <span>{pendingCount} pending</span>}
-            {failedCount > 0 && <span className="sync-status-indicator__failed">{failedCount} failed</span>}
-          </div>
-          {(isWarning || isCritical) && quota && (
-            <p
-              className={`sync-status-indicator__quota${isCritical ? ' sync-status-indicator__quota--critical' : ''}`}
-              title={`Storage: ${formatBytes(quota.usage)} / ${formatBytes(quota.quota)}`}
-            >
-              <Icon path="mdi-harddisk" size="sm" />
-              <span>
-                Storage {isCritical ? 'critical' : 'low'}: {formatBytes(quota.usage)} / {formatBytes(quota.quota)} (
-                {Math.round(quota.percentUsed * 100)}%)
-              </span>
-            </p>
-          )}
-          {pendingCount === 0 && failedCount === 0 && parkedCount === 0 ? (
-            <p className="sync-status-indicator__empty">All changes are saved.</p>
-          ) : (
-            <p className="sync-status-indicator__summary">
-              {pendingCount > 0 && `${pendingCount} change${pendingCount === 1 ? '' : 's'} pending`}
-              {pendingCount > 0 && failedCount > 0 && ' · '}
-              {failedCount > 0 && `${failedCount} failed`}
-            </p>
-          )}
-          {failedCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void handleRetry()}
-              disabled={retrying}
-              title="Requeue failed changes and push them now"
-            >
-              {retrying ? 'Retrying…' : 'Retry now'}
-            </Button>
-          )}
-          {parkedCount > 0 && (
-            <div className="sync-status-indicator__parked">
-              <p className="sync-status-indicator__summary">
-                The server was restored from a backup. {parkedCount} unsent change
-                {parkedCount === 1 ? '' : 's'} kept aside.
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void handleRecover()}
-                disabled={recovering}
-                title="Re-apply the parked changes and push them to the server"
-              >
-                {recovering ? 'Recovering…' : 'Recover changes'}
-              </Button>
-            </div>
-          )}
-          {lastError && (
-            <p className="sync-status-indicator__last-error" title={lastError}>
-              {lastError}
-            </p>
-          )}
-        </div>
-      )}
-    </div>
+        color={config.color}
+        className={config.spin ? 'sync-status-indicator__icon--spin' : ''}
+      />
+    </span>
   );
 }
