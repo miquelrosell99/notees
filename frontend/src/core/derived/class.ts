@@ -1,6 +1,7 @@
 import { type Database } from 'sql.js';
 import type { Operation } from '../types/operation';
 import { queryAll, queryOne } from '../db/sqlite';
+import { claimClassLifecycle, type LwwRecord } from './lww';
 import type { ChangeNotification } from './index';
 
 interface AstNode {
@@ -127,6 +128,21 @@ export function applyClassOperation(db: Database, op: Operation): ChangeNotifica
   const { opType } = op.envelope;
   const payload = op.payload as Record<string, unknown>;
   const ts = new Date().toISOString();
+
+  if (
+    opType === 'class.create' ||
+    opType === 'class.update' ||
+    opType === 'class.delete' ||
+    opType === 'class.setExtends'
+  ) {
+    // Lifecycle ops are last-applied-wins over the same row; catch-up applies
+    // pages in server seq order, so a backfilled legacy create can land after
+    // a newer delete. The guard drops any op that loses the per-class LWW.
+    const incoming: LwwRecord = { hlc: op.envelope.hlc, actorId: op.envelope.actorId };
+    if (!claimClassLifecycle(db, payload.classId as string, incoming)) {
+      return [];
+    }
+  }
 
   if (opType === 'class.create') {
     const classId = payload.classId as string;
