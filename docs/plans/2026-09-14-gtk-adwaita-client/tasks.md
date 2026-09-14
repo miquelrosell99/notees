@@ -9,8 +9,10 @@ check before committing.
 - Python `>=3.12` (dev box has 3.11 + `uv`; use `uv python install 3.12` / `uv venv --python 3.12`).
 - Ruff: line length 120, select `E,W,F,I,N,UP,B,C4,SIM`, ignore `E501`; Google docstrings.
 - mypy: `disallow_untyped_defs = true`, `ignore_missing_imports = true`.
-- Dependencies: `httpx`, `pydantic>=2`, `uuid7>=0.1.0`; PyGObject only under the `[ui]` extra. Stdlib
-  everywhere else (`sqlite3`, `json`, `datetime`). No other third-party deps.
+- Dependencies: `httpx`, `pydantic>=2` only; PyGObject only under the `[ui]` extra. Stdlib
+  everywhere else, including UUIDv7 generation — in-repo RFC 9562 implementation in
+  `core/protocol/ids.py` (`new_uuid7() -> str`), deliberately no `uuid7` package (Arch official
+  repos don't ship it; stdlib-first). No other third-party deps.
 - License AGPL-3.0; Conventional Commits; stage only task-owned files.
 - Copied fixtures under `tests/fixtures/` stay byte-identical to `protocol/fixtures/` in this repo
   (`/etc/periphery/stacks/notees/protocol/fixtures/`).
@@ -189,13 +191,29 @@ check before committing.
 ## Task 6 — Docs + release
 
 - **Files**: owns `README.md` (complete), `pyproject.toml` metadata (project urls), CI badge/README
-  final check. Shares (read-only): everything.
-- **Consumes**: Tasks 1–5.
+  final check, `PKGBUILD` (Arch `-git` package), `.github/workflows/release.yml`. Shares (read-only):
+  everything.
+- **Consumes**: Tasks 1–5. Owner directive (2026-09-14): **no local builds** — GitHub CI builds all
+  artifacts; this machine never runs makepkg or `python -m build`.
 - **Produces**: README — what it is, screenshot placeholder, features (sync model, 2FA, offline
   outbox), dev setup (`uv python install 3.12 && uv sync`, run against the notees compose.dev backend
   at `http://localhost:8001`, `notees-gtk` to launch, tests/lint/typecheck commands), GTK system
-  dependency note (libadwaita), AGPL-3.0 license, "not yet on Flathub" note.
+  dependency note (libadwaita), AGPL-3.0 license, "not yet on Flathub" note, Arch build section
+  (`makepkg -si` from a clone). `PKGBUILD` — `notees-gtk-git` (repo-root, standard makepkg flow:
+  `source=("$pkgname::git+https://github.com/miquelrosell99/notees-gtk.git")`, `pkgver()` from
+  `git describe` with rev-count fallback for the untagged period, `arch=(any)`,
+  `makedepends=(git python-build python-installer python-wheel python-hatchling)`,
+  `depends=(python python-httpx python-pydantic python-gobject gtk4 libadwaita)`, SPDX license,
+  `build()` = `python -m build --wheel --no-isolation`, `package()` = `python -m installer
+  --destdir="$pkgdir" dist/*.whl`, `provides`/`conflicts` `notees-gtk`). `release.yml` — on push to
+  `main` and on `v*` tags: (1) sdist+wheel job (`python -m build`); (2) archpkg job in an
+  `archlinux:latest` container (pacman-install base-devel + the `depends`, run `makepkg` as a
+  non-root build user, upload the resulting `notees-gtk-*.pkg.tar.zst`); both upload GitHub Actions
+  artifacts, and on tags both attach to the GitHub Release.
 - **Acceptance**: `uv sync && uv run pytest && uv run ruff check && uv run mypy src` all exit 0 from a
-  clean checkout; commits follow Conventional Commits; `git push origin main` succeeds;
+  clean checkout; commits follow Conventional Commits; `git push origin main` succeeds; the release
+  workflow runs green on main via GitHub CI (verify with `gh run list --workflow release.yml` and
+  artifact presence via `gh api`) — this is the build verification, replacing any local build;
   `gh repo view miquelrosell99/notees-gtk --json visibility` prints `PUBLIC`; README renders
-  (no broken anchors).
+  (no broken anchors) and carries the Arch sections: install prebuilt artifact (`pacman -U`) and
+  build from source (`makepkg -si` from a clone — CI-independent).
