@@ -22,4 +22,5 @@
 | Frontend | @dnd-kit | latest | Drag & drop |
 | Frontend | sql.js | 1.14.0 | In-browser SQLite (WASM) |
 | Mobile | Flutter (Dart) | — | Native mobile app, lives in `miquelrosell99/notees-flutter` |
+| Desktop | Python + PyGObject (GTK4/libadwaita) | — | Native desktop app, lives in `miquelrosell99/notees-gtk` |
 | Containerization | Docker + Docker Compose | — | Production deployment and local development stack |

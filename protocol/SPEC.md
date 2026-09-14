@@ -3,11 +3,13 @@
 Version: **1** (`PROTOCOL_VERSION = 1`)
 
 This document is the single source of truth for the wire protocol spoken
-between Notees clients (React web, Flutter) and the FastAPI relay server.
-Canonical implementations:
+between Notees clients (React web, Flutter mobile, GTK/Adwaita desktop) and
+the FastAPI relay server. Canonical implementations:
 
 - Backend models: `app/core/operation.py`, `app/relay/models.py`
 - Frontend models: `frontend/src/core/types/operation.ts`, `frontend/src/core/crypto.ts`
+- GTK client models: `notees-gtk/src/notees_gtk/core/protocol/models.py`
+  (sibling repo, <https://github.com/miquelrosell99/notees-gtk>)
 - Machine-readable fixtures: `protocol/fixtures/` (validated by
   `tests/test_relay_protocol_fixtures.py`)
 
@@ -74,10 +76,12 @@ the rowid on the SQLite test/lightweight store):
 
 `opType` is a dotted string. The server validates it against the known set
 (`KNOWN_OP_TYPES` in `app/core/operation.py`; mirrored in
-`frontend/src/core/types/operation.ts`). Unknown op types are rejected with
-422 on submission. Adding a new op type is an additive change and does not
-bump the protocol version — but old clients will refuse to submit it, so both
-repos must add it together.
+`frontend/src/core/types/operation.ts` and
+`notees-gtk/src/notees_gtk/core/protocol/op_types.py`). Unknown op types are
+rejected with 422 on submission. Adding a new op type is an additive change
+and does not bump the protocol version — but old clients will refuse to
+submit it, so the backend and every client repo (web, Flutter, GTK) must add
+it together.
 
 Payload conventions:
 
@@ -125,7 +129,7 @@ Known op types at protocol version 1: `node.create`, `node.delete`,
 `class.setExtends`, `nodeView.create`, `nodeView.update`, `nodeView.delete`,
 `nodeView.reorder`, `task.recordCompletion`, `task.deleteCompletion`,
 `task.setRecurrence`, `task.deleteRecurrence`, `asset.upload`,
-`asset.delete`, `activity.record`, `link.click`, `share.public.create`,
+`asset.delete`, `activity.record`, `activity.delete`, `link.click`, `share.public.create`,
 `share.public.revoke`, `share.user.grant`, `share.user.revoke`,
 `user.favorite.add`, `user.favorite.remove`, `user.favorite.reorder`,
 `plugin.op`.

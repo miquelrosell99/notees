@@ -81,5 +81,5 @@ These files apply to every task. Read them first:
 ## Project Boundaries
 
 - **Owned**: FastAPI backend, React frontend, operation log, relay sync, tests, build/release, agent docs in this repo.
-- **Not owned**: Flutter mobile app (separate repo `miquelrosell99/notees-flutter`).
+- **Not owned**: Flutter mobile app (`miquelrosell99/notees-flutter`) and GTK/Adwaita desktop app (`miquelrosell99/notees-gtk`) — separate repos mirroring `protocol/SPEC.md` client-side.
 - **User docs** live in `docs/`; do not put agent reference or plans there.

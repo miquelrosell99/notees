@@ -324,3 +324,14 @@ contexts, merge into ONE entry with both contexts listed under Symptom.
 **Fix:** Dump with plain query output instead: `psql -q -A -t -c "SELECT row_to_json(t) FROM (…) t" > out.jsonl`, then verify every line parses strictly before feeding it to a replay/migration harness.
 
 **Prevent:** Any pipeline that dumps jsonb for offline processing must validate the dump with a strict parse of every line before use (the 2026-09-14 legacy-structure migration caught 1,306 corrupted content mirrors this way — see `data/backups/migration_validation_20260914_clean.md`).
+
+
+## **[testing]** Test fakes for cross-repo artifacts must be built from the real producer's schema — a fake and an implementation can agree on the same wrong contract
+
+**Symptom:** `notees-gtk`'s snapshot restore returned `False` against every real server snapshot while all 137 of its unit tests passed: zero overlapping columns, so restore silently never ran, and every workspace open re-downloaded the blob and failed again.
+
+**Cause:** The store test fake and the engine test fake both invented a `nodes` table matching the *client cache* schema; the real snapshot blob has `node` singular (`app/core/derived/schema.py`). Per-task reviews verified fake↔client agreement, never fake↔producer — the two fakes mirrored the same wrong assumption, so the suite green-lit a provably broken restore.
+
+**Fix:** Rebuild fakes from the verbatim producer DDL (`app/core/derived/schema.py` statements copied into `tests/conftest.py`, byte-checked); restore discovers the table via `sqlite_master` with a strict allowlist + identifier regex, maps `kind`→`node_type` and `active`→`archived` (inverted), and seeds the content-HLC LWW baseline.
+
+**Prevent:** Any test fake standing in for an artifact from another repo or serialization boundary (snapshot blob, fixture, wire format) must be constructed from — or mechanically diffed against — the real producer's schema, ideally in TDD order so the fake demonstrably fails against the old code first. Second incident from the same family: this plan's SPEC §3 prose list had drifted from `KNOWN_OP_TYPES` (missing `activity.delete`) — when touching either a prose list or the code behind it, diff one against the other; the code is authoritative.

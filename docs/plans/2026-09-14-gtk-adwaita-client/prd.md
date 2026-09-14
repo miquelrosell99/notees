@@ -1,6 +1,8 @@
 ---
-status: approved
+status: done
 created: 2026-09-14
+implemented: 2026-09-15
+distilled_to: [protocol/SPEC.md, skills/notees/rules/project-rules.md, skills/notees/references/gotchas.md, skills/notees/references/tech-stack.md, skills/notees/SKILL.md]
 ---
 
 # GTK/Adwaita Desktop Client — Notees
@@ -59,7 +61,7 @@ sync in MVP — SPEC §5's WebSocket is "an acceleration path, never a second co
 | R3 | API client | Mock-transport tests: login (bearer + 2FA preauth), `GET /api/workspaces/` trailing-slash + `items` unwrap, relay batch/catch-up/snapshot shapes, error taxonomy for 401/403/4xx/429/5xx/network |
 | R4 | Store + sync engine | Fake-relay tests: outbox chunks of 100 with whole-chunk ack, 4xx quarantine, network/5xx backoff schedule, paged catch-up with per-page cursor + op-id dedupe, snapshot restore when newer, `restore_epoch` change wipes state, `node_content_hlc` LWW skip, idempotent migrations |
 | R5 | UI | Adwaita app: login page, workspace switcher, page-tree sidebar, read-only rendering of AST subset (paragraph/heading/todo/code/math + inline marks, `node_link` pill), plain-text edit mode emitting `node.updateContent` with string `content` |
-| R6 | Docs + release | README with dev setup against the compose.dev backend (`http://localhost:8001`), AGPL-3.0 license, `notees-gtk` entry point; repo public on GitHub |
+| R6 | Docs + release | README with dev setup against the compose.dev backend (`http://localhost:8001`), AGPL-3.0 license, `notees-gtk` entry point; `PKGBUILD` (Arch) + `release.yml` CI that builds sdist/wheel and the Arch package in an `archlinux` container — no local builds; artifacts on CI runs, release assets on `v*` tags; repo public on GitHub |
 
 ## Out of Scope
 
@@ -94,3 +96,13 @@ mention only); Windows/macOS targets; token refresh (re-login on expiry); offlin
 - `frontend/src/lib/astBuilder.ts:525-578` — `unwrapCrdtContentAst` to port
 - `frontend/src/core/types/operation.ts` — payload shapes for the op subset
 - `docs/plans/2026-09-14-gtk-adwaita-client/tasks.md` — task breakdown (execution contract)
+
+## Outcome (2026-09-15)
+
+Shipped as `miquelrosell99/notees-gtk` (public, AGPL-3.0): 29 commits, 189 tests, CI + Release
+workflows green; CI builds sdist/wheel + Arch package (`notees-gtk-git`) per the no-local-builds
+directive; final whole-branch review passed after one fix wave (real-schema snapshot restore,
+protocol-version fail-loud, HLC clock merge). Mid-flight owner directives folded into the plan:
+`uuid7` dependency replaced with an in-repo RFC 9562 generator, and CI-as-builder. Deferred
+follow-ups (GTK-host manual run, tag-release path untested, accepted Minor roll-up) live in
+`.superpowers/sdd/progress.md` and the final review reports.

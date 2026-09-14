@@ -4,7 +4,7 @@ Cross-cutting constraints that apply to almost every change in this repository.
 
 ## Scope
 
-Notees is a self-hosted, privacy-first, local-first note-taking application. This skill covers the FastAPI backend, React frontend, build/release tooling, tests, and agent-facing documentation in this repository. The Flutter mobile companion lives in a separate repository (`miquelrosell99/notees-flutter`) and is not owned by this skill.
+Notees is a self-hosted, privacy-first, local-first note-taking application. This skill covers the FastAPI backend, React frontend, build/release tooling, tests, and agent-facing documentation in this repository. The Flutter mobile companion (`miquelrosell99/notees-flutter`) and the GTK/Adwaita desktop companion (`miquelrosell99/notees-gtk`) live in separate repositories and are not owned by this skill; both mirror the relay protocol client-side (see `protocol/SPEC.md`).
 
 ## Architecture
 
