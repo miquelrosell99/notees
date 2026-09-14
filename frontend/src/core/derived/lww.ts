@@ -78,3 +78,36 @@ export function nodeFieldClaimLost(
   const existing = readNodeFieldRecord(db, nodeId, field);
   return existing !== undefined && compareLww(incoming, existing) <= 0;
 }
+
+function readClassRecord(db: Database, classId: string): LwwRecord | undefined {
+  const row = queryOne<{ hlc_physical: number; hlc_logical: number; actor_id: string }>(
+    db,
+    'SELECT hlc_physical, hlc_logical, actor_id FROM class_lww WHERE class_id = ?',
+    [classId]
+  );
+  if (!row) return undefined;
+  return { hlc: { physical: row.hlc_physical, logical: row.hlc_logical }, actorId: row.actor_id };
+}
+
+/**
+ * Per-class LWW guard for lifecycle ops (create/update/delete/setExtends).
+ * Without it, a backfilled legacy class.create replayed after a newer delete
+ * resurrects the class on every full replay. Returns true when the caller
+ * should apply its mutation.
+ */
+export function claimClassLifecycle(db: Database, classId: string, incoming: LwwRecord): boolean {
+  const existing = readClassRecord(db, classId);
+  if (existing && compareLww(incoming, existing) <= 0) {
+    return false;
+  }
+  db.run(
+    `INSERT INTO class_lww (class_id, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(class_id) DO UPDATE SET
+       hlc_physical = excluded.hlc_physical,
+       hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id`,
+    [classId, incoming.hlc.physical, incoming.hlc.logical, incoming.actorId]
+  );
+  return true;
+}

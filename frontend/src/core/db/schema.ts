@@ -417,6 +417,13 @@ export function createSchema(db: Database): void {
       PRIMARY KEY (node_id, class_id)
     );
 
+    CREATE TABLE IF NOT EXISTS class_lww (
+      class_id TEXT PRIMARY KEY,
+      hlc_physical INTEGER NOT NULL,
+      hlc_logical INTEGER NOT NULL,
+      actor_id TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS node_view (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -908,5 +915,21 @@ function migrateSchema(db: Database): void {
       db.exec('ROLLBACK');
       // Leave user_version at 20 so the migration retries on next startup.
     }
+  }
+
+  if (version < 22) {
+    // Per-class lifecycle LWW so a late-arriving older class.create cannot
+    // resurrect a class deleted by a newer op. CURRENT_DERIVED_STATE_VERSION
+    // is intentionally NOT bumped: a corrective class.delete op heals
+    // already-resurrected rows through normal catch-up.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS class_lww (
+        class_id TEXT PRIMARY KEY,
+        hlc_physical INTEGER NOT NULL,
+        hlc_logical INTEGER NOT NULL,
+        actor_id TEXT NOT NULL
+      )
+    `);
+    db.exec('PRAGMA user_version = 22');
   }
 }

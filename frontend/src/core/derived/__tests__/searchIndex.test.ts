@@ -121,7 +121,7 @@ describe('schema v21 (search_index_docid backfill)', () => {
     const { createSchema } = await import('../../db/schema');
     createSchema(db);
 
-    expect(db.exec('PRAGMA user_version')[0].values[0][0]).toBe(21);
+    expect(db.exec('PRAGMA user_version')[0].values[0][0]).toBe(22);
     const map = queryOne<{ docid: number }>(
       db,
       'SELECT docid FROM search_index_docid WHERE node_id = ?',
