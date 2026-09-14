@@ -90,7 +90,7 @@ A successful relay batch response means every envelope is persisted server-side;
 
 ## Applier changes must bump the derived-state version
 
-Any change to client-side applier logic (`frontend/src/core/derived/**`) must bump `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) and clear new derived tables in `resetDerivedState` in the same commit — nothing fails CI otherwise, and existing clients keep stale derived state while fresh installs work. But prefer a targeted idempotent startup repair (`repairClassHierarchy` / `repairDatePageHierarchy` pattern) when the state derives from one small table — a bump forces a full log replay on every client. And until the TS appliers reconstruct `node_child_order` from legacy `node.create.index` / `node.move.newIndex` payloads, a full replay is lossy (legacy pages render childless) — only snapshot-restore pulls are safe.
+Any change to client-side applier logic (`frontend/src/core/derived/**`) must bump `CURRENT_DERIVED_STATE_VERSION` (`frontend/src/core/store.ts`) and clear new derived tables in `resetDerivedState` in the same commit — nothing fails CI otherwise, and existing clients keep stale derived state while fresh installs work. But prefer a targeted idempotent startup repair (`repairClassHierarchy` / `repairDatePageHierarchy` pattern) when the state derives from one small table — a bump forces a full log replay on every client. Legacy `node.create.index` / `node.move.newIndex` payloads are **string float-ranks** (`"0.0"`) which the TS applier skips (numeric-only backfill) — a full replay of a migration-era log is lossy (25.5k child-order rows collapse to 76). The main workspace's log was healed by data migration on 2026-09-14 (`frontend/scripts/migrate_legacy_structure.ts` appended full-state `treeUpdate` corrective ops); re-run that harness for any other legacy log import rather than changing the applier.
 
 - Reference: `references/gotchas.md#derived-applier-changes-must-bump-the-derived-state-version`
 
@@ -157,3 +157,15 @@ Stock `wa-sqlite` dist ships no FTS module, but `search_index` is FTS4: any engi
 ## Dev vs Prod
 
 Development infrastructure settings in `compose.dev.yaml` must never be used in production.
+
+## **[sync]** Class lifecycle ops need LWW guards
+
+Catch-up applies pages in seq order with only per-page HLC sorting, so backfilled old-HLC `class.create` ops used to resurrect deleted classes on every replay. `class_lww` (schema v22, `claimClassLifecycle`) now guards `class.create/update/delete/setExtends`; a corrective `class.delete` heals persisted DBs via catch-up (no derived-version bump).
+
+- Reference: `references/gotchas.md#sync-class-lifecycle-ops-need-lww-guards--catch-up-applies-pages-in-seq-order-not-global-hlc-order`
+
+## **[scripts]** Dumping jsonb via `COPY … TO STDOUT` corrupts backslashes
+
+Use `psql -q -A -t -c "SELECT row_to_json(…)"` for JSONL dumps and strict-parse every line before feeding a replay/migration harness; COPY's text-format escaping silently doubles backslashes inside nested JSON strings.
+
+- Reference: `references/gotchas.md#scripts-dumping-jsonb-via-copy--to-stdout-corrupts-backslashes--use-plain-select-row_to_json`
