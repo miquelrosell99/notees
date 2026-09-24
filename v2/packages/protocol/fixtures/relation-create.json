@@ -1,0 +1,22 @@
+{
+  "id": "0192a000-0000-7000-8000-0000000000f3",
+  "protocolVersion": 2,
+  "workspaceId": "0192a000-0000-7000-8000-000000000001",
+  "actorId": "0192a000-0000-7000-8000-000000000002",
+  "deviceId": "test-device-laptop",
+  "client": "agent:research-bot",
+  "hlc": { "physical": 1727200002000, "logical": 0 },
+  "affectedNodeIds": [
+    "0192a000-0000-7000-8000-000000000010",
+    "0192a000-0000-7000-8000-000000000011"
+  ],
+  "opType": "relation.create",
+  "timestamp": "2026-09-24T12:00:02.000Z",
+  "payload": {
+    "relationId": "0192a000-0000-7000-8000-000000000020",
+    "sourceId": "0192a000-0000-7000-8000-000000000010",
+    "relationSchemaId": "00000000-0000-0000-0004-000000000004",
+    "targetId": "0192a000-0000-7000-8000-000000000011",
+    "properties": { "locator": "p. 42" }
+  }
+}

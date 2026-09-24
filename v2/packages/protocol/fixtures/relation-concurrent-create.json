@@ -1,0 +1,49 @@
+{
+  "comment": "Two devices concurrently create the same (source, schema, target) triple. RELATIONS.md dimension 3: the applier converges to ONE row — the one with the lowest (hlc.physical, hlc.logical, relationId). Here that is 0192a000-…-000000000020 from the laptop (lower HLC).",
+  "envelopes": [
+    {
+      "id": "0192a000-0000-7000-8000-0000000000f5",
+      "protocolVersion": 2,
+      "workspaceId": "0192a000-0000-7000-8000-000000000001",
+      "actorId": "0192a000-0000-7000-8000-000000000002",
+      "deviceId": "test-device-laptop",
+      "client": "web",
+      "hlc": { "physical": 1727200004000, "logical": 0 },
+      "affectedNodeIds": [
+        "0192a000-0000-7000-8000-000000000010",
+        "0192a000-0000-7000-8000-000000000011"
+      ],
+      "opType": "relation.create",
+      "timestamp": "2026-09-24T12:00:04.000Z",
+      "payload": {
+        "relationId": "0192a000-0000-7000-8000-000000000020",
+        "sourceId": "0192a000-0000-7000-8000-000000000010",
+        "relationSchemaId": "00000000-0000-0000-0004-000000000005",
+        "targetId": "0192a000-0000-7000-8000-000000000011",
+        "properties": {}
+      }
+    },
+    {
+      "id": "0192a000-0000-7000-8000-0000000000f6",
+      "protocolVersion": 2,
+      "workspaceId": "0192a000-0000-7000-8000-000000000001",
+      "actorId": "0192a000-0000-7000-8000-000000000003",
+      "deviceId": "test-device-phone",
+      "client": "web",
+      "hlc": { "physical": 1727200004500, "logical": 0 },
+      "affectedNodeIds": [
+        "0192a000-0000-7000-8000-000000000010",
+        "0192a000-0000-7000-8000-000000000011"
+      ],
+      "opType": "relation.create",
+      "timestamp": "2026-09-24T12:00:04.500Z",
+      "payload": {
+        "relationId": "0192a000-0000-7000-8000-000000000021",
+        "sourceId": "0192a000-0000-7000-8000-000000000010",
+        "relationSchemaId": "00000000-0000-0000-0004-000000000005",
+        "targetId": "0192a000-0000-7000-8000-000000000011",
+        "properties": {}
+      }
+    }
+  ]
+}
