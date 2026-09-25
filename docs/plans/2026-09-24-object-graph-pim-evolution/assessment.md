@@ -986,7 +986,8 @@ Owner question (2026-09-25): can the editor reach parity with Logseq/Tana/Notion
 | Asset/image rendering in the editor | M1–M2 | Port v1 `AssetImage` + `node_asset` + asset tokens |
 | Multi-instanced sidebar cards | M2 | Extend v1 `sidebarCardRegistry` to N GraphQuery subscriptions |
 | Zoom into bullet | M2 | Logseq copy-list (`03` §13.2) |
-| Embeds/transclusion (two-way editing) | M2–M3 | **Genuinely new work** — embed block token + editing semantics (SCHEMA.md owed work); additive, no protocol break |
+| Hover → floating editable node view | M2 | Floating popup (`@floating-ui/dom` ports from v1) mounts a mini block-tree editor on its own store subscription — same mechanism as multi-instance cards; edits write the normal op path |
+| Embeds with live updates + two-way editing | M2–M3 | Embed block token (SCHEMA.md owed work) rendering the **live subtree, never a clone** — then live updates and embedded editing are the standard notification/op path; needs a cycle guard (depth cap + visited set) |
 | Long-form writing feel | carried risk | Deliberate bet against document-mode editors; checkpoint per `00-INDEX` known risks |
 
 **Plan deltas:** none structural. The one load-bearing addition is block-level content tokens (embed/query/asset/whiteboard) in the content grammar — owed work in `SCHEMA.md`, scheduled before the M2 items that depend on them. The plan's package layout already isolates this: `packages/editor` owns the AST + editor; `packages/store`/`packages/query` serve every projection uniformly.
