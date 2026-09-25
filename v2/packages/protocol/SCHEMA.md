@@ -88,6 +88,11 @@ All three are derived (the applier recomputes them; wipe → replay → identica
 
 Predefined page sections are **named system queries** over the QueryAST runtime (v1 `autoFixSystemQuery` pattern), not bespoke UI: **linked references, unlinked references, child pages, classed nodes, extended-by** ship with fixtures like any op type, and the section registry is plugin-extensible (M3). Owed: the system-query registry, section fixtures, and the per-section projection rules above wired in.
 
+Section specs and the lazy-loading contract:
+
+- **Unlinked references — pages only.** Literal-text appearances of the page's name anywhere in the workspace, **excluding** blocks that already link to it (already-linked = the linked-references set). Implemented as an FTS query over the page name (v1 `unlinked_references` system query). Blocks do not get this section.
+- **Lazy-loading contract (all system sections):** collapsed by default, and a collapsed section executes **no query** — nothing loads until first expand (v1 `QuerySection` pattern). Count badges come only from materialized derived counts (`node_stats.backlink_count` for linked references); **unlinked references shows no eager count** — computing the count *is* the expensive query. Results cache per section until an invalidating notification lands (content/class/property edge changes).
+
 ## Node-backed text properties (NORMATIVE, 2026-09-25)
 
 - The `text` value type is **node-typed by convention**: `property.set` stores a carrier block's id; the properties panel renders an editor that writes content ops to the carrier — so property text carries the **full grammar** (mentions, class chips, typed links, embeds) and may have an **arbitrary number of children at arbitrary depth** (it is a block; the panel edits it as a mini-outliner, focused view opens it).
