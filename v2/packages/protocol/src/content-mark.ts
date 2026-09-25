@@ -97,11 +97,6 @@ export const hardBreakTokenSchema = z
   .object({ type: z.literal("hard_break") })
   .strict();
 
-/** Real paragraph break within one block (spacing semantics; vs hard_break). */
-export const paragraphBreakTokenSchema = z
-  .object({ type: z.literal("paragraph_break") })
-  .strict();
-
 export const assetRefTokenSchema = z
   .object({
     type: z.literal("asset_ref"),
@@ -174,7 +169,6 @@ export const contentTokenSchema = z.discriminatedUnion("type", [
   externalLinkTokenSchema,
   mathTokenSchema,
   hardBreakTokenSchema,
-  paragraphBreakTokenSchema,
   assetRefTokenSchema,
   embedRefTokenSchema,
   queryTokenSchema,
