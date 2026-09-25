@@ -986,7 +986,7 @@ Owner question (2026-09-25): can the editor reach parity with Logseq/Tana/Notion
 | Live query blocks in the editor | M1–M2 | Port v1 `QueryNodeCollection`/`QuerySection`; `query` class is first-class in the model |
 | Asset/image rendering in the editor | M1–M2 | Port v1 `AssetImage` + `node_asset` + asset tokens |
 | Multi-instanced sidebar cards | M2 | Extend v1 `sidebarCardRegistry` to N GraphQuery subscriptions |
-| Zoom into bullet | M2 | Logseq copy-list (`03` §13.2) |
+| Zoom into bullet / focused mode | M1 (design confirmed 2026-09-25) | Navigation is node-based: clicking a bullet opens **focused (block) view** — page view ⇄ block view is a UI mode switch over the same node, not editor-model work (Logseq copy-list satisfied by chrome) |
 | Hover → floating editable node view | M2 | Floating popup (`@floating-ui/dom` ports from v1) mounts a mini block-tree editor on its own store subscription — same mechanism as multi-instance cards; edits write the normal op path |
 | Embeds with live updates + two-way editing | M2–M3 | Embed block token (SCHEMA.md owed work) rendering the **live subtree, never a clone** — then live updates and embedded editing are the standard notification/op path; needs a cycle guard (depth cap + visited set) |
 | Long-form writing feel | carried risk | Deliberate bet against document-mode editors; checkpoint per `00-INDEX` known risks |
@@ -1008,3 +1008,34 @@ Full sweep of the agreed model — data model, editor, properties, parenting, in
 **Conscious divergences (rejections, not gaps):** Datalog; curated type catalogs (design law); bundled AI features (scope-excluded — agent surface is our answer); files-as-truth; mobile/collab (M-tier; the substrate already supports both).
 
 **Sweep outcome:** no model-level retreat is required to reach parity-or-better on any axis. The gap register from this sweep (property CRUD UX, create-and-bind, formula-language decision, template instantiation, zoom, embeds) is recorded in `SCHEMA.md` owed work and §34.10 — the sweep's purpose was to ensure nothing a competitor ships is silently absent from our schedule.
+
+### 34.12 Workspace export — Obsidian-gap closure (owner decision, 2026-09-25)
+
+The Obsidian file-editability gap is closed by commitment, not by trade: **users can export full workspace snapshots with maximum data preservation.** Two tiers, one doctrine:
+
+- **Doctrine:** export is a projection, one-way by design (the log is truth — Logseq's "Markdown is not a backup" wound). But the projection is engineered to be *as round-trippable as possible*, and the export surface is a first-class product feature (`notees export`, API endpoint, UI action) — never an afterthought. Interop conventions are borrowed from Obsidian/Logseq where they exist; they are conventions, not protocol (design law).
+
+- **Tier 1 — JSON archive (M1, backup grade).** Full-fidelity workspace dump: all ops-replayable state, schemas, and assets, in one restorable artifact. Ports v1's dump export; this is the disaster-recovery and migration format (and the acceptance harness for the migration script).
+
+- **Tier 2 — Markdown interop projection (M2, citation pipeline milestone).** Deliberate mapping of the content grammar to text:
+  - pages → one file per page, **filename = node UUID** (v1 auto-export precedent: rename-free, maximum preservation, grep-friendly);
+  - block tree → nested Markdown bullets (outliner → Markdown is structurally natural);
+  - properties → YAML frontmatter (pages) / inline property lines (blocks); per-value qualifiers (`since`, `locator`) preserved;
+  - class chips → `#classname`; mentions → `[[name]]`; **embeds → `![[uuid]]`** (Obsidian's own embed syntax — interop for free);
+  - typed links → verb-marked text with locator preserved (Logseq `verb::` convention or bold-verb; decided in the export spec);
+  - queries → fenced ` ```query ` blocks carrying the QueryAST; whiteboards → sidecar JSON + file link; assets → `files/` directory + manifest;
+  - a workspace-level **UUID manifest** (exported name ↔ UUID ↔ type) recovers identity for any re-import.
+  - *Export spec owed work* in SCHEMA.md: the token-set→Markdown serialization table.
+
+Exit criterion: an exported workspace re-imports (M2 round-trip harness, extending v1's `test_import_roundtrip` idea) with a reconciliation report — same discipline as the migration script.
+
+### 34.13 Workspace tenancy design (decided 2026-09-25)
+
+**Workspaces remain a separate table; they are NOT nodes.** Every node carries a `workspace_id` column; `parent_id IS NULL` means top level *within the workspace*. The workspace-as-parent-node alternative was rejected on four grounds:
+
+1. **Tenancy is infra, not semantics** — workspaces bound sync routing, E2EE key scope, shares, snapshots, and per-workspace derived DBs (the design stack's INFRA category: "never ops"). A workspace node would either drag auth/tenancy into the semantic graph or have to be replicated into every store scoped to it.
+2. **Propagation pollution** — with `refset(n) = own_links(n) ∪ refset(parent(n))`, every node would inherit the workspace root's links; containment-as-reference would make the entire workspace reference anything the root references.
+3. **Mega-fan-out** — every top-level node's parent edge funnels through one root node; every tree traversal and child-list query pays the concentration cost.
+4. **The benefit is already had** — "the workspace contains all its nodes" is exactly `workspace_id = X`; "top level" is exactly `parent_id IS NULL`. No physical node is needed for either semantics.
+
+Rationale bonus: every derived query filters by workspace (`WHERE workspace_id = ?` on all derived tables) — a direct column beats a recursive tree join on every query for zero model gain.
