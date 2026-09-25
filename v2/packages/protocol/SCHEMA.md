@@ -13,6 +13,9 @@ Status: **stub — owed-work register, normative only where marked OWED→DONE.*
 - [ ] **Class-chip lint** — with render-only chips (below), a lint may suggest "chip present but node not classed — assign?"; suggestion only, never enforcement (design law).
 - [ ] **RECORD, DON'T RESOLVE** *(adopted amendment, 2026-09-25)* — typed-link capture MUST record candidate target spans as an **ordered list of token IDs** in token metadata; nothing smarter. No scoring, no filtering at capture: deferring the *resolution rule* to M2 is sound, deferring the *recording* is data loss — the sentence context present at capture time is irrecoverable later. Candidates give M2 real data to design against.
 - [ ] `extends` closure + binding-resolution normative statement (own → shortest extends-path → earliest HLC; cycles fail-loud).
+- [ ] **Property-schema CRUD UX + create-and-bind** — Tana-grade schema-at-capture (the sweep's make-or-break gesture); property panel, table columns, structured views.
+- [ ] **Computed properties / formula language** — DEFERRED DECISION (sweep, 2026-09-25): v1 has a `computed` flag; Notion-style per-row expressions are M3+ optional, distinct from QueryAST query-time aggregations. Owner to decide; do not build silently.
+- [ ] **Template instantiation** — `has-template` placement (`00-INDEX` open question; proposal: node-typed property on class nodes, instantiation clones content + children).
 - [ ] Configuration registry schema (`property_schema`, `class_property` rows).
 - [ ] Backlink roll-up + filter-inheritance semantics (`refset(n) = own_links(n) ∪ refset(parent(n))`); fan-out-at-projection vs traversal-at-query-time decision (M1 spike).
 - [ ] Typed-link target-resolution design — DEFERRED to M2 by owner decision; register only, do not spec (see 00-INDEX "Deferred"). Design against the recorded candidateSpans.
