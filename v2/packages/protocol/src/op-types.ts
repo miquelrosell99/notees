@@ -1,13 +1,12 @@
 /**
  * Operation type registry v2 (M1 subset).
  *
- * Relation-first by design (assessment §34.4). Per RELATIONS.md, M1 implements
- * relation identity/create/delete/tombstone/LWW-properties only — payloads
- * MUST NOT carry `position` (dimension 6 is M2; appliers ignore it if present).
- *
- * `relationSchema.create/update/delete` ops are deliberately absent: schema
- * CRUD is M2 (RELATIONS.md §7). User-defined schemas never collide with the
- * fixed seed UUID block (seeds.ts).
+ * Model per v2/docs/design/01-knowledge-model.md (the model is normative there;
+ * this registry is its op-level expression). Associations are node-typed
+ * property values or typed-link word marks in contentAst — there are no
+ * relation.* ops. contentAst rides object.create/update as the readable carrier
+ * (fixtures, tests, plain-text editor path); contentDeltaB64 is the canonical
+ * wire carrier once the Yjs port lands (store/sync work).
  */
 
 import { z } from "zod";
@@ -22,7 +21,7 @@ export const objectCreatePayload = z
     kind: z.enum(["page", "block"]),
     classIds: z.array(uuid).default([]),
     name: z.string().max(1024).optional(),
-    content: z.string().optional(),
+    contentAst: z.array(z.unknown()).optional(),
     parentId: uuid.nullable().optional(),
   })
   .strict();
@@ -33,11 +32,16 @@ export const objectUpdatePayload = z
     name: z.string().max(1024).optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
-    /** Canonical content carrier: base64 incremental CRDT delta. */
+    /** Canonical wire carrier: base64 incremental CRDT delta. */
     contentDeltaB64: z.string().optional(),
+    /** Readable carrier (fixtures, tests, plain-text editor path before the Yjs port). */
+    contentAst: z.array(z.unknown()).optional(),
   })
   .strict()
-  .refine((p) => Object.keys(p).length > 1, { message: "object.update requires at least one field" });
+  .refine((p) => Object.keys(p).length > 1, { message: "object.update requires at least one field" })
+  .refine((p) => !(p.contentDeltaB64 !== undefined && p.contentAst !== undefined), {
+    message: "exactly one content carrier per update",
+  });
 
 export const objectDeletePayload = z
   .object({
@@ -97,6 +101,8 @@ export const propertySchemaCreatePayload = z
     multi: z.boolean().default(false),
     scope: z.enum(["global", "class", "object"]).default("global"),
     options: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
+    /** Node-typed (m2o/m2m) schemas constrain their targets to these classes. */
+    targetClassFilter: z.array(uuid).optional(),
   })
   .strict();
 
@@ -118,6 +124,8 @@ export const propertySetPayload = z
     propertySchemaId: uuid,
     value: z.unknown(),
     idx: z.number().int().nonnegative().default(0),
+    /** Per-value qualifiers (`since`, `locator`, …) — SCHEMA.md owed work, column reserved. */
+    metadata: z.record(z.unknown()).optional(),
   })
   .strict();
 
@@ -129,32 +137,12 @@ export const propertyUnsetPayload = z
   })
   .strict();
 
-// --- relations (RELATIONS.md dimensions 1–5; M1 subset) ----------------------
-
-export const relationCreatePayload = z
-  .object({
-    relationId: uuid,
-    sourceId: uuid,
-    relationSchemaId: uuid,
-    targetId: uuid,
-    /** Opaque JSON; per-key LWW by HLC (dimension 5). */
-    properties: z.record(z.unknown()).default({}),
-  })
-  .strict();
-
-export const relationUpdatePayload = z
-  .object({
-    relationId: uuid,
-    /** Partial update, per-key LWW (dimension 5). */
-    properties: z.record(z.unknown()),
-  })
-  .strict();
-
-export const relationDeletePayload = z
-  .object({ relationId: uuid })
-  .strict();
-
-// --- assets ------------------------------------------------------------------
+// --- associations ------------------------------------------------------------
+// First-class relation entities were deleted 2026-09-25 (02-model-assessment.md
+// §6): associations are node-typed property values (m2o/m2m) or typed-link word
+// marks riding in contentAst — both project into the derived edge index. There
+// is deliberately NO relation.* op type, and no seeded relation vocabulary
+// (design law: predictions become defaults/conventions, never protocol).
 
 export const assetAttachPayload = z
   .object({
@@ -214,9 +202,6 @@ export const OP_PAYLOAD_SCHEMAS = {
   "propertySchema.delete": propertySchemaDeletePayload,
   "property.set": propertySetPayload,
   "property.unset": propertyUnsetPayload,
-  "relation.create": relationCreatePayload,
-  "relation.update": relationUpdatePayload,
-  "relation.delete": relationDeletePayload,
   "asset.attach": assetAttachPayload,
   "asset.detach": assetDetachPayload,
   "collection.create": collectionCreatePayload,

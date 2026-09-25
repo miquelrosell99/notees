@@ -14,7 +14,7 @@
     "kind": "page",
     "classIds": ["00000000-0000-0000-0001-000000000025"],
     "name": "The Structure of Scientific Revolutions",
-    "content": "[]",
+    "contentAst": [],
     "parentId": null
   }
 }
