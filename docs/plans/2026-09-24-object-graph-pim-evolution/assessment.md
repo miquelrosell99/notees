@@ -3,6 +3,8 @@
 
 Date: 2026-09-24 · Status: assessment complete, implementation not started · Evidence base: full-repo inspection (backend, frontend, protocol, plugins, tests, deployment, docs) on `main` @ Notees 3.0.0
 
+Revision 8 — answers the editor-parity question (2026-09-25): the editor reimplementation is planned scope (M1 core outliner, M2 polish), parity with Logseq/Tana/Notion/Capacities is feasible with **no architectural modification** — all named features are projections over existing primitives, most ported from v1; the single load-bearing addition is block-level content tokens (embed/query/asset/whiteboard), added to SCHEMA.md owed work. Named parity scope recorded in new §34.10.
+
 Revision 7 — **model re-convergence adopted (2026-09-25).** The owner–architect design session re-converged the knowledge model; the design stack is imported at `v2/docs/design/` (`00-INDEX.md` normative index, `01` normative model, `02` decision history, `03` paradigm validation). Material deltas vs this plan: first-class relation **entities** deleted (replaced by node-typed properties + typed-link word marks + one derived edge index — `01` §8), classes re-merged into the node table (`01` §6), Logseq-style outliner as the editor, soft page/block kind. **Precedence rule (recorded in both `00-INDEX.md` and here): `01` is normative for the model; this plan is normative for process, milestones, and gates.** Adopted amendments: record-don't-resolve (typed-link capture records ordered candidate-span token IDs; resolution rule deferred to M2 — SCHEMA.md owed work), and fixture-gate parity (deleted relation fixtures replaced by typed-link-mark fixtures exercising the same acceptance scenarios). Scaffold reworked accordingly (`packages/protocol`: `relation.*` ops, the 0004 seed block, and RELATIONS.md removed; SCHEMA.md created). See §34.9.
 
 Revision 6 — records a forward constraint from the third review: seeded relation schemas MUST use stable, fixed UUIDs in seed data (ported precedent: `SYSTEM_CLASS_UUIDS` in `app/domain/entities/constants.py`), because relation rows, fixtures, and the old-data migration all bake `relation_schema_id` in; seed-id drift silently breaks them. **Superseded 2026-09-25: relation entities and the seed vocabulary were deleted entirely (see Revision 7); the constraint survives only as precedent for how system classes keep their fixed UUIDs.**
@@ -969,3 +971,22 @@ After the greenfield decision, a two-day owner–architect design session re-con
 **Adopted amendments (recorded in `00-INDEX.md` and `packages/protocol/SCHEMA.md`):** record-don't-resolve — typed-link capture records candidate target spans as an ordered token-ID list (no scoring/filtering at capture; resolution rule deferred to M2 against real capture data); fixture-gate parity — the deleted relation fixtures were replaced by typed-link-mark fixtures exercising the same acceptance scenarios, keeping the blocking gate at full width.
 
 **Scaffold state:** `packages/protocol` re-aligned (RELATIONS.md, `seeds.ts`, `relation.*` ops, and relation fixtures removed; SCHEMA.md created with the owed-work register; typed-link mark grammar + contentAst carrier added; 23 tests green). The sync/derived-store port, migration script, and remaining M1 scope proceed against this model.
+
+### 34.10 Editor parity target (named scope, scheduled — not architecture)
+
+Owner question (2026-09-25): can the editor reach parity with Logseq/Tana/Notion/Capacities in responsiveness, modularity, drag-and-drop, multi-instanced sidebar cards, live queries as in-editor blocks, and asset rendering? **Assessment: yes — no architectural modification required.** Every item is a projection over primitives the model already has (no new op type, sync primitive, or storage category); most exist in v1 and port. Recorded here so parity is scheduled scope, not a later renegotiation.
+
+| Feature | Stage | Basis |
+|---|---|---|
+| Outliner core (bullets, indent/outdent reparent, collapse) | M1 | `01` §5; port v1 `BlockList` + collapse state |
+| Responsiveness / virtualization | M1 (non-negotiable) | Port v1 `@tanstack/react-virtual` + GraphQuery incremental invalidation |
+| Reorder/reparent convergence | M1 | TreeCrdt + fractional positions (v1 machinery) |
+| Drag & drop (blocks, cross-tree) | M1 port → M2 Notion-grade polish | v1 dnd-kit block DnD; feel polish is effort, not research |
+| Live query blocks in the editor | M1–M2 | Port v1 `QueryNodeCollection`/`QuerySection`; `query` class is first-class in the model |
+| Asset/image rendering in the editor | M1–M2 | Port v1 `AssetImage` + `node_asset` + asset tokens |
+| Multi-instanced sidebar cards | M2 | Extend v1 `sidebarCardRegistry` to N GraphQuery subscriptions |
+| Zoom into bullet | M2 | Logseq copy-list (`03` §13.2) |
+| Embeds/transclusion (two-way editing) | M2–M3 | **Genuinely new work** — embed block token + editing semantics (SCHEMA.md owed work); additive, no protocol break |
+| Long-form writing feel | carried risk | Deliberate bet against document-mode editors; checkpoint per `00-INDEX` known risks |
+
+**Plan deltas:** none structural. The one load-bearing addition is block-level content tokens (embed/query/asset/whiteboard) in the content grammar — owed work in `SCHEMA.md`, scheduled before the M2 items that depend on them. The plan's package layout already isolates this: `packages/editor` owns the AST + editor; `packages/store`/`packages/query` serve every projection uniformly.
