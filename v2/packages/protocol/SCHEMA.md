@@ -49,7 +49,7 @@ Token set (zod schemas are the executable form, `src/content-mark.ts`):
 | `embed_ref` | `nodeId` | live subtree, never a clone; renderer cycle guard |
 | `quote` | `children` (inline tokens) | the only nested token |
 | `query` | `queryAst`, `view?` | block-scale live query |
-| `whiteboard` | `layout` | shapes/strokes/viewport |
+| `whiteboard` | `layout` | shapes/strokes/viewport. **A whiteboard node is defined by the `whiteboard` system class (what-it-is axis); this token carries its data.** Never a kind or a flag — the general rule: what-it-is always lives in class, specialized data lives in content tokens or assertion rows. Class↔token divergence is a lint suggestion, never a prohibition (design law). |
 | `external_link` | `href`, `text` | |
 | `math` | `expression` | KaTeX source |
 | `hard_break` | — | shift+enter line jump; Enter creates a new node |
