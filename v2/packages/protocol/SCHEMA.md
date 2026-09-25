@@ -29,7 +29,7 @@ Decisions recorded with the grammar:
 - **Fork 2 — marks are attributes** on text runs (`marks: ["bold","italic","strike","highlight","code"]`), not nested nodes. Overlaps (a bold phrase containing a mention, a typed-link word in italics) split runs at boundaries — standard rich-text mechanism; no nesting interaction matrix.
 - **Fork 3 — `class_chip` is render-only** (owner decision): inserting/deleting a chip does NOT mutate `class_ids`; it references the class node and renders its *current* name (rename once, every chip updates). Assignment is a separate gesture; a lint may suggest it. One-off wording via optional `displayText`.
 - **Fork 4 — `mention` stores id only**; display resolves the target's current name at render time (auto-rename free). `text` (captured surface form) is non-authoritative; `displayText` overrides per-link ("the Republic"); broken targets render the raw id (v1 fallback rule).
-- **Paragraph vs line break:** `hard_break` = shift+enter (soft, same paragraph); `paragraph_break` = real paragraph within the block (spacing). Enter creates a new bullet node.
+- **Line breaks (owner decision, 2026-09-25):** exactly one break token — `hard_break` = shift+enter, a line jump inside a block. **Enter always creates a new node** (a new bullet); there is no paragraph concept within a block and no `paragraph_break` token.
 - **Prose mode** (bullets hidden, indents flattened) is a VIEW transform, not content.
 
 Token set (zod schemas are the executable form, `src/content-mark.ts`):
@@ -47,8 +47,7 @@ Token set (zod schemas are the executable form, `src/content-mark.ts`):
 | `whiteboard` | `layout` | shapes/strokes/viewport |
 | `external_link` | `href`, `text` | |
 | `math` | `expression` | KaTeX source |
-| `hard_break` | — | shift+enter |
-| `paragraph_break` | — | paragraph within block |
+| `hard_break` | — | shift+enter line jump; Enter creates a new node |
 
 Typed-link rule: a typed link is a **mark on a prose word** (01-knowledge-model.md §9) — nothing is inserted; the word you wrote is the annotation. Delete the word and the mark dies with it; marks ride inside the CRDT-synchronized content (per-node `Y.Text` over the serialized token array — v1 port; canonical wire carrier `contentDeltaB64`, readable carrier `contentAst`). Plaintext for FTS is derived by the applier, never stored as truth. Per-field CRDTs remain a documented M3+ option if real-time collaboration ever demands finer granularity.
 
