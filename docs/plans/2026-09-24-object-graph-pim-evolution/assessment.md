@@ -979,6 +979,7 @@ Owner question (2026-09-25): can the editor reach parity with Logseq/Tana/Notion
 | Feature | Stage | Basis |
 |---|---|---|
 | Outliner core (bullets, indent/outdent reparent, collapse) | M1 | `01` §5; port v1 `BlockList` + collapse state |
+| Core editing mechanics (slash commands, markdown autoformat, find/replace, keyboard nav, undo/redo) | M1 | All v1 ports (`InlineTriggers`, `convertMarkdownInAST`, `BlockFindReplacePlugin`, `UndoManager`) — the unglamorous 80%, scheduled so it isn't assumed |
 | Responsiveness / virtualization | M1 (non-negotiable) | Port v1 `@tanstack/react-virtual` + GraphQuery incremental invalidation |
 | Reorder/reparent convergence | M1 | TreeCrdt + fractional positions (v1 machinery) |
 | Drag & drop (blocks, cross-tree) | M1 port → M2 Notion-grade polish | v1 dnd-kit block DnD; feel polish is effort, not research |
@@ -991,3 +992,19 @@ Owner question (2026-09-25): can the editor reach parity with Logseq/Tana/Notion
 | Long-form writing feel | carried risk | Deliberate bet against document-mode editors; checkpoint per `00-INDEX` known risks |
 
 **Plan deltas:** none structural. The one load-bearing addition is block-level content tokens (embed/query/asset/whiteboard) in the content grammar — owed work in `SCHEMA.md`, scheduled before the M2 items that depend on them. The plan's package layout already isolates this: `packages/editor` owns the AST + editor; `packages/store`/`packages/query` serve every projection uniformly.
+
+### 34.11 Competitive sweep verdict (2026-09-25)
+
+Full sweep of the agreed model — data model, editor, properties, parenting, inheritance — against Obsidian, Logseq 2.0 DB, Capacities, and Tana (verified states per `v2/docs/design/03-paradigm-assessment.md`). Verdicts are model-capability verdicts; maturity/ecosystem deficits are execution gaps, expected for a greenfield, and are listed separately.
+
+| Axis | Verdict |
+|---|---|
+| Data model | **≥ all four.** Wins: block identity (Obsidian is file-granular), typed discourse verbs (nobody has them), unified edge index, agent surface from day one, local-first + E2EE slot, classes-as-nodes (Logseq DB kept classes separate — our v1 mistake, reverted). Losses: file-editability (traded for semantic fidelity; export-first-class compensates), Datalog expressiveness (deliberate trade — QueryAST→SQL is agent-readable), Tana's schema-at-capture maturity (create-and-bind is owed work). |
+| Editor | **Parity = port-and-polish program, not research.** Virtualization, DnD, slash commands, markdown autoformat, find/replace, undo, keyboard nav, in-editor queries, asset rendering, collapse — all v1 ports (§34.10). Named gaps: zoom into bullet (owed), embeds/transclusion (the one genuinely new build), Notion-grade DnD feel (M2). Flashcards/SR exists in v1 as a plugin — M3 plugin candidate. |
+| Properties | **≥ all four.** Typed registry with 11 value types incl. m2o/m2m + `targetClassFilter`; per-value `metadata` qualifiers (`since`, `locator`) — unique; multi-value, options, required/readonly/hide-when-empty, per-binding defaults, validation rules, QueryAST `prop:` conditions + aggregations. Gaps registered: property-schema CRUD UX (owed); computed/formula language = **deferred owner decision** (not a silent gap). |
+| Parenting | **≥ all four.** Blocks as first-class tree citizens (Capacities has no block model), forest of roots (Tana enforces a single tree), soft kind with identity-preserving promotion (unique), TreeCrdt drag-reparent, and the unique `refset` propagation — backlink roll-up + inherited-link filtering (Logseq's linked-references filter generalized tree-recursively). |
+| Inheritance | **> all four — outright differentiator.** None of the four has class inheritance with property-binding resolution. Ours: multiple inheritance from M1, `extends` as m2m node-typed property, derived closure, effective membership = own ∪ ancestors, deterministic binding resolution, fail-loud cycles. Owed: normative closure/binding statement (SCHEMA.md). |
+
+**Conscious divergences (rejections, not gaps):** Datalog; curated type catalogs (design law); bundled AI features (scope-excluded — agent surface is our answer); files-as-truth; mobile/collab (M-tier; the substrate already supports both).
+
+**Sweep outcome:** no model-level retreat is required to reach parity-or-better on any axis. The gap register from this sweep (property CRUD UX, create-and-bind, formula-language decision, template instantiation, zoom, embeds) is recorded in `SCHEMA.md` owed work and §34.10 — the sweep's purpose was to ensure nothing a competitor ships is silently absent from our schedule.
