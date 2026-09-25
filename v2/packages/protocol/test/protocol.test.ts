@@ -6,14 +6,13 @@ import { fileURLToPath } from "node:url";
 import {
   Clock,
   compareHlc,
+  contentAstSchema,
   envelopeSchema,
-  isSeedRelationSchemaId,
+  extractTypedLinkMarks,
   KNOWN_OP_TYPES,
   newEnvelope,
   payloadSchemaFor,
   PROTOCOL_VERSION,
-  RELATION_SCHEMA_SEEDS,
-  relationSchemaByName,
 } from "../src/index.js";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
@@ -38,17 +37,17 @@ function loadFixtures(): FixtureFile[] {
     });
 }
 
-describe("canonical fixtures (RELATIONS.md)", () => {
+describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has the five required fixtures", () => {
+  it("has exactly the five required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "envelope-minimal.json",
       "object-create.json",
-      "relation-concurrent-create.json",
-      "relation-create.json",
-      "relation-delete.json",
+      "property-set-lww.json",
+      "typed-link-mark-deleted.json",
+      "typed-link-mark.json",
     ]);
   });
 
@@ -68,51 +67,50 @@ describe("canonical fixtures (RELATIONS.md)", () => {
           const parsed = schema!.safeParse(raw.payload);
           expect(parsed.success, JSON.stringify(parsed.error?.issues, null, 2)).toBe(true);
         });
-
-        if ((raw.opType as string).startsWith("relation.")) {
-          it(`envelope ${i} references a seeded relation schema UUID`, () => {
-            const schemaId = (raw.payload as Record<string, unknown>).relationSchemaId;
-            if (schemaId !== undefined) {
-              expect(isSeedRelationSchemaId(schemaId as string)).toBe(true);
-            }
-          });
-        }
       }
     });
   }
 
-  it("relation-create fixture cites the seeded 'cites' schema with a locator", () => {
-    const fixture = fixtures.find((f) => f.name === "relation-create.json")!;
-    const payload = fixture.envelopes[0]!.payload as Record<string, unknown>;
-    const cites = relationSchemaByName("cites")!;
-    expect(payload.relationSchemaId).toBe(cites.id);
-    expect(payload.properties).toEqual({ locator: "p. 42" });
+  it("typed-link-mark carries a verb mark with locator and record-don't-resolve spans", () => {
+    const fixture = fixtures.find((f) => f.name === "typed-link-mark.json")!;
+    const payload = fixture.envelopes[0]!.payload as {
+      contentAst: unknown;
+    };
+    const ast = contentAstSchema.parse(payload.contentAst);
+    const marks = extractTypedLinkMarks(ast);
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toMatchObject({
+      verb: "cites",
+      text: "cites",
+      metadata: { locator: "p. 42", candidateSpans: ["tok_3", "tok_7"] },
+    });
   });
 
-  it("concurrent-create fixture races the same triple with distinct ids", () => {
-    const fixture = fixtures.find((f) => f.name === "relation-concurrent-create.json")!;
+  it("typed-link-mark-deleted removes the mark with its word (honest lifecycle)", () => {
+    const fixture = fixtures.find((f) => f.name === "typed-link-mark-deleted.json")!;
+    const payload = fixture.envelopes[0]!.payload as { contentAst: unknown };
+    const ast = contentAstSchema.parse(payload.contentAst);
+    expect(extractTypedLinkMarks(ast)).toHaveLength(0);
+  });
+
+  it("property-set-lww races the same slot; higher HLC is the LWW winner", () => {
+    const fixture = fixtures.find((f) => f.name === "property-set-lww.json")!;
     const [a, b] = fixture.envelopes;
-    const pa = a!.payload as Record<string, unknown>;
-    const pb = b!.payload as Record<string, unknown>;
-    expect(pa.sourceId).toBe(pb.sourceId);
-    expect(pa.relationSchemaId).toBe(pb.relationSchemaId);
-    expect(pa.targetId).toBe(pb.targetId);
-    expect(pa.relationId).not.toBe(pb.relationId);
-  });
-});
-
-describe("seed relation schemas (RELATIONS.md §0)", () => {
-  it("are ten, with unique fixed ids and names", () => {
-    expect(RELATION_SCHEMA_SEEDS).toHaveLength(10);
-    const ids = new Set(RELATION_SCHEMA_SEEDS.map((s) => s.id));
-    const names = new Set(RELATION_SCHEMA_SEEDS.map((s) => s.name));
-    expect(ids.size).toBe(10);
-    expect(names.size).toBe(10);
+    const pa = a!.payload as { propertySchemaId: string; idx: number; value: { nodeId: string } };
+    const pb = b!.payload as { propertySchemaId: string; idx: number; value: { nodeId: string } };
+    expect(pa.propertySchemaId).toBe(pb.propertySchemaId);
+    expect(pa.idx).toBe(pb.idx);
+    expect(pa.value.nodeId).not.toBe(pb.value.nodeId);
+    const hlcA = (a!.hlc as { physical: number; logical: number }) ?? { physical: 0, logical: 0 };
+    const hlcB = (b!.hlc as { physical: number; logical: number }) ?? { physical: 0, logical: 0 };
+    expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
   });
 
-  it("live in the reserved 00000000-0000-0000-0004-… block", () => {
-    for (const seed of RELATION_SCHEMA_SEEDS) {
-      expect(seed.id).toMatch(/^00000000-0000-0000-0004-/);
+  it("no fixture payload carries a relation op or seeded relation vocabulary", () => {
+    for (const fixture of fixtures) {
+      for (const env of fixture.envelopes) {
+        expect(String(env.opType)).not.toMatch(/^relation\./);
+      }
     }
   });
 });
@@ -153,12 +151,22 @@ describe("envelope v2", () => {
       deviceId: "laptop",
       client: "agent:scout",
       hlc: { physical: 1, logical: 0 },
-      opType: "relation.create",
+      opType: "property.set",
       payload: {},
     });
     expect(env.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(env.client).toBe("agent:scout");
     expect(env.deviceId).toBe("laptop");
+  });
+
+  it("object.update rejects two simultaneous content carriers", () => {
+    const schema = payloadSchemaFor("object.update")!;
+    const parsed = schema.safeParse({
+      objectId: "0192a000-0000-7000-8000-000000000010",
+      contentAst: [],
+      contentDeltaB64: "AA==",
+    });
+    expect(parsed.success).toBe(false);
   });
 });
 
