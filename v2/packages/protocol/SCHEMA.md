@@ -12,7 +12,7 @@ Status: **stub — owed-work register, normative only where marked OWED→DONE.*
 - [ ] **Link analytics ("node links table")** — `node_link` assertion rows carry per-link: stable link UUID, `sourceId`, `targetId`, `createdAt`, `updatedAt`, `clickCount`, `lastNavigatedAt` (v1 port; ASSERTIONS category in `01` §3). Granular per-visit history (`link_visit`: link id, actor, timestamp) is a DERIVED log scheduled with M2 statistics/aging — derived means zero protocol cost.
 - [ ] **Class-chip lint** — with render-only chips (below), a lint may suggest "chip present but node not classed — assign?"; suggestion only, never enforcement (design law).
 - [ ] **RECORD, DON'T RESOLVE** *(adopted amendment, 2026-09-25)* — typed-link capture MUST record candidate target spans as an **ordered list of token IDs** in token metadata; nothing smarter. No scoring, no filtering at capture: deferring the *resolution rule* to M2 is sound, deferring the *recording* is data loss — the sentence context present at capture time is irrecoverable later. Candidates give M2 real data to design against.
-- [ ] **Deletion/restore semantics** — node deletion trashes its subtree (v1 precedent, `01` §12 soft-delete + retention); unspecced corners: whether deleting a parent orphans children to workspace roots or trashes with it (recommend: trash the subtree — restore is whole-tree); restoring a node whose parent was permanently deleted (recommend: reparent under the containing page — nearest `is_page` ancestor, tree-derived — else workspace root); the page listing is `WHERE is_page = true` — class exclusion is structural (classes carry `is_page=false`).
+- [ ] **Deletion/restore semantics** — node deletion trashes its subtree (v1 precedent, `01` §12 soft-delete + retention); unspecced corners: whether deleting a parent orphans children to workspace roots or trashes with it (recommend: trash the subtree — restore is whole-tree); restoring a node whose parent was permanently deleted (recommend: reparent under the containing page — nearest `page`-type ancestor, tree-derived — else workspace root); the page listing is `WHERE node_type='page'` — class exclusion is structural (classes are `node_type='class'`).
 - [ ] `extends` closure + binding-resolution normative statement (own → shortest extends-path → earliest HLC; cycles fail-loud).
 - [ ] **Content serialization for export** — token-set→Markdown mapping table (§34.12 Tier 2): UUID filenames, frontmatter, `#tag` chips, `[[mentions]]`, `![[uuid]]` embeds, ` ```query ` blocks, whiteboard sidecars, asset manifests, workspace UUID manifest.
 - [ ] **Property-schema CRUD UX + create-and-bind** — Tana-grade schema-at-capture (the sweep's make-or-break gesture); property panel, table columns, structured views.
@@ -60,29 +60,33 @@ Storage of the token array: the block node's content serializes into its per-nod
 
 ---
 
-## Node structure — `is_page` and class-ness (NORMATIVE, owner amendment 2026-09-25, Revision 10)
+## Node structure — `node_type` (NORMATIVE, bullet-proof schema, Revision 10 final)
 
-`is_page` replaces both the `kind` field and the briefly-considered `page_id` column (Revision 9 superseded). Two single-sourced axes, plus the reserved class predicate:
+The three structural roles are **one enumeration, schema-enforced** — illegal states are unrepresentable, not guarded:
 
-- **Placement lives only in the tree** (`parent_id`). A cross-page move updates nothing but the parent edge (+ order) — no cascades, no second representation of "where this block lives".
-- **Page-ness lives only in `is_page`** (LWW boolean, flippable): true = the node IS a page. View chrome derives from it (true → page view; false → focused block view). Promotion/demotion = flip in place — identity, links, children preserved.
-- **Children are always created `is_page=false`** (child of a page or of a block is a block). **Nested pages** = a child with `is_page` flipped true — renders as a bullet in the parent's list, opens in page view (Logseq behavior).
-- **Workspace root admits only `is_page=true` nodes** (fail-loud) → every block's ancestor chain provably contains a page.
-- **"Containing page of B"** = nearest ancestor with `is_page=true` — an upward walk, v1-proven: the QueryAST compiler emits it as a `WITH RECURSIVE page_ancestors` CTE. **"Content of page P"** = subtree of P (downward recursion, v1 `GetNodeTreeQuery`).
-- **"Blocks inside page Y at any level"** (scoped backlinks) = subtree CTE from Y joined against the edge index — a v1 `specific_pages` scope port; read cost O(subtree), write cost zero. If ever measured too slow for a hot path, an ancestor-closure read model is a *derived* optimization (no protocol change) — build when profiled, not before.
-- **Page listing** = `WHERE is_page = true` — classes carry `is_page=false`, so class exclusion from page listings is structural, not a projection rule.
-- **Class-ness**: `is_class(n) := SYSTEM_CLASS_UUIDS["class"] ∈ n.class_ids` — the reserved system class is a type-of-types constant (seeded, fixed UUID, runtime-guarded), not user vocabulary. Self-referential but not viciously circular: user classes are *instances* of the system `class`; the base case is seeded. The `class` class is system-protected. **A class is a page that is classed as `class`** — the classing gesture requires `is_page=true` (fail-loud; same pattern as class-parenting rejection), and demoting a class node is rejected (classes are removed by deletion, not demotion). The list of classes is a **derived read model** (`class_list`: node_id, name, icon, member counts; applier-maintained, wipe → replay → identical) — authority stays on the node; the table is ergonomics. Derived-store membership is materialized per-row (v1 `class_member_set` shape), so `is_class(n)` and the "exclude classes from content projections" check are indexed lookups, not JSON scans.
-- **View resolution = f(node):** `is_class` → **Class View** (page chrome — header, icon, color — plus property-bindings editor, `extends`/inheritance section, classed-nodes section, template slot, description shelf); else `is_page` → Page View; else → Focused Block View. Class and whiteboard views/presentations are **view-registry overrides** (v1 pattern) — one mechanism.
-- **Whiteboard:** `whiteboard` system class + content token; fullscreen = `is_page` true; embedded = child of **any block** with `is_page` false; cards are its children. General rule: what-it-is lives in class, specialized data lives in tokens/assertion rows — never new kinds or flags.
+- `node_type ∈ {page, block, class}`, NOT NULL (the applier defaults it by context: workspace root → page, child → block). The three axes are: **`node_type`** (structural role) × **`parent_id`** (placement) × **`class_ids`** (domain typing — whiteboard, meeting, …).
+- **CHECK constraints enforce placement at the database level (single-row):** a block can never be parentless (`node_type='block' ⇒ parent_id IS NOT NULL`); a class is always tree-external (`node_type='class' ⇒ parent_id IS NULL`). A parentless node is therefore always a page or a class — the "drifted block with no parent" state cannot exist. The one cross-row rule (a class may not be a **parent**) remains an applier move-guard (fail-loud) — cross-row constraints cannot be CHECKs.
+- **Placement lives only in the tree:** a cross-page move updates nothing but the parent edge (+ order) — no cascades, no second representation of "where this block lives".
+- **View resolution = f(node_type), full stop:** `class` → Class View (page chrome + property-bindings editor + `extends`/inheritance section + classed-nodes section + template slot + description shelf) · `page` → Page View · `block` → Focused Block View.
+- **Nested pages** keep `node_type='page'` — they open in Page View and render in the parent's **dedicated Child pages section** (a blocks-list projection), *not* inline in the parent's body block list (projection rule 3 below).
+- **Promotion/demotion = `UPDATE node_type` block↔page** (one op, in place, identity preserved). **Declaring a class = set `node_type='class'`** — declaration-first: users create classes, configure them (bindings, `extends`, icon, description), and use them later or never; undeclaring returns the node to an ordinary note with inert config.
+- **Listings:** pages = `WHERE node_type='page'`; classes = the derived `class_list` read model keyed on `node_type='class'` (applier-maintained, wipe → replay → identical; authority on the node — explicitly NOT a stored registry: no shadow split, no new op type). The reserved system `class` node remains as hierarchy root / Classes-UI anchor, not the predicate.
+- **Queries:** "containing page of B" = nearest `page`-type ancestor (v1 `page_ancestors` CTE); "blocks inside page Y at any level" = subtree CTE from Y joined against the edge index (v1 `specific_pages` scope port) — read O(subtree), write zero; an ancestor-closure read model is a *derived* optimization only if profiling demands it.
+- **Whiteboard:** `whiteboard` system class + content token; fullscreen = `node_type='page'`, embedded = child of any block with `node_type='block'`; cards are its children. General rule: what-it-is lives in class, specialized data lives in tokens/assertion rows — never new kinds or flags.
 
 ## Projection-reclassification rules (NORMATIVE, 2026-09-25)
 
 In a node's body block-list, exclude direct children that are:
 
-1. **classed with the parent node itself** — a class's classed instances render in the classed-nodes section (the Meetings pattern), not the body; or
-2. **targets of the parent's node-typed property values** — carrier blocks render in the properties panel, not the body.
+1. **classed with the parent node itself** — a class's classed instances render in the classed-nodes section (the Meetings pattern), not the body;
+2. **targets of the parent's node-typed property values** — carrier blocks render in the properties panel, not the body; or
+3. **`node_type='page'`** — child pages render in the **dedicated Child pages section** (a blocks-list projection that opens them in Page View), not inline in the body.
 
-Both are derived (the applier recomputes them; wipe → replay → identical), never stored flags. One mechanism, two uses. Everything else about the children — queries, backlinks, `refset` roll-up, focused view — is unaffected.
+All three are derived (the applier recomputes them; wipe → replay → identical), never stored flags. One mechanism, three uses. Everything else about the children — queries, backlinks, `refset` roll-up, focused view — is unaffected.
+
+## System sections (v1 port, M1 requirement)
+
+Predefined page sections are **named system queries** over the QueryAST runtime (v1 `autoFixSystemQuery` pattern), not bespoke UI: **linked references, unlinked references, child pages, classed nodes, extended-by** ship with fixtures like any op type, and the section registry is plugin-extensible (M3). Owed: the system-query registry, section fixtures, and the per-section projection rules above wired in.
 
 ## Node-backed text properties (NORMATIVE, 2026-09-25)
 
