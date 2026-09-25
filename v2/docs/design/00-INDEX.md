@@ -1,0 +1,56 @@
+# Notees Greenfield — Design Stack (handoff to the design-plan agent)
+
+**What this is:** the complete, converged design documentation for the Notees greenfield rewrite, assembled 2026-09-25. Read this index first; it tells you what is normative, what is settled (do not reopen), what is deferred (do not spec), and how the documents relate.
+
+**Status:** model converged after a two-day owner–architect design session. Your job is the *design plan* (architecture, modules, milestones, task breakdown) — the *model decisions are already made*. Where the design plan needs a model detail that is not in these documents, flag it as an open question; do not invent a competing model.
+
+## Normativity & precedence
+
+- **`01-knowledge-model.md` is normative for the model.** On any model question, `01` wins over every other document — including the evolution/greenfield plan (`docs/plans/2026-09-24-object-graph-pim-evolution/assessment.md`) and the v1 evidence (`90-`/`91-`).
+- **The plan is normative for process** — milestones (M1/M2/M3), the blocking fixture/convergence gate, spikes, and review discipline. The two artifacts cross-reference each other; neither silently overrides the other. On process conflicts the plan wins; on model conflicts `01` wins.
+- **2026-09-25 amendments adopted with the model:** (a) *record, don't resolve* — typed-link capture records candidate target spans (an ordered list of token IDs, nothing smarter; no scoring or filtering at capture, which would smuggle a resolution rule back in) as a first-class owed-work item for `SCHEMA.md`; (b) the fixture re-encoding gate stays blocking against the new model, and the deleted relation fixtures are replaced with typed-link-mark fixtures exercising the same acceptance scenarios — the gate must not silently shrink.
+
+---
+
+## Reading order
+
+1. **`01-knowledge-model.md`** — **NORMATIVE.** The definitive model statement. Every design-plan artifact must be consistent with it. 17 sections: one-sentence model, layer diagram (mermaid), five storage categories, three orthogonal axes (class / parent / soft kind), the outliner block model, classes-as-nodes, configuration registry, three information layers + tree link propagation, typed-link UX contract, properties-optional constraint, where knowledge lives, identity/conflict rules, the design law, workflow examples, paradigm position, milestone tiers (M1/M2/M3), confidence.
+2. **`02-model-assessment.md`** — **ADVISORY (decision history + confidence ledger).** Why each decision was made (incl. the v1 class-split post-mortem and the 2026-09-25 relations rethink), what is high/medium confidence, and the owed-work list that your design plan must schedule. Use it to understand *intent*; never let it override `01`.
+3. **`03-paradigm-assessment.md`** — **ADVISORY (external validation).** Verified 2026 state of Obsidian / Logseq 2.0 DB / Capacities / Tana, the validation map (who proved which decision), their wounds → our rules, and §13: the feature matrix + copy-list that feeds UX/frontend planning.
+4. **`04-knowledge-model-diagram.png`** — visual companion to `01` §2. Boxes are current; regenerate from `knowledge-model-diagram.py` (sibling of this stack) if the model changes.
+5. **`90-notes-local-first.txt` / `91-notes-local-first-v2.txt`** — **BACKGROUND EVIDENCE ONLY.** The original v1 assessment attachments (Revisions 3/4), ~95 KB each. The v1 plan, its risks, and its machinery inventory. Consult for *what v1 proved and what it cost* (esp. sync machinery to port: TreeCrdt, fractional positions, HLC, op ingest). Where they conflict with `01`, **`01` wins** — the model was re-converged after these were written (e.g., relation entities were dropped; classes were re-merged into the node table).
+
+---
+
+## Settled — hard constraints, do not reopen
+
+- **One `node` table** for all entities (objects, blocks, classes, collections, asset metadata). UUIDv7 identity everywhere.
+- **Three orthogonal axes:** `class_ids` (what it is) · `parent_id` (tree) · soft `kind: page|block` (`page` = query `kind='page' OR parent_id IS NULL`). Promotion = flip kind; identity preserved.
+- **Classes are nodes, tree-external:** `parent_id` always NULL on classes; `node.move` rejects class parenting (fail-loud); content projections exclude classes by default (projection default, not schema restriction). Content shelf = description only; the Meetings pattern for instance content.
+- **`extends` = m2m node-typed property** on class nodes; multiple inheritance from M1; derived `class_hierarchy` closure; binding resolution: own → shortest extends-path → earliest HLC; cycles fail-loud.
+- **No relation entities.** Three information layers (node-typed properties / typed-link word marks / plain prose) feed **one derived `edge` index**.
+- **Typed links are marks on prose words** — nothing inserted; verb = property-schema ref or free string; pill only as escape hatch. **Target resolution is DEFERRED** (M2, designed with usage data) — the mark records the verb only; no resolution rule is specced, and the "nearest mention" heuristic was explicitly rejected.
+- **Link propagation:** backlinks roll up to the *target's* ancestors; filtering uses `refset(n) = own_links(n) ∪ refset(parent(n))` (recursive; containment in a page counts; backlinks list actual links but accept facets over inherited links). Inheritance governs filtering, not membership.
+- **Properties optional by constraint** — no core flow depends on them; promotion gesture + lints, never auto-inference.
+- **Editor = Logseq-style outliner** (bullets; each bullet a block is a node; indent/outdent reparents; reorder via fractional positions + TreeCrdt — v1 machinery ports).
+- **Op log is the only authority**; LWW-by-HLL scalars, OR-Set add-wins membership/m2m, Yjs CRDT only for collaborative text/tree. Device state never ops.
+- **Design law:** usage predictions become defaults/lints/views, never schema prohibitions. **No seeded relation vocabulary**; seeds = classes + v1's system property schemas only.
+- **M1 adds columns, tokens, and an editor — no new sync primitive.** Sync core is ported v1 machinery and is the blocking acceptance gate.
+
+## Deferred / open — do NOT spec in the design plan; register only
+
+1. Typed-link target-resolution semantics (M2).
+2. Whether classes propagate down the tree for filtering (flagged, owner hasn't decided).
+3. `has-template` placement (node-typed property proposal; owner not yet explicit).
+4. Fan-out at projection vs traversal at query time for refset/roll-up (implementation choice; spike in M1).
+
+## Known risks the plan must carry
+
+- **Typed-link capture friction** — the create-and-bind gesture is make-or-break; the plan needs a UX spike early in M1.
+- **Outliner long-form feel** — the deliberate bet against document-mode editors; plan should include a writing-experience checkpoint.
+- **Scale (S2 spike)** — blocks + classes as rows; edge-index size with roll-up; schedule the spike before M1 commitments harden.
+- **Fixture re-encoding** — v1 fixtures must be re-encoded against the new model; keep the gate blocking.
+
+## Provenance
+
+Written by the design agent in collaboration with the owner, 2026-09-24/25. Companion artifacts live in the same workspace: `knowledge-model-diagram.py` (diagram source), `notes-local-first*.txt` (v1 evidence, copied here as `90-`/`91-`).
