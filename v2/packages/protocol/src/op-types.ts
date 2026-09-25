@@ -18,7 +18,10 @@ const uuid = z.string().uuid();
 export const objectCreatePayload = z
   .object({
     objectId: uuid,
-    kind: z.enum(["page", "block"]),
+    /** Page-ness (owner amendment, Revision 10): true = the node IS a page.
+     * Optional in the payload — the applier defaults it (workspace root → true,
+     * child → false). Placement itself lives only in the tree (parent_id). */
+    isPage: z.boolean().optional(),
     classIds: z.array(uuid).default([]),
     name: z.string().max(1024).optional(),
     contentAst: z.array(z.unknown()).optional(),
@@ -29,6 +32,8 @@ export const objectCreatePayload = z
 export const objectUpdatePayload = z
   .object({
     objectId: uuid,
+    /** Flipping is_page = promotion/demotion (identity preserved). */
+    isPage: z.boolean().optional(),
     name: z.string().max(1024).optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
