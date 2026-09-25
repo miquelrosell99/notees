@@ -18,10 +18,13 @@ const uuid = z.string().uuid();
 export const objectCreatePayload = z
   .object({
     objectId: uuid,
-    /** Page-ness (owner amendment, Revision 10): true = the node IS a page.
-     * Optional in the payload — the applier defaults it (workspace root → true,
-     * child → false). Placement itself lives only in the tree (parent_id). */
-    isPage: z.boolean().optional(),
+    /** Structural role (Revision 10, bullet-proof schema): exactly one of
+     * page | block | class — the database enforces placement invariants with
+     * CHECK (a block can never be parentless; a class is always tree-external).
+     * Optional in the payload — the applier defaults it by context
+     * (workspace root → page, child → block). Placement itself lives only in
+     * the tree (parent_id). Domain typing (whiteboard, meeting, …) is class_ids. */
+    nodeType: z.enum(["page", "block", "class"]).optional(),
     classIds: z.array(uuid).default([]),
     name: z.string().max(1024).optional(),
     contentAst: z.array(z.unknown()).optional(),
@@ -32,8 +35,9 @@ export const objectCreatePayload = z
 export const objectUpdatePayload = z
   .object({
     objectId: uuid,
-    /** Flipping is_page = promotion/demotion (identity preserved). */
-    isPage: z.boolean().optional(),
+    /** Flipping nodeType block↔page = promotion/demotion (identity preserved);
+     * setting 'class' = declare the node a class (declaration-first). */
+    nodeType: z.enum(["page", "block", "class"]).optional(),
     name: z.string().max(1024).optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
