@@ -44,8 +44,13 @@ function loadFixture(name: string): Record<string, unknown>[] {
   return Array.isArray(raw.envelopes) ? raw.envelopes : [raw as Record<string, unknown>];
 }
 
+/** Fixtures whose application must THROW — never part of the all-fixtures
+ * replay/determinism sets (class-extends-cycle.json closes cycles and fails
+ * loud by design; it is applied deliberately in its own test). */
+const REPLAY_EXCLUDED_FIXTURES = new Set(["class-extends-cycle.json"]);
+
 function allFixtureEnvelopes(): Record<string, unknown>[] {
-  return FIXTURE_FILES.flatMap(loadFixture);
+  return FIXTURE_FILES.filter((f) => !REPLAY_EXCLUDED_FIXTURES.has(f)).flatMap(loadFixture);
 }
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -389,8 +394,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("class.create", { classId: a, name: "Source" }, 1727200001000));
       store.apply(env("class.create", { classId: b, name: "Work" }, 1727200001100));
       store.apply(env("class.create", { classId: c, name: "Annotation" }, 1727200001200));
-      store.apply(env("class.setExtends", { classId: b, parentClassId: a }, 1727200001300));
-      store.apply(env("class.setExtends", { classId: c, parentClassId: b }, 1727200001400));
+      store.apply(env("class.setExtends", { classId: b, parentClassIds: [a] }, 1727200001300));
+      store.apply(env("class.setExtends", { classId: c, parentClassIds: [b] }, 1727200001400));
       const closure = store.database
         .prepare("SELECT class_id, ancestor_id FROM class_hierarchy ORDER BY class_id, ancestor_id")
         .all();
@@ -403,11 +408,110 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         { class_id: c, ancestor_id: c },
       ]);
       expect(() =>
-        store.apply(env("class.setExtends", { classId: a, parentClassId: c }, 1727200001500)),
+        store.apply(env("class.setExtends", { classId: a, parentClassIds: [c] }, 1727200001500)),
       ).toThrow(CycleError);
       expect(() =>
-        store.apply(env("class.setExtends", { classId: a, parentClassId: a }, 1727200001500)),
+        store.apply(env("class.setExtends", { classId: a, parentClassIds: [a] }, 1727200001500)),
       ).toThrow(CycleError);
+    });
+
+    it("class-extends-m2m fixture: multiple parents land the child under BOTH ancestors", () => {
+      const store = makeStore();
+      store.applyMany(loadFixture("class-extends-m2m.json"));
+      const a = "0192a000-0000-7000-8000-0000000000c5";
+      const b = "0192a000-0000-7000-8000-0000000000c6";
+      const c = "0192a000-0000-7000-8000-0000000000c7";
+      // Direct edge set is exactly the payload array.
+      const edges = store.database
+        .prepare(
+          "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+        )
+        .all(c) as { parent_class_id: string }[];
+      expect(edges.map((e) => e.parent_class_id)).toEqual([a, b].sort());
+      // C ∈ descendants-of-A AND descendants-of-B (diamond closure rows).
+      const ancestorsOfC = store.database
+        .prepare(
+          "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? ORDER BY ancestor_id",
+        )
+        .all(c) as { ancestor_id: string }[];
+      expect(ancestorsOfC.map((r) => r.ancestor_id)).toEqual([a, b, c].sort());
+      for (const parent of [a, b]) {
+        const descendants = store.database
+          .prepare(
+            "SELECT class_id FROM class_hierarchy WHERE ancestor_id = ? ORDER BY class_id",
+          )
+          .all(parent) as { class_id: string }[];
+        expect(descendants.map((r) => r.class_id)).toContain(c);
+      }
+    });
+
+    it("class-extends-cycle fixture throws the cycle error on apply", () => {
+      const [root, leaf, leafExtendsRoot, rootExtendsLeaf, rootExtendsRootSelf] = loadFixture(
+        "class-extends-cycle.json",
+      );
+      const rootId = "0192a000-0000-7000-8000-0000000000d1";
+      const leafId = "0192a000-0000-7000-8000-0000000000d2";
+      const store = makeStore();
+      // The prefix applies cleanly.
+      store.applyMany([root!, leaf!, leafExtendsRoot!]);
+      expect(
+        store.database
+          .prepare(
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? ORDER BY ancestor_id",
+          )
+          .all(leafId),
+      ).toEqual([{ ancestor_id: rootId }, { ancestor_id: leafId }]);
+
+      // Multi-hop cycle: Root extends [Leaf] with Leaf already under Root.
+      expect(() => store.apply(rootExtendsLeaf!)).toThrow(CycleError);
+      // Self-parent: Root extends [Root].
+      expect(() => store.apply(rootExtendsRootSelf!)).toThrow(CycleError);
+
+      // A thrown apply rolls back: the closure is exactly the prefix state.
+      expect(
+        store.database
+          .prepare(
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? ORDER BY ancestor_id",
+          )
+          .all(rootId),
+      ).toEqual([{ ancestor_id: rootId }]);
+      expect(
+        (store.database.prepare("SELECT COUNT(*) AS n FROM class_extends").get() as { n: number }).n,
+      ).toBe(1);
+    });
+
+    it("class.setExtends replace semantics: a second array removes stale closure rows", () => {
+      const store = makeStore();
+      store.applyMany(loadFixture("class-extends-m2m.json"));
+      const a = "0192a000-0000-7000-8000-0000000000c5";
+      const b = "0192a000-0000-7000-8000-0000000000c6";
+      const c = "0192a000-0000-7000-8000-0000000000c7";
+      const ancestorsOfC = () =>
+        (
+          store.database
+            .prepare(
+              "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? ORDER BY ancestor_id",
+            )
+            .all(c) as { ancestor_id: string }[]
+        ).map((r) => r.ancestor_id);
+
+      // Replace [A, B] with [B]: A is no longer reachable from C.
+      store.apply(env("class.setExtends", { classId: c, parentClassIds: [b] }, 1727200007000));
+      expect(ancestorsOfC()).toEqual([b, c]);
+      expect(
+        store.database
+          .prepare(
+            "SELECT class_id FROM class_hierarchy WHERE ancestor_id = ? AND class_id = ?",
+          )
+          .get(a, c),
+      ).toBeUndefined();
+
+      // Replace with []: detach all parents; only the self-row remains.
+      store.apply(env("class.setExtends", { classId: c, parentClassIds: [] }, 1727200007100));
+      expect(ancestorsOfC()).toEqual([c]);
+      expect(
+        (store.database.prepare("SELECT COUNT(*) AS n FROM class_extends").get() as { n: number }).n,
+      ).toBe(0);
     });
 
     it("re-applying the whole fixture set is idempotent (applied_envelope)", () => {
