@@ -9,6 +9,7 @@ import { createContext, useContext } from "react";
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
 import type {
+  BlockTreeNode,
   ClientNode,
   CreateObjectInput,
   DeleteObjectOptions,
@@ -38,8 +39,21 @@ export interface FocusRequest {
   caret: CaretPlacement;
 }
 
+/**
+ * Local read surface consumed by view projections (EmbedView): the live node,
+ * its subtree, and name resolution, plus the notify subscription that keeps a
+ * projection live. Satisfied by both WorkspaceClient and the WorkerClient
+ * proxy (same surface) — only the local cache is read, never the network.
+ */
+export interface OutlinerReader {
+  getNode(id: string): ClientNode | undefined;
+  getBlockTree(nodeId: string, depth?: number): BlockTreeNode[];
+  getDisplayName(id: string): string | null;
+  subscribe(listener: () => void): () => void;
+}
+
 export interface OutlinerContextValue {
-  client: OutlinerClient;
+  client: OutlinerClient & OutlinerReader;
   /** Sibling/parent facts for the current tree (keyboard gestures). */
   positions: OutlinePositionMap;
   /** Pending focus request, consumed by the targeted BlockRow. */

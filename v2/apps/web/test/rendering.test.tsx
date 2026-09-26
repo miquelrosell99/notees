@@ -135,7 +135,10 @@ describe("PageView rendering", () => {
     render(<PageView client={client} pageId={pageId} />);
 
     expect(screen.getByText("asset")).not.toBeNull();
-    expect(screen.getByText("embed")).not.toBeNull();
+    // embed_ref resolves live when a renderer is present; this target does not
+    // exist, so the broken-embed placeholder shows with the raw id visible.
+    expect(screen.getByText(/broken embed/)).not.toBeNull();
+    expect(screen.getByText("0192a000-0000-7000-8000-0000000000a2")).not.toBeNull();
     expect(screen.getByText("query")).not.toBeNull();
     expect(screen.getByText("whiteboard")).not.toBeNull();
     expect(screen.getByText("E = mc^2").tagName).toBe("CODE");

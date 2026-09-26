@@ -4,15 +4,22 @@
  * unknown tokens render nothing (never crash). Text marks map to
  * <strong>/<em>/<s>/<mark>/<code>; mentions and class chips render as chips
  * (names resolved through the optional resolveName callback, with graceful
- * fallbacks); quote recurses; block-scale tokens render as labeled
- * placeholder boxes.
+ * fallbacks); quote recurses; embed_ref renders the live subtree via the
+ * optional renderEmbed callback (placeholder box when absent); other
+ * block-scale tokens render as labeled placeholder boxes.
  */
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 export interface InlineTokensProps {
   tokens: readonly unknown[];
   resolveName?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Live embed renderer for `embed_ref` tokens (EmbedView). Injected by the
+   * row so this module stays pure; when absent, embed_ref falls back to the
+   * placeholder box.
+   */
+  renderEmbed?: ((nodeId: string) => ReactNode) | undefined;
 }
 
 function renderMarkedText(text: string, marks: readonly string[] | undefined): ReactNode {
@@ -50,7 +57,12 @@ function Placeholder({ label, detail }: { label: string; detail?: string | undef
   );
 }
 
-function renderToken(token: unknown, key: number, resolveName: InlineTokensProps["resolveName"]): ReactNode {
+function renderToken(
+  token: unknown,
+  key: number,
+  resolveName: InlineTokensProps["resolveName"],
+  renderEmbed: InlineTokensProps["renderEmbed"],
+): ReactNode {
   if (typeof token !== "object" || token === null) return null;
   const t = token as Record<string, unknown>;
   switch (t.type) {
@@ -103,7 +115,7 @@ function renderToken(token: unknown, key: number, resolveName: InlineTokensProps
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-quote">
-          <InlineTokens tokens={children} resolveName={resolveName} />
+          <InlineTokens tokens={children} resolveName={resolveName} renderEmbed={renderEmbed} />
         </span>
       );
     }
@@ -128,8 +140,13 @@ function renderToken(token: unknown, key: number, resolveName: InlineTokensProps
       return <br key={key} />;
     case "asset_ref":
       return <Placeholder key={key} label="asset" detail={typeof t.assetId === "string" ? t.assetId : undefined} />;
-    case "embed_ref":
-      return <Placeholder key={key} label="embed" detail={typeof t.nodeId === "string" ? t.nodeId : undefined} />;
+    case "embed_ref": {
+      const nodeId = typeof t.nodeId === "string" ? t.nodeId : "";
+      if (renderEmbed !== undefined && nodeId !== "") {
+        return <Fragment key={key}>{renderEmbed(nodeId)}</Fragment>;
+      }
+      return <Placeholder key={key} label="embed" detail={nodeId || undefined} />;
+    }
     case "query":
       return <Placeholder key={key} label="query" />;
     case "whiteboard":
@@ -140,10 +157,6 @@ function renderToken(token: unknown, key: number, resolveName: InlineTokensProps
   }
 }
 
-export function InlineTokens({ tokens, resolveName }: InlineTokensProps) {
-  return (
-    <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName))}
-    </>
-  );
+export function InlineTokens({ tokens, resolveName, renderEmbed }: InlineTokensProps) {
+  return <>{tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed))}</>;
 }

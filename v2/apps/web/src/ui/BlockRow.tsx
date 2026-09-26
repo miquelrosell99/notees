@@ -23,6 +23,7 @@ import type { BlockTreeNode } from "@/core/workspace-client.js";
 
 import { InlineTokens } from "./InlineTokens.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
+import { EmbedView } from "./EmbedView.js";
 import { useOutliner } from "./outliner-context.js";
 
 interface BlockRowProps {
@@ -76,7 +77,11 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
           {editing ? (
             <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
           ) : (
-            <InlineTokens tokens={node.contentAst} resolveName={resolveName} />
+            <InlineTokens
+              tokens={node.contentAst}
+              resolveName={resolveName}
+              renderEmbed={(id) => <EmbedView nodeId={id} />}
+            />
           )}
         </div>
       </div>
