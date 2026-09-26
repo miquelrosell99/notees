@@ -169,24 +169,11 @@ export const assetDetachPayload = z
   .strict();
 
 // --- collections -------------------------------------------------------------
-
-export const collectionCreatePayload = z
-  .object({
-    collectionId: uuid,
-    name: z.string().min(1).max(256),
-    queryAst: z.unknown().optional(),
-  })
-  .strict();
-
-export const collectionUpdatePayload = z
-  .object({
-    collectionId: uuid,
-    name: z.string().min(1).max(256).optional(),
-    queryAst: z.unknown().optional(),
-  })
-  .strict();
-
-export const collectionDeletePayload = z.object({ collectionId: uuid }).strict();
+// Reconciliation (SCHEMA.md owed work, decided 2026-09-26): collections ARE
+// nodes per 01 — created via object.create with the `collection` class. There
+// are deliberately NO collection.create/update/delete ops (that would be a
+// parallel write path to the node model). Only membership carries dedicated
+// ops; everything else is object.* + class assignments.
 
 export const collectionMemberAddPayload = z
   .object({ collectionId: uuid, objectId: uuid })
@@ -213,9 +200,6 @@ export const OP_PAYLOAD_SCHEMAS = {
   "property.unset": propertyUnsetPayload,
   "asset.attach": assetAttachPayload,
   "asset.detach": assetDetachPayload,
-  "collection.create": collectionCreatePayload,
-  "collection.update": collectionUpdatePayload,
-  "collection.delete": collectionDeletePayload,
   "collection.member.add": collectionMemberAddPayload,
   "collection.member.remove": collectionMemberRemovePayload,
 } as const;
