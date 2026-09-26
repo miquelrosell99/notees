@@ -17,6 +17,7 @@ import type {
   ClientNode,
   CreateObjectInput,
   DeleteObjectOptions,
+  ReferenceEntry,
   SyncStatusSnapshot,
   UpdateObjectInput,
 } from "./workspace-client.js";
@@ -176,6 +177,26 @@ export class WorkerClient {
 
   getBacklinks(id: string): ClientEdge[] {
     return this.cachedRead<ClientEdge[]>("getBacklinks", [id], []);
+  }
+
+  getLinkedReferences(id: string): ReferenceEntry[] {
+    return this.cachedRead<ReferenceEntry[]>("getLinkedReferences", [id], []);
+  }
+
+  getUnlinkedReferences(id: string): ReferenceEntry[] {
+    return this.cachedRead<ReferenceEntry[]>("getUnlinkedReferences", [id], []);
+  }
+
+  getChildPages(id: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getChildPages", [id], []);
+  }
+
+  getBacklinkCount(id: string): number {
+    return this.cachedRead<number>("getBacklinkCount", [id], 0);
+  }
+
+  getChildPageCount(id: string): number {
+    return this.cachedRead<number>("getChildPageCount", [id], 0);
   }
 
   // --- write API & sync (RPC; the worker's "changed" drives the cache refresh) --------
