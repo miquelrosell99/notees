@@ -49,7 +49,7 @@ Token set (zod schemas are the executable form, `src/content-mark.ts`):
 | `embed_ref` | `nodeId` | live subtree, never a clone; renderer cycle guard |
 | `quote` | `children` (inline tokens) | the only nested token |
 | `query` | `queryAst`, `view?` | block-scale live query |
-| `whiteboard` | `layout` | shapes/strokes/viewport. **A whiteboard node is defined by the `whiteboard` system class (what-it-is axis); this token carries its data.** Never a kind or a flag — the general rule: what-it-is always lives in class, specialized data lives in content tokens or assertion rows. Class↔token divergence is a lint suggestion, never a prohibition (design law). |
+| `whiteboard` | `layout` | shapes/strokes/viewport + per-card geometry. **A whiteboard node is defined by the `whiteboard` system class (what-it-is axis); this token carries geometry and shapes.** Never a kind or a flag — the general rule: what-it-is always lives in class, specialized data lives in content tokens or assertion rows. Class↔token divergence is a lint suggestion, never a prohibition (design law). See "Whiteboard modeling" below. |
 | `external_link` | `href`, `text` | |
 | `math` | `expression` | KaTeX source |
 | `hard_break` | — | shift+enter line jump; Enter creates a new node |
@@ -57,6 +57,14 @@ Token set (zod schemas are the executable form, `src/content-mark.ts`):
 Typed-link rule: a typed link is a **mark on a prose word** (01-knowledge-model.md §9) — nothing is inserted; the word you wrote is the annotation. Delete the word and the mark dies with it; marks ride inside the CRDT-synchronized content (per-node `Y.Text` over the serialized token array — v1 port; canonical wire carrier `contentDeltaB64`, readable carrier `contentAst`). Plaintext for FTS is derived by the applier, never stored as truth. Per-field CRDTs remain a documented M3+ option if real-time collaboration ever demands finer granularity.
 
 Storage of the token array: the block node's content serializes into its per-node CRDT; content ops (`object.create/update`) are the only write path — **no token type introduces a new op or sync primitive**.
+
+## Whiteboard modeling (NORMATIVE, 2026-09-26)
+
+- **Cards are child blocks of the whiteboard node** — full grammar (mentions, chips, typed links), backlinks, search indexing, focused view, classing. The whiteboard is a **spatial view of its subtree**: geometry (`x, y, w, h` per card) lives in the layout token **keyed by node id**; the tree holds content, the token holds geometry. The outliner can render the same children as bullets — same nodes, three views (spatial / outline / focused).
+- **Shapes (rectangles, circles, connectors, freehand strokes) are layout-token-only** — pure geometry, no identity, no node overhead.
+- **Rule: semantic text lives in cards, not shape labels.** A shape label is chrome; text that matters to the graph gets a card. A lint may suggest promoting a label to a card — suggestion, never prohibition.
+- **Dragging a card** = a layout-token update, debounced/coalesced into content ops (no per-mousemove op spam). All writes ride `object.update` — no new sync primitive.
+- **M3 collab caveat (deferred, additive):** the whole layout is one CRDT text; simultaneous drags converge at text level (fine for disjoint edits). If real-time collaboration ever makes that bite, splitting layout into its own CRDT field is an additive change — note it, don't build it now.
 
 ---
 
