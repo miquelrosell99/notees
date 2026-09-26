@@ -1,9 +1,10 @@
 /**
- * Transports: the fetch-based HTTP client (WIRE.md §1) and an in-process fake
- * relay (array-backed envelope log with server seq assignment) used by tests
- * and local development. The WebSocket client itself is deferred to the
- * server milestone; the Transport interface already exposes the optional
- * subscribe() surface the WS client will implement.
+ * Transports: the fetch-based HTTP client (WIRE.md §1) with the WebSocket
+ * acceleration path (WIRE.md §2), plus an in-process fake relay (array-backed
+ * envelope log with server seq assignment) used by tests and local
+ * development. The WS client is structural over a minimal WebSocket shape so
+ * the browser built-in is used in the app and the `ws` package in Node tests
+ * (injected via `webSocketImpl`).
  */
 
 import type { Envelope, Hlc } from "@notees/protocol";
@@ -25,6 +26,33 @@ export interface HttpTransportOptions {
   workspaceId: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  /** Injectable WebSocket (tests/Node); defaults to globalThis.WebSocket. */
+  webSocketImpl?: WebSocketImpl;
+  /** Reconnect backoff after abnormal closes; defaults to 1s,2s,5s,10s,30s. */
+  wsReconnectDelaysMs?: readonly number[];
+}
+
+/** WIRE.md §2 framing version; a newer one from the relay fails loud. */
+export const WS_PROTOCOL_VERSION = 2;
+
+const DEFAULT_WS_RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000] as const;
+
+// --- WebSocket (structural, so both the browser built-in and `ws` fit) ---------
+
+export interface WebSocketLike {
+  readonly readyState: number;
+  send(data: string): void;
+  close(code?: number, reason?: string): void;
+  onopen: ((event: unknown) => void) | null;
+  onclose: ((event: { code: number; reason: string; wasClean: boolean }) => void) | null;
+  onmessage: ((event: { data: unknown }) => void) | null;
+  onerror: ((event: unknown) => void) | null;
+}
+
+export type WebSocketImpl = new (url: string) => WebSocketLike;
+
+function defaultWebSocketImpl(): WebSocketImpl | null {
+  return (globalThis as { WebSocket?: WebSocketImpl }).WebSocket ?? null;
 }
 
 async function toTransportError(response: Response): Promise<TransportError> {
@@ -49,6 +77,8 @@ export class HttpTransport implements Transport {
   private readonly workspaceId: string;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
+  private readonly webSocketImpl: WebSocketImpl | null;
+  private readonly wsReconnectDelaysMs: readonly number[];
 
   constructor(options: HttpTransportOptions) {
     this.base = `${options.baseUrl.replace(/\/$/, "")}/api/relay/v2`;
@@ -56,6 +86,8 @@ export class HttpTransport implements Transport {
     this.workspaceId = options.workspaceId;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 60_000;
+    this.webSocketImpl = options.webSocketImpl ?? defaultWebSocketImpl();
+    this.wsReconnectDelaysMs = options.wsReconnectDelaysMs ?? DEFAULT_WS_RECONNECT_DELAYS_MS;
   }
 
   private async request(path: string, init: RequestInit = {}): Promise<Response> {
@@ -125,6 +157,168 @@ export class HttpTransport implements Transport {
       // Both Node ≥18 and DOM fetch accept it at runtime.
       body: bytes as unknown as NonNullable<RequestInit["body"]>,
     });
+  }
+
+  // --- WebSocket acceleration path (WIRE.md §2) --------------------------------
+
+  /**
+   * Subscribe to the workspace's realtime stream. Connects to
+   * `/api/relay/v2/ws/{workspaceId}?token=…`, dispatches frames to the
+   * handlers, reconnects with backoff after abnormal closes (the seq cursor in
+   * meta.ts is the authoritative recovery mechanism — the socket is only an
+   * accelerator), and fails loud when the relay speaks a newer framing
+   * version. The returned function stops the stream: pending reconnects are
+   * cancelled and the open socket is closed cleanly (code 1000, no reconnect).
+   */
+  subscribe(handlers: RealtimeHandlers): () => void {
+    if (this.webSocketImpl === null) {
+      throw new Error(
+        "HttpTransport.subscribe: no WebSocket available (pass webSocketImpl in Node)",
+      );
+    }
+    const url =
+      `${this.base.replace(/^http/, "ws")}/ws/${encodeURIComponent(this.workspaceId)}` +
+      `?token=${encodeURIComponent(this.apiKey)}`;
+    const delays = this.wsReconnectDelaysMs;
+
+    let stopped = false;
+    /** Fail-loud (newer framing): error emitted, socket closed, never reconnects. */
+    let failed = false;
+    let socket: WebSocketLike | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+
+    const failLoud = (message: string): void => {
+      failed = true;
+      handlers.onError?.(new Error(message));
+      const current = socket;
+      socket = null;
+      if (current !== null && current.readyState <= 1) {
+        try {
+          current.close(1000);
+        } catch {
+          // Already closing/closed.
+        }
+      }
+    };
+
+    const handleFrame = (raw: unknown): void => {
+      let frame: Record<string, unknown>;
+      try {
+        let text: string | null = null;
+        if (typeof raw === "string") {
+          text = raw;
+        } else if (raw instanceof ArrayBuffer) {
+          text = new TextDecoder().decode(raw);
+        } else if (ArrayBuffer.isView(raw)) {
+          text = new TextDecoder().decode(
+            new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength),
+          );
+        }
+        if (text === null) return;
+        const parsed: unknown = JSON.parse(text);
+        if (typeof parsed !== "object" || parsed === null) return;
+        frame = parsed as Record<string, unknown>;
+      } catch {
+        return; // Malformed frame: ignore, matching unknown-frame semantics.
+      }
+
+      const type = frame["type"];
+      if (type === "hello") {
+        const version =
+          typeof frame["wsProtocolVersion"] === "number"
+            ? (frame["wsProtocolVersion"] as number)
+            : 0;
+        if (version > WS_PROTOCOL_VERSION) {
+          failLoud(
+            `relay WS framing version ${version} is newer than supported ${WS_PROTOCOL_VERSION}`,
+          );
+          return;
+        }
+        attempt = 0; // Successful handshake: reset the backoff schedule.
+        handlers.onHello?.({
+          latestSeq: typeof frame["latestSeq"] === "number" ? frame["latestSeq"] : 0,
+          restoreEpoch:
+            typeof frame["restoreEpoch"] === "number" ? frame["restoreEpoch"] : 0,
+        });
+      } else if (type === "ops") {
+        const version =
+          typeof frame["wsProtocolVersion"] === "number"
+            ? (frame["wsProtocolVersion"] as number)
+            : 0;
+        if (version > WS_PROTOCOL_VERSION) {
+          failLoud(
+            `relay WS framing version ${version} is newer than supported ${WS_PROTOCOL_VERSION}`,
+          );
+          return;
+        }
+        const envelopes = Array.isArray(frame["envelopes"])
+          ? (frame["envelopes"] as Envelope[])
+          : [];
+        const seqs =
+          typeof frame["seqs"] === "object" && frame["seqs"] !== null
+            ? (frame["seqs"] as Record<string, number>)
+            : {};
+        handlers.onOps?.(envelopes, seqs);
+      } else if (type === "ack") {
+        handlers.onAck?.(Array.isArray(frame["savedIds"]) ? (frame["savedIds"] as string[]) : []);
+      } else if (type === "error") {
+        handlers.onError?.(
+          new Error(typeof frame["message"] === "string" ? frame["message"] : "relay error"),
+        );
+      }
+      // Unknown frame types are ignored (WIRE.md §2).
+    };
+
+    const connect = (): void => {
+      if (stopped || failed) return;
+      let conn: WebSocketLike;
+      try {
+        conn = new this.webSocketImpl!(url);
+      } catch (err) {
+        handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
+        scheduleReconnect();
+        return;
+      }
+      socket = conn;
+      conn.onopen = () => {};
+      conn.onmessage = (event) => handleFrame(event.data);
+      conn.onerror = null;
+      conn.onclose = () => {
+        if (socket !== conn) return; // Superseded or already torn down.
+        socket = null;
+        scheduleReconnect();
+      };
+    };
+
+    const scheduleReconnect = (): void => {
+      if (stopped || failed || reconnectTimer !== null) return;
+      const delay = delays[Math.min(attempt, delays.length - 1)]!;
+      attempt += 1;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+    };
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      const current = socket;
+      socket = null;
+      if (current !== null && current.readyState <= 1) {
+        try {
+          current.close(1000);
+        } catch {
+          // Already closing/closed.
+        }
+      }
+    };
   }
 }
 

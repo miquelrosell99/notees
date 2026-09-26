@@ -27,6 +27,7 @@ import {
   HttpTransport,
   SyncEngine,
   type SyncConflict,
+  type SyncStatus,
   type Transport,
 } from "@notees/sync";
 
@@ -39,6 +40,34 @@ const DEFAULT_TREE_DEPTH = 64;
 const DEFAULT_ACTOR_ID = "01920000-0000-7000-8000-0000000000a1";
 
 const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Sync-state snapshot for status UI: engine state, the pending-push backlog,
+ * and whether the realtime (WS) acceleration path is wired.
+ */
+export interface SyncStatusSnapshot {
+  status: SyncStatus;
+  /** Engine last error message (sync or realtime); null when healthy. */
+  error: string | null;
+  pending: number;
+  failed: number;
+  quarantined: number;
+  /** Ops parked by a server restore, awaiting re-push. */
+  parked: number;
+  realtime: boolean;
+  cursorSeq: number;
+}
+
+const IDLE_SNAPSHOT: SyncStatusSnapshot = {
+  status: "idle",
+  error: null,
+  pending: 0,
+  failed: 0,
+  quarantined: 0,
+  parked: 0,
+  realtime: false,
+  cursorSeq: 0,
+};
 
 export interface ClientNode {
   id: string;
@@ -157,6 +186,9 @@ export class WorkspaceClient {
 
   private workspaceId: string = DEFAULT_WORKSPACE_ID;
   private engine: SyncEngine | null = null;
+  /** Combined teardown for the wired realtime channel + status subscription. */
+  private realtimeStop: (() => void) | null = null;
+  private closed = false;
 
   private constructor(store: Store, options: WorkspaceClientOptions) {
     this.store = store;
@@ -227,6 +259,9 @@ export class WorkspaceClient {
         onError: (error) => this.userOnSyncError?.(error),
         onPush: () => this.notify(),
         onPull: () => this.notify(),
+        // Realtime (WS) frames applied to the store refresh the UI exactly
+        // like a pull does.
+        onRemoteBatch: () => this.notify(),
       },
     });
     await this.engine.sync();
@@ -392,6 +427,57 @@ export class WorkspaceClient {
     this.notify();
   }
 
+  // --- realtime (WS acceleration path) ------------------------------------------------
+
+  /**
+   * Wire the transport's realtime channel: remote ops frames apply straight
+   * to the store (buffered around pulls; the seq cursor remains
+   * authoritative) and connection state changes notify subscribers so the UI
+   * can refresh its status. Idempotent — restarts the channel when already
+   * running.
+   */
+  startRealtime(): void {
+    const engine = this.requireEngine();
+    this.stopRealtime();
+    const stopChannel = engine.startRealtime();
+    // Engine status transitions (incl. realtime errors) reach subscribers.
+    const stopStatus = engine.subscribeStatus(() => this.notify());
+    this.realtimeStop = () => {
+      stopStatus();
+      stopChannel();
+    };
+    this.notify();
+  }
+
+  stopRealtime(): void {
+    if (this.realtimeStop === null) return;
+    this.realtimeStop();
+    this.realtimeStop = null;
+    this.notify();
+  }
+
+  isRealtimeActive(): boolean {
+    return this.realtimeStop !== null;
+  }
+
+  // --- status snapshot (sync UI) ---------------------------------------------------------
+
+  /** Engine + outbox + realtime state for the footer status indicator. */
+  status(): SyncStatusSnapshot {
+    if (this.engine === null) return { ...IDLE_SNAPSHOT };
+    const counts = this.engine.getOutboxCounts();
+    return {
+      status: this.engine.getStatus(),
+      error: this.engine.getLastError()?.message ?? null,
+      pending: counts.pending,
+      failed: counts.failed,
+      quarantined: counts.quarantined,
+      parked: this.engine.getParkedCount(),
+      realtime: this.isRealtimeActive(),
+      cursorSeq: this.engine.getCursorSeq(),
+    };
+  }
+
   /**
    * Apply a batch of remote envelopes (realtime frames / external injection)
    * through the engine: one store transaction, conflict detection against
@@ -423,10 +509,16 @@ export class WorkspaceClient {
   }
 
   private notify(): void {
+    if (this.closed) return;
     for (const listener of this.listeners) listener();
   }
 
   close(): void {
+    if (this.closed) return;
+    // Guard before tearing down: stopRealtime() notifies, and a subscriber
+    // (e.g. the worker persist scheduler) must not re-arm after close.
+    this.closed = true;
+    this.stopRealtime();
     this.store.close();
   }
 }
