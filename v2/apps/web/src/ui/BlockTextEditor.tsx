@@ -11,6 +11,15 @@
  * contentAst carries non-prose tokens — mentions, chips, marks on split runs
  * — never flattens it).
  *
+ * Marks editing (edit-apply.ts / marks.ts): saves apply the draft
+ * structurally, so untouched runs keep their marks and identity. Mark
+ * commands (Ctrl/Cmd+B/I/Shift+X, the floating MarkToolbar, or typing `**`
+ * over a selection) read the DOM selection, map it to prose offsets, split
+ * the covered runs, and write the new token array directly — the prose does
+ * not change, so the debounced flush is not involved and cannot clobber the
+ * marks. Edit mode stays plain-text visual by design (per-run DOM rendering
+ * would break caret stability); marks render in read mode as today.
+ *
  * Keyboard contract (docs/ux.md "The outliner"):
  * - Enter        → prevent default, save, create an empty sibling AFTER this
  *                  block (create-then-move: the create appends at the END of
@@ -24,14 +33,22 @@
  *                  its last child).
  * - Shift+Tab    → outdent to the grandparent, placed right after the current
  *                  parent (object.move with afterId=parent).
+ * - Ctrl/Cmd+B/I/Shift+X → toggle bold/italic/strike on the selection.
+ * - `**` over a selection → toggle bold (markdown shortcut; the asterisks
+ *                  are swallowed, they are not stored).
  */
 
-import { useCallback, useEffect, useRef, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+
+import type { Mark } from "@notees/protocol";
 
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
-import { astFromProse, proseFromAst } from "@/editor/prose.js";
+import { proseFromAst } from "@/editor/prose.js";
+import { applyTextEdit } from "@/editor/edit-apply.js";
+import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import type { ClientNode } from "@/core/workspace-client.js";
 
+import { MarkToolbar } from "./MarkToolbar.js";
 import { useOutliner } from "./outliner-context.js";
 
 /** Debounce cadence for content saves (v1 used 150 ms; M1 uses ~400 ms). */
@@ -46,6 +63,48 @@ interface BlockTextEditorProps {
   onExitEdit: () => void;
 }
 
+/**
+ * Prose offset of a DOM position inside the editor. The editor DOM is a
+ * flat run of text nodes (no React children, no per-run elements), so the
+ * offset is the summed text lengths of the preceding siblings plus the
+ * in-node offset. Null when the position is not inside the editor.
+ */
+function domOffsetToProse(el: HTMLElement, node: Node, offset: number): number | null {
+  if (node === el) return offset;
+  if (node.parentNode !== el) return null;
+  let total = 0;
+  for (let n = el.firstChild; n !== null && n !== node; n = n.nextSibling) {
+    total += n.textContent?.length ?? 0;
+  }
+  return total + offset;
+}
+
+/** Current selection as prose offsets within the editor; null when collapsed/foreign. */
+function selectionOffsets(el: HTMLElement): { start: number; end: number } | null {
+  const selection = window.getSelection();
+  if (selection === null || selection.rangeCount === 0) return null;
+  const range = selection.getRangeAt(0);
+  if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return null;
+  const start = domOffsetToProse(el, range.startContainer, range.startOffset);
+  const end = domOffsetToProse(el, range.endContainer, range.endOffset);
+  if (start === null || end === null) return null;
+  return start <= end ? { start, end } : { start: end, end: start };
+}
+
+/** Viewport anchor for the toolbar (jsdom rects are zero — harmless). */
+function selectionAnchor(): { top: number; left: number } {
+  try {
+    const selection = window.getSelection();
+    if (selection !== null && selection.rangeCount > 0) {
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      return { top: rect.top, left: rect.left + rect.width / 2 };
+    }
+  } catch {
+    // jsdom / edge layouts: the toolbar lands at the viewport origin.
+  }
+  return { top: 0, left: 0 };
+}
+
 export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProps) {
   const { client, positions, requestFocus } = useOutliner();
   const spanRef = useRef<HTMLSpanElement>(null);
@@ -54,6 +113,10 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   const draftRef = useRef(proseFromAst(node.contentAst));
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Range captured by the first "*" of the `**`-over-selection shortcut. */
+  const starRef = useRef<{ start: number; end: number } | null>(null);
+  const [toolbar, setToolbar] = useState<{ top: number; left: number } | null>(null);
+  const [activeMarks, setActiveMarks] = useState<readonly Mark[]>([]);
 
   const flush = useCallback(() => {
     if (timerRef.current !== null) {
@@ -68,10 +131,54 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     const current = nodeRef.current.contentAst;
     // Prose unchanged: leave rich tokens (mentions/chips/marks) untouched.
     if (draft === proseFromAst(current)) return;
-    const next = astFromProse(draft, current);
+    // Structural apply: untouched runs keep their marks and identity.
+    const next = applyTextEdit(current, draft);
     if (JSON.stringify(next) === JSON.stringify(current)) return;
     void client.updateObject(nodeRef.current.id, { contentAst: next });
   }, [client]);
+
+  // Selection → toolbar state. Listened on document (selectionchange does
+  // not bubble) for the whole edit session.
+  const syncSelectionUi = useCallback(() => {
+    const el = spanRef.current;
+    const range = el === null ? null : selectionOffsets(el);
+    if (range === null || range.start === range.end) {
+      setToolbar(null);
+      setActiveMarks([]);
+      return;
+    }
+    setToolbar(selectionAnchor());
+    setActiveMarks([...marksOnRange(nodeRef.current.contentAst, range.start, range.end)]);
+  }, []);
+
+  // Toggle a mark over the current selection: remove when every covered run
+  // already carries it, apply otherwise. Writes go straight to the client —
+  // the prose is unchanged, so the debounced flush stays out of it (and its
+  // draft-equals-prose guard would skip anyway).
+  const toggleMark = useCallback(
+    (mark: Mark) => {
+      const el = spanRef.current;
+      if (el === null) return;
+      const range = selectionOffsets(el);
+      if (range === null || range.start === range.end) return;
+      const current = nodeRef.current.contentAst;
+      const next = marksOnRange(current, range.start, range.end).has(mark)
+        ? removeMarkFromRange(current, range.start, range.end, mark)
+        : applyMarkToRange(current, range.start, range.end, mark);
+      if (JSON.stringify(next) !== JSON.stringify(current)) {
+        void client.updateObject(nodeRef.current.id, { contentAst: next });
+      }
+      // Reflect the toggle immediately: nodeRef still holds the pre-write
+      // AST until the client notification re-renders.
+      setActiveMarks([...marksOnRange(next, range.start, range.end)]);
+    },
+    [client],
+  );
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", syncSelectionUi);
+    return () => document.removeEventListener("selectionchange", syncSelectionUi);
+  }, [syncSelectionUi]);
 
   // Mount: hydrate the DOM from the draft and land the caret. No children are
   // rendered (textContent is managed imperatively), so React raises no
@@ -110,6 +217,34 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
+    const mod = event.metaKey || event.ctrlKey;
+    if (mod && !event.altKey) {
+      const key = event.key.toLowerCase();
+      if (key === "b" || key === "i" || (key === "x" && event.shiftKey)) {
+        event.preventDefault();
+        toggleMark(key === "b" ? "bold" : key === "i" ? "italic" : "strike");
+        return;
+      }
+    }
+    // Markdown shortcut: `**` typed over a selection toggles bold on it (the
+    // asterisks are swallowed). The first "*" stashes the range; a second
+    // "*" while the range is unchanged toggles.
+    if (event.key === "*" && !mod && !event.altKey) {
+      const el = spanRef.current;
+      const range = el === null ? null : selectionOffsets(el);
+      if (range !== null && range.start !== range.end) {
+        event.preventDefault();
+        const pending = starRef.current;
+        if (pending !== null && pending.start === range.start && pending.end === range.end) {
+          starRef.current = null;
+          toggleMark("bold");
+        } else {
+          starRef.current = range;
+        }
+        return;
+      }
+    }
+    if (event.key !== "Shift") starRef.current = null;
     if (event.key === "Enter") {
       if (event.shiftKey) return; // the newline is allowed; flush stores hard_break
       event.preventDefault();
@@ -162,23 +297,33 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   };
 
   return (
-    <span
-      ref={spanRef}
-      className="nt-block-text"
-      contentEditable
-      suppressContentEditableWarning
-      role="textbox"
-      aria-multiline="true"
-      aria-label="Block content"
-      // -1: script-focusable (and jsdom-focusable) without entering tab order.
-      tabIndex={-1}
-      spellCheck={false}
-      onInput={handleInput}
-      onKeyDown={handleKeyDown}
-      onBlur={() => {
-        flush();
-        onExitEdit();
-      }}
-    />
+    <>
+      <span
+        ref={spanRef}
+        className="nt-block-text"
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        aria-multiline="true"
+        aria-label="Block content"
+        // -1: script-focusable (and jsdom-focusable) without entering tab order.
+        tabIndex={-1}
+        spellCheck={false}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        onBlur={() => {
+          flush();
+          onExitEdit();
+        }}
+      />
+      {toolbar !== null && (
+        <MarkToolbar
+          top={toolbar.top}
+          left={toolbar.left}
+          activeMarks={activeMarks}
+          onToggle={toggleMark}
+        />
+      )}
+    </>
   );
 }
