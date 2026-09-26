@@ -107,6 +107,13 @@ export interface ReferenceEntry {
   source: ClientNode;
   containingPageId: string;
   containingPageName: string;
+  /**
+   * Linked references only: "direct" = the edge targets the node itself;
+   * "containment" = the edge is an outward link from inside the node's
+   * subtree (01 §8 source-side containment roll-up). Unlinked references are
+   * always "direct".
+   */
+  kind: "direct" | "containment";
 }
 
 export interface CreateObjectInput {
@@ -377,20 +384,29 @@ export class WorkspaceClient {
   }
 
   /**
-   * Linked references (SCHEMA.md system sections): sources of edges pointing
-   * at the node, one entry per distinct source, each with the breadcrumb of
-   * its containing page.
+   * Linked references (SCHEMA.md system sections): direct backlinks of the
+   * node PLUS source-side containment roll-up (01 §8, query-time traversal) —
+   * outward links from inside the node's subtree (a block inside France
+   * linking Paris references France by containment). Ordered direct first,
+   * then containment by subtree depth. Each entry carries the breadcrumb of
+   * its containing page (the actual linking block's chain) and a `kind`.
+   * The section badge reads getBacklinkCount (direct only) — unchanged, so a
+   * containment-heavy page shows a longer list than its badge number.
    */
   getLinkedReferences(id: string): ReferenceEntry[] {
     const seen = new Set<string>();
     const entries: ReferenceEntry[] = [];
-    for (const edge of this.getBacklinks(id)) {
-      if (seen.has(edge.sourceId)) continue;
+    for (const row of this.store.backlinksWithRollup(id) as Array<Record<string, unknown>>) {
+      const sourceId = String(row.source_id);
+      if (seen.has(sourceId)) continue;
       // Live sources only — a trashed node no longer claims a reference.
-      const source = this.getNode(edge.sourceId);
+      const source = this.getNode(sourceId);
       if (!source) continue;
-      seen.add(edge.sourceId);
-      entries.push(this.referenceEntry(source));
+      seen.add(sourceId);
+      entries.push({
+        ...this.referenceEntry(source),
+        kind: row.kind === "containment" ? "containment" : "direct",
+      });
     }
     return entries;
   }
@@ -457,6 +473,8 @@ export class WorkspaceClient {
       source,
       containingPageId: current.id,
       containingPageName: deriveDisplayName(current) || current.id,
+      // Direct by default; getLinkedReferences overrides for containment rows.
+      kind: "direct",
     };
   }
 

@@ -9,7 +9,8 @@
  *
  *  - apply / applyMany: validate -> idempotency check (applied_envelope) ->
  *    dispatch -> record; applyMany wraps everything in one transaction;
- *  - query helpers: getNode, children, backlinks, search (FTS prefix-AND);
+ *  - query helpers: getNode, children, backlinks, backlinksWithRollup,
+ *    search (FTS prefix-AND);
  *  - snapshot / restore: full-database bytes; the bytes carry their own
  *    user_version, so restore only re-applies connection-level setup;
  *  - reset: drop and recreate the schema at the same storage location.
@@ -164,6 +165,69 @@ export class Store {
         "SELECT * FROM edge WHERE target_id = ? ORDER BY source_id, type, verb, id",
       )
       .all(nodeId);
+  }
+
+  /**
+   * Backlinks with source-side containment roll-up (`01` §8, traversal at
+   * query time — the 00-INDEX fan-out-vs-traversal decision resolved for
+   * M1). For target T the list is:
+   *
+   *  1. **direct** — edges `target_id = T` (any source);
+   *  2. **containment** — edges whose SOURCE is strictly inside T's subtree
+   *     (recursive `parent_id` walk, distance = depth below T) and whose
+   *     TARGET is outside it — an outward link: a block inside France
+   *     linking Paris references France by containment. Intra-subtree links
+   *     (target also inside T's subtree, T included) are excluded to avoid
+   *     self-noise.
+   *
+   * One row per (source_id, kind) — duplicate mention instances from one
+   * source collapse. Each row carries `kind: "direct" | "containment"` and
+   * `distance` (0 for direct). Ordered direct first, then containment by
+   * distance.
+   *
+   * Performance: the subtree CTE walks `idx_node_parent (parent_id)` one
+   * probe per level (child sets are small); direct edges probe
+   * `idx_edge_target (target_id, type)`, containment edges probe
+   * `idx_edge_source (source_id, type)` per subtree id, with the
+   * outside-subtree test as a NOT IN over the small subtree set; the dedupe
+   * is a window over that set.
+   *
+   * NOTE — badge vs list divergence: `backlinks()` and the materialized
+   * `node_stats.backlink_count` (the gutter badge) stay DIRECT (edges
+   * targeting T only), so a containment-heavy page legitimately shows a
+   * longer linked-references LIST than its badge number.
+   */
+  backlinksWithRollup(nodeId: string) {
+    return this.db
+      .prepare(
+        `WITH RECURSIVE subtree(id, distance) AS (
+           SELECT id, 0 FROM node WHERE id = ?
+           UNION ALL
+           SELECT n.id, s.distance + 1
+           FROM subtree s JOIN node n ON n.parent_id = s.id
+         ),
+         ranked AS (
+           SELECT e.id, e.workspace_id, e.source_id, e.target_id, e.type, e.verb,
+                  e.metadata, e.created_at,
+                  CASE WHEN e.target_id = ? THEN 'direct' ELSE 'containment' END AS kind,
+                  CASE WHEN e.target_id = ? THEN 0 ELSE s.distance END AS distance,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY e.source_id,
+                    CASE WHEN e.target_id = ? THEN 'direct' ELSE 'containment' END
+                    ORDER BY e.id
+                  ) AS rn
+           FROM edge e
+           LEFT JOIN subtree s ON s.id = e.source_id
+           WHERE e.target_id = ?
+              OR (s.distance > 0 AND e.target_id NOT IN (SELECT id FROM subtree))
+         )
+         SELECT id, workspace_id, source_id, target_id, type, verb, metadata,
+                created_at, kind, distance
+         FROM ranked
+         WHERE rn = 1
+         ORDER BY distance, source_id, kind, id`,
+      )
+      .all(nodeId, nodeId, nodeId, nodeId, nodeId);
   }
 
   /** Edges derived from the node (outgoing references). */
