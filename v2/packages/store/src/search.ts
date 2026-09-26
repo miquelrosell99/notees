@@ -15,19 +15,23 @@ export function removeSearchIndexEntry(db: StoreDatabase, nodeId: string): void 
 }
 
 export function reindexNode(db: StoreDatabase, nodeId: string): void {
-  const row = db.prepare("SELECT content FROM node WHERE id = ?").get(nodeId) as
-    | { content: string }
+  const row = db.prepare("SELECT name, content FROM node WHERE id = ?").get(nodeId) as
+    | { name: string | null; content: string }
     | undefined;
   if (!row) return;
   const plaintext = extractSearchPlaintext(db, row.content);
-  if (!plaintext) {
+  // Title search (SCHEMA.md deviation register, RECONCILED 2026-09-26): the
+  // indexed text is the stored name plus the content plaintext, so a page is
+  // findable by name; null names contribute nothing.
+  const indexed = row.name ? `${row.name} ${plaintext}`.trim() : plaintext;
+  if (!indexed) {
     removeSearchIndexEntry(db, nodeId);
     return;
   }
   db.prepare(
     "DELETE FROM search_index WHERE rowid = (SELECT docid FROM search_index_docid WHERE node_id = ?)",
   ).run(nodeId);
-  db.prepare("INSERT INTO search_index (content) VALUES (?)").run(plaintext);
+  db.prepare("INSERT INTO search_index (content) VALUES (?)").run(indexed);
   // last_insert_rowid() is the docid of the row just inserted on this
   // connection; keep the map in sync for the next reindex/delete.
   db.prepare(

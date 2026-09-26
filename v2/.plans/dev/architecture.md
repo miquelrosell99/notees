@@ -89,8 +89,8 @@ categories of `01-knowledge-model.md` §3, the derived schema
 
 Appliers live in `packages/store/src/appliers.ts` (entry points `Store.apply` /
 `Store.applyMany` in `store.ts`, one transaction per batch). The store also exposes
-`getNode`, `children`, `backlinks`, `references`, `search`, `snapshot`/`restore`/`reset`
-(`store.ts:87-218`).
+`getNode`, `children`, `backlinks`, `backlinksWithRollup`, `references`, `search`, `snapshot`/`restore`/`reset`
+(`store.ts:87-266`).
 
 Two replay/wipe guarantees are load-bearing and tested:
 
@@ -176,10 +176,15 @@ outgoing ones.
 `click_count`, `last_navigated_at`. Anonymous mentions (no `linkId`) get no row. Granular
 per-visit history (`link_visit`) is designed as a derived log with the M2 statistics work.
 
-**Designed, not implemented:** backlink **roll-up to ancestors** and **filter inheritance**
-(`refset(n) = own_links(n) ∪ refset(parent(n))`) — the two-way tree propagation of
-`01-knowledge-model.md` §8 is specced (SCHEMA.md lists it as owed work) but M1 backlinks
-are direct edges only; no ancestor roll-up or inherited-link filtering exists in code.
+**Containment roll-up is implemented query-time; filter inheritance is not.**
+`Store.backlinksWithRollup(id)` (reconciled 2026-09-26, §11 item 2) adds
+source-side containment backlinks: direct edges on the node plus outward
+links from inside its subtree (`kind: direct|containment` + subtree depth,
+direct first; a block inside France linking Paris lists on both France and
+Paris; the badge stays direct, so the list can exceed it). `refset` **filter
+inheritance** (`refset(n) = own_links(n) ∪ refset(parent(n))` as a query
+matching rule, `01` §8) remains designed, not implemented — no inherited-link
+filtering exists in code.
 
 ## 6. DB adapter interface — better-sqlite3 and sql.js
 
@@ -373,17 +378,28 @@ code is narrower in these places:
    live in `class_extends`, `class_hierarchy` is the m2m transitive closure, and cycles
    (self-parent, multi-hop) fail loud. Binding resolution (own → shortest extends-path →
    earliest HLC) remains owed work — it happens at read time in the bindings read model.
-2. **Backlinks are direct edges only.** Roll-up to ancestors and `refset` filter
-   inheritance (`01` §8) are specced but owed; M1 `backlinks()` queries `edge` directly.
-3. **`contentAst`, not `contentDeltaB64`, is the live carrier.** The CRDT delta field
+2. ~~**Backlinks are direct edges only.**~~ RECONCILED 2026-09-26:
+   `Store.backlinksWithRollup(id)` rolls up at query time (the `00-INDEX`
+   fan-out-vs-traversal choice resolved as traversal) with **source-side
+   containment**: direct edges on the node plus outward links from inside its
+   subtree (source ∈ subtree, target outside it — a block inside France
+   linking Paris references France; intra-subtree links excluded), one row
+   per (source, kind) annotated `kind: direct|containment` + depth, direct
+   first. `backlinks(id)` and the `node_stats.backlink_count` badge stay
+   DIRECT (a containment-heavy page's list can exceed its badge); `refset`
+   filter inheritance (`01` §8) is still owed.
+3. ~~**FTS search misses page titles.**~~ RECONCILED 2026-09-26: the FTS row
+   carries the stored name (`name + " " + content plaintext`), so pages are
+   findable by title and `object.update` name writes reindex (`search.ts`).
+4. **`contentAst`, not `contentDeltaB64`, is the live carrier.** The CRDT delta field
    exists in the payload schema; the Yjs per-node `Y.Text` port does not exist yet.
-4. **`class_list` read model.** SCHEMA.md describes the class listing as a derived
+5. **`class_list` read model.** SCHEMA.md describes the class listing as a derived
    `class_list` read model; M1 lists classes from the `class` registry table joined with
    `class_member_set` (`routes-objects.ts`), with the node row as structural authority.
-5. **Outbox durability.** The designed local-first flow assumes a durable client op log
+6. **Outbox durability.** The designed local-first flow assumes a durable client op log
    re-feeding the outbox; the M1 outbox is in-memory and the browser store is in-memory
    (sql.js), so recovery after a full page reload is a server re-sync.
-6. **Editor.** The Logseq-style outliner (bullets, indent/outdent reparenting via
+7. **Editor.** The Logseq-style outliner (bullets, indent/outdent reparenting via
    TreeCrdt, fractional reorder, verb-mark capture UX) is the M1b/M2 program
    (assessment §34.10); the shipped web UI is a read-oriented slice-1 shell over the
    workspace client.

@@ -391,8 +391,12 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     throw error;
   }
 
-  if (p.contentAst !== undefined) {
+  // A name write changes the FTS row (title search) as much as a content
+  // write does; edges derive from content only, so they rebuild on content.
+  if (p.contentAst !== undefined || p.name !== undefined) {
     reindexNode(db, p.objectId);
+  }
+  if (p.contentAst !== undefined) {
     rebuildEdges(db, p.objectId, env.timestamp);
   }
   return summary(opType, [p.objectId]);
