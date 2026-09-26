@@ -55,6 +55,7 @@ async function bootServer(): Promise<Harness> {
       globalRequestsPerMinute: 10_000,
       maxMediaBytes: 50 * 1024 * 1024,
       maxDocumentBytes: 100 * 1024 * 1024,
+      corsOrigins: [],
     },
     { logger: false },
   );

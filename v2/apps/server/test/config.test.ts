@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { generateApiKey, isValidApiKeyShape, loadConfig } from "../src/config.js";
+import { generateApiKey, isValidApiKeyShape, loadConfig, parseCorsOrigins } from "../src/config.js";
 import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
@@ -64,9 +64,34 @@ describe("config / API key bootstrap", () => {
       expect(config.logger).toBe(true);
       expect(config.relayBatchPerMinute).toBe(30_000);
       expect(config.globalRequestsPerMinute).toBe(10_000);
+      expect(config.corsOrigins).toEqual([]);
     } finally {
       rmSync(dataDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("config / NOTEES_CORS_ORIGIN", () => {
+  it("parses a comma-separated origin list", () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "notees-config-test-"));
+    try {
+      const config = loadConfig({
+        NOTEES_DATA_DIR: dataDir,
+        NOTEES_CORS_ORIGIN: "http://localhost:8080, https://notees.example.com",
+      } as NodeJS.ProcessEnv);
+      expect(config.corsOrigins).toEqual([
+        "http://localhost:8080",
+        "https://notees.example.com",
+      ]);
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it("empty/whitespace value means no CORS", () => {
+    expect(parseCorsOrigins(undefined)).toEqual([]);
+    expect(parseCorsOrigins("")).toEqual([]);
+    expect(parseCorsOrigins(" ,  ")).toEqual([]);
   });
 });
 

@@ -1,0 +1,15 @@
+# Keep the build context (and the COPY layers) free of host artifacts.
+# Everything below is rebuilt inside the image.
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+
+# Local dev data (sqlite relay log, api_key.txt, CAS assets).
+apps/server/data
+
+# Tooling caches and VCS metadata.
+.git
+.github
+**/.vite
+**/coverage
