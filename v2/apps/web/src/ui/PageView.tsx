@@ -23,6 +23,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { BlockRow } from "./BlockRow.js";
+import { EmbedBoundary } from "./EmbedView.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
 import {
@@ -169,11 +170,13 @@ export function PageView({
             </button>
           </div>
         </header>
-        <div className={prose ? "nt-block-tree nt-prose" : "nt-block-tree"}>
-          {tree.map((child) => (
-            <BlockRow key={child.node.id} tree={child} resolveName={(id) => client.getDisplayName(id)} />
-          ))}
-        </div>
+        <EmbedBoundary rootId={pageId}>
+          <div className={prose ? "nt-block-tree nt-prose" : "nt-block-tree"}>
+            {tree.map((child) => (
+              <BlockRow key={child.node.id} tree={child} resolveName={(id) => client.getDisplayName(id)} />
+            ))}
+          </div>
+        </EmbedBoundary>
         {tree.length === 0 && (
           <button type="button" className="nt-add-block" onClick={() => void addFirstBlock()}>
             + Add a block
