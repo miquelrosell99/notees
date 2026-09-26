@@ -173,6 +173,39 @@ button {
   line-height: 1.25;
 }
 
+.nt-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nt-page-toolbar {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.nt-view-toggle {
+  border: 1px solid #c8cdd4;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: #52606d;
+}
+
+.nt-view-toggle:hover {
+  background: #eef1f4;
+}
+
+.nt-view-toggle-active,
+.nt-view-toggle-active:hover {
+  background: #e0e9ff;
+  border-color: #b3c7f5;
+  color: #102a43;
+}
+
 /* --- blocks ------------------------------------------------------------------- */
 
 .nt-block-tree {
@@ -198,6 +231,23 @@ button {
   width: 12px;
   text-align: center;
   user-select: none;
+}
+
+.nt-block-chevron {
+  width: 12px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #9aa5b1;
+  text-align: center;
+  user-select: none;
+  font: inherit;
+  line-height: inherit;
+}
+
+.nt-block-chevron:hover {
+  color: #52606d;
 }
 
 .nt-block-content {
@@ -398,6 +448,26 @@ button {
   margin-left: 20px;
   padding-left: 8px;
   border-left: 1px solid #e4e7eb;
+}
+
+/* --- view transforms: prose mode -------------------------------------------------
+   A VIEW transform only (SCHEMA.md): the tree shape and data are untouched.
+   Bullets disappear, nesting indents flatten to full-width rows (structure is
+   still implied by order), and blocks get paragraph spacing. The collapse
+   chevron stays visible so hidden subtrees remain reachable. */
+
+.nt-prose .nt-bullet {
+  display: none;
+}
+
+.nt-prose .nt-block-children {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: none;
+}
+
+.nt-prose .nt-block-row {
+  padding: 8px 0;
 }
 
 /* --- system sections ------------------------------------------------------------- */
