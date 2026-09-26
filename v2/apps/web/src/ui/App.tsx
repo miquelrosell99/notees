@@ -19,6 +19,7 @@ import { WorkspaceClient, type SyncStatusSnapshot } from "@/core/workspace-clien
 import { WorkerClient } from "@/core/worker-client.js";
 
 import { PageView } from "./PageView.js";
+import { ClassView } from "./ClassView.js";
 import "./app.css";
 
 const STORAGE_KEYS = {
@@ -92,6 +93,31 @@ function SyncStatusLine({ snapshot }: { snapshot: SyncStatusSnapshot }) {
  */
 function initialServerUrl(): string {
   return readStored(STORAGE_KEYS.serverUrl) || window.NOTEES_CONFIG?.serverUrl || "";
+}
+
+/**
+ * View resolution = f(node_type) (SCHEMA.md): a class node renders the Class
+ * View, everything else the Page View. Exported for the view-routing tests.
+ */
+export function NodeView({
+  client,
+  nodeId,
+  onOpenNode,
+}: {
+  client: WorkspaceClient | WorkerClient;
+  nodeId: string;
+  onOpenNode?: ((nodeId: string) => void) | undefined;
+}) {
+  const node = client.getNode(nodeId);
+  if (node === undefined) {
+    return <div className="nt-page-missing">Page not found.</div>;
+  }
+  if (node.nodeType === "class") {
+    return (
+      <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
+    );
+  }
+  return <PageView client={client} pageId={nodeId} onOpenPage={onOpenNode} />;
 }
 
 export function App() {
@@ -243,6 +269,7 @@ export function App() {
   }
 
   const pages = client.listPages();
+  const classes = client.listClasses();
 
   return (
     <div className="nt-app">
@@ -266,10 +293,31 @@ export function App() {
             </li>
           ))}
         </ul>
+        {classes.length > 0 && (
+          <>
+            <div className="nt-sidebar-header">
+              <span>Classes</span>
+            </div>
+            <ul className="nt-page-list">
+              {classes.map((cls) => (
+                <li key={cls.id}>
+                  <button
+                    type="button"
+                    className={cls.id === selectedPageId ? "nt-page-item nt-page-item-active" : "nt-page-item"}
+                    onClick={() => setSelectedPageId(cls.id)}
+                  >
+                    {cls.icon !== null && <span className="nt-class-list-icon">{cls.icon}</span>}
+                    {deriveDisplayName(cls) || cls.id}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </aside>
       <main className="nt-main">
         {selectedPageId !== null ? (
-          <PageView client={client} pageId={selectedPageId} onOpenPage={setSelectedPageId} />
+          <NodeView client={client} nodeId={selectedPageId} onOpenNode={setSelectedPageId} />
         ) : (
           <div className="nt-empty">Select a page.</div>
         )}

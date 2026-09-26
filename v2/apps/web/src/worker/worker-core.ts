@@ -406,6 +406,12 @@ export class WorkerCore {
         return this.listPages();
       case "listClasses":
         return this.listClasses();
+      case "getClassParents":
+        return this.client.getClassParents(args[0] as string);
+      case "getClassMembers":
+        return this.client.getClassMembers(args[0] as string);
+      case "getClassBindings":
+        return this.client.getClassBindings(args[0] as string);
       case "getBlockTree":
         return this.getBlockTree(args[0] as string, args[1] as number | undefined);
       case "search":
@@ -436,6 +442,13 @@ export class WorkerCore {
         );
       case "assignClass":
         return this.client.assignClass(args[0] as string, args[1] as string);
+      case "createClass":
+        return this.client.createClass(
+          args[0] as string,
+          args[1] as { icon?: string; color?: string } | undefined,
+        );
+      case "setClassExtends":
+        return this.client.setClassExtends(args[0] as string, args[1] as string[]);
       case "bootstrapWorkspace":
         return this.client.bootstrapWorkspace(args[0] as string);
       case "syncOnce":
