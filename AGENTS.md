@@ -22,7 +22,7 @@ Owner decided (2026-09-26): split into `notees-sync` + `notees-web` repos **insi
 
 **Pending:**
 - **SDK publish — BLOCKED on an npmjs token** (owner doesn't have one; GitHub Packages rejects the `@notees/*` scope — it must equal the owner). Publish infra is READY: tsup builds per package, `pnpm release` in `v2/`, flow in `v2/.plans/dev/sdk-publishing.md`. Owner action: create a free token at npmjs.com, then run the release flow.
-- **Client lockstep — IN PROGRESS (GTK)**: `notees-flutter`/`notees-gtk` cloned at `/etc/periphery/stacks/notees-clients/` on `protocol-v2` branches (surveys complete, port checklists in each repo's survey-report thread). **GTK: Phases A–C done** (v2 models+transport+API-key auth, v2 appliers with fixture-replay acceptance, flat-token renderer; 308 tests) — Phase D (WS client) + E (engine wiring) remain. **Flutter: not started** (bigger port — flat-token content grammar rewrite is the anchor; survey checklist ready).
+- **Client lockstep — GTK COMPLETE, Flutter pending**: `notees-gtk@protocol-v2` is fully ported to the v2 protocol (models, REST+API-key auth, v2 appliers with fixture-replay acceptance, flat-token renderer/editor, WebSocket realtime, engine wiring; 334 tests green) — **unpushed**, awaiting owner approval. `notees-flutter@protocol-v2` not started (survey checklist ready; the flat-token content rewrite is its anchor).
 
 <!-- The <always-applicable> and <task-routing> XML tags below are load-bearing.
      Rationale: LLMs parse XML-tag blocks as discrete hard-constraint sections
