@@ -17,6 +17,7 @@ import type {
   ClientNode,
   CreateObjectInput,
   DeleteObjectOptions,
+  SyncStatusSnapshot,
   UpdateObjectInput,
 } from "./workspace-client.js";
 import type {
@@ -207,6 +208,20 @@ export class WorkerClient {
 
   async pull(): Promise<void> {
     await this.call("pull", []);
+  }
+
+  /** Wire the WS acceleration path in the worker. */
+  async startRealtime(): Promise<void> {
+    await this.call("startRealtime", []);
+  }
+
+  async stopRealtime(): Promise<void> {
+    await this.call("stopRealtime", []);
+  }
+
+  /** Engine + outbox + realtime state for the footer status indicator. */
+  async status(): Promise<SyncStatusSnapshot> {
+    return (await this.call("status", [])) as SyncStatusSnapshot;
   }
 
   // --- notifications ----------------------------------------------------------------------

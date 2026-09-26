@@ -42,10 +42,17 @@ export interface RealtimeHello {
   restoreEpoch: number;
 }
 
-/** Handlers for the realtime (WebSocket) acceleration path. */
+/** Handlers for the realtime (WebSocket) acceleration path (WIRE.md §2). */
 export interface RealtimeHandlers {
   onHello?: (hello: RealtimeHello) => void;
   onOps?: (envelopes: Envelope[], seqs: Record<string, number>) => void;
+  /** Server committed the ids of a client-sent `batch` frame. */
+  onAck?: (savedIds: string[]) => void;
+  /**
+   * Server `error` frame or a local connection failure (including the
+   * fail-loud newer-framing-version close).
+   */
+  onError?: (error: Error) => void;
 }
 
 export interface Transport {
@@ -59,7 +66,7 @@ export interface Transport {
   getSnapshotData(): Promise<Uint8Array>;
   /** PUT /snapshot/data (best-effort client-produced snapshot). */
   uploadSnapshot?(bytes: Uint8Array, hlc: Hlc): Promise<void>;
-  /** Optional realtime channel; the WS client itself lands with the server milestone. */
+  /** Optional realtime channel (WIRE.md §2); HttpTransport implements it over WebSocket. */
   subscribe?(handlers: RealtimeHandlers): () => void;
 }
 
@@ -94,4 +101,6 @@ export interface SyncEngineCallbacks {
   /** Semantic conflicts between remote batches and local pending ops; never blocks apply. */
   onConflict?: (conflicts: SyncConflict[]) => void;
   onSyncPhase?: (phase: string, message: string) => void;
+  /** A realtime (WS) frame was applied to the store; the embedding client refreshes. */
+  onRemoteBatch?: (appliedCount: number) => void;
 }
