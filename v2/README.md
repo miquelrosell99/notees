@@ -1,21 +1,77 @@
-# Notees v2 (greenfield)
+# Notees v2
 
-Local-first object graph for personal knowledge: operation log, derived SQLite, three information layers (properties / typed-link marks / prose) over one edge index.
+**One object graph. The operation log is the only authority. Every interface — UI, CLI, API, export — is a projection of the same derived state.**
 
-- **Model (normative)**: `docs/design/01-knowledge-model.md` (+ `00-INDEX.md`, `02`, `03`). Precedence: `01` wins on model questions; the plan (`docs/plans/2026-09-24-object-graph-pim-evolution/assessment.md`) wins on process/milestones/gates.
-- **First artifact**: `packages/protocol/SCHEMA.md` — property-schema, class-structure, and typed-link token spec (owed-work register; record-don't-resolve).
-- **Protocol**: v2 envelopes, camelCase, `protocolVersion: 2`, provenance claims (`deviceId`, `client`), M3 encryption slot (`{"$e": …}`). No `relation.*` ops — associations are property values or typed-link word marks.
+Notees is a local-first personal knowledge environment: a single node table for pages, blocks, and classes; three information layers (attributes, discourse links, plain prose) feeding one edge index; and an append-only op log that syncs between your devices and converges without a server you have to trust.
 
-## Layout
+It is also a greenfield rewrite at **M1 alpha**. The model below is settled; the surface is young. See [Status](#status-m1-alpha) before planning your workflow around it.
 
-- `packages/protocol` — envelopes, HLC, op registry, seed relation schemas, canonical fixtures.
-- `packages/domain`, `packages/store`, `packages/sync`, `packages/query`, `packages/search`, `packages/editor`, `packages/api-client`, `packages/plugin-sdk` — see assessment §34.3 (landed per milestone).
-- `apps/server`, `apps/web`, `apps/cli` — see assessment §34.6 (M1).
+## The five bets
 
-## Commands
+Five design decisions no competitor makes, which together define what Notees is ([why we made them](docs/philosophy.md)):
+
+| # | Bet | What it means |
+|---|---|---|
+| 1 | **Op log as sole authority** | Event-sourced storage: append-only, idempotent, local-first, total offline, with an E2EE slot in the protocol. SQLite is a rebuildable projection, never the truth. |
+| 2 | **Unified node table — classes are nodes** | Pages, blocks, and classes are rows of one table with one identity scheme. Inheritance (`extends`) is an m2m property on class nodes; the hierarchy closure is derived, not stored. |
+| 3 | **Typed discourse links as marks on prose words** | "X *contradicts* Y" is a mark on the word you wrote — a verb in your sentence, not a field in a form. Verbs group backlinks and color the graph. |
+| 4 | **Two-way link propagation along the tree** | Backlinks roll up to containing pages, and links inherit down the tree: `refset(n) = own_links(n) ∪ refset(parent(n))`. Containment is context; nobody tags anything. |
+| 5 | **Agent-first surface** | Scoped API keys, one grammar for humans and machines, and a full CLI from M1. Agents are peers of the UI, not plugins bolted on later. |
+
+## Status: M1 alpha
+
+The model is implemented; the product around it is a slice. We say exactly which is which in every document — [philosophy](docs/philosophy.md) for the ideas, [usage](docs/usage.md) for what you can run now, [ux](docs/ux.md) for the interaction model (each feature labeled Today or Designed).
+
+**Works today**
+
+- Object model — pages, blocks, classes over one node table, with `node_type`, tree placement, class membership, and content tokens (the full SCHEMA.md grammar)
+- Local-first sync engine — outbox push, seq-cursor catch-up, snapshot shortcut, optimistic local apply
+- Fastify server — relay (batch/catch-up/snapshot/compact/stats + WebSocket), object API, CAS asset storage
+- CLI — object CRUD, search, backlinks, class list, asset add/get, sync status, doctor
+- Web client, slice 1 — bootstrap form, page list, page/block rendering, read-mostly
+
+**Designed, coming**
+
+- M2 — research environment: interactive outliner editor, typed-link capture UX, whiteboards UI, citations/bibliography, annotations on assets, Markdown export, typed-link target resolution
+- M3 — trust & extension: E2EE activation, plugin runtime, multi-user, realtime collaboration
+
+## Quickstart
+
+Prereqs: Node 22+, pnpm 9. From `v2/`:
 
 ```bash
 pnpm install
+export NOTEES_DATA_DIR=$PWD/data          # relay log, assets, and the key file live here
+pnpm --filter @notees/server dev &        # 1. start the server (port 8377)
+export NOTEES_SERVER=http://localhost:8377
+export NOTEES_API_KEY=$(cat data/api_key.txt)   # generated on first boot, logged once
+pnpm --filter @notees/cli dev -- doctor   # 2. verify reachability + auth
+pnpm --filter @notees/cli dev -- object create --nodeType page --name "Hello Notees"   # 3. a page exists
+```
+
+The full walkthrough — server env, a real CLI session, the web app, the object API — is in [docs/usage.md](docs/usage.md).
+
+## Docs
+
+- [docs/philosophy.md](docs/philosophy.md) — the ideas: op-log truth, the design law, single-sourcing, classes as nodes, UUID identity, and the wounds that became our rules
+- [docs/usage.md](docs/usage.md) — install, run, CLI tutorial, web app, object API reference
+- [docs/ux.md](docs/ux.md) — the interaction model: outliner, system sections, marks on words, whiteboards, promotion (Today vs Designed per feature)
+- [docs/design/](docs/design/) — the normative design stack (`00-INDEX.md`, `01-knowledge-model.md`, `02-model-assessment.md`, `03-paradigm-assessment.md`)
+- [packages/protocol/SCHEMA.md](packages/protocol/SCHEMA.md) — content grammar, node structure, typed-link tokens, sections contract (normative)
+- [packages/protocol/WIRE.md](packages/protocol/WIRE.md) — relay wire spec: envelopes, endpoints, WebSocket framing
+
+## Layout
+
+- `packages/protocol` — envelopes, HLC, op registry, content grammar, canonical fixtures
+- `packages/domain` — display-name derivation, seeds, shared domain logic
+- `packages/store` — SQLite derived state (server: better-sqlite3; web: sql.js)
+- `packages/sync` — SyncEngine: outbox, catch-up, snapshot restore
+- `packages/query`, `packages/search`, `packages/editor`, `packages/api-client`, `packages/plugin-sdk` — per-milestone scope (see plan assessment §34.3)
+- `apps/server`, `apps/web`, `apps/cli` — the three surfaces you can run today
+
+## Development
+
+```bash
 pnpm test        # all packages
 pnpm typecheck   # all packages
 ```
