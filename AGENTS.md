@@ -6,6 +6,14 @@ Formal docs live under `skills/`. Read `skills/*/SKILL.md` — default to `prima
 
 Conflicts between loaded project instructions → formal docs in `skills/notees/` win. This does not override harness-native skill name precedence.
 
+## Documentation layout (v2)
+
+- `v2/docs/` — **user-facing only** (usage, philosophy, ux).
+- `v2/.plans/` — internal plans, the decision record (`2026-09-24-object-graph-pim-evolution/`), the design stack (`design/`), and dev docs (`dev/`: architecture, development, deployment).
+- `v2/.audits/` — internal audit reports (evidence-based assessments, gap analyses, competitive sweeps).
+
+Internal project notes never go in `docs/`; user-facing docs never go in dot-folders.
+
 <!-- The <always-applicable> and <task-routing> XML tags below are load-bearing.
      Rationale: LLMs parse XML-tag blocks as discrete hard-constraint sections
      more reliably than plain markdown headings, especially after context
