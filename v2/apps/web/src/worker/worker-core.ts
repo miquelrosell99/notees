@@ -8,7 +8,9 @@
  *  - bootstraps the WorkspaceClient sync engine for the workspace;
  *  - exposes the worker API: applyBatch (remote frames), the read surface
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
- *    getDisplayName / getNode / getNodeRaw), the write surface
+ *    getLinkedReferences / getUnlinkedReferences / getChildPages /
+ *    getBacklinkCount / getChildPageCount / getDisplayName / getNode /
+ *    getNodeRaw), the write surface
  *    (createObject / updateObject / deleteObject / moveObject), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, and flush;
@@ -33,6 +35,7 @@ import {
   type ClientNode,
   type CreateObjectInput,
   type DeleteObjectOptions,
+  type ReferenceEntry,
   type SyncStatusSnapshot,
   type UpdateObjectInput,
 } from "../core/workspace-client.js";
@@ -290,6 +293,26 @@ export class WorkerCore {
     return this.client.getBacklinks(id);
   }
 
+  getLinkedReferences(id: string): ReferenceEntry[] {
+    return this.client.getLinkedReferences(id);
+  }
+
+  getUnlinkedReferences(id: string): ReferenceEntry[] {
+    return this.client.getUnlinkedReferences(id);
+  }
+
+  getChildPages(id: string): ClientNode[] {
+    return this.client.getChildPages(id);
+  }
+
+  getBacklinkCount(id: string): number {
+    return this.client.getBacklinkCount(id);
+  }
+
+  getChildPageCount(id: string): number {
+    return this.client.getChildPageCount(id);
+  }
+
   // --- writes (optimistic local apply + outbox push) -------------------------------------
 
   createObject(partial: CreateObjectInput): Promise<string> {
@@ -383,6 +406,16 @@ export class WorkerCore {
         return this.search(args[0] as string);
       case "getBacklinks":
         return this.getBacklinks(args[0] as string);
+      case "getLinkedReferences":
+        return this.getLinkedReferences(args[0] as string);
+      case "getUnlinkedReferences":
+        return this.getUnlinkedReferences(args[0] as string);
+      case "getChildPages":
+        return this.getChildPages(args[0] as string);
+      case "getBacklinkCount":
+        return this.getBacklinkCount(args[0] as string);
+      case "getChildPageCount":
+        return this.getChildPageCount(args[0] as string);
       case "createObject":
         return this.createObject(args[0] as CreateObjectInput);
       case "updateObject":
