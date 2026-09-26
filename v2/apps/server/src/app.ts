@@ -7,6 +7,7 @@
 import { mkdirSync } from "node:fs";
 
 import Fastify, { type FastifyInstance } from "fastify";
+import fastifyCors from "@fastify/cors";
 import fastifyMultipart from "@fastify/multipart";
 import fastifyWebsocket from "@fastify/websocket";
 
@@ -36,6 +37,16 @@ export async function buildServer(
     logger: options.logger ?? config.logger,
     bodyLimit: 128 * 1024 * 1024,
   });
+
+  // Cross-origin browser access (web client on another origin/port). Disabled
+  // by default: with an empty corsOrigins no CORS headers are sent, so
+  // same-origin and non-browser clients (CLI) are unaffected and browsers are
+  // denied. Preflight (OPTIONS) is answered by the plugin before auth hooks.
+  if (config.corsOrigins.length > 0) {
+    await app.register(fastifyCors, {
+      origin: config.corsOrigins.includes("*") ? "*" : config.corsOrigins,
+    });
+  }
 
   await app.register(fastifyWebsocket);
   await app.register(fastifyMultipart, {
