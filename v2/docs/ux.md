@@ -1,6 +1,6 @@
 # The Notees interaction model
 
-How Notees feels to use: the views, the outliner, the sections, the marks, the whiteboards, and the gestures. The normative specs behind each section live in [packages/protocol/SCHEMA.md](../packages/protocol/SCHEMA.md) and [design/01-knowledge-model.md](design/01-knowledge-model.md); the ideas are in [philosophy.md](philosophy.md); what you can run today is in [usage.md](usage.md).
+How Notees feels to use: the views, the outliner, the sections, the marks, the whiteboards, and the gestures. The normative specs behind each section live in [packages/protocol/SCHEMA.md](../packages/protocol/SCHEMA.md) and [.plans/design/01-knowledge-model.md](../.plans/design/01-knowledge-model.md); the ideas are in [philosophy.md](philosophy.md); what you can run today is in [usage.md](usage.md).
 
 M1 alpha honesty, up front — every feature below is labeled:
 

@@ -1,7 +1,7 @@
 # Notees v2 Knowledge Model — Paradigm Assessment
 **vs Obsidian · Logseq 2.0 (DB) · Capacities · Tana — September 2026**
 
-Companion to [knowledge-model](knowledge-model.md) and [model-assessment](model-assessment.md). This document assesses the *documented* Notees v2 model against the four paradigms the owner asked about, using each tool's verified 2026 state. Claims about competitors were checked against current sources on 2026-09-25 (see §12).
+Companion to [knowledge-model](01-knowledge-model.md) and [model-assessment](02-model-assessment.md). This document assesses the *documented* Notees v2 model against the four paradigms the owner asked about, using each tool's verified 2026 state. Claims about competitors were checked against current sources on 2026-09-25 (see §12).
 
 ---
 
