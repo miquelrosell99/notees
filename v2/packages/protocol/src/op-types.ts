@@ -86,7 +86,15 @@ export const classDeletePayload = z.object({ classId: uuid }).strict();
 export const classSetExtendsPayload = z
   .object({
     classId: uuid,
-    parentClassId: uuid.nullable(),
+    /** Designed m2m model (01-knowledge-model.md §6): a class may have
+     * MULTIPLE parents — diamonds are natural. Replace semantics: the array
+     * IS the class's full parent set (an empty array detaches all parents).
+     * The store applier keeps the transitive closure in sync and fails loud
+     * on cycles, including self-parent and multi-hop cycles. Closure rows
+     * carry no order: diamond resolution (own binding → shortest extends-path
+     * → earliest-authored HLC) happens at read time in the bindings read
+     * model, so the payload needs nothing extra for M1. */
+    parentClassIds: z.array(uuid),
   })
   .strict();
 

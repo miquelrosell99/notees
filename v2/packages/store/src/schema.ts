@@ -19,7 +19,7 @@
  * rebuilds; `applied_envelope.seq` is assigned from MAX(seq)+1).
  */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -85,7 +85,21 @@ CREATE TABLE IF NOT EXISTS class_member_set (
 CREATE INDEX IF NOT EXISTS idx_class_member_set_class
     ON class_member_set (class_id);
 
--- Transitive closure of class extends (single parent per class in v2);
+-- Direct extends edges (m2m: a class may have MULTIPLE parents, per the
+-- designed model in 01-knowledge-model.md §6). class.setExtends replaces
+-- the class's full row set (delete + insert). Rows carry no order — diamond
+-- resolution (own binding → shortest extends-path → earliest HLC) happens
+-- at read time in the bindings read model.
+CREATE TABLE IF NOT EXISTS class_extends (
+    class_id TEXT NOT NULL,
+    parent_class_id TEXT NOT NULL,
+    PRIMARY KEY (class_id, parent_class_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_class_extends_parent
+    ON class_extends (parent_class_id);
+
+-- Transitive closure of class extends (m2m, many rows per class_id);
 -- includes the self-row (class_id, class_id). Applier-maintained.
 CREATE TABLE IF NOT EXISTS class_hierarchy (
     class_id TEXT NOT NULL,
@@ -98,7 +112,7 @@ CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor
 
 -- Class registry rows (name/icon/color/description), keyed by the class
 -- node id. The node row (node_type='class') is the structural authority;
--- this table carries class-only configuration (description, extends parent).
+-- this table carries class-only configuration (description).
 CREATE TABLE IF NOT EXISTS class (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
@@ -106,7 +120,6 @@ CREATE TABLE IF NOT EXISTS class (
     icon TEXT,
     color TEXT,
     description TEXT,
-    extends_class_id TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT

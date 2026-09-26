@@ -319,12 +319,19 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const classes = store.database
       .prepare(
         `SELECT c.id, c.name, c.icon, c.color, c.description,
-                c.extends_class_id AS extendsClassId,
+                (SELECT json_group_array(parent_class_id) FROM (
+                   SELECT parent_class_id FROM class_extends e
+                   WHERE e.class_id = c.id ORDER BY parent_class_id)) AS parentClassIds,
                 (SELECT COUNT(*) FROM class_member_set m WHERE m.class_id = c.id AND m.present = 1) AS memberCount
          FROM class c WHERE c.active = 1 ORDER BY c.name, c.id`,
       )
-      .all() as { id: string; name: string; icon: string | null; color: string | null; description: string | null; extendsClassId: string | null; memberCount: number }[];
-    return { classes };
+      .all() as { id: string; name: string; icon: string | null; color: string | null; description: string | null; parentClassIds: string | null; memberCount: number }[];
+    return {
+      classes: classes.map((row) => ({
+        ...row,
+        parentClassIds: JSON.parse(row.parentClassIds ?? "[]") as string[],
+      })),
+    };
   });
 
   app.get("/classes/:id", async (request) => {
@@ -334,10 +341,13 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const store = ctx.workspaces.storeFor(workspaceId);
     const classRow = store.database
       .prepare(
-        `SELECT c.id, c.name, c.icon, c.color, c.description, c.extends_class_id AS extendsClassId
+        `SELECT c.id, c.name, c.icon, c.color, c.description,
+                (SELECT json_group_array(parent_class_id) FROM (
+                   SELECT parent_class_id FROM class_extends e
+                   WHERE e.class_id = c.id ORDER BY parent_class_id)) AS parentClassIds
          FROM class c WHERE c.id = ? AND c.active = 1`,
       )
-      .get(id) as { id: string; name: string; icon: string | null; color: string | null; description: string | null; extendsClassId: string | null } | undefined;
+      .get(id) as { id: string; name: string; icon: string | null; color: string | null; description: string | null; parentClassIds: string | null } | undefined;
     if (classRow === undefined) {
       throw new AppError(404, "not_found", `class ${id} does not exist`);
     }
@@ -348,7 +358,10 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
          WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1 ORDER BY n.id`,
       )
       .all(id);
-    return { class: classRow, members };
+    return {
+      class: { ...classRow, parentClassIds: JSON.parse(classRow.parentClassIds ?? "[]") as string[] },
+      members,
+    };
   });
 
   app.get("/properties/:id/values", async (request) => {

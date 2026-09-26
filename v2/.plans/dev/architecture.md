@@ -361,19 +361,18 @@ cursors; writes are atomic (tmp + rename).
 | `apps/cli` | `notees` command surface over the HTTP API | `src/cli.ts` (`run`), `src/client.ts`, `src/state.ts`, `src/exit-codes.ts` |
 | `apps/web` | Browser client: workspace data path + slice-1 UI | `src/core/workspace-client.ts`, `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/shims/` (node built-ins stubbed for the browser bundle) |
 | `../design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
-| `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | five JSON files, validated by `packages/protocol/test` and replayed by the store suite |
+| `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | seven JSON files, validated by `packages/protocol/test` and replayed by the store suite |
 
 ## 11. Code vs design discrepancies
 
 Flagged per the code-wins rule; the design docs are not wrong about intent, but the M1
 code is narrower in these places:
 
-1. **`extends` is single-parent in M1.** `class.setExtends` takes one `parentClassId`
-   (nullable); `class.extends_class_id` is a scalar and `class_hierarchy` is a
-   single-parent transitive closure (`schema.ts`: "single parent per class in v2").
-   The designed model (`01` §6, SCHEMA.md) is an **m2m node-typed property with multiple
-   inheritance**; binding resolution (own → shortest extends-path → earliest HLC) is owed
-   work. Do not document multiple inheritance as available.
+1. ~~**`extends` is single-parent in M1.**~~ RECONCILED 2026-09-26: `class.setExtends`
+   takes `parentClassIds: string[]` (replace semantics, m2m per `01` §6); direct edges
+   live in `class_extends`, `class_hierarchy` is the m2m transitive closure, and cycles
+   (self-parent, multi-hop) fail loud. Binding resolution (own → shortest extends-path →
+   earliest HLC) remains owed work — it happens at read time in the bindings read model.
 2. **Backlinks are direct edges only.** Roll-up to ancestors and `refset` filter
    inheritance (`01` §8) are specced but owed; M1 `backlinks()` queries `edge` directly.
 3. **`contentAst`, not `contentDeltaB64`, is the live carrier.** The CRDT delta field
