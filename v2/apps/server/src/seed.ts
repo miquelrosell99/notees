@@ -1,0 +1,114 @@
+/**
+ * Workspace seeding: emit the domain seed ops (class nodes, extends edges,
+ * property schemas, inbox/scratchpad pages) through the standard envelope
+ * pipeline, reusing the fixed system UUIDs from @notees/domain. Idempotent:
+ * seeding runs only while the workspace is completely empty, so a second
+ * call is a no-op (seededCount 0).
+ */
+
+import {
+  SEEDED_SYSTEM_CLASSES,
+  SYSTEM_CLASS_EXTENDS,
+  SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PAGE_UUIDS,
+  SYSTEM_PROPERTY_SPECS,
+  SYSTEM_PROPERTY_UUIDS,
+  type SystemClassName,
+  type SystemPropertyName,
+} from "@notees/domain";
+import type { Envelope } from "@notees/protocol";
+
+import type { EnvelopeFactory } from "./envelope-factory.js";
+
+export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string): Envelope[] {
+  const envelopes: Envelope[] = [];
+  for (const name of SEEDED_SYSTEM_CLASSES) {
+    const classId = SYSTEM_CLASS_UUIDS[name];
+    envelopes.push(
+      factory.make({
+        workspaceId,
+        opType: "class.create",
+        payload: {
+          classId,
+          name,
+          icon: SYSTEM_CLASS_ICONS[name],
+        },
+        affectedNodeIds: [classId],
+        client: "seed",
+      }),
+    );
+  }
+  for (const [child, parents] of Object.entries(SYSTEM_CLASS_EXTENDS)) {
+    for (const parent of parents) {
+      const classId = SYSTEM_CLASS_UUIDS[child as SystemClassName];
+      envelopes.push(
+        factory.make({
+          workspaceId,
+          opType: "class.setExtends",
+          payload: { classId, parentClassId: SYSTEM_CLASS_UUIDS[parent] },
+          affectedNodeIds: [classId],
+          client: "seed",
+        }),
+      );
+    }
+  }
+  for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
+    if (spec === undefined) continue;
+    const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
+    envelopes.push(
+      factory.make({
+        workspaceId,
+        opType: "propertySchema.create",
+        payload: {
+          propertySchemaId,
+          name,
+          type: spec.type,
+          multi: spec.multi ?? false,
+          scope: "class",
+          ...(spec.options !== undefined ? { options: spec.options } : {}),
+          ...(spec.targetClassFilter !== undefined
+            ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
+            : {}),
+        },
+        client: "seed",
+      }),
+    );
+  }
+  for (const [name, pageId] of Object.entries(SYSTEM_PAGE_UUIDS)) {
+    envelopes.push(
+      factory.make({
+        workspaceId,
+        opType: "object.create",
+        payload: { objectId: pageId, nodeType: "page", name },
+        affectedNodeIds: [pageId],
+        client: "seed",
+      }),
+    );
+  }
+  return envelopes;
+}
+
+export interface SeedResult {
+  seededCount: number;
+}
+
+/**
+ * Seed a workspace when it is completely empty (no log rows, no nodes).
+ * Callers serialize first-boot seeding per process.
+ */
+export async function seedWorkspace(
+  deps: {
+    factory: EnvelopeFactory;
+    apply: (workspaceId: string, envelopes: Envelope[]) => Promise<{ savedIds: string[] }>;
+    isEmpty: (workspaceId: string) => boolean;
+  },
+  workspaceId: string,
+): Promise<SeedResult> {
+  if (!deps.isEmpty(workspaceId)) {
+    return { seededCount: 0 };
+  }
+  const envelopes = buildSeedEnvelopes(deps.factory, workspaceId);
+  const { savedIds } = await deps.apply(workspaceId, envelopes);
+  return { seededCount: savedIds.length };
+}
