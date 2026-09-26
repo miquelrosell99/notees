@@ -53,6 +53,9 @@ export const mentionTokenSchema = z
     text: z.string().min(1),
     /** One-off display override ("the Republic"). Auto-rename does not apply to overrides. */
     displayText: z.string().min(1).max(512).optional(),
+    /** Stable per-link instance id (node_link assertion key: origin, target,
+     * created, click/access times — owner-requested link analytics). */
+    linkId: uuid.optional(),
   })
   .strict();
 
