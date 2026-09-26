@@ -516,6 +516,63 @@ button {
   border-left: 1px solid #e4e7eb;
 }
 
+/* --- block drag-and-drop --------------------------------------------------------- */
+
+/* The bullet/chevron area is the drag handle (whole-row drag would fight
+   text editing); a 4px activation distance keeps plain clicks untouched. */
+.nt-block-grip {
+  display: inline-flex;
+  align-items: baseline;
+  cursor: grab;
+  color: #9aa5b1;
+  touch-action: none;
+}
+
+.nt-block-grip:active {
+  cursor: grabbing;
+}
+
+/* Drop indicator: a line at the drop line, or a left accent for the
+   child-indent intent. */
+.nt-block.nt-drop-above > .nt-block-row {
+  box-shadow: 0 -2px 0 0 #2563eb;
+}
+
+.nt-block.nt-drop-below > .nt-block-row {
+  box-shadow: 0 2px 0 0 #2563eb;
+}
+
+.nt-block.nt-drop-child > .nt-block-row {
+  box-shadow: inset 3px 0 0 0 #2563eb;
+  background: #eef4ff;
+  border-radius: 4px;
+}
+
+/* The row clone that follows the pointer (DragOverlay). */
+.nt-drag-ghost {
+  padding: 2px 8px;
+  background: #ffffff;
+  border: 1px solid #d9dce1;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 14px;
+  max-width: 480px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Transient guard message (refused drop, store MoveGuardError, …). */
+.nt-dnd-error {
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border: 1px solid #f3c1bc;
+  border-radius: 6px;
+  background: #fdf3f2;
+  color: #b42318;
+  font-size: 13px;
+}
+
 /* --- system sections ------------------------------------------------------------- */
 
 .nt-page-sections {
