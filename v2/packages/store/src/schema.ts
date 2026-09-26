@@ -6,7 +6,10 @@
  *  - `node.node_type` replaces v1 `kind` and takes a CHECK-enforced
  *    {page, block, class} enumeration with the two placement CHECKs from
  *    SCHEMA.md ("bullet-proof schema") — illegal states are unrepresentable;
- *  - FTS5 replaces v1 FTS4 (same node_id -> docid map pattern);
+ *  - FTS5 replaces v1 FTS4 (same node_id -> docid map pattern); the stock
+ *    sql.js WASM build lacks FTS5, so sql.js-backed stores build the same
+ *    index with FTS4 (`schemaSql("fts4")`, selected by the backend's
+ *    declared `ftsModule` — identical MATCH/prefix syntax);
  *  - `class_member_set` / `collection_member` are OR-Sets whose present rows
  *    the appliers project into `node.class_ids` / membership state;
  *  - `applied_envelope` gives op-log idempotency: replayed envelope ids are
@@ -17,6 +20,17 @@
  */
 
 export const SCHEMA_VERSION = 1;
+
+/** FTS module for the search_index virtual table (backend capability). */
+export type FtsModule = "fts5" | "fts4";
+
+/**
+ * Canonical DDL (FTS5). `schemaSql("fts4")` builds the same schema for
+ * backends without FTS5 (stock sql.js); everything else is identical.
+ */
+export function schemaSql(ftsModule: FtsModule = "fts5"): string {
+  return ftsModule === "fts5" ? SCHEMA_SQL : SCHEMA_SQL_FTS4;
+}
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS node (
@@ -271,11 +285,19 @@ CREATE TABLE IF NOT EXISTS app_meta (
 );
 `;
 
+const SCHEMA_SQL_FTS4 = SCHEMA_SQL.replace(
+  "USING fts5(content, tokenize = 'unicode61')",
+  "USING fts4(content, tokenize = 'unicode61')",
+);
+
 /** Create or upgrade the derived schema in ``db`` (PRAGMA user_version). */
-export function migrate(db: {
-  pragma(source: string, options?: { simple?: boolean }): unknown;
-  exec(sql: string): unknown;
-}): void {
+export function migrate(
+  db: {
+    pragma(source: string, options?: { simple?: boolean }): unknown;
+    exec(sql: string): unknown;
+  },
+  ftsModule: FtsModule = "fts5",
+): void {
   const current = db.pragma("user_version", { simple: true }) as number;
   if (current === SCHEMA_VERSION) return;
   if (current > SCHEMA_VERSION) {
@@ -284,6 +306,6 @@ export function migrate(db: {
         "(newer store required)",
     );
   }
-  db.exec(SCHEMA_SQL);
+  db.exec(schemaSql(ftsModule));
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
 }
