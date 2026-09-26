@@ -24,6 +24,12 @@ Status: **stub — owed-work register, normative only where marked OWED→DONE.*
 - [ ] Typed-link UX spec (capture flows, editing contract).
 - [ ] Class lifecycle/protection validation rules; promotion/lint gesture specs.
 - [x] **Fixture re-encoding against this model** — DONE 2026-09-25: typed-link-mark fixtures replace the deleted relation fixtures at full acceptance width (see `fixtures/`).
+- [ ] **Name/title derivation** — port the v1 rule explicitly: stored `name` for pages; blocks derive their display name from content text, with stored-name override; renames do NOT propagate to mentions (they render the target's current name — Fork 4).
+- [ ] **Mention ↔ node_link analytics join key** — the links table wants a per-link stable UUID (owner: origin, target, created, click/access times); the `mention` token carries only `targetNodeId`. Decide: optional `linkId` on the token (v1 `target:linkUuid` pattern; enables per-instance history) vs. keying analytics on the (source, target) pair. Needed before the edge applier.
+- [ ] **Collection ops reconciliation** — `01` makes collections nodes; the registry has first-class `collection.create/update/delete`. Reconcile: a collection = node classed `collection`; `collection.*` become convenience wrappers over `object.*` (or are dropped); `collection.member.add/remove` stay as the membership ops.
+- [ ] **System seed manifest** — full port of v1 `SYSTEM_CLASS_UUIDS` / `SYSTEM_PROPERTY_UUIDS` / `SYSTEM_PAGE_UUIDS` (entity classes, `tag`/`claim`/`question`/`meeting`/`collection`/`query`, `whiteboard`, source tree, asset, annotation family; decide day/month/year for journals; Inbox + scratchpad) as `packages/domain` seeds with fixed UUIDs.
+- [ ] **FTS plaintext extraction spec** — which tokens contribute text (text runs, typed-link text, mention captured text, asset original name, recursive quote children; whiteboard cards are ordinary blocks and index naturally), and how derived `text_content` is stored.
+- [ ] **Protocol v2 wire spec** — port v1 `protocol/SPEC.md` structure with the §34.4 fixes: endpoint surface (batch / catch-up / snapshot / compact / stats), WS framing, error envelope, rate limits, versioning policy, fixtures. Needed before `apps/server`; envelopes and payloads are already specced here.
 
 ## Content grammar (NORMATIVE, firmed 2026-09-25)
 
