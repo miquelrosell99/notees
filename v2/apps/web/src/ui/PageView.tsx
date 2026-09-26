@@ -15,14 +15,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { deriveDisplayName } from "@notees/domain";
 
-import { buildOutlinePositions } from "@/editor/outline.js";
+import { buildOutlinePositions, type OutlinePositionMap } from "@/editor/outline.js";
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { BlockRow } from "./BlockRow.js";
+import {
+  DropLineContext,
+  blockCollisionDetection,
+  dropLineFromDragEvent,
+  executeMove,
+  moveErrorMessage,
+  resolveMove,
+  useBlockDndSensors,
+  type DropLine,
+} from "./block-dnd.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
@@ -95,6 +107,17 @@ export function PageView({
     });
   }, []);
 
+  // --- drag-and-drop reordering (block-dnd.ts intent model) -------------------
+  const sensors = useBlockDndSensors();
+  const [dropLine, setDropLine] = useState<DropLine | null>(null);
+  const [dragging, setDragging] = useState<{ id: string; label: string } | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  useEffect(() => {
+    if (moveError === null) return;
+    const timer = setTimeout(() => setMoveError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [moveError]);
+
   // Section queries (SCHEMA.md lazy-loading contract): the closures are
   // created here but only INVOKED by Section after the first expand.
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
@@ -103,10 +126,55 @@ export function PageView({
 
   const page = client.getPage(pageId);
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
+  const positions: OutlinePositionMap = buildOutlinePositions(tree, pageId);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const id = String(event.active.id);
+    setDragging({ id, label: client.getDisplayName(id) ?? id });
+    setMoveError(null);
+  };
+
+  const handleDragMove = (event: DragMoveEvent) => {
+    setDropLine(dropLineFromDragEvent(event, positions));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const line = dropLineFromDragEvent(event, positions);
+    const activeId = String(event.active.id);
+    setDropLine(null);
+    setDragging(null);
+    if (line === null) return;
+    const resolution = resolveMove({ activeId, line, positions });
+    if (resolution.status === "noop") return;
+    if (resolution.status === "refused") {
+      setMoveError(resolution.reason);
+      return;
+    }
+    void (async () => {
+      try {
+        await executeMove({
+          activeId,
+          command: resolution.command,
+          positions,
+          moveObject: (id, parentId, afterId) =>
+            afterId === undefined
+              ? client.moveObject(id, parentId)
+              : client.moveObject(id, parentId, afterId),
+        });
+      } catch (err) {
+        setMoveError(moveErrorMessage(err));
+      }
+    })();
+  };
+
+  const handleDragCancel = () => {
+    setDropLine(null);
+    setDragging(null);
+  };
 
   const outliner: OutlinerContextValue = {
     client,
-    positions: buildOutlinePositions(tree, pageId),
+    positions,
     focusRequest,
     requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
       setFocusRequest({ id: blockId, caret }),
@@ -170,12 +238,33 @@ export function PageView({
             </button>
           </div>
         </header>
-        <EmbedBoundary rootId={pageId}>
-          <div className={prose ? "nt-block-tree nt-prose" : "nt-block-tree"}>
-            {tree.map((child) => (
-              <BlockRow key={child.node.id} tree={child} resolveName={(id) => client.getDisplayName(id)} />
-            ))}
+        {moveError !== null && (
+          <div role="alert" className="nt-dnd-error">
+            {moveError}
           </div>
+        )}
+        <EmbedBoundary rootId={pageId}>
+          <DndContext
+            sensors={sensors}
+collisionDetection={blockCollisionDetection}
+            onDragStart={handleDragStart}
+            onDragMove={handleDragMove}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <DropLineContext.Provider value={dropLine}>
+              <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+                <div className={prose ? "nt-block-tree nt-prose" : "nt-block-tree"}>
+                  {tree.map((child) => (
+                    <BlockRow key={child.node.id} tree={child} resolveName={(id) => client.getDisplayName(id)} />
+                  ))}
+                </div>
+              </SortableContext>
+            </DropLineContext.Provider>
+            <DragOverlay dropAnimation={null}>
+              {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
+            </DragOverlay>
+          </DndContext>
         </EmbedBoundary>
         {tree.length === 0 && (
           <button type="button" className="nt-add-block" onClick={() => void addFirstBlock()}>
