@@ -98,6 +98,17 @@ export interface ClientEdge {
   metadata: string | null;
 }
 
+/**
+ * One row of a references section (linked or unlinked): the node carrying the
+ * link / literal-text match, plus the breadcrumb of its containing page
+ * (nearest page-type ancestor — the source itself when it is a page).
+ */
+export interface ReferenceEntry {
+  source: ClientNode;
+  containingPageId: string;
+  containingPageName: string;
+}
+
 export interface CreateObjectInput {
   /** Defaults to a fresh UUIDv7. */
   id?: string;
@@ -351,6 +362,90 @@ export class WorkspaceClient {
       verb: row.verb === null || row.verb === undefined ? null : String(row.verb),
       metadata: row.metadata === null || row.metadata === undefined ? null : String(row.metadata),
     }));
+  }
+
+  /**
+   * Linked references (SCHEMA.md system sections): sources of edges pointing
+   * at the node, one entry per distinct source, each with the breadcrumb of
+   * its containing page.
+   */
+  getLinkedReferences(id: string): ReferenceEntry[] {
+    const seen = new Set<string>();
+    const entries: ReferenceEntry[] = [];
+    for (const edge of this.getBacklinks(id)) {
+      if (seen.has(edge.sourceId)) continue;
+      // Live sources only — a trashed node no longer claims a reference.
+      const source = this.getNode(edge.sourceId);
+      if (!source) continue;
+      seen.add(edge.sourceId);
+      entries.push(this.referenceEntry(source));
+    }
+    return entries;
+  }
+
+  /**
+   * Unlinked references (pages only — blocks never get this section):
+   * literal-text FTS matches of the page's display name across the workspace,
+   * excluding the page itself and every node that already links to it (the
+   * linked-references set). No eager count: computing this IS the query.
+   */
+  getUnlinkedReferences(id: string): ReferenceEntry[] {
+    const node = this.getNode(id);
+    if (!node || node.nodeType !== "page") return [];
+    const name = deriveDisplayName(node);
+    if (!name) return [];
+    const linkedSources = new Set(this.getBacklinks(id).map((edge) => edge.sourceId));
+    const entries: ReferenceEntry[] = [];
+    for (const hit of this.store.search(name)) {
+      if (hit.nodeId === id || linkedSources.has(hit.nodeId)) continue;
+      const source = this.getNode(hit.nodeId);
+      if (!source) continue;
+      entries.push(this.referenceEntry(source));
+    }
+    return entries;
+  }
+
+  /** Direct page-typed children (SCHEMA.md projection rule 3: never body blocks). */
+  getChildPages(id: string): ClientNode[] {
+    return this.store
+      .children(id)
+      .filter((row) => row.node_type === "page" && row.is_active === 1)
+      .map(mapNode);
+  }
+
+  /** Materialized backlink count (node_stats) — the linked-references badge. */
+  getBacklinkCount(id: string): number {
+    const row = this.store.database
+      .prepare("SELECT backlink_count AS n FROM node_stats WHERE node_id = ?")
+      .get(id) as { n: number } | undefined;
+    return row?.n ?? 0;
+  }
+
+  /** Direct child-page count (cheap child-order read) — the child-pages badge. */
+  getChildPageCount(id: string): number {
+    const row = this.store.database
+      .prepare(
+        `SELECT COUNT(*) AS n FROM node_child_order o
+         JOIN node n ON n.id = o.child_id
+         WHERE o.parent_id = ? AND n.node_type = 'page' AND n.is_active = 1`,
+      )
+      .get(id) as { n: number } | undefined;
+    return row?.n ?? 0;
+  }
+
+  /** Breadcrumb row for a reference: the source plus its containing page. */
+  private referenceEntry(source: ClientNode): ReferenceEntry {
+    let current = source;
+    for (let guard = 0; current.nodeType !== "page" && current.parentId !== null && guard < 64; guard += 1) {
+      const parent = this.getNode(current.parentId);
+      if (!parent) break;
+      current = parent;
+    }
+    return {
+      source,
+      containingPageId: current.id,
+      containingPageName: deriveDisplayName(current) || current.id,
+    };
   }
 
   // --- write API (optimistic local apply + outbox push) -----------------------

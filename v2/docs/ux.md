@@ -12,7 +12,7 @@ M1 alpha honesty, up front — every feature below is labeled:
 | Promotion/demotion | **Today** (CLI/API; in-editor gesture designed) |
 | Class view, focused block view | Designed |
 | Interactive outliner: text core | **Today** (typing, Enter/shift+Enter/Backspace, Tab indent / shift+Tab outdent, Enter sibling placement) |
-| System sections UI with the lazy-loading contract | Designed |
+| System sections UI with the lazy-loading contract | **Today** (page-level: linked references, unlinked references, child pages); block-level gutter toggle and classed-nodes section Designed |
 | Typed-link capture UX (create-and-bind, target resolution) | Designed |
 | Whiteboards | Designed |
 
@@ -61,7 +61,7 @@ The rules, all of them load-bearing for performance:
 
 Backlinks list *actual* links — but the backlinks view can be narrowed by facets over inherited links: Jane's backlinks filtered to `refset ∋ ACME` shows only the Jane-mentions made in the context of ACME, even when the ACME link lives on a parent block (Logseq's linked-references filtering, generalized — see [philosophy.md](philosophy.md#what-we-took--and-the-wounds-that-became-our-rules)).
 
-**Today:** backlinks are real data — `notees backlinks <id>`, `GET /api/v1/objects/:id/backlinks`, and the web client's `getBacklinks()` all read the derived edge index. The section chrome, badges, and the expand-on-first-toggle UX are designed.
+**Today:** the page-level sections ship in the web client — linked references (badge from the materialized `node_stats.backlink_count`), unlinked references (pages only, no eager count: an FTS over the page's name excluding already-linked sources), and child pages. All are collapsed by default and run no query until first expand; an expanded section re-runs its query when a notification lands and caches until then. The block-level right-gutter backlink toggle is designed (it arrives with the focused-block surface), and the classed-nodes section ships with the Class View.
 
 ## Mentions, chips, and typed links — marks on words
 

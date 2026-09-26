@@ -269,7 +269,7 @@ export function App() {
       </aside>
       <main className="nt-main">
         {selectedPageId !== null ? (
-          <PageView client={client} pageId={selectedPageId} />
+          <PageView client={client} pageId={selectedPageId} onOpenPage={setSelectedPageId} />
         ) : (
           <div className="nt-empty">Select a page.</div>
         )}

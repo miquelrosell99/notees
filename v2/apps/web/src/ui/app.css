@@ -251,6 +251,106 @@ button {
   border-left: 1px solid #e4e7eb;
 }
 
+/* --- system sections ------------------------------------------------------------- */
+
+.nt-page-sections {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-section {
+  border-top: 1px solid #e4e7eb;
+  padding: 4px 0 8px;
+}
+
+.nt-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  color: #52606d;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+.nt-section-chevron {
+  width: 12px;
+  color: #9aa5b1;
+  flex-shrink: 0;
+}
+
+.nt-section-title {
+  flex: 1;
+}
+
+.nt-section-badge {
+  background: #eef1f4;
+  border: 1px solid #d9dce1;
+  border-radius: 10px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #52606d;
+}
+
+.nt-section-body {
+  margin-top: 4px;
+}
+
+.nt-section-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-section-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 4px 8px 4px 20px;
+  color: #1f2933;
+  font-size: 14px;
+}
+
+.nt-section-item:hover {
+  background: #eef1f4;
+}
+
+.nt-section-crumb {
+  color: #1f2933;
+}
+
+.nt-section-source {
+  color: #7b8794;
+  font-size: 0.88em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-section-empty {
+  color: #7b8794;
+  font-size: 13px;
+  padding: 4px 8px 4px 20px;
+}
+
 /* --- inline tokens ------------------------------------------------------------- */
 
 .nt-chip {
