@@ -326,7 +326,7 @@ node→asset assertions in the derived store (`node_asset`).
 *Implemented (M1) — deliberately thin; the interactive editor is M1b/designed.*
 
 **Web** (`apps/web`). `src/core/workspace-client.ts` is the whole data path: a `Store`
-over the **sql.js** backend (local derived state, in-memory in M1), a `SyncEngine`
+over the **sql.js** backend (local derived state persisted to OPFS via a Web Worker since M1b slice 2), a `SyncEngine`
 (outbox push + seq-cursor pull + snapshot shortcut), and a `Transport`
 (`HttpTransport` against a relay server in the app; `MemoryTransport` over a `MemoryRelay`
 in tests — both in `packages/sync/src/transport.ts`). Reads always hit the local store;

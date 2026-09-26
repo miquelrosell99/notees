@@ -1,0 +1,140 @@
+// @vitest-environment node
+/**
+ * Worker protocol tests: drive WorkerCore through the exact `{id, method,
+ * args}` → `{id, result}` | `{id, error}` message shapes the worker entry
+ * (store-worker.ts) uses, via the shared handleMessage(). Init builds the
+ * core in-memory (sql.js + Map-backed OpfsStore + MemoryTransport — no Worker
+ * globals, no real OPFS).
+ */
+
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+
+import type { OpfsStore } from "../src/worker/opfs.js";
+import {
+  WorkerCore,
+  handleMessage,
+  type WorkerContext,
+  type WorkerInitMessage,
+  type WorkerRequestMessage,
+  type WorkerResponseMessage,
+} from "../src/worker/worker-core.js";
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const FILE = `${WS}.db`;
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const cores: WorkerCore[] = [];
+
+afterEach(async () => {
+  while (cores.length > 0) {
+    await cores.pop()!.close();
+  }
+});
+
+function createMemoryOpfs(): { opfs: OpfsStore; files: Map<string, Uint8Array> } {
+  const files = new Map<string, Uint8Array>();
+  const opfs: OpfsStore = {
+    loadFile: async (name) => {
+      const bytes = files.get(name);
+      return bytes === undefined ? null : new Uint8Array(bytes);
+    },
+    saveFile: async (name, bytes) => {
+      files.set(name, new Uint8Array(bytes));
+    },
+  };
+  return { opfs, files };
+}
+
+/** A WorkerContext shaped like the worker entry's, but with in-memory wiring. */
+function createTestContext(): { ctx: WorkerContext; files: Map<string, Uint8Array> } {
+  const { opfs, files } = createMemoryOpfs();
+  const ctx: WorkerContext = {
+    core: null,
+    init: async (init: WorkerInitMessage) => {
+      const core = await WorkerCore.create({
+        SQL: sqlModule,
+        opfs,
+        fileName: `${init.workspaceId}.db`,
+        workspaceId: init.workspaceId,
+        transport: new MemoryTransport(new MemoryRelay()),
+      });
+      cores.push(core);
+      ctx.core = core;
+    },
+  };
+  return { ctx, files };
+}
+
+async function send(
+  ctx: WorkerContext,
+  method: string,
+  args: unknown[] = [],
+  id = 1,
+): Promise<WorkerResponseMessage> {
+  const message: WorkerRequestMessage = { id, method, args };
+  return handleMessage(ctx, message);
+}
+
+describe("worker message protocol (handleMessage)", () => {
+  it("requires init before any other method", async () => {
+    const { ctx } = createTestContext();
+    const response = await send(ctx, "listPages");
+    expect(response.result).toBeUndefined();
+    expect(response.error).toMatch(/init required/);
+  });
+
+  it("drives init → write → read → flush over the wire shapes", async () => {
+    const { ctx, files } = createTestContext();
+
+    const initResponse = await send(ctx, "init", [
+      {
+        sqlWasmUrl: "/assets/sql-wasm.wasm",
+        workspaceId: WS,
+        serverUrl: "https://notees.example.com",
+        apiKey: "test-key",
+      } satisfies WorkerInitMessage,
+    ]);
+    expect(initResponse).toEqual({ id: 1, result: null });
+
+    const created = await send(ctx, "createObject", [{ nodeType: "page", name: "Via Protocol" }], 2);
+    expect(created.error).toBeUndefined();
+    const pageId = created.result as string;
+    expect(pageId).toBeTruthy();
+
+    const listed = await send(ctx, "listPages", [], 3);
+    expect(listed.error).toBeUndefined();
+    const pages = listed.result as Array<{ id: string; name: string | null }>;
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toMatchObject({ id: pageId, name: "Via Protocol" });
+
+    const page = await send(ctx, "getPage", [pageId], 4);
+    expect(page.error).toBeUndefined();
+    expect(page.result).toMatchObject({ id: pageId, nodeType: "page" });
+
+    const flushed = await send(ctx, "flush", [], 5);
+    expect(flushed.error).toBeUndefined();
+    expect(files.has(FILE)).toBe(true);
+
+    const stats = await send(ctx, "stats", [], 6);
+    expect(stats.error).toBeUndefined();
+    expect(stats.result).toMatchObject({ nodes: 1, activeNodes: 1, appliedEnvelopes: 1 });
+  });
+
+  it("returns {id, error} for unknown methods", async () => {
+    const { ctx } = createTestContext();
+    await send(ctx, "init", [
+      { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "https://x.example.com", apiKey: "k" },
+    ]);
+    const response = await send(ctx, "noSuchMethod", [], 7);
+    expect(response.result).toBeUndefined();
+    expect(response.error).toMatch(/unknown method/);
+  });
+});
