@@ -7,9 +7,10 @@
  * surface) and re-renders on its (naive) notifications.
  *
  * PageView also owns the OutlinerContext: the write surface, the per-render
- * outline position map (sibling/parent facts for Tab/Backspace), and the
- * focus request that hands the caret between blocks after structural
- * gestures.
+ * outline position map (sibling/parent facts for Tab/Backspace), the focus
+ * request that hands the caret between blocks after structural gestures, and
+ * the session-local view transforms: subtree collapse (a Set of hidden node
+ * ids, display-only) and prose mode (the `nt-prose` class on the tree).
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -77,6 +78,21 @@ export function PageView({
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+  /**
+   * View transforms (SCHEMA.md: display state, never content). Collapse is a
+   * per-session set of hidden subtree roots; prose mode flattens bullets and
+   * indents via the `nt-prose` class. Neither is persisted in this slice.
+   */
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const [prose, setProse] = useState(false);
+  const toggleCollapse = useCallback((blockId: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+  }, []);
 
   // Section queries (SCHEMA.md lazy-loading contract): the closures are
   // created here but only INVOKED by Section after the first expand.
@@ -94,6 +110,8 @@ export function PageView({
     requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
       setFocusRequest({ id: blockId, caret }),
     acknowledgeFocus: () => setFocusRequest(null),
+    collapsed: collapsedIds,
+    toggleCollapse,
     capture: {
       /**
        * `@` mention candidates, by DISPLAY NAME (SCHEMA.md derivation). The
@@ -140,8 +158,18 @@ export function PageView({
       <div className="nt-page">
         <header className="nt-page-header">
           <TitleEditor page={page} />
+          <div className="nt-page-toolbar">
+            <button
+              type="button"
+              className={prose ? "nt-view-toggle nt-view-toggle-active" : "nt-view-toggle"}
+              aria-pressed={prose}
+              onClick={() => setProse((p) => !p)}
+            >
+              Prose
+            </button>
+          </div>
         </header>
-        <div className="nt-block-tree">
+        <div className={prose ? "nt-block-tree nt-prose" : "nt-block-tree"}>
           {tree.map((child) => (
             <BlockRow key={child.node.id} tree={child} resolveName={(id) => client.getDisplayName(id)} />
           ))}
