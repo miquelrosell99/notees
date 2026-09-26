@@ -2,7 +2,7 @@
 
 Contributing and hacking guide for the M1-alpha monorepo. Scope: the `v2/` tree of the
 greenfield worktree. For the system's architecture see `architecture.md`; for model
-authority see `docs/design/01-knowledge-model.md` and `packages/protocol/SCHEMA.md`.
+authority see `../design/01-knowledge-model.md` and `packages/protocol/SCHEMA.md`.
 
 **Maturity.** Commands and paths below were verified against the tree at the time of
 writing. Features listed as *designed (M2/M3)* — typed-link target resolution, citations,
@@ -43,7 +43,7 @@ add `dev`/`build`/`start` (`apps/server`: `start` = `node dist/server.js`).
 
 ## 3. The fixture gate — blocking, at full width
 
-The single most important process rule (`docs/plans/2026-09-24-object-graph-pim-evolution/assessment.md`
+The single most important process rule (`../2026-09-24-object-graph-pim-evolution/assessment.md`
 fixture-gate lineage; `00-INDEX.md` amendment (b)):
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
@@ -78,7 +78,7 @@ fixtures were replaced by typed-link-mark fixtures exercising the same scenarios
 
 1. **Spec** — write the payload shape and semantics into `packages/protocol/SCHEMA.md`
    (owed-work register) or the relevant normative section. If the model itself changes,
-   `docs/design/01-knowledge-model.md` is normative — read `00-INDEX.md` first.
+   `../design/01-knowledge-model.md` is normative — read `00-INDEX.md` first.
 2. **Payload zod schema** — add `yourOpPayload = z.object({...}).strict()` to
    `packages/protocol/src/op-types.ts` and register it in `OP_PAYLOAD_SCHEMAS`. The
    registry is the single source of truth: the relay's `validateRelayEnvelope`
