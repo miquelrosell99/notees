@@ -56,7 +56,7 @@ The full walkthrough — server env, a real CLI session, the web app, the object
 - [docs/philosophy.md](docs/philosophy.md) — the ideas: op-log truth, the design law, single-sourcing, classes as nodes, UUID identity, and the wounds that became our rules
 - [docs/usage.md](docs/usage.md) — install, run, CLI tutorial, web app, object API reference
 - [docs/ux.md](docs/ux.md) — the interaction model: outliner, system sections, marks on words, whiteboards, promotion (Today vs Designed per feature)
-- [docs/design/](docs/design/) — the normative design stack (`00-INDEX.md`, `01-knowledge-model.md`, `02-model-assessment.md`, `03-paradigm-assessment.md`)
+- [.plans/design/](.plans/design/) — the normative design stack (`00-INDEX.md`, `01-knowledge-model.md`, `02-model-assessment.md`, `03-paradigm-assessment.md`)
 - [packages/protocol/SCHEMA.md](packages/protocol/SCHEMA.md) — content grammar, node structure, typed-link tokens, sections contract (normative)
 - [packages/protocol/WIRE.md](packages/protocol/WIRE.md) — relay wire spec: envelopes, endpoints, WebSocket framing
 
