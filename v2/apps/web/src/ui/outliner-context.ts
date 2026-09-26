@@ -9,6 +9,7 @@ import { createContext, useContext } from "react";
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
 import type {
+  ClientNode,
   CreateObjectInput,
   DeleteObjectOptions,
   UpdateObjectInput,
@@ -24,6 +25,12 @@ export interface OutlinerClient {
    * at the end (Tab indent).
    */
   moveObject(id: string, parentId: string | null, afterId?: string): Promise<void>;
+  /**
+   * OR-set class membership add — the `#` / `+` "set" gesture. No-op when
+   * the class is already assigned; otherwise appends to the node's class_ids
+   * (read-modify-write over the node's current class_ids).
+   */
+  assignClass(id: string, classId: string): Promise<void>;
 }
 
 export interface FocusRequest {
@@ -39,6 +46,16 @@ export interface OutlinerContextValue {
   focusRequest: FocusRequest | null;
   requestFocus: (blockId: string, caret?: CaretPlacement) => void;
   acknowledgeFocus: () => void;
+  /**
+   * Capture-gesture reads ([[ mention, # chip): filtered node search, the
+   * class list, and name resolution for candidate rows. Provided by
+   * PageView from the full client surface (in-process or worker proxy).
+   */
+  capture: {
+    searchNodes(query: string): ClientNode[];
+    listClasses(): ClientNode[];
+    displayName(id: string): string | null;
+  };
 }
 
 export const OutlinerContext = createContext<OutlinerContextValue | null>(null);

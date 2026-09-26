@@ -52,7 +52,7 @@ Token set (zod schemas are the executable form, `src/content-mark.ts`):
 | `text` | `text`, `marks?` | plain runs; formatting lives here |
 | `class_chip` | `classId`, `displayText?` | render-only (Fork 3) |
 | `mention` | `targetNodeId`, `text`, `displayText?` | pill escape hatch (Fork 4) |
-| `typed_link` | `verb`, `text`, `metadata{locator?, candidateSpans?}` | mark on the word; record-don't-resolve |
+| `typed_link` | `verb`, `text`, `metadata{locator?, candidateSpans?}` | mark on the word; record-don't-resolve. **candidateSpans (web M1 interpretation, 2026-09-26):** the flat grammar has no token ids — computed on save as the `targetNodeId`s of the block's `mention` tokens, ordered nearest-first by prose distance from the mark, deduped, cap 8 |
 | `asset_ref` | `assetId` | renders inline (chip/preview); alone in a stream position = full-bleed |
 | `embed_ref` | `nodeId` | live subtree, never a clone; renderer cycle guard |
 | `quote` | `children` (inline tokens) | the only nested token |
