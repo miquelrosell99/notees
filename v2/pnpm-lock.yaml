@@ -72,6 +72,25 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/sync:
+    dependencies:
+      '@notees/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@notees/store':
+        specifier: workspace:*
+        version: link:../store
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
 packages:
 
   '@esbuild/aix-ppc64@0.21.5':
