@@ -6,7 +6,12 @@
  *  - NOTEES_API_KEY: bootstrap key (`nk_` + 32 chars). When absent, the first
  *    boot generates a key and persists it to <dataDir>/api_key.txt (0600) so
  *    the operator can recover it; the key is logged once on generation;
- *  - NOTEES_PORT (default 8377), NOTEES_HOST (default 0.0.0.0).
+ *  - NOTEES_PORT (default 8377), NOTEES_HOST (default 0.0.0.0);
+ *  - NOTEES_CORS_ORIGIN: comma-separated browser origins allowed to call the
+ *    API cross-origin (web client served from another origin/port). Absent/empty
+ *    (default) sends no CORS headers: same-origin and non-browser clients (CLI)
+ *    are unaffected, browsers are denied. `*` allows any origin — LAN-trusted
+ *    deployments only, there is no cookie/credential surface to protect.
  */
 
 import { randomBytes } from "node:crypto";
@@ -29,6 +34,11 @@ export interface ServerConfig {
   maxMediaBytes: number;
   /** Document (pdf/epub) size cap (v1: 100MB). */
   maxDocumentBytes: number;
+  /**
+   * Browser origins allowed to call the API cross-origin (parsed from
+   * NOTEES_CORS_ORIGIN). Empty means no CORS headers are sent at all.
+   */
+  corsOrigins: string[];
 }
 
 export function generateApiKey(): string {
@@ -79,6 +89,18 @@ function intFromEnv(env: NodeJS.ProcessEnv, name: string, fallback: number): num
   return value;
 }
 
+/**
+ * Parse NOTEES_CORS_ORIGIN: a comma (or whitespace) separated origin list.
+ * An entry of `*` becomes the wildcard origin. Absent/empty → no CORS.
+ */
+export function parseCorsOrigins(raw: string | undefined): string[] {
+  if (raw === undefined) return [];
+  return raw
+    .split(/[,\s]+/)
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig & { generatedKey: boolean } {
   const dataDir = resolve(env.NOTEES_DATA_DIR ?? "./data");
   const { apiKey, generated } = resolveApiKey(dataDir, env);
@@ -93,5 +115,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig &
     globalRequestsPerMinute: intFromEnv(env, "NOTEES_GLOBAL_REQ_PER_MINUTE", 10_000),
     maxMediaBytes: intFromEnv(env, "NOTEES_MAX_MEDIA_BYTES", 50 * 1024 * 1024),
     maxDocumentBytes: intFromEnv(env, "NOTEES_MAX_DOCUMENT_BYTES", 100 * 1024 * 1024),
+    corsOrigins: parseCorsOrigins(env.NOTEES_CORS_ORIGIN),
   };
 }
