@@ -1,18 +1,26 @@
 /**
  * PageView — a page: header with the derived display name and the recursive
- * block tree of its children. Reads from a WorkspaceClient and re-renders on
- * its (naive) notifications.
+ * block tree of its children. Reads from a client (in-process WorkspaceClient
+ * or the WorkerClient proxy — same surface) and re-renders on its (naive)
+ * notifications.
  */
 
 import { useEffect, useState } from "react";
 
 import { deriveDisplayName } from "@notees/domain";
 
+import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { BlockRow } from "./BlockRow.js";
 
-export function PageView({ client, pageId }: { client: WorkspaceClient; pageId: string }) {
+export function PageView({
+  client,
+  pageId,
+}: {
+  client: WorkspaceClient | WorkerClient;
+  pageId: string;
+}) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
