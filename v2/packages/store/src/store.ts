@@ -158,6 +158,32 @@ export class Store {
       .all(parentId) as NodeRow[];
   }
 
+  /** Direct class_extends parents of a class, deterministic order. */
+  classParentIds(classId: string): string[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+        )
+        .all(classId) as { parent_class_id: string }[]
+    ).map((row) => row.parent_class_id);
+  }
+
+  /**
+   * Active nodes whose OR-set class membership includes the class (present
+   * rows only), in display order. The Class View's members read.
+   */
+  classMembers(classId: string): NodeRow[] {
+    return this.db
+      .prepare(
+        `SELECT n.* FROM node n
+         JOIN class_member_set m ON m.node_id = n.id
+         WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1
+         ORDER BY COALESCE(n.name, n.id), n.id`,
+      )
+      .all(classId) as NodeRow[];
+  }
+
   /** Edges pointing at the node (backlinks), ordered deterministically. */
   backlinks(nodeId: string) {
     return this.db
