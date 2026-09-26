@@ -281,5 +281,19 @@ mark {
   padding: 4px 12px;
   font-size: 11px;
   color: #7b8794;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   pointer-events: none;
+}
+
+.nt-sync-status {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-sync-status-error {
+  color: #b42318;
 }

@@ -9,7 +9,8 @@
  *  - exposes the worker API: applyBatch (remote frames), the read surface
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
  *    getDisplayName / getNode / getNodeRaw), the write surface
- *    (createObject / updateObject / deleteObject), syncOnce, exportBytes,
+ *    (createObject / updateObject / deleteObject), syncOnce, the realtime
+ *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, and flush;
  *  - persists db.export() bytes to OPFS debounced (~500 ms, coalesced) after
  *    every mutation, each save awaiting the previous one (serialized chain);
@@ -32,6 +33,7 @@ import {
   type ClientNode,
   type CreateObjectInput,
   type DeleteObjectOptions,
+  type SyncStatusSnapshot,
   type UpdateObjectInput,
 } from "../core/workspace-client.js";
 
@@ -317,6 +319,20 @@ export class WorkerCore {
     await this.client.pull();
   }
 
+  /** Wire the WS acceleration path (no-op when the transport has no subscribe). */
+  startRealtime(): void {
+    this.client.startRealtime();
+  }
+
+  stopRealtime(): void {
+    this.client.stopRealtime();
+  }
+
+  /** Engine + outbox + realtime state for the footer status indicator. */
+  status(): SyncStatusSnapshot {
+    return this.client.status();
+  }
+
   /** Current db.export() bytes (OPFS image / backup). */
   exportBytes(): Uint8Array {
     return this.client.store.snapshot();
@@ -377,6 +393,12 @@ export class WorkerCore {
         return this.push();
       case "pull":
         return this.pull();
+      case "startRealtime":
+        return this.startRealtime();
+      case "stopRealtime":
+        return this.stopRealtime();
+      case "status":
+        return this.status();
       case "exportBytes":
         return this.exportBytes();
       case "stats":

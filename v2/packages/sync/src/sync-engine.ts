@@ -9,8 +9,8 @@
  *    idempotency, one transaction per page via applyMany);
  *  - the server seq cursor persists in app_meta (see meta.ts for why not
  *    sync_state.cursor_seq);
- *  - single-user M1: no E2EE decryption, no presence, WS client deferred
- *    (onRemoteBatch/startRealtime are the hook surface).
+ *  - single-user M1: no E2EE decryption, no presence; the WS acceleration
+ *    path is wired through Transport.subscribe (HttpTransport implements it).
  */
 
 import {
@@ -405,19 +405,36 @@ export class SyncEngine {
     if (!this.pullInFlight) this.drainWsBuffer();
   }
 
-  /** Wire the transport's realtime channel (subscribe), if it has one. */
+  /**
+   * Wire the transport's realtime channel (subscribe), if it has one. Every
+   * (re)connect sends a fresh `hello`, so a pull from the seq cursor covers
+   * anything missed while the socket was down; `ack` frames acknowledge
+   * outbox entries pushed over the socket (a no-op for HTTP-pushed ids).
+   */
   startRealtime(): () => void {
     if (!this.transport.subscribe) return () => {};
     this.stopRealtime();
     this.unsubscribeRealtime = this.transport.subscribe({
       onOps: (envelopes, seqs) => this.onRemoteBatch(envelopes, seqs),
       onHello: (hello) => {
-        if (hello.latestSeq > this.cursorSeq) {
-          // Behind: catch up over HTTP (pull also handles restoreEpoch).
-          void this.syncOnce().catch(() => {});
+        if (
+          hello.latestSeq > this.cursorSeq ||
+          hello.restoreEpoch !== this.restoreEpoch
+        ) {
+          // Behind (or the server restored): catch up over HTTP — pull also
+          // handles restoreEpoch changes.
+          void this.pull().catch(() => {});
         } else {
           this.drainWsBuffer();
         }
+      },
+      onAck: (savedIds) => {
+        this.outbox.markAcknowledged(savedIds);
+        this.reportOutboxCounts();
+      },
+      onError: (error) => {
+        this.setStatus("error", error);
+        this.callbacks.onError?.(error);
       },
     });
     return () => this.stopRealtime();
@@ -435,7 +452,8 @@ export class SyncEngine {
       const frame = this.wsBuffer.shift()!;
       try {
         const envelopes = frame.envelopes.map((input) => validateEnvelope(input));
-        this.applyRemote(envelopes, frame.seqs);
+        const applied = this.applyRemote(envelopes, frame.seqs);
+        if (applied > 0) this.callbacks.onRemoteBatch?.(applied);
       } catch (err) {
         // v1: drop the remaining buffer — unapplied frames never advanced the
         // cursor, so the next pull re-fetches them through catch-up.
