@@ -1,6 +1,8 @@
 /**
  * PageView — a page: editable header title + the recursive block tree of
- * its children + the "add block" affordance for an empty page. Reads from a
+ * its children + the "add block" affordance for an empty page + the page's
+ * system sections (linked references, unlinked references, child pages) per
+ * SCHEMA.md: collapsed by default, no query until first expand. Reads from a
  * client (in-process WorkspaceClient or the WorkerClient proxy — same
  * surface) and re-renders on its (naive) notifications.
  *
@@ -10,14 +12,17 @@
  * gestures.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+import { deriveDisplayName } from "@notees/domain";
 
 import { buildOutlinePositions } from "@/editor/outline.js";
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { BlockRow } from "./BlockRow.js";
+import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
 import {
   OutlinerContext,
@@ -25,16 +30,56 @@ import {
   type OutlinerContextValue,
 } from "./outliner-context.js";
 
+/** One references row: containing-page breadcrumb, then the source excerpt. */
+function ReferenceList({
+  entries,
+  onOpenPage,
+}: {
+  entries: ReferenceEntry[];
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
+  return (
+    <ul className="nt-section-list">
+      {entries.map((entry) => (
+        <li key={entry.source.id}>
+          <button
+            type="button"
+            className="nt-section-item"
+            onClick={() => onOpenPage?.(entry.containingPageId)}
+          >
+            <span className="nt-section-crumb">{entry.containingPageName}</span>
+            {entry.source.id !== entry.containingPageId && (
+              <span className="nt-section-source">
+                {" › "}
+                {deriveDisplayName(entry.source) || entry.source.id}
+              </span>
+            )}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function PageView({
   client,
   pageId,
+  onOpenPage,
 }: {
   client: WorkspaceClient | WorkerClient;
   pageId: string;
+  /** Page navigation (child-pages rows, reference crumbs). */
+  onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+
+  // Section queries (SCHEMA.md lazy-loading contract): the closures are
+  // created here but only INVOKED by Section after the first expand.
+  const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
+  const loadUnlinkedRefs = useCallback(() => client.getUnlinkedReferences(pageId), [client, pageId]);
+  const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
 
   const page = client.getPage(pageId);
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
@@ -77,6 +122,51 @@ export function PageView({
             + Add a block
           </button>
         )}
+        <div className="nt-page-sections">
+          <Section
+            key={`linked-${pageId}`}
+            client={client}
+            title="Linked references"
+            badge={client.getBacklinkCount(pageId)}
+            load={loadLinkedRefs}
+            emptyText="No linked references."
+            renderResults={(entries) => <ReferenceList entries={entries} onOpenPage={onOpenPage} />}
+          />
+          <Section
+            key={`unlinked-${pageId}`}
+            client={client}
+            title="Unlinked references"
+            load={loadUnlinkedRefs}
+            emptyText="No unlinked references."
+            renderResults={(entries) => <ReferenceList entries={entries} onOpenPage={onOpenPage} />}
+          />
+          <Section
+            key={`child-${pageId}`}
+            client={client}
+            title="Child pages"
+            badge={client.getChildPageCount(pageId)}
+            load={loadChildPages}
+            emptyText="No child pages."
+            renderResults={(pages) => (
+              <ul className="nt-section-list">
+                {pages.map((child) => (
+                  <li key={child.id}>
+                    <button
+                      type="button"
+                      className="nt-section-item"
+                      onClick={() => onOpenPage?.(child.id)}
+                    >
+                      <span className="nt-bullet" aria-hidden="true">
+                        •
+                      </span>
+                      <span>{deriveDisplayName(child) || child.id}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          />
+        </div>
       </div>
     </OutlinerContext.Provider>
   );
