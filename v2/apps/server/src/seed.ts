@@ -40,18 +40,20 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
     );
   }
   for (const [child, parents] of Object.entries(SYSTEM_CLASS_EXTENDS)) {
-    for (const parent of parents) {
-      const classId = SYSTEM_CLASS_UUIDS[child as SystemClassName];
-      envelopes.push(
-        factory.make({
-          workspaceId,
-          opType: "class.setExtends",
-          payload: { classId, parentClassId: SYSTEM_CLASS_UUIDS[parent] },
-          affectedNodeIds: [classId],
-          client: "seed",
-        }),
-      );
-    }
+    const classId = SYSTEM_CLASS_UUIDS[child as SystemClassName];
+    envelopes.push(
+      factory.make({
+        workspaceId,
+        opType: "class.setExtends",
+        payload: {
+          classId,
+          // One envelope per child: parentClassIds replaces the full set.
+          parentClassIds: parents.map((parent) => SYSTEM_CLASS_UUIDS[parent]),
+        },
+        affectedNodeIds: [classId],
+        client: "seed",
+      }),
+    );
   }
   for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
     if (spec === undefined) continue;

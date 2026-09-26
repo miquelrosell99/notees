@@ -4,7 +4,8 @@
  * `app/core/derived/{node,edge,property,class,class_hierarchy,child_order,asset}.py`,
  * adapted to v2: node_type instead of kind, no relation.* ops (associations
  * are typed-link marks and node-typed property values projecting into the
- * edge index), OR-Set class membership, single-parent class extends.
+ * edge index), OR-Set class membership, m2m class extends (replace
+ * semantics).
  *
  * Convergence rules (01-knowledge-model.md §12 / SCHEMA.md):
  *  - row-level LWW by (hlc_physical, hlc_logical, actor_id) — higher HLC
@@ -487,16 +488,29 @@ function applyClassDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
 
 /**
  * Full, deterministic rebuild of the class_hierarchy closure from the
- * registry's extends_class_id chain (single parent per class in v2). Rows
- * are inserted per class in sorted id order with sorted ancestor order, so
- * wipe -> replay -> identical. Historical cycles terminate via the visited
+ * class_extends edge set (m2m: multiple parents per class, per the designed
+ * model in 01-knowledge-model.md §6). Recompute-from-scratch for the whole
+ * table on every setExtends — the class count is small (system seed ~30),
+ * correctness and wipe -> replay -> byte-identity dominate any incremental
+ * bookkeeping. Rows are inserted per class in sorted id order with sorted
+ * ancestor order, so replay converges to identical bytes. The closure is a
+ * pure set (no order, no depth) — diamond resolution happens at read time
+ * in the bindings read model. Historical cycles terminate via the visited
  * set instead of looping.
  */
 function rebuildClassHierarchy(db: StoreDatabase): void {
   const classes = db
-    .prepare("SELECT id, extends_class_id FROM class WHERE active = 1 ORDER BY id")
-    .all() as { id: string; extends_class_id: string | null }[];
-  const parentById = new Map(classes.map((c) => [c.id, c.extends_class_id]));
+    .prepare("SELECT id FROM class WHERE active = 1 ORDER BY id")
+    .all() as { id: string }[];
+  const parentsById = new Map<string, string[]>();
+  const edges = db
+    .prepare("SELECT class_id, parent_class_id FROM class_extends ORDER BY class_id, parent_class_id")
+    .all() as { class_id: string; parent_class_id: string }[];
+  for (const edge of edges) {
+    const list = parentsById.get(edge.class_id);
+    if (list) list.push(edge.parent_class_id);
+    else parentsById.set(edge.class_id, [edge.parent_class_id]);
+  }
   const insert = db.prepare(
     "INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)",
   );
@@ -504,11 +518,14 @@ function rebuildClassHierarchy(db: StoreDatabase): void {
   for (const c of classes) {
     const ancestors = new Set<string>();
     const visited = new Set([c.id]);
-    let cursor = parentById.get(c.id) ?? null;
-    while (cursor !== null && !visited.has(cursor)) {
+    // BFS over the parent sets; the visited set terminates historical cycles.
+    const queue = [...(parentsById.get(c.id) ?? [])];
+    while (queue.length > 0) {
+      const cursor = queue.shift()!;
+      if (visited.has(cursor)) continue;
       visited.add(cursor);
       ancestors.add(cursor);
-      cursor = parentById.get(cursor) ?? null;
+      queue.push(...(parentsById.get(cursor) ?? []));
     }
     insert.run(c.id, c.id);
     for (const ancestorId of [...ancestors].sort()) insert.run(c.id, ancestorId);
@@ -518,30 +535,38 @@ function rebuildClassHierarchy(db: StoreDatabase): void {
 function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.setExtends";
   const p = env.payload as OpPayload<"class.setExtends">;
+  requireNode(db, p.classId, opType);
 
-  if (p.parentClassId !== null) {
-    requireNode(db, p.classId, opType);
-    if (p.parentClassId === p.classId) {
+  for (const parentClassId of p.parentClassIds) {
+    requireNode(db, parentClassId, opType);
+    if (parentClassId === p.classId) {
       throw new CycleError(`${opType}: class ${p.classId} cannot extend itself`, opType);
     }
-    // A cycle forms when the class is already an ancestor of its new parent
-    // (the closure includes self-rows, so a self-loop is covered too).
+    // A cycle forms when the class is already an ancestor of one of its new
+    // parents. The check runs against the pre-write closure, so multi-hop
+    // cycles across several parents are covered too.
     const cycle = db
       .prepare("SELECT 1 FROM class_hierarchy WHERE class_id = ? AND ancestor_id = ? LIMIT 1")
-      .get(p.parentClassId, p.classId);
+      .get(parentClassId, p.classId);
     if (cycle) {
       throw new CycleError(
-        `${opType}: class ${p.classId} is already an ancestor of ${p.parentClassId}; extends would cycle`,
+        `${opType}: class ${p.classId} is already an ancestor of ${parentClassId}; extends would cycle`,
         opType,
       );
     }
   }
 
-  db.prepare("UPDATE class SET extends_class_id = ?, updated_at = ? WHERE id = ?").run(
-    p.parentClassId,
-    env.timestamp,
-    p.classId,
+  // Replace semantics: the payload array IS the class's full parent set —
+  // drop every previous edge, then insert the new ones (dedup via the PK).
+  // An empty array detaches all parents.
+  db.prepare("DELETE FROM class_extends WHERE class_id = ?").run(p.classId);
+  const insertEdge = db.prepare(
+    "INSERT OR IGNORE INTO class_extends (class_id, parent_class_id) VALUES (?, ?)",
   );
+  for (const parentClassId of p.parentClassIds) {
+    insertEdge.run(p.classId, parentClassId);
+  }
+  db.prepare("UPDATE class SET updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
   rebuildClassHierarchy(db);
   return summary(opType, [p.classId]);
 }
