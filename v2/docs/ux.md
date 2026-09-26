@@ -11,7 +11,7 @@ M1 alpha honesty, up front — every feature below is labeled:
 | Backlinks as data (API, CLI, web client) | **Today** |
 | Promotion/demotion | **Today** (CLI/API; in-editor gesture designed) |
 | Class view, focused block view | Designed |
-| Interactive outliner editor | Designed |
+| Interactive outliner: text core | **Today** (typing, Enter/shift+Enter/Backspace, Tab indent / shift+Tab outdent, Enter sibling placement) |
 | System sections UI with the lazy-loading contract | Designed |
 | Typed-link capture UX (create-and-bind, target resolution) | Designed |
 | Whiteboards | Designed |
@@ -36,7 +36,7 @@ The editor is a Logseq-style outliner: bullet points, and each bullet is a block
 |---|---|
 | `Enter` | Creates a new node — a new bullet. Always. There is no paragraph concept inside a block. |
 | `Shift+Enter` | A `hard_break` — a line jump *inside* the block. The only break token in the grammar. |
-| Indent / outdent | Reparents the node (`node.move` + TreeCrdt ordering). The tree *is* the document structure. |
+| Indent / outdent | Reparents the node (`object.move`; fractional sibling-midpoint ordering — TreeCrdt designed). The tree *is* the document structure. |
 | Drag | Reorders among siblings (fractional positions + TreeCrdt — proven v1 machinery, ported). |
 | Collapse / expand | View state only; children stay first-class nodes. |
 | Prose mode | Bullets hidden, indents flattened — a **view transform, not content**. Flip back and nothing changed. |
@@ -45,7 +45,7 @@ Long-form writing emerges from nesting bullets, not from a document mode. That i
 
 Blocks are first-class storage but second-class display. Display defaults keep them quiet: backlinks aggregate mentions per containing page, the graph collapses children, search ranks root pages first with block hits nested beneath their parents, and queries default to root scope. When a bullet matters enough to stand alone, you promote it — see [Promotion and demotion](#promotion-and-demotion).
 
-**Today:** the web app renders the block tree read-only, and blocks are fully creatable/updatable through the CLI and object API (`contentAst`). The interactive outliner — keyboard model, TreeCrdt reparenting, drag reorder, collapse — is the designed editor milestone; the tree machinery it ports is already the machinery sync uses.
+**Today:** the web app ships the interactive text core — typing with debounced saves, Enter (a new sibling placed right after the current block), Shift+Enter hard breaks, Backspace delete, and Tab / Shift+Tab reparenting via `object.move` with fractional sibling-midpoint ordering. Marks editing, typed-link/chips capture gestures, collapse, and drag reorder remain the designed editor milestone; the tree machinery the rest ports is already the machinery sync uses.
 
 ## System sections — and the lazy-loading contract
 

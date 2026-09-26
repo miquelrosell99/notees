@@ -40,13 +40,14 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the seven required fixtures", () => {
+  it("has exactly the eight required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-extends-cycle.json",
       "class-extends-m2m.json",
       "envelope-minimal.json",
       "object-create.json",
+      "object-move.json",
       "property-set-lww.json",
       "typed-link-mark-deleted.json",
       "typed-link-mark.json",
@@ -106,6 +107,21 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
     const hlcA = (a!.hlc as { physical: number; logical: number }) ?? { physical: 0, logical: 0 };
     const hlcB = (b!.hlc as { physical: number; logical: number }) ?? { physical: 0, logical: 0 };
     expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
+  });
+
+  it("object-move fixture reparents C under A and reorders B after A within P", () => {
+    const fixture = fixtures.find((f) => f.name === "object-move.json")!;
+    const p = "0192a000-0000-7000-8000-000000000020";
+    const a = "0192a000-0000-7000-8000-000000000021";
+    const b = "0192a000-0000-7000-8000-000000000022";
+    const c = "0192a000-0000-7000-8000-000000000023";
+    const moves = fixture.envelopes.filter((env) => env.opType === "object.move");
+    expect(moves).toHaveLength(2);
+    expect(moves[0]!.payload).toMatchObject({ objectId: c, parentId: a });
+    expect(moves[1]!.payload).toMatchObject({ objectId: b, parentId: p, afterId: a });
+    // Applicable in sequence: move HLCs strictly follow every create HLC.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
 
   it("no fixture payload carries a relation op or seeded relation vocabulary", () => {
