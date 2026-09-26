@@ -47,6 +47,70 @@ export function proseFromAst(ast: readonly unknown[]): string {
 }
 
 /**
+ * Prose offset range of one top-level token: the slice of the projection
+ * `proseFromAst` builds from it. Tokens the projection skips (asset_ref,
+ * embed_ref, query, whiteboard, malformed entries) get a zero-length range
+ * at the current offset. Length rules mirror `proseFromAst`: text /
+ * typed_link / mention count `text.length`, math counts `expression.length`,
+ * hard_break counts 1 (its "\n"), quote counts its inline children.
+ */
+export interface ProseSpan {
+  /** Index of the token in the top-level stream. */
+  tokenIndex: number;
+  /** Inclusive prose offset where the token's projection starts. */
+  start: number;
+  /** Exclusive prose offset where it ends (`start === end` for prose-less tokens). */
+  end: number;
+}
+
+export function proseSpans(ast: readonly unknown[]): ProseSpan[] {
+  const spans: ProseSpan[] = [];
+  let offset = 0;
+  ast.forEach((token, index) => {
+    let length = 0;
+    if (typeof token === "object" && token !== null) {
+      const t = token as Record<string, unknown>;
+      switch (t.type) {
+        case "text":
+        case "typed_link":
+        case "mention":
+          if (typeof t.text === "string") length = t.text.length;
+          break;
+        case "math":
+          if (typeof t.expression === "string") length = t.expression.length;
+          break;
+        case "hard_break":
+          length = 1;
+          break;
+        case "quote": {
+          // Keep in sync with proseFromAst's walk over quote children.
+          if (Array.isArray(t.children)) {
+            for (const child of t.children) {
+              if (typeof child !== "object" || child === null) continue;
+              const c = child as Record<string, unknown>;
+              if (c.type === "hard_break") length += 1;
+              else if (
+                (c.type === "text" || c.type === "typed_link" || c.type === "mention") &&
+                typeof c.text === "string"
+              )
+                length += c.text.length;
+              else if (c.type === "math" && typeof c.expression === "string")
+                length += c.expression.length;
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    spans.push({ tokenIndex: index, start: offset, end: offset + length });
+    offset += length;
+  });
+  return spans;
+}
+
+/**
  * Build the token array to store for an edited draft.
  *
  * Rules (editor slice):
