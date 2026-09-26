@@ -13,6 +13,7 @@
 
 import type {
   BlockTreeNode,
+  ClassBinding,
   ClientEdge,
   ClientNode,
   CreateObjectInput,
@@ -171,6 +172,18 @@ export class WorkerClient {
     return this.cachedRead<ClientNode[]>("listClasses", [], []);
   }
 
+  getClassParents(classId: string): string[] {
+    return this.cachedRead<string[]>("getClassParents", [classId], []);
+  }
+
+  getClassMembers(classId: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getClassMembers", [classId], []);
+  }
+
+  getClassBindings(classId: string): ClassBinding[] {
+    return this.cachedRead<ClassBinding[]>("getClassBindings", [classId], []);
+  }
+
   getBlockTree(pageId: string, depth?: number): BlockTreeNode[] {
     return this.cachedRead<BlockTreeNode[]>("getBlockTree", [pageId, depth], []);
   }
@@ -225,6 +238,16 @@ export class WorkerClient {
   /** OR-set class membership add (the `#` / `+` set gesture). */
   async assignClass(id: string, classId: string): Promise<void> {
     await this.call("assignClass", [id, classId]);
+  }
+
+  /** Create a class (class.create); returns the new class id. */
+  async createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string> {
+    return (await this.call("createClass", [name, opts])) as string;
+  }
+
+  /** Replace a class's full extends parent set (class.setExtends, m2m). */
+  async setClassExtends(classId: string, parentClassIds: string[]): Promise<void> {
+    await this.call("setClassExtends", [classId, parentClassIds]);
   }
 
   /** No-op when the worker already booted this workspace (init bootstraps it). */

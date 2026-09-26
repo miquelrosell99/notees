@@ -19,8 +19,6 @@ import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type Dr
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { deriveDisplayName } from "@notees/domain";
 
-import { buildOutlinePositions, type OutlinePositionMap } from "@/editor/outline.js";
-import type { CaretPlacement } from "@/editor/caret.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
@@ -38,11 +36,7 @@ import {
 import { EmbedBoundary } from "./EmbedView.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
-import {
-  OutlinerContext,
-  type FocusRequest,
-  type OutlinerContextValue,
-} from "./outliner-context.js";
+import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
 
 /** One references row: containing-page breadcrumb, source excerpt, containment context. */
 function ReferenceList({
@@ -90,22 +84,13 @@ export function PageView({
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   /**
    * View transforms (SCHEMA.md: display state, never content). Collapse is a
    * per-session set of hidden subtree roots; prose mode flattens bullets and
    * indents via the `nt-prose` class. Neither is persisted in this slice.
+   * (Collapse state itself lives in the OutlinerContext value, see the hook.)
    */
-  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [prose, setProse] = useState(false);
-  const toggleCollapse = useCallback((blockId: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(blockId)) next.delete(blockId);
-      else next.add(blockId);
-      return next;
-    });
-  }, []);
 
   // --- drag-and-drop reordering (block-dnd.ts intent model) -------------------
   const sensors = useBlockDndSensors();
@@ -126,7 +111,9 @@ export function PageView({
 
   const page = client.getPage(pageId);
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
-  const positions: OutlinePositionMap = buildOutlinePositions(tree, pageId);
+
+  const outliner = useOutlinerValue(client, pageId);
+  const positions = outliner.positions;
 
   const handleDragStart = (event: DragStartEvent) => {
     const id = String(event.active.id);
@@ -170,43 +157,6 @@ export function PageView({
   const handleDragCancel = () => {
     setDropLine(null);
     setDragging(null);
-  };
-
-  const outliner: OutlinerContextValue = {
-    client,
-    positions,
-    focusRequest,
-    requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
-      setFocusRequest({ id: blockId, caret }),
-    acknowledgeFocus: () => setFocusRequest(null),
-    collapsed: collapsedIds,
-    toggleCollapse,
-    capture: {
-      /**
-       * `@` mention candidates, by DISPLAY NAME (SCHEMA.md derivation). The
-       * FTS index covers content plaintext AND stored names, so FTS hits are
-       * unioned with pages + classes and filtered client-side by display name
-       * (the filter keeps the name matches and drops nothing the pools did
-       * not already surface).
-       */
-      searchNodes: (query) => {
-        const q = query.trim().toLowerCase();
-        const pool = [
-          ...client.listPages(),
-          ...client.listClasses(),
-          ...(q === "" ? [] : client.search(query)),
-        ];
-        const seen = new Set<string>();
-        return pool.filter((node) => {
-          if (seen.has(node.id)) return false;
-          seen.add(node.id);
-          if (q === "") return true;
-          return (client.getDisplayName(node.id) ?? "").toLowerCase().includes(q);
-        });
-      },
-      listClasses: () => client.listClasses(),
-      displayName: (id) => client.getDisplayName(id),
-    },
   };
 
   if (!page) {

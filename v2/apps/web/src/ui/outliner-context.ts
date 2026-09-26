@@ -1,15 +1,17 @@
 /**
- * Outliner editing context — provided by PageView, consumed by BlockRow /
- * BlockTextEditor / TitleEditor. `client` is the structural write surface,
- * satisfied by both WorkspaceClient and the WorkerClient proxy.
+ * Outliner editing context — provided by PageView and ClassView, consumed by
+ * BlockRow / BlockTextEditor / TitleEditor. `client` is the structural write
+ * surface, satisfied by both WorkspaceClient and the WorkerClient proxy.
  */
 
-import { createContext, useContext } from "react";
+import { createContext, useCallback, useContext, useState } from "react";
 
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
+import { buildOutlinePositions } from "@/editor/outline.js";
 import type {
   BlockTreeNode,
+  ClassBinding,
   ClientNode,
   CreateObjectInput,
   DeleteObjectOptions,
@@ -32,6 +34,12 @@ export interface OutlinerClient {
    * (read-modify-write over the node's current class_ids).
    */
   assignClass(id: string, classId: string): Promise<void>;
+  /**
+   * Replace a class's full extends parent set (`class.setExtends`, m2m
+   * replace semantics). The store fails loud on cycles (CycleError) — the
+   * Class View surfaces that as a transient message.
+   */
+  setClassExtends(classId: string, parentClassIds: string[]): Promise<void>;
 }
 
 export interface FocusRequest {
@@ -40,15 +48,23 @@ export interface FocusRequest {
 }
 
 /**
- * Local read surface consumed by view projections (EmbedView): the live node,
- * its subtree, and name resolution, plus the notify subscription that keeps a
- * projection live. Satisfied by both WorkspaceClient and the WorkerClient
- * proxy (same surface) — only the local cache is read, never the network.
+ * Local read surface consumed by view projections (EmbedView, ClassView):
+ * the live node, its subtree, name resolution, class facts (parents /
+ * members / seed-derived bindings), the page/class lists and FTS search for
+ * capture + pickers, plus the notify subscription that keeps a projection
+ * live. Satisfied by both WorkspaceClient and the WorkerClient proxy (same
+ * surface) — only the local cache is read, never the network.
  */
 export interface OutlinerReader {
   getNode(id: string): ClientNode | undefined;
   getBlockTree(nodeId: string, depth?: number): BlockTreeNode[];
   getDisplayName(id: string): string | null;
+  listPages(): ClientNode[];
+  listClasses(): ClientNode[];
+  search(query: string): ClientNode[];
+  getClassParents(classId: string): string[];
+  getClassMembers(classId: string): ClientNode[];
+  getClassBindings(classId: string): ClassBinding[];
   subscribe(listener: () => void): () => void;
 }
 
@@ -68,8 +84,8 @@ export interface OutlinerContextValue {
   toggleCollapse: (blockId: string) => void;
   /**
    * Capture-gesture reads ([[ mention, # chip): filtered node search, the
-   * class list, and name resolution for candidate rows. Provided by
-   * PageView from the full client surface (in-process or worker proxy).
+   * class list, and name resolution for candidate rows. Provided from the
+   * full client surface (in-process or worker proxy).
    */
   capture: {
     searchNodes(query: string): ClientNode[];
@@ -78,12 +94,75 @@ export interface OutlinerContextValue {
   };
 }
 
+/**
+ * Builds the OutlinerContext value for a view rooted at `rootId` — shared by
+ * PageView (block tree) and ClassView (page chrome + panels). The block-tree
+ * facts (positions, focus hand-off, collapse) are inert for ClassView, which
+ * renders no editable rows but reuses chrome (TitleEditor) that consumes the
+ * context.
+ */
+export function useOutlinerValue(
+  client: OutlinerClient & OutlinerReader,
+  rootId: string,
+): OutlinerContextValue {
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const toggleCollapse = useCallback((blockId: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+  }, []);
+
+  const tree = client.getBlockTree(rootId);
+  const positions = buildOutlinePositions(tree, rootId);
+
+  return {
+    client,
+    positions,
+    focusRequest,
+    requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
+      setFocusRequest({ id: blockId, caret }),
+    acknowledgeFocus: () => setFocusRequest(null),
+    collapsed: collapsedIds,
+    toggleCollapse,
+    capture: {
+      /**
+       * `@` mention candidates, by DISPLAY NAME (SCHEMA.md derivation). The
+       * FTS index covers content plaintext AND stored names, so FTS hits are
+       * unioned with pages + classes and filtered client-side by display name
+       * (the filter keeps the name matches and drops nothing the pools did
+       * not already surface).
+       */
+      searchNodes: (query) => {
+        const q = query.trim().toLowerCase();
+        const pool = [
+          ...client.listPages(),
+          ...client.listClasses(),
+          ...(q === "" ? [] : client.search(query)),
+        ];
+        const seen = new Set<string>();
+        return pool.filter((node) => {
+          if (seen.has(node.id)) return false;
+          seen.add(node.id);
+          if (q === "") return true;
+          return (client.getDisplayName(node.id) ?? "").toLowerCase().includes(q);
+        });
+      },
+      listClasses: () => client.listClasses(),
+      displayName: (id) => client.getDisplayName(id),
+    },
+  };
+}
+
 export const OutlinerContext = createContext<OutlinerContextValue | null>(null);
 
 export function useOutliner(): OutlinerContextValue {
   const context = useContext(OutlinerContext);
   if (context === null) {
-    throw new Error("useOutliner must be used inside PageView's OutlinerContext");
+    throw new Error("useOutliner must be used inside a view's OutlinerContext (PageView or ClassView)");
   }
   return context;
 }
