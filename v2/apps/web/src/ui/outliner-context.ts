@@ -47,6 +47,12 @@ export interface OutlinerContextValue {
   requestFocus: (blockId: string, caret?: CaretPlacement) => void;
   acknowledgeFocus: () => void;
   /**
+   * Session-local display collapse (never persisted, never written to the
+   * store): ids of blocks whose entire subtree is hidden from rendering.
+   */
+  collapsed: ReadonlySet<string>;
+  toggleCollapse: (blockId: string) => void;
+  /**
    * Capture-gesture reads ([[ mention, # chip): filtered node search, the
    * class list, and name resolution for candidate rows. Provided by
    * PageView from the full client surface (in-process or worker proxy).
