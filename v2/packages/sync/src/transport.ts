@@ -121,7 +121,9 @@ export class HttpTransport implements Transport {
     await this.request(`/snapshot/data?${params.toString()}`, {
       method: "PUT",
       headers: { "Content-Type": "application/octet-stream" },
-      body: bytes,
+      // Cross-lib typing: Uint8Array<ArrayBufferLike> vs DOM RequestInit.body.
+      // Both Node ≥18 and DOM fetch accept it at runtime.
+      body: bytes as unknown as NonNullable<RequestInit["body"]>,
     });
   }
 }
