@@ -120,10 +120,14 @@ describe("block collapse", () => {
     // Exactly the two parents (root parent + nested child) get a chevron.
     expect(tree.querySelectorAll(".nt-block-chevron").length).toBe(2);
 
-    // The childless root block's row has no button at all — plain bullet.
+    // The childless root block's row has no chevron — only the plain bullet
+    // plus the drag-handle grip that every row carries.
     const leafRow = screen.getByText("leaf root").closest(".nt-block-row");
     expect(leafRow).not.toBeNull();
-    expect(within(leafRow as HTMLElement).queryByRole("button")).toBeNull();
+    expect(
+      within(leafRow as HTMLElement).queryByRole("button", { name: /collapse block|expand block/i }),
+    ).toBeNull();
+    expect(within(leafRow as HTMLElement).getByTitle("Drag to move")).not.toBeNull();
   });
 
   it("does not enter edit mode when the chevron is clicked", async () => {
