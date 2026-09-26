@@ -14,6 +14,15 @@ Conflicts between loaded project instructions → formal docs in `skills/notees/
 
 Internal project notes never go in `docs/`; user-facing docs never go in dot-folders.
 
+## v2 repo split & SDK — STATUS (owner decision, in progress)
+
+Owner decided (2026-09-26): split into `notees-sync` + `notees-web` repos **inside this folder** (`/etc/periphery/stacks/notees/{notees-sync,notees-web}`), deployed by a **folder-level `compose.yaml`** at `/etc/periphery/stacks/notees/compose.yaml`; existing `notees-gtk`/`notees-flutter` stay separate. The monorepo (this repo, `v2/`) remains the source of truth for the shared packages and the fixture gate.
+
+**Blocked / pending:**
+- **SDK publish — BLOCKED on an npmjs token** (owner doesn't have one; GitHub Packages rejects the `@notees/*` scope — it must equal the owner). Publish infra is READY: tsup builds per package, `pnpm release` in `v2/`, flow documented in `v2/.plans/dev/sdk-publishing.md`. Owner action: create a free token at npmjs.com, then run the release flow. Until published, consumers bridge with `pnpm.overrides` → `file:.worktrees/greenfield-m1/v2/packages/<name>` (requires `pnpm -r build` in the worktree first).
+- **Repo extraction — PARKED** (two attempts interrupted). Sources of truth remain `v2/apps/server` and `v2/apps/web`. To finish: extract both to `/etc/periphery/stacks/notees/notees-{sync,web}` → semver deps `^0.1.0-m1` + the file: overrides above → **externalize `@notees/*` in the server's tsup config** (it currently bundles workspace TS) → per-repo Dockerfiles (sync: node:22-alpine + `NOTEES_DATA_DIR=/data` volume, EXPOSE 8377; web: nginx serving the vite build with a runtime `/config.js` from `NOTEES_SERVER_URL`) → folder-level `compose.yaml` (services `notees-sync` + `notees-web`, named volume, healthchecks) → `git init -b main` in each. Monorepo copies stay until the split repos verify green, then remove.
+- **Client lockstep — NOT STARTED**: `notees-flutter`/`notees-gtk` cloned at `/etc/periphery/stacks/notees-clients/` on `protocol-v2` branches; their protocol layers await the v2 wire spec (`v2/packages/protocol/WIRE.md`).
+
 <!-- The <always-applicable> and <task-routing> XML tags below are load-bearing.
      Rationale: LLMs parse XML-tag blocks as discrete hard-constraint sections
      more reliably than plain markdown headings, especially after context
