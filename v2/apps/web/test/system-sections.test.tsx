@@ -204,6 +204,66 @@ describe("PageView system sections", () => {
     expect(within(childHeader).getByText("2")).toBeInTheDocument();
   });
 
+  it("linked references roll up source-side containment: a block inside France linking Paris lists on France (in France), badge stays direct", async () => {
+    const client = await seedClient();
+    const franceId = await client.createObject({ nodeType: "page", name: "France" });
+    const parisId = await client.createObject({ nodeType: "page", name: "Paris" });
+    // A block INSIDE France links Paris: an outward link — France lists it
+    // by containment; Paris lists it as a direct backlink.
+    const blockId = await client.createObject({
+      nodeType: "block",
+      parentId: franceId,
+      contentAst: [{ type: "mention", targetNodeId: parisId, text: "Paris" }],
+    });
+
+    render(<PageView client={client} pageId={franceId} />);
+
+    // The badge reads the DIRECT count: no edge targets France.
+    expect(
+      within(screen.getByRole("button", { name: /Linked references/ })).getByText("0"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
+    const linked = section(/Linked references/);
+    // The containing-page breadcrumb is France…
+    expect(linked.querySelector(".nt-section-crumb")?.textContent).toBe("France");
+    // …annotated as a containment reference. Paris's direct view: same block, direct.
+    within(linked).getByText("in France");
+    expect(client.getLinkedReferences(franceId).map((r) => ({
+      source: r.source.id,
+      kind: r.kind,
+      crumb: r.containingPageName,
+    }))).toEqual([{ source: blockId, kind: "containment", crumb: "France" }]);
+    expect(client.getLinkedReferences(parisId).map((r) => r.kind)).toEqual(["direct"]);
+
+    // A DIRECT mention of France orders first and moves the badge to 1,
+    // while the list shows two rows (list longer than the badge).
+    const notesId = await client.createObject({ nodeType: "page", name: "Notes" });
+    let notesBlockId = "";
+    await act(async () => {
+      notesBlockId = await client.createObject({
+        nodeType: "block",
+        parentId: notesId,
+        contentAst: [{ type: "mention", targetNodeId: franceId, text: "France" }],
+      });
+    });
+
+    expect(client.getLinkedReferences(franceId).map((r) => ({
+      source: r.source.id,
+      kind: r.kind,
+    }))).toEqual([
+      { source: notesBlockId, kind: "direct" },
+      { source: blockId, kind: "containment" },
+    ]);
+    expect(
+      within(screen.getByRole("button", { name: /Linked references/ })).getByText("1"),
+    ).toBeInTheDocument();
+    const items = Array.from(linked.querySelectorAll(".nt-section-item"));
+    expect(items).toHaveLength(2);
+    expect(items[0]!.textContent).toContain("Notes");
+    expect(items[1]!.textContent).toContain("in France");
+  });
+
   it("an expanded linked-references section updates when a remote change notifies", async () => {
     const relay = new MemoryRelay();
     const clientA = await seedClient(relay);

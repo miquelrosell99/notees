@@ -494,6 +494,13 @@ button {
   white-space: nowrap;
 }
 
+.nt-section-context {
+  color: #7b8794;
+  font-size: 0.82em;
+  font-style: italic;
+  white-space: nowrap;
+}
+
 .nt-section-empty {
   color: #7b8794;
   font-size: 13px;

@@ -935,6 +935,182 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("object.delete", { objectId: NODE_PAGE }, 1727200010000));
       expect(store.search("Kuhn")).toEqual([]);
     });
+
+    it("finds a page by its stored name even when content is unrelated", () => {
+      const store = baseStore();
+      const quantum = "0192a000-0000-7000-8000-0000000000d1";
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: quantum,
+            nodeType: "page",
+            name: "Quantum",
+            contentAst: [{ type: "text", text: "unrelated prose" }],
+          },
+          1727200002000,
+        ),
+      );
+      // Name-only match: the title term is not present in the content.
+      expect(store.search("Quantum")).toEqual([{ nodeId: quantum }]);
+      // Content-term search keeps working on the same indexed row.
+      expect(store.search("unrelated")).toEqual([{ nodeId: quantum }]);
+    });
+
+    it("indexes a name-only page and reindexes on rename (name LWW)", () => {
+      const store = baseStore();
+      const id = "0192a000-0000-7000-8000-0000000000d1";
+      store.apply(env("object.create", { objectId: id, nodeType: "page", name: "Alpha" }, 1727200002000));
+      expect(store.search("Alpha")).toEqual([{ nodeId: id }]);
+      // Name LWW update: the new name is indexed, the old one stops matching.
+      store.apply(env("object.update", { objectId: id, name: "Beta" }, 1727200003000));
+      expect(store.search("Alpha")).toEqual([]);
+      expect(store.search("Beta")).toEqual([{ nodeId: id }]);
+      // A lower-HLC rename is dropped by LWW: the index keeps the winner.
+      store.apply(env("object.update", { objectId: id, name: "Gamma" }, 1727200002500));
+      expect(store.search("Gamma")).toEqual([]);
+      expect(store.search("Beta")).toEqual([{ nodeId: id }]);
+    });
+  });
+
+  describe("backlinksWithRollup (source-side containment roll-up, 01 §8)", () => {
+    const FRANCE = "0192a000-0000-7000-8000-0000000000e2";
+    const PARIS = "0192a000-0000-7000-8000-0000000000e3";
+    const SPAIN = "0192a000-0000-7000-8000-0000000000e4";
+    const NOTES = "0192a000-0000-7000-8000-0000000000e5";
+
+    interface RollupRow {
+      source_id: string;
+      target_id: string;
+      kind: string;
+      distance: number;
+    }
+
+    /** France page with child block; Paris, Spain, Notes are separate roots. */
+    function travelStore(): Store {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: FRANCE, nodeType: "page", name: "France" }, 1727200001000));
+      store.apply(env("object.create", { objectId: PARIS, nodeType: "page", name: "Paris" }, 1727200001100));
+      store.apply(env("object.create", { objectId: SPAIN, nodeType: "page", name: "Spain" }, 1727200001200));
+      store.apply(env("object.create", { objectId: NOTES, nodeType: "page", name: "Notes" }, 1727200001300));
+      return store;
+    }
+
+    function mention(target: string, text: string) {
+      return { type: "mention", targetNodeId: target, text };
+    }
+
+    it("a block inside France linking Paris lists in BOTH: containment for France, direct for Paris", () => {
+      const store = travelStore();
+      // Block B under France links Paris — TWICE (two edge instances must
+      // collapse into one roll-up row per source+kind).
+      const b = "0192a000-0000-7000-8000-0000000000f1";
+      store.apply(
+        env(
+          "object.create",
+          { objectId: b, parentId: FRANCE, contentAst: [mention(PARIS, "Paris"), mention(PARIS, "Paris")] },
+          1727200002000,
+        ),
+      );
+
+      // France: B is inside France's subtree and Paris is outside it.
+      const franceRollup = store.backlinksWithRollup(FRANCE) as RollupRow[];
+      expect(franceRollup.map((r) => ({ source: r.source_id, target: r.target_id, kind: r.kind, distance: r.distance }))).toEqual([
+        { source: b, target: PARIS, kind: "containment", distance: 1 },
+      ]);
+      // Paris: the edge targets Paris directly.
+      const parisRollup = store.backlinksWithRollup(PARIS) as RollupRow[];
+      expect(parisRollup.map((r) => ({ source: r.source_id, kind: r.kind, distance: r.distance }))).toEqual([
+        { source: b, kind: "direct", distance: 0 },
+      ]);
+      // Direct-only surfaces are unchanged: backlinks() and the materialized
+      // node_stats.backlink_count (the gutter badge) count edges TARGETING
+      // the node only — France gains no badge from its subtree's outward link.
+      expect(store.backlinks(FRANCE)).toEqual([]);
+      const statsOf = (id: string) =>
+        (store.database.prepare("SELECT backlink_count AS n FROM node_stats WHERE node_id = ?").get(id) as { n: number }).n;
+      expect(statsOf(FRANCE)).toBe(0);
+      expect(statsOf(PARIS)).toBe(1);
+
+      // Depth: a block nested under B (grandchild of France) rolls up at
+      // distance 2, after the distance-1 row.
+      const b4 = "0192a000-0000-7000-8000-0000000000f2";
+      store.apply(
+        env("object.create", { objectId: b4, parentId: b, contentAst: [mention(PARIS, "Paris")] }, 1727200002100),
+      );
+      const deep = store.backlinksWithRollup(FRANCE) as RollupRow[];
+      expect(deep.map((r) => ({ source: r.source_id, kind: r.kind, distance: r.distance }))).toEqual([
+        { source: b, kind: "containment", distance: 1 },
+        { source: b4, kind: "containment", distance: 2 },
+      ]);
+    });
+
+    it("outward-only: outside sources and intra-subtree links never list the container", () => {
+      const store = travelStore();
+      const b = "0192a000-0000-7000-8000-0000000000f1";
+      store.apply(
+        env("object.create", { objectId: b, parentId: FRANCE, contentAst: [mention(PARIS, "Paris")] }, 1727200002000),
+      );
+      // Spain's block links Paris: direct on Paris, but Spain is outside
+      // France's subtree — never in France's list.
+      const spainBlock = "0192a000-0000-7000-8000-0000000000f2";
+      store.apply(
+        env("object.create", { objectId: spainBlock, parentId: SPAIN, contentAst: [mention(PARIS, "Paris")] }, 1727200002100),
+      );
+      // Intra-France link: B2 (under France) links B3 (also under France) —
+      // the target is inside France's subtree, so France does not list it.
+      const b3 = "0192a000-0000-7000-8000-0000000000f3";
+      const b2 = "0192a000-0000-7000-8000-0000000000f4";
+      store.apply(env("object.create", { objectId: b3, parentId: FRANCE, contentAst: [] }, 1727200002200));
+      store.apply(
+        env("object.create", { objectId: b2, parentId: FRANCE, contentAst: [mention(b3, "B3")] }, 1727200002300),
+      );
+
+      const franceRollup = store.backlinksWithRollup(FRANCE) as RollupRow[];
+      expect(franceRollup.map((r) => r.source_id)).toEqual([b]);
+      // Paris sees both outside blocks as direct edges.
+      const parisRollup = store.backlinksWithRollup(PARIS) as RollupRow[];
+      expect(parisRollup.map((r) => ({ source: r.source_id, kind: r.kind }))).toEqual([
+        { source: b, kind: "direct" },
+        { source: spainBlock, kind: "direct" },
+      ]);
+      // B3's own backlink is the intra link (direct on B3) — sanity.
+      expect((store.backlinks(b3) as Array<{ source_id: string }>).map((r) => r.source_id)).toEqual([b2]);
+    });
+
+    it("direct edges order first; the badge counts direct edges only (list may exceed it)", () => {
+      const store = travelStore();
+      const b = "0192a000-0000-7000-8000-0000000000f1";
+      store.apply(
+        env("object.create", { objectId: b, parentId: FRANCE, contentAst: [mention(PARIS, "Paris")] }, 1727200002000),
+      );
+      const notesBlock = "0192a000-0000-7000-8000-0000000000f2";
+      store.apply(
+        env("object.create", { objectId: notesBlock, parentId: NOTES, contentAst: [mention(FRANCE, "France")] }, 1727200002100),
+      );
+
+      const rollup = store.backlinksWithRollup(FRANCE) as RollupRow[];
+      expect(rollup.map((r) => ({ source: r.source_id, kind: r.kind, distance: r.distance }))).toEqual([
+        { source: notesBlock, kind: "direct", distance: 0 },
+        { source: b, kind: "containment", distance: 1 },
+      ]);
+      // Badge divergence: the list has two rows; the direct-only badge is 1.
+      const stats = store.database
+        .prepare("SELECT backlink_count AS n FROM node_stats WHERE node_id = ?")
+        .get(FRANCE) as { n: number };
+      expect(stats.n).toBe(1);
+
+      // France's OWN outward link (France linking Paris) must not list France
+      // in its own backlinks — only strictly-inside sources roll up.
+      store.apply(
+        env("object.update", { objectId: FRANCE, contentAst: [mention(PARIS, "Paris")] }, 1727200002200),
+      );
+      const after = store.backlinksWithRollup(FRANCE) as RollupRow[];
+      expect(after.map((r) => ({ source: r.source_id, kind: r.kind }))).toEqual([
+        { source: notesBlock, kind: "direct" },
+        { source: b, kind: "containment" },
+      ]);
+    });
   });
 });
 

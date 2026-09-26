@@ -198,7 +198,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     const client = await createClient(ctx);
     await client.bootstrapWorkspace(WS);
 
-    // The FTS index covers content plaintext (not node names).
+    // The FTS index covers content plaintext AND stored node names.
     const pageId = await client.createObject({ nodeType: "page", name: "Search Page" });
     const blockId = await client.createObject({
       nodeType: "block",
@@ -208,5 +208,9 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await client.sync();
     const hits = client.search("Findable");
     expect(hits.some((n) => n.id === blockId)).toBe(true);
+    // Title search: the page itself is found by its stored name.
+    const byName = client.search("Search Page");
+    expect(byName.some((n) => n.id === pageId)).toBe(true);
+    expect(byName.some((n) => n.id === blockId)).toBe(false);
   });
 });

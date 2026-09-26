@@ -30,7 +30,7 @@ import {
   type OutlinerContextValue,
 } from "./outliner-context.js";
 
-/** One references row: containing-page breadcrumb, then the source excerpt. */
+/** One references row: containing-page breadcrumb, source excerpt, containment context. */
 function ReferenceList({
   entries,
   onOpenPage,
@@ -53,6 +53,9 @@ function ReferenceList({
                 {" › "}
                 {deriveDisplayName(entry.source) || entry.source.id}
               </span>
+            )}
+            {entry.kind === "containment" && (
+              <span className="nt-section-context">in {entry.containingPageName}</span>
             )}
           </button>
         </li>
@@ -94,9 +97,10 @@ export function PageView({
     capture: {
       /**
        * `@` mention candidates, by DISPLAY NAME (SCHEMA.md derivation). The
-       * FTS index covers content, not names, so name matching filters
-       * client-side over pages + classes, unioned with the FTS hits (which
-       * surface blocks by their prose excerpt).
+       * FTS index covers content plaintext AND stored names, so FTS hits are
+       * unioned with pages + classes and filtered client-side by display name
+       * (the filter keeps the name matches and drops nothing the pools did
+       * not already surface).
        */
       searchNodes: (query) => {
         const q = query.trim().toLowerCase();
