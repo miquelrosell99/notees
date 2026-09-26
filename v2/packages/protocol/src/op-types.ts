@@ -1,7 +1,7 @@
 /**
  * Operation type registry v2 (M1 subset).
  *
- * Model per v2/docs/design/01-knowledge-model.md (the model is normative there;
+ * Model per v2/.plans/design/01-knowledge-model.md (the model is normative there;
  * this registry is its op-level expression). Associations are node-typed
  * property values or typed-link word marks in contentAst — there are no
  * relation.* ops. contentAst rides object.create/update as the readable carrier

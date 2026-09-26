@@ -1,6 +1,6 @@
 # Notees Knowledge Model
 
-> The definitive model statement for the greenfield rewrite. Companion: [model-assessment](model-assessment.md) (decision history + confidence ledger), `packages/protocol/SCHEMA.md` (property-schema, class-structure, and typed-link token spec). Diagram: [knowledge-model-diagram](knowledge-model-diagram.png).
+> The definitive model statement for the greenfield rewrite. Companion: [model-assessment](02-model-assessment.md) (decision history + confidence ledger), `packages/protocol/SCHEMA.md` (property-schema, class-structure, and typed-link token spec). Diagram: [knowledge-model-diagram](knowledge-model-diagram.png).
 
 ## 1. The model in one sentence
 
@@ -63,7 +63,7 @@ All authoring happens in blocks: prose, facts-as-blocks, discourse moves, inline
 
 ## 6. Classes are nodes
 
-A class **is** a node and is **for** configuration. The v1 split (separate `class` table) was reverted after five rationales — three gestural ones expired, inheritance semantics belong to the derived layer, column economics was never worth its cost ([model-assessment](model-assessment.md) §5).
+A class **is** a node and is **for** configuration. The v1 split (separate `class` table) was reverted after five rationales — three gestural ones expired, inheritance semantics belong to the derived layer, column economics was never worth its cost ([model-assessment](02-model-assessment.md) §5).
 
 **Settled design:**
 - **Structure is data, not tables:** `extends` is an **m2m node-typed property** on class nodes (target filter: class nodes) — multiple inheritance from the start, no special rule. `has-property` bindings are registry rows. `has-template` is a node-typed property pointing at an ordinary template node (instantiation clones its content + children). The applier derives the `class_hierarchy` closure from `extends` values; the QueryAST compiler reads derived tables only.
@@ -177,4 +177,4 @@ A bullet in a travel note links Paris (child of the "France" page): it appears i
 
 ## 17. Confidence
 
-See [model-assessment](model-assessment.md) §9. Sync core and storage categories: high. Class-as-node, outliner editor, link propagation, and scale (S2 spike): medium behind specs/spikes. Nothing uncertain is load-bearing for sync. The most load-bearing untested surfaces are typed-link capture friction (mitigated by create-and-bind) and the outliner's long-form writing feel (the deliberate bet against document-mode editors).
+See [model-assessment](02-model-assessment.md) §9. Sync core and storage categories: high. Class-as-node, outliner editor, link propagation, and scale (S2 spike): medium behind specs/spikes. Nothing uncertain is load-bearing for sync. The most load-bearing untested surfaces are typed-link capture friction (mitigated by create-and-bind) and the outliner's long-form writing feel (the deliberate bet against document-mode editors).

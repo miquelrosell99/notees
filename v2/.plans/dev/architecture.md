@@ -5,8 +5,8 @@ pnpm monorepo (`packages/` = libraries, `apps/` = deployables) living under `v2/
 
 **Maturity.** This document separates *implemented in M1* (code exists in the tree, verified
 against the paths cited) from *designed for M2/M3* (specified in
-`docs/design/01-knowledge-model.md`, `packages/protocol/SCHEMA.md`, and the evolution plan
-at `docs/plans/2026-09-24-object-graph-pim-evolution/assessment.md`, but not present in
+`../design/01-knowledge-model.md`, `packages/protocol/SCHEMA.md`, and the evolution plan
+at `../2026-09-24-object-graph-pim-evolution/assessment.md`, but not present in
 code). In case of disagreement between a design doc and the code, **the code wins** and the
 discrepancy is flagged in [§11](#11-code-vs-design-discrepancies).
 
@@ -15,7 +15,7 @@ discrepancy is flagged in [§11](#11-code-vs-design-discrepancies).
 resolution, the citations pipeline, E2EE, plugins, multi-user auth. Do not document or
 assume those as existing.
 
-Sources: `docs/design/00-INDEX.md`, `docs/design/01-knowledge-model.md`,
+Sources: `../design/00-INDEX.md`, `../design/01-knowledge-model.md`,
 `packages/protocol/SCHEMA.md`, `packages/protocol/WIRE.md`, and the code cited inline.
 
 ---
@@ -360,7 +360,7 @@ cursors; writes are atomic (tmp + rename).
 | `apps/server` | Fastify relay + object/assets API; the one write path | `src/server.ts` (entry), `src/app.ts` (assembly), `src/config.ts`, `src/context.ts` (`ingestBatch`/`submit`), `src/relay-storage.ts`, `src/workspace-store.ts`, `src/routes-relay.ts`, `src/routes-objects.ts`, `src/assets.ts`, `src/seed.ts`, `src/identity.ts`, `src/validate.ts`, `src/rate-limit.ts`, `src/bus.ts` |
 | `apps/cli` | `notees` command surface over the HTTP API | `src/cli.ts` (`run`), `src/client.ts`, `src/state.ts`, `src/exit-codes.ts` |
 | `apps/web` | Browser client: workspace data path + slice-1 UI | `src/core/workspace-client.ts`, `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/shims/` (node built-ins stubbed for the browser bundle) |
-| `docs/design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
+| `../design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
 | `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | five JSON files, validated by `packages/protocol/test` and replayed by the store suite |
 
 ## 11. Code vs design discrepancies
