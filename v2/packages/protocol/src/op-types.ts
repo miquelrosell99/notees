@@ -59,6 +59,25 @@ export const objectDeletePayload = z
   })
   .strict();
 
+/**
+ * Reparenting + sibling ordering (the outliner's indent/outdent/Enter
+ * placement). `parentId` null means workspace root and is legal ONLY for
+ * pages — the store's placement CHECKs reject a parentless block, and the
+ * applier's cross-row move guard rejects any class parenting (fail loud).
+ * `afterId` places the node immediately after that sibling in the parent's
+ * child order (Enter placement); omit it to append at the end. Parent and
+ * position are LWW by envelope HLC, like the other node fields. Ordering is
+ * a minimal deterministic fractional allocator (sibling midpoint / append) —
+ * TreeCrdt remains designed (docs/ux.md "The outliner").
+ */
+export const objectMovePayload = z
+  .object({
+    objectId: uuid,
+    parentId: uuid.nullable(),
+    afterId: uuid.optional(),
+  })
+  .strict();
+
 // --- classes & properties ----------------------------------------------------
 
 export const classCreatePayload = z
@@ -197,6 +216,7 @@ export const OP_PAYLOAD_SCHEMAS = {
   "object.create": objectCreatePayload,
   "object.update": objectUpdatePayload,
   "object.delete": objectDeletePayload,
+  "object.move": objectMovePayload,
   "class.create": classCreatePayload,
   "class.update": classUpdatePayload,
   "class.delete": classDeletePayload,

@@ -2,11 +2,14 @@
  * Semantic conflict detection — port of v1 `frontend/src/core/syncConflicts.ts`
  * to v2 envelopes and the M1 op registry.
  *
- * v2 op mapping (the M1 registry has no node.move / class.assign ops):
- *  - move_move: two `object.create` ops carrying an explicit `parentId` for the
- *    same objectId with different parents — in v2 a create on an existing node
- *    is the reparent carrier (child_order row), so concurrent creates with
- *    differing parents are the move/move ambiguity.
+ * v2 op mapping (the M1 registry has no class.assign op):
+ *  - move_move: two `object.move` ops on the same objectId targeting
+ *    different parents concurrently — parent/position converge by row-level
+ *    LWW (envelope HLC), but the user's intent is ambiguous (v1: two
+ *    concurrent re-parents). object.move landed 2026-09-26; the detector
+ *    below still keys move_move off `object.create` envelopes carrying an
+ *    explicit parentId (the legacy reparent carrier for in-flight logs — a
+ *    create re-issued on an existing id is now a strict no-op in the store).
  *  - node_deleted: `object.delete` on one side vs a node mutation on the other.
  *    Mutations: `object.update`, `property.set`, `property.unset`, and a create
  *    carrying parentId (a reparent).

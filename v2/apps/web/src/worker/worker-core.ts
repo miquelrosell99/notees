@@ -9,7 +9,7 @@
  *  - exposes the worker API: applyBatch (remote frames), the read surface
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
  *    getDisplayName / getNode / getNodeRaw), the write surface
- *    (createObject / updateObject / deleteObject), syncOnce, the realtime
+ *    (createObject / updateObject / deleteObject / moveObject), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, and flush;
  *  - persists db.export() bytes to OPFS debounced (~500 ms, coalesced) after
@@ -304,6 +304,10 @@ export class WorkerCore {
     return this.client.deleteObject(id, opts);
   }
 
+  moveObject(id: string, parentId: string | null, afterId?: string): Promise<void> {
+    return this.client.moveObject(id, parentId, afterId);
+  }
+
   // --- sync & lifecycle ---------------------------------------------------------------------
 
   /** One push+pull cycle against the relay. */
@@ -385,6 +389,12 @@ export class WorkerCore {
         return this.updateObject(args[0] as string, args[1] as UpdateObjectInput);
       case "deleteObject":
         return this.deleteObject(args[0] as string, args[1] as DeleteObjectOptions | undefined);
+      case "moveObject":
+        return this.moveObject(
+          args[0] as string,
+          args[1] as string | null,
+          args[2] as string | undefined,
+        );
       case "bootstrapWorkspace":
         return this.client.bootstrapWorkspace(args[0] as string);
       case "syncOnce":

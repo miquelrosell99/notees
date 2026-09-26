@@ -192,6 +192,11 @@ export class WorkerClient {
     await this.call("deleteObject", [id, opts]);
   }
 
+  /** Reparent a node (outliner indent/outdent; `afterId` = sibling placement). */
+  async moveObject(id: string, parentId: string | null, afterId?: string): Promise<void> {
+    await this.call("moveObject", [id, parentId, afterId]);
+  }
+
   /** No-op when the worker already booted this workspace (init bootstraps it). */
   async bootstrapWorkspace(workspaceId: string): Promise<void> {
     await this.call("bootstrapWorkspace", [workspaceId]);

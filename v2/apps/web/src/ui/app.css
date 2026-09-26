@@ -205,6 +205,44 @@ button {
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
+  cursor: text;
+  border-radius: 4px;
+}
+
+.nt-block-content:focus-within {
+  background: #ffffff;
+}
+
+.nt-block-text {
+  outline: none;
+  display: inline-block;
+  min-width: 1ch;
+}
+
+.nt-add-block {
+  margin-top: 4px;
+  border: 1px dashed #c8cdd4;
+  background: transparent;
+  border-radius: 6px;
+  padding: 4px 12px;
+  color: #7b8794;
+  font-size: 13px;
+}
+
+.nt-add-block:hover {
+  background: #eef1f4;
+  color: #52606d;
+}
+
+.nt-title-editable {
+  cursor: text;
+  outline: none;
+  border-radius: 4px;
+}
+
+.nt-title-editable:empty::before {
+  content: "Untitled";
+  color: #9aa5b1;
 }
 
 .nt-block-children {

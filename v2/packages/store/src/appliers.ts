@@ -111,8 +111,7 @@ export function validateEnvelope(input: unknown): Envelope {
 
 // --- object.* -------------------------------------------------------------------
 
-function getNodeRow(db: StoreDatabase, nodeId: string) {
-  return db.prepare("SELECT * FROM node WHERE id = ?").get(nodeId) as
+function getNodeRow(db: StoreDatabase, nodeId: string) {  return db.prepare("SELECT * FROM node WHERE id = ?").get(nodeId) as
     | Record<string, unknown>
     | undefined;
 }
@@ -164,6 +163,69 @@ function nextChildPosition(db: StoreDatabase, parentId: string): string {
   return last ? `${last.position}a` : "a";
 }
 
+/**
+ * Lexicographic midpoint of two fractional position strings: the shortest
+ * string strictly greater than `lo` and strictly less than `hi` (precondition
+ * lo < hi, ASCII). Boundary chars use '`' (one below 'a') as the floor and
+ * '{' (one above 'z') as the ceil, so distinct positions always have room.
+ * Deterministic — no random suffix — so wipe -> replay -> byte-identical.
+ */
+export function midpointBetween(lo: string, hi: string): string {
+  let i = 0;
+  while (i < lo.length && i < hi.length && lo.charCodeAt(i) === hi.charCodeAt(i)) i += 1;
+  const prefix = lo.slice(0, i);
+  const loRest = lo.slice(i);
+  const hiRest = hi.slice(i);
+  const loCode = loRest.length > 0 ? loRest.charCodeAt(0) : 0x60;
+  const hiCode = hiRest.length > 0 ? hiRest.charCodeAt(0) : 0x7b;
+  if (loCode + 1 < hiCode) {
+    return prefix + String.fromCharCode(Math.floor((loCode + 1 + hiCode - 1) / 2));
+  }
+  if (loRest.length === 0) {
+    // lo is a prefix of hi and hi continues at the lowest digit: squeeze one
+    // char below hi's next digit.
+    return prefix + String.fromCharCode(hiCode - 1);
+  }
+  // Adjacent boundary chars: keep lo's digit (which is < hi's) and descend.
+  return prefix + loRest[0] + midpointBetween(loRest.slice(1), hiRest.slice(1));
+}
+
+/**
+ * Fractional position for `childId` under `parentId`, placed immediately
+ * after the sibling `afterId` (object.move payload). Minimal deterministic
+ * allocator (TreeCrdt remains designed, docs/ux.md "The outliner"):
+ * sibling-midpoint between afterId's position and the next sibling's,
+ * append-at-end when afterId is the last sibling, and a defensive plain
+ * append when afterId is not a current sibling.
+ */
+function allocateChildPosition(
+  db: StoreDatabase,
+  parentId: string,
+  childId: string,
+  afterId: string | undefined,
+): string {
+  if (afterId !== undefined) {
+    const after = db
+      .prepare(
+        "SELECT position FROM node_child_order WHERE parent_id = ? AND child_id = ?",
+      )
+      .get(parentId, afterId) as { position: string } | undefined;
+    if (after !== undefined) {
+      const next = db
+        .prepare(
+          `SELECT position FROM node_child_order
+           WHERE parent_id = ? AND child_id != ? AND position > ?
+           ORDER BY position ASC LIMIT 1`,
+        )
+        .get(parentId, childId, after.position) as { position: string } | undefined;
+      return next !== undefined
+        ? midpointBetween(after.position, next.position)
+        : nextChildPosition(db, parentId);
+    }
+  }
+  return nextChildPosition(db, parentId);
+}
+
 function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.create";
   const p = env.payload as OpPayload<"object.create">;
@@ -171,6 +233,40 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const nodeType = p.nodeType ?? (parentId === null ? "page" : "block");
   const ts = env.timestamp;
   const content = JSON.stringify(p.contentAst ?? []);
+
+  // Seed OR-Set membership from the payload's classIds (add-wins per pair,
+  // HLC-gated; concurrent creates on the same id are the designed carrier
+  // for class membership — see conflicts.ts class_conflict).
+  const memberUpsert = db.prepare(
+    `INSERT INTO class_member_set (node_id, class_id, present, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, 1, ?, ?, ?)
+     ON CONFLICT(node_id, class_id) DO UPDATE SET
+       present = 1, hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id
+     WHERE excluded.hlc_physical > hlc_physical
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+            AND excluded.actor_id > COALESCE(actor_id, ''))`,
+  );
+
+  // First create wins for duplicate node ids (v1 INSERT OR IGNORE): re-issuing
+  // object.create on an existing id must not touch the TREE — the earlier
+  // half-apply added a second node_child_order row under the new parent while
+  // node.parent_id stayed stale, rendering the node under TWO parents. The
+  // re-create returns before every tree side effect (child_order, search,
+  // edges, stats); the one exception is the classIds OR-Set seed above, the
+  // convergence carrier for concurrent creates (it cannot move the node).
+  // A fresh insert must be a plain INSERT: OR IGNORE would also swallow the
+  // placement CHECKs, and SCHEMA.md demands those surface as typed errors.
+  const alreadyExists =
+    db.prepare("SELECT 1 FROM node WHERE id = ?").get(p.objectId) !== undefined;
+  if (alreadyExists) {
+    for (const classId of p.classIds) {
+      memberUpsert.run(p.objectId, classId, env.hlc.physical, env.hlc.logical, env.actorId);
+    }
+    if (p.classIds.length > 0) recomputeClassIds(db, p.objectId);
+    return summary(opType, [p.objectId], true);
+  }
 
   if (parentId !== null) {
     const parent = getNodeRow(db, parentId);
@@ -186,52 +282,33 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
     }
   }
 
-  // First create wins for duplicate node ids (v1 INSERT OR IGNORE), but a
-  // fresh insert must be a plain INSERT: OR IGNORE would also swallow the
-  // placement CHECKs, and SCHEMA.md demands those surface as typed errors.
-  const alreadyExists =
-    db.prepare("SELECT 1 FROM node WHERE id = ?").get(p.objectId) !== undefined;
-  if (!alreadyExists) {
-    try {
-      db.prepare(
-        `INSERT INTO node (
-           id, workspace_id, node_type, parent_id, class_ids, name, content, icon, color,
-           is_active, created_at, updated_at, created_by, updated_by,
-           hlc_physical, hlc_logical, actor_id
-         ) VALUES (?, ?, ?, ?, '[]', ?, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        p.objectId,
-        env.workspaceId,
-        nodeType,
-        parentId,
-        p.name ?? null,
-        content,
-        ts,
-        ts,
-        env.actorId,
-        env.actorId,
-        env.hlc.physical,
-        env.hlc.logical,
-        env.actorId,
-      );
-    } catch (error) {
-      if (isSqliteError(error)) throw translateSqliteError(error, opType);
-      throw error;
-    }
+  try {
+    db.prepare(
+      `INSERT INTO node (
+         id, workspace_id, node_type, parent_id, class_ids, name, content, icon, color,
+         is_active, created_at, updated_at, created_by, updated_by,
+         hlc_physical, hlc_logical, actor_id
+       ) VALUES (?, ?, ?, ?, '[]', ?, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      p.objectId,
+      env.workspaceId,
+      nodeType,
+      parentId,
+      p.name ?? null,
+      content,
+      ts,
+      ts,
+      env.actorId,
+      env.actorId,
+      env.hlc.physical,
+      env.hlc.logical,
+      env.actorId,
+    );
+  } catch (error) {
+    if (isSqliteError(error)) throw translateSqliteError(error, opType);
+    throw error;
   }
 
-  // Seed OR-Set membership from the payload's classIds, then project.
-  const memberUpsert = db.prepare(
-    `INSERT INTO class_member_set (node_id, class_id, present, hlc_physical, hlc_logical, actor_id)
-     VALUES (?, ?, 1, ?, ?, ?)
-     ON CONFLICT(node_id, class_id) DO UPDATE SET
-       present = 1, hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
-       actor_id = excluded.actor_id
-     WHERE excluded.hlc_physical > hlc_physical
-        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
-        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
-            AND excluded.actor_id > COALESCE(actor_id, ''))`,
-  );
   for (const classId of p.classIds) {
     memberUpsert.run(p.objectId, classId, env.hlc.physical, env.hlc.logical, env.actorId);
   }
@@ -363,6 +440,82 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   for (const id of ids) removeSearchIndexEntry(db, id);
   rebuildNodeStats(db, [...affected]);
   return summary(opType, [...affected]);
+}
+
+/**
+ * Reparent + reorder (object.move): the outliner's indent/outdent/Enter
+ * placement. Parent/position are row-level LWW by envelope (hlc, actor) — the
+ * same rule as object.update — and the winning HLC is stored on the node row,
+ * so re-applying an older move after a newer one is dropped. (The schema has
+ * no per-field HLC columns; node_child_order rows carry none, so the move is
+ * published or dropped as a whole — a position write never outlives a newer
+ * parent write and vice versa.)
+ *
+ * Placement guards fail loud, mirroring object.create: the parent must exist,
+ * a class may never parent (cross-row move guard), and a node may never move
+ * under itself or its own descendant (parent_id cycle). A block to workspace
+ * root (parentId null) is rejected by the node's placement CHECK, surfacing
+ * as a CheckConstraintError from the UPDATE below; null is legal only for
+ * pages.
+ */
+function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "object.move";
+  const p = env.payload as OpPayload<"object.move">;
+  const row = requireNode(db, p.objectId, opType);
+  const oldAncestors = ancestorIds(db, p.objectId);
+
+  if (p.parentId !== null) {
+    const parent = getNodeRow(db, p.parentId);
+    if (!parent) {
+      throw new NotFoundError(`${opType}: parent ${p.parentId} does not exist`, opType);
+    }
+    if (parent.node_type === "class") {
+      throw new MoveGuardError(
+        `${opType}: node ${p.parentId} is a class; classes are tree-external and cannot have children`,
+        opType,
+      );
+    }
+    if (subtreeIds(db, p.objectId).includes(p.parentId)) {
+      throw new MoveGuardError(
+        `${opType}: cannot move node ${p.objectId} under ${p.parentId}, which is in its own subtree`,
+        opType,
+      );
+    }
+  }
+
+  if (compareLww(winnerFromEnvelope(env), rowWinner(row as never)) <= 0) {
+    return summary(opType, [p.objectId], true);
+  }
+
+  db.prepare(
+    `UPDATE node SET parent_id = ?, updated_at = ?, updated_by = ?,
+       hlc_physical = ?, hlc_logical = ?, actor_id = ?
+     WHERE id = ?`,
+  ).run(
+    p.parentId,
+    env.timestamp,
+    env.actorId,
+    env.hlc.physical,
+    env.hlc.logical,
+    env.actorId,
+    p.objectId,
+  );
+
+  // Carry the child_order row with the parent: delete the old one first —
+  // without this the node renders under BOTH parents (the re-create
+  // corruption class this op replaces) — then insert at the allocated slot.
+  db.prepare("DELETE FROM node_child_order WHERE child_id = ?").run(p.objectId);
+  if (p.parentId !== null) {
+    db.prepare(
+      "INSERT OR REPLACE INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)",
+    ).run(p.parentId, p.objectId, allocateChildPosition(db, p.parentId, p.objectId, p.afterId));
+  }
+
+  // Old ancestors lose the subtree, new ancestors gain it (child/descendant
+  // counts); rebuildNodeStats also recomputes the node's own closure.
+  const affected = [...new Set([p.objectId, ...oldAncestors])];
+  rebuildNodeStats(db, affected);
+  return summary(opType, affected);
 }
 
 // --- class.* ----------------------------------------------------------------
@@ -797,6 +950,7 @@ const APPLIERS: Record<
   "object.create": applyObjectCreate,
   "object.update": applyObjectUpdate,
   "object.delete": applyObjectDelete,
+  "object.move": applyObjectMove,
   "class.create": applyClassCreate,
   "class.update": applyClassUpdate,
   "class.delete": applyClassDelete,

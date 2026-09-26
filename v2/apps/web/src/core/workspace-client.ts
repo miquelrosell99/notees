@@ -413,6 +413,22 @@ export class WorkspaceClient {
   }
 
   /**
+   * Reparent a node (outliner indent/outdent gesture) — issues `object.move`.
+   * `parentId` null means workspace root (pages only; blocks fail loud in the
+   * store's placement CHECK). Pass `afterId` to land the node immediately
+   * after that sibling in the parent's child order (Enter placement); omit it
+   * to append at the end (Tab indent). Applied locally, push kicked off.
+   */
+  async moveObject(id: string, parentId: string | null, afterId?: string): Promise<void> {
+    const engine = this.requireEngine();
+    const payload: Record<string, unknown> = { objectId: id, parentId };
+    if (afterId !== undefined) payload.afterId = afterId;
+    engine.enqueue(this.buildEnvelope("object.move", payload, [id]));
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
    * Push pending outbox ops now. Writes only kick a best-effort push; await
    * this when delivery must be deterministic (tests, "save & close").
    */
