@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@notees/export": "workspace:*",
     "commander": "^12.1.0"
   },
   "devDependencies": {
