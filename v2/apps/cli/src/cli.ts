@@ -10,11 +10,19 @@
  * --json or non-tty).
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { basename } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { Command, CommanderError, Option } from "commander";
+
+import {
+  bundleMarkdown,
+  concatBundleMarkdown,
+  deriveDisplayName,
+  type ExportContext,
+  type ExportNode,
+} from "@notees/export";
 
 import { ApiClient } from "./client.js";
 import { CliError, EXIT } from "./exit-codes.js";
@@ -312,6 +320,238 @@ async function doctor(ctx: CommandContext): Promise<void> {
   }
 }
 
+// --- export --------------------------------------------------------------------
+
+interface ExportApiObject {
+  id: string;
+  nodeType: string;
+  parentId: string | null;
+  classIds: string[];
+  name: string | null;
+  contentAst?: unknown;
+  properties?: { schemaId: string; schemaName: string; value: unknown; metadata?: unknown }[];
+}
+
+interface ApiEdgeRow {
+  id: string;
+  source_id: string;
+  target_id: string | null;
+  type: string;
+  verb: string | null;
+}
+
+interface ApiObjectStub {
+  id: string;
+  nodeType: string;
+  parentId: string | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toExportNode(obj: ExportApiObject): ExportNode {
+  const nodeType = (
+    obj.nodeType === "page" || obj.nodeType === "class" ? obj.nodeType : "block"
+  ) as ExportNode["nodeType"];
+  return {
+    id: obj.id,
+    nodeType,
+    name: obj.name ?? null,
+    contentAst: Array.isArray(obj.contentAst) ? (obj.contentAst as ExportNode["contentAst"]) : [],
+    classIds: Array.isArray(obj.classIds) ? obj.classIds : [],
+    properties: (Array.isArray(obj.properties) ? obj.properties : []).map((property) => ({
+      schemaId: property.schemaId,
+      schemaName: property.schemaName,
+      value: property.value,
+      ...(isRecord(property.metadata) ? { metadata: property.metadata } : {}),
+    })),
+  };
+}
+
+/** Collect every id export rendering may resolve: mentions, chips, bound verbs, class ids, node-typed property values. */
+function collectReferenceIds(node: ExportNode, into: Set<string>): void {
+  for (const classId of node.classIds) into.add(classId);
+  for (const property of node.properties) {
+    const value = property.value;
+    if (isRecord(value) && typeof value.nodeId === "string") into.add(value.nodeId);
+  }
+  const walk = (tokens: readonly ExportNode["contentAst"][number][]): void => {
+    for (const token of tokens) {
+      if (token.type === "mention") into.add(token.targetNodeId);
+      else if (token.type === "class_chip") into.add(token.classId);
+      else if (token.type === "typed_link") {
+        if (typeof token.verb === "object") into.add(token.verb.propertySchemaId);
+      } else if (token.type === "quote") {
+        walk(token.children);
+      }
+    }
+  };
+  walk(node.contentAst);
+}
+
+async function exportMarkdown(ctx: CommandContext, options: {
+  ids?: string[];
+  linkedTo?: string;
+  depth?: string;
+  fixpoint?: boolean;
+  outputDir?: string;
+  stdout?: boolean;
+}): Promise<void> {
+  const ids = options.ids ?? [];
+  if (ids.length === 0 && options.linkedTo === undefined) {
+    failUsage("export markdown requires --ids <uuid...> or --linked-to <uuid>");
+  }
+  if (ids.length > 0 && options.linkedTo !== undefined) {
+    failUsage("--ids and --linked-to are mutually exclusive");
+  }
+  if (options.outputDir !== undefined && options.stdout === true) {
+    failUsage("--output-dir and --stdout are mutually exclusive");
+  }
+  if (options.outputDir === undefined && options.stdout !== true) {
+    failUsage("export markdown requires --output-dir <dir> or --stdout");
+  }
+  // Closure depth: depth N follows N+1 backlink hops (depth 0 = the seed's
+  // direct referrers only), per §34.16.3; default 3.
+  let depth = Number.POSITIVE_INFINITY;
+  if (options.fixpoint !== true) {
+    const parsed = Number.parseInt(options.depth ?? "3", 10);
+    if (!Number.isInteger(parsed) || parsed < 0) failUsage("--depth must be a non-negative integer");
+    depth = parsed;
+  }
+
+  // Cached full-object fetch; parent ids kept on the side for containing-page
+  // walks (ExportNode deliberately carries no placement).
+  const objectCache = new Map<string, ExportNode | undefined>();
+  const parentOf = new Map<string, string | null>();
+  const getObject = async (id: string): Promise<ExportNode | undefined> => {
+    if (objectCache.has(id)) return objectCache.get(id);
+    let node: ExportNode | undefined;
+    try {
+      const body = await ctx.client.getJson<{ object: ExportApiObject }>(
+        `/api/v1/objects/${encodeURIComponent(id)}`,
+      );
+      parentOf.set(id, body.object.parentId ?? null);
+      node = toExportNode(body.object);
+    } catch (error) {
+      if (error instanceof CliError && error.exitCode === EXIT.domain) node = undefined;
+      else throw error;
+    }
+    objectCache.set(id, node);
+    return node;
+  };
+
+  const containingPage = async (id: string): Promise<ExportNode | undefined> => {
+    let currentId: string | null = id;
+    for (let hops = 0; currentId !== null && hops < 64; hops += 1) {
+      const node = await getObject(currentId);
+      if (node === undefined) return undefined;
+      if (node.nodeType === "page") return node;
+      if (node.nodeType === "class") return undefined;
+      currentId = parentOf.get(currentId) ?? null;
+    }
+    return undefined;
+  };
+
+  // Node set: --ids exports exactly the given set; --linked-to adds the
+  // backlink closure (pages only — a block referrer contributes its
+  // containing page, which then renders the block inline).
+  const included = new Map<string, ExportNode>();
+  const addSeed = async (id: string): Promise<void> => {
+    const node = await getObject(id);
+    if (node === undefined) throw new CliError(EXIT.domain, `object ${id} does not exist`);
+    included.set(id, node);
+  };
+  if (options.linkedTo !== undefined) await addSeed(options.linkedTo);
+  for (const id of ids) await addSeed(id);
+
+  if (options.linkedTo !== undefined) {
+    const seedId = options.linkedTo;
+    const visitedSources = new Set<string>(); // edge-source guard (cycle guard)
+    const visitedPages = new Set<string>([seedId]);
+    let frontier: string[] = [seedId];
+    let level = 0;
+    while (frontier.length > 0 && level <= depth) {
+      const next: string[] = [];
+      for (const id of frontier) {
+        const body = await ctx.client.getJson<{ nodeId: string; backlinks: ApiEdgeRow[] }>(
+          `/api/v1/objects/${encodeURIComponent(id)}/backlinks`,
+        );
+        for (const edge of body.backlinks) {
+          const sourceId = edge.source_id;
+          if (visitedSources.has(sourceId)) continue;
+          visitedSources.add(sourceId);
+          const source = await getObject(sourceId);
+          if (source === undefined) continue;
+          const page = source.nodeType === "page" ? source : await containingPage(sourceId);
+          if (page === undefined || visitedPages.has(page.id)) continue;
+          visitedPages.add(page.id);
+          included.set(page.id, page);
+          next.push(page.id);
+        }
+      }
+      frontier = next;
+      level += 1;
+    }
+  }
+
+  // Children map: the object API exposes no children endpoint (M1), so the
+  // parent→children map is derived from the paged object list (id-ordered —
+  // bullet order is id order, not child-position order; documented deviation),
+  // then each child is full-gotten for its contentAst.
+  const childrenMap = new Map<string, ExportNode[]>();
+  const stubs: ApiObjectStub[] = [];
+  let cursor: string | undefined;
+  do {
+    const query = queryString({ nodeType: "block", limit: 500, cursor });
+    const body = await ctx.client.getJson<{ objects: ApiObjectStub[]; nextCursor: string | null }>(
+      `/api/v1/objects${query}`,
+    );
+    stubs.push(...body.objects);
+    cursor = body.nextCursor ?? undefined;
+  } while (cursor !== undefined);
+  for (const stub of stubs) {
+    if (stub.parentId === null) continue;
+    const child = await getObject(stub.id);
+    if (child === undefined) continue;
+    const list = childrenMap.get(stub.parentId);
+    if (list === undefined) childrenMap.set(stub.parentId, [child]);
+    else list.push(child);
+  }
+
+  // Pre-resolve every referenced id's current display name (rename-free:
+  // mentions render the target's current name, SCHEMA.md Fork 4).
+  const referenceIds = new Set<string>();
+  for (const node of included.values()) collectReferenceIds(node, referenceIds);
+  for (const children of childrenMap.values()) {
+    for (const child of children) collectReferenceIds(child, referenceIds);
+  }
+  const names = new Map<string, string>();
+  for (const refId of referenceIds) {
+    const node = await getObject(refId);
+    if (node === undefined) continue;
+    names.set(refId, deriveDisplayName(node) || node.name?.trim() || refId);
+  }
+
+  const exportCtx: ExportContext = {
+    nameOf: (id) => names.get(id),
+    childrenOf: (id) => childrenMap.get(id) ?? [],
+  };
+  const bundle = bundleMarkdown([...included.values()], exportCtx);
+  const machine = { files: bundle.files.length, nodes: bundle.manifest.nodes };
+  if (options.stdout === true) {
+    const text = concatBundleMarkdown(bundle);
+    emit(ctx, text, { ...machine, bundle: text });
+    return;
+  }
+  const dir = options.outputDir;
+  if (dir === undefined) throw new CliError(EXIT.usage, "export markdown requires --output-dir <dir> or --stdout");
+  mkdirSync(dir, { recursive: true });
+  for (const file of bundle.files) writeFileSync(join(dir, file.path), file.content);
+  writeFileSync(join(dir, "notees-manifest.json"), `${JSON.stringify(bundle.manifest, null, 2)}\n`);
+  emit(ctx, `wrote ${bundle.files.length} files to ${dir}\n`, machine);
+}
+
 // --- program assembly --------------------------------------------------------
 
 function rootOf(command: Command): Command {
@@ -446,6 +686,34 @@ function buildProgram(): Command {
     .action(async (_options: object, command: Command) => {
       await doctor(ctxOf(command));
     });
+
+  const exportCmd = program.command("export").description("export operations");
+  exportCmd
+    .command("markdown")
+    .description("export objects as Markdown (<uuid>.md files + notees-manifest.json)")
+    .addOption(new Option("--ids <uuid...>", "export exactly these object ids (no closure)"))
+    .option("--linked-to <uuid>", "export the seed plus the pages that transitively link to it")
+    .addOption(
+      new Option("--depth <n>", "closure hops beyond the seed's direct referrers (hops = depth + 1; default 3)").default("3"),
+    )
+    .option("--fixpoint", "expand the closure until no new pages are found", false)
+    .option("--output-dir <dir>", "write the bundle into this directory")
+    .option("--stdout", "print the concatenated bundle instead of writing files", false)
+    .action(
+      async (
+        options: {
+          ids?: string[];
+          linkedTo?: string;
+          depth?: string;
+          fixpoint?: boolean;
+          outputDir?: string;
+          stdout?: boolean;
+        },
+        command: Command,
+      ) => {
+        await exportMarkdown(ctxOf(command), options);
+      },
+    );
 
   return program;
 }

@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -46,6 +46,7 @@ interface Harness {
   io: Capture;
   runCli(...args: string[]): Promise<number>;
   runCliWithStdin(stdin: string, ...args: string[]): Promise<number>;
+  createPage(name: string, contentAst: unknown[]): Promise<string>;
 }
 
 async function bootServer(): Promise<Harness> {
@@ -89,6 +90,14 @@ async function bootServer(): Promise<Harness> {
       const code = await run(["--server", baseUrl, "--key", API_KEY, ...args], io);
       io.stdin = undefined;
       return code;
+    },
+    async createPage(name: string, contentAst: unknown[]) {
+      const code = await this.runCliWithStdin(
+        JSON.stringify({ nodeType: "page", name, contentAst }),
+        "--json", "object", "create", "--stdin",
+      );
+      if (code !== EXIT.ok) throw new Error(`createPage ${name} failed: ${io.stderrText}`);
+      return (JSON.parse(io.stdoutText) as { id: string }).id;
     },
   };
   return harness;
@@ -277,5 +286,117 @@ describe("assets, classes, sync", () => {
     const h = harness;
     expect(await h.runCli("object", "create", "--nodeType", "page", "--name", "t6-human")).toBe(EXIT.ok);
     expect(h.io.stdoutText.trim()).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+
+describe("export markdown", () => {
+  it("--linked-to prints the referrer's markdown with [[name]] mentions (stdout)", async () => {
+    const h = harness;
+    const target = await h.createPage("expm-target-x", [{ type: "text", text: "seed body" }]);
+    await h.createPage("expm-referrer-r", [
+      { type: "mention", targetNodeId: target, text: "expm-target-x" },
+      { type: "text", text: " points here" },
+    ]);
+
+    const code = await h.runCli("export", "markdown", "--linked-to", target, "--stdout");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("# expm-referrer-r");
+    expect(h.io.stdoutText).toContain("[[expm-target-x]]");
+    // The seed is part of the bundle (hub of the closure).
+    expect(h.io.stdoutText).toContain("# expm-target-x");
+  });
+
+  it("--output-dir writes <uuid>.md files + notees-manifest.json; --json reports the set", async () => {
+    const h = harness;
+    const a = await h.createPage("expm-file-a", [{ type: "text", text: "file a body" }]);
+    const b = await h.createPage("expm-file-b", []);
+    const dir = join(h.dataDir, "expm-out-dir");
+
+    const code = await h.runCli("--json", "export", "markdown", "--ids", a, b, "--output-dir", dir);
+    expect(code).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { files: number; nodes: { id: string; name: string }[] };
+    expect(machine.files).toBe(2);
+    expect(machine.nodes.map((n) => n.id).sort()).toEqual([a, b].sort());
+
+    const fileA = readFileSync(join(dir, `${a}.md`), "utf8");
+    expect(fileA).toContain("name: expm-file-a");
+    expect(fileA).toContain("# expm-file-a");
+    expect(fileA).toContain("file a body");
+    expect(existsSync(join(dir, `${b}.md`))).toBe(true);
+
+    const manifest = JSON.parse(readFileSync(join(dir, "notees-manifest.json"), "utf8")) as {
+      format: string;
+      version: number;
+      nodes: { id: string; name: string; nodeType: string }[];
+    };
+    expect(manifest.format).toBe("notees-markdown");
+    expect(manifest.version).toBe(1);
+    expect(manifest.nodes).toHaveLength(2);
+    expect(manifest.nodes.find((n) => n.id === a)).toMatchObject({ name: "expm-file-a", nodeType: "page" });
+  });
+
+  it("--depth 0 limits the closure to the seed's direct referrers", async () => {
+    const h = harness;
+    const target = await h.createPage("expm-depth-target", []);
+    const direct = await h.createPage("expm-depth-direct", [
+      { type: "mention", targetNodeId: target, text: "expm-depth-target" },
+    ]);
+    const transitive = await h.createPage("expm-depth-transitive", [
+      { type: "mention", targetNodeId: direct, text: "expm-depth-direct" },
+    ]);
+    expect(transitive).toBeDefined();
+
+    expect(await h.runCli("export", "markdown", "--linked-to", target, "--depth", "0", "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("# expm-depth-direct");
+    expect(h.io.stdoutText).not.toContain("# expm-depth-transitive");
+
+    // Default depth (3) reaches the transitive referrer.
+    expect(await h.runCli("export", "markdown", "--linked-to", target, "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("# expm-depth-transitive");
+  });
+
+  it("children render as nested bullets under their page", async () => {
+    const h = harness;
+    const pageId = await h.createPage("expm-parent", [{ type: "text", text: "parent body" }]);
+    await h.runCliWithStdin(
+      JSON.stringify({
+        nodeType: "block",
+        parentId: pageId,
+        contentAst: [{ type: "text", text: "child bullet body" }],
+      }),
+      "--json", "object", "create", "--stdin",
+    );
+
+    expect(await h.runCli("export", "markdown", "--ids", pageId, "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("parent body");
+    expect(h.io.stdoutText).toContain("- child bullet body");
+  });
+
+  it("--fixpoint expands until no new pages are found", async () => {
+    const h = harness;
+    // NB: a true mention cycle cannot be authored through the M1 CLI (object
+    // update carries no content flag and ids are server-generated), so the
+    // fixpoint path is exercised with a referrer chain instead.
+    const a = await h.createPage("expm-fp-a", []);
+    const b = await h.createPage("expm-fp-b", [
+      { type: "mention", targetNodeId: a, text: "expm-fp-a" },
+    ]);
+    const c = await h.createPage("expm-fp-c", [
+      { type: "mention", targetNodeId: b, text: "expm-fp-b" },
+    ]);
+    expect(c).toBeDefined();
+
+    expect(await h.runCli("export", "markdown", "--linked-to", a, "--fixpoint", "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("# expm-fp-a");
+    expect(h.io.stdoutText).toContain("# expm-fp-b");
+    expect(h.io.stdoutText).toContain("# expm-fp-c");
+  });
+
+  it("usage errors exit 2 (missing selector, missing output)", async () => {
+    const h = harness;
+    expect(await h.runCli("export", "markdown", "--stdout")).toBe(EXIT.usage);
+    expect(await h.runCli("export", "markdown", "--ids", crypto.randomUUID())).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("--output-dir");
   });
 });
