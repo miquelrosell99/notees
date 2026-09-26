@@ -12,8 +12,8 @@ do not exist. Everything below was verified against `apps/server/src/config.ts`,
 
 ## 1. Requirements
 
-- **Node 22** (`engines.node >=22`). There is no published package and no container
-  image — you run from source or from a local tsup build.
+- **Node 22** (`engines.node >=22`). There is no published package — you run
+  from source, from a local tsup build, or as a container (§9).
 - **pnpm 9** (`packageManager: pnpm@9.0.0`) for install/build; enable via Corepack.
 - **better-sqlite3** is a native module. Prebuilt binaries cover common glibc platforms;
   on musl/alpine or exotic arches you need Python 3, make, and g++ for node-gyp.
@@ -69,6 +69,7 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 | `NOTEES_GLOBAL_REQ_PER_MINUTE` | `10000` | Global fallback limit, requests/min/IP (WIRE §3) |
 | `NOTEES_MAX_MEDIA_BYTES` | `52428800` (50 MB) | Upload cap, media sniffed by magic bytes (jpeg/png/webp/audio) |
 | `NOTEES_MAX_DOCUMENT_BYTES` | `104857600` (100 MB) | Upload cap, documents (pdf/epub) |
+| `NOTEES_CORS_ORIGIN` | — (no CORS headers) | Comma-separated browser origins allowed to call the API cross-origin (web client served from another origin/port). `*` allows any origin — LAN-trusted deployments only. Absent → no CORS headers: same-origin and CLI clients unaffected, browsers denied |
 
 CLI environment (for clients, `apps/cli/src/cli.ts`): `NOTEES_SERVER` (server URL),
 `NOTEES_API_KEY` (the same `nk_` key; flags `--server`/`--key` override),
@@ -186,40 +187,50 @@ there is no `notees export`.
   multi-user authorization (M3), scoped keys. Until M3, "whoever holds the key" is the
   entire threat-model boundary.
 
-## 9. Docker sketch — NOT shipped
+## 9. Docker + Compose (shipped 2026-09-26)
 
-No Dockerfile exists in the tree; this is a reference shape for an operator who wants
-one. Native builds (`better-sqlite3`) are the only real complication on Alpine/musl.
+Two images build from this monorepo (context = the `v2/` root):
 
-```dockerfile
-# ---------- build ----------
-FROM node:22-alpine AS build
-RUN apk add --no-cache python3 make g++           # node-gyp for better-sqlite3 (musl)
-WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY packages ./packages
-COPY apps ./apps
-RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @notees/server build && pnpm --filter @notees/cli build
+- **`apps/server/Dockerfile`** — multi-stage: `deps` (frozen workspace install;
+  toolchain for the better-sqlite3 musl build), `build` (`pnpm --filter
+  @notees/server... build` → tsup bundle, workspace TS inlined), `deploy`
+  (`pnpm --filter @notees/server deploy --prod /out` pruned copy), `runtime`
+  (`node:22-alpine`, `USER node`, `VOLUME /data`, `EXPOSE 8377`, wget
+  `/healthz` healthcheck).
+- **`apps/web/Dockerfile`** — `deps` + `build` (`pnpm --filter @notees/web...
+  build` → vite dist: static assets + worker chunk + sql.js wasm), then
+  `nginx:1.27-alpine`. The stock `/docker-entrypoint.d` mechanism runs
+  `50-notees-config.sh`, which writes `/config.js`
+  (`window.NOTEES_CONFIG = { serverUrl: … }`) from `NOTEES_SERVER_URL`
+  (baked as a build ARG, overridable at runtime with `-e`) before nginx
+  starts; `index.html` loads it first and the App bootstrap prefills the
+  server URL from it (manual form remains the fallback). A conf.d snippet
+  extends gzip to js/css/wasm (stock nginx gzips text/html only).
 
-# ---------- runtime ----------
-FROM node:22-alpine
-RUN apk add --no-cache python3 make g++           # keep: better-sqlite3 is external
-WORKDIR /app
-ENV NOTEES_DATA_DIR=/data NOTEES_HOST=127.0.0.1 NOTEES_PORT=8377
-COPY --from=build /app/apps/server/dist ./dist
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/apps/server/package.json ./package.json
-VOLUME /data
-EXPOSE 8377
-HEALTHCHECK --interval=30s CMD wget -qO- http://127.0.0.1:8377/healthz || exit 1
-CMD ["node", "dist/server.js"]
+The folder-level deployment project lives at
+`/etc/periphery/stacks/notees/compose.yaml` (project name `notees-v2` — kept
+distinct from the running v1-dev `notees` project):
+
+```sh
+cd /etc/periphery/stacks/notees
+docker compose config          # validate
+docker compose up -d --build   # notees-sync (:8377) + notees-web (:8080)
 ```
 
-Caveats: the runtime stage needs the compile toolchain only because `better-sqlite3` is
-kept external in the tsup bundle (deliberate — native binding must match the host ABI);
-on glibc platforms with prebuilt binaries you can drop the apk lines. Bind-mount `/data`
-for persistence, and put a real reverse proxy in front for TLS the moment traffic leaves
-localhost. First boot writes `/data/api_key.txt` and logs the key once — capture it from
-the container logs.
+- Ports: `NOTEES_SYNC_PORT` (default 8377), `NOTEES_WEB_PORT` (default 8080).
+- Data: named volume `notees-sync-data` → `/data` (relay.db, snapshots,
+  derived/, workspaces/, `api_key.txt`).
+- CORS: compose sets `NOTEES_CORS_ORIGIN=http://localhost:8080` so a browser
+  on the host can talk to the API. LAN clients add their origin
+  (`http://<lan-ip>:8080`) — comma-separated — or set `*` on trusted LANs.
+- First boot generates the API key; read it with
+  `docker compose exec notees-sync cat /data/api_key.txt` (also logged once).
+- `NOTEES_SERVER_URL` is baked into the web image at build time
+  (`http://notees-sync:8377` in compose — only resolvable inside the docker
+  network). For real browsers rebuild with a LAN/domain URL
+  (`docker compose build --build-arg …` or an override file), or override at
+  runtime: `docker run -e NOTEES_SERVER_URL=http://<host>:8377 …`.
+
+Operator caveats: the server binds `0.0.0.0` (right inside a container); put
+a reverse proxy in front for TLS. Bind-mounting `/data` instead of the named
+volume needs the mount owned by uid 1000 (`node`).

@@ -1,10 +1,10 @@
 /**
  * App — slice 1 shell + slice 2 browser persistence. Bootstrap screen (server
- * URL + API key + workspace id, remembered in localStorage), then a page-list
- * sidebar + selected PageView over a WorkspaceClient synced through an
- * HttpTransport. The client runs in a Web Worker with the SQLite image
- * persisted to OPFS when the browser supports it (Worker +
- * navigator.storage.getDirectory), else in-process.
+ * URL + API key + workspace id; the URL may be prefilled by /config.js and is
+ * remembered in localStorage), then a page-list sidebar + selected PageView
+ * over a WorkspaceClient synced through an HttpTransport. The client runs in a
+ * Web Worker with the SQLite image persisted to OPFS when the browser supports
+ * it (Worker + navigator.storage.getDirectory), else in-process.
  */
 
 import { useEffect, useState, type FormEvent } from "react";
@@ -44,8 +44,18 @@ function readStored(key: string): string {
   }
 }
 
+/**
+ * Initial server URL: a remembered value (localStorage) wins; otherwise the
+ * /config.js runtime prefill (window.NOTEES_CONFIG, written by the web
+ * container entrypoint from NOTEES_SERVER_URL) defaults the form field.
+ * Empty result → the user types it manually.
+ */
+function initialServerUrl(): string {
+  return readStored(STORAGE_KEYS.serverUrl) || window.NOTEES_CONFIG?.serverUrl || "";
+}
+
 export function App() {
-  const [serverUrl, setServerUrl] = useState(() => readStored(STORAGE_KEYS.serverUrl));
+  const [serverUrl, setServerUrl] = useState(initialServerUrl);
   const [apiKey, setApiKey] = useState(() => readStored(STORAGE_KEYS.apiKey));
   const [workspaceId, setWorkspaceId] = useState(() => readStored(STORAGE_KEYS.workspaceId));
   const [status, setStatus] = useState<ConnStatus>("config");
