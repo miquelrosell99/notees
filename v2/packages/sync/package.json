@@ -1,11 +1,23 @@
 {
   "name": "@notees/sync",
-  "version": "0.0.0",
+  "version": "0.1.0-m1",
+  "description": "Notees v2 sync engine: outbox, conflict resolution, transport against the operation relay.",
+  "license": "AGPL-3.0",
   "type": "module",
+  "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsup",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -17,5 +29,14 @@
     "@types/node": "^20.14.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/miquelrosell99/notees.git",
+    "directory": "v2/packages/sync"
   }
 }
