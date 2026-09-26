@@ -167,6 +167,10 @@ export class WorkerClient {
     return this.cachedRead<ClientNode[]>("listPages", [], []);
   }
 
+  listClasses(): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("listClasses", [], []);
+  }
+
   getBlockTree(pageId: string, depth?: number): BlockTreeNode[] {
     return this.cachedRead<BlockTreeNode[]>("getBlockTree", [pageId, depth], []);
   }
@@ -216,6 +220,11 @@ export class WorkerClient {
   /** Reparent a node (outliner indent/outdent; `afterId` = sibling placement). */
   async moveObject(id: string, parentId: string | null, afterId?: string): Promise<void> {
     await this.call("moveObject", [id, parentId, afterId]);
+  }
+
+  /** OR-set class membership add (the `#` / `+` set gesture). */
+  async assignClass(id: string, classId: string): Promise<void> {
+    await this.call("assignClass", [id, classId]);
   }
 
   /** No-op when the worker already booted this workspace (init bootstraps it). */
