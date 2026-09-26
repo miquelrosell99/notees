@@ -15,7 +15,7 @@
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { uuidv7 } from "uuidv7";
 
-import { deriveDisplayName } from "@notees/domain";
+import { deriveDisplayName, SYSTEM_PROPERTY_SPECS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import {
   Clock,
   newEnvelope,
@@ -87,6 +87,25 @@ export interface ClientNode {
 export interface BlockTreeNode {
   node: ClientNode;
   children: BlockTreeNode[];
+}
+
+/**
+ * One class → property-schema binding, as projected by the Class View.
+ * M1 truth: the designed system seeds (@notees/domain) — no op authors
+ * `class_property` registry rows yet, so the registry-only flags read null.
+ */
+export interface ClassBinding {
+  propertySchemaId: string;
+  name: string;
+  type: string;
+  multi: boolean;
+  /** Bound target class names (seed spec), null when unconstrained. */
+  targetClassFilter: string[] | null;
+  sequence: number;
+  required: boolean | null;
+  readonly: boolean | null;
+  hideWhenEmpty: boolean | null;
+  defaultValue: string | null;
 }
 
 export interface ClientEdge {
@@ -343,6 +362,49 @@ export class WorkspaceClient {
     return rows.map(mapNode);
   }
 
+  /** Direct extends parents of a class (m2m), deterministic order. */
+  getClassParents(classId: string): string[] {
+    return this.store.classParentIds(classId);
+  }
+
+  /** Nodes with present OR-set membership in the class, display order. */
+  getClassMembers(classId: string): ClientNode[] {
+    return this.store.classMembers(classId).map(mapNode);
+  }
+
+  /**
+   * The class's property bindings in sequence order. M1 derives them from
+   * the designed system seeds (@notees/domain, keyed by the class's stored
+   * name): `class_property` registry rows have no authoring op yet, so the
+   * registry-only flags (required/readonly/hideWhenEmpty) read null and
+   * SYSTEM_EXTRA_CLASS_BINDINGS (cover) is not projected. User-named classes
+   * (no seed spec) have no bindings.
+   */
+  getClassBindings(classId: string): ClassBinding[] {
+    const node = this.getNode(classId);
+    if (node === undefined || node.nodeType !== "class" || node.name === null) {
+      return [];
+    }
+    const bindings: ClassBinding[] = [];
+    let sequence = 0;
+    for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
+      if (spec === undefined || spec.bindTo !== node.name) continue;
+      bindings.push({
+        propertySchemaId: SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS],
+        name,
+        type: spec.type,
+        multi: spec.multi ?? false,
+        targetClassFilter: spec.targetClassFilter ?? null,
+        sequence: sequence++,
+        required: null,
+        readonly: null,
+        hideWhenEmpty: null,
+        defaultValue: spec.defaultValue ?? null,
+      });
+    }
+    return bindings;
+  }
+
   /**
    * Children of a page in child-order, recursive to `depth` levels
    * (bodies only: child pages render in their own section per SCHEMA.md
@@ -576,6 +638,42 @@ export class WorkspaceClient {
       // exactOptionalPropertyTypes: only present the key when set.
       ...(node.name !== null ? { name: node.name } : {}),
     });
+  }
+
+  /**
+   * Create a class (class.create: node row + class registry row — the
+   * registry row is what keeps the extends closure rebuild authoritative).
+   * Returns the new class id. Applied locally, push kicked off.
+   */
+  async createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string> {
+    const engine = this.requireEngine();
+    const id = uuidv7();
+    const payload: Record<string, unknown> = { classId: id, name };
+    if (opts?.icon !== undefined) payload.icon = opts.icon;
+    if (opts?.color !== undefined) payload.color = opts.color;
+    engine.enqueue(this.buildEnvelope("class.create", payload, [id]));
+    this.notify();
+    this.kickPush();
+    return id;
+  }
+
+  /**
+   * Replace a class's full extends parent set (class.setExtends — m2m,
+   * replace semantics; an empty array detaches all parents). The store keeps
+   * the transitive closure in sync and fails loud on cycles (CycleError),
+   * which callers surface as a transient message.
+   */
+  async setClassExtends(classId: string, parentClassIds: string[]): Promise<void> {
+    const engine = this.requireEngine();
+    engine.enqueue(
+      this.buildEnvelope(
+        "class.setExtends",
+        { classId, parentClassIds },
+        [classId, ...parentClassIds],
+      ),
+    );
+    this.notify();
+    this.kickPush();
   }
 
   /**
