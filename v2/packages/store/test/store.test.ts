@@ -561,6 +561,185 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("object.move (reparent + ordering)", () => {
+    const P = "0192a000-0000-7000-8000-000000000020";
+    const A = "0192a000-0000-7000-8000-000000000021";
+    const B = "0192a000-0000-7000-8000-000000000022";
+    const C = "0192a000-0000-7000-8000-000000000023";
+
+    it("fixture replay lands C under A with P = [A, B] and A = [C]", () => {
+      const store = makeStore();
+      store.applyMany(loadFixture("object-move.json"));
+      expect(store.getNode(C)?.parent_id).toBe(A);
+      expect(store.children(P).map((n) => n.id)).toEqual([A, B]);
+      expect(store.children(A).map((n) => n.id)).toEqual([C]);
+      // Exactly one child_order row per node — no dual-parent residue.
+      const rows = store.database
+        .prepare("SELECT child_id, position FROM node_child_order WHERE parent_id = ? ORDER BY position")
+        .all(P);
+      expect(rows).toEqual([
+        { child_id: A, position: "a" },
+        { child_id: B, position: "aa" },
+      ]);
+      expect(
+        (
+          store.database
+            .prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE child_id = ?")
+            .get(C) as { n: number }
+        ).n,
+      ).toBe(1);
+    });
+
+    it("afterId places the node immediately after that sibling (sibling midpoint)", () => {
+      const store = baseStore();
+      const x = "0192a000-0000-7000-8000-0000000000e1";
+      const y = "0192a000-0000-7000-8000-0000000000e2";
+      const z = "0192a000-0000-7000-8000-0000000000e3";
+      store.apply(env("object.create", { objectId: x, parentId: NODE_PAGE }, 1727200002000));
+      store.apply(env("object.create", { objectId: y, parentId: NODE_PAGE }, 1727200002100));
+      store.apply(env("object.create", { objectId: z, parentId: NODE_PAGE }, 1727200002200));
+      // Enter placement: Z jumps the queue to sit right after X.
+      const result = store.apply(
+        env("object.move", { objectId: z, parentId: NODE_PAGE, afterId: x }, 1727200002300),
+      );
+      expect(result.ignored).toBe(false);
+      expect(store.children(NODE_PAGE).map((n) => n.id)).toEqual([x, z, y]);
+      const position = store.database
+        .prepare("SELECT position FROM node_child_order WHERE parent_id = ? AND child_id = ?")
+        .get(NODE_PAGE, z) as { position: string };
+      expect(position.position).toBe("a`"); // midpoint between "a" and "aa"
+    });
+
+    it("append-at-end when afterId is the last sibling", () => {
+      const store = baseStore();
+      const x = "0192a000-0000-7000-8000-0000000000e1";
+      const y = "0192a000-0000-7000-8000-0000000000e2";
+      store.apply(env("object.create", { objectId: x, parentId: NODE_PAGE }, 1727200002000));
+      store.apply(env("object.create", { objectId: y, parentId: NODE_PAGE }, 1727200002100));
+      store.apply(
+        env("object.move", { objectId: x, parentId: NODE_PAGE, afterId: y }, 1727200002200),
+      );
+      expect(store.children(NODE_PAGE).map((n) => n.id)).toEqual([y, x]);
+      const position = store.database
+        .prepare("SELECT position FROM node_child_order WHERE parent_id = ? AND child_id = ?")
+        .get(NODE_PAGE, x) as { position: string };
+      expect(position.position).toBe("aaa");
+    });
+
+    it("falls back to a plain append when afterId is not a sibling (defensive)", () => {
+      const store = baseStore();
+      const x = "0192a000-0000-7000-8000-0000000000e1";
+      const y = "0192a000-0000-7000-8000-0000000000e2";
+      // NODE_BOOK is not a child of NODE_PAGE.
+      store.apply(env("object.create", { objectId: x, parentId: NODE_PAGE }, 1727200002000));
+      store.apply(env("object.create", { objectId: y, parentId: NODE_PAGE }, 1727200002100));
+      store.apply(
+        env(
+          "object.move",
+          { objectId: y, parentId: NODE_PAGE, afterId: NODE_BOOK },
+          1727200002200,
+        ),
+      );
+      expect(store.children(NODE_PAGE).map((n) => n.id)).toEqual([x, y]);
+    });
+
+    it("root move of a block throws the placement CHECK as a typed error", () => {
+      const store = baseStore();
+      const block = "0192a000-0000-7000-8000-0000000000e1";
+      store.apply(env("object.create", { objectId: block, parentId: NODE_PAGE }, 1727200002000));
+      expect(() =>
+        store.apply(env("object.move", { objectId: block, parentId: null }, 1727200002100)),
+      ).toThrow(CheckConstraintError);
+      // The throw rolls back: still parented, one child_order row.
+      expect(store.getNode(block)?.parent_id).toBe(NODE_PAGE);
+      expect(
+        (
+          store.database
+            .prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE child_id = ?")
+            .get(block) as { n: number }
+        ).n,
+      ).toBe(1);
+    });
+
+    it("root move of a page is legal and drops its child_order row", () => {
+      const store = baseStore();
+      const sub = "0192a000-0000-7000-8000-0000000000e1";
+      store.apply(
+        env("object.create", { objectId: sub, nodeType: "page", parentId: NODE_PAGE }, 1727200002000),
+      );
+      store.apply(env("object.move", { objectId: sub, parentId: null }, 1727200002100));
+      expect(store.getNode(sub)?.parent_id).toBeNull();
+      expect(
+        (
+          store.database
+            .prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE child_id = ?")
+            .get(sub) as { n: number }
+        ).n,
+      ).toBe(0);
+    });
+
+    it("rejects a class parent with the cross-row move guard", () => {
+      const store = baseStore();
+      const classId = "c0000000-0000-7000-8000-0000000000c1";
+      const block = "0192a000-0000-7000-8000-0000000000e1";
+      store.apply(env("class.create", { classId, name: "Tag" }, 1727200001500));
+      store.apply(env("object.create", { objectId: block, parentId: NODE_PAGE }, 1727200002000));
+      expect(() =>
+        store.apply(env("object.move", { objectId: block, parentId: classId }, 1727200002100)),
+      ).toThrow(MoveGuardError);
+    });
+
+    it("rejects moving a node under its own descendant (cycle guard)", () => {
+      const store = baseStore();
+      const outer = "0192a000-0000-7000-8000-0000000000e1";
+      const inner = "0192a000-0000-7000-8000-0000000000e2";
+      store.apply(env("object.create", { objectId: outer, parentId: NODE_PAGE }, 1727200002000));
+      store.apply(env("object.create", { objectId: inner, parentId: outer }, 1727200002100));
+      expect(() =>
+        store.apply(env("object.move", { objectId: outer, parentId: inner }, 1727200002200)),
+      ).toThrow(MoveGuardError);
+    });
+
+    it("re-parenting keeps ancestor stats correct on both sides", () => {
+      const store = makeStore();
+      store.applyMany(loadFixture("object-move.json"));
+      // P lost C as a direct child but keeps it as a descendant through A
+      // (P: 2 children, 3 descendants; A: 1 child, 1 descendant).
+      const statsOf = (id: string) =>
+        store.database
+          .prepare("SELECT child_count, descendant_count FROM node_stats WHERE node_id = ?")
+          .get(id) as { child_count: number; descendant_count: number };
+      expect(statsOf(P)).toEqual({ child_count: 2, descendant_count: 3 });
+      expect(statsOf(A)).toEqual({ child_count: 1, descendant_count: 1 });
+    });
+
+    it("an older move re-applied after a newer one is dropped by row LWW", () => {
+      const store = baseStore();
+      const block = "0192a000-0000-7000-8000-0000000000e1";
+      store.apply(env("object.create", { objectId: block, parentId: NODE_PAGE }, 1727200002000));
+      const older = env("object.move", { objectId: block, parentId: NODE_BOOK }, 1727200002100);
+      const newer = env("object.move", { objectId: block, parentId: NODE_PAGE }, 1727200002200);
+      // newTarget: move back under NODE_PAGE first (as a child order change).
+      store.apply(older);
+      expect(store.getNode(block)?.parent_id).toBe(NODE_BOOK);
+      store.apply(newer);
+      expect(store.getNode(block)?.parent_id).toBe(NODE_PAGE);
+      // Replay the older move with a fresh envelope id: must not regress.
+      const replay = store.apply(
+        env("object.move", { objectId: block, parentId: NODE_BOOK }, 1727200002100),
+      );
+      expect(replay.ignored).toBe(true);
+      expect(store.getNode(block)?.parent_id).toBe(NODE_PAGE);
+      expect(
+        (
+          store.database
+            .prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE child_id = ?")
+            .get(block) as { n: number }
+        ).n,
+      ).toBe(1);
+    });
+  });
+
   describe("object lifecycle", () => {
     it("soft delete trashes the subtree; permanent delete hard-removes it", () => {
       const store = baseStore();
@@ -597,6 +776,65 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         .prepare("SELECT is_permanent FROM trash WHERE node_id = ?")
         .get(NODE_PAGE) as { is_permanent: number };
       expect(permanentTrash.is_permanent).toBe(1);
+    });
+
+    it("re-issuing object.create on an existing id is a strict tree no-op", () => {
+      const store = baseStore();
+      const child = "0192a000-0000-7000-8000-0000000000d1";
+      store.apply(
+        env(
+          "object.create",
+          { objectId: child, parentId: NODE_PAGE, contentAst: [{ type: "text", text: "child block" }] },
+          1727200002000,
+        ),
+      );
+      const before = dumpDb(store);
+      // Replay the create against a DIFFERENT parent with payload drift
+      // (name/content carried by the re-issue): the earlier half-apply added
+      // a second child_order row and left node.parent_id stale (the node
+      // rendered under TWO parents).
+      const result = store.apply(
+        env(
+          "object.create",
+          { objectId: child, parentId: NODE_BOOK, name: "replay drift" },
+          1727200003000,
+        ),
+      );
+      expect(result.ignored).toBe(true);
+      expect(store.getNode(child)?.parent_id).toBe(NODE_PAGE);
+      expect(store.getNode(child)?.name).toBeNull();
+      expect(
+        (
+          store.database
+            .prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE child_id = ?")
+            .get(child) as { n: number }
+        ).n,
+      ).toBe(1);
+      expect(dumpDb(store)).toEqual(before);
+    });
+
+    it("re-create still seeds classIds into the OR-Set (convergence carrier), without touching the tree", () => {
+      const store = baseStore();
+      const child = "0192a000-0000-7000-8000-0000000000d1";
+      store.apply(env("object.create", { objectId: child, parentId: NODE_PAGE }, 1727200002000));
+      const result = store.apply(
+        env(
+          "object.create",
+          { objectId: child, parentId: NODE_BOOK, classIds: [BOOK_CLASS] },
+          1727200003000,
+        ),
+      );
+      expect(result.ignored).toBe(true);
+      // Class membership unioned (add-wins OR-Set); the tree did not move.
+      expect(JSON.parse(store.getNode(child)?.class_ids ?? "[]")).toEqual([BOOK_CLASS]);
+      expect(store.getNode(child)?.parent_id).toBe(NODE_PAGE);
+      expect(
+        (
+          store.database
+            .prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE child_id = ?")
+            .get(child) as { n: number }
+        ).n,
+      ).toBe(1);
     });
 
     it("promotes a block to a page and demotes it back in place", () => {
