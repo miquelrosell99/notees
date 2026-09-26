@@ -176,6 +176,14 @@ export class WorkspaceClient {
     return new WorkspaceClient(store, options);
   }
 
+  /**
+   * Wrap an already-open Store (worker persistence path: the caller restores
+   * saved bytes into the store before wrapping it).
+   */
+  static wrap(store: Store, options: WorkspaceClientOptions): WorkspaceClient {
+    return new WorkspaceClient(store, options);
+  }
+
   /** Factory for the app path: HTTP transport against a relay server. */
   static async createHttp(options: {
     serverUrl: string;
@@ -381,6 +389,17 @@ export class WorkspaceClient {
   /** Pull now: snapshot shortcut when newer, then seq catch-up. */
   async pull(): Promise<void> {
     await this.requireEngine().pull();
+    this.notify();
+  }
+
+  /**
+   * Apply a batch of remote envelopes (realtime frames / external injection)
+   * through the engine: one store transaction, conflict detection against
+   * local pending ops, HLC merge. Unknown seqs (null) keep the cursor; the
+   * next pull re-fetches anything the batch covered.
+   */
+  applyRemoteBatch(envelopes: Envelope[], seqs?: Record<string, number> | null): void {
+    this.requireEngine().onRemoteBatch(envelopes, seqs ?? {});
     this.notify();
   }
 

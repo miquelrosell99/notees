@@ -272,3 +272,14 @@ mark {
   border-radius: 2px;
   padding: 0 2px;
 }
+
+.nt-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: #7b8794;
+  pointer-events: none;
+}
