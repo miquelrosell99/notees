@@ -324,6 +324,18 @@ export class WorkspaceClient {
     return rows.map(mapNode);
   }
 
+  /** All active classes in the workspace, deterministic order (# capture). */
+  listClasses(): ClientNode[] {
+    const rows = this.store.database
+      .prepare(
+        `SELECT * FROM node
+         WHERE workspace_id = ? AND node_type = 'class' AND is_active = 1
+         ORDER BY COALESCE(name, id), id`,
+      )
+      .all(this.workspaceId) as NodeRow[];
+    return rows.map(mapNode);
+  }
+
   /**
    * Children of a page in child-order, recursive to `depth` levels
    * (bodies only: child pages render in their own section per SCHEMA.md
@@ -521,6 +533,31 @@ export class WorkspaceClient {
     engine.enqueue(this.buildEnvelope("object.move", payload, [id]));
     this.notify();
     this.kickPush();
+  }
+
+  /**
+   * OR-set class membership add (the `#` / `+` set gesture). No-op when the
+   * class is already assigned. Membership is NOT an object.update field:
+   * class_ids is a CRDT OR-Set whose add carrier is a re-issued
+   * object.create on the same id — the applier's exists-branch seeds
+   * class_member_set add-wins per pair without touching the tree
+   * (store/appliers.ts applyObjectCreate, conflicts.ts class_conflict).
+   * Immediate (not debounced) — a discrete gesture with the same optimistic
+   * envelope path as any write.
+   */
+  async assignClass(id: string, classId: string): Promise<void> {
+    const node = this.getNode(id) ?? this.getNodeRaw(id);
+    if (!node) throw new Error(`assignClass: node ${id} not found`);
+    if (node.classIds.includes(classId)) return;
+    await this.createObject({
+      id,
+      nodeType: node.nodeType,
+      parentId: node.parentId,
+      contentAst: node.contentAst,
+      classIds: [classId],
+      // exactOptionalPropertyTypes: only present the key when set.
+      ...(node.name !== null ? { name: node.name } : {}),
+    });
   }
 
   /**

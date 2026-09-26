@@ -212,3 +212,56 @@ export function applyTextEdit(previous: readonly unknown[], draft: string): Cont
   out.push(...previous.slice(tailStart));
   return mergeAdjacentTextRuns(out);
 }
+
+/**
+ * The prose-bearing string field of a token (capture-splice boundary trims).
+ * text / mention / typed_link carry `text`, math carries `expression`.
+ */
+function tokenProseField(token: unknown): { field: "text" | "expression"; value: string } | null {
+  if (typeof token !== "object" || token === null) return null;
+  const t = token as Record<string, unknown>;
+  if (typeof t.text === "string" && (t.type === "text" || t.type === "mention" || t.type === "typed_link"))
+    return { field: "text", value: t.text };
+  if (typeof t.expression === "string" && t.type === "math") return { field: "expression", value: t.expression };
+  return null;
+}
+
+/** Boundary token sliced to [from, to) of its prose; null when the slice is empty. */
+function sliceBoundaryToken(token: unknown, from: number, to: number | undefined): unknown | null {
+  const proseField = tokenProseField(token);
+  if (proseField === null) return null; // hard_break / prose-less tokens have no partial cover
+  const sliced = to === undefined ? proseField.value.slice(from) : proseField.value.slice(from, to);
+  if (sliced === "") return null;
+  return { ...(token as Record<string, unknown>), [proseField.field]: sliced };
+}
+
+/**
+ * Capture-splice: replace the prose range [start, end) with the given tokens
+ * (mention / class_chip / typed_link insertion). Unlike `applyTextEdit` the
+ * caller is authoritative — tokens land verbatim, no ambiguity flatten. Runs
+ * outside the range keep their marks and identity; boundary text runs are
+ * trimmed; boundary rich tokens (a mention the range cuts into) keep their
+ * type with their captured text trimmed (it may go stale — display resolves).
+ */
+export function spliceTokens(
+  previous: readonly unknown[],
+  start: number,
+  end: number,
+  tokens: readonly unknown[],
+): ContentAst {
+  const spans = proseSpans(previous);
+  const from = locate(spans, start);
+  const to = locate(spans, end);
+  const out: unknown[] = previous.slice(0, from.tokenIndex);
+  if (from.inner > 0) {
+    const head = sliceBoundaryToken(previous[from.tokenIndex], 0, from.inner);
+    if (head !== null) out.push(head);
+  }
+  out.push(...tokens);
+  if (to.inner > 0) {
+    const tail = sliceBoundaryToken(previous[to.tokenIndex], to.inner, undefined);
+    if (tail !== null) out.push(tail);
+  }
+  out.push(...previous.slice(to.tokenIndex + (to.inner > 0 ? 1 : 0)));
+  return mergeAdjacentTextRuns(out);
+}

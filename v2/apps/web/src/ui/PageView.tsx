@@ -91,6 +91,31 @@ export function PageView({
     requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
       setFocusRequest({ id: blockId, caret }),
     acknowledgeFocus: () => setFocusRequest(null),
+    capture: {
+      /**
+       * `@` mention candidates, by DISPLAY NAME (SCHEMA.md derivation). The
+       * FTS index covers content, not names, so name matching filters
+       * client-side over pages + classes, unioned with the FTS hits (which
+       * surface blocks by their prose excerpt).
+       */
+      searchNodes: (query) => {
+        const q = query.trim().toLowerCase();
+        const pool = [
+          ...client.listPages(),
+          ...client.listClasses(),
+          ...(q === "" ? [] : client.search(query)),
+        ];
+        const seen = new Set<string>();
+        return pool.filter((node) => {
+          if (seen.has(node.id)) return false;
+          seen.add(node.id);
+          if (q === "") return true;
+          return (client.getDisplayName(node.id) ?? "").toLowerCase().includes(q);
+        });
+      },
+      listClasses: () => client.listClasses(),
+      displayName: (id) => client.getDisplayName(id),
+    },
   };
 
   if (!page) {

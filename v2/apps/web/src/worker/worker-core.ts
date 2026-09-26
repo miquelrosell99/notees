@@ -281,6 +281,10 @@ export class WorkerCore {
     return this.client.listPages();
   }
 
+  listClasses(): ClientNode[] {
+    return this.client.listClasses();
+  }
+
   getBlockTree(pageId: string, depth?: number): BlockTreeNode[] {
     return this.client.getBlockTree(pageId, depth);
   }
@@ -400,6 +404,8 @@ export class WorkerCore {
         return this.getPage(args[0] as string);
       case "listPages":
         return this.listPages();
+      case "listClasses":
+        return this.listClasses();
       case "getBlockTree":
         return this.getBlockTree(args[0] as string, args[1] as number | undefined);
       case "search":
@@ -428,6 +434,8 @@ export class WorkerCore {
           args[1] as string | null,
           args[2] as string | undefined,
         );
+      case "assignClass":
+        return this.client.assignClass(args[0] as string, args[1] as string);
       case "bootstrapWorkspace":
         return this.client.bootstrapWorkspace(args[0] as string);
       case "syncOnce":

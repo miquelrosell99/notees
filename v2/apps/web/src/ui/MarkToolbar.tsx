@@ -1,10 +1,11 @@
 /**
  * MarkToolbar — the floating mark-formatting bar shown while a block editor
  * selection is active. Buttons mirror the Ctrl/Cmd shortcuts
- * (B/I/Shift+X) and add highlight + code. mousedown is prevented so the
- * contentEditable keeps focus — a blur would unmount the editor (and the
- * toolbar) mid-click. Positioned above the selection rect (fixed; jsdom
- * rects are zero, which is harmless).
+ * (B/I/Shift+X) and add highlight + code, plus the typed-link verb gesture
+ * (verb button / Cmd+K) which opens the VerbPopover in the editor.
+ * mousedown is prevented so the contentEditable keeps focus — a blur would
+ * unmount the editor (and the toolbar) mid-click. Positioned above the
+ * selection rect (fixed; jsdom rects are zero, which is harmless).
  */
 
 import type { MouseEvent } from "react";
@@ -26,9 +27,11 @@ interface MarkToolbarProps {
   /** Marks every covered run carries (button active state). */
   activeMarks: readonly Mark[];
   onToggle: (mark: Mark) => void;
+  /** Opens the typed-link verb popover over the selection. */
+  onVerb: () => void;
 }
 
-export function MarkToolbar({ top, left, activeMarks, onToggle }: MarkToolbarProps) {
+export function MarkToolbar({ top, left, activeMarks, onToggle, onVerb }: MarkToolbarProps) {
   return (
     <div
       className="nt-mark-toolbar"
@@ -51,6 +54,10 @@ export function MarkToolbar({ top, left, activeMarks, onToggle }: MarkToolbarPro
           {label}
         </button>
       ))}
+      <span className="nt-mark-sep" aria-hidden="true" />
+      <button type="button" title="Link verb (Cmd+K)" className="nt-mark-button" onClick={onVerb}>
+        →
+      </button>
     </div>
   );
 }
