@@ -266,7 +266,7 @@ export class SyncEngine {
       compareHlc(meta.hlc, this.receivedHlc) > 0;
     if (snapshotIsNewer) {
       const data = await this.transport.getSnapshotData();
-      this.store.restore(Buffer.from(data));
+      this.store.restore(data);
       // The metadata HLC is the authoritative server-side watermark.
       this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
       this.cursorSeq = meta.upToSeq ?? 0;
