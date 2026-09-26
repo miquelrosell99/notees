@@ -1,15 +1,12 @@
 /**
- * Shared better-sqlite3 statement surface. `verbatimModuleSyntax`-friendly
- * structural type so the helper modules do not depend on the Database class
- * directly (keeps unit testing and typing simple).
+ * Shared statement surface for the helper modules (appliers, edges, stats,
+ * search, content). Structural type so the helpers do not depend on any
+ * concrete driver (better-sqlite3 or sql.js). Alias of the adapter interface
+ * in `./db.js` — every SqliteDB is a valid StoreDatabase.
  */
 
-export interface StoreDatabase {
-  prepare(sql: string): {
-    get(...params: unknown[]): unknown;
-    all(...params: unknown[]): unknown[];
-    run(...params: unknown[]): { changes: number | bigint; lastInsertRowid: number | bigint };
-  };
-  exec(sql: string): unknown;
-  pragma(source: string, options?: { simple?: boolean }): unknown;
-}
+import type { SqliteDB } from "./db.js";
+
+export type { SqliteStatement } from "./db.js";
+
+export type StoreDatabase = SqliteDB;

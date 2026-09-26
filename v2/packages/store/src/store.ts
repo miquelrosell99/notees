@@ -1,29 +1,28 @@
 /**
- * Store: thin better-sqlite3 wrapper owning the derived-state database.
+ * Store: thin SQLite wrapper owning the derived-state database.
+ *
+ * Driver-agnostic: operates on any SqliteDB connection (see `./db.ts`)
+ * injected as a StoreBackend — better-sqlite3 for server/CLI
+ * (`Store.openFile`), sql.js for browser/WASM (`Store.open(sqljsBackend(...))`
+ * from `./adapters/sqljs.js`). The backend re-opens connections on
+ * restore/reset, which is adapter-specific (temp file vs exported bytes).
  *
  *  - apply / applyMany: validate -> idempotency check (applied_envelope) ->
  *    dispatch -> record; applyMany wraps everything in one transaction;
- *  - query helpers: getNode, children, backlinks, search (FTS5 prefix-AND);
- *  - snapshot / restore: SQLite serialize/deserialize. better-sqlite3 has no
- *    deserialize, so restore writes the bytes to a temp file and reopens;
- *  - reset: drop and recreate the schema at the same path.
+ *  - query helpers: getNode, children, backlinks, search (FTS prefix-AND);
+ *  - snapshot / restore: full-database bytes; the bytes carry their own
+ *    user_version, so restore only re-applies connection-level setup;
+ *  - reset: drop and recreate the schema at the same storage location.
  *
  * All write timestamps derive from envelope timestamps, never the wall
  * clock, so replayed logs converge to byte-identical databases.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import Database from "better-sqlite3";
-
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
+import type { SqliteDB, StoreBackend } from "./db.js";
+import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
 import { buildMatchQuery } from "./search.js";
 import { migrate } from "./schema.js";
-import type { StoreDatabase } from "./types.js";
-
-type DbInstance = InstanceType<typeof Database>;
 
 export interface NodeRow {
   id: string;
@@ -50,29 +49,37 @@ export interface SearchHit {
 }
 
 export class Store {
-  private db: DbInstance;
-  private readonly path: string;
-  private tempDir: string | null = null;
+  private db: SqliteDB;
+  private readonly backend: StoreBackend;
 
-  constructor(path = ":memory:") {
-    this.path = path;
-    this.db = Store.open(path);
+  /**
+   * Low-level opening: wrap a backend's connections. A bare path string is
+   * accepted for back-compat (legacy `new Store(path)` shorthand for the
+   * better-sqlite3 file backend); prefer the `openFile`/`open` factories.
+   */
+  constructor(backend: StoreBackend);
+  constructor(path?: string);
+  constructor(backendOrPath: StoreBackend | string = ":memory:") {
+    this.backend =
+      typeof backendOrPath === "string"
+        ? betterSqlite3Backend(backendOrPath)
+        : backendOrPath;
+    this.db = this.backend.open();
+    migrate(this.db, this.backend.ftsModule);
   }
 
-  private static open(path: string): DbInstance {
-    const db = new Database(path);
-    db.pragma("journal_mode = WAL");
-    db.pragma("synchronous = NORMAL");
-    db.pragma("busy_timeout = 5000");
-    // Foreign keys stay off (v1 precedent): the appliers maintain tree
-    // integrity fail-loud, and out-of-order delivery must not hard-fail on
-    // a missing parent. Placement invariants live in the CHECK constraints.
-    migrate(db as unknown as StoreDatabase);
-    return db;
+  /** Open a store over an explicit backend (e.g. the sql.js adapter). */
+  static open(backend: StoreBackend): Store {
+    return new Store(backend);
   }
 
-  /** Raw better-sqlite3 handle (tests, migrations, debugging). */
-  get database(): DbInstance {
+  /** Open (or create) a file-backed store via better-sqlite3 (server/CLI). */
+  static openFile(path = ":memory:"): Store {
+    return new Store(betterSqlite3Backend(path));
+  }
+
+  /** Raw adapter handle (tests, migrations, debugging). */
+  get database(): SqliteDB {
     return this.db;
   }
 
@@ -97,7 +104,7 @@ export class Store {
           summaries.push({ opType: env.opType, affectedNodeIds: [], ignored: true });
           continue;
         }
-        const summary = applyEnvelope(this.db as unknown as StoreDatabase, env);
+        const summary = applyEnvelope(this.db, env);
         const seq = this.recordEnvelope(env.id, env.timestamp);
         this.advanceCursor(env.workspaceId, seq);
         summaries.push(summary);
@@ -166,7 +173,7 @@ export class Store {
       .all(nodeId);
   }
 
-  /** FTS5 prefix-AND search over active nodes; ordered by node id. */
+  /** FTS prefix-AND search over active nodes; ordered by node id. */
   search(query: string, limit = 50): SearchHit[] {
     const match = buildMatchQuery(query);
     if (match === null) return [];
@@ -183,25 +190,19 @@ export class Store {
 
   // --- snapshot / restore / reset ----------------------------------------------
 
-  /** Serialize the whole database to a Buffer. */
-  snapshot(): Buffer {
+  /** Serialize the whole database to bytes. */
+  snapshot(): Uint8Array {
+    if (this.db.serialize === undefined) {
+      throw new Error("store: this backend does not support serialize()");
+    }
     return this.db.serialize();
   }
 
-  /** Replace the database with a previously snapshotted buffer. */
-  restore(bytes: Buffer): void {
-    const dir = mkdtempSync(join(tmpdir(), "notees-store-"));
-    const file = join(dir, "restored.db");
-    writeFileSync(file, bytes);
-    this.db.close();
-    this.cleanupTemp();
-    this.tempDir = dir;
-    this.db = new Database(file);
-    // The serialized bytes carry their own user_version; just re-apply
-    // pragmas for the new connection.
-    this.db.pragma("journal_mode = WAL");
-    this.db.pragma("synchronous = NORMAL");
-    this.db.pragma("busy_timeout = 5000");
+  /** Replace the database with a previously snapshotted byte stream. */
+  restore(bytes: Uint8Array): void {
+    const next = this.backend.restore(bytes);
+    this.db.close?.();
+    this.db = next;
     this.db
       .prepare("UPDATE sync_state SET restore_epoch = restore_epoch + 1")
       .run();
@@ -209,25 +210,12 @@ export class Store {
 
   /** Drop all derived state (schema is recreated empty). */
   reset(): void {
-    this.db.close();
-    this.cleanupTemp();
-    if (this.path !== ":memory:") {
-      for (const suffix of ["", "-wal", "-shm"]) {
-        rmSync(this.path + suffix, { force: true });
-      }
-    }
-    this.db = Store.open(this.path);
-  }
-
-  private cleanupTemp(): void {
-    if (this.tempDir !== null) {
-      rmSync(this.tempDir, { recursive: true, force: true });
-      this.tempDir = null;
-    }
+    this.db.close?.();
+    this.db = this.backend.reset();
+    migrate(this.db, this.backend.ftsModule);
   }
 
   close(): void {
-    this.db.close();
-    this.cleanupTemp();
+    this.db.close?.();
   }
 }

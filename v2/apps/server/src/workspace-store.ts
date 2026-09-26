@@ -52,7 +52,7 @@ export class WorkspaceManager {
     if (handle !== undefined) return handle;
     mkdirSync(dirname(this.pathFor(workspaceId)), { recursive: true });
     handle = {
-      store: new Store(this.pathFor(workspaceId)),
+      store: Store.openFile(this.pathFor(workspaceId)),
       queue: Promise.resolve(),
       hydrated: false,
       pending: 0,
