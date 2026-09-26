@@ -36,15 +36,20 @@ export function reindexNode(db: StoreDatabase, nodeId: string): void {
 }
 
 /**
- * Prefix-AND FTS5 query (v1 client search pattern): each whitespace term
- * becomes a quoted prefix token, all terms ANDed.
+ * Prefix-AND FTS query (v1 client search pattern): each whitespace term
+ * becomes a bare prefix token, all terms ANDed. Bare tokens (not quoted
+ * prefix phrases) are the intersection of the FTS4 and FTS5 query languages
+ * — FTS5's `"term"*` quoted-phrase prefix is a silent no-match on FTS4
+ * (stock sql.js). Non-alphanumeric characters are dropped per term: the
+ * unicode61 tokenizer discards them either way, and bare tokens must not
+ * carry FTS query syntax (quotes, parens, colons).
  */
 export function buildMatchQuery(query: string): string | null {
   const terms = query
     .trim()
     .split(/\s+/)
-    .map((t) => t.replace(/"/g, '""'))
+    .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ""))
     .filter((t) => t.length > 0);
   if (terms.length === 0) return null;
-  return terms.map((t) => `"${t}"*`).join(" AND ");
+  return terms.map((t) => `${t}*`).join(" AND ");
 }

@@ -56,7 +56,7 @@ export function isSqliteError(error: unknown): boolean {
   );
 }
 
-/** Convert a raw better-sqlite3 error into a typed store error. */
+/** Convert a raw driver error (better-sqlite3 or tagged sql.js) into a typed store error. */
 export function translateSqliteError(error: unknown, opType: string): StoreError {
   const message = error instanceof Error ? error.message : String(error);
   const match = /CHECK constraint failed: (.+)$/.exec(message);
