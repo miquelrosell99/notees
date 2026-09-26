@@ -1,12 +1,28 @@
 {
   "name": "@notees/store",
-  "version": "0.0.0",
+  "version": "0.1.0-m1",
+  "description": "Notees v2 local store: SQLite-backed derived view with better-sqlite3 and sql.js (WASM) adapters.",
+  "license": "AGPL-3.0",
   "type": "module",
+  "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts",
-    "./sqljs": "./src/adapters/sqljs.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./sqljs": {
+      "types": "./dist/adapters/sqljs.d.ts",
+      "development": "./src/adapters/sqljs.ts",
+      "default": "./dist/adapters/sqljs.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsup",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -22,5 +38,14 @@
     "@types/node": "^20.14.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/miquelrosell99/notees.git",
+    "directory": "v2/packages/store"
   }
 }
