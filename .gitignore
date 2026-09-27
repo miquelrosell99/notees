@@ -62,3 +62,6 @@ frontend/lint-final.txt
 .github/copilot-instructions.md
 .coverage
 .worktrees/
+
+# v2 production stack runtime data
+config/
