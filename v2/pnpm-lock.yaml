@@ -26,6 +26,9 @@ importers:
       '@notees/export':
         specifier: workspace:*
         version: link:../../packages/export
+      '@notees/query':
+        specifier: workspace:*
+        version: link:../../packages/query
       commander:
         specifier: ^12.1.0
         version: 12.1.0
@@ -66,6 +69,9 @@ importers:
       '@notees/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@notees/query':
+        specifier: workspace:*
+        version: link:../../packages/query
       '@notees/store':
         specifier: workspace:*
         version: link:../../packages/store

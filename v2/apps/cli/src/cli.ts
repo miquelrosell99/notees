@@ -34,6 +34,11 @@ import {
   serializeBibEntry,
   sourceClassOf,
 } from "@notees/export";
+import {
+  looksLikeQueryLanguage,
+  parseQueryLanguage,
+  type QueryAst,
+} from "@notees/query";
 
 import { ApiClient } from "./client.js";
 import { CliError, EXIT } from "./exit-codes.js";
@@ -209,9 +214,84 @@ async function objectList(ctx: CommandContext, options: {
 }
 
 async function search(ctx: CommandContext, queryText: string, options: { nodeType?: string }): Promise<void> {
-  const query = queryString({ q: queryText, nodeType: options.nodeType });
-  const body = await ctx.client.getJson<unknown>(`/api/v1/search${query}`);
-  emit(ctx, `${JSON.stringify(body, null, 2)}\n`, body);
+  // Plain text goes to the FTS endpoint; query-language syntax (class:,
+  // prop:…, AND/OR/NOT, quotes — see looksLikeQueryLanguage) is compiled to a
+  // QueryAST here and executed through POST /api/v1/query. DSL parse errors
+  // fail loud (exit 2) with the parser's message — never silently degraded
+  // to a text search.
+  if (!looksLikeQueryLanguage(queryText)) {
+    const query = queryString({ q: queryText, nodeType: options.nodeType });
+    const body = await ctx.client.getJson<unknown>(`/api/v1/search${query}`);
+    emit(ctx, `${JSON.stringify(body, null, 2)}\n`, body);
+    return;
+  }
+  const ast = await compileQueryLanguage(ctx, queryText);
+  const body = await ctx.client.postJson<{ ids: string[]; rows: SearchRow[] }>("/api/v1/query", { ast });
+  const rows = body.rows ?? [];
+  const human = rows.length === 0
+    ? "no results\n"
+    : `${rows.map((row) => `${row.name ?? row.id}  (${row.nodeType})`).join("\n")}\n`;
+  emit(ctx, human, body);
+}
+
+interface SearchRow {
+  id: string;
+  nodeType: string;
+  name: string | null;
+}
+
+/**
+ * DSL → AST for `notees search`: resolve class/schema names via the classes
+ * and property-schemas listings, and `linked:` node names via the search
+ * endpoint (prefetched — the parser's resolver interface is synchronous). The
+ * query compiler is TypeScript, so the compile happens here; execution needs
+ * the derived-store runtime, which lives server-side.
+ */
+async function compileQueryLanguage(ctx: CommandContext, text: string): Promise<QueryAst> {
+  const [{ classes }, { propertySchemas }] = await Promise.all([
+    ctx.client.getJson<{ classes: { id: string; name: string }[] }>("/api/v1/classes"),
+    ctx.client.getJson<{ propertySchemas: { id: string; name: string }[] }>("/api/v1/property-schemas"),
+  ]);
+  const classIds = new Map(classes.map((klass) => [klass.name.toLowerCase(), klass.id]));
+  const schemaIds = new Map(propertySchemas.map((schema) => [schema.name.toLowerCase(), schema.id]));
+
+  // linked:<name> resolution: the search endpoint, exact-name match.
+  const nodeIds = new Map<string, string>();
+  for (const name of extractLinkedNames(text)) {
+    const wanted = name.toLowerCase();
+    if (nodeIds.has(wanted)) continue;
+    const query = queryString({ q: name, limit: 50 });
+    const body = await ctx.client.getJson<{ results: { id: string; name: string | null }[] }>(
+      `/api/v1/search${query}`,
+    );
+    const hit = body.results.find((result) => (result.name ?? "").toLowerCase() === wanted);
+    if (hit !== undefined) nodeIds.set(wanted, hit.id);
+  }
+
+  try {
+    return parseQueryLanguage(text, {
+      resolvers: {
+        resolveClass: (name) => classIds.get(name.toLowerCase()),
+        resolvePropertySchema: (name) => schemaIds.get(name.toLowerCase()),
+        resolveNode: (name) => nodeIds.get(name.toLowerCase()),
+      },
+      knownFields: propertySchemas.map((schema) => schema.name),
+    });
+  } catch (error) {
+    throw new CliError(EXIT.usage, `invalid query: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+const LINKED_NAME_PATTERN = /\blinked\s*(?::|!=)\s*("([^"]*)"|'([^']*)'|[^\s)]+)/gi;
+
+/** Names referenced by `linked:` / `linked!=` clauses (for the prefetch pass). */
+function extractLinkedNames(text: string): string[] {
+  const names: string[] = [];
+  for (const match of text.matchAll(LINKED_NAME_PATTERN)) {
+    const name = match[2] ?? match[3] ?? match[1];
+    if (name !== undefined && name !== "") names.push(name);
+  }
+  return names;
 }
 
 async function classList(ctx: CommandContext): Promise<void> {
@@ -759,8 +839,12 @@ function buildProgram(): Command {
 
   program
     .command("search <query>")
-    .description("full-text search")
-    .addOption(new Option("--nodeType <type>", "page | block | class").choices(["page", "block", "class"]))
+    .description(
+      "search — plain text (FTS) or the query language: class:Name, type:page|block|class, " +
+        "prop:name:<op>value (:= != :> :>= :< :<=, bare : = contains, no value = exists), " +
+        "bare schema fields (year:>2010), text:term, linked:Name, \"quoted phrases\", AND OR NOT, ( )",
+    )
+    .addOption(new Option("--nodeType <type>", "page | block | class (plain-text search only)").choices(["page", "block", "class"]))
     .action(async (queryText: string, options: { nodeType?: string }, command: Command) => {
       await search(ctxOf(command), queryText, options);
     });

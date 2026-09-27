@@ -20,6 +20,7 @@ import { WorkerClient } from "@/core/worker-client.js";
 
 import { PageView } from "./PageView.js";
 import { ClassView } from "./ClassView.js";
+import { SearchBox } from "./SearchBox.js";
 import "./app.css";
 
 const STORAGE_KEYS = {
@@ -278,6 +279,7 @@ export function App() {
   return (
     <div className="nt-app">
       <aside className="nt-sidebar">
+        <SearchBox client={client} onOpenNode={setSelectedPageId} />
         <div className="nt-sidebar-header">
           <span>Pages</span>
           <button type="button" className="nt-new-page" onClick={() => void handleNewPage()}>

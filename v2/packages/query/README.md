@@ -43,7 +43,7 @@ Conditions (M1 subset, cleanly extensible by versioned addition):
 | `class {classId}` | Members of the class **or any class extending it** (`class_hierarchy`, which includes the self-row). |
 | `nodeType {nodeType}` | `node.node_type = page \| block \| class`. |
 | `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext in v2; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. |
-| `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`. |
+| `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`. |
 | `linkedTo {nodeId}` | `backlinksWithRollup` membership: a direct edge to the node, **or** an edge sourced strictly inside its subtree and targeting outside it (containment roll-up). |
 | `createdAfter / createdBefore {timestamp}` | Inclusive bounds on `node.created_at` (ISO-8601, lexicographic). |
 
@@ -69,7 +69,32 @@ effective(node, schema) = tombstone-suppressed authored property_value
 - Operators are value-level over `json_extract(value, '$')`: `eq`/`contains`
   match when any effective row matches; `neq` is the v1 `not_equals` port —
   "has at least one effective value different from v" — so unset nodes do not
-  match (pair with `exists` if they should).
+  match (pair with `exists` if they should). `gt`/`gte`/`lt`/`lte` are the v1
+  GREATER_THAN/LESS_THAN family: JSON numbers compare numerically, everything
+  else (ISO-8601 dates) lexicographically.
+
+## Text query DSL (`parseQueryLanguage`)
+
+The user-facing search grammar — port of v1 `query_language.py`, compiled by
+the same AST pipeline so CLI/API/UI share one language:
+
+```
+class:Name            class membership (by NAME; "!=" negates)
+type:page|block|class nodeType ("!=" negates)
+text:term             content contains (substring; bare words do the same)
+linked:Name           backlinksWithRollup to the named node ("!=" negates)
+prop:name<op>val      property condition (no value → exists)
+<schema>:<op>val      shorthand: bare property-schema field (year:>2010)
+"quoted phrase"       content contains the phrase
+AND OR NOT ( )        boolean composition (juxtaposition = AND)
+```
+
+Operators: `:` contains, `:=`/`=` eq, `!=` neq, `:>`/`>` gt, `:>=`/`>=` gte,
+`:<`/`<` lt, `:<=`/`<=` lte. Values coerce to numbers when numeric (numeric
+comparison); anything else stays text (lexicographic — ISO dates order
+correctly). Class/schema/node names resolve through caller-injected
+resolvers; unknown fields and unresolvable names throw `QueryLanguageError`.
+`looksLikeQueryLanguage(text)` gates DSL vs plain-text search.
 
 ## SQL shapes
 
@@ -147,7 +172,10 @@ ORDER BY "nodeType" ASC
 - v1 condition types outside the M1 model: style marks, parent/parent_path,
   child/child_path, page, tag, flag, reference_path, extends (covered by
   `class` via the hierarchy closure), regex (needs a SQLite extension),
-  in/not_in, gt/lt/gte/lte.
+  in/not_in.
+- DSL sugar not yet mapped: `collection:` scope, `author:` (relation-based),
+  `asset:`/`citekey:` fields (citekey is reachable today as
+  `prop:citekey:…`).
 - `content contains` passes `%`/`_` through to LIKE (v1 parity; wildcard
   escaping is a later concern).
 

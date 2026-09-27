@@ -1,0 +1,142 @@
+/**
+ * SearchBox tests (jsdom): the sidebar search field over a seeded
+ * WorkspaceClient — plain text routes to client.search (FTS), query-language
+ * syntax compiles with local-store name resolvers and runs through
+ * client.runQueryAst, parse/resolution errors surface inline (fail loud), the
+ * syntax hint toggles the cheatsheet, and result clicks navigate.
+ */
+
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { fireEvent, render, screen } from "@testing-library/react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+
+import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { SearchBox } from "../src/ui/SearchBox.js";
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+});
+
+async function seedClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+interface World {
+  client: WorkspaceClient;
+  paperClassId: string;
+  oldPaper: string;
+  modernPaper: string;
+  notes: string;
+}
+
+async function seedWorld(): Promise<World> {
+  const client = await seedClient();
+  const paperClassId = await client.createClass("paper");
+  const year = await client.createPropertySchema({ name: "year", type: "number" });
+  const oldPaper = await client.createObject({ nodeType: "page", name: "Old Paper", classIds: [paperClassId] });
+  await client.setProperty(oldPaper, year, 1901);
+  const modernPaper = await client.createObject({ nodeType: "page", name: "Modern Paper", classIds: [paperClassId] });
+  await client.setProperty(modernPaper, year, 2015);
+  await client.createObject({ nodeType: "page", name: "Cooking Notes" });
+  const notes = await client.createObject({
+    nodeType: "page",
+    name: "Reading Notes",
+    contentAst: [{ type: "mention", targetNodeId: modernPaper, text: "Modern Paper" }],
+  });
+  return { client, paperClassId, oldPaper, modernPaper, notes };
+}
+
+function typeQuery(text: string): void {
+  fireEvent.change(screen.getByLabelText("Search"), { target: { value: text } });
+}
+
+describe("SearchBox", () => {
+  it("plain text falls back to FTS search", async () => {
+    const { client } = await seedWorld();
+    const opened: string[] = [];
+    render(<SearchBox client={client} onOpenNode={(id) => opened.push(id)} />);
+
+    typeQuery("cooking");
+    const hit = await screen.findByText("Cooking Notes");
+    expect(screen.queryByText("Old Paper")).toBeNull();
+
+    fireEvent.click(hit);
+    expect(opened).toHaveLength(1);
+  });
+
+  it("query-language input runs through runQueryAst with name resolvers", async () => {
+    const { client } = await seedWorld();
+    render(<SearchBox client={client} onOpenNode={() => {}} />);
+
+    typeQuery("class:paper AND year:>2010");
+    expect(await screen.findByText("Modern Paper")).not.toBeNull();
+    expect(screen.queryByText("Old Paper")).toBeNull();
+    // Each hit carries its nodeType chip.
+    expect(screen.getByText("page")).not.toBeNull();
+  });
+
+  it("resolves linked: node names and prop: schema names", async () => {
+    const { client } = await seedWorld();
+    render(<SearchBox client={client} onOpenNode={() => {}} />);
+
+    typeQuery('linked:"Modern Paper"');
+    expect(await screen.findByText("Reading Notes")).not.toBeNull();
+    expect(screen.queryByText("Cooking Notes")).toBeNull();
+
+    typeQuery("prop:year:<1950");
+    expect(await screen.findByText("Old Paper")).not.toBeNull();
+    expect(screen.queryByText("Modern Paper")).toBeNull();
+  });
+
+  it("DSL errors surface inline and never fall back to text search", async () => {
+    const { client } = await seedWorld();
+    render(<SearchBox client={client} onOpenNode={() => {}} />);
+
+    typeQuery("class:nosuchclass");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("unknown class 'nosuchclass'");
+    expect(screen.queryByText("Old Paper")).toBeNull();
+  });
+
+  it("the syntax hint toggles the grammar cheatsheet", async () => {
+    const { client } = await seedWorld();
+    render(<SearchBox client={client} onOpenNode={() => {}} />);
+
+    expect(screen.queryByText(/quoted phrase/)).toBeNull();
+    fireEvent.click(screen.getByLabelText("Search syntax"));
+    expect(screen.getByText(/quoted phrase/)).not.toBeNull();
+    expect(screen.getByText(/AND OR NOT/)).not.toBeNull();
+    fireEvent.click(screen.getByLabelText("Search syntax"));
+    expect(screen.queryByText(/quoted phrase/)).toBeNull();
+  });
+
+  it("empty input shows no results", async () => {
+    const { client } = await seedWorld();
+    const { container } = render(<SearchBox client={client} onOpenNode={() => {}} />);
+
+    typeQuery("paper");
+    await screen.findByText("Old Paper");
+    typeQuery("");
+    expect(container.querySelector(".nt-search-results")).toBeNull();
+  });
+});
