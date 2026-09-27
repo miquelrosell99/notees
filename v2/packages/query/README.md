@@ -181,6 +181,9 @@ ORDER BY "nodeType" ASC
 
 ## Protocol wiring
 
+The AST model lives in `packages/protocol/src/query-ast.ts` (protocol is the
+wire-adjacent home; this package's `src/ast.ts` re-exports it unchanged, so
+`import { … } from "@notees/query"` keeps working).
 `packages/protocol/src/content-mark.ts` types the `query` content token's
 `queryAst` as `z.union([z.lazy(() => queryAstSchema), z.record(z.unknown())])`:
 known v1 ASTs parse into the typed model; newer/foreign AST versions apply as

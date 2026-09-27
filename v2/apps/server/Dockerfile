@@ -5,14 +5,12 @@
 #             until the lockfile changes; no manifest list to maintain)
 #   build   — full sources; offline install; tsup bundles @notees/* TS into
 #             dist/server.js (only real npm deps stay external, incl. the
-#             better-sqlite3 native module)
+#             better-sqlite3 native module). `--filter @notees/server...`
+#             builds the server plus its workspace dependencies in pnpm's
+#             topological order (protocol first — it depends on no
+#             workspace package — then its dependents).
 #   deploy  — `pnpm deploy --prod` pruned production copy of @notees/server
 #   runtime — node:22-alpine, non-root, /data volume, wget healthcheck
-#
-# Package build order is explicit (query → protocol → domain → store → sync →
-# export): a dev-only dependency cycle (protocol imports @notees/query for the
-# query-token schema; query devDepends on protocol) makes pnpm's topological
-# order arbitrary. Structural fix tracked in packages/protocol/SCHEMA.md.
 
 # ---------- deps ----------
 FROM node:22-alpine AS deps
@@ -27,9 +25,9 @@ FROM deps AS build
 COPY . .
 RUN pnpm install --offline --frozen-lockfile
 # Base tsconfig every package extends (tsup's DTS step reads the chain) and
-# the sources arrive with the COPY above.
-RUN for p in query protocol domain store sync export; do pnpm --filter @notees/$p build; done \
-    && pnpm --filter @notees/server build
+# the sources arrive with the COPY above. The `...` filter selects the
+# server plus its workspace dependencies; pnpm builds them topologically.
+RUN pnpm --filter @notees/server... build
 
 # ---------- deploy (pruned production copy) ----------
 FROM build AS deploy

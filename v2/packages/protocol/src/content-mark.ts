@@ -16,7 +16,7 @@
 
 import { z } from "zod";
 
-import { queryAstSchema } from "@notees/query";
+import { queryAstSchema } from "./query-ast.js";
 
 const uuid = z.string().uuid();
 
@@ -123,11 +123,12 @@ export const embedRefTokenSchema = z
 
 /**
  * Block-scale: live query view. queryAst is the versioned QueryAST model
- * (@notees/query). The union keeps it loose-optional for forward
- * compatibility: ASTs this build knows parse as the real model; newer or
- * foreign AST versions still apply as plain records (the AST evolves by
- * version, the content grammar must not reject them). z.lazy avoids a hard
- * module-level cycle — @notees/query never imports the protocol.
+ * (local ./query-ast.ts — the AST lives in protocol because the content
+ * grammar embeds it; @notees/query re-exports it). The union keeps it
+ * loose-optional for forward compatibility: ASTs this build knows parse as
+ * the real model; newer or foreign AST versions still apply as plain
+ * records (the AST evolves by version, the content grammar must not reject
+ * them).
  */
 export const queryTokenSchema = z
   .object({

@@ -22,11 +22,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@notees/protocol": "workspace:*",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@notees/domain": "workspace:*",
-    "@notees/protocol": "workspace:*",
     "@notees/store": "workspace:*",
     "@types/node": "^20.14.0",
     "@types/sql.js": "^1.4.9",
