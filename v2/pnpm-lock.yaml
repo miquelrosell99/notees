@@ -229,9 +229,6 @@ importers:
 
   packages/protocol:
     dependencies:
-      '@notees/query':
-        specifier: workspace:*
-        version: link:../query
       uuidv7:
         specifier: ^1.0.0
         version: 1.2.1
@@ -251,6 +248,9 @@ importers:
 
   packages/query:
     dependencies:
+      '@notees/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       zod:
         specifier: ^3.23.0
         version: 3.25.76
@@ -258,9 +258,6 @@ importers:
       '@notees/domain':
         specifier: workspace:*
         version: link:../domain
-      '@notees/protocol':
-        specifier: workspace:*
-        version: link:../protocol
       '@notees/store':
         specifier: workspace:*
         version: link:../store
