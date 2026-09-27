@@ -33,6 +33,7 @@ import { InlineTokens } from "./InlineTokens.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
 import { EmbedView } from "./EmbedView.js";
 import { QueryBlockView } from "./QueryBlockView.js";
+import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { DropLineContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
 
@@ -128,6 +129,14 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
                   queryAst={(token as { queryAst?: unknown }).queryAst}
                   rootId={rootId}
                   onOpenNode={openNode}
+                />
+              )}
+              renderWhiteboard={(_token, index) => (
+                <WhiteboardCanvas
+                  client={outlinerClient}
+                  hostId={node.id}
+                  tokenIndex={index}
+                  embedded
                 />
               )}
             />

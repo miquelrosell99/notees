@@ -37,6 +37,7 @@ import { EmbedBoundary } from "./EmbedView.js";
 import { PropertiesPanel } from "./PropertiesPanel.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
+import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
 
 /** One references row: containing-page breadcrumb, source excerpt, containment context. */
@@ -112,6 +113,15 @@ export function PageView({
 
   const page = client.getPage(pageId);
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
+
+  // Fullscreen whiteboard (SCHEMA.md: a whiteboard page is node_type='page'
+  // with a `whiteboard` content token): the spatial canvas renders IN PLACE
+  // OF the outline tree — the children are the cards.
+  const whiteboardTokenIndex = page?.contentAst.findIndex(
+    (token) =>
+      typeof token === "object" && token !== null &&
+      (token as { type?: unknown }).type === "whiteboard",
+  ) ?? -1;
 
   const outliner = useOutlinerValue(client, pageId, {
     // f(node_type) navigation for query result lists (App routes the id).
@@ -198,7 +208,11 @@ export function PageView({
           </div>
         )}
         <PropertiesPanel client={client} nodeId={pageId} />
-        <EmbedBoundary rootId={pageId}>
+        {whiteboardTokenIndex >= 0 ? (
+          <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
+        ) : (
+          <>
+            <EmbedBoundary rootId={pageId}>
           <DndContext
             sensors={sensors}
 collisionDetection={blockCollisionDetection}
@@ -220,11 +234,13 @@ collisionDetection={blockCollisionDetection}
               {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
             </DragOverlay>
           </DndContext>
-        </EmbedBoundary>
-        {tree.length === 0 && (
-          <button type="button" className="nt-add-block" onClick={() => void addFirstBlock()}>
-            + Add a block
-          </button>
+            </EmbedBoundary>
+            {tree.length === 0 && (
+              <button type="button" className="nt-add-block" onClick={() => void addFirstBlock()}>
+                + Add a block
+              </button>
+            )}
+          </>
         )}
         <div className="nt-page-sections">
           <Section
