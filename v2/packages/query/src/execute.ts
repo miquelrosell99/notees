@@ -7,7 +7,7 @@
  */
 
 import type { QueryAst } from "./ast.js";
-import { compile, type CompileOptions } from "./compiler.js";
+import { compile, compileAggregate, type CompileOptions } from "./compiler.js";
 
 /** The slice of the store's SqliteDB surface the executor needs. */
 export interface QueryStoreDatabase {
@@ -33,9 +33,34 @@ export function runQuery(
   ast: QueryAst,
   options: CompileOptions = {},
 ): QueryResult {
+  if (ast.aggregation !== undefined) {
+    throw new Error(
+      "query run: AST carries an aggregation — execute it with runAggregate instead",
+    );
+  }
   const { sql, params } = compile(ast, options);
   const rows = store.database.prepare(sql).all(...params) as Record<string, unknown>[];
   return { ids: rows.map((row) => String(row.id)), rows };
+}
+
+/**
+ * Aggregation execution: the grouped grid. `columns` is the compiler's
+ * deterministic column order (dimensions then measures); each row is one
+ * group, aligned with `columns`.
+ */
+export interface AggregateResult {
+  columns: string[];
+  rows: unknown[][];
+}
+
+export function runAggregate(
+  store: QueryStore,
+  ast: QueryAst,
+  options: CompileOptions = {},
+): AggregateResult {
+  const { sql, params, columns } = compileAggregate(ast, options);
+  const raw = store.database.prepare(sql).all(...params) as Record<string, unknown>[];
+  return { columns, rows: raw.map((row) => columns.map((column) => row[column])) };
 }
 
 /** Number of nodes matching the query (COUNT over the compiled select). */
