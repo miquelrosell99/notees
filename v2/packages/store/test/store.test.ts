@@ -25,6 +25,7 @@ import {
   CheckConstraintError,
   CycleError,
   MoveGuardError,
+  NotFoundError,
   Store,
   UnsupportedCarrierError,
   type StoreBackend,
@@ -738,10 +739,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const derivedNode = "0192a000-0000-7000-8000-0000000003c2";
       store.apply(env("object.create", { objectId: derivedNode, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
 
-      // Simulate the unassign (no class.member.remove op in the M1 registry):
-      // the OR-Set membership row goes away.
+      // The unassign op tombstones the OR-Set membership pair.
       for (const node of [authoredNode, derivedNode]) {
-        store.database.prepare("DELETE FROM class_member_set WHERE node_id = ? AND class_id = ?").run(node, CLASS_X);
+        store.apply(env("class.unassign", { objectId: node, classId: CLASS_X }, 1727200011500));
+        expect(JSON.parse(store.getNode(node)?.class_ids ?? "[]")).toEqual([]);
       }
 
       // Derived default: gone — nothing stored, nothing to clean.
@@ -756,6 +757,100 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           sequence: null,
         }),
       ]);
+    });
+
+    it("class.unassign fixture: unassign drops the derived default, the authored value survives unbound, re-assign restores", () => {
+      const store = makeStore();
+      const fixture = loadFixture("class-unassign.json");
+      const EFFORT = "0192a000-0000-7000-8000-000000000410";
+      const IMPACT = "0192a000-0000-7000-8000-000000000411";
+      const TASK = "0192a000-0000-7000-8000-000000000412";
+      const ITEM = "0192a000-0000-7000-8000-000000000413";
+
+      // Schemas, class, classed node, both bindings, authored impact value.
+      store.applyMany(fixture.slice(0, 7));
+      expect(store.getEffectiveProperties(ITEM)).toEqual([
+        expect.objectContaining({ propertySchemaId: EFFORT, value: "xs", source: "default", boundBy: TASK }),
+        expect.objectContaining({ propertySchemaId: IMPACT, value: "authored", source: "authored", boundBy: TASK }),
+      ]);
+
+      // The unassign: class_ids recomputed empty; the derived 'effort' default
+      // stops reading (nothing stored, nothing to clean); the authored impact
+      // value survives, marked unbound.
+      store.apply(fixture[7]!);
+      expect(JSON.parse(store.getNode(ITEM)?.class_ids ?? "[]")).toEqual([]);
+      expect(store.getEffectiveProperties(ITEM)).toEqual([
+        expect.objectContaining({ propertySchemaId: IMPACT, value: "authored", source: "authored", boundBy: null }),
+      ]);
+
+      // Re-assign via the re-issued object.create (OR-Set add-wins, newer HLC):
+      // the default is derived again and the authored value reads bound by Task.
+      store.apply(fixture[8]!);
+      expect(JSON.parse(store.getNode(ITEM)?.class_ids ?? "[]")).toEqual([TASK]);
+      expect(store.getEffectiveProperties(ITEM)).toEqual([
+        expect.objectContaining({ propertySchemaId: EFFORT, value: "xs", source: "default", boundBy: TASK }),
+        expect.objectContaining({ propertySchemaId: IMPACT, value: "authored", source: "authored", boundBy: TASK }),
+      ]);
+    });
+
+    it("class.unassign is an add-wins OR-Set remove: a stale remove loses to a newer add", () => {
+      const store = makeStore();
+      makeSchema(store, EFFORT, "effort", 1727200011000);
+      makeClass(store, CLASS_X, "X", 1727200011100);
+      bind(store, CLASS_X, EFFORT, "xs", 1727200011200);
+      const node = "0192a000-0000-7000-8000-0000000003c1";
+      store.apply(env("object.create", { objectId: node, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+      const row = () =>
+        store.database
+          .prepare("SELECT present, hlc_physical FROM class_member_set WHERE node_id = ? AND class_id = ?")
+          .get(node, CLASS_X) as { present: number; hlc_physical: number };
+
+      // A strictly higher-HLC remove clears membership and drops the default.
+      store.apply(env("class.unassign", { objectId: node, classId: CLASS_X }, 1727200011400));
+      expect(row()).toEqual({ present: 0, hlc_physical: 1727200011400 });
+      expect(JSON.parse(store.getNode(node)?.class_ids ?? "[]")).toEqual([]);
+      expect(store.getEffectiveProperties(node)).toEqual([]);
+
+      // Re-add with a newer HLC restores membership and the derived default.
+      store.apply(env("object.create", { objectId: node, classIds: [CLASS_X] }, 1727200011500));
+      expect(row()).toEqual({ present: 1, hlc_physical: 1727200011500 });
+      expect(store.getEffectiveProperties(node)).toEqual([
+        expect.objectContaining({ value: "xs", source: "default", boundBy: CLASS_X }),
+      ]);
+
+      // A stale remove (lower HLC than the add) is dropped: membership stands
+      // and the tombstone keeps the add's HLC.
+      store.apply(env("class.unassign", { objectId: node, classId: CLASS_X }, 1727200011450));
+      expect(row()).toEqual({ present: 1, hlc_physical: 1727200011500 });
+      expect(JSON.parse(store.getNode(node)?.class_ids ?? "[]")).toEqual([CLASS_X]);
+    });
+
+    it("an exact-HLC add beats the remove in either delivery order (add-wins)", () => {
+      const store = makeStore();
+      makeClass(store, CLASS_X, "X", 1727200011100);
+      // Order 1: remove first (tombstones the pair), then the re-issued create
+      // at the SAME (hlc, actor): the add's >= comparator wins.
+      const node1 = "0192a000-0000-7000-8000-0000000003c1";
+      store.apply(env("object.create", { objectId: node1, nodeType: "page" }, 1727200011300));
+      store.apply(env("class.unassign", { objectId: node1, classId: CLASS_X }, 1727200011400));
+      store.apply(env("object.create", { objectId: node1, classIds: [CLASS_X] }, 1727200011400));
+      // Order 2: the add lands first, then the equal-HLC remove is dropped.
+      const node2 = "0192a000-0000-7000-8000-0000000003c2";
+      store.apply(env("object.create", { objectId: node2, nodeType: "page" }, 1727200011300));
+      store.apply(env("object.create", { objectId: node2, classIds: [CLASS_X] }, 1727200011400));
+      store.apply(env("class.unassign", { objectId: node2, classId: CLASS_X }, 1727200011400));
+      for (const node of [node1, node2]) {
+        expect(JSON.parse(store.getNode(node)?.class_ids ?? "[]")).toEqual([CLASS_X]);
+      }
+    });
+
+    it("class.unassign on a missing node fails loud", () => {
+      const store = makeStore();
+      expect(() =>
+        store.apply(
+          env("class.unassign", { objectId: NODE_PAGE, classId: CLASS_X }, 1727200011000),
+        ),
+      ).toThrow(NotFoundError);
     });
 
     it("binding unset removes the derived default", () => {

@@ -827,6 +827,14 @@ button {
   color: #175cd3;
 }
 
+/* Chip label variant for non-navigating chips (the properties panel's
+   Classes row) — same box as the link, without the link color. */
+.nt-class-chip-name {
+  padding: 2px 4px 2px 10px;
+  font-size: 13px;
+  color: #52606d;
+}
+
 .nt-class-chip-remove {
   border: none;
   background: transparent;
@@ -1323,6 +1331,30 @@ span.nt-chip-label {
 
 .nt-section-item:hover {
   background: #eef1f4;
+}
+
+/* Class View member rows: the navigation row plus an unassign × that issues
+   class.unassign (removes the member from THIS class only). */
+.nt-class-member {
+  display: flex;
+  align-items: baseline;
+}
+
+.nt-class-member .nt-section-item {
+  flex: 1;
+  width: auto;
+}
+
+.nt-class-member-remove {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  font-size: 14px;
+  color: #7b8794;
+}
+
+.nt-class-member-remove:hover {
+  color: #b42318;
 }
 
 .nt-section-crumb {
