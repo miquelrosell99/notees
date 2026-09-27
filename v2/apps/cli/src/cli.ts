@@ -17,9 +17,26 @@ import { pathToFileURL } from "node:url";
 import { Command, CommanderError, Option } from "commander";
 
 import {
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_SPECS,
+  SYSTEM_PROPERTY_UUIDS,
+  type SystemClassName,
+  type SystemPropertyName,
+} from "@notees/domain";
+import {
+  bibToCsl,
   bundleMarkdown,
   concatBundleMarkdown,
+  cslToBib,
+  cslToNodeSpecs,
   deriveDisplayName,
+  formatAuthorName,
+  nodeToCsl,
+  parseBibtex,
+  serializeBibEntry,
+  sourceClassOf,
+  type BibliographicPerson,
+  type CslName,
   type ExportContext,
   type ExportNode,
 } from "@notees/export";
@@ -191,6 +208,7 @@ async function objectList(ctx: CommandContext, options: {
   nodeType?: string;
   class?: string[];
   q?: string;
+  property?: string;
   limit?: string;
   cursor?: string;
 }): Promise<void> {
@@ -199,6 +217,7 @@ async function objectList(ctx: CommandContext, options: {
     nodeType: options.nodeType,
     ...(classes.length === 1 ? { class: classes[0] } : {}),
     q: options.q,
+    property: options.property,
     limit: options.limit !== undefined ? Number.parseInt(options.limit, 10) : undefined,
     cursor: options.cursor,
   });
@@ -390,38 +409,19 @@ function collectReferenceIds(node: ExportNode, into: Set<string>): void {
   walk(node.contentAst);
 }
 
-async function exportMarkdown(ctx: CommandContext, options: {
-  ids?: string[];
-  linkedTo?: string;
-  depth?: string;
-  fixpoint?: boolean;
-  outputDir?: string;
-  stdout?: boolean;
-}): Promise<void> {
-  const ids = options.ids ?? [];
-  if (ids.length === 0 && options.linkedTo === undefined) {
-    failUsage("export markdown requires --ids <uuid...> or --linked-to <uuid>");
-  }
-  if (ids.length > 0 && options.linkedTo !== undefined) {
-    failUsage("--ids and --linked-to are mutually exclusive");
-  }
-  if (options.outputDir !== undefined && options.stdout === true) {
-    failUsage("--output-dir and --stdout are mutually exclusive");
-  }
-  if (options.outputDir === undefined && options.stdout !== true) {
-    failUsage("export markdown requires --output-dir <dir> or --stdout");
-  }
-  // Closure depth: depth N follows N+1 backlink hops (depth 0 = the seed's
-  // direct referrers only), per §34.16.3; default 3.
-  let depth = Number.POSITIVE_INFINITY;
-  if (options.fixpoint !== true) {
-    const parsed = Number.parseInt(options.depth ?? "3", 10);
-    if (!Number.isInteger(parsed) || parsed < 0) failUsage("--depth must be a non-negative integer");
-    depth = parsed;
-  }
+// --- shared object resolution + backlink closure (markdown & bibtex exports) ----
 
-  // Cached full-object fetch; parent ids kept on the side for containing-page
-  // walks (ExportNode deliberately carries no placement).
+interface ObjectResolver {
+  getObject(id: string): Promise<ExportNode | undefined>;
+  containingPage(id: string): Promise<ExportNode | undefined>;
+}
+
+/**
+ * Cached full-object fetch shared by both exporters; parent ids kept on the
+ * side for containing-page walks (ExportNode deliberately carries no
+ * placement).
+ */
+function makeObjectResolver(ctx: CommandContext): ObjectResolver {
   const objectCache = new Map<string, ExportNode | undefined>();
   const parentOf = new Map<string, string | null>();
   const getObject = async (id: string): Promise<ExportNode | undefined> => {
@@ -440,7 +440,6 @@ async function exportMarkdown(ctx: CommandContext, options: {
     objectCache.set(id, node);
     return node;
   };
-
   const containingPage = async (id: string): Promise<ExportNode | undefined> => {
     let currentId: string | null = id;
     for (let hops = 0; currentId !== null && hops < 64; hops += 1) {
@@ -452,18 +451,47 @@ async function exportMarkdown(ctx: CommandContext, options: {
     }
     return undefined;
   };
+  return { getObject, containingPage };
+}
 
-  // Node set: --ids exports exactly the given set; --linked-to adds the
-  // backlink closure (pages only — a block referrer contributes its
-  // containing page, which then renders the block inline).
+/** Closure depth: depth N follows N+1 backlink hops (depth 0 = the seed's
+ * direct referrers only), per §34.16.3; default 3. */
+function parseDepth(options: { depth?: string; fixpoint?: boolean }): number {
+  if (options.fixpoint === true) return Number.POSITIVE_INFINITY;
+  const parsed = Number.parseInt(options.depth ?? "3", 10);
+  if (!Number.isInteger(parsed) || parsed < 0) failUsage("--depth must be a non-negative integer");
+  return parsed;
+}
+
+function requireExportSelectors(command: string, options: { ids?: string[]; linkedTo?: string | undefined }): string[] {
+  const ids = options.ids ?? [];
+  if (ids.length === 0 && options.linkedTo === undefined) {
+    failUsage(`${command} requires --ids <uuid...> or --linked-to <uuid>`);
+  }
+  if (ids.length > 0 && options.linkedTo !== undefined) {
+    failUsage("--ids and --linked-to are mutually exclusive");
+  }
+  return ids;
+}
+
+/**
+ * Node set: --ids exports exactly the given set; --linked-to adds the backlink
+ * closure (pages only — a block referrer contributes its containing page,
+ * which then renders the block inline).
+ */
+async function collectClosure(
+  ctx: CommandContext,
+  resolver: ObjectResolver,
+  options: { ids: string[]; linkedTo?: string | undefined; depth: number },
+): Promise<Map<string, ExportNode>> {
   const included = new Map<string, ExportNode>();
   const addSeed = async (id: string): Promise<void> => {
-    const node = await getObject(id);
+    const node = await resolver.getObject(id);
     if (node === undefined) throw new CliError(EXIT.domain, `object ${id} does not exist`);
     included.set(id, node);
   };
   if (options.linkedTo !== undefined) await addSeed(options.linkedTo);
-  for (const id of ids) await addSeed(id);
+  for (const id of options.ids) await addSeed(id);
 
   if (options.linkedTo !== undefined) {
     const seedId = options.linkedTo;
@@ -471,7 +499,7 @@ async function exportMarkdown(ctx: CommandContext, options: {
     const visitedPages = new Set<string>([seedId]);
     let frontier: string[] = [seedId];
     let level = 0;
-    while (frontier.length > 0 && level <= depth) {
+    while (frontier.length > 0 && level <= options.depth) {
       const next: string[] = [];
       for (const id of frontier) {
         const body = await ctx.client.getJson<{ nodeId: string; backlinks: ApiEdgeRow[] }>(
@@ -481,9 +509,9 @@ async function exportMarkdown(ctx: CommandContext, options: {
           const sourceId = edge.source_id;
           if (visitedSources.has(sourceId)) continue;
           visitedSources.add(sourceId);
-          const source = await getObject(sourceId);
+          const source = await resolver.getObject(sourceId);
           if (source === undefined) continue;
-          const page = source.nodeType === "page" ? source : await containingPage(sourceId);
+          const page = source.nodeType === "page" ? source : await resolver.containingPage(sourceId);
           if (page === undefined || visitedPages.has(page.id)) continue;
           visitedPages.add(page.id);
           included.set(page.id, page);
@@ -494,6 +522,27 @@ async function exportMarkdown(ctx: CommandContext, options: {
       level += 1;
     }
   }
+  return included;
+}
+
+async function exportMarkdown(ctx: CommandContext, options: {
+  ids?: string[];
+  linkedTo?: string;
+  depth?: string;
+  fixpoint?: boolean;
+  outputDir?: string;
+  stdout?: boolean;
+}): Promise<void> {
+  const ids = requireExportSelectors("export markdown", options);
+  if (options.outputDir !== undefined && options.stdout === true) {
+    failUsage("--output-dir and --stdout are mutually exclusive");
+  }
+  if (options.outputDir === undefined && options.stdout !== true) {
+    failUsage("export markdown requires --output-dir <dir> or --stdout");
+  }
+  const depth = parseDepth(options);
+  const resolver = makeObjectResolver(ctx);
+  const included = await collectClosure(ctx, resolver, { ids, linkedTo: options.linkedTo, depth });
 
   // Children map: the object API exposes no children endpoint (M1), so the
   // parent→children map is derived from the paged object list (id-ordered —
@@ -512,7 +561,7 @@ async function exportMarkdown(ctx: CommandContext, options: {
   } while (cursor !== undefined);
   for (const stub of stubs) {
     if (stub.parentId === null) continue;
-    const child = await getObject(stub.id);
+    const child = await resolver.getObject(stub.id);
     if (child === undefined) continue;
     const list = childrenMap.get(stub.parentId);
     if (list === undefined) childrenMap.set(stub.parentId, [child]);
@@ -528,7 +577,7 @@ async function exportMarkdown(ctx: CommandContext, options: {
   }
   const names = new Map<string, string>();
   for (const refId of referenceIds) {
-    const node = await getObject(refId);
+    const node = await resolver.getObject(refId);
     if (node === undefined) continue;
     names.set(refId, deriveDisplayName(node) || node.name?.trim() || refId);
   }
@@ -550,6 +599,302 @@ async function exportMarkdown(ctx: CommandContext, options: {
   for (const file of bundle.files) writeFileSync(join(dir, file.path), file.content);
   writeFileSync(join(dir, "notees-manifest.json"), `${JSON.stringify(bundle.manifest, null, 2)}\n`);
   emit(ctx, `wrote ${bundle.files.length} files to ${dir}\n`, machine);
+}
+
+// --- bibliography round-trip (BibTeX import/export) -------------------------------
+
+interface FullApiProperty {
+  schemaId: string;
+  schemaName: string;
+  value: unknown;
+  idx?: number;
+}
+
+interface FullApiObject {
+  id: string;
+  name: string | null;
+  classIds: string[];
+  properties?: FullApiProperty[];
+}
+
+function fullPropertiesOf(object: unknown): FullApiProperty[] {
+  const properties = (object as FullApiObject | undefined)?.properties;
+  return Array.isArray(properties) ? properties : [];
+}
+
+async function getFullObject(ctx: CommandContext, id: string): Promise<FullApiObject> {
+  const body = await ctx.client.getJson<{ object: FullApiObject }>(
+    `/api/v1/objects/${encodeURIComponent(id)}`,
+  );
+  return body.object;
+}
+
+async function setProperty(
+  ctx: CommandContext,
+  objectId: string,
+  propertySchemaId: string,
+  value: unknown,
+  idx = 0,
+): Promise<void> {
+  await ctx.client.postJson(`/api/v1/objects/${encodeURIComponent(objectId)}/properties`, {
+    propertySchemaId,
+    value,
+    idx,
+  });
+}
+
+async function deleteProperty(
+  ctx: CommandContext,
+  objectId: string,
+  propertySchemaId: string,
+  idx = 0,
+): Promise<void> {
+  await ctx.client.deleteJson(
+    `/api/v1/objects/${encodeURIComponent(objectId)}/properties/${encodeURIComponent(propertySchemaId)}?idx=${idx}`,
+  );
+}
+
+/**
+ * Get-or-create a property schema by its fixed system UUID (all replicas
+ * converge on the same ids). Seeded workspaces already carry the
+ * bibliographic schemas, so the create path only fires for unseeded ones.
+ */
+async function ensurePropertySchema(ctx: CommandContext, name: SystemPropertyName): Promise<void> {
+  const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name];
+  try {
+    await ctx.client.getJson(`/api/v1/property-schemas/${propertySchemaId}`);
+    return;
+  } catch (error) {
+    if (!(error instanceof CliError) || error.exitCode !== EXIT.domain) throw error;
+  }
+  const spec = SYSTEM_PROPERTY_SPECS[name];
+  if (spec === undefined) throw new CliError(EXIT.domain, `no system spec for property schema "${name}"`);
+  await ctx.client.postJson("/api/v1/property-schemas", {
+    propertySchemaId,
+    name,
+    type: spec.type,
+    multi: spec.multi ?? false,
+    scope: "class",
+    ...(spec.options !== undefined ? { options: spec.options } : {}),
+    ...(spec.targetClassFilter !== undefined
+      ? { targetClassFilter: spec.targetClassFilter.map((className: SystemClassName) => SYSTEM_CLASS_UUIDS[className]) }
+      : {}),
+  });
+}
+
+async function importBibtex(ctx: CommandContext, filePath: string): Promise<void> {
+  let text: string;
+  try {
+    text = readFileSync(filePath, "utf8");
+  } catch (error) {
+    throw new CliError(EXIT.usage, `cannot read ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const entries = parseBibtex(text);
+  if (entries.length === 0) {
+    throw new CliError(EXIT.domain, `no BibTeX entries found in ${filePath}`);
+  }
+
+  // Schemas the import may touch (citekey always; the rest only when used).
+  const usedNames = new Set<SystemPropertyName>(["citekey"]);
+  for (const entry of entries) {
+    const fields = entry.fields;
+    if (fields.doi !== undefined) usedNames.add("doi");
+    if (fields.isbn !== undefined) usedNames.add("isbn");
+    if (fields.url !== undefined) usedNames.add("url");
+    if (fields.publisher !== undefined || fields.school !== undefined || fields.institution !== undefined) {
+      usedNames.add("publisher");
+    }
+    if (fields.year !== undefined || fields.date !== undefined) usedNames.add("publicationDate");
+    if (fields.author !== undefined || fields.editor !== undefined) {
+      usedNames.add("authors");
+      usedNames.add("givenName");
+      usedNames.add("familyName");
+    }
+  }
+  for (const name of usedNames) await ensurePropertySchema(ctx, name);
+
+  const counts = { created: 0, updated: 0, persons: 0, personsCreated: 0 };
+  const personIds = new Map<string, string>(); // literal name → person id (per-run dedupe)
+  const importedIds: string[] = [];
+  for (const entry of entries) {
+    const spec = cslToNodeSpecs(bibToCsl(entry));
+    const authorIds: string[] = [];
+    for (const name of spec.authors) {
+      const literal = formatAuthorName(name);
+      if (literal.length === 0) continue;
+      let personId = personIds.get(literal);
+      if (personId === undefined) {
+        personId = await findOrCreatePerson(ctx, literal, name, counts);
+        personIds.set(literal, personId);
+        counts.persons += 1;
+      }
+      authorIds.push(personId);
+    }
+    importedIds.push(await upsertSourceByCitekey(ctx, spec, authorIds, counts));
+  }
+
+  const machine = { ...counts, entries: importedIds };
+  emit(
+    ctx,
+    `imported ${entries.length} entries: ${counts.created} created, ${counts.updated} updated, ` +
+      `${counts.persons} persons (${counts.personsCreated} new)\n`,
+    machine,
+  );
+}
+
+/** M1 person match: exact display name via the objects?q= title search. */
+async function findPersonByName(ctx: CommandContext, literal: string): Promise<string | undefined> {
+  const query = queryString({ q: literal });
+  const body = await ctx.client.getJson<{ objects: FullApiObject[] }>(`/api/v1/objects${query}`);
+  return body.objects.find(
+    (object) => object.name === literal && object.classIds.includes(SYSTEM_CLASS_UUIDS.person),
+  )?.id;
+}
+
+async function findOrCreatePerson(
+  ctx: CommandContext,
+  literal: string,
+  name: CslName,
+  counts: { personsCreated: number },
+): Promise<string> {
+  const existing = await findPersonByName(ctx, literal);
+  if (existing !== undefined) return existing;
+  const created = await ctx.client.postJson<{ id: string }>("/api/v1/objects", {
+    nodeType: "page",
+    name: literal,
+    classIds: [SYSTEM_CLASS_UUIDS.person],
+  });
+  const id = created.id;
+  if (name.given !== undefined && name.given.length > 0) {
+    await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.givenName, name.given);
+  }
+  if (name.family !== undefined && name.family.length > 0) {
+    await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.familyName, name.family);
+  }
+  counts.personsCreated += 1;
+  return id;
+}
+
+/** Citekey lookup — the property filter matches the JSON-encoded scalar. */
+async function findSourceByCitekey(
+  ctx: CommandContext,
+  citekey: string,
+): Promise<FullApiObject | undefined> {
+  const query = queryString({ property: `${SYSTEM_PROPERTY_UUIDS.citekey}:${citekey}` });
+  const body = await ctx.client.getJson<{ objects: { id: string }[] }>(`/api/v1/objects${query}`);
+  const first = body.objects[0];
+  if (first === undefined) return undefined;
+  return getFullObject(ctx, first.id);
+}
+
+async function upsertSourceByCitekey(
+  ctx: CommandContext,
+  spec: ReturnType<typeof cslToNodeSpecs>,
+  authorIds: string[],
+  counts: { created: number; updated: number },
+): Promise<string> {
+  const existing = await findSourceByCitekey(ctx, spec.citekey);
+  let id: string;
+  if (existing === undefined) {
+    const created = await ctx.client.postJson<{ id: string }>("/api/v1/objects", {
+      nodeType: "page",
+      name: spec.title,
+      classIds: [SYSTEM_CLASS_UUIDS[spec.className]],
+    });
+    id = created.id;
+    counts.created += 1;
+  } else {
+    id = existing.id;
+    counts.updated += 1;
+    if (existing.name !== spec.title) {
+      await ctx.client.patchJson(`/api/v1/objects/${encodeURIComponent(id)}`, { name: spec.title });
+    }
+  }
+  const properties = existing === undefined ? [] : fullPropertiesOf(existing);
+  const setIfChanged = async (schemaId: string, value: unknown): Promise<void> => {
+    const current = properties.find((p) => p.schemaId === schemaId && (p.idx ?? 0) === 0)?.value;
+    if (JSON.stringify(current ?? null) === JSON.stringify(value)) return;
+    await setProperty(ctx, id, schemaId, value);
+  };
+  await setIfChanged(SYSTEM_PROPERTY_UUIDS.citekey, spec.citekey);
+  if (spec.doi !== undefined) await setIfChanged(SYSTEM_PROPERTY_UUIDS.doi, spec.doi);
+  if (spec.isbn !== undefined) await setIfChanged(SYSTEM_PROPERTY_UUIDS.isbn, spec.isbn);
+  if (spec.url !== undefined) await setIfChanged(SYSTEM_PROPERTY_UUIDS.url, spec.url);
+  if (spec.publisher !== undefined) await setIfChanged(SYSTEM_PROPERTY_UUIDS.publisher, spec.publisher);
+  if (spec.publicationDate !== undefined) {
+    await setIfChanged(SYSTEM_PROPERTY_UUIDS.publicationDate, spec.publicationDate);
+  }
+  // Authors: replace wholesale — set the new list, unset the stale tail.
+  const previousCount = properties.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors).length;
+  for (let idx = 0; idx < authorIds.length; idx += 1) {
+    await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.authors, { nodeId: authorIds[idx] }, idx);
+  }
+  for (let idx = authorIds.length; idx < previousCount; idx += 1) {
+    await deleteProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.authors, idx);
+  }
+  return id;
+}
+
+function personFromNode(node: ExportNode): BibliographicPerson {
+  const textProp = (schemaId: string): string | null => {
+    const value = node.properties.find((p) => p.schemaId === schemaId)?.value;
+    return typeof value === "string" && value.length > 0 ? value : null;
+  };
+  return {
+    id: node.id,
+    name: node.name,
+    givenName: textProp(SYSTEM_PROPERTY_UUIDS.givenName),
+    familyName: textProp(SYSTEM_PROPERTY_UUIDS.familyName),
+  };
+}
+
+async function exportBibtex(ctx: CommandContext, options: {
+  ids?: string[];
+  linkedTo?: string;
+  depth?: string;
+  fixpoint?: boolean;
+  output?: string;
+}): Promise<void> {
+  const ids = requireExportSelectors("export bibtex", options);
+  const depth = parseDepth(options);
+  const resolver = makeObjectResolver(ctx);
+  const included = await collectClosure(ctx, resolver, { ids, linkedTo: options.linkedTo, depth });
+
+  // Only source-class nodes render as entries; the rest of the closure is
+  // context (skipped, counted for the report).
+  const rendered: string[] = [];
+  const entryIds: string[] = [];
+  let skipped = 0;
+  for (const node of included.values()) {
+    if (sourceClassOf(node.classIds) === undefined) {
+      skipped += 1;
+      continue;
+    }
+    const authorNodeIds = node.properties
+      .filter((property) => property.schemaId === SYSTEM_PROPERTY_UUIDS.authors)
+      .map((property) =>
+        isRecord(property.value) && typeof property.value.nodeId === "string"
+          ? property.value.nodeId
+          : undefined,
+      )
+      .filter((id): id is string => id !== undefined);
+    const authors: BibliographicPerson[] = [];
+    for (const personId of authorNodeIds) {
+      const personNode = await resolver.getObject(personId);
+      if (personNode !== undefined) authors.push(personFromNode(personNode));
+    }
+    rendered.push(serializeBibEntry(cslToBib(nodeToCsl(node, node.properties, authors))));
+    entryIds.push(node.id);
+  }
+
+  const text = rendered.join("\n\n") + (rendered.length > 0 ? "\n" : "");
+  const machine = { entries: entryIds.length, skipped, ids: entryIds };
+  if (options.output !== undefined) {
+    writeFileSync(options.output, text);
+    emit(ctx, `wrote ${entryIds.length} entries to ${options.output}\n`, machine);
+    return;
+  }
+  emit(ctx, text, { ...machine, bib: text });
 }
 
 // --- program assembly --------------------------------------------------------
@@ -627,6 +972,7 @@ function buildProgram(): Command {
     .addOption(new Option("--nodeType <type>", "page | block | class").choices(["page", "block", "class"]))
     .option("--class <id>", "class id (repeatable)", (value: string, previous: string[]) => previous.concat([value]), [] as string[])
     .option("--q <text>", "full-text filter")
+    .option("--property <schemaId:value>", "exact-match property filter (value = everything after the first colon)")
     .option("--limit <n>", "page size")
     .option("--cursor <id>", "pagination cursor")
     .action(async (options: object, command: Command) => {
@@ -714,6 +1060,38 @@ function buildProgram(): Command {
         await exportMarkdown(ctxOf(command), options);
       },
     );
+  exportCmd
+    .command("bibtex")
+    .description("export source objects as a BibTeX document (sources only; closure nodes without a source class are skipped)")
+    .addOption(new Option("--ids <uuid...>", "export exactly these object ids (no closure)"))
+    .option("--linked-to <uuid>", "export the seed plus the pages that transitively link to it")
+    .addOption(
+      new Option("--depth <n>", "closure hops beyond the seed's direct referrers (hops = depth + 1; default 3)").default("3"),
+    )
+    .option("--fixpoint", "expand the closure until no new pages are found", false)
+    .option("--output <file>", "write the .bib document to this file instead of stdout")
+    .action(
+      async (
+        options: {
+          ids?: string[];
+          linkedTo?: string;
+          depth?: string;
+          fixpoint?: boolean;
+          output?: string;
+        },
+        command: Command,
+      ) => {
+        await exportBibtex(ctxOf(command), options);
+      },
+    );
+
+  const importCmd = program.command("import").description("import operations");
+  importCmd
+    .command("bibtex <file>")
+    .description("import a .bib file (find-or-create authors, upsert sources by citekey)")
+    .action(async (filePath: string, _options: object, command: Command) => {
+      await importBibtex(ctxOf(command), filePath);
+    });
 
   return program;
 }
