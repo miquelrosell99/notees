@@ -267,6 +267,43 @@ describe("envelope v2", () => {
   });
 });
 
+describe("property schema dates (SCHEMA.md \"Dates\")", () => {
+  const create = payloadSchemaFor("propertySchema.create")!;
+  const update = payloadSchemaFor("propertySchema.update")!;
+
+  it("propertySchema.create accepts optional datePrecision/dateQualified", () => {
+    const base = {
+      propertySchemaId: "0192a000-0000-7000-8000-0000000000d1",
+      name: "founded",
+      type: "date",
+    };
+    expect(create.safeParse(base).success).toBe(true);
+    const full = create.safeParse({ ...base, datePrecision: "year", dateQualified: true });
+    expect(full.success).toBe(true);
+    if (full.success) {
+      expect(full.data.datePrecision).toBe("year");
+      expect(full.data.dateQualified).toBe(true);
+    }
+    // Absent stays absent (the read model applies the day/not-qualified defaults).
+    const bare = create.safeParse(base);
+    expect(bare.success && bare.data.datePrecision).toBeUndefined();
+    // Invalid precision values fail loud.
+    expect(create.safeParse({ ...base, datePrecision: "decade" }).success).toBe(false);
+  });
+
+  it("propertySchema.update patches datePrecision/dateQualified", () => {
+    const parsed = update.safeParse({
+      propertySchemaId: "0192a000-0000-7000-8000-0000000000d1",
+      datePrecision: "month",
+      dateQualified: false,
+    });
+    expect(parsed.success).toBe(true);
+    expect(update.safeParse({ propertySchemaId: "0192a000-0000-7000-8000-0000000000d1" }).success).toBe(
+      true,
+    );
+  });
+});
+
 describe("HLC clock", () => {
   it("is monotonic within a device", () => {
     const clock = new Clock("dev");

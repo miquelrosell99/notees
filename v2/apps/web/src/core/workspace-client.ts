@@ -16,10 +16,15 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { uuidv7 } from "uuidv7";
 
 import {
+  chainNodeIds,
+  dateNodeId,
+  dateNodeLabel,
   deriveDisplayName,
+  parseIsoDate,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
+  type DatePrecision,
 } from "@notees/domain";
 import {
   Clock,
@@ -159,6 +164,9 @@ export interface ClassBinding {
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
   defaultValue: string | null;
+  /** SCHEMA.md "Dates": schema-row date behavior (null = day / not qualified). */
+  datePrecision: DatePrecision | null;
+  dateQualified: boolean | null;
 }
 
 /** Editable fields of a class.property.set write (all optional — patch). */
@@ -170,6 +178,14 @@ export interface SetClassPropertyInput {
   defaultValue?: unknown;
 }
 
+/** Editable fields of a propertySchema.update write (all optional — patch). */
+export interface UpdatePropertySchemaInput {
+  name?: string;
+  options?: Array<{ id: string; label: string }>;
+  datePrecision?: DatePrecision;
+  dateQualified?: boolean;
+}
+
 /** A property schema row as listed by the bindings picker's candidate set. */
 export interface ClientPropertySchema {
   id: string;
@@ -179,6 +195,10 @@ export interface ClientPropertySchema {
   scope: string;
   options: Array<{ id: string; label: string }> | null;
   targetClassFilter: string[] | null;
+  /** SCHEMA.md "Dates": finest granularity a date value may claim (null = day). */
+  datePrecision: DatePrecision | null;
+  /** SCHEMA.md "Dates": node-typed values may carry date qualifiers. */
+  dateQualified: boolean | null;
 }
 
 export interface CreatePropertySchemaInput {
@@ -188,6 +208,8 @@ export interface CreatePropertySchemaInput {
   scope?: string;
   options?: Array<{ id: string; label: string }>;
   targetClassFilter?: string[];
+  datePrecision?: DatePrecision;
+  dateQualified?: boolean;
 }
 
 /**
@@ -200,7 +222,14 @@ export interface CreatePropertySchemaInput {
 export interface EffectiveProperty {
   propertySchemaId: string;
   idx: number;
-  schema: { id: string; name: string; type: string; multi: boolean } | null;
+  schema: {
+    id: string;
+    name: string;
+    type: string;
+    multi: boolean;
+    datePrecision: DatePrecision | null;
+    dateQualified: boolean | null;
+  } | null;
   value: unknown;
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
@@ -663,13 +692,16 @@ export class WorkspaceClient {
     const rows = this.store.database
       .prepare(
         `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.readonly, cp.hide_when_empty,
-                cp.default_value, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active
+                cp.default_value, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
+                ps.date_precision, ps.date_qualified
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
          WHERE cp.class_id = ?
          ORDER BY cp.sequence, cp.property_schema_id`,
       )
       .all(classId) as Array<Record<string, unknown>>;
+    const parsePrecision = (raw: unknown): DatePrecision | null =>
+      raw === "year" || raw === "month" || raw === "day" ? raw : null;
     const bindings: ClassBinding[] = rows.map((row) => {
       let targetClassFilter: string[] | null = null;
       try {
@@ -694,6 +726,11 @@ export class WorkspaceClient {
             ? null
             : row.hide_when_empty === 1,
         defaultValue: decodeDefault((row.default_value as string | null) ?? null),
+        datePrecision: parsePrecision(row.date_precision),
+        dateQualified:
+          row.date_qualified === null || row.date_qualified === undefined
+            ? null
+            : row.date_qualified === 1,
       };
     });
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
@@ -713,6 +750,8 @@ export class WorkspaceClient {
         readonly: null,
         hideWhenEmpty: null,
         defaultValue: spec.defaultValue ?? null,
+        datePrecision: null,
+        dateQualified: null,
       });
     }
     return bindings.sort((a, b) => a.sequence - b.sequence || a.name.localeCompare(b.name));
@@ -795,7 +834,7 @@ export class WorkspaceClient {
   listPropertySchemas(): ClientPropertySchema[] {
     const rows = this.store.database
       .prepare(
-        `SELECT id, name, type, multi, scope, options, target_class_filter
+        `SELECT id, name, type, multi, scope, options, target_class_filter, date_precision, date_qualified
          FROM property_schema WHERE workspace_id = ? AND active = 1
          ORDER BY name, id`,
       )
@@ -830,6 +869,14 @@ export class WorkspaceClient {
         scope: String(row.scope),
         options,
         targetClassFilter: parseJsonArray(row.target_class_filter),
+        datePrecision:
+          row.date_precision === "year" || row.date_precision === "month" || row.date_precision === "day"
+            ? row.date_precision
+            : null,
+        dateQualified:
+          row.date_qualified === null || row.date_qualified === undefined
+            ? null
+            : row.date_qualified === 1,
       };
     });
   }
@@ -1254,6 +1301,8 @@ export class WorkspaceClient {
     if (input.scope !== undefined) payload.scope = input.scope;
     if (input.options !== undefined) payload.options = input.options;
     if (input.targetClassFilter !== undefined) payload.targetClassFilter = input.targetClassFilter;
+    if (input.datePrecision !== undefined) payload.datePrecision = input.datePrecision;
+    if (input.dateQualified !== undefined) payload.dateQualified = input.dateQualified;
     engine.enqueue(this.buildEnvelope("propertySchema.create", payload, []));
     this.notify();
     this.kickPush();
@@ -1261,23 +1310,39 @@ export class WorkspaceClient {
   }
 
   /**
+   * Patch a property schema's metadata (propertySchema.update): name/options
+   * plus the SCHEMA.md "Dates" fields (the Class View bindings editor's
+   * precision/qualified controls). Omitted fields keep their values.
+   */
+  async updatePropertySchema(propertySchemaId: string, fields: UpdatePropertySchemaInput): Promise<void> {
+    const engine = this.requireEngine();
+    const payload: Record<string, unknown> = { propertySchemaId };
+    if (fields.name !== undefined) payload.name = fields.name;
+    if (fields.options !== undefined) payload.options = fields.options;
+    if (fields.datePrecision !== undefined) payload.datePrecision = fields.datePrecision;
+    if (fields.dateQualified !== undefined) payload.dateQualified = fields.dateQualified;
+    engine.enqueue(this.buildEnvelope("propertySchema.update", payload, []));
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
    * Author a property value (property.set) — the panel's edit path. Writing
    * an authored value shadows any derived class-binding default at the slot.
+   * `metadata` carries per-value qualifiers (SCHEMA.md "Dates": dateQualified
+   * schemas persist startDate/endDate here).
    */
   async setProperty(
     objectId: string,
     propertySchemaId: string,
     value: unknown,
     idx = 0,
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     const engine = this.requireEngine();
-    engine.enqueue(
-      this.buildEnvelope(
-        "property.set",
-        { objectId, propertySchemaId, value, idx },
-        [objectId],
-      ),
-    );
+    const payload: Record<string, unknown> = { objectId, propertySchemaId, value, idx };
+    if (metadata !== undefined) payload.metadata = metadata;
+    engine.enqueue(this.buildEnvelope("property.set", payload, [objectId]));
     this.notify();
     this.kickPush();
   }
@@ -1294,6 +1359,102 @@ export class WorkspaceClient {
     );
     this.notify();
     this.kickPush();
+  }
+
+  // --- dates (SCHEMA.md "Dates" — a date is a node, not a string) --------------
+
+  /** The schema's date precision (default day when the row predates the field). */
+  private datePrecisionOf(propertySchemaId: string): DatePrecision {
+    const schema = this.listPropertySchemas().find((s) => s.id === propertySchemaId);
+    return schema?.datePrecision ?? "day";
+  }
+
+  /**
+   * Ensure the year/month/day node chain for an ISO date exists (v1 journal
+   * layout: year as a workspace-root page, month under year, day under month,
+   * named by the v1 compact labels) and return the three deterministic ids.
+   * Ids are content-addressed from the date (@notees/domain dates.ts), so a
+   * re-run creates nothing — the client-level existence check is op-log
+   * hygiene, not correctness; even a raced create is an applier no-op.
+   */
+  async ensureDateChain(
+    isoDate: string,
+  ): Promise<{ year: string; month: string; day: string }> {
+    const parts = parseIsoDate(isoDate);
+    const ids = chainNodeIds(isoDate);
+    if (this.getNodeRaw(ids.year) === undefined) {
+      await this.createObject({
+        id: ids.year,
+        nodeType: "page",
+        parentId: null,
+        name: dateNodeLabel(parts, "year"),
+        classIds: [SYSTEM_CLASS_UUIDS.year],
+      });
+    }
+    if (this.getNodeRaw(ids.month) === undefined) {
+      await this.createObject({
+        id: ids.month,
+        nodeType: "page",
+        parentId: ids.year,
+        name: dateNodeLabel(parts, "month"),
+        classIds: [SYSTEM_CLASS_UUIDS.month],
+      });
+    }
+    if (this.getNodeRaw(ids.day) === undefined) {
+      await this.createObject({
+        id: ids.day,
+        nodeType: "page",
+        parentId: ids.month,
+        name: dateNodeLabel(parts, "day"),
+        classIds: [SYSTEM_CLASS_UUIDS.day],
+      });
+    }
+    return ids;
+  }
+
+  /** Create/refresh the chain and return the node id at the schema's precision. */
+  private async dateRefFor(isoDate: string, precision: DatePrecision): Promise<string> {
+    const ids = await this.ensureDateChain(isoDate);
+    return precision === "year" ? ids.year : precision === "month" ? ids.month : ids.day;
+  }
+
+  /**
+   * Set a date property value: ensure the chain, then link the date node at
+   * the schema's precision ({ "nodeId": … } — the shape the edge index
+   * projects, so the year node backlinks everything dated that year).
+   * Editing an existing value overwrites the same slot's ref.
+   */
+  async setDateProperty(
+    objectId: string,
+    propertySchemaId: string,
+    isoDate: string,
+    idx = 0,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    const ref = await this.dateRefFor(isoDate, this.datePrecisionOf(propertySchemaId));
+    await this.setProperty(objectId, propertySchemaId, { nodeId: ref }, idx, metadata);
+  }
+
+  /**
+   * Set a date_range value ({ start, end } of date refs, either side open /
+   * clearable). Precision applies to both ends. A null end keeps whatever the
+   * other side holds — an open range.
+   */
+  async setDateRangeProperty(
+    objectId: string,
+    propertySchemaId: string,
+    start: string | null,
+    end: string | null,
+    idx = 0,
+  ): Promise<void> {
+    const precision = this.datePrecisionOf(propertySchemaId);
+    const value: { start: { nodeId: string } | null; end: { nodeId: string } | null } = {
+      start: null,
+      end: null,
+    };
+    if (start !== null) value.start = { nodeId: await this.dateRefFor(start, precision) };
+    if (end !== null) value.end = { nodeId: await this.dateRefFor(end, precision) };
+    await this.setProperty(objectId, propertySchemaId, value, idx);
   }
 
   /**

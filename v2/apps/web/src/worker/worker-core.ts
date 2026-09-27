@@ -47,6 +47,7 @@ import {
   type SetClassPropertyInput,
   type SyncStatusSnapshot,
   type UpdateObjectInput,
+  type UpdatePropertySchemaInput,
 } from "../core/workspace-client.js";
 
 import type { OpfsStore } from "./opfs.js";
@@ -487,18 +488,42 @@ export class WorkerCore {
         return this.client.unsetClassProperty(args[0] as string, args[1] as string);
       case "createPropertySchema":
         return this.client.createPropertySchema(args[0] as CreatePropertySchemaInput);
+      case "updatePropertySchema":
+        return this.client.updatePropertySchema(
+          args[0] as string,
+          args[1] as UpdatePropertySchemaInput,
+        );
       case "setProperty":
         return this.client.setProperty(
           args[0] as string,
           args[1] as string,
           args[2] as unknown,
           args[3] as number | undefined,
+          args[4] as Record<string, unknown> | undefined,
         );
       case "unsetProperty":
         return this.client.unsetProperty(
           args[0] as string,
           args[1] as string,
           args[2] as number | undefined,
+        );
+      case "ensureDateChain":
+        return this.client.ensureDateChain(args[0] as string);
+      case "setDateProperty":
+        return this.client.setDateProperty(
+          args[0] as string,
+          args[1] as string,
+          args[2] as string,
+          args[3] as number | undefined,
+          args[4] as Record<string, unknown> | undefined,
+        );
+      case "setDateRangeProperty":
+        return this.client.setDateRangeProperty(
+          args[0] as string,
+          args[1] as string,
+          args[2] as string | null,
+          args[3] as string | null,
+          args[4] as number | undefined,
         );
       case "createObject":
         return this.createObject(args[0] as CreateObjectInput);

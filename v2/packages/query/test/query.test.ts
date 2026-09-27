@@ -24,6 +24,7 @@ import { join } from "node:path";
 
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
+import { chainNodeIds } from "@notees/domain";
 import { contentTokenSchema, newEnvelope, type Envelope } from "@notees/protocol";
 import { Store } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
@@ -339,9 +340,23 @@ describe("compile: SQL shape", () => {
     );
     expect(sql).toContain("json_extract(value, '$') > ?");
     expect(params).toEqual([YEAR, YEAR, YEAR, 1900]);
+  });
+
+  it("ISO-date bound values gain the date-ref arm (SCHEMA.md Dates value shape)", () => {
+    // Non-ISO values keep the plain single-arm shape…
+    const text = compile(ast(entire, [{ type: "property", schemaId: OPENED, op: "lte", value: "sometime" }]));
+    expect(text.sql).toContain("json_extract(value, '$') <= ?");
+    expect(text.params).toEqual([OPENED, OPENED, OPENED, "sometime"]);
+    // …while YYYY-MM-DD values also compare the embedded date payload of a
+    // {"nodeId": <date-node id>} ref (marker-gated, day-payload bound).
     const lte = compile(ast(entire, [{ type: "property", schemaId: OPENED, op: "lte", value: "1937-05-06" }]));
     expect(lte.sql).toContain("json_extract(value, '$') <= ?");
-    expect(lte.params).toEqual([OPENED, OPENED, OPENED, "1937-05-06"]);
+    expect(lte.sql).toContain("substr(json_extract(value, '$.nodeId'), 25) <= ?");
+    expect(lte.sql).toContain("IN ('dd', 'aa', 'bb')");
+    expect(lte.params).toEqual([OPENED, OPENED, OPENED, "1937-05-06", "193705060000"]);
+    // eq matches any precision whose period contains the bound date.
+    const eq = compile(ast(entire, [{ type: "property", schemaId: OPENED, op: "eq", value: "1937-05-06" }]));
+    expect(eq.params).toEqual([OPENED, OPENED, OPENED, "1937-05-06", "19370506", "193705", "1937"]);
   });
 
   it("property comparison ops (gt/gte/lt/lte) are part of the versioned schema", () => {
@@ -1022,6 +1037,61 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       expect(matches(store, FRANCE, cityQuery)).toBe(false);
       expect(matches(store, PARIS, allIn({ type: "subtree", pageId: FRANCE }))).toBe(true);
       expect(matches(store, LONE, allIn({ type: "subtree", pageId: FRANCE }))).toBe(false);
+    });
+  });
+
+  describe("dates (SCHEMA.md value shape: { nodeId } refs)", () => {
+    const PUBLISHED = "0192a000-0000-7000-8000-000000000305";
+    const FOUNDED = "0192a000-0000-7000-8000-000000000306";
+    const DAY_A = chainNodeIds("1937-05-06"); // Paris published
+    const DAY_B = chainNodeIds("1900-01-15"); // France published
+    const YEAR_X = chainNodeIds("1889-03-31"); // Lone founded (year precision)
+
+    function dateStore(): Store {
+      const store = worldStore();
+      store.applyMany([
+        env("propertySchema.create", { propertySchemaId: PUBLISHED, name: "published", type: "date" }, T0 + 50 * STEP),
+        env("property.set", { objectId: PARIS, propertySchemaId: PUBLISHED, value: { nodeId: DAY_A.day } }, T0 + 51 * STEP),
+        env("property.set", { objectId: FRANCE, propertySchemaId: PUBLISHED, value: { nodeId: DAY_B.day } }, T0 + 52 * STEP),
+        env(
+          "propertySchema.create",
+          { propertySchemaId: FOUNDED, name: "founded", type: "date", datePrecision: "year" },
+          T0 + 53 * STEP,
+        ),
+        env("property.set", { objectId: LONE, propertySchemaId: FOUNDED, value: { nodeId: YEAR_X.year } }, T0 + 54 * STEP),
+      ]);
+      return store;
+    }
+
+    it("prop:<schema>:<iso> still works: eq and contains match the node dated that day", () => {
+      const store = dateStore();
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PUBLISHED, op: "eq", value: "1937-05-06" }])).ids).toEqual([PARIS]);
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PUBLISHED, op: "contains", value: "1900-01-15" }])).ids).toEqual([FRANCE]);
+      // neq: nodes with a different value match; the equal node does not.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PUBLISHED, op: "neq", value: "1937-05-06" }])).ids).toEqual([FRANCE]);
+      // A different day matches nothing.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PUBLISHED, op: "eq", value: "2000-01-01" }])).ids).toEqual([]);
+    });
+
+    it("a year-precision value answers a query for any date of that year", () => {
+      const store = dateStore();
+      // The value links the 1889 YEAR node; any 1889 date contains it.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: FOUNDED, op: "eq", value: "1889-06-01" }])).ids).toEqual([LONE]);
+      // …but not a date outside the year.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: FOUNDED, op: "eq", value: "1890-01-01" }])).ids).toEqual([]);
+    });
+
+    it("gt/gte/lt/lte order by the embedded date payload across precisions", () => {
+      const store = dateStore();
+      // Day payloads: France 1900-01-15, Paris 1937-05-06.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PUBLISHED, op: "gt", value: "1900-01-15" }])).ids).toEqual([PARIS]);
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: PUBLISHED, op: "gte", value: "1937-05-06" }])).ids).toEqual([PARIS]);
+      // A year period compares at its start: 1889-01-01 < 1889-06-01 bound.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: FOUNDED, op: "lt", value: "1889-06-01" }])).ids).toEqual([LONE]);
+      // Scalar (legacy/default) values still compare on the plain arm.
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: OPENED, op: "lte", value: "1937-05-06" }])).ids.sort(),
+      ).toEqual([FRANCE, PARIS, LONE].sort());
     });
   });
 });
