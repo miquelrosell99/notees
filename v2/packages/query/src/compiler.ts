@@ -38,6 +38,7 @@ import type {
   Condition,
   Group,
   Not,
+  PropertyOp,
   QueryAst,
   SortSpec,
 } from "./ast.js";
@@ -451,14 +452,15 @@ class Compiler {
    * no authored value at idx 0. eq/contains are value-level (any effective row
    * matches); neq is the v1 not_equals port — "has at least one effective
    * value different from v" — so nodes with NO effective value do not match
-   * (pair with `exists` if unset nodes should count). Values compare through
-   * json_extract(value, '$').
+   * (pair with `exists` if unset nodes should count). gt/gte/lt/lte are the
+   * v1 GREATER_THAN/LESS_THAN family: json_extract yields JSON numbers as
+   * numeric values (numeric comparison) and everything else as text
+   * (lexicographic — ISO-8601 dates order correctly); the bound value keeps
+   * the type the caller gave it.
    */
   private propertySql(condition: Extract<Condition, { type: "property" }>): string {
-    if (
-      (condition.op === "eq" || condition.op === "contains") &&
-      (condition.value === undefined || condition.value === null)
-    ) {
+    const valueOps: readonly PropertyOp[] = ["eq", "neq", "contains", "gt", "gte", "lt", "lte"];
+    if (valueOps.includes(condition.op) && (condition.value === undefined || condition.value === null)) {
       throw new Error(`query compile: property op '${condition.op}' requires a non-null value`);
     }
     const includeDefaults = condition.includeDefaults ?? true;
@@ -520,6 +522,11 @@ class Compiler {
       predicate = `WHERE json_extract(value, '$') != ${this.push(condition.value)}`;
     } else if (condition.op === "contains") {
       predicate = `WHERE CAST(json_extract(value, '$') AS TEXT) LIKE '%' || ${this.push(condition.value)} || '%'`;
+    } else if (condition.op !== "exists") {
+      // gt/gte/lt/lte — plain comparison over the extracted scalar (numeric
+      // for JSON numbers, lexicographic for text such as ISO-8601 dates).
+      const sqlOp = { gt: ">", gte: ">=", lt: "<", lte: "<=" }[condition.op];
+      predicate = `WHERE json_extract(value, '$') ${sqlOp} ${this.push(condition.value)}`;
     }
 
     const membership = `n.id IN (\n  ${ctes},\n  effective AS (\n  ${unions}\n  )\n  SELECT node_id FROM effective\n  ${predicate}\n)`;

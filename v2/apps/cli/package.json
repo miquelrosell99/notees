@@ -14,6 +14,7 @@
   "dependencies": {
     "@notees/domain": "workspace:*",
     "@notees/export": "workspace:*",
+    "@notees/query": "workspace:*",
     "commander": "^12.1.0"
   },
   "devDependencies": {
