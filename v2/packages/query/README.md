@@ -105,10 +105,45 @@ the SQL string (verified by tests, including an injection attempt).
 `IS NULL`, then `dir`), always ending in the deterministic `n.id ASC`
 tiebreak. Default order: `n.id ASC`.
 
+## Aggregation (grouped grids)
+
+An AST may carry `aggregation: { dimensions, measures }` — dimensions GROUP
+BY the filtered-node set, measures aggregate over it:
+
+```ts
+dimensions: Array<{ kind: "class", id }        // hierarchy-aware membership (1/0)
+                      | { kind: "property", id } // effective/authored value at idx 0
+                      | { kind: "nodeType" }>
+measures:   Array<{ function: "count" | "countDistinct", kind?: "node" }
+                      | { function: "sum" | "avg" | "min" | "max", kind: "property", id }>
+```
+
+SQL shape: the same filtered-node set becomes a `filtered` CTE, the outer
+query groups it (zero dimensions = one grand-total row, no GROUP BY):
+
+```sql
+WITH filtered AS (
+  SELECT n.id, n.node_type, n.class_ids FROM node n WHERE n.is_active = 1 AND (...)
+)
+SELECT f.node_type AS "nodeType", COUNT(*) AS "count"
+FROM filtered f
+GROUP BY "nodeType"
+ORDER BY "nodeType" ASC
+```
+
+- Columns are deterministic: dimensions in declared order, then measures;
+  labels `nodeType` / `class:<id>` / `property:<id>` / `count` /
+  `countDistinct` / `<fn>:<id>` (collisions suffixed `#2`, …). GROUP BY /
+  ORDER BY reference the output aliases (SQLite resolves result-column
+  names) so parameterized expressions appear exactly once.
+- Property dimensions/measures read the effective value at idx 0 through the
+  same read model as the property conditions (authored UNION winning-binding
+  default; three schema-id params per property reference).
+- `sort` does not apply to aggregates; `runQuery` rejects aggregation ASTs —
+  execution goes through `runAggregate(store, ast) → { columns, rows }`.
+
 ## Deferred (fail loud today, cleanly extensible)
 
-- `aggregation` is defined in the AST schema (dimensions + measure) but
-  compilation throws — v1's `AggregationCompiler` ports here later.
 - v1 condition types outside the M1 model: style marks, parent/parent_path,
   child/child_path, page, tag, flag, reference_path, extends (covered by
   `class` via the hierarchy closure), regex (needs a SQLite extension),

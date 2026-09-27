@@ -27,7 +27,7 @@ import {
   type ContentAst,
   type Envelope,
 } from "@notees/protocol";
-import { parseQueryAst, runQuery, type QueryAst } from "@notees/query";
+import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/query";
 import { Store, type NodeRow } from "@notees/store";
 import {
   HttpTransport,
@@ -98,9 +98,9 @@ export interface BlockTreeNode {
 /**
  * Typed error for a `query` content token whose serialized AST fails
  * validation (`parseQueryAst` — unknown condition types / versions fail loud)
- * or whose compilation the M1 engine does not support (e.g. aggregation).
- * The query block view renders an "invalid query" placeholder for it; the
- * worker RPC path surfaces the same shape as an Error message.
+ * or whose compilation the M1 engine does not support. The query block view
+ * renders an "invalid query" placeholder for it; the worker RPC path surfaces
+ * the same shape as an Error message.
  */
 export class InvalidQueryAstError extends Error {
   readonly code = "invalid_query_ast" as const;
@@ -117,6 +117,8 @@ export interface QueryRunSummary {
   name: string | null;
   nodeType: "page" | "block" | "class";
   parentId: string | null;
+  /** node.created_at (ISO-8601) — the table view's Created column. */
+  createdAt: string | null;
 }
 
 /**
@@ -126,6 +128,16 @@ export interface QueryRunSummary {
 export interface QueryRunResult {
   ids: string[];
   rows: QueryRunSummary[];
+}
+
+/**
+ * The web slice of @notees/query's AggregateResult: the grouped grid a
+ * `query` token with an `aggregation` renders in table mode (dimension
+ * columns in declared order, then measures).
+ */
+export interface QueryAggregateResult {
+  columns: string[];
+  rows: unknown[][];
 }
 
 /**
@@ -852,12 +864,13 @@ export class WorkspaceClient {
   /**
    * Live-query bridge for `query` content tokens: validate the token's
    * serialized AST with @notees/query's fail-loud parser (unknown condition
-   * types / versions, and M1-unsupported compilation such as aggregation,
-   * throw InvalidQueryAstError — the view renders an "invalid query"
-   * placeholder) and execute it against the local store. The Store satisfies
-   * the query package's structural QueryStore interface, so no mapping layer
-   * is needed. Rows come back as node summaries (id, name, nodeType,
-   * parentId) — enough for the result list and the containing-page walk.
+   * types / versions throw InvalidQueryAstError — the view renders an
+   * "invalid query" placeholder) and execute it against the local store. The
+   * Store satisfies the query package's structural QueryStore interface, so
+   * no mapping layer is needed. Rows come back as node summaries (id, name,
+   * nodeType, parentId, createdAt) — enough for the result list, the simple
+   * table, and the containing-page walk. ASTs carrying an aggregation run
+   * through runAggregateAst instead.
    */
   runQueryAst(rawAst: unknown): QueryRunResult {
     let ast: QueryAst;
@@ -866,6 +879,11 @@ export class WorkspaceClient {
     } catch (error) {
       throw new InvalidQueryAstError(
         `invalid query AST: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (ast.aggregation !== undefined) {
+      throw new InvalidQueryAstError(
+        "query run: AST carries an aggregation — run it through runAggregateAst",
       );
     }
     let result: ReturnType<typeof runQuery>;
@@ -883,8 +901,32 @@ export class WorkspaceClient {
         name: (row.name as string | null) ?? null,
         nodeType: row.node_type as QueryRunSummary["nodeType"],
         parentId: (row.parent_id as string | null) ?? null,
+        createdAt: (row.created_at as string | null) ?? null,
       })),
     };
+  }
+
+  /**
+   * Aggregation counterpart of runQueryAst: the grouped grid (columns +
+   * rows) for a `query` token whose AST carries an `aggregation`. Throws
+   * InvalidQueryAstError for unparseable ASTs and ASTs without one.
+   */
+  runAggregateAst(rawAst: unknown): QueryAggregateResult {
+    let ast: QueryAst;
+    try {
+      ast = parseQueryAst(rawAst);
+    } catch (error) {
+      throw new InvalidQueryAstError(
+        `invalid query AST: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    try {
+      return runAggregate(this.store, ast);
+    } catch (error) {
+      throw new InvalidQueryAstError(
+        `query not supported: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /** Direct children of a node in child order, active only (export's nested-bullets read). */

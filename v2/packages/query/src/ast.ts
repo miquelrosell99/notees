@@ -139,39 +139,51 @@ export const sortSpecSchema = z
   })
   .strict();
 
-// --- aggregation (schema-defined, compilation deferred) ----------------------------
+// --- aggregation ---------------------------------------------------------------------
+
+export type AggregationDimension =
+  | { kind: "class"; id: string }
+  | { kind: "property"; id: string }
+  | { kind: "nodeType" };
+
+export const aggregationDimensionSchema = z.discriminatedUnion("kind", [
+  /** Group by membership in the class (hierarchy-aware, like the class condition). */
+  z.object({ kind: z.literal("class"), id: uuid }).strict(),
+  /** Group by the effective/authored value at idx 0 of the bound property. */
+  z.object({ kind: z.literal("property"), id: uuid }).strict(),
+  /** Group by node.node_type. */
+  z.object({ kind: z.literal("nodeType") }).strict(),
+]);
+
+export type AggregationMeasure =
+  | { function: "count" | "countDistinct"; kind?: "node" | undefined }
+  | { function: "sum" | "avg" | "min" | "max"; kind: "property"; id: string };
+
+export const aggregationMeasureSchema = z.union([
+  z
+    .object({
+      function: z.enum(["count", "countDistinct"]),
+      kind: z.literal("node").optional(),
+    })
+    .strict(),
+  z
+    .object({
+      function: z.enum(["sum", "avg", "min", "max"]),
+      kind: z.literal("property"),
+      id: uuid,
+    })
+    .strict(),
+]);
 
 export type Aggregation = {
-  type: "aggregation";
-  dimensions: Array<{ type: "dimension"; field: string; propertyType?: string | undefined }>;
-  measure: {
-    type: "measure";
-    function: "count" | "sum" | "avg" | "min" | "max";
-    field?: string | undefined;
-    propertyType?: string | undefined;
-  };
+  dimensions: AggregationDimension[];
+  measures: AggregationMeasure[];
 };
 
 export const aggregationSchema = z
   .object({
-    type: z.literal("aggregation"),
-    dimensions: z.array(
-      z
-        .object({
-          type: z.literal("dimension"),
-          field: z.string().min(1),
-          propertyType: z.string().optional(),
-        })
-        .strict(),
-    ),
-    measure: z
-      .object({
-        type: z.literal("measure"),
-        function: z.enum(["count", "sum", "avg", "min", "max"]),
-        field: z.string().optional(),
-        propertyType: z.string().optional(),
-      })
-      .strict(),
+    dimensions: z.array(aggregationDimensionSchema),
+    measures: z.array(aggregationMeasureSchema).min(1),
   })
   .strict();
 

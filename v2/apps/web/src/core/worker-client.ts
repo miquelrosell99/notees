@@ -24,6 +24,7 @@ import type {
   CreatePropertySchemaInput,
   DeleteObjectOptions,
   EffectiveProperty,
+  QueryAggregateResult,
   QueryRunResult,
   ReferenceEntry,
   SetClassPropertyInput,
@@ -234,6 +235,11 @@ export class WorkerClient {
    */
   runQueryAst(rawAst: unknown): Promise<QueryRunResult> {
     return this.call("runQueryAst", [rawAst]) as Promise<QueryRunResult>;
+  }
+
+  /** Aggregation counterpart of runQueryAst (grouped grid for aggregated ASTs). */
+  runAggregateAst(rawAst: unknown): Promise<QueryAggregateResult> {
+    return this.call("runAggregateAst", [rawAst]) as Promise<QueryAggregateResult>;
   }
 
   getBacklinks(id: string): ClientEdge[] {

@@ -2,7 +2,9 @@
  * Query block tests: the live `query` content token (QueryBlockView) over
  * PageView (jsdom) — result rendering from the @notees/query bridge, the
  * notify-driven live re-run, the count badge, the builder popover's AST
- * persistence, export-on-query (markdown construction + the anchor
+ * persistence, the list/table view toggle (persisted in the token's view
+ * record), the aggregate grid for aggregated ASTs, the builder's minimal
+ * aggregation section, export-on-query (markdown construction + the anchor
  * download), the invalid-AST placeholder, scope limits, the result cap,
  * node_type navigation, and the worker passthrough (WorkerCore.invoke).
  */
@@ -13,7 +15,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
-import type { Child, QueryAst, Scope } from "@notees/query";
+import type { Aggregation, Child, QueryAst, Scope } from "@notees/query";
 
 import { InvalidQueryAstError, WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
@@ -65,6 +67,11 @@ function makeAst(scope: Scope, children: Child[] = []): QueryAst {
 }
 
 const WORKSPACE = (): Scope => ({ type: "entire_workspace" });
+
+const countByType: Aggregation = {
+  dimensions: [{ kind: "nodeType" }],
+  measures: [{ function: "count" }],
+};
 
 /** France-shaped fixture: a class, two member pages, a body block. */
 async function seedWorld(client: WorkspaceClient) {
@@ -298,6 +305,152 @@ describe("query block (live query token)", () => {
     expect(items.some((el) => el.textContent?.includes("Paris"))).toBe(false);
   });
 
+  it("aggregated AST renders the aggregate grid (count by nodeType matches the seeded data)", async () => {
+    const client = await seedClient();
+    await seedWorld(client);
+    const host = await client.createObject({ nodeType: "page", name: "Host" });
+    await client.createObject({
+      nodeType: "block",
+      parentId: host,
+      contentAst: queryToken({ ...makeAst(WORKSPACE()), aggregation: countByType }),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+
+    // Grid headers: the dimension label + the measure label.
+    expect(await screen.findByText("Type")).not.toBeNull();
+    expect(screen.getByText("Count")).not.toBeNull();
+    // Workspace contents: 3 pages (host, Paris, London), 2 blocks (the body
+    // block + the query block itself), 1 class node (City). An aggregation
+    // renders the grid in any view mode (no list projection exists for
+    // measures); the badge counts groups.
+    const cells = Array.from(container.querySelectorAll(".nt-query-table td")).map(
+      (td) => td.textContent,
+    );
+    expect(cells).toEqual(["block", "2", "class", "1", "page", "3"]);
+    expect(badge(container)).toBe("3");
+    expect(container.querySelector(".nt-query-list")).toBeNull();
+  });
+
+  it("table mode renders a Name/Type/Created table and the toggle persists in the token view", async () => {
+    const client = await seedClient();
+    const { city } = await seedWorld(client);
+    const host = await client.createObject({ nodeType: "page", name: "Host" });
+    const block = await client.createObject({
+      nodeType: "block",
+      parentId: host,
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    await screen.findByText("Paris");
+    expect(container.querySelector(".nt-query-table")).toBeNull();
+    expect(screen.getByLabelText("List view").getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(screen.getByLabelText("Table view"));
+
+    const headers = await screen.findAllByRole("columnheader");
+    expect(headers.map((th) => th.textContent)).toEqual(["Name", "Type", "Created"]);
+    const rows = container.querySelectorAll(".nt-query-table tbody tr");
+    expect(rows.length).toBe(2);
+    const names = Array.from(rows).map((row) => row.querySelector(".nt-query-item-name")?.textContent);
+    expect(names.sort()).toEqual(["London", "Paris"]);
+    const created = rows[0]!.querySelector(".nt-query-num")?.textContent ?? "";
+    expect(created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(screen.getByLabelText("Table view").getAttribute("aria-pressed")).toBe("true");
+
+    // The mode persisted in the token's view record via the update path.
+    let token = client.getNode(block)!.contentAst[0] as unknown as {
+      type: string;
+      view?: { mode?: string };
+    };
+    expect(token.type).toBe("query");
+    expect(token.view).toEqual({ mode: "table" });
+
+    // Toggling back restores the list and rewrites the token.
+    fireEvent.click(screen.getByLabelText("List view"));
+    await screen.findByRole("list");
+    expect(container.querySelector(".nt-query-table")).toBeNull();
+    token = client.getNode(block)!.contentAst[0] as unknown as typeof token;
+    expect(token.view).toEqual({ mode: "list" });
+  });
+
+  it("builder group-by + measure writes the aggregation and the grid updates", async () => {
+    const client = await seedClient();
+    const { city } = await seedWorld(client);
+    const host = await client.createObject({ nodeType: "page", name: "Host" });
+    const block = await client.createObject({
+      nodeType: "block",
+      parentId: host,
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    await screen.findByText("Paris");
+
+    fireEvent.click(screen.getByLabelText("Query settings"));
+    const dialog = screen.getByRole("dialog", { name: "Query builder" });
+    fireEvent.change(within(dialog).getByLabelText("Group by"), { target: { value: "nodeType" } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+    });
+
+    // The written AST carries the minimal aggregation (count default measure).
+    const token = client.getNode(block)!.contentAst[0] as unknown as { queryAst: QueryAst };
+    expect(token.queryAst.aggregation).toEqual(countByType);
+    // The grid replaces the member list: two pages in one group.
+    expect(await screen.findByText("Count")).not.toBeNull();
+    const cells = Array.from(container.querySelectorAll(".nt-query-table td")).map(
+      (td) => td.textContent,
+    );
+    expect(cells).toEqual(["page", "2"]);
+    expect(screen.queryByText("Paris")).toBeNull();
+  });
+
+  it("builder sums a numeric bound property grouped by the property value", async () => {
+    const client = await seedClient();
+    const { city, london } = await seedWorld(client);
+    const rating = await client.createPropertySchema({ name: "rating", type: "number" });
+    await client.setClassProperty(city, rating, { defaultValue: 1 });
+    await client.setProperty(london, rating, 5);
+
+    const host = await client.createObject({ nodeType: "page", name: "Host" });
+    const block = await client.createObject({
+      nodeType: "block",
+      parentId: host,
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    await screen.findByText("Paris");
+
+    fireEvent.click(screen.getByLabelText("Query settings"));
+    const dialog = screen.getByRole("dialog", { name: "Query builder" });
+    fireEvent.change(within(dialog).getByLabelText("Group by"), {
+      target: { value: `property:${rating}` },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Measure"), {
+      target: { value: `sum:${rating}` },
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+    });
+
+    const token = client.getNode(block)!.contentAst[0] as unknown as { queryAst: QueryAst };
+    expect(token.queryAst.aggregation).toEqual({
+      dimensions: [{ kind: "property", id: rating }],
+      measures: [{ function: "sum", kind: "property", id: rating }],
+    });
+
+    // Grid: one row per effective rating (Paris rides the binding default 1,
+    // London carries the authored 5); dimension cells align left, sums right.
+    expect(await screen.findByText("sum(rating)")).not.toBeNull();
+    const cells = Array.from(container.querySelectorAll(".nt-query-table td")).map(
+      (td) => td.textContent,
+    );
+    expect(cells).toEqual(["1", "1", "5", "5"]);
+  });
+
   it("invalid AST renders the placeholder without crashing", async () => {
     const client = await seedClient();
     await seedWorld(client);
@@ -447,6 +600,25 @@ describe("query block (live query token)", () => {
     }
   });
 
+  it("runAggregateAst bridge: grouped grid; runQueryAst rejects aggregation ASTs", async () => {
+    const client = await seedClient();
+    const { city } = await seedWorld(client);
+
+    const result = client.runAggregateAst({
+      ...makeAst(WORKSPACE(), [{ type: "class", classId: city }]),
+      aggregation: countByType,
+    });
+    expect(result.columns).toEqual(["nodeType", "count"]);
+    expect(result.rows).toEqual([["page", 2]]);
+
+    // The two bridges are strict about their shapes: runQueryAst refuses
+    // aggregation ASTs, runAggregateAst refuses plain/invalid ones.
+    const aggregated = { ...makeAst(WORKSPACE()), aggregation: countByType };
+    expect(() => client.runQueryAst(aggregated)).toThrow(InvalidQueryAstError);
+    expect(() => client.runAggregateAst(makeAst(WORKSPACE()))).toThrow(InvalidQueryAstError);
+    expect(() => client.runAggregateAst({ bogus: true })).toThrow(InvalidQueryAstError);
+  });
+
   it("worker passthrough: runQueryAst + getChildren over invoke()", async () => {
     const files = new Map<string, Uint8Array>();
     const opfs: OpfsStore = {
@@ -491,8 +663,21 @@ describe("query block (live query token)", () => {
       const children = (await core.invoke("getChildren", [paris])) as Array<{ id: string }>;
       expect(children.length).toBe(2);
 
+      // The aggregation bridge crosses the wire too (grouped grid).
+      const aggregate = (await core.invoke("runAggregateAst", [
+        {
+          ...makeAst(WORKSPACE(), [{ type: "class", classId: city }]),
+          aggregation: countByType,
+        },
+      ])) as { columns: string[]; rows: unknown[][] };
+      expect(aggregate.columns).toEqual(["nodeType", "count"]);
+      expect(aggregate.rows).toEqual([["page", 1]]);
+
       // Invalid ASTs reject with the typed error's message across the wire.
       await expect(core.invoke("runQueryAst", [{ bogus: true }])).rejects.toThrow(
+        /invalid query AST/,
+      );
+      await expect(core.invoke("runAggregateAst", [{ bogus: true }])).rejects.toThrow(
         /invalid query AST/,
       );
     } finally {

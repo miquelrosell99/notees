@@ -684,6 +684,61 @@ button {
   cursor: pointer;
 }
 
+/* View toggle: the active mode reads pressed (same chrome, darker border). */
+
+.nt-query-viewtoggle {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.nt-query-action[aria-pressed="true"] {
+  background: #eef1f4;
+  border-color: #9aa5b1;
+  color: #323f4b;
+}
+
+/* Table mode + the aggregate grid: a sober bordered grid in the token's
+   chrome. Numeric cells (measures, dates) align right with tabular figures. */
+
+.nt-query-table {
+  width: 100%;
+  margin: 4px 0 0;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #323f4b;
+}
+
+.nt-query-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #7b8794;
+  border-bottom: 1px solid #d9dce1;
+  padding: 2px 6px;
+}
+
+.nt-query-table td {
+  border-bottom: 1px solid #eef1f4;
+  padding: 2px 6px;
+  vertical-align: baseline;
+}
+
+.nt-query-table .nt-query-item {
+  padding: 0;
+  border-radius: 0;
+}
+
+.nt-query-table .nt-query-item:hover {
+  background: none;
+  text-decoration: underline;
+}
+
+.nt-query-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* --- block drag-and-drop --------------------------------------------------------- */
 
 /* The bullet/chevron area is the drag handle (whole-row drag would fight

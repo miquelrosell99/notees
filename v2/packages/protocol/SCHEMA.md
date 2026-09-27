@@ -59,7 +59,7 @@ Token set (zod schemas are the executable form, `src/content-mark.ts`):
 | `asset_ref` | `assetId` | renders inline (chip/preview); alone in a stream position = full-bleed |
 | `embed_ref` | `nodeId` | live subtree, never a clone; renderer cycle guard |
 | `quote` | `children` (inline tokens) | the only nested token |
-| `query` | `queryAst`, `view?` | block-scale live query |
+| `query` | `queryAst`, `view?` | block-scale live query. `view` is a free-form record; the web renderer persists `view.mode: "list" \| "table"` (list default) and renders the aggregate grid when `queryAst` carries an `aggregation` |
 | `whiteboard` | `layout` | shapes/strokes/viewport + per-card geometry. **A whiteboard node is defined by the `whiteboard` system class (what-it-is axis); this token carries geometry and shapes.** Never a kind or a flag — the general rule: what-it-is always lives in class, specialized data lives in content tokens or assertion rows. Class↔token divergence is a lint suggestion, never a prohibition (design law). See "Whiteboard modeling" below. |
 | `external_link` | `href`, `text` | |
 | `math` | `expression` | KaTeX source |
