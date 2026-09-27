@@ -15,7 +15,12 @@
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { uuidv7 } from "uuidv7";
 
-import { deriveDisplayName, SYSTEM_PROPERTY_SPECS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import {
+  deriveDisplayName,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_SPECS,
+  SYSTEM_PROPERTY_UUIDS,
+} from "@notees/domain";
 import {
   Clock,
   newEnvelope,
@@ -266,6 +271,72 @@ export interface AssetUploadResult {
   mimeType: string;
   size: number;
   originalName: string;
+}
+
+/**
+ * Input of an annotation write (SCHEMA.md annotation family, seeded
+ * `highlight` class): the quote excerpt names the object, the seeded
+ * highlight_asset property (…000000000020) links the asset node, the seeded
+ * provenance property (…000000000019) records origin (+ page context in M1),
+ * and an optional note becomes a child block of the annotation page.
+ */
+export interface CreateAnnotationInput {
+  /** The asset NODE id the highlight_asset property links (a chip ref). */
+  assetId: string;
+  /** The quoted text — becomes the annotation object's name. */
+  quote: string;
+  /** Optional page number (free text) — recorded in the provenance string. */
+  page?: string;
+  /** Optional note — authored as a child block of the annotation page. */
+  note?: string;
+}
+
+/** Stored name cap for an annotation (the quote excerpt names the object). */
+const ANNOTATION_NAME_MAX = 160;
+
+/** The write surface createAnnotation composes (both client classes satisfy it). */
+interface AnnotationWriteSurface {
+  createObject(partial: CreateObjectInput): Promise<string>;
+  setProperty(objectId: string, propertySchemaId: string, value: unknown, idx?: number): Promise<void>;
+}
+
+/**
+ * Compose an annotation write from the primitive client ops: the
+ * highlight-classed object named by the quote excerpt, the highlight_asset
+ * link, the provenance text, and the optional note child block. Shared by
+ * WorkspaceClient and WorkerClient (each exposes a thin method over this).
+ */
+export async function createAnnotation(
+  writes: AnnotationWriteSurface,
+  input: CreateAnnotationInput,
+): Promise<string> {
+  const quote = input.quote.trim();
+  if (quote === "") throw new Error("createAnnotation: quote text is required");
+  const page = input.page?.trim() ?? "";
+  const note = input.note?.trim() ?? "";
+  const id = await writes.createObject({
+    nodeType: "page",
+    name: quote.slice(0, ANNOTATION_NAME_MAX),
+    classIds: [SYSTEM_CLASS_UUIDS.highlight],
+  });
+  await writes.setProperty(id, SYSTEM_PROPERTY_UUIDS.highlightAsset, { nodeId: input.assetId }, 0);
+  // M1 has no seeded locator property (v1 …0018 withdrawn, never reused), so
+  // the page context rides in the provenance string; the PDF-anchored capture
+  // will need a structured position instead.
+  await writes.setProperty(
+    id,
+    SYSTEM_PROPERTY_UUIDS.provenance,
+    page === "" ? "web" : `web · p. ${page}`,
+    0,
+  );
+  if (note !== "") {
+    await writes.createObject({
+      nodeType: "block",
+      parentId: id,
+      contentAst: [{ type: "text", text: note }],
+    });
+  }
+  return id;
 }
 
 export interface WorkspaceClientOptions {
@@ -674,6 +745,38 @@ export class WorkspaceClient {
       )
       .get(id) as Record<string, unknown> | undefined;
     return byAsset !== undefined ? mapped(byAsset) : undefined;
+  }
+
+  /**
+   * Annotations on an asset (SCHEMA.md annotation family): active objects
+   * classed with the seeded `highlight` class whose highlight_asset property
+   * (…000000000020) links this asset node. The read runs over the derived
+   * edge index — node-typed property values project into edge (type
+   * 'property', verb = propertySchemaId), so this is an indexed lookup by
+   * target id, not a workspace scan. Pure read over the local store;
+   * deterministic display order (name, then id).
+   */
+  getAnnotationsForAsset(assetId: string): ClientNode[] {
+    const rows = this.store.database
+      .prepare(
+        `SELECT source_id FROM edge
+         WHERE target_id = ? AND type = 'property' AND verb = ?
+         ORDER BY source_id`,
+      )
+      .all(assetId, SYSTEM_PROPERTY_UUIDS.highlightAsset) as Array<{ source_id: string }>;
+    const seen = new Set<string>();
+    const annotations: ClientNode[] = [];
+    for (const row of rows) {
+      const sourceId = String(row.source_id);
+      if (seen.has(sourceId)) continue;
+      seen.add(sourceId);
+      const node = this.getNode(sourceId);
+      if (node === undefined || !node.classIds.includes(SYSTEM_CLASS_UUIDS.highlight)) continue;
+      annotations.push(node);
+    }
+    return annotations.sort(
+      (a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id) || a.id.localeCompare(b.id),
+    );
   }
 
   /** Active property schemas of the workspace (the add-binding picker set). */
@@ -1130,6 +1233,16 @@ export class WorkspaceClient {
     );
     this.notify();
     this.kickPush();
+  }
+
+  /**
+   * Create an annotation on an asset (the composed write behind the chips'
+   * annotations form): the highlight-classed object named by the quote
+   * excerpt, the highlight_asset link, the provenance text, and the optional
+   * note child block. Applied locally, push kicked off.
+   */
+  createAnnotation(input: CreateAnnotationInput): Promise<string> {
+    return createAnnotation(this, input);
   }
 
   // --- assets (REST upload + op-log link) -------------------------------------

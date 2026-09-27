@@ -19,6 +19,7 @@ import type {
   ClientEdge,
   ClientNode,
   ClientPropertySchema,
+  CreateAnnotationInput,
   CreateObjectInput,
   CreatePropertySchemaInput,
   DeleteObjectOptions,
@@ -29,7 +30,7 @@ import type {
   SyncStatusSnapshot,
   UpdateObjectInput,
 } from "./workspace-client.js";
-import { fetchAssetBlob, postAssetUpload } from "./workspace-client.js";
+import { createAnnotation, fetchAssetBlob, postAssetUpload } from "./workspace-client.js";
 import type {
   WorkerInitMessage,
   WorkerRequestMessage,
@@ -206,6 +207,11 @@ export class WorkerClient {
     return this.cachedRead<AssetInfo | undefined>("getAssetInfo", [id], undefined);
   }
 
+  /** Highlight-classed annotations whose highlight_asset links this asset node. */
+  getAnnotationsForAsset(assetId: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getAnnotationsForAsset", [assetId], []);
+  }
+
   listPropertySchemas(): ClientPropertySchema[] {
     return this.cachedRead<ClientPropertySchema[]>("listPropertySchemas", [], []);
   }
@@ -320,6 +326,11 @@ export class WorkerClient {
   /** Clear an authored property value (property.unset). */
   async unsetProperty(objectId: string, propertySchemaId: string, idx?: number): Promise<void> {
     await this.call("unsetProperty", [objectId, propertySchemaId, idx]);
+  }
+
+  /** Create an annotation on an asset (composed write over the RPC primitives). */
+  createAnnotation(input: CreateAnnotationInput): Promise<string> {
+    return createAnnotation(this, input);
   }
 
   // --- assets (REST upload/download on the main thread; the link op runs in
