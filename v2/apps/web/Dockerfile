@@ -1,35 +1,31 @@
 # Notees v2 web client — static vite build served by nginx (context = v2/).
 #
 # Stage layout:
-#   deps  — frozen workspace install (needs every workspace manifest)
-#   build — full sources; `web...` builds the shared packages (their dist,
-#           which the production export conditions resolve to) then the app;
+#   deps  — `pnpm fetch` warms the store from the lockfile alone (cached until
+#           the lockfile changes; no manifest list to maintain)
+#   build — full sources; offline install; explicit package build order
+#           (query → protocol → domain → store → sync → export, then the app);
 #           output: apps/web/dist (static assets + worker chunk + sql.js wasm)
 #   final — nginx:1.27-alpine; the stock /docker-entrypoint.d mechanism runs
 #           50-notees-config.sh, which writes /config.js from
 #           NOTEES_SERVER_URL (baked as a build ARG, overridable at runtime
 #           with -e) before nginx starts.
+#
+# The explicit package order exists because of a dev-only dependency cycle
+# (protocol imports @notees/query for the query-token schema); see
+# packages/protocol/SCHEMA.md owed work for the structural fix.
 
 # ---------- deps ----------
 FROM node:22-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/protocol/package.json packages/protocol/
-COPY packages/domain/package.json packages/domain/
-COPY packages/store/package.json packages/store/
-COPY packages/sync/package.json packages/sync/
-COPY apps/server/package.json apps/server/
-COPY apps/cli/package.json apps/cli/
-COPY apps/web/package.json apps/web/
-RUN pnpm install --frozen-lockfile
+COPY pnpm-lock.yaml ./
+RUN pnpm fetch
 
 # ---------- build ----------
 FROM deps AS build
-# Base tsconfig every package extends (tsup's DTS step reads the chain).
-COPY tsconfig.base.json ./
-COPY packages ./packages
-COPY apps ./apps
+COPY . .
+RUN pnpm install --offline --frozen-lockfile
 RUN for p in query protocol domain store sync export; do pnpm --filter @notees/$p build; done \
     && pnpm --filter @notees/web build
 
