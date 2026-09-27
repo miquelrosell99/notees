@@ -21,7 +21,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -138,6 +138,11 @@ CREATE TABLE IF NOT EXISTS property_schema (
     scope TEXT NOT NULL DEFAULT 'global',
     options TEXT NOT NULL DEFAULT '[]',
     target_class_filter TEXT,
+    -- SCHEMA.md "Dates": finest granularity a date value may claim
+    -- (year|month|day; NULL = day default) and, for node-typed schemas,
+    -- whether values may carry date qualifiers (metadata startDate/endDate).
+    date_precision TEXT,
+    date_qualified INTEGER,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT
@@ -334,6 +339,18 @@ export function migrate(
       ALTER TABLE class_property ADD COLUMN hlc_physical INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE class_property ADD COLUMN hlc_logical INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE class_property ADD COLUMN actor_id TEXT;
+    `);
+  }
+  // v3 -> v4: property_schema gained the SCHEMA.md "Dates" columns. Fresh v4
+  // creates already have them; the ALTER backfills pre-existing databases
+  // (NULL = default precision day / not qualified).
+  const schemaColumns = db.prepare("PRAGMA table_info(property_schema)").all() as {
+    name: string;
+  }[];
+  if (!schemaColumns.some((c) => c.name === "date_precision")) {
+    db.exec(`
+      ALTER TABLE property_schema ADD COLUMN date_precision TEXT;
+      ALTER TABLE property_schema ADD COLUMN date_qualified INTEGER;
     `);
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);

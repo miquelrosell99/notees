@@ -627,7 +627,14 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         {
           propertySchemaId: PRIORITY,
           idx: 0,
-          schema: { id: PRIORITY, name: "priority", type: "select", multi: false },
+          schema: {
+            id: PRIORITY,
+            name: "priority",
+            type: "select",
+            multi: false,
+            datePrecision: null,
+            dateQualified: null,
+          },
           value: "medium",
           metadata: null,
           source: "default",
