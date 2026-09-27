@@ -1201,3 +1201,209 @@ mark {
 .nt-sync-status-error {
   color: #b42318;
 }
+
+/* --- whiteboard canvas ------------------------------------------------------ */
+
+.nt-wb {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d9dce1;
+  border-radius: 8px;
+  background: #f8f9fb;
+  overflow: hidden;
+}
+
+.nt-wb-fullscreen {
+  height: 65vh;
+  margin: 8px 0;
+}
+
+.nt-wb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e4e7eb;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.nt-wb-toolbar button {
+  border: 1px solid #d9dce1;
+  border-radius: 6px;
+  background: #fafbfc;
+  padding: 2px 8px;
+  color: #52606d;
+}
+
+.nt-wb-toolbar button:hover:not(:disabled) {
+  background: #eef1f4;
+}
+
+.nt-wb-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.nt-wb-tool-active {
+  background: #dbe7ff;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.nt-wb-surface {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  touch-action: none;
+  background-image: radial-gradient(#dfe3e8 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.nt-wb-embedded .nt-wb-surface {
+  touch-action: auto;
+}
+
+.nt-wb-draw-mode {
+  cursor: crosshair;
+}
+
+.nt-wb-world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+.nt-wb-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+
+.nt-wb-shape rect,
+.nt-wb-shape ellipse {
+  fill: rgba(37, 99, 235, 0.06);
+  stroke: #52606d;
+  stroke-width: 1.5;
+}
+
+.nt-wb-shape line {
+  stroke: #52606d;
+  stroke-width: 1.5;
+}
+
+.nt-wb-shape text {
+  fill: #52606d;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.nt-wb-arrowhead {
+  fill: #52606d;
+}
+
+.nt-wb-shape-selected rect,
+.nt-wb-shape-selected ellipse,
+.nt-wb-shape-selected line {
+  stroke: #2563eb;
+}
+
+.nt-wb-stroke {
+  fill: none;
+  stroke: #52606d;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-wb-drawing {
+  stroke: #2563eb;
+}
+
+.nt-wb-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #d9dce1;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(31, 41, 51, 0.08);
+  overflow: hidden;
+}
+
+.nt-wb-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: #eef1f4;
+  border-bottom: 1px solid #e4e7eb;
+  font-size: 12px;
+  font-weight: 600;
+  color: #52606d;
+  cursor: grab;
+  user-select: none;
+}
+
+.nt-wb-card-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-wb-card-delete {
+  border: none;
+  background: none;
+  color: #7b8794;
+  padding: 0 2px;
+  line-height: 1;
+  font-size: 14px;
+}
+
+.nt-wb-card-delete:hover {
+  color: #b42318;
+}
+
+.nt-wb-card-body {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 13px;
+  overflow: auto;
+  cursor: text;
+}
+
+.nt-wb-card-editor {
+  min-height: 1em;
+  outline: none;
+}
+
+.nt-wb-label-input {
+  position: absolute;
+  font-size: 12px;
+  padding: 1px 4px;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+}
+
+.nt-wb-empty {
+  position: absolute;
+  left: 32px;
+  top: 32px;
+  padding: 24px 32px;
+  border: 2px dashed #c8cdd4;
+  border-radius: 10px;
+  color: #7b8794;
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.nt-wb-missing {
+  padding: 16px;
+  color: #7b8794;
+}
