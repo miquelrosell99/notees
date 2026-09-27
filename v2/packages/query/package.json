@@ -1,7 +1,7 @@
 {
-  "name": "@notees/protocol",
+  "name": "@notees/query",
   "version": "0.1.0-m1",
-  "description": "Notees v2 wire protocol: envelopes, operation types, HLC timestamps, content marks.",
+  "description": "Notees v2 query engine: versioned QueryAST model + parameterized SQLite compiler over the derived store.",
   "license": "AGPL-3.0",
   "type": "module",
   "sideEffects": false,
@@ -22,12 +22,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@notees/query": "workspace:*",
-    "uuidv7": "^1.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@notees/protocol": "workspace:*",
+    "@notees/store": "workspace:*",
     "@types/node": "^20.14.0",
+    "@types/sql.js": "^1.4.9",
+    "better-sqlite3": "^11.0.0",
+    "sql.js": "^1.10.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
@@ -37,7 +40,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/miquelrosell99/notees.git",
-    "directory": "v2/packages/protocol"
+    "url": "git+ssh://git@github.com:miquelrosell99/notees.git",
+    "directory": "v2/packages/query"
   }
 }

@@ -1,0 +1,205 @@
+/**
+ * QueryAST v1 — the canonical, serializable query model for Notees v2
+ * (port of v1 `app/domain/entities/query_ast.py` concepts, adapted to the v2
+ * derived schema: node_type replaces kind, edge replaces node_link as the
+ * reference index, class_hierarchy carries the transitive extends closure).
+ *
+ * Design laws (carried over from v1):
+ *  - the AST is the source of truth — UI and SQL are projections of it;
+ *  - the AST is versioned (`version: 1`) and evolves by versioned extension —
+ *    unknown condition types or newer versions FAIL LOUD at parse time
+ *    (`queryAstSchema` is strict; the protocol token wraps it in a loose union
+ *    so foreign blocks still apply — see @notees/protocol content-mark);
+ *  - scopes and conditions carry explicit ids; there are no editor-relative
+ *    placeholders in v1 (the compiler accepts `currentNodeId` for future
+ *    current-node-relative scopes, reserved).
+ */
+
+import { z } from "zod";
+
+const uuid = z.string().uuid();
+
+// --- scope ---------------------------------------------------------------------
+
+export type Scope =
+  | { type: "entire_workspace" }
+  | { type: "pages" }
+  | { type: "subtree"; pageId: string }
+  | { type: "linkedTo"; nodeId: string };
+
+export const scopeSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("entire_workspace") }).strict(),
+  z.object({ type: z.literal("pages") }).strict(),
+  /** The page plus every node under it (recursive parent_id walk). */
+  z.object({ type: z.literal("subtree"), pageId: uuid }).strict(),
+  /** Roll-up membership: backlinksWithRollup semantics (direct + containment). */
+  z.object({ type: z.literal("linkedTo"), nodeId: uuid }).strict(),
+]);
+
+// --- conditions ------------------------------------------------------------------
+
+export type NodeTypeValue = "page" | "block" | "class";
+
+export type PropertyOp = "eq" | "neq" | "contains" | "exists";
+export type ContentOp = "contains" | "fts";
+
+export type Condition =
+  | { type: "class"; classId: string }
+  | { type: "nodeType"; nodeType: NodeTypeValue }
+  | { type: "content"; op: ContentOp; value: string }
+  | {
+      type: "property";
+      schemaId: string;
+      op: PropertyOp;
+      value?: unknown;
+      /**
+       * Read through the effective-values read model (authored rows plus
+       * class-binding defaults derived at query time, first-class-applied-wins)
+       * — the same view the property panel shows. Default true; pass false to
+       * test authored property_value rows only.
+       */
+      includeDefaults?: boolean | undefined;
+    }
+  /** backlinksWithRollup semantics: direct edge to nodeId, or containment roll-up. */
+  | { type: "linkedTo"; nodeId: string }
+  /** node.created_at >= timestamp (ISO-8601, inclusive, lexicographic). */
+  | { type: "createdAfter"; timestamp: string }
+  /** node.created_at <= timestamp (ISO-8601, inclusive, lexicographic). */
+  | { type: "createdBefore"; timestamp: string };
+
+export const conditionSchema = z.discriminatedUnion("type", [
+  /** Hierarchy-aware: members of the class OR of any class extending it. */
+  z.object({ type: z.literal("class"), classId: uuid }).strict(),
+  z.object({
+    type: z.literal("nodeType"),
+    nodeType: z.enum(["page", "block", "class"]),
+  }).strict(),
+  /**
+   * contains: LIKE substring over the derived search plaintext (the same text
+   * the FTS index holds: name + content tokens, case-insensitive for ASCII).
+   * fts: prefix-AND FTS MATCH over search_index.
+   */
+  z.object({
+    type: z.literal("content"),
+    op: z.enum(["contains", "fts"]),
+    value: z.string().min(1),
+  }).strict(),
+  z.object({
+    type: z.literal("property"),
+    schemaId: uuid,
+    op: z.enum(["eq", "neq", "contains", "exists"]),
+    value: z.unknown().optional(),
+    includeDefaults: z.boolean().optional(),
+  }).strict(),
+  z.object({ type: z.literal("linkedTo"), nodeId: uuid }).strict(),
+  z.object({ type: z.literal("createdAfter"), timestamp: z.string().min(1) }).strict(),
+  z.object({ type: z.literal("createdBefore"), timestamp: z.string().min(1) }).strict(),
+]) satisfies z.ZodType<Condition>;
+
+// --- group / not -------------------------------------------------------------------
+// Recursive: zod needs explicit output annotations to type the cycle.
+
+export type Group = { type: "group"; logic: "and" | "or"; children: Child[] };
+export type Not = { type: "not"; child: Condition | Group };
+export type Child = Condition | Group | Not;
+
+export const groupSchema: z.ZodType<Group> = z.lazy(() =>
+  z
+    .object({
+      type: z.literal("group"),
+      logic: z.enum(["and", "or"]),
+      children: z.array(childSchema),
+    })
+    .strict(),
+);
+
+export const notSchema: z.ZodType<Not> = z.lazy(() =>
+  z
+    .object({
+      type: z.literal("not"),
+      child: z.union([conditionSchema, groupSchema]),
+    })
+    .strict(),
+);
+
+export const childSchema: z.ZodType<Child> = z.lazy(() =>
+  z.union([conditionSchema, groupSchema, notSchema]),
+);
+
+// --- sort ---------------------------------------------------------------------------
+
+export type SortField = "name" | "createdAt" | "nodeType";
+export type SortDir = "asc" | "desc";
+export type SortSpec = { field: SortField; dir: SortDir };
+
+export const sortSpecSchema = z
+  .object({
+    field: z.enum(["name", "createdAt", "nodeType"]),
+    dir: z.enum(["asc", "desc"]),
+  })
+  .strict();
+
+// --- aggregation (schema-defined, compilation deferred) ----------------------------
+
+export type Aggregation = {
+  type: "aggregation";
+  dimensions: Array<{ type: "dimension"; field: string; propertyType?: string | undefined }>;
+  measure: {
+    type: "measure";
+    function: "count" | "sum" | "avg" | "min" | "max";
+    field?: string | undefined;
+    propertyType?: string | undefined;
+  };
+};
+
+export const aggregationSchema = z
+  .object({
+    type: z.literal("aggregation"),
+    dimensions: z.array(
+      z
+        .object({
+          type: z.literal("dimension"),
+          field: z.string().min(1),
+          propertyType: z.string().optional(),
+        })
+        .strict(),
+    ),
+    measure: z
+      .object({
+        type: z.literal("measure"),
+        function: z.enum(["count", "sum", "avg", "min", "max"]),
+        field: z.string().optional(),
+        propertyType: z.string().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+// --- root ----------------------------------------------------------------------------
+
+export type QueryAst = {
+  version: 1;
+  scope: Scope;
+  root: Group;
+  sort?: SortSpec[] | undefined;
+  aggregation?: Aggregation | undefined;
+};
+
+export const queryAstSchema = z
+  .object({
+    version: z.literal(1),
+    scope: scopeSchema,
+    root: groupSchema,
+    sort: z.array(sortSpecSchema).optional(),
+    aggregation: aggregationSchema.optional(),
+  })
+  .strict() satisfies z.ZodType<QueryAst>;
+
+/** Parse + validate a serialized AST. Unknown condition types / versions fail loud. */
+export function parseQueryAst(input: unknown): QueryAst {
+  return queryAstSchema.parse(input);
+}
+
+export function safeParseQueryAst(input: unknown): z.SafeParseReturnType<unknown, QueryAst> {
+  return queryAstSchema.safeParse(input);
+}

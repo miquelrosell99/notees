@@ -214,6 +214,9 @@ importers:
 
   packages/protocol:
     dependencies:
+      '@notees/query':
+        specifier: workspace:*
+        version: link:../query
       uuidv7:
         specifier: ^1.0.0
         version: 1.2.1
@@ -224,6 +227,37 @@ importers:
       '@types/node':
         specifier: ^20.14.0
         version: 20.19.43
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
+
+  packages/query:
+    dependencies:
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@notees/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@notees/store':
+        specifier: workspace:*
+        version: link:../store
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      '@types/sql.js':
+        specifier: ^1.4.9
+        version: 1.4.11
+      better-sqlite3:
+        specifier: ^11.0.0
+        version: 11.10.0
+      sql.js:
+        specifier: ^1.10.0
+        version: 1.14.2
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
