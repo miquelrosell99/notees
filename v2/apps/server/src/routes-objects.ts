@@ -9,7 +9,13 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { uuidv7 } from "uuidv7";
 
-import { objectCreatePayload, objectUpdatePayload } from "@notees/protocol";
+import {
+  objectCreatePayload,
+  objectUpdatePayload,
+  propertySchemaCreatePayload,
+  propertySetPayload,
+  propertyUnsetPayload,
+} from "@notees/protocol";
 import type { NodeRow, Store } from "@notees/store";
 
 import type { ServerContext } from "./context.js";
@@ -21,8 +27,33 @@ const listQuerySchema = z
     nodeType: z.enum(["page", "block", "class"]).optional(),
     class: z.string().uuid().optional(),
     q: z.string().max(512).optional(),
+    /**
+     * Property filter `?property=<schemaId>:<value>` — exact match on the
+     * JSON-encoded scalar stored in property_value (a string value matches
+     * its JSON form, e.g. kuhn1962 ↔ "kuhn1962"). The value part is
+     * everything after the FIRST colon (URLs contain colons).
+     */
+    property: z
+      .string()
+      .regex(/^[^:]+:.*$/s)
+      .optional(),
     limit: z.coerce.number().int().min(1).max(500).default(50),
     cursor: z.string().optional(),
+  })
+  .strict();
+
+const propertyWriteBodySchema = z
+  .object({
+    propertySchemaId: z.string().uuid(),
+    value: z.unknown(),
+    idx: z.number().int().nonnegative().default(0),
+    metadata: z.record(z.unknown()).optional(),
+  })
+  .strict();
+
+const propertyDeleteQuerySchema = z
+  .object({
+    idx: z.coerce.number().int().nonnegative().default(0),
   })
   .strict();
 
@@ -178,6 +209,18 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       );
       params.push(classId);
     }
+    if (parsed.data.property !== undefined) {
+      const colon = parsed.data.property.indexOf(":");
+      const schemaId = parsed.data.property.slice(0, colon);
+      const rawValue = parsed.data.property.slice(colon + 1);
+      if (!z.string().uuid().safeParse(schemaId).success) {
+        throw new AppError(422, "validation_failed", "property filter schema id must be a UUID");
+      }
+      clauses.push(
+        "EXISTS (SELECT 1 FROM property_value pv WHERE pv.node_id = n.id AND pv.property_schema_id = ? AND pv.value = ?)",
+      );
+      params.push(schemaId, JSON.stringify(rawValue));
+    }
     if (q !== undefined) {
       const hits = store.search(q, 10_000);
       if (hits.length === 0) return { objects: [], nextCursor: null };
@@ -257,6 +300,119 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     });
     const row = requireNode(store, id);
     return { object: fullObject(store, row) };
+  });
+
+  app.post("/objects/:id/properties", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = propertyWriteBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid property body");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireNode(store, id);
+    const payload = { objectId: id, ...parsed.data };
+    const checked = propertySetPayload.safeParse(payload);
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid property.set payload");
+    }
+    await ctx.submit({
+      workspaceId,
+      opType: "property.set",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
+    reply.code(200);
+    return { object: fullObject(store, requireNode(store, id)) };
+  });
+
+  app.delete("/objects/:id/properties/:propertySchemaId", async (request) => {
+    const { id, propertySchemaId } = request.params as { id: string; propertySchemaId: string };
+    const parsed = propertyDeleteQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid property delete query");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireNode(store, id);
+    const payload = { objectId: id, propertySchemaId, idx: parsed.data.idx };
+    const checked = propertyUnsetPayload.safeParse(payload);
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid property.unset payload");
+    }
+    await ctx.submit({
+      workspaceId,
+      opType: "property.unset",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
+    return { object: fullObject(store, requireNode(store, id)) };
+  });
+
+  app.get("/property-schemas/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    const row = store.database
+      .prepare(
+        `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter
+         FROM property_schema WHERE id = ? AND active = 1`,
+      )
+      .get(id) as
+      | { id: string; name: string; type: string; multi: number; scope: string; options: string; targetClassFilter: string | null }
+      | undefined;
+    if (row === undefined) {
+      throw new AppError(404, "not_found", `property schema ${id} does not exist`);
+    }
+    return {
+      propertySchema: {
+        ...row,
+        multi: row.multi === 1,
+        options: JSON.parse(row.options) as unknown,
+        targetClassFilter: row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
+      },
+    };
+  });
+
+  app.post("/property-schemas", async (request, reply) => {
+    const parsed = propertySchemaCreatePayload.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid propertySchema.create payload");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    await ctx.submit({
+      workspaceId,
+      opType: "propertySchema.create",
+      payload: parsed.data as Record<string, unknown>,
+      client: "api",
+    });
+    const store = ctx.workspaces.storeFor(workspaceId);
+    const row = store.database
+      .prepare(
+        `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter
+         FROM property_schema WHERE id = ? AND active = 1`,
+      )
+      .get(parsed.data.propertySchemaId) as
+      | { id: string; name: string; type: string; multi: number; scope: string; options: string; targetClassFilter: string | null }
+      | undefined;
+    if (row === undefined) {
+      throw new AppError(404, "not_found", `property schema ${parsed.data.propertySchemaId} does not exist`);
+    }
+    reply.code(201);
+    return {
+      propertySchema: {
+        ...row,
+        multi: row.multi === 1,
+        options: JSON.parse(row.options) as unknown,
+        targetClassFilter: row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
+      },
+    };
   });
 
   app.delete("/objects/:id", async (request) => {
