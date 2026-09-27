@@ -28,7 +28,8 @@ The model is implemented; the product around it is a slice. We say exactly which
 - Local-first sync engine — outbox push, seq-cursor catch-up, snapshot shortcut, optimistic local apply
 - Fastify server — relay (batch/catch-up/snapshot/compact/stats + WebSocket), object API, CAS asset storage
 - CLI — object CRUD, search, backlinks, class list, asset add/get, sync status, doctor
-- Web client — interactive outliner (text core, marks editing, `@`/`#`/`+` capture gestures, collapse, prose mode, drag reorder), Page View + Class View, system sections with the lazy-loading contract, live embed transclusion, WebSocket realtime with sync status, OPFS persistence in a worker
+- Web client — interactive outliner (text core, marks editing, `@`/`#`/`+` capture gestures, collapse, prose mode, drag reorder), Page View + Class View (editable property bindings), system sections with the lazy-loading contract, live embed transclusion, whiteboard canvas, WebSocket realtime with sync status, OPFS persistence in a worker
+- Live query blocks (query tokens render results with a builder + export-on-query), citations (BibTeX/CSL round-trip; sources carry files via `attachments` and notes as child blocks), class-property defaults as a derived read model (first-applied-wins), Markdown export (CLI: `--ids` / `--linked-to` closures)
 
 **Designed, coming**
 
