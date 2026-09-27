@@ -139,9 +139,29 @@ describe("Class View", () => {
     fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
     await flushWrites();
 
-    const memberRow = screen.getByRole("button", { name: /ada lovelace/i });
+    const memberRow = screen.getByRole("button", { name: "Ada Lovelace" });
     fireEvent.click(memberRow);
     expect(onOpenNode).toHaveBeenCalledWith(pageId);
+  });
+
+  it("removes a member via the row's × (class.unassign)", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("agent");
+    const pageId = await client.createObject({ nodeType: "page", name: "Ada Lovelace" });
+    await client.assignClass(pageId, classId);
+    render(<ClassView client={client} classId={classId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
+    await flushWrites();
+
+    expect(screen.getByRole("button", { name: "Ada Lovelace" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Ada Lovelace from agent" }));
+    await flushWrites();
+
+    // class.unassign: the membership pair is tombstoned, class_ids recomputed.
+    expect(client.getNode(pageId)?.classIds).toEqual([]);
+    // The expanded section re-ran its query on the notification.
+    expect(screen.getByText("No classed nodes.")).not.toBeNull();
   });
 
   it("renders the seeded property bindings in sequence order", async () => {

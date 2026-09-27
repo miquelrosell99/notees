@@ -132,4 +132,42 @@ describe("Properties panel (effective values)", () => {
       expect.objectContaining({ value: "high", source: "default", boundBy: projectId }),
     ]);
   });
+
+  it("renders the node's classes as chips; the × unassigns — the default drops, an authored value survives unbound", async () => {
+    const client = await seedClient();
+    const { schemaId, taskId, projectId } = await seedPriorityClasses(client);
+    // 'effort' is bound ONLY on Task: its authored value must survive the
+    // unassign with boundBy null (no remaining class binds it).
+    const effortSchemaId = await client.createPropertySchema({ name: "effort", type: "text" });
+    await client.setClassProperty(taskId, effortSchemaId, { sequence: 1, defaultValue: "xs" });
+
+    const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
+    await client.assignClass(pageId, taskId);
+    await client.assignClass(pageId, projectId);
+    await client.setProperty(pageId, effortSchemaId, "authored", 0);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Both classes render as chips, each with a remove affordance.
+    expect(container.querySelectorAll(".nt-class-chip").length).toBe(2);
+    expect(screen.getByRole("button", { name: "Remove class Task" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Remove class Project" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove class Task" }));
+    await flushWrites();
+
+    // class.unassign: membership tombstoned, class_ids recomputed.
+    expect(client.getNode(pageId)?.classIds).toEqual([projectId]);
+    // The panel re-renders: Task's chip is gone.
+    expect(container.querySelectorAll(".nt-class-chip").length).toBe(1);
+    expect(screen.queryByRole("button", { name: "Remove class Task" })).toBeNull();
+
+    // The read model: Task's derived defaults are gone; Project's 'high'
+    // resurfaces for priority (still bound), and the authored effort value
+    // survives marked unbound (boundBy null).
+    expect(client.getEffectiveProperties(pageId)).toEqual([
+      expect.objectContaining({ propertySchemaId: schemaId, value: "high", source: "default", boundBy: projectId }),
+      expect.objectContaining({ propertySchemaId: effortSchemaId, value: "authored", source: "authored", boundBy: null }),
+    ]);
+    expect(screen.getByText("unbound")).not.toBeNull();
+  });
 });
