@@ -447,6 +447,31 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     return { nodeId: id, backlinks: store.backlinks(id) };
   });
 
+  // Effective properties: authored rows ∪ derived class-binding defaults
+  // (source: "authored" | "default", boundBy). The authored-only view lives
+  // on GET /objects/:id — this is the read model per SCHEMA.md.
+  app.get("/objects/:id/effective-properties", async (request) => {
+    const { id } = request.params as { id: string };
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    const properties = store.getEffectiveProperties(id).map((row) => ({
+      schemaId: row.propertySchemaId,
+      schemaName: row.schema?.name ?? null,
+      schemaType: row.schema?.type ?? null,
+      idx: row.idx,
+      value: row.value,
+      metadata: row.metadata,
+      source: row.source,
+      boundBy: row.boundBy,
+      required: row.required,
+      readonly: row.readonly,
+      hideWhenEmpty: row.hideWhenEmpty,
+      sequence: row.sequence,
+    }));
+    return { nodeId: id, properties };
+  });
+
   app.get("/search", async (request) => {
     const parsed = searchQuerySchema.safeParse(request.query);
     if (!parsed.success) {
