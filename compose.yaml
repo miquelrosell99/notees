@@ -1,98 +1,36 @@
-# Docker Compose for Production
-# Uses the released Docker image built from Dockerfile.
-#
-# Usage:
-#   export TAG=v0.2.0   # or latest
-#   docker compose up -d
-#
-# Services:
-#   backend — all-in-one sync server (API + relay); also serves the baked-in
-#             frontend on ${NOTES_PORT:-8000}.
-#   web     — optional standalone static web client (notees-web image). Points
-#             at the sync server via NOTEES_SERVER_URL (a browser-reachable
-#             URL). Only needed if you want the web client on its own port;
-#             otherwise the backend already serves the UI.
+# Notees v2 — production stack (notees-sync server + notees-web client).
+# Images are prebuilt and published to ghcr (see v2/apps/*/Dockerfile);
+# tags are pinned per release. Dev stack: compose.dev.yaml (v1, legacy).
+# Data lives under ./config/notees/ (gitignored); the v1 app data in ./data/
+# is untouched by this stack.
 
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: notees-redis
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  db:
-    image: postgres:17-alpine
-    container_name: notees-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      TZ: ${TZ:-UTC}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-  backend:
-    image: ghcr.io/miquelrosell99/notees:${TAG:-latest}
-    container_name: notees-backend
-    restart: unless-stopped
+  notees-sync:
+    image: ghcr.io/miquelrosell99/notees-sync:${NOTEES_SYNC_TAG:-2.0.0-m1}
+    container_name: notees-sync
     ports:
-      - "${NOTES_PORT:-8000}:8000"
-    env_file:
-      - .env
-    environment:
-      HOST: 0.0.0.0
-      TZ: ${TZ:-UTC}
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379/0
-      PUID: ${PUID:-1000}
-      PGID: ${PGID:-1000}
+      - "${NOTEES_SYNC_PORT:-8377}:8377"
     volumes:
-      - app-data:/app/data
-      - app-logs:/app/logs
+      - ./config/notees/sync:/data
+    environment:
+      - NOTEES_DATA_DIR=/data
+      - NOTEES_CORS_ORIGIN=${NOTEES_CORS_ORIGIN:-http://localhost:8080}
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      test: wget -qO- http://localhost:8377/healthz || exit 1
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 30s
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  # Standalone static web client (optional; the backend already serves the UI).
-  # NOTEES_SERVER_URL must be a browser-reachable URL of the sync server.
-  web:
-    image: ghcr.io/miquelrosell99/notees-web:${TAG:-latest}
-    container_name: notees-web
+      start_period: 15s
     restart: unless-stopped
+
+  notees-web:
+    image: ghcr.io/miquelrosell99/notees-web:${NOTEES_WEB_TAG:-2.0.0-m1}
+    container_name: notees-web
     ports:
       - "${NOTEES_WEB_PORT:-8080}:80"
     environment:
-      NOTEES_SERVER_URL: ${NOTEES_SERVER_URL:-}
+      - NOTEES_SERVER_URL=${NOTEES_SERVER_URL:-http://localhost:8377}
     depends_on:
-      backend:
+      notees-sync:
         condition: service_healthy
-
-volumes:
-  postgres-data:
-  redis-data:
-  app-data:
-  app-logs:
+    restart: unless-stopped
