@@ -28,13 +28,11 @@ import {
   concatBundleMarkdown,
   cslToBib,
   cslToNodeSpecs,
-  formatAuthorName,
+  deriveDisplayName,
   nodeToCsl,
   parseBibtex,
   serializeBibEntry,
   sourceClassOf,
-  type BibliographicPerson,
-  type ExportNode,
 } from "@notees/export";
 
 import { ApiClient } from "./client.js";
@@ -437,10 +435,10 @@ async function deleteProperty(
  * converge on the same ids). Seeded workspaces already carry the
  * bibliographic schemas, so the create path only fires for unseeded ones.
  *
- * M1 drift note (no migration): workspaces seeded before the 2026-09-27
- * citations revision carry `authors` as node-typed (object, agent-filtered)
- * from the old seed spec. The fixed UUID matches, so this get-or-create is a
- * no-op there and the stored row keeps its old type (throwaway M1 data).
+ * M1 drift note (no migration): workspaces seeded during the brief
+ * 2026-09-27 text-authors window carry `authors` as text-multi from that
+ * seed spec. The fixed UUID matches, so this get-or-create is a no-op
+ * there and the stored row keeps its old type (throwaway M1 data).
  */
 async function ensurePropertySchema(ctx: CommandContext, name: SystemPropertyName): Promise<void> {
   const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name];
@@ -492,24 +490,62 @@ async function importBibtex(ctx: CommandContext, filePath: string): Promise<void
   }
   for (const name of usedNames) await ensurePropertySchema(ctx, name);
 
-  const counts = { created: 0, updated: 0 };
+  const counts = { created: 0, updated: 0, persons: 0, personsCreated: 0 };
+  const personIds = new Map<string, string>(); // literal name → person id (per-run dedupe)
   const importedIds: string[] = [];
   for (const entry of entries) {
     const spec = cslToNodeSpecs(bibToCsl(entry));
-    // Authors are a plain multi-value TEXT property, verbatim BibTeX strings —
-    // no person nodes are created on import (SCHEMA.md "Citations").
-    const authorLiterals = spec.authors
-      .map((name) => formatAuthorName(name))
-      .filter((literal) => literal.length > 0);
-    importedIds.push(await upsertSourceByCitekey(ctx, spec, authorLiterals, counts));
+    // Authors are node-typed to agent nodes (SCHEMA.md "Citations", FINAL
+    // owner decision 2026-09-27): find-or-create one person per name string.
+    const authorIds: string[] = [];
+    for (const literal of spec.authors) {
+      if (literal.length === 0) continue;
+      let personId = personIds.get(literal);
+      if (personId === undefined) {
+        personId = await findOrCreatePerson(ctx, literal, counts);
+        personIds.set(literal, personId);
+        counts.persons += 1;
+      }
+      authorIds.push(personId);
+    }
+    importedIds.push(await upsertSourceByCitekey(ctx, spec, authorIds, counts));
   }
 
   const machine = { ...counts, entries: importedIds };
   emit(
     ctx,
-    `imported ${entries.length} entries: ${counts.created} created, ${counts.updated} updated\n`,
+    `imported ${entries.length} entries: ${counts.created} created, ${counts.updated} updated, ` +
+      `${counts.persons} persons (${counts.personsCreated} new)\n`,
     machine,
   );
+}
+
+/** M1 person match: exact display name via the objects?q= title search. */
+async function findPersonByName(ctx: CommandContext, literal: string): Promise<string | undefined> {
+  const query = queryString({ q: literal });
+  const body = await ctx.client.getJson<{ objects: FullApiObject[] }>(`/api/v1/objects${query}`);
+  return body.objects.find(
+    (object) =>
+      object.name === literal &&
+      (object.classIds.includes(SYSTEM_CLASS_UUIDS.person) ||
+        object.classIds.includes(SYSTEM_CLASS_UUIDS.agent)),
+  )?.id;
+}
+
+async function findOrCreatePerson(
+  ctx: CommandContext,
+  literal: string,
+  counts: { personsCreated: number },
+): Promise<string> {
+  const existing = await findPersonByName(ctx, literal);
+  if (existing !== undefined) return existing;
+  const created = await ctx.client.postJson<{ id: string }>("/api/v1/objects", {
+    nodeType: "page",
+    name: literal,
+    classIds: [SYSTEM_CLASS_UUIDS.person],
+  });
+  counts.personsCreated += 1;
+  return created.id;
 }
 
 /** Citekey lookup — the property filter matches the JSON-encoded scalar. */
@@ -527,7 +563,7 @@ async function findSourceByCitekey(
 async function upsertSourceByCitekey(
   ctx: CommandContext,
   spec: ReturnType<typeof cslToNodeSpecs>,
-  authorLiterals: string[],
+  authorIds: string[],
   counts: { created: number; updated: number },
 ): Promise<string> {
   const existing = await findSourceByCitekey(ctx, spec.citekey);
@@ -561,28 +597,16 @@ async function upsertSourceByCitekey(
   if (spec.publicationDate !== undefined) {
     await setIfChanged(SYSTEM_PROPERTY_UUIDS.publicationDate, spec.publicationDate);
   }
-  // Authors: plain text list, replace wholesale — set the new list, unset the stale tail.
+  // Authors: node-typed list, replace wholesale — set the new {nodeId} refs,
+  // unset the stale tail.
   const previousCount = properties.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors).length;
-  for (let idx = 0; idx < authorLiterals.length; idx += 1) {
-    await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.authors, authorLiterals[idx], idx);
+  for (let idx = 0; idx < authorIds.length; idx += 1) {
+    await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.authors, { nodeId: authorIds[idx] }, idx);
   }
-  for (let idx = authorLiterals.length; idx < previousCount; idx += 1) {
+  for (let idx = authorIds.length; idx < previousCount; idx += 1) {
     await deleteProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.authors, idx);
   }
   return id;
-}
-
-function personFromNode(node: ExportNode): BibliographicPerson {
-  const textProp = (schemaId: string): string | null => {
-    const value = node.properties.find((p) => p.schemaId === schemaId)?.value;
-    return typeof value === "string" && value.length > 0 ? value : null;
-  };
-  return {
-    id: node.id,
-    name: node.name,
-    givenName: textProp(SYSTEM_PROPERTY_UUIDS.givenName),
-    familyName: textProp(SYSTEM_PROPERTY_UUIDS.familyName),
-  };
 }
 
 async function exportBibtex(ctx: CommandContext, options: {
@@ -602,27 +626,42 @@ async function exportBibtex(ctx: CommandContext, options: {
   const rendered: string[] = [];
   const entryIds: string[] = [];
   let skipped = 0;
+
+  // The `authors` property is node-typed ({nodeId} refs, agent-filtered) —
+  // resolve every referenced author to its current display name up front,
+  // batched through the objects API (the resolver caches per id).
+  const authorIds = new Set<string>();
+  for (const node of included.values()) {
+    if (sourceClassOf(node.classIds) === undefined) continue;
+    for (const property of node.properties) {
+      if (property.schemaId !== SYSTEM_PROPERTY_UUIDS.authors) continue;
+      if (isRecord(property.value) && typeof property.value.nodeId === "string") {
+        authorIds.add(property.value.nodeId);
+      }
+    }
+  }
+  const authorNames = new Map<string, string>();
+  for (const authorId of authorIds) {
+    const authorNode = await resolver.getObject(authorId);
+    if (authorNode === undefined) continue;
+    const displayName = deriveDisplayName(authorNode) || authorNode.name?.trim() || "";
+    if (displayName.length > 0) authorNames.set(authorId, displayName);
+  }
+
   for (const node of included.values()) {
     if (sourceClassOf(node.classIds) === undefined) {
       skipped += 1;
       continue;
     }
-    // The `authors` TEXT values are read by nodeToCsl directly; here we only
-    // resolve the `linkedAuthors` person refs for the export union.
-    const linkedAuthorIds = node.properties
-      .filter((property) => property.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors)
+    const authors = node.properties
+      .filter((property) => property.schemaId === SYSTEM_PROPERTY_UUIDS.authors)
       .map((property) =>
         isRecord(property.value) && typeof property.value.nodeId === "string"
-          ? property.value.nodeId
+          ? authorNames.get(property.value.nodeId)
           : undefined,
       )
-      .filter((id): id is string => id !== undefined);
-    const linkedAuthors: BibliographicPerson[] = [];
-    for (const personId of linkedAuthorIds) {
-      const personNode = await resolver.getObject(personId);
-      if (personNode !== undefined) linkedAuthors.push(personFromNode(personNode));
-    }
-    rendered.push(serializeBibEntry(cslToBib(nodeToCsl(node, node.properties, linkedAuthors))));
+      .filter((name): name is string => name !== undefined);
+    rendered.push(serializeBibEntry(cslToBib(nodeToCsl(node, node.properties, authors))));
     entryIds.push(node.id);
   }
 
@@ -835,7 +874,7 @@ function buildProgram(): Command {
   const importCmd = program.command("import").description("import operations");
   importCmd
     .command("bibtex <file>")
-    .description("import a .bib file (authors as a text list — no person nodes; upsert sources by citekey)")
+    .description("import a .bib file (find-or-create author persons, upsert sources by citekey)")
     .action(async (filePath: string, _options: object, command: Command) => {
       await importBibtex(ctxOf(command), filePath);
     });
