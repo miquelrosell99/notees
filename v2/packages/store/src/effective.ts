@@ -23,6 +23,10 @@ export interface EffectivePropertySchema {
   name: string;
   type: string;
   multi: boolean;
+  /** SCHEMA.md "Dates": finest granularity a date value may claim (NULL = day). */
+  datePrecision: "year" | "month" | "day" | null;
+  /** SCHEMA.md "Dates": node-typed values may carry date qualifiers. */
+  dateQualified: boolean | null;
 }
 
 /**
@@ -158,11 +162,29 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     const placeholders = [...schemaIds].map(() => "?").join(",");
     const rows = db
       .prepare(
-        `SELECT id, name, type, multi FROM property_schema WHERE id IN (${placeholders})`,
+        `SELECT id, name, type, multi, date_precision, date_qualified
+         FROM property_schema WHERE id IN (${placeholders})`,
       )
-      .all(...schemaIds) as Array<{ id: string; name: string; type: string; multi: number }>;
+      .all(...schemaIds) as Array<{
+      id: string;
+      name: string;
+      type: string;
+      multi: number;
+      date_precision: string | null;
+      date_qualified: number | null;
+    }>;
     for (const row of rows) {
-      schemas.set(row.id, { id: row.id, name: row.name, type: row.type, multi: row.multi === 1 });
+      schemas.set(row.id, {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        multi: row.multi === 1,
+        datePrecision:
+          row.date_precision === "year" || row.date_precision === "month" || row.date_precision === "day"
+            ? row.date_precision
+            : null,
+        dateQualified: row.date_qualified === null ? null : row.date_qualified === 1,
+      });
     }
   }
 

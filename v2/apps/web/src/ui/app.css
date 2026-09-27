@@ -1241,6 +1241,193 @@ span.nt-chip-label {
   gap: 6px;
 }
 
+/* --- date picker (zoom grids) ------------------------------------------------ */
+
+.nt-property-date,
+.nt-property-date-range {
+  position: relative;
+  align-items: flex-start;
+}
+
+.nt-datepicker {
+  margin: 4px 0 8px 148px;
+  width: 280px;
+  background: #ffffff;
+  border: 1px solid #e4e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15, 30, 45, 0.12);
+  padding: 8px;
+}
+
+.nt-datepicker-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.nt-datepicker-nav,
+.nt-datepicker-close {
+  font: inherit;
+  font-size: 14px;
+  color: #616e7c;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.nt-datepicker-nav:hover,
+.nt-datepicker-close:hover {
+  background: #f2f4f7;
+}
+
+.nt-datepicker-breadcrumb {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3e4c59;
+}
+
+.nt-datepicker-crumb {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #175cd3;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.nt-datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+
+.nt-datepicker-grid-days {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.nt-datepicker-weekday {
+  text-align: center;
+  font-size: 11px;
+  color: #9aa5b1;
+  padding: 2px 0;
+}
+
+.nt-datepicker-cellbox {
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+}
+
+.nt-datepicker-cellbox:hover {
+  background: #eef4ff;
+}
+
+.nt-datepicker-cell {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  color: #3e4c59;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 0 5px 4px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.nt-datepicker-cell:hover,
+.nt-datepicker-cell:focus {
+  background: #eef4ff;
+  outline: none;
+}
+
+.nt-datepicker-cell-selected,
+.nt-datepicker-cell-selected:hover {
+  background: #175cd3;
+  color: #ffffff;
+}
+
+.nt-datepicker-cell-drill {
+  font: inherit;
+  font-size: 9px;
+  line-height: 1;
+  color: #9aa5b1;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 0 3px;
+  cursor: pointer;
+}
+
+.nt-datepicker-cell-drill:hover,
+.nt-datepicker-cell-drill:focus {
+  color: #175cd3;
+  outline: none;
+}
+
+.nt-datepicker-cell-muted .nt-datepicker-cell,
+.nt-datepicker-cell-muted .nt-datepicker-cell-drill {
+  color: #c2c9d1;
+}
+
+/* --- date range rows + link qualifiers ---------------------------------------- */
+
+.nt-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e4e7eb;
+  border-radius: 999px;
+  padding: 1px 10px;
+  background: #ffffff;
+}
+
+.nt-range-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nt-range-slot-name {
+  font-size: 11px;
+  color: #9aa5b1;
+}
+
+.nt-chip-qualifier {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+}
+
+.nt-chip-qualifier-input {
+  font: inherit;
+  font-size: 12px;
+  color: #616e7c;
+  padding: 1px 4px;
+  border: 1px solid #e4e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+  width: 130px;
+}
+
+.nt-class-binding-precision {
+  font: inherit;
+  font-size: 12px;
+  color: #616e7c;
+  padding: 1px 4px;
+  border: 1px solid #c8cdd4;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
 .nt-picker-list {
   list-style: none;
   margin: 0;

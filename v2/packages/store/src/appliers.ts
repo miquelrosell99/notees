@@ -866,11 +866,13 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
   const p = env.payload as OpPayload<"propertySchema.create">;
   db.prepare(
     `INSERT INTO property_schema
-       (id, workspace_id, name, type, multi, scope, options, target_class_filter, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+       (id, workspace_id, name, type, multi, scope, options, target_class_filter,
+        date_precision, date_qualified, active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name, type = excluded.type, multi = excluded.multi, scope = excluded.scope,
        options = excluded.options, target_class_filter = excluded.target_class_filter,
+       date_precision = excluded.date_precision, date_qualified = excluded.date_qualified,
        active = 1, updated_at = excluded.updated_at`,
   ).run(
     p.propertySchemaId,
@@ -881,6 +883,8 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
     p.scope,
     JSON.stringify(p.options ?? []),
     p.targetClassFilter !== undefined ? JSON.stringify(p.targetClassFilter) : null,
+    p.datePrecision ?? null,
+    p.dateQualified !== undefined ? (p.dateQualified ? 1 : 0) : null,
     env.timestamp,
     env.timestamp,
   );
@@ -899,6 +903,14 @@ function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSumm
   if (p.options !== undefined) {
     sets.push("options = ?");
     values.push(JSON.stringify(p.options));
+  }
+  if (p.datePrecision !== undefined) {
+    sets.push("date_precision = ?");
+    values.push(p.datePrecision);
+  }
+  if (p.dateQualified !== undefined) {
+    sets.push("date_qualified = ?");
+    values.push(p.dateQualified ? 1 : 0);
   }
   if (sets.length === 0) return summary(opType, [], true);
   sets.push("updated_at = ?");

@@ -30,6 +30,7 @@ import type {
   SetClassPropertyInput,
   SyncStatusSnapshot,
   UpdateObjectInput,
+  UpdatePropertySchemaInput,
 } from "./workspace-client.js";
 import { createAnnotation, fetchAssetBlob, postAssetUpload } from "./workspace-client.js";
 import type {
@@ -324,19 +325,61 @@ export class WorkerClient {
     return (await this.call("createPropertySchema", [input])) as string;
   }
 
+  /** Patch a property schema (propertySchema.update — name/options/dates). */
+  async updatePropertySchema(
+    propertySchemaId: string,
+    fields: UpdatePropertySchemaInput,
+  ): Promise<void> {
+    await this.call("updatePropertySchema", [propertySchemaId, fields]);
+  }
+
   /** Author a property value (property.set) — shadows any derived default. */
   async setProperty(
     objectId: string,
     propertySchemaId: string,
     value: unknown,
     idx?: number,
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
-    await this.call("setProperty", [objectId, propertySchemaId, value, idx]);
+    await this.call("setProperty", [objectId, propertySchemaId, value, idx, metadata]);
   }
 
   /** Clear an authored property value (property.unset). */
   async unsetProperty(objectId: string, propertySchemaId: string, idx?: number): Promise<void> {
     await this.call("unsetProperty", [objectId, propertySchemaId, idx]);
+  }
+
+  /** Ensure the year/month/day chain for a date; returns the three node ids. */
+  async ensureDateChain(
+    isoDate: string,
+  ): Promise<{ year: string; month: string; day: string }> {
+    return (await this.call("ensureDateChain", [isoDate])) as {
+      year: string;
+      month: string;
+      day: string;
+    };
+  }
+
+  /** Set a date value at the schema's precision (chain create + property.set). */
+  async setDateProperty(
+    objectId: string,
+    propertySchemaId: string,
+    isoDate: string,
+    idx?: number,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    await this.call("setDateProperty", [objectId, propertySchemaId, isoDate, idx, metadata]);
+  }
+
+  /** Set a date_range value ({start, end} refs, either side open). */
+  async setDateRangeProperty(
+    objectId: string,
+    propertySchemaId: string,
+    start: string | null,
+    end: string | null,
+    idx?: number,
+  ): Promise<void> {
+    await this.call("setDateRangeProperty", [objectId, propertySchemaId, start, end, idx]);
   }
 
   /** Create an annotation on an asset (composed write over the RPC primitives). */

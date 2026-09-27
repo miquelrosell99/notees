@@ -269,6 +269,40 @@ export function ClassView({
                       {label}
                     </label>
                   ))}
+                  {(binding.type === "date" || binding.type === "date_range") && (
+                    <label className="nt-class-binding-flag">
+                      Precision
+                      <select
+                        className="nt-class-binding-precision"
+                        aria-label={`Date precision for ${binding.name}`}
+                        value={binding.datePrecision ?? "day"}
+                        onChange={(event) => {
+                          void client.updatePropertySchema(binding.propertySchemaId, {
+                            datePrecision: event.target.value as "year" | "month" | "day",
+                          });
+                        }}
+                      >
+                        <option value="day">day</option>
+                        <option value="month">month</option>
+                        <option value="year">year</option>
+                      </select>
+                    </label>
+                  )}
+                  {binding.type === "object" && (
+                    <label className="nt-class-binding-flag">
+                      <input
+                        type="checkbox"
+                        checked={binding.dateQualified === true}
+                        aria-label={`Date qualified for ${binding.name}`}
+                        onChange={(event) => {
+                          void client.updatePropertySchema(binding.propertySchemaId, {
+                            dateQualified: event.target.checked,
+                          });
+                        }}
+                      />
+                      Date qualified
+                    </label>
+                  )}
                   <button
                     type="button"
                     className="nt-class-binding-remove"
