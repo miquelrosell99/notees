@@ -3,17 +3,15 @@
 # Stage layout:
 #   deps  — `pnpm fetch` warms the store from the lockfile alone (cached until
 #           the lockfile changes; no manifest list to maintain)
-#   build — full sources; offline install; explicit package build order
-#           (query → protocol → domain → store → sync → export, then the app);
-#           output: apps/web/dist (static assets + worker chunk + sql.js wasm)
+#   build — full sources; offline install; `--filter @notees/web...` builds
+#           the app plus its workspace dependencies in pnpm's topological
+#           order (protocol first — it depends on no workspace package —
+#           then its dependents); output: apps/web/dist (static assets +
+#           worker chunk + sql.js wasm)
 #   final — nginx:1.27-alpine; the stock /docker-entrypoint.d mechanism runs
 #           50-notees-config.sh, which writes /config.js from
 #           NOTEES_SERVER_URL (baked as a build ARG, overridable at runtime
 #           with -e) before nginx starts.
-#
-# The explicit package order exists because of a dev-only dependency cycle
-# (protocol imports @notees/query for the query-token schema); see
-# packages/protocol/SCHEMA.md owed work for the structural fix.
 
 # ---------- deps ----------
 FROM node:22-alpine AS deps
@@ -26,8 +24,7 @@ RUN pnpm fetch
 FROM deps AS build
 COPY . .
 RUN pnpm install --offline --frozen-lockfile
-RUN for p in query protocol domain store sync export; do pnpm --filter @notees/$p build; done \
-    && pnpm --filter @notees/web build
+RUN pnpm --filter @notees/web... build
 
 # ---------- runtime ----------
 FROM nginx:1.27-alpine
