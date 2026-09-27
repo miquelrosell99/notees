@@ -236,3 +236,66 @@ describe("property schemas", () => {
     expect(bad.statusCode).toBe(422);
   });
 });
+
+describe("effective-properties endpoint", () => {
+  it("returns authored rows plus derived class-binding defaults (source/boundBy)", async () => {
+    // Create the classed node first — it triggers workspace seeding (the
+    // binding op below requires the source class node to exist).
+    const created = await api("POST", "/api/v1/objects", {
+      payload: {
+        nodeType: "page",
+        name: "EffPage",
+        classIds: [SYSTEM_CLASS_UUIDS.source],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().id as string;
+
+    // Bind a default onto the seeded source class via the relay batch.
+    const envelope = {
+      id: "0192a000-0000-7000-8000-000000000601",
+      protocolVersion: 2,
+      workspaceId: server!.ctx.defaultWorkspace,
+      actorId: "0192a000-0000-7000-8000-000000000002",
+      deviceId: "test-device",
+      hlc: { physical: 9999999999999, logical: 0 },
+      affectedNodeIds: [SYSTEM_CLASS_UUIDS.source],
+      opType: "class.property.set",
+      timestamp: "2026-09-27T10:00:00.000Z",
+      payload: {
+        classId: SYSTEM_CLASS_UUIDS.source,
+        propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey,
+        sequence: 40,
+        defaultValue: "default-key",
+      },
+    };
+    const batch = await server!.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { ...server!.authHeaders, "content-type": "application/json" },
+      payload: { envelopes: [envelope] },
+    });
+    expect(batch.statusCode).toBe(200);
+    expect(batch.json().savedCount).toBe(1);
+
+    const res = await api("GET", `/api/v1/objects/${id}/effective-properties`);
+    expect(res.statusCode).toBe(200);
+    const properties = res.json().properties as Array<Record<string, unknown>>;
+    const citekey = properties.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey);
+    expect(citekey).toMatchObject({
+      value: "default-key",
+      source: "default",
+      boundBy: SYSTEM_CLASS_UUIDS.source,
+    });
+
+    // An authored value shadows the default.
+    await api("POST", `/api/v1/objects/${id}/properties`, {
+      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "authored-key" },
+    });
+    const after = await api("GET", `/api/v1/objects/${id}/effective-properties`);
+    const overridden = (after.json().properties as Array<Record<string, unknown>>).find(
+      (p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey,
+    );
+    expect(overridden).toMatchObject({ value: "authored-key", source: "authored" });
+  });
+});
