@@ -13,6 +13,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // Generous timeouts kept as a bounded safety margin.
 vi.setConfig({ hookTimeout: 30_000, testTimeout: 30_000 });
 
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { bibToCsl, parseBibtex } from "@notees/export";
+
 import { buildServer } from "@notees/server";
 
 import { run, type CliIo } from "../src/cli.js";
@@ -398,5 +401,186 @@ describe("export markdown", () => {
     expect(await h.runCli("export", "markdown", "--stdout")).toBe(EXIT.usage);
     expect(await h.runCli("export", "markdown", "--ids", crypto.randomUUID())).toBe(EXIT.usage);
     expect(h.io.stderrText).toContain("--output-dir");
+  });
+});
+
+const BIB_FIXTURE = `% Round-trip fixture
+@book{cli-kuhn1962,
+  title     = {The {Structure} of {Scientific} {Revolutions}},
+  author    = {Kuhn, Thomas S.},
+  year      = 1962,
+  publisher = {University of Chicago Press},
+  isbn      = {9780226458120},
+}
+@article{cli-david1962,
+  title   = {Combinatorial Chance à la française},
+  author  = {David, F. N. and Barton, D. E.},
+  year    = {1962},
+  doi     = {10.2307/2333763},
+}`;
+
+describe("bibliography round-trip (bibtex)", () => {
+  it("import creates sources with classes/properties and find-or-created person authors", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-1.bib");
+    writeFileSync(file, BIB_FIXTURE);
+
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText);
+    expect(counts).toMatchObject({ created: 2, updated: 0, persons: 3, personsCreated: 3 });
+
+    // The book source: class + title + citekey + bibliographic properties.
+    const bookId = counts.entries[0] as string;
+    expect(bookId).toMatch(/^[0-9a-f-]{36}$/);
+    await h.runCli("--json", "object", "get", bookId);
+    const book = JSON.parse(h.io.stdoutText).object;
+    expect(book.name).toBe("The Structure of Scientific Revolutions");
+    expect(book.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    const props = book.properties as { schemaId: string; value: unknown }[];
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey)?.value).toBe("cli-kuhn1962");
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)?.value).toBe("9780226458120");
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publisher)?.value).toBe(
+      "University of Chicago Press",
+    );
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publicationDate)?.value).toBe("1962");
+    const authorRef = props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors)?.value as {
+      nodeId: string;
+    };
+    expect(authorRef.nodeId).toMatch(/^[0-9a-f-]{36}$/);
+
+    // The paper source maps article → paper class.
+    const paperId = counts.entries[1] as string;
+    await h.runCli("--json", "object", "get", paperId);
+    const paper = JSON.parse(h.io.stdoutText).object;
+    expect(paper.classIds).toContain(SYSTEM_CLASS_UUIDS.paper);
+    const paperProps = paper.properties as { schemaId: string; value: unknown }[];
+    expect(paperProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.doi)?.value).toBe("10.2307/2333763");
+
+    // The author person node: person class + given/family name properties.
+    await h.runCli("--json", "object", "get", authorRef.nodeId);
+    const person = JSON.parse(h.io.stdoutText).object;
+    expect(person.name).toBe("Kuhn, Thomas S.");
+    expect(person.classIds).toContain(SYSTEM_CLASS_UUIDS.person);
+    const personProps = person.properties as { schemaId: string; value: unknown }[];
+    expect(personProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.familyName)?.value).toBe("Kuhn");
+    expect(personProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.givenName)?.value).toBe("Thomas S.");
+  });
+
+  it("re-import dedupes persons and upserts by citekey (no duplicates)", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-2.bib");
+    writeFileSync(file, BIB_FIXTURE);
+
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText);
+    expect(counts).toMatchObject({ created: 0, updated: 2, persons: 3, personsCreated: 0 });
+
+    // Exactly one object per citekey after the re-import.
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:cli-kuhn1962`);
+    expect(JSON.parse(h.io.stdoutText).objects).toHaveLength(1);
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:cli-david1962`);
+    expect(JSON.parse(h.io.stdoutText).objects).toHaveLength(1);
+  });
+
+  it("citekey upsert updates the existing source instead of duplicating it", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-3.bib");
+    writeFileSync(
+      file,
+      `@book{cli-kuhn1962,
+  title = {The Structure of Scientific Revolutions, 2nd ed.},
+  author = {Kuhn, Thomas S.},
+  year = 1970,
+  isbn = {9780226458083},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText)).toMatchObject({ created: 0, updated: 1 });
+
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:cli-kuhn1962`);
+    const objects = JSON.parse(h.io.stdoutText).objects as { id: string }[];
+    expect(objects).toHaveLength(1);
+    await h.runCli("--json", "object", "get", objects[0]!.id);
+    const book = JSON.parse(h.io.stdoutText).object;
+    expect(book.name).toBe("The Structure of Scientific Revolutions, 2nd ed.");
+    const props = book.properties as { schemaId: string; value: unknown }[];
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)?.value).toBe("9780226458083");
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publicationDate)?.value).toBe("1970");
+  });
+
+  it("export bibtex --ids renders entries; CSL round-trip keeps title/author/year/doi stable", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-4.bib");
+    writeFileSync(
+      file,
+      `@book{cli-exp-kuhn1962,
+  title   = {The {Structure} of {Scientific} {Revolutions}},
+  author  = {Kuhn, Thomas S.},
+  year    = 1962,
+  isbn    = {9780226458120},
+}
+@article{cli-exp-david1962,
+  title  = {Combinatorial Chance à la française},
+  author = {David, F. N. and Barton, D. E.},
+  year   = {1962},
+  doi    = {10.2307/2333763},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const { entries } = JSON.parse(h.io.stdoutText) as { entries: string[] };
+
+    // Human output is the .bib document itself.
+    expect(await h.runCli("export", "bibtex", "--ids", entries[0]!, entries[1]!)).toBe(EXIT.ok);
+    const bibText = h.io.stdoutText;
+    expect(bibText).toContain("@book{cli-exp-kuhn1962,");
+    expect(bibText).toContain("@article{cli-exp-david1962,");
+
+    // Round-trip: parse the exported document back and compare CSL fields.
+    const roundTripped = parseBibtex(bibText);
+    const byKey = new Map(roundTripped.map((entry) => [entry.citeKey, bibToCsl(entry)]));
+    const kuhn = byKey.get("cli-exp-kuhn1962")!;
+    expect(kuhn.type).toBe("book");
+    expect(kuhn.title).toBe("The Structure of Scientific Revolutions");
+    expect(kuhn.author).toEqual([{ family: "Kuhn", given: "Thomas S." }]);
+    expect(kuhn.issued).toEqual({ "date-parts": [[1962]] });
+    expect(kuhn.ISBN).toBe("9780226458120");
+    const david = byKey.get("cli-exp-david1962")!;
+    expect(david.type).toBe("article-journal"); // paper class → CSL article-journal
+    expect(david.author).toEqual([
+      { family: "David", given: "F. N." },
+      { family: "Barton", given: "D. E." },
+    ]);
+    expect(david.issued).toEqual({ "date-parts": [[1962]] });
+    expect(david.DOI).toBe("10.2307/2333763");
+  });
+
+  it("export bibtex --linked-to includes source referrers and skips non-source closure pages", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-5.bib");
+    writeFileSync(file, BIB_FIXTURE);
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const { entries } = JSON.parse(h.io.stdoutText) as { entries: string[] };
+
+    // A reading-notes page mentions the book; a bare page does not.
+    await h.createPage("bib-notes", [
+      { type: "mention", targetNodeId: entries[0], text: "bib-notes-target" },
+    ]);
+
+    expect(await h.runCli("--json", "export", "bibtex", "--linked-to", entries[0]!, "--depth", "0")).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText);
+    // The seed book renders; the non-source notes page is skipped.
+    expect(machine.entries).toBe(1);
+    expect(machine.skipped).toBe(1);
+    expect(machine.bib).toContain("@book{");
+    expect(machine.bib).not.toContain("bib-notes");
+  });
+
+  it("usage errors exit 2 (missing file, no entries)", async () => {
+    const h = harness;
+    expect(await h.runCli("import", "bibtex", join(h.dataDir, "does-not-exist.bib"))).toBe(EXIT.usage);
+    const empty = join(h.dataDir, "bib-empty.bib");
+    writeFileSync(empty, "% only a comment\n");
+    expect(await h.runCli("import", "bibtex", empty)).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("no BibTeX entries");
   });
 });

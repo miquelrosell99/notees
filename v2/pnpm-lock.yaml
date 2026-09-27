@@ -20,6 +20,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@notees/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@notees/export':
         specifier: workspace:*
         version: link:../../packages/export
