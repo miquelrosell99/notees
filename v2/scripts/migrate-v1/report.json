@@ -1,0 +1,588 @@
+{
+  "workspaces": {
+    "3b30e070-039b-47bc-ad0d-2440a2f173c5": {
+      "source": 165486,
+      "emitted": 152970,
+      "companions": 64,
+      "mapped_by_op": {
+        "class.create": 136,
+        "node.create": 30288,
+        "node.updateContent": 71418,
+        "class.update": 78,
+        "node.move": 25575,
+        "class.assign": 15546,
+        "class.delete": 2,
+        "node.delete": 25,
+        "propertySchema.create": 27,
+        "property.set": 4559,
+        "classPropertyEdge.create": 42,
+        "class.unassign": 5205,
+        "property.unset": 1,
+        "propertySchema.update": 4
+      },
+      "dropped_by_op": {
+        "class.create (seed duplicate)": 20,
+        "user.favorite.add": 4,
+        "class.update (seed duplicate)": 5,
+        "user.favorite.remove": 4,
+        "nodeView.create": 157
+      },
+      "skipped_by_reason": {
+        "class.create_propertySchemaIds_dropped": 18,
+        "class_kind_parent_dropped": 1,
+        "class_parent_rejected_create": 6,
+        "delete_dropped_node_recreated": 81,
+        "class_parent_rejected_move": 6,
+        "propertyValueId_dropped": 4559,
+        "file_schema_synthesized": 1,
+        "crdt_only_no_mirror": 12303,
+        "schema_update_field_dropped:type": 4
+      },
+      "content_fallbacks": 5,
+      "actor_remapped_from": {
+        "migration-backfill-06a6c2f9-e62d-71fa-8000-f44e36933732": 101,
+        "migration-backfill-06a73461-f5b6-7acb-8000-9d14ce904faa": 66
+      },
+      "parentless_blocks": 453,
+      "asset_records": [
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "b2d5e358a402d9f400b876c69cb10545d24d6e9ec6041351d1c8ce11c9faada1",
+          "originalName": "b2d5e358a402d9f400b876c69cb10545d24d6e9ec6041351d1c8ce11c9faada1"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "f3598fbc23c7178394809a664afe7afaae634af2843ac3f68a8d60bf9477202d",
+          "originalName": "f3598fbc23c7178394809a664afe7afaae634af2843ac3f68a8d60bf9477202d"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "5f3125fffd723aabe9a2d20f0da80db04e61854c979703be06d9f4d57c006a3d",
+          "originalName": "5f3125fffd723aabe9a2d20f0da80db04e61854c979703be06d9f4d57c006a3d"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "56b378e5afdefb71721de17a49c322a9682976d8b6a40b1689b5458bec066107",
+          "originalName": "56b378e5afdefb71721de17a49c322a9682976d8b6a40b1689b5458bec066107"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "271c6b5158cad8e9d91f00dfe7fa3523ef43577b27c2e048974a40fadaf954da",
+          "originalName": "271c6b5158cad8e9d91f00dfe7fa3523ef43577b27c2e048974a40fadaf954da"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "5815fe2ed66f30f28421991f2724644cca6fa57cca243bbd670615cdf558648b",
+          "originalName": "5815fe2ed66f30f28421991f2724644cca6fa57cca243bbd670615cdf558648b"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "4bd2381a05c7b48f3f6ba54fbefec1c175bae3f6bcebe67b0915e96000810b19",
+          "originalName": "4bd2381a05c7b48f3f6ba54fbefec1c175bae3f6bcebe67b0915e96000810b19"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "863de069f9138c151f834378bd9df80fb8f2247859a66c7011d137d9f8c6a9b6",
+          "originalName": "863de069f9138c151f834378bd9df80fb8f2247859a66c7011d137d9f8c6a9b6"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "c5ab4b0e1b7193c95ba75bd5b19d30a30f7555502b6f6cdd1f4ad95d03e8b041",
+          "originalName": "c5ab4b0e1b7193c95ba75bd5b19d30a30f7555502b6f6cdd1f4ad95d03e8b041"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "66fb60a4dfe842f72986e6ddd162d43d0ce8ca4ccb90191567062050e8e15317",
+          "originalName": "66fb60a4dfe842f72986e6ddd162d43d0ce8ca4ccb90191567062050e8e15317"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "3a9f0ec1d6e2c09caca54b6bcce908ee4721f525ec41f2288d9809fe0d65dbe6",
+          "originalName": "3a9f0ec1d6e2c09caca54b6bcce908ee4721f525ec41f2288d9809fe0d65dbe6"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "0bf0499f10dc80f204f26e9e3f53f99eaa6e67cc02a20fdff2e71a4461a2e09a",
+          "originalName": "0bf0499f10dc80f204f26e9e3f53f99eaa6e67cc02a20fdff2e71a4461a2e09a"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "355784e4bbfd8ea88c81b9e07ff33995b008ebc8ea0c807c39df082ea8c2cf20",
+          "originalName": "355784e4bbfd8ea88c81b9e07ff33995b008ebc8ea0c807c39df082ea8c2cf20"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "827b45ba18239aa47b7408c44990d2699a72ba38b56b69d041679fac4795bba2",
+          "originalName": "827b45ba18239aa47b7408c44990d2699a72ba38b56b69d041679fac4795bba2"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "c8048e94ae6bb4dc34b4309a241c0cbf6e6bcfb2bf20ca8b015b96a9013cb0ff",
+          "originalName": "c8048e94ae6bb4dc34b4309a241c0cbf6e6bcfb2bf20ca8b015b96a9013cb0ff"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "dbc6ab84661ab3bc3b21ab962a8f8a853654f2ad1715ac541bb8dd0a178aac06",
+          "originalName": "dbc6ab84661ab3bc3b21ab962a8f8a853654f2ad1715ac541bb8dd0a178aac06"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "ef3c7bca10a0bb84b24ff70a3bffd9898f0334f63adc9a2123eec02292e8f5c6",
+          "originalName": "ef3c7bca10a0bb84b24ff70a3bffd9898f0334f63adc9a2123eec02292e8f5c6"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "1690c6c93d5164c65a37cacf7576251cb71ce58231439b4f5b8ade883b3db1c4",
+          "originalName": "1690c6c93d5164c65a37cacf7576251cb71ce58231439b4f5b8ade883b3db1c4"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "cd57228e656a94371969062de3f749a256daadd1cac7f4ba4d24fa5951d96074",
+          "originalName": "cd57228e656a94371969062de3f749a256daadd1cac7f4ba4d24fa5951d96074"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "f7a63ed8d1aa09c27f1f1054237b278f37f221063f39854168b2447dba0b8fe7",
+          "originalName": "f7a63ed8d1aa09c27f1f1054237b278f37f221063f39854168b2447dba0b8fe7"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "34f29c44d93fe97c4a3d4c99423c958a6e5d08067734ff117481c658a4eb58cb",
+          "originalName": "34f29c44d93fe97c4a3d4c99423c958a6e5d08067734ff117481c658a4eb58cb"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "94a7e340968625fb04e75f16e7f2ed62635d7f9fe1c465ac49f4d73454dc55d7",
+          "originalName": "94a7e340968625fb04e75f16e7f2ed62635d7f9fe1c465ac49f4d73454dc55d7"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "af980391eba4fdd518d0c728fda20b3512c48e48e3a54451c3baa6620111d2b4",
+          "originalName": "af980391eba4fdd518d0c728fda20b3512c48e48e3a54451c3baa6620111d2b4"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "89bed585c228be264693e27e1d4206a2db1f3d5225a797a7305710f29335325f",
+          "originalName": "89bed585c228be264693e27e1d4206a2db1f3d5225a797a7305710f29335325f"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "ce039a31e1318b1122a5142dbe4df108d36455b4c092275b2ea73974dbd89cf4",
+          "originalName": "ce039a31e1318b1122a5142dbe4df108d36455b4c092275b2ea73974dbd89cf4"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "542a11266c5aa36df15b6bda51f826f4d64d85dc4153616533b3496b8d5dd43e",
+          "originalName": "542a11266c5aa36df15b6bda51f826f4d64d85dc4153616533b3496b8d5dd43e"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "2978e2d5b731d754380978d960b983830f5e385772b62f4c9fc99f9c9e37dcc5",
+          "originalName": "2978e2d5b731d754380978d960b983830f5e385772b62f4c9fc99f9c9e37dcc5"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "e11e56d203add4f59cb21baabd2b31ede0768121f4188b11aaf62c6f7fca2bcc",
+          "originalName": "e11e56d203add4f59cb21baabd2b31ede0768121f4188b11aaf62c6f7fca2bcc"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "5d0ff8c701cbb60d5afefd4817357662adf327c30e993a0606a74e59de4df018",
+          "originalName": "5d0ff8c701cbb60d5afefd4817357662adf327c30e993a0606a74e59de4df018"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "c368a443e1cf54ce3502100b36283fa4684072550692ef9a9c6c6e5f0f0197c0",
+          "originalName": "c368a443e1cf54ce3502100b36283fa4684072550692ef9a9c6c6e5f0f0197c0"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "8ead06d696c337137449e6eb75f1742f9994cc6167b38f8ca2b9c024e6f2df09",
+          "originalName": "8ead06d696c337137449e6eb75f1742f9994cc6167b38f8ca2b9c024e6f2df09"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "64aebd9904f13a06a0c27520fd512abc0d2d4dbaaf55d4ebc2b1aa06f70230f5",
+          "originalName": "64aebd9904f13a06a0c27520fd512abc0d2d4dbaaf55d4ebc2b1aa06f70230f5"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "c4b07067d9df557c74f20e900be868ccb19be58de4aeb27b26295a883d718914",
+          "originalName": "c4b07067d9df557c74f20e900be868ccb19be58de4aeb27b26295a883d718914"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "55261489c55780ca1c0df2343c72902b280600c99e3065cddccf7a8678bf990e",
+          "originalName": "55261489c55780ca1c0df2343c72902b280600c99e3065cddccf7a8678bf990e"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "b3c4b4f5ef28e96b92d6713df2e26b72053d34027134a7efc82d1531ecde3646",
+          "originalName": "b3c4b4f5ef28e96b92d6713df2e26b72053d34027134a7efc82d1531ecde3646"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "939c9255f32ba79bb601d71c2b0647905fc354f2f969543559b54a5e9fa07f63",
+          "originalName": "939c9255f32ba79bb601d71c2b0647905fc354f2f969543559b54a5e9fa07f63"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "4a51c81996ef0e9685347f2be736e4b0b796ab863e34a60966bfa4c0166fb74b",
+          "originalName": "4a51c81996ef0e9685347f2be736e4b0b796ab863e34a60966bfa4c0166fb74b"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "63018e4b32fd6309f5dbdc1f108c24e05f8528539f0dd90b9fc57fe0d3dd3852",
+          "originalName": "63018e4b32fd6309f5dbdc1f108c24e05f8528539f0dd90b9fc57fe0d3dd3852"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "62a5e8e25691844b1fcfb4c8f6be68521842ba21eb9c72729d7a116886dc546e",
+          "originalName": "62a5e8e25691844b1fcfb4c8f6be68521842ba21eb9c72729d7a116886dc546e"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "7261f12941cf1991670056780c1b21043493c4b164a11202319b2e3fa7b49e01",
+          "originalName": "7261f12941cf1991670056780c1b21043493c4b164a11202319b2e3fa7b49e01"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "e71ce0984882a6175c47a8e380911758fdb123c16a51e3e8f2879f1c8b848197",
+          "originalName": "e71ce0984882a6175c47a8e380911758fdb123c16a51e3e8f2879f1c8b848197"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "3ae3e557763528f79086a8612e28de072a5c910d88545b1d6a8486459ee2cb9d",
+          "originalName": "3ae3e557763528f79086a8612e28de072a5c910d88545b1d6a8486459ee2cb9d"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "b49e4a110cb740ea7cdd17f60f219daa0ce9c4df6a9944e555fb176cacab4270",
+          "originalName": "b49e4a110cb740ea7cdd17f60f219daa0ce9c4df6a9944e555fb176cacab4270"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "f79e041f707cb79f57b1f3a4152be5fd797fe815e1b6eeb5cdfcc69277cc95ac",
+          "originalName": "f79e041f707cb79f57b1f3a4152be5fd797fe815e1b6eeb5cdfcc69277cc95ac"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "30ca52b531e5a27448dcafd4e8a6f4070143eb71062acf77ab70a995c9d6622a",
+          "originalName": "30ca52b531e5a27448dcafd4e8a6f4070143eb71062acf77ab70a995c9d6622a"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "30e513271523a16e5780dca18fda4766a6bca638e03dbb0ca81c062ac6f149f3",
+          "originalName": "30e513271523a16e5780dca18fda4766a6bca638e03dbb0ca81c062ac6f149f3"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "49fd82ca5934a80699a61339fb2ba5dcc6810d40ddf86f671a36b9e85b4fb038",
+          "originalName": "49fd82ca5934a80699a61339fb2ba5dcc6810d40ddf86f671a36b9e85b4fb038"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "5c7adbfcca0cd42f25fc6d4c872ba208b5ac25b496d70b4b173cb968c7d1d154",
+          "originalName": "5c7adbfcca0cd42f25fc6d4c872ba208b5ac25b496d70b4b173cb968c7d1d154"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "db653c1b6301f9b60de034638881ebae309e57c6bb605d50910ff93cb50ed0ff",
+          "originalName": "db653c1b6301f9b60de034638881ebae309e57c6bb605d50910ff93cb50ed0ff"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "7808607204f85d6a1561718c86d8c019f2c4aaf54d369e16112a23a281a66faa",
+          "originalName": "7808607204f85d6a1561718c86d8c019f2c4aaf54d369e16112a23a281a66faa"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "a603581842c957403b1fcecb2ee0122dfbcf850541e95bbd339079a4223ddb23",
+          "originalName": "a603581842c957403b1fcecb2ee0122dfbcf850541e95bbd339079a4223ddb23"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "6c615115986388cadf4d5dca73e496962268c7bc3081033f96faf0e8e7a2bda3",
+          "originalName": "6c615115986388cadf4d5dca73e496962268c7bc3081033f96faf0e8e7a2bda3"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "e3591d237d98022f371116e9270c5fce1a07a51dc347634192e39a8102be9f66",
+          "originalName": "e3591d237d98022f371116e9270c5fce1a07a51dc347634192e39a8102be9f66"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "47ab07e63f07ea3f058533d67cde22fb7abf45f311414a83d6556586f4389afa",
+          "originalName": "47ab07e63f07ea3f058533d67cde22fb7abf45f311414a83d6556586f4389afa"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "eedf9e73482af4976b3f111686a90b66198c1098af01da252eb50cc07b4db8ee",
+          "originalName": "eedf9e73482af4976b3f111686a90b66198c1098af01da252eb50cc07b4db8ee"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "d9ee49798b500132f702a78b0c8820ac5103f33b01fddd0406b1a4e809fead65",
+          "originalName": "d9ee49798b500132f702a78b0c8820ac5103f33b01fddd0406b1a4e809fead65"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "5ae7a3778bd77f56eebe60b1bbecc4e79abeaa2cadccd5acb3f6cdfcd0bc3042",
+          "originalName": "5ae7a3778bd77f56eebe60b1bbecc4e79abeaa2cadccd5acb3f6cdfcd0bc3042"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "ce11dfdddd8cdc1b7b20e23f7f4d13e51a304b03ac41cafe957da59b906fea2e",
+          "originalName": "ce11dfdddd8cdc1b7b20e23f7f4d13e51a304b03ac41cafe957da59b906fea2e"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "1ce448a8fb4d2bbf6b7caad95204d74b384eed6e800e33ce1e0600db1a3d421c",
+          "originalName": "1ce448a8fb4d2bbf6b7caad95204d74b384eed6e800e33ce1e0600db1a3d421c"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "19b8b594c14c08d2bbf79d53dba7c5332eada0a7982feb634cc607285c403d2f",
+          "originalName": "19b8b594c14c08d2bbf79d53dba7c5332eada0a7982feb634cc607285c403d2f"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "8f601dec3b0958b9c108d0105899ffc4c063100dc52645c660d4f12fd5b5830f",
+          "originalName": "8f601dec3b0958b9c108d0105899ffc4c063100dc52645c660d4f12fd5b5830f"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "eefe07a27d42f2469a2f0e4440901331f1162900313fa4e0c64730bd30d1ca59",
+          "originalName": "eefe07a27d42f2469a2f0e4440901331f1162900313fa4e0c64730bd30d1ca59"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "6cbfc5ccb9afe5b6765ad59e54f86057f730146e0e54d21fbc19c163a2030f27",
+          "originalName": "6cbfc5ccb9afe5b6765ad59e54f86057f730146e0e54d21fbc19c163a2030f27"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "26540d1ee1ca5c568d96bb5b70be862bfaabc9da73b8f145989f67e17def30f8",
+          "originalName": "26540d1ee1ca5c568d96bb5b70be862bfaabc9da73b8f145989f67e17def30f8"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "209d56d1f5f8853e1936e5006b3c81a180206cf9d76f769d8e1feeedfe112b34",
+          "originalName": "209d56d1f5f8853e1936e5006b3c81a180206cf9d76f769d8e1feeedfe112b34"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "18bf270bd76ce27f1210aeb0d438f1dee98e11b4a200c31348e23eb2fba360c6",
+          "originalName": "18bf270bd76ce27f1210aeb0d438f1dee98e11b4a200c31348e23eb2fba360c6"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "90b129102cd2831bd5401f75b3d88c12e1bacd76f4048984af87494e94b66d75",
+          "originalName": "90b129102cd2831bd5401f75b3d88c12e1bacd76f4048984af87494e94b66d75"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "cc737db26786cd59eb0ead4e381af425fb4b55c11a1f9c6179662c4f180d2646",
+          "originalName": "cc737db26786cd59eb0ead4e381af425fb4b55c11a1f9c6179662c4f180d2646"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "3a4b2b44bf3fbc4eedeaa532f338c77fc47e60408e6f8c95566bb429b1b90494",
+          "originalName": "3a4b2b44bf3fbc4eedeaa532f338c77fc47e60408e6f8c95566bb429b1b90494"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "3d18162bd40ea44d8c11986728f40a37f1822879b37a1964048386e56784b0d6",
+          "originalName": "3d18162bd40ea44d8c11986728f40a37f1822879b37a1964048386e56784b0d6"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "5135923c6a33caba2399e7fd0c8e5a9575ff317882c327d2b6542da372bb1a40",
+          "originalName": "5135923c6a33caba2399e7fd0c8e5a9575ff317882c327d2b6542da372bb1a40"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "51ccc2c004952cd6d3421dfa7b042da15ccd66207403406c35c560e892d62ab3",
+          "originalName": "51ccc2c004952cd6d3421dfa7b042da15ccd66207403406c35c560e892d62ab3"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "d5dc7cd3453a2aad9fa8e4991bf73f8d939342b3a69a836df327e7b790f8165f",
+          "originalName": "d5dc7cd3453a2aad9fa8e4991bf73f8d939342b3a69a836df327e7b790f8165f"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "2167999f8523ad224f8ce7bb0183f53013f7329608a53336e53aa5b0b61d871f",
+          "originalName": "2167999f8523ad224f8ce7bb0183f53013f7329608a53336e53aa5b0b61d871f"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "33da701470d5c7453df110d2b2958e5d8e1ca3428bfb336324b019069f24202b",
+          "originalName": "33da701470d5c7453df110d2b2958e5d8e1ca3428bfb336324b019069f24202b"
+        },
+        {
+          "workspaceId": "3b30e070-039b-47bc-ad0d-2440a2f173c5",
+          "hash": "064e893739645af0a77237a1057d2b7c01c0e5c76370b6a3b922e4f62f99d1fc",
+          "originalName": "064e893739645af0a77237a1057d2b7c01c0e5c76370b6a3b922e4f62f99d1fc"
+        }
+      ],
+      "deferred_set_extends": 0,
+      "topo_cycle_fallback": 0,
+      "push": {
+        "seeded_envelopes": 0,
+        "seed_total": 71,
+        "pushed_envelopes": 152970,
+        "skipped": true
+      },
+      "verification": {
+        "envelopeCount": {
+          "expected": 153041,
+          "actual": 153041,
+          "match": true
+        },
+        "spot_checks": [
+          {
+            "nodeId": "67ceb1b4-73b0-4c61-8cdd-8dd418072e2f",
+            "v2_name": null,
+            "v2_nodeType": "page",
+            "content_match": true,
+            "v2_plain": "clasificaciones",
+            "v1_plain": "clasificaciones"
+          },
+          {
+            "nodeId": "00000000-0000-0000-00dd-202412260000",
+            "v2_name": null,
+            "v2_nodeType": "page",
+            "content_match": true,
+            "v2_plain": "20241226",
+            "v1_plain": "20241226"
+          }
+        ],
+        "page_count": 5651
+      }
+    },
+    "b42cb292-39f8-4d70-aa4d-a5fb7be12f8d": {
+      "source": 133,
+      "emitted": 92,
+      "companions": 0,
+      "mapped_by_op": {
+        "class.create": 6,
+        "node.create": 3,
+        "node.updateContent": 35,
+        "class.assign": 34,
+        "classPropertyEdge.create": 14
+      },
+      "dropped_by_op": {
+        "class.create (seed duplicate)": 28,
+        "propertySchema.create (seed duplicate)": 13
+      },
+      "skipped_by_reason": {},
+      "content_fallbacks": 0,
+      "actor_remapped_from": {},
+      "parentless_blocks": 0,
+      "asset_records": [],
+      "deferred_set_extends": 0,
+      "topo_cycle_fallback": 0,
+      "push": {
+        "seeded_envelopes": 0,
+        "seed_total": 71,
+        "pushed_envelopes": 92,
+        "skipped": true
+      },
+      "verification": {
+        "envelopeCount": {
+          "expected": 163,
+          "actual": 163,
+          "match": true
+        },
+        "spot_checks": [
+          {
+            "nodeId": "8f82d251-1f49-52ac-ac5c-8b6a527baf44",
+            "v2_name": null,
+            "v2_nodeType": "page",
+            "content_match": true,
+            "v2_plain": "Align Check",
+            "v1_plain": "Align Check"
+          },
+          {
+            "nodeId": "00000000-0000-0000-0002-000000000001",
+            "v2_name": "scratchpad",
+            "v2_nodeType": "page",
+            "content_match": true,
+            "v2_plain": "",
+            "v1_plain": ""
+          }
+        ],
+        "page_count": 3
+      }
+    },
+    "bca97d7b-0dc0-48aa-9d14-abf67e1fdad3": {
+      "source": 133,
+      "emitted": 92,
+      "companions": 0,
+      "mapped_by_op": {
+        "class.create": 6,
+        "node.create": 3,
+        "node.updateContent": 35,
+        "class.assign": 34,
+        "classPropertyEdge.create": 14
+      },
+      "dropped_by_op": {
+        "class.create (seed duplicate)": 28,
+        "propertySchema.create (seed duplicate)": 13
+      },
+      "skipped_by_reason": {},
+      "content_fallbacks": 0,
+      "actor_remapped_from": {},
+      "parentless_blocks": 0,
+      "asset_records": [],
+      "deferred_set_extends": 0,
+      "topo_cycle_fallback": 0,
+      "push": {
+        "seeded_envelopes": 0,
+        "seed_total": 71,
+        "pushed_envelopes": 92,
+        "skipped": true
+      },
+      "verification": {
+        "envelopeCount": {
+          "expected": 163,
+          "actual": 163,
+          "match": true
+        },
+        "spot_checks": [
+          {
+            "nodeId": "42f30b93-787c-5c34-a01d-bb3acb3a0111",
+            "v2_name": null,
+            "v2_nodeType": "page",
+            "content_match": true,
+            "v2_plain": "Align Check",
+            "v1_plain": "Align Check"
+          },
+          {
+            "nodeId": "00000000-0000-0000-0002-000000000001",
+            "v2_name": "scratchpad",
+            "v2_nodeType": "page",
+            "content_match": true,
+            "v2_plain": "",
+            "v1_plain": ""
+          }
+        ],
+        "page_count": 3
+      }
+    }
+  },
+  "deviations": [
+    "v1 node.delete hard-deletes a single node row; migrated as v2 soft delete (trash) so later ops in the replay keep applying — deletes superseded by a later re-create are dropped (v2 has no revive op)",
+    "v1 class names that were user-renamed on seeded system classes (e.g. year/month/day) are not carried over — the v2 seed already created those classes with newer HLCs and its canonical names win",
+    "453 parentless v1 blocks migrate as pages (447 originally parentless; 6 more were parented under class nodes, which v2 forbids)",
+    "6 v1 moves under class nodes are skipped (v2 classes are tree-external)",
+    "2,148 broken_link pills carry no label and are dropped by the reference conversion (port semantics)"
+  ],
+  "mode": "apply",
+  "assets": {
+    "records": 76,
+    "copied": 0,
+    "missing": 76
+  }
+}
