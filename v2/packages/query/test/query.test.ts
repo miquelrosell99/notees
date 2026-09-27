@@ -60,6 +60,8 @@ const CITY = "0192a000-0000-7000-8000-000000000202";
 
 const PRIORITY = "0192a000-0000-7000-8000-000000000301";
 const RATING = "0192a000-0000-7000-8000-000000000302";
+const YEAR = "0192a000-0000-7000-8000-000000000303";
+const OPENED = "0192a000-0000-7000-8000-000000000304";
 
 const T0 = 1727200000000; // France
 const STEP = 1000;
@@ -132,6 +134,17 @@ function worldEnvelopes(): Envelope[] {
     env("propertySchema.create", { propertySchemaId: RATING, name: "rating", type: "number" }, t(14)),
     env("class.property.set", { classId: PLACE, propertySchemaId: RATING, defaultValue: 1 }, t(15)),
     env("property.set", { objectId: PARIS, propertySchemaId: RATING, value: 3 }, t(16)),
+    // Comparison-operator fixture (offset range keeps HLC clear of later tests):
+    // "year" is a JSON number (numeric comparison), "opened" an ISO-8601 date
+    // string (lexicographic comparison) — France 1900, Paris 1950, Lone 1920.
+    env("propertySchema.create", { propertySchemaId: YEAR, name: "year", type: "number" }, T0 + 40 * STEP),
+    env("propertySchema.create", { propertySchemaId: OPENED, name: "opened", type: "text" }, T0 + 41 * STEP),
+    env("property.set", { objectId: FRANCE, propertySchemaId: YEAR, value: 1900 }, T0 + 42 * STEP),
+    env("property.set", { objectId: PARIS, propertySchemaId: YEAR, value: 1950 }, T0 + 43 * STEP),
+    env("property.set", { objectId: LONE, propertySchemaId: YEAR, value: 1920 }, T0 + 44 * STEP),
+    env("property.set", { objectId: FRANCE, propertySchemaId: OPENED, value: "1900-01-15" }, T0 + 45 * STEP),
+    env("property.set", { objectId: PARIS, propertySchemaId: OPENED, value: "1937-05-06" }, T0 + 46 * STEP),
+    env("property.set", { objectId: LONE, propertySchemaId: OPENED, value: "1920-06-20" }, T0 + 47 * STEP),
   ];
 }
 
@@ -318,6 +331,28 @@ describe("compile: SQL shape", () => {
     expect(params).toEqual([PRIORITY]);
     expect(sql).toContain("WITH authored AS (");
     expect(sql).not.toContain("derived AS (");
+  });
+
+  it("property comparison ops compile to plain extracted-scalar comparisons", () => {
+    const { sql, params } = compile(
+      ast(entire, [{ type: "property", schemaId: YEAR, op: "gt", value: 1900 }]),
+    );
+    expect(sql).toContain("json_extract(value, '$') > ?");
+    expect(params).toEqual([YEAR, YEAR, YEAR, 1900]);
+    const lte = compile(ast(entire, [{ type: "property", schemaId: OPENED, op: "lte", value: "1937-05-06" }]));
+    expect(lte.sql).toContain("json_extract(value, '$') <= ?");
+    expect(lte.params).toEqual([OPENED, OPENED, OPENED, "1937-05-06"]);
+  });
+
+  it("property comparison ops (gt/gte/lt/lte) are part of the versioned schema", () => {
+    const base = { version: 1, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } };
+    for (const op of ["gt", "gte", "lt", "lte"]) {
+      const parsed = parseQueryAst({
+        ...base,
+        root: { type: "group", logic: "and", children: [{ type: "property", schemaId: YEAR, op, value: 1900 }] },
+      });
+      expect(parsed.root.children[0]).toMatchObject({ type: "property", op });
+    }
   });
 
   it("sort maps to a deterministic ORDER BY with id tiebreak", () => {
@@ -639,6 +674,92 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       expect(
         runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "neq", value: "medium" }])).ids.sort(),
       ).toEqual([LONE, PARIS].sort());
+    });
+  });
+
+  describe("property comparison operators (gt/gte/lt/lte)", () => {
+    it("numeric JSON values compare numerically (year<1950 selects correctly)", () => {
+      const store = worldStore();
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: YEAR, op: "lt", value: 1950 }])).ids.sort(),
+      ).toEqual([FRANCE, LONE].sort());
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: YEAR, op: "gt", value: 1900 }])).ids.sort(),
+      ).toEqual([LONE, PARIS].sort());
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: YEAR, op: "gte", value: 1950 }])).ids,
+      ).toEqual([PARIS]);
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: YEAR, op: "lte", value: 1900 }])).ids,
+      ).toEqual([FRANCE]);
+    });
+
+    it("ISO-8601 date strings compare lexicographically (date ranges)", () => {
+      const store = worldStore();
+      expect(
+        runQuery(
+          store,
+          ast(entire, [{ type: "property", schemaId: OPENED, op: "gte", value: "1920-01-01" }]),
+        ).ids.sort(),
+      ).toEqual([LONE, PARIS].sort());
+      expect(
+        runQuery(
+          store,
+          ast(entire, [{ type: "property", schemaId: OPENED, op: "lt", value: "1900-06-01" }]),
+        ).ids,
+      ).toEqual([FRANCE]);
+      expect(
+        runQuery(
+          store,
+          ast(entire, [{ type: "property", schemaId: OPENED, op: "gt", value: "1937-05-06" }]),
+        ).ids,
+      ).toEqual([]);
+    });
+
+    it("composes with AND (a bounded range) and with class conditions", () => {
+      const store = worldStore();
+      expect(
+        runQuery(
+          store,
+          ast(entire, [
+            { type: "property", schemaId: YEAR, op: "gt", value: 1900 },
+            { type: "property", schemaId: YEAR, op: "lt", value: 1950 },
+          ]),
+        ).ids,
+      ).toEqual([LONE]);
+      expect(
+        runQuery(
+          store,
+          ast(entire, [
+            { type: "class", classId: PLACE },
+            { type: "property", schemaId: YEAR, op: "gte", value: 1900 },
+          ]),
+        ).ids.sort(),
+      ).toEqual([FRANCE, PARIS].sort());
+      // City members only: Paris clears the bar, France is not a City.
+      expect(
+        runQuery(
+          store,
+          ast(entire, [
+            { type: "class", classId: CITY },
+            { type: "property", schemaId: YEAR, op: "gte", value: 1900 },
+          ]),
+        ).ids,
+      ).toEqual([PARIS]);
+    });
+
+    it("nodes without an effective value never match a comparison", () => {
+      const store = worldStore();
+      // OUT_BLOCK / FR_BLOCK / PARIS_BLOCK carry no year value.
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: YEAR, op: "gt", value: 0 }])).ids.sort(),
+      ).toEqual([FRANCE, LONE, PARIS].sort());
+    });
+
+    it("fails loud: comparison ops require a non-null value", () => {
+      expect(() =>
+        compile(ast(entire, [{ type: "property", schemaId: YEAR, op: "gt" }])),
+      ).toThrow(/requires a non-null value/);
     });
   });
 

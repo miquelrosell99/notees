@@ -40,7 +40,13 @@ export const scopeSchema = z.discriminatedUnion("type", [
 
 export type NodeTypeValue = "page" | "block" | "class";
 
-export type PropertyOp = "eq" | "neq" | "contains" | "exists";
+/**
+ * eq/neq/contains/exists are the v1 subset; gt/gte/lt/lte are the v1
+ * GREATER_THAN / LESS_THAN family. Comparison runs over the effective/authored
+ * scalar through json_extract(value, '$'): numeric JSON values compare
+ * numerically, everything else (ISO-8601 dates in particular) lexicographically.
+ */
+export type PropertyOp = "eq" | "neq" | "contains" | "exists" | "gt" | "gte" | "lt" | "lte";
 export type ContentOp = "contains" | "fts";
 
 export type Condition =
@@ -87,7 +93,7 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("property"),
     schemaId: uuid,
-    op: z.enum(["eq", "neq", "contains", "exists"]),
+    op: z.enum(["eq", "neq", "contains", "exists", "gt", "gte", "lt", "lte"]),
     value: z.unknown().optional(),
     includeDefaults: z.boolean().optional(),
   }).strict(),

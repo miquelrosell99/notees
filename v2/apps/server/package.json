@@ -18,6 +18,7 @@
     "@fastify/websocket": "^11.0.0",
     "@notees/domain": "workspace:*",
     "@notees/protocol": "workspace:*",
+    "@notees/query": "workspace:*",
     "@notees/store": "workspace:*",
     "@notees/sync": "workspace:*",
     "better-sqlite3": "^11.0.0",

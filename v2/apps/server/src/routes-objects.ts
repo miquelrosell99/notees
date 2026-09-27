@@ -16,6 +16,7 @@ import {
   propertySetPayload,
   propertyUnsetPayload,
 } from "@notees/protocol";
+import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
 import type { NodeRow, Store } from "@notees/store";
 
 import type { ServerContext } from "./context.js";
@@ -90,6 +91,13 @@ const deleteQuerySchema = z
   .object({
     permanent: z.coerce.boolean().default(false),
     confirm: z.string().optional(),
+  })
+  .strict();
+
+const queryBodySchema = z
+  .object({
+    /** The versioned QueryAST (validated fail-loud by parseQueryAst). */
+    ast: z.unknown(),
   })
   .strict();
 
@@ -353,6 +361,27 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     return { object: fullObject(store, requireNode(store, id)) };
   });
 
+  app.get("/property-schemas", async (request) => {
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    const rows = store.database
+      .prepare(
+        `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter
+         FROM property_schema WHERE active = 1 ORDER BY name, id`,
+      )
+      .all() as Array<{ id: string; name: string; type: string; multi: number; scope: string; options: string; targetClassFilter: string | null }>;
+    return {
+      propertySchemas: rows.map((row) => ({
+        ...row,
+        multi: row.multi === 1,
+        options: JSON.parse(row.options) as unknown,
+        targetClassFilter:
+          row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
+      })),
+    };
+  });
+
   app.get("/property-schemas/:id", async (request) => {
     const { id } = request.params as { id: string };
     const workspaceId = workspaceFor(ctx, request);
@@ -491,6 +520,61 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
         return { id: api.id, nodeType: api.nodeType, name: api.name, parentId: api.parentId, updatedAt: api.updatedAt };
       });
     return { results };
+  });
+
+  /**
+   * QueryAST execution endpoint: the caller compiles its text DSL (or builds
+   * an AST directly) client-side and posts it; the server runs it against the
+   * workspace's derived store with @notees/query. Plain ASTs return the
+   * deterministic ids plus node summaries; ASTs carrying an `aggregation`
+   * return the grouped grid (columns + rows). Unparseable ASTs and
+   * unsupported compilations are 422s (fail loud, never half-executed).
+   */
+  app.post("/query", async (request) => {
+    const parsed = queryBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid query body");
+    }
+    let ast;
+    try {
+      ast = parseQueryAst(parsed.data.ast);
+    } catch (error) {
+      throw new AppError(
+        422,
+        "validation_failed",
+        `invalid query AST: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    try {
+      if (ast.aggregation !== undefined) {
+        return runAggregate(store, ast);
+      }
+      const { ids, rows } = runQuery(store, ast);
+      return {
+        ids,
+        rows: rows.map((row) => {
+          const summary: Record<string, unknown> = {
+            id: String(row.id),
+            nodeType: row.node_type,
+            name: (row.name as string | null) ?? null,
+            parentId: (row.parent_id as string | null) ?? null,
+            createdAt: (row.created_at as string | null) ?? null,
+            updatedAt: (row.updated_at as string | null) ?? null,
+          };
+          if (row.distance !== undefined) summary.distance = row.distance;
+          return summary;
+        }),
+      };
+    } catch (error) {
+      throw new AppError(
+        422,
+        "validation_failed",
+        `query not supported: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   });
 
   app.get("/classes", async (request) => {
