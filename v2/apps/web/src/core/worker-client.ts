@@ -16,9 +16,13 @@ import type {
   ClassBinding,
   ClientEdge,
   ClientNode,
+  ClientPropertySchema,
   CreateObjectInput,
+  CreatePropertySchemaInput,
   DeleteObjectOptions,
+  EffectiveProperty,
   ReferenceEntry,
+  SetClassPropertyInput,
   SyncStatusSnapshot,
   UpdateObjectInput,
 } from "./workspace-client.js";
@@ -184,6 +188,14 @@ export class WorkerClient {
     return this.cachedRead<ClassBinding[]>("getClassBindings", [classId], []);
   }
 
+  getEffectiveProperties(id: string): EffectiveProperty[] {
+    return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
+  }
+
+  listPropertySchemas(): ClientPropertySchema[] {
+    return this.cachedRead<ClientPropertySchema[]>("listPropertySchemas", [], []);
+  }
+
   getBlockTree(pageId: string, depth?: number): BlockTreeNode[] {
     return this.cachedRead<BlockTreeNode[]>("getBlockTree", [pageId, depth], []);
   }
@@ -248,6 +260,40 @@ export class WorkerClient {
   /** Replace a class's full extends parent set (class.setExtends, m2m). */
   async setClassExtends(classId: string, parentClassIds: string[]): Promise<void> {
     await this.call("setClassExtends", [classId, parentClassIds]);
+  }
+
+  /** Upsert a class → property-schema binding (class.property.set, patch). */
+  async setClassProperty(
+    classId: string,
+    propertySchemaId: string,
+    fields: SetClassPropertyInput,
+  ): Promise<void> {
+    await this.call("setClassProperty", [classId, propertySchemaId, fields]);
+  }
+
+  /** Remove a class → property-schema binding (class.property.unset). */
+  async unsetClassProperty(classId: string, propertySchemaId: string): Promise<void> {
+    await this.call("unsetClassProperty", [classId, propertySchemaId]);
+  }
+
+  /** Create a property schema (propertySchema.create); returns the new id. */
+  async createPropertySchema(input: CreatePropertySchemaInput): Promise<string> {
+    return (await this.call("createPropertySchema", [input])) as string;
+  }
+
+  /** Author a property value (property.set) — shadows any derived default. */
+  async setProperty(
+    objectId: string,
+    propertySchemaId: string,
+    value: unknown,
+    idx?: number,
+  ): Promise<void> {
+    await this.call("setProperty", [objectId, propertySchemaId, value, idx]);
+  }
+
+  /** Clear an authored property value (property.unset). */
+  async unsetProperty(objectId: string, propertySchemaId: string, idx?: number): Promise<void> {
+    await this.call("unsetProperty", [objectId, propertySchemaId, idx]);
   }
 
   /** No-op when the worker already booted this workspace (init bootstraps it). */
