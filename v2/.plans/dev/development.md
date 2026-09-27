@@ -47,19 +47,22 @@ The single most important process rule (`../2026-09-24-object-graph-pim-evolutio
 fixture-gate lineage; `00-INDEX.md` amendment (b)):
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
-groups). Exactly five exist today:
+groups). Eight exist today:
 
 | Fixture | Scenario it pins |
 |---|---|
 | `envelope-minimal.json` | smallest valid envelope |
 | `object-create.json` | node creation with content/classes |
+| `object-move.json` | reparent + sibling reorder (`afterId`), fractional positions |
 | `property-set-lww.json` | two ops racing one property slot; higher HLC wins |
 | `typed-link-mark.json` | verb mark with `locator` + `candidateSpans` (record-don't-resolve) |
 | `typed-link-mark-deleted.json` | deleting the word deletes the mark (honest lifecycle) |
+| `class-extends-m2m.json` | multiple inheritance closure (diamond) |
+| `class-extends-cycle.json` | extends cycles must throw on apply |
 
 The gate is enforced by `packages/protocol/test/protocol.test.ts`:
 
-- the suite **asserts the fixture directory contains exactly these five files** — a
+- the suite **asserts the fixture directory contains exactly these files** — a
   replaced scenario must be replaced, never silently dropped;
 - every envelope must match `envelopeSchema`, carry a `KNOWN_OP_TYPES` opType, and have a
   payload validating against its `payloadSchemaFor` zod schema;
@@ -73,6 +76,15 @@ is part of it, and the exact-file-list assertion means shrinking coverage fails 
 When the model changes, re-encode fixtures against the new model at equal acceptance
 width — that is precisely the discipline applied on 2026-09-25 when the relation
 fixtures were replaced by typed-link-mark fixtures exercising the same scenarios.
+
+**Cross-implementation parity (client lockstep).** The same canonical fixtures are
+vendored byte-identical (sha256-verified) by the sibling client repos and replayed
+through their appliers with the same expected outcomes: `notees-gtk`
+(`tests/fixtures/v2/` + `tests/test_store_fixtures.py`, pytest) and `notees-flutter`
+(`test/fixtures/v2/` + `test/v2_fixture_replay_test.dart`, flutter_test). A semantic
+change is not done until all three implementations converge on the same fixture
+expectations — this is the practical enforcement of "one semantics, many clients".
+Update all three repos' fixture copies together (they are the same bytes).
 
 ## 4. Adding a new op type — the order matters
 
