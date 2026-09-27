@@ -49,7 +49,15 @@ export function ClassView({
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  const outliner = useOutlinerValue(client, classId);
+  const outliner = useOutlinerValue(client, classId, {
+    // f(node_type) navigation for query result lists: a class opens the Class
+    // View, anything else the Page View.
+    openNode: (id) => {
+      const target = client.getNode(id);
+      if (target !== undefined && target.nodeType === "class") onOpenClass?.(id);
+      else onOpenPage?.(id);
+    },
+  });
   const [extendsError, setExtendsError] = useState<string | null>(null);
   useEffect(() => {
     if (extendsError === null) return;

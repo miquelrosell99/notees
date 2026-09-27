@@ -8,9 +8,9 @@
  *  - bootstraps the WorkspaceClient sync engine for the workspace;
  *  - exposes the worker API: applyBatch (remote frames), the read surface
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
- *    getLinkedReferences / getUnlinkedReferences / getChildPages /
- *    getBacklinkCount / getChildPageCount / getDisplayName / getNode /
- *    getNodeRaw / getEffectiveProperties / listPropertySchemas), the write
+ *    getLinkedReferences / getUnlinkedReferences / getChildPages / getChildren
+ *    / runQueryAst / getBacklinkCount / getChildPageCount / getDisplayName /
+ *    getNode / getNodeRaw / getEffectiveProperties / listPropertySchemas), the write
  *    surface (createObject / updateObject / deleteObject / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty), syncOnce, the realtime
@@ -315,6 +315,10 @@ export class WorkerCore {
     return this.client.getChildPages(id);
   }
 
+  getChildren(id: string): ClientNode[] {
+    return this.client.getChildren(id);
+  }
+
   getBacklinkCount(id: string): number {
     return this.client.getBacklinkCount(id);
   }
@@ -438,6 +442,10 @@ export class WorkerCore {
         return this.getUnlinkedReferences(args[0] as string);
       case "getChildPages":
         return this.getChildPages(args[0] as string);
+      case "getChildren":
+        return this.getChildren(args[0] as string);
+      case "runQueryAst":
+        return this.client.runQueryAst(args[0]);
       case "getBacklinkCount":
         return this.getBacklinkCount(args[0] as string);
       case "getChildPageCount":

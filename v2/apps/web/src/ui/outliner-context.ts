@@ -15,6 +15,8 @@ import type {
   ClientNode,
   CreateObjectInput,
   DeleteObjectOptions,
+  EffectiveProperty,
+  QueryRunResult,
   UpdateObjectInput,
 } from "@/core/workspace-client.js";
 
@@ -66,10 +68,20 @@ export interface OutlinerReader {
   getClassMembers(classId: string): ClientNode[];
   getClassBindings(classId: string): ClassBinding[];
   subscribe(listener: () => void): () => void;
+  /** Live-query bridge for `query` content tokens (QueryBlockView). */
+  runQueryAst(rawAst: unknown): QueryRunResult | Promise<QueryRunResult>;
+  /** Direct children in child order (export-on-query's nested-bullets read). */
+  getChildren(id: string): ClientNode[];
+  /** Effective properties (export-on-query's frontmatter read). */
+  getEffectiveProperties(id: string): EffectiveProperty[];
 }
 
 export interface OutlinerContextValue {
   client: OutlinerClient & OutlinerReader;
+  /** The view root id (PageView: the page) — anchors the query builder's "this page" scope. */
+  rootId: string;
+  /** f(node_type) navigation: a class id opens the Class View, anything else the Page View. */
+  openNode: (nodeId: string) => void;
   /** Sibling/parent facts for the current tree (keyboard gestures). */
   positions: OutlinePositionMap;
   /** Pending focus request, consumed by the targeted BlockRow. */
@@ -99,11 +111,13 @@ export interface OutlinerContextValue {
  * PageView (block tree) and ClassView (page chrome + panels). The block-tree
  * facts (positions, focus hand-off, collapse) are inert for ClassView, which
  * renders no editable rows but reuses chrome (TitleEditor) that consumes the
- * context.
+ * context. `options.openNode` wires f(node_type) navigation for projections
+ * that navigate (query result lists); it defaults to a no-op.
  */
 export function useOutlinerValue(
   client: OutlinerClient & OutlinerReader,
   rootId: string,
+  options?: { openNode?: (nodeId: string) => void },
 ): OutlinerContextValue {
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
@@ -121,6 +135,8 @@ export function useOutlinerValue(
 
   return {
     client,
+    rootId,
+    openNode: options?.openNode ?? (() => {}),
     positions,
     focusRequest,
     requestFocus: (blockId: string, caret: CaretPlacement = "end") =>

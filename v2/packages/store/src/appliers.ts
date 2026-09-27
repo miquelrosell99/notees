@@ -603,6 +603,12 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
        description = excluded.description, active = 1, updated_at = excluded.updated_at`,
   ).run(p.classId, env.workspaceId, p.name, p.icon ?? null, p.color ?? null, env.timestamp, env.timestamp);
   upsertClassNode(db, env, p.classId, { name: p.name, icon: p.icon, color: p.color });
+  // Hierarchy self-row: the `class` query condition matches via the closure,
+  // so every class needs (id, id) even before any setExtends runs.
+  db.prepare(`INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)`).run(
+    p.classId,
+    p.classId,
+  );
   return summary(opType, [p.classId]);
 }
 

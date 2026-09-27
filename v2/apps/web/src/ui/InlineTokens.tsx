@@ -5,8 +5,9 @@
  * <strong>/<em>/<s>/<mark>/<code>; mentions and class chips render as chips
  * (names resolved through the optional resolveName callback, with graceful
  * fallbacks); quote recurses; embed_ref renders the live subtree via the
- * optional renderEmbed callback (placeholder box when absent); other
- * block-scale tokens render as labeled placeholder boxes.
+ * optional renderEmbed callback (placeholder box when absent); query renders
+ * the live query block via the optional renderQuery callback (placeholder box
+ * when absent); other block-scale tokens render as labeled placeholder boxes.
  */
 
 import { Fragment, type ReactNode } from "react";
@@ -20,6 +21,12 @@ export interface InlineTokensProps {
    * placeholder box.
    */
   renderEmbed?: ((nodeId: string) => ReactNode) | undefined;
+  /**
+   * Live query-block renderer for `query` tokens (QueryBlockView), injected
+   * by the row; when absent (e.g. read-only embed projections), query falls
+   * back to the placeholder box.
+   */
+  renderQuery?: ((token: unknown, index: number) => ReactNode) | undefined;
 }
 
 function renderMarkedText(text: string, marks: readonly string[] | undefined): ReactNode {
@@ -62,6 +69,7 @@ function renderToken(
   key: number,
   resolveName: InlineTokensProps["resolveName"],
   renderEmbed: InlineTokensProps["renderEmbed"],
+  renderQuery: InlineTokensProps["renderQuery"],
 ): ReactNode {
   if (typeof token !== "object" || token === null) return null;
   const t = token as Record<string, unknown>;
@@ -147,8 +155,12 @@ function renderToken(
       }
       return <Placeholder key={key} label="embed" detail={nodeId || undefined} />;
     }
-    case "query":
+    case "query": {
+      if (renderQuery !== undefined) {
+        return <Fragment key={key}>{renderQuery(token, key)}</Fragment>;
+      }
       return <Placeholder key={key} label="query" />;
+    }
     case "whiteboard":
       return <Placeholder key={key} label="whiteboard" />;
     default:
@@ -157,6 +169,10 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, renderEmbed }: InlineTokensProps) {
-  return <>{tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed))}</>;
+export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery }: InlineTokensProps) {
+  return (
+    <>
+      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery))}
+    </>
+  );
 }
