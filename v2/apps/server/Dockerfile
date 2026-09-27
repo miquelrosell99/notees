@@ -1,38 +1,33 @@
 # Notees v2 sync server — all-in-one image from the monorepo root (context = v2/).
 #
 # Stage layout:
-#   deps    — frozen workspace install (needs every workspace manifest)
-#   build   — full sources; tsup bundles the @notees/* TS into dist/server.js
-#             (only real npm deps stay external, incl. better-sqlite3 native)
+#   deps    — `pnpm fetch` warms the store from the lockfile alone (cached
+#             until the lockfile changes; no manifest list to maintain)
+#   build   — full sources; offline install; tsup bundles @notees/* TS into
+#             dist/server.js (only real npm deps stay external, incl. the
+#             better-sqlite3 native module)
 #   deploy  — `pnpm deploy --prod` pruned production copy of @notees/server
 #   runtime — node:22-alpine, non-root, /data volume, wget healthcheck
 #
-# better-sqlite3 ships no musl prebuilds, so the toolchain for node-gyp lives
-# in the deps stage (glibc hosts can drop the apk line).
+# Package build order is explicit (query → protocol → domain → store → sync →
+# export): a dev-only dependency cycle (protocol imports @notees/query for the
+# query-token schema; query devDepends on protocol) makes pnpm's topological
+# order arbitrary. Structural fix tracked in packages/protocol/SCHEMA.md.
 
 # ---------- deps ----------
 FROM node:22-alpine AS deps
 RUN apk add --no-cache python3 make g++
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/protocol/package.json packages/protocol/
-COPY packages/domain/package.json packages/domain/
-COPY packages/store/package.json packages/store/
-COPY packages/sync/package.json packages/sync/
-COPY apps/server/package.json apps/server/
-COPY apps/cli/package.json apps/cli/
-COPY apps/web/package.json apps/web/
-RUN pnpm install --frozen-lockfile
+COPY pnpm-lock.yaml ./
+RUN pnpm fetch
 
 # ---------- build ----------
 FROM deps AS build
-# Base tsconfig every package extends (tsup's DTS step reads the chain).
-COPY tsconfig.base.json ./
-COPY packages ./packages
-COPY apps ./apps
-# `@notees/server...` = the server plus its workspace dependencies, so the
-# packages emit their dist (production export conditions) before tsup runs.
+COPY . .
+RUN pnpm install --offline --frozen-lockfile
+# Base tsconfig every package extends (tsup's DTS step reads the chain) and
+# the sources arrive with the COPY above.
 RUN for p in query protocol domain store sync export; do pnpm --filter @notees/$p build; done \
     && pnpm --filter @notees/server build
 
