@@ -44,6 +44,9 @@ export const SYSTEM_CLASS_UUIDS = {
   highlight: "00000000-0000-0000-0001-000000000033",
   weblink: "00000000-0000-0000-0001-000000000034",
   movie: "00000000-0000-0000-0001-000000000035",
+  song: "00000000-0000-0000-0001-000000000036",
+  tv_series: "00000000-0000-0000-0001-000000000037",
+  conference: "00000000-0000-0000-0001-000000000038",
 } as const;
 
 export type SystemClassName = keyof typeof SYSTEM_CLASS_UUIDS;
@@ -83,6 +86,9 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   highlight: "mdiFormatHighlight",
   weblink: "mdiLinkVariant",
   movie: "mdiMovieOpenOutline",
+  song: "mdiMusicNote",
+  tv_series: "mdiTelevisionClassic",
+  conference: "mdiPresentation",
 };
 
 /** Canonical `extends` edges between system classes (multiple inheritance-ready). */
@@ -93,6 +99,9 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   thesis: ["source"],
   document: ["source"],
   movie: ["source"],
+  song: ["source"],
+  tv_series: ["source"],
+  conference: ["source"],
   person: ["agent"],
   organization: ["agent"],
 };
@@ -125,6 +134,7 @@ export const SYSTEM_PROPERTY_UUIDS = {
   familyName: "00000000-0000-0000-0000-000000000022",
   citekey: "00000000-0000-0000-0000-000000000023",
   url: "00000000-0000-0000-0000-000000000024",
+  linkedAuthors: "00000000-0000-0000-0000-000000000025",
   taskStatus: "00000000-0000-0000-0003-000000000001",
   taskDeadline: "00000000-0000-0000-0003-000000000002",
   taskScheduled: "00000000-0000-0000-0003-000000000003",
@@ -148,7 +158,11 @@ export interface SystemPropertySpec {
 
 export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPropertySpec>> = {
   attachments: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["asset"] },
-  authors: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] },
+  // Plain text list, verbatim strings — never person nodes (SCHEMA.md
+  // "Citations", owner decision 2026-09-27: import writes the strings as-is).
+  authors: { type: "text", multi: true, bindTo: "source" },
+  // Explicit person linkage for the authors who matter to the graph.
+  linkedAuthors: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] },
   isbn: { type: "text", bindTo: "source" },
   doi: { type: "text", bindTo: "source" },
   publicationDate: { type: "date", bindTo: "source" },
@@ -223,4 +237,7 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "highlight",
   "weblink",
   "movie",
+  "song",
+  "tv_series",
+  "conference",
 ];

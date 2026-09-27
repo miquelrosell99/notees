@@ -70,6 +70,28 @@ describe("system seeds (v1 port)", () => {
     ];
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000018");
   });
+
+  it("citations revision (2026-09-27): source family + authorship seeds", () => {
+    // New source subclasses: fixed ids in the next block, icons, extends, seeded.
+    expect(SYSTEM_CLASS_UUIDS.song).toBe("00000000-0000-0000-0001-000000000036");
+    expect(SYSTEM_CLASS_UUIDS.tv_series).toBe("00000000-0000-0000-0001-000000000037");
+    expect(SYSTEM_CLASS_UUIDS.conference).toBe("00000000-0000-0000-0001-000000000038");
+    for (const name of ["song", "tv_series", "conference"] as const) {
+      expect(SYSTEM_CLASS_ICONS[name]).toMatch(/^mdi/);
+      expect(SYSTEM_CLASS_EXTENDS[name]).toEqual(["source"]);
+      expect(SEEDED_SYSTEM_CLASSES).toContain(name);
+    }
+    // Authorship split: `authors` is plain text-multi; `linkedAuthors` is the
+    // node-typed agent-filtered sibling.
+    expect(SYSTEM_PROPERTY_UUIDS.linkedAuthors).toBe("00000000-0000-0000-0000-000000000025");
+    expect(SYSTEM_PROPERTY_SPECS.authors).toEqual({ type: "text", multi: true, bindTo: "source" });
+    expect(SYSTEM_PROPERTY_SPECS.linkedAuthors).toEqual({
+      type: "object",
+      multi: true,
+      bindTo: "source",
+      targetClassFilter: ["agent"],
+    });
+  });
 });
 
 describe("deriveDisplayName", () => {
