@@ -420,14 +420,16 @@ const BIB_FIXTURE = `% Round-trip fixture
 }`;
 
 describe("bibliography round-trip (bibtex)", () => {
-  it("import creates sources with classes/properties and find-or-created person authors", async () => {
+  it("import creates sources with classes/properties and text authors (no person nodes)", async () => {
     const h = harness;
     const file = join(h.dataDir, "bib-import-1.bib");
     writeFileSync(file, BIB_FIXTURE);
 
     expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
     const counts = JSON.parse(h.io.stdoutText);
-    expect(counts).toMatchObject({ created: 2, updated: 0, persons: 3, personsCreated: 3 });
+    expect(counts).toMatchObject({ created: 2, updated: 0 });
+    expect(counts).not.toHaveProperty("persons");
+    expect(counts).not.toHaveProperty("personsCreated");
 
     // The book source: class + title + citekey + bibliographic properties.
     const bookId = counts.entries[0] as string;
@@ -443,43 +445,47 @@ describe("bibliography round-trip (bibtex)", () => {
       "University of Chicago Press",
     );
     expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publicationDate)?.value).toBe("1962");
-    const authorRef = props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors)?.value as {
-      nodeId: string;
-    };
-    expect(authorRef.nodeId).toMatch(/^[0-9a-f-]{36}$/);
+    // Authors are a multi-value TEXT property — verbatim strings, idx per author.
+    const authorValues = props
+      .filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors)
+      .map((p) => p.value);
+    expect(authorValues).toEqual(["Kuhn, Thomas S."]);
 
-    // The paper source maps article → paper class.
+    // The paper source maps article → article class (owner family naming).
     const paperId = counts.entries[1] as string;
     await h.runCli("--json", "object", "get", paperId);
     const paper = JSON.parse(h.io.stdoutText).object;
-    expect(paper.classIds).toContain(SYSTEM_CLASS_UUIDS.paper);
+    expect(paper.classIds).toContain(SYSTEM_CLASS_UUIDS.article);
     const paperProps = paper.properties as { schemaId: string; value: unknown }[];
     expect(paperProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.doi)?.value).toBe("10.2307/2333763");
+    expect(
+      paperProps.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors).map((p) => p.value),
+    ).toEqual(["David, F. N.", "Barton, D. E."]);
 
-    // The author person node: person class + given/family name properties.
-    await h.runCli("--json", "object", "get", authorRef.nodeId);
-    const person = JSON.parse(h.io.stdoutText).object;
-    expect(person.name).toBe("Kuhn, Thomas S.");
-    expect(person.classIds).toContain(SYSTEM_CLASS_UUIDS.person);
-    const personProps = person.properties as { schemaId: string; value: unknown }[];
-    expect(personProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.familyName)?.value).toBe("Kuhn");
-    expect(personProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.givenName)?.value).toBe("Thomas S.");
+    // No person nodes were created: the person class has no members.
+    await h.runCli("--json", "class", "list");
+    const classes = JSON.parse(h.io.stdoutText).classes as { id: string; memberCount: number }[];
+    expect(classes.find((c) => c.id === SYSTEM_CLASS_UUIDS.person)?.memberCount).toBe(0);
   });
 
-  it("re-import dedupes persons and upserts by citekey (no duplicates)", async () => {
+  it("re-import upserts by citekey (no duplicates; authors text list rewritten)", async () => {
     const h = harness;
     const file = join(h.dataDir, "bib-import-2.bib");
     writeFileSync(file, BIB_FIXTURE);
 
     expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
     const counts = JSON.parse(h.io.stdoutText);
-    expect(counts).toMatchObject({ created: 0, updated: 2, persons: 3, personsCreated: 0 });
+    expect(counts).toMatchObject({ created: 0, updated: 2 });
 
     // Exactly one object per citekey after the re-import.
     await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:cli-kuhn1962`);
     expect(JSON.parse(h.io.stdoutText).objects).toHaveLength(1);
     await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:cli-david1962`);
     expect(JSON.parse(h.io.stdoutText).objects).toHaveLength(1);
+    // Still no person nodes.
+    await h.runCli("--json", "class", "list");
+    const classes = JSON.parse(h.io.stdoutText).classes as { id: string; memberCount: number }[];
+    expect(classes.find((c) => c.id === SYSTEM_CLASS_UUIDS.person)?.memberCount).toBe(0);
   });
 
   it("citekey upsert updates the existing source instead of duplicating it", async () => {
@@ -545,7 +551,7 @@ describe("bibliography round-trip (bibtex)", () => {
     expect(kuhn.issued).toEqual({ "date-parts": [[1962]] });
     expect(kuhn.ISBN).toBe("9780226458120");
     const david = byKey.get("cli-exp-david1962")!;
-    expect(david.type).toBe("article-journal"); // paper class → CSL article-journal
+    expect(david.type).toBe("article"); // article class → CSL article (owner family naming)
     expect(david.author).toEqual([
       { family: "David", given: "F. N." },
       { family: "Barton", given: "D. E." },
@@ -573,6 +579,73 @@ describe("bibliography round-trip (bibtex)", () => {
     expect(machine.skipped).toBe(1);
     expect(machine.bib).toContain("@book{");
     expect(machine.bib).not.toContain("bib-notes");
+  });
+
+  it("export unions authors text with manually linkedAuthors persons (append + dedupe)", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-6.bib");
+    writeFileSync(
+      file,
+      `@book{cli-link-kuhn1962,
+  title  = {The {Structure} of {Scientific} {Revolutions}},
+  author = {Kuhn, Thomas S.},
+  year   = 1962,
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const { entries } = JSON.parse(h.io.stdoutText) as { entries: string[] };
+    const bookId = entries[0]!;
+
+    // The user deliberately links two persons via the properties endpoint:
+    // one already in the text author list (name match → not duplicated), one
+    // new (→ appended after the text authors).
+    const createPerson = async (name: string): Promise<string> => {
+      await h.runCliWithStdin(
+        JSON.stringify({ nodeType: "page", name, classIds: [SYSTEM_CLASS_UUIDS.person] }),
+        "--json", "object", "create", "--stdin",
+      );
+      return (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    };
+    const sameNamePerson = await createPerson("Kuhn, Thomas S.");
+    const newPerson = await createPerson("Ursula K. Le Guin");
+    // Explicit given/family names — the export resolves those before the display name.
+    for (const [personId, schemaId, value] of [
+      [newPerson, SYSTEM_PROPERTY_UUIDS.familyName, "Le Guin"],
+      [newPerson, SYSTEM_PROPERTY_UUIDS.givenName, "Ursula K."],
+    ] as const) {
+      const res = await fetch(`${h.baseUrl}/api/v1/objects/${personId}/properties`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": API_KEY },
+        body: JSON.stringify({ propertySchemaId: schemaId, value }),
+      });
+      expect(res.status).toBe(200);
+    }
+    for (const [personId, idx] of [
+      [sameNamePerson, 0],
+      [newPerson, 1],
+    ] as const) {
+      const res = await fetch(`${h.baseUrl}/api/v1/objects/${bookId}/properties`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": API_KEY },
+        body: JSON.stringify({
+          propertySchemaId: SYSTEM_PROPERTY_UUIDS.linkedAuthors,
+          value: { nodeId: personId },
+          idx,
+        }),
+      });
+      expect(res.status).toBe(200);
+    }
+
+    // The linked persons must exist for resolution.
+    await h.runCli("--json", "class", "list");
+    const classes = JSON.parse(h.io.stdoutText).classes as { id: string; memberCount: number }[];
+    expect(classes.find((c) => c.id === SYSTEM_CLASS_UUIDS.person)?.memberCount).toBe(2);
+
+    expect(await h.runCli("export", "bibtex", "--ids", bookId)).toBe(EXIT.ok);
+    const bibText = h.io.stdoutText;
+    expect(bibText).toContain("author = {Kuhn, Thomas S. and Le Guin, Ursula K.}");
+    // The matching linked person appears exactly once.
+    expect(bibText.match(/Kuhn, Thomas S\./g)).toHaveLength(1);
   });
 
   it("usage errors exit 2 (missing file, no entries)", async () => {

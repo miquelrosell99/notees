@@ -8,8 +8,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   bibToCsl,
+  BIB_TYPE_TO_CLASS_NAME,
+  bibTypeToClassName,
   cslToBib,
   cslToNodeSpecs,
+  cslTypeToClassName,
   nodeToCsl,
   parseAuthorName,
   parseAuthors,
@@ -149,15 +152,53 @@ describe("author name parsing", () => {
 });
 
 describe("bibToCsl / cslToBib", () => {
-  it("maps entry types to CSL types via the v1 class map", () => {
+  it("maps entry types to CSL types via the owner-decided source-family table", () => {
     const entries = parseBibtex(FIXTURE);
     expect(bibToCsl(entries[0]!).type).toBe("book");
-    expect(bibToCsl(entries[1]!).type).toBe("article-journal");
+    expect(bibToCsl(entries[1]!).type).toBe("article"); // article class → CSL article
     expect(bibToCsl(entries[2]!).type).toBe("thesis");
     expect(bibToCsl(parseBibtex("@misc{w}")[0]!).type).toBe("article"); // document fallback
+    // The extended source family (owner decision 2026-09-27).
+    expect(bibToCsl(parseBibtex("@inproceedings{w}")[0]!).type).toBe("paper-conference");
+    expect(bibToCsl(parseBibtex("@conference{w}")[0]!).type).toBe("paper-conference");
+    expect(bibToCsl(parseBibtex("@proceedings{w}")[0]!).type).toBe("paper-conference");
+    expect(bibToCsl(parseBibtex("@song{w}")[0]!).type).toBe("song");
+    expect(bibToCsl(parseBibtex("@movie{w}")[0]!).type).toBe("motion_picture");
+    expect(bibToCsl(parseBibtex("@video{w}")[0]!).type).toBe("motion_picture");
+    expect(bibToCsl(parseBibtex("@series{w}")[0]!).type).toBe("broadcast");
+    expect(bibToCsl(parseBibtex("@tv{w}")[0]!).type).toBe("broadcast");
     // paper-conference and misc round out the re-serialization map.
     expect(cslToBib({ id: "c", type: "paper-conference", title: "C" }).entryType).toBe("inproceedings");
     expect(cslToBib({ id: "m", type: "manuscript", title: "M" }).entryType).toBe("misc");
+    // The new families re-serialize to their (nonstandard but re-importable) types.
+    expect(cslToBib({ id: "s", type: "song", title: "S" }).entryType).toBe("song");
+    expect(cslToBib({ id: "mv", type: "motion_picture", title: "MV" }).entryType).toBe("movie");
+    expect(cslToBib({ id: "tv", type: "broadcast", title: "TV" }).entryType).toBe("series");
+  });
+
+  it("entry-type ↔ class table: article → article, conference family → conference, fallback → document", () => {
+    expect(BIB_TYPE_TO_CLASS_NAME).toMatchObject({
+      book: "book",
+      inbook: "book",
+      incollection: "book",
+      article: "article",
+      inproceedings: "conference",
+      conference: "conference",
+      proceedings: "conference",
+      phdthesis: "thesis",
+      mastersthesis: "thesis",
+      song: "song",
+      movie: "movie",
+      video: "movie",
+      series: "tv_series",
+      tv: "tv_series",
+    });
+    expect(bibTypeToClassName("misc")).toBe("document");
+    expect(bibTypeToClassName("whatever")).toBe("document");
+    expect(cslTypeToClassName("paper-conference")).toBe("conference");
+    expect(cslTypeToClassName("song")).toBe("song");
+    expect(cslTypeToClassName("motion_picture")).toBe("movie");
+    expect(cslTypeToClassName("broadcast")).toBe("tv_series");
   });
 
   it("carries title/author/year/container/publisher identifiers through both ways", () => {
@@ -165,7 +206,7 @@ describe("bibToCsl / cslToBib", () => {
     const item = bibToCsl(entry);
     expect(item).toMatchObject({
       id: "david1962combinatorial",
-      type: "article-journal",
+      type: "article",
       title: expect.stringContaining("à la française"),
       DOI: "10.2307/2333763",
       URL: "https://doi.org/10.2307/2333763",
@@ -205,13 +246,14 @@ describe("bibToCsl / cslToBib", () => {
 
 describe("nodeToCsl / cslToNodeSpecs", () => {
   const AUTHORS_SCHEMA = "00000000-0000-0000-0000-000000000012";
+  const LINKED_AUTHORS_SCHEMA = "00000000-0000-0000-0000-000000000025";
   const ISBN_SCHEMA = "00000000-0000-0000-0000-000000000013";
   const DOI_SCHEMA = "00000000-0000-0000-0000-000000000014";
   const PUBDATE_SCHEMA = "00000000-0000-0000-0000-000000000015";
   const PUBLISHER_SCHEMA = "00000000-0000-0000-0000-000000000016";
   const CITEKEY_SCHEMA = "00000000-0000-0000-0000-000000000023";
 
-  it("projects a source node with person authors into CSL", () => {
+  it("projects a source node with text authors into CSL, strings verbatim", () => {
     const item = nodeToCsl(
       {
         id: "aaaaaaaa-0000-4000-8000-000000000099",
@@ -224,19 +266,15 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
         { schemaId: PUBDATE_SCHEMA, schemaName: "publicationDate", value: "1962" },
         { schemaId: PUBLISHER_SCHEMA, schemaName: "publisher", value: "University of Chicago Press" },
         { schemaId: ISBN_SCHEMA, schemaName: "isbn", value: "9780226458120" },
-        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: { nodeId: "bbbbbbbb-0000-4000-8000-000000000001" } },
-        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: { nodeId: "bbbbbbbb-0000-4000-8000-000000000002" } },
-      ],
-      [
-        { id: "bbbbbbbb-0000-4000-8000-000000000001", name: "Thomas S. Kuhn", givenName: "Thomas S.", familyName: "Kuhn" },
-        { id: "bbbbbbbb-0000-4000-8000-000000000002", name: "Jane Doe", familyName: "Doe", givenName: null },
+        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "Kuhn, Thomas S." },
+        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "Jane Doe" },
       ],
     );
     expect(item).toEqual({
       id: "kuhn1962structure",
       type: "book",
       title: "The Structure of Scientific Revolutions",
-      author: [{ family: "Kuhn", given: "Thomas S." }, { family: "Doe" }],
+      author: [{ family: "Kuhn", given: "Thomas S." }, { family: "Doe", given: "Jane" }],
       issued: { "date-parts": [[1962]] },
       DOI: "10.7208/chicago/9780226458106.001.0001",
       ISBN: "9780226458120",
@@ -244,7 +282,28 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
     });
   });
 
-  it("falls back to the node id for the CSL id and parses literal author names", () => {
+  it("unions linkedAuthors persons after the text authors, deduping case-insensitively", () => {
+    const props = [
+      { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "Kuhn, Thomas S." },
+      // A manual person link for an author already in the text list…
+      { schemaId: LINKED_AUTHORS_SCHEMA, schemaName: "linkedAuthors", value: { nodeId: "p1" } },
+      // …and one for an author who only exists as a linked person.
+      { schemaId: LINKED_AUTHORS_SCHEMA, schemaName: "linkedAuthors", value: { nodeId: "p2" } },
+    ];
+    const linked = [
+      { id: "p1", name: "kuhn, thomas s.", givenName: null, familyName: null }, // matches "Kuhn, Thomas S."
+      { id: "p2", name: null, givenName: "Ursula K.", familyName: "Le Guin" },
+    ];
+    const item = nodeToCsl(
+      { id: "n", name: "T", classIds: [SOURCE_CLASS_IDS.book] },
+      props,
+      linked,
+    );
+    // p1 is swallowed by the case-insensitive name match; p2 is appended.
+    expect(item.author).toEqual([{ family: "Kuhn", given: "Thomas S." }, { family: "Le Guin", given: "Ursula K." }]);
+  });
+
+  it("resolves a linked person by display name when given/family are unset", () => {
     const item = nodeToCsl(
       { id: "node-id", name: "Paper", classIds: [SOURCE_CLASS_IDS.paper] },
       [],
@@ -253,6 +312,18 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
     expect(item.id).toBe("node-id");
     expect(item.type).toBe("article-journal");
     expect(item.author).toEqual([{ family: "David", given: "F. N." }]);
+  });
+
+  it("skips empty text author strings and unresolvable linked persons", () => {
+    const item = nodeToCsl(
+      { id: "n", name: "T", classIds: [SOURCE_CLASS_IDS.book] },
+      [
+        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "  " },
+        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "Solo Author" },
+      ],
+      [{ id: "p-empty", name: null, givenName: null, familyName: null }],
+    );
+    expect(item.author).toEqual([{ family: "Author", given: "Solo" }]);
   });
 
   it("cslToNodeSpecs produces the import spec; nodeToCsl(csl) round-trips it", () => {
@@ -274,26 +345,24 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
       publicationDate: "1962",
     });
 
-    // Import spec → node → CSL keeps the mapped subset stable.
+    // Import spec → node → CSL keeps the mapped subset stable: the author is
+    // a TEXT value on the node, not a person node.
     const nodeItem = nodeToCsl(
       { id: "some-uuid", name: spec.title, classIds: [SOURCE_CLASS_IDS[spec.className]] },
       [
         { schemaId: CITEKEY_SCHEMA, schemaName: "citekey", value: spec.citekey },
         { schemaId: DOI_SCHEMA, schemaName: "doi", value: spec.doi! },
         { schemaId: PUBDATE_SCHEMA, schemaName: "publicationDate", value: spec.publicationDate! },
+        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "David, F. N." },
       ],
-      spec.authors.map((name, i) => ({
-        id: `person-${i}`,
-        name: null,
-        givenName: name.given ?? null,
-        familyName: name.family ?? null,
-      })),
     );
     expect(nodeItem).toEqual(item);
   });
 
   it("sourceClassOf picks the first source class in classIds order", () => {
     expect(sourceClassOf([SOURCE_CLASS_IDS.document, SOURCE_CLASS_IDS.book])).toBe("document");
+    expect(sourceClassOf([SOURCE_CLASS_IDS.song])).toBe("song");
+    expect(sourceClassOf([SOURCE_CLASS_IDS.tv_series, SOURCE_CLASS_IDS.conference])).toBe("tv_series");
     expect(sourceClassOf(["ffffffff-ffff-4fff-8fff-ffffffffffff"])).toBeUndefined();
   });
 });

@@ -130,3 +130,11 @@ Classes define **bound property schemas** (with per-binding metadata and a `defa
 - Carrier blocks are **real children of the owner node** (`parent_id = owner`; containment derives from the tree — no placement fields) → containment, backlinks, `refset` roll-up, queries, and export resolution all work. The carrier's own children are ordinary blocks under the carrier; the body-exclusion rule filters only direct carriers.
 - **Unset deletes the carrier** (trash + retention, consistent with node deletion). **"Promote to block" is a separate gesture** — reparent the carrier into the owner's body.
 - Multi-value `text` = m2m list of carrier block ids, each with its own subtree.
+
+## Citations — source family and authorship (NORMATIVE, owner decisions 2026-09-27)
+
+- **`source` is the base class; subclasses extend it.** Seeded source family: `book`, `paper`, `article`, `thesis`, `document`, `movie`, `song`, `tv_series`, `conference` — all `extends: [source]`. Users may define their own source subclasses at runtime (classes are data; `extends [source]` puts them in the family, and the class hierarchy makes `class:source` queries see them all). BibTeX/CSL import maps entry types onto this family (unknown types → `document` fallback, or a user-created subclass of the same name if one exists).
+- **`authors` is a plain multi-value TEXT property — never auto-created person nodes.** Import writes the author string list as-is; no `person` nodes are created for bibliography entries (clutter avoidance, owner decision). Rendering/export uses the strings verbatim.
+- **Explicit person linkage is a separate node-typed property `linkedAuthors`** (multi, node-typed, target filter `agent`): the user links a `person` node for the authors who matter to the graph (the C. S. Lewis case). Explicit, deliberate, queryable, backlink-generating — never automatic.
+- **Export unions both**: text authors in order, then `linkedAuthors` persons (resolved names) not already present in the text list, appended.
+- **Lint (suggestion only, M2+):** "author 'X' matches an existing person node — link?" — the design law: suggestions, never enforcement.
