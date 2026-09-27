@@ -203,14 +203,14 @@ describe("property schemas", () => {
       multi: false,
     });
 
+    // FINAL authorship (2026-09-27): authors is node-typed to agent nodes.
     const authors = await api("GET", `/api/v1/property-schemas/${SYSTEM_PROPERTY_UUIDS.authors}`);
-    expect(authors.json().propertySchema).toMatchObject({ multi: true, type: "text" });
-    expect(authors.json().propertySchema.targetClassFilter).toBeNull();
+    expect(authors.json().propertySchema).toMatchObject({ multi: true, type: "object" });
+    expect(authors.json().propertySchema.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.agent]);
 
-    // Explicit person linkage is the node-typed sibling property.
-    const linked = await api("GET", `/api/v1/property-schemas/${SYSTEM_PROPERTY_UUIDS.linkedAuthors}`);
-    expect(linked.json().propertySchema).toMatchObject({ multi: true, type: "object" });
-    expect(linked.json().propertySchema.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.agent]);
+    // The withdrawn `linkedAuthors` schema (…0025) is not seeded.
+    const withdrawn = await api("GET", "/api/v1/property-schemas/00000000-0000-0000-0000-000000000025");
+    expect(withdrawn.statusCode).toBe(404);
 
     const missing = await api("GET", `/api/v1/property-schemas/${crypto.randomUUID()}`);
     expect(missing.statusCode).toBe(404);

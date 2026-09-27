@@ -134,7 +134,7 @@ export const SYSTEM_PROPERTY_UUIDS = {
   familyName: "00000000-0000-0000-0000-000000000022",
   citekey: "00000000-0000-0000-0000-000000000023",
   url: "00000000-0000-0000-0000-000000000024",
-  linkedAuthors: "00000000-0000-0000-0000-000000000025",
+  // …0025 WITHDRAWN 2026-09-27 (`linkedAuthors`, reversed same day) — never reuse.
   taskStatus: "00000000-0000-0000-0003-000000000001",
   taskDeadline: "00000000-0000-0000-0003-000000000002",
   taskScheduled: "00000000-0000-0000-0003-000000000003",
@@ -158,11 +158,10 @@ export interface SystemPropertySpec {
 
 export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPropertySpec>> = {
   attachments: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["asset"] },
-  // Plain text list, verbatim strings — never person nodes (SCHEMA.md
-  // "Citations", owner decision 2026-09-27: import writes the strings as-is).
-  authors: { type: "text", multi: true, bindTo: "source" },
-  // Explicit person linkage for the authors who matter to the graph.
-  linkedAuthors: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] },
+  // Node-typed to agent nodes — bibliography authors ARE agent nodes
+  // (SCHEMA.md "Citations — source family and authorship", FINAL owner
+  // decision 2026-09-27: `person` and `organization` both extend `agent`).
+  authors: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] },
   isbn: { type: "text", bindTo: "source" },
   doi: { type: "text", bindTo: "source" },
   publicationDate: { type: "date", bindTo: "source" },
