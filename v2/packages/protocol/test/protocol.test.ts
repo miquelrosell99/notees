@@ -40,12 +40,13 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the nine required fixtures", () => {
+  it("has exactly the ten required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-extends-cycle.json",
       "class-extends-m2m.json",
       "class-property-defaults.json",
+      "class-unassign.json",
       "envelope-minimal.json",
       "object-create.json",
       "object-move.json",
@@ -154,6 +155,49 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
       classId: taskPayload.classId,
       propertySchemaId: priority,
     });
+    // Applicable in sequence: every HLC strictly follows the previous one.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("class-unassign fixture: binds two defaults, authors one value, unassigns, then re-assigns", () => {
+    const fixture = fixtures.find((f) => f.name === "class-unassign.json")!;
+    const [effort, impact, task, node, effortBinding, impactBinding, authored, unassign, reassign] =
+      fixture.envelopes;
+    const effortSchema = "0192a000-0000-7000-8000-000000000410";
+    const impactSchema = "0192a000-0000-7000-8000-000000000411";
+    const taskId = "0192a000-0000-7000-8000-000000000412";
+    const nodeId = "0192a000-0000-7000-8000-000000000413";
+    expect(effort!.opType).toBe("propertySchema.create");
+    expect(impact!.opType).toBe("propertySchema.create");
+    // The node is created classed with Task; Task binds 'effort' (default 'xs')
+    // and 'impact' (default 'xl'); impact is then AUTHORED at idx 0 (shadowing
+    // the default) so the unassign can pin both read outcomes on one node.
+    expect(node!.opType).toBe("object.create");
+    expect(node!.payload).toMatchObject({ objectId: nodeId, classIds: [taskId] });
+    expect(effortBinding!.payload).toMatchObject({
+      classId: taskId,
+      propertySchemaId: effortSchema,
+      defaultValue: "xs",
+    });
+    expect(impactBinding!.payload).toMatchObject({
+      classId: taskId,
+      propertySchemaId: impactSchema,
+      defaultValue: "xl",
+    });
+    expect(authored!.opType).toBe("property.set");
+    expect(authored!.payload).toMatchObject({
+      objectId: nodeId,
+      propertySchemaId: impactSchema,
+      value: "authored",
+    });
+    // The OR-Set remove is the class.unassign envelope…
+    expect(unassign!.opType).toBe("class.unassign");
+    expect(unassign!.payload).toMatchObject({ objectId: nodeId, classId: taskId });
+    // …and the final re-issued object.create re-assigns Task (add-wins with a
+    // newer HLC), so a replay restores the derived default end to end.
+    expect(reassign!.opType).toBe("object.create");
+    expect(reassign!.payload).toMatchObject({ objectId: nodeId, classIds: [taskId] });
     // Applicable in sequence: every HLC strictly follows the previous one.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);

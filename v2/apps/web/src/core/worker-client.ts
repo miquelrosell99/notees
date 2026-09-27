@@ -284,6 +284,11 @@ export class WorkerClient {
     await this.call("assignClass", [id, classId]);
   }
 
+  /** OR-set class membership remove (the class chip's × gesture). */
+  async unassignClass(id: string, classId: string): Promise<void> {
+    await this.call("unassignClass", [id, classId]);
+  }
+
   /** Create a class (class.create); returns the new class id. */
   async createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string> {
     return (await this.call("createClass", [name, opts])) as string;

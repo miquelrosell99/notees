@@ -16,7 +16,8 @@
  * - Description shelf: the class node's own content, read-only for M1.
  * - Classed nodes: lazy per the section contract — no member query until the
  *   section first expands. Members link to their page (blocks resolve to
- *   their containing page).
+ *   their containing page); each row's × unassigns the member from THIS
+ *   class (class.unassign).
  */
 
 import { useEffect, useState } from "react";
@@ -327,16 +328,27 @@ export function ClassView({
             emptyText="No classed nodes."
             renderResults={(members) => (
               <ul className="nt-section-list">
-                {members.map((member) => (
-                  <li key={member.id}>
-                    <button type="button" className="nt-section-item" onClick={() => openMember(member)}>
-                      <span className="nt-bullet" aria-hidden="true">
-                        •
-                      </span>
-                      <span>{deriveDisplayName(member) ?? member.id}</span>
-                    </button>
-                  </li>
-                ))}
+                {members.map((member) => {
+                  const label = deriveDisplayName(member) ?? member.id;
+                  return (
+                    <li key={member.id} className="nt-class-member">
+                      <button type="button" className="nt-section-item" onClick={() => openMember(member)}>
+                        <span className="nt-bullet" aria-hidden="true">
+                          •
+                        </span>
+                        <span>{label}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="nt-class-member-remove"
+                        aria-label={`Remove ${label} from ${node.name ?? "this class"}`}
+                        onClick={() => void client.unassignClass(member.id, classId)}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           />

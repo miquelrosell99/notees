@@ -1104,6 +1104,25 @@ export class WorkspaceClient {
   }
 
   /**
+   * OR-set class membership remove — the class chip's × gesture
+   * (class.unassign). No-op when the class is not assigned. The applier
+   * tombstones the class_member_set pair add-wins and recomputes class_ids;
+   * the effective read drops the class's derived defaults automatically and
+   * authored property values survive (SCHEMA.md "Class properties").
+   * Immediate (not debounced) — a discrete gesture, same optimistic envelope
+   * path as any write.
+   */
+  async unassignClass(id: string, classId: string): Promise<void> {
+    const engine = this.requireEngine();
+    const node = this.getNode(id) ?? this.getNodeRaw(id);
+    if (!node) throw new Error(`unassignClass: node ${id} not found`);
+    if (!node.classIds.includes(classId)) return;
+    engine.enqueue(this.buildEnvelope("class.unassign", { objectId: id, classId }, [id]));
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
    * Create a class (class.create: node row + class registry row — the
    * registry row is what keeps the extends closure rebuild authoritative).
    * The store seeds the hierarchy self-row at create time, so no setExtends

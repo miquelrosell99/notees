@@ -102,6 +102,17 @@ export const classUpdatePayload = z
 
 export const classDeletePayload = z.object({ classId: uuid }).strict();
 
+/**
+ * Class membership removal (SCHEMA.md "Class properties"): the OR-Set remove
+ * complement of the re-issued object.create add carrier. The applier
+ * tombstones the `class_member_set` pair (present = 0, HLC-gated add-wins)
+ * and recomputes `node.class_ids`; the effective-values read model drops the
+ * class's derived defaults automatically and authored values survive.
+ */
+export const classUnassignPayload = z
+  .object({ objectId: uuid, classId: uuid })
+  .strict();
+
 export const classSetExtendsPayload = z
   .object({
     classId: uuid,
@@ -253,6 +264,7 @@ export const OP_PAYLOAD_SCHEMAS = {
   "class.create": classCreatePayload,
   "class.update": classUpdatePayload,
   "class.delete": classDeletePayload,
+  "class.unassign": classUnassignPayload,
   "class.setExtends": classSetExtendsPayload,
   "class.property.set": classPropertySetPayload,
   "class.property.unset": classPropertyUnsetPayload,

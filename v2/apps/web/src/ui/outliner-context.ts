@@ -37,6 +37,13 @@ export interface OutlinerClient {
    */
   assignClass(id: string, classId: string): Promise<void>;
   /**
+   * OR-set class membership remove — the class chip's × gesture
+   * (`class.unassign`). No-op when the class is not assigned. The effective
+   * read drops the class's derived defaults automatically; authored values
+   * survive.
+   */
+  unassignClass(id: string, classId: string): Promise<void>;
+  /**
    * Replace a class's full extends parent set (`class.setExtends`, m2m
    * replace semantics). The store fails loud on cycles (CycleError) — the
    * Class View surfaces that as a transient message.

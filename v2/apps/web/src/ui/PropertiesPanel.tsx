@@ -24,6 +24,11 @@
  *
  * The panel is node-typed agnostic: PageView mounts it for the page; any
  * future Block View can mount it for a block with the same props.
+ *
+ * The node's own classes render as chips above the property rows (the
+ * panel's "Classes" affordance): each chip's × issues class.unassign — the
+ * OR-Set remove drops the class's derived defaults from this panel's read
+ * and leaves authored values in place, marked unbound.
  */
 
 import { useRef, useState } from "react";
@@ -381,7 +386,10 @@ export function PropertiesPanel({
     }
   }
 
-  if (rows.length === 0 && emptyObjectBindings.length === 0) return null;
+  // The node's own classes: chips with an × that unassigns (class.unassign).
+  const classIds = node?.classIds ?? [];
+
+  if (rows.length === 0 && emptyObjectBindings.length === 0 && classIds.length === 0) return null;
 
   const objectRow = (
     propertySchemaId: string,
@@ -406,6 +414,26 @@ export function PropertiesPanel({
   return (
     <section className="nt-class-panel nt-properties-panel" aria-label="Properties">
       <h2 className="nt-class-panel-title">Properties</h2>
+      {classIds.length > 0 && (
+        <ul className="nt-class-chips" aria-label="Classes">
+          {classIds.map((classId) => {
+            const label = client.getDisplayName(classId) ?? classId;
+            return (
+              <li key={classId} className="nt-class-chip">
+                <span className="nt-class-chip-name">{label}</span>
+                <button
+                  type="button"
+                  className="nt-class-chip-remove"
+                  aria-label={`Remove class ${label}`}
+                  onClick={() => void client.unassignClass(nodeId, classId)}
+                >
+                  ×
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       <ul className="nt-properties-list">
         {rendered.map((entry) => {
           if (entry === null) return null;

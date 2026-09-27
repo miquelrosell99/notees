@@ -236,7 +236,10 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
 
   // Seed OR-Set membership from the payload's classIds (add-wins per pair,
   // HLC-gated; concurrent creates on the same id are the designed carrier
-  // for class membership — see conflicts.ts class_conflict).
+  // for class membership — see conflicts.ts class_conflict). The add's
+  // comparator is >= on the actor tiebreak so an exact-HLC add beats a
+  // class.unassign remove in either delivery order (the remove's is > — the
+  // collection_member convention).
   const memberUpsert = db.prepare(
     `INSERT INTO class_member_set (node_id, class_id, present, hlc_physical, hlc_logical, actor_id)
      VALUES (?, ?, 1, ?, ?, ?)
@@ -246,7 +249,7 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
      WHERE excluded.hlc_physical > hlc_physical
         OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
         OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
-            AND excluded.actor_id > COALESCE(actor_id, ''))`,
+            AND excluded.actor_id >= COALESCE(actor_id, ''))`,
   );
 
   // First create wins for duplicate node ids (v1 INSERT OR IGNORE): re-issuing
@@ -647,6 +650,37 @@ function applyClassDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   db.prepare("UPDATE class SET active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
   db.prepare("UPDATE node SET is_active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
   return summary(opType, [p.classId]);
+}
+
+/**
+ * Class membership removal (class.unassign — SCHEMA.md "Class properties"):
+ * the OR-Set remove complement of the re-issued object.create add carrier.
+ * The pair is tombstoned (present = 0) with the op's HLC under add-wins
+ * gating (the remove's comparator is strictly-greater, the add carrier's
+ * greater-or-equal, per the collection_member convention), and
+ * `node.class_ids` is recomputed from the surviving present rows. Derived
+ * defaults and node_stats need no applier attention: defaults live entirely
+ * in the effective read model, and membership touches no stats row. A remove
+ * that loses the HLC race to a newer add is written as nothing (the gated
+ * upsert no-ops) and membership stands.
+ */
+function applyClassUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "class.unassign";
+  const p = env.payload as OpPayload<"class.unassign">;
+  requireNode(db, p.objectId, opType);
+  db.prepare(
+    `INSERT INTO class_member_set (node_id, class_id, present, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, 0, ?, ?, ?)
+     ON CONFLICT(node_id, class_id) DO UPDATE SET
+       present = 0, hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id
+     WHERE excluded.hlc_physical > hlc_physical
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+            AND excluded.actor_id > COALESCE(actor_id, ''))`,
+  ).run(p.objectId, p.classId, env.hlc.physical, env.hlc.logical, env.actorId);
+  recomputeClassIds(db, p.objectId);
+  return summary(opType, [p.objectId]);
 }
 
 /**
@@ -1055,6 +1089,7 @@ const APPLIERS: Record<
   "class.create": applyClassCreate,
   "class.update": applyClassUpdate,
   "class.delete": applyClassDelete,
+  "class.unassign": applyClassUnassign,
   "class.setExtends": applyClassSetExtends,
   "class.property.set": applyClassPropertySet,
   "class.property.unset": applyClassPropertyUnset,
