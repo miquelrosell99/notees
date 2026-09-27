@@ -246,14 +246,13 @@ describe("bibToCsl / cslToBib", () => {
 
 describe("nodeToCsl / cslToNodeSpecs", () => {
   const AUTHORS_SCHEMA = "00000000-0000-0000-0000-000000000012";
-  const LINKED_AUTHORS_SCHEMA = "00000000-0000-0000-0000-000000000025";
   const ISBN_SCHEMA = "00000000-0000-0000-0000-000000000013";
   const DOI_SCHEMA = "00000000-0000-0000-0000-000000000014";
   const PUBDATE_SCHEMA = "00000000-0000-0000-0000-000000000015";
   const PUBLISHER_SCHEMA = "00000000-0000-0000-0000-000000000016";
   const CITEKEY_SCHEMA = "00000000-0000-0000-0000-000000000023";
 
-  it("projects a source node with text authors into CSL, strings verbatim", () => {
+  it("projects a source node + resolved author name strings into CSL", () => {
     const item = nodeToCsl(
       {
         id: "aaaaaaaa-0000-4000-8000-000000000099",
@@ -266,9 +265,11 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
         { schemaId: PUBDATE_SCHEMA, schemaName: "publicationDate", value: "1962" },
         { schemaId: PUBLISHER_SCHEMA, schemaName: "publisher", value: "University of Chicago Press" },
         { schemaId: ISBN_SCHEMA, schemaName: "isbn", value: "9780226458120" },
-        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "Kuhn, Thomas S." },
-        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "Jane Doe" },
+        // The node-typed `authors` property is {nodeId} refs — the caller
+        // resolves them to name strings; nodeToCsl takes the strings.
+        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: { nodeId: "person-1" } },
       ],
+      ["Kuhn, Thomas S.", "Jane Doe"],
     );
     expect(item).toEqual({
       id: "kuhn1962structure",
@@ -282,51 +283,29 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
     });
   });
 
-  it("unions linkedAuthors persons after the text authors, deduping case-insensitively", () => {
-    const props = [
-      { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "Kuhn, Thomas S." },
-      // A manual person link for an author already in the text list…
-      { schemaId: LINKED_AUTHORS_SCHEMA, schemaName: "linkedAuthors", value: { nodeId: "p1" } },
-      // …and one for an author who only exists as a linked person.
-      { schemaId: LINKED_AUTHORS_SCHEMA, schemaName: "linkedAuthors", value: { nodeId: "p2" } },
-    ];
-    const linked = [
-      { id: "p1", name: "kuhn, thomas s.", givenName: null, familyName: null }, // matches "Kuhn, Thomas S."
-      { id: "p2", name: null, givenName: "Ursula K.", familyName: "Le Guin" },
-    ];
-    const item = nodeToCsl(
-      { id: "n", name: "T", classIds: [SOURCE_CLASS_IDS.book] },
-      props,
-      linked,
-    );
-    // p1 is swallowed by the case-insensitive name match; p2 is appended.
-    expect(item.author).toEqual([{ family: "Kuhn", given: "Thomas S." }, { family: "Le Guin", given: "Ursula K." }]);
-  });
-
-  it("resolves a linked person by display name when given/family are unset", () => {
+  it("parses each resolved author name string to family/given (comma form wins)", () => {
     const item = nodeToCsl(
       { id: "node-id", name: "Paper", classIds: [SOURCE_CLASS_IDS.paper] },
       [],
-      [{ id: "p1", name: "F. N. David", givenName: null, familyName: null }],
+      ["F. N. David", "Prince"],
     );
     expect(item.id).toBe("node-id");
     expect(item.type).toBe("article-journal");
-    expect(item.author).toEqual([{ family: "David", given: "F. N." }]);
+    expect(item.author).toEqual([{ family: "David", given: "F. N." }, { family: "Prince" }]);
   });
 
-  it("skips empty text author strings and unresolvable linked persons", () => {
+  it("skips empty author strings and emits no author key when none resolve", () => {
     const item = nodeToCsl(
       { id: "n", name: "T", classIds: [SOURCE_CLASS_IDS.book] },
-      [
-        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "  " },
-        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "Solo Author" },
-      ],
-      [{ id: "p-empty", name: null, givenName: null, familyName: null }],
+      [],
+      ["  ", "Solo Author"],
     );
     expect(item.author).toEqual([{ family: "Author", given: "Solo" }]);
+    const none = nodeToCsl({ id: "n2", name: "T2", classIds: [SOURCE_CLASS_IDS.book] }, [], []);
+    expect(none).not.toHaveProperty("author");
   });
 
-  it("cslToNodeSpecs produces the import spec; nodeToCsl(csl) round-trips it", () => {
+  it("cslToNodeSpecs produces name strings; nodeToCsl(node, resolvedNames) round-trips the item", () => {
     const item: CslItem = {
       id: "david1962combinatorial",
       type: "article-journal",
@@ -340,23 +319,35 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
       className: "paper",
       citekey: "david1962combinatorial",
       title: "Combinatorial Chance",
-      authors: [{ family: "David", given: "F. N." }],
+      authors: ["David, F. N."],
       doi: "10.2307/2333763",
       publicationDate: "1962",
     });
 
-    // Import spec → node → CSL keeps the mapped subset stable: the author is
-    // a TEXT value on the node, not a person node.
+    // Import spec → (CLI find-or-creates one agent node per name string) →
+    // node-typed authors property → nodeToCsl with the resolved display names.
     const nodeItem = nodeToCsl(
       { id: "some-uuid", name: spec.title, classIds: [SOURCE_CLASS_IDS[spec.className]] },
       [
         { schemaId: CITEKEY_SCHEMA, schemaName: "citekey", value: spec.citekey },
         { schemaId: DOI_SCHEMA, schemaName: "doi", value: spec.doi! },
         { schemaId: PUBDATE_SCHEMA, schemaName: "publicationDate", value: spec.publicationDate! },
-        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: "David, F. N." },
+        { schemaId: AUTHORS_SCHEMA, schemaName: "authors", value: { nodeId: "person-david" } },
       ],
+      spec.authors,
     );
     expect(nodeItem).toEqual(item);
+  });
+
+  it("has no awareness of the withdrawn linkedAuthors property (…0025)", () => {
+    const item = nodeToCsl(
+      { id: "n", name: "T", classIds: [SOURCE_CLASS_IDS.book] },
+      // Even if a stale replica still carries the withdrawn schema's values,
+      // they are ignored: only the caller-supplied name strings render.
+      [{ schemaId: "00000000-0000-0000-0000-000000000025", schemaName: "linkedAuthors", value: { nodeId: "p1" } }],
+      ["Kuhn, Thomas S."],
+    );
+    expect(item.author).toEqual([{ family: "Kuhn", given: "Thomas S." }]);
   });
 
   it("sourceClassOf picks the first source class in classIds order", () => {

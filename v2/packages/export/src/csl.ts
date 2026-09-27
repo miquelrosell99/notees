@@ -21,13 +21,15 @@
  *    the tolerant parser re-imports onto song/movie/tv_series — round-trip
  *    stable within Notees.
  *
- * Authorship (SCHEMA.md "Citations — source family and authorship"):
- * `authors` is a plain multi-value TEXT property — its strings are used
- * verbatim (parsed to family/given for CSL); `linkedAuthors` is a separate
- * node-typed property (target filter `agent`). `nodeToCsl` unions both:
- * text authors in property order, then linked persons (resolved by the
- * caller) whose formatted name is not already in the text list
- * (case-insensitive match), appended. Person nodes are never auto-created.
+ * Authorship (SCHEMA.md "Citations — source family and authorship", FINAL
+ * owner decision 2026-09-27): `authors` is a node-typed multi-value property
+ * on `source`, targeting `agent` — bibliography authors ARE agent nodes.
+ * `nodeToCsl` takes the resolved author display-name strings (supplied by
+ * the caller from the node-typed `authors` property values, in property
+ * order) and parses each to a CSL name; it has no awareness of the
+ * withdrawn `linkedAuthors` experiment (UUID …0025, never reused). Person
+ * nodes are never auto-created here — the CLI find-or-creates them on
+ * import.
  *
  * Dates are year-only `date-parts` taken from the first 4-digit run of the
  * publicationDate value (M1).
@@ -274,14 +276,6 @@ export function cslToBib(item: CslItem): BibEntry {
 
 // --- node graph ↔ CSL --------------------------------------------------------------
 
-/** The person-node shape the author resolution needs (satisfied by the object API). */
-export interface BibliographicPerson {
-  id: string;
-  name: string | null;
-  givenName?: string | null;
-  familyName?: string | null;
-}
-
 /** The node shape `nodeToCsl` needs — satisfied by the object-API full object. */
 export interface BibliographicNode {
   id: string;
@@ -308,30 +302,17 @@ export function sourceClassOf(classIds: readonly string[]): SourceClassName | un
   return undefined;
 }
 
-/** One resolved linked author → CSL: familyName/givenName win, else the display name. */
-function personToCslName(person: BibliographicPerson): CslName {
-  const family = person.familyName?.trim();
-  const given = person.givenName?.trim();
-  if (family !== undefined && family.length > 0) {
-    return given !== undefined && given.length > 0 ? { family, given } : { family };
-  }
-  if (typeof person.name === "string" && person.name.trim().length > 0) {
-    return parseAuthorName(person.name);
-  }
-  return { literal: "" };
-}
-
 /**
- * Project a source node + its property values + resolved linked-author person
- * nodes into CSL. The author list is the SCHEMA.md "Citations" union: the
- * `authors` TEXT values verbatim, in property order, then the `linkedAuthors`
- * persons whose formatted name is not already in the text list
- * (case-insensitive), appended.
+ * Project a source node + its property values + the resolved author
+ * display-name strings (from the node-typed `authors` property, in property
+ * order — the caller resolves the `{nodeId}` refs) into CSL. Each name
+ * string is parsed to family/given (comma form `Family, Given` wins;
+ * otherwise last token = family).
  */
 export function nodeToCsl(
   node: BibliographicNode,
   props: readonly ExportPropertyValue[],
-  linkedAuthors: readonly BibliographicPerson[] = [],
+  authors: readonly string[],
 ): CslItem {
   const className = sourceClassOf(node.classIds) ?? DEFAULT_CLASS_NAME;
   const item: CslItem = {
@@ -339,22 +320,9 @@ export function nodeToCsl(
     type: CLASS_NAME_TO_CSL_TYPE[className],
   };
   if (node.name !== null && node.name.trim().length > 0) item.title = node.name.trim();
-  const textNames: CslName[] = props
-    .filter((prop) => prop.schemaId === SYSTEM_PROPERTY_UUIDS.authors)
-    .map((prop) => prop.value)
-    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    .map(parseAuthorName);
-  const seen = new Set(textNames.map((name) => formatAuthorName(name).toLowerCase()));
-  const names: CslName[] = [...textNames];
-  for (const person of linkedAuthors) {
-    const name = personToCslName(person);
-    const formatted = formatAuthorName(name);
-    if (formatted.length === 0) continue;
-    const key = formatted.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    names.push(name);
-  }
+  const names: CslName[] = authors
+    .map((literal) => parseAuthorName(literal))
+    .filter((name) => formatAuthorName(name).length > 0);
   if (names.length > 0) item.author = names;
   const year = yearFromDate(propValue(props, SYSTEM_PROPERTY_UUIDS.publicationDate));
   if (year !== undefined) item.issued = { "date-parts": [[year]] };
@@ -370,13 +338,14 @@ export function nodeToCsl(
 }
 
 /** The import-side spec: everything the CLI needs to find-or-create a source.
- * `authors` stays a CSL name list here; the CLI writes it as the plain
- * multi-value `authors` TEXT property (never person nodes). */
+ * `authors` is the formatted `Family, Given` name-string list; the CLI
+ * find-or-creates one agent (person) node per string and writes the
+ * node-typed `authors` property as `{nodeId}` refs. */
 export interface CslNodeSpec {
   className: SourceClassName;
   citekey: string;
   title: string;
-  authors: CslName[];
+  authors: string[];
   doi?: string;
   isbn?: string;
   url?: string;
@@ -391,7 +360,9 @@ export function cslToNodeSpecs(item: CslItem): CslNodeSpec {
     className: cslTypeToClassName(item.type),
     citekey: item.id,
     title: item.title ?? item.id,
-    authors: item.author ?? [],
+    authors: (item.author ?? [])
+      .map((name) => formatAuthorName(name))
+      .filter((literal) => literal.length > 0),
     ...(item.DOI !== undefined && item.DOI.length > 0 ? { doi: item.DOI } : {}),
     ...(item.ISBN !== undefined && item.ISBN.length > 0 ? { isbn: item.ISBN } : {}),
     ...(item.URL !== undefined && item.URL.length > 0 ? { url: item.URL } : {}),
