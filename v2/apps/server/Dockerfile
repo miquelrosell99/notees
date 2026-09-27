@@ -33,7 +33,8 @@ COPY packages ./packages
 COPY apps ./apps
 # `@notees/server...` = the server plus its workspace dependencies, so the
 # packages emit their dist (production export conditions) before tsup runs.
-RUN pnpm --filter @notees/server... build
+RUN for p in query protocol domain store sync export; do pnpm --filter @notees/$p build; done \
+    && pnpm --filter @notees/server build
 
 # ---------- deploy (pruned production copy) ----------
 FROM build AS deploy

@@ -30,7 +30,8 @@ FROM deps AS build
 COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
-RUN pnpm --filter @notees/web... build
+RUN for p in query protocol domain store sync export; do pnpm --filter @notees/$p build; done \
+    && pnpm --filter @notees/web build
 
 # ---------- runtime ----------
 FROM nginx:1.27-alpine
