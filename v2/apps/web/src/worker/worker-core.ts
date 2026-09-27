@@ -10,8 +10,10 @@
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
  *    getLinkedReferences / getUnlinkedReferences / getChildPages /
  *    getBacklinkCount / getChildPageCount / getDisplayName / getNode /
- *    getNodeRaw), the write surface
- *    (createObject / updateObject / deleteObject / moveObject), syncOnce, the realtime
+ *    getNodeRaw / getEffectiveProperties / listPropertySchemas), the write
+ *    surface (createObject / updateObject / deleteObject / moveObject /
+ *    setClassProperty / unsetClassProperty / createPropertySchema /
+ *    setProperty / unsetProperty), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, and flush;
  *  - persists db.export() bytes to OPFS debounced (~500 ms, coalesced) after
@@ -33,9 +35,13 @@ import {
   type BlockTreeNode,
   type ClientEdge,
   type ClientNode,
+  type ClientPropertySchema,
   type CreateObjectInput,
+  type CreatePropertySchemaInput,
   type DeleteObjectOptions,
+  type EffectiveProperty,
   type ReferenceEntry,
+  type SetClassPropertyInput,
   type SyncStatusSnapshot,
   type UpdateObjectInput,
 } from "../core/workspace-client.js";
@@ -317,6 +323,14 @@ export class WorkerCore {
     return this.client.getChildPageCount(id);
   }
 
+  getEffectiveProperties(id: string): EffectiveProperty[] {
+    return this.client.getEffectiveProperties(id);
+  }
+
+  listPropertySchemas(): ClientPropertySchema[] {
+    return this.client.listPropertySchemas();
+  }
+
   // --- writes (optimistic local apply + outbox push) -------------------------------------
 
   createObject(partial: CreateObjectInput): Promise<string> {
@@ -428,6 +442,33 @@ export class WorkerCore {
         return this.getBacklinkCount(args[0] as string);
       case "getChildPageCount":
         return this.getChildPageCount(args[0] as string);
+      case "getEffectiveProperties":
+        return this.getEffectiveProperties(args[0] as string);
+      case "listPropertySchemas":
+        return this.listPropertySchemas();
+      case "setClassProperty":
+        return this.client.setClassProperty(
+          args[0] as string,
+          args[1] as string,
+          args[2] as SetClassPropertyInput,
+        );
+      case "unsetClassProperty":
+        return this.client.unsetClassProperty(args[0] as string, args[1] as string);
+      case "createPropertySchema":
+        return this.client.createPropertySchema(args[0] as CreatePropertySchemaInput);
+      case "setProperty":
+        return this.client.setProperty(
+          args[0] as string,
+          args[1] as string,
+          args[2] as unknown,
+          args[3] as number | undefined,
+        );
+      case "unsetProperty":
+        return this.client.unsetProperty(
+          args[0] as string,
+          args[1] as string,
+          args[2] as number | undefined,
+        );
       case "createObject":
         return this.createObject(args[0] as CreateObjectInput);
       case "updateObject":

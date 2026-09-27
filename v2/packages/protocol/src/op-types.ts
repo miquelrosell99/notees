@@ -117,6 +117,39 @@ export const classSetExtendsPayload = z
   })
   .strict();
 
+/**
+ * Class → property-schema binding upsert (SCHEMA.md "Class properties"):
+ * a configuration row on `class_property` (sequence, flags, defaultValue).
+ * Row-level LWW by envelope HLC; on update, omitted fields KEEP their existing
+ * values (a partial patch, not a replace) — pass `null` explicitly to clear
+ * required/readonly/hideWhenEmpty, or `undefined`-absent to leave untouched.
+ * `defaultValue` is any JSON value (JSON-null is a real default; absent = keep).
+ */
+export const classPropertySetPayload = z
+  .object({
+    classId: uuid,
+    propertySchemaId: uuid,
+    sequence: z.number().int().optional(),
+    required: z.boolean().nullable().optional(),
+    readonly: z.boolean().nullable().optional(),
+    hideWhenEmpty: z.boolean().nullable().optional(),
+    defaultValue: z.unknown().optional(),
+  })
+  .strict();
+
+/**
+ * Binding removal: deletes the `class_property` row. No tombstone — a config
+ * row, last write wins; the derived defaults read model simply stops deriving
+ * the schema's default for the class's nodes (authored property values are
+ * unaffected and survive, per SCHEMA.md).
+ */
+export const classPropertyUnsetPayload = z
+  .object({
+    classId: uuid,
+    propertySchemaId: uuid,
+  })
+  .strict();
+
 export const propertySchemaCreatePayload = z
   .object({
     propertySchemaId: uuid,
@@ -221,6 +254,8 @@ export const OP_PAYLOAD_SCHEMAS = {
   "class.update": classUpdatePayload,
   "class.delete": classDeletePayload,
   "class.setExtends": classSetExtendsPayload,
+  "class.property.set": classPropertySetPayload,
+  "class.property.unset": classPropertyUnsetPayload,
   "propertySchema.create": propertySchemaCreatePayload,
   "propertySchema.update": propertySchemaUpdatePayload,
   "propertySchema.delete": propertySchemaDeletePayload,
