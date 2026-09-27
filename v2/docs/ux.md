@@ -10,13 +10,16 @@ M1 alpha honesty, up front — every feature below is labeled:
 | Content-token rendering (marks, mentions, chips, typed-link display) | **Today** (marks editing + capture gestures ship; see the outliner section) |
 | Backlinks as data (API, CLI, web client) | **Today** (direct + source-side containment roll-up with "in <page>" context) |
 | Promotion/demotion | **Today** (CLI/API; in-editor gesture designed) |
-| Class view, focused block view | Class View **Today**; focused block view Designed (a block opens by zooming its page today) |
+| Class view, focused block view | Class View **Today** (editable property bindings with defaults); focused block view Designed (a block opens by zooming its page today) |
 | Interactive outliner: text core | **Today** (typing, Enter/shift+Enter/Backspace, Tab indent / shift+Tab outdent, Enter sibling placement) |
 | Outliner: marks editing, collapse, prose mode, drag reorder | **Today** |
 | System sections UI with the lazy-loading contract | **Today** (page-level: linked references, unlinked references, child pages; classed-nodes section ships in Class View); block-level gutter toggle Designed |
 | Capture gestures: `@` mentions, `#` tags, `+` classes, verb-on-selection | **Today** (free-string verbs; bound-schema verbs + target resolution Designed) |
 | Embeds (live subtree transclusion) | **Today** (read-only projection, cycle-guarded) |
-| Whiteboards (spatial canvas) | Designed (class + token + cards-as-children model specced) |
+| Whiteboards (spatial canvas) | **Today** (pan/zoom, cards as child blocks, shapes/strokes, embedded mode) |
+| Citations: source family, BibTeX/CSL round-trip | **Today** (`notees import/export bibtex`; text authors + explicit `linkedAuthors` person links) |
+| Sources as containers (files via `attachments`, notes as child blocks) | **Today** (picker + upload in the properties panel) |
+| Class-property defaults (derived read model, first-applied-wins) | **Today** (bindings editor + effective-properties API) |
 
 ## Views follow node_type
 
