@@ -84,7 +84,10 @@ export class HttpTransport implements Transport {
     this.base = `${options.baseUrl.replace(/\/$/, "")}/api/relay/v2`;
     this.apiKey = options.apiKey;
     this.workspaceId = options.workspaceId;
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // Bind explicitly: a bare `fetch` reference loses its `this` (Illegal
+    // invocation) inside Web Workers in some engines — the worker sync path
+    // died on the first catch-up before this.
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.timeoutMs = options.timeoutMs ?? 60_000;
     this.webSocketImpl = options.webSocketImpl ?? defaultWebSocketImpl();
     this.wsReconnectDelaysMs = options.wsReconnectDelaysMs ?? DEFAULT_WS_RECONNECT_DELAYS_MS;

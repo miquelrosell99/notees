@@ -45,6 +45,9 @@ export async function buildServer(
   if (config.corsOrigins.length > 0) {
     await app.register(fastifyCors, {
       origin: config.corsOrigins.includes("*") ? "*" : config.corsOrigins,
+      // The client may upload snapshots (PUT) and run other non-simple
+      // methods cross-origin; fastify-cors defaults to GET/HEAD/POST only.
+      methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     });
   }
 
