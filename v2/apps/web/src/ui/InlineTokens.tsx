@@ -7,7 +7,9 @@
  * fallbacks); quote recurses; embed_ref renders the live subtree via the
  * optional renderEmbed callback (placeholder box when absent); query renders
  * the live query block via the optional renderQuery callback (placeholder box
- * when absent); other block-scale tokens render as labeled placeholder boxes.
+ * when absent); whiteboard renders the live canvas via the optional
+ * renderWhiteboard callback (placeholder box when absent); other block-scale
+ * tokens render as labeled placeholder boxes.
  */
 
 import { Fragment, type ReactNode } from "react";
@@ -27,6 +29,13 @@ export interface InlineTokensProps {
    * back to the placeholder box.
    */
   renderQuery?: ((token: unknown, index: number) => ReactNode) | undefined;
+  /**
+   * Live canvas renderer for `whiteboard` tokens (WhiteboardCanvas),
+   * injected by the row (embedded mini-canvas) or the page view (fullscreen
+   * canvas); when absent (e.g. read-only embed projections, plain token
+   * previews), whiteboard falls back to the placeholder box.
+   */
+  renderWhiteboard?: ((token: unknown, index: number) => ReactNode) | undefined;
 }
 
 function renderMarkedText(text: string, marks: readonly string[] | undefined): ReactNode {
@@ -70,6 +79,7 @@ function renderToken(
   resolveName: InlineTokensProps["resolveName"],
   renderEmbed: InlineTokensProps["renderEmbed"],
   renderQuery: InlineTokensProps["renderQuery"],
+  renderWhiteboard: InlineTokensProps["renderWhiteboard"],
 ): ReactNode {
   if (typeof token !== "object" || token === null) return null;
   const t = token as Record<string, unknown>;
@@ -162,6 +172,9 @@ function renderToken(
       return <Placeholder key={key} label="query" />;
     }
     case "whiteboard":
+      if (renderWhiteboard !== undefined) {
+        return <Fragment key={key}>{renderWhiteboard(token, key)}</Fragment>;
+      }
       return <Placeholder key={key} label="whiteboard" />;
     default:
       // Unknown token type: graceful fallback — render nothing, never crash.
@@ -169,10 +182,10 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, renderWhiteboard }: InlineTokensProps) {
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery, renderWhiteboard))}
     </>
   );
 }

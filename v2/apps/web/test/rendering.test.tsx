@@ -132,7 +132,7 @@ describe("PageView rendering", () => {
       ],
     });
 
-    render(<PageView client={client} pageId={pageId} />);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
 
     expect(screen.getByText("asset")).not.toBeNull();
     // embed_ref resolves live when a renderer is present; this target does not
@@ -142,7 +142,10 @@ describe("PageView rendering", () => {
     // The query token renders live (QueryBlockView): a malformed AST shows
     // the "invalid query" placeholder, never a crash.
     expect(screen.getByText("invalid query")).not.toBeNull();
-    expect(screen.getByText("whiteboard")).not.toBeNull();
+    // The whiteboard token renders live too (WhiteboardCanvas, embedded
+    // mini-canvas) — only truly unhandled tokens fall back to placeholder
+    // boxes (asset_ref above).
+    expect(container.querySelector(".nt-wb-embedded")).not.toBeNull();
     expect(screen.getByText("E = mc^2").tagName).toBe("CODE");
     const link = screen.getByText("Example");
     expect(link.tagName).toBe("A");
