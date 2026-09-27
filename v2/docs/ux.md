@@ -6,15 +6,17 @@ M1 alpha honesty, up front — every feature below is labeled:
 
 | Feature | State |
 |---|---|
-| Page view with block-tree rendering | **Today** (read-mostly) |
-| Content-token rendering (marks, mentions, chips, typed-link display) | **Today** (read-only) |
-| Backlinks as data (API, CLI, web client) | **Today** |
+| Page view with block-tree rendering | **Today** (interactive: edit, reorder, collapse) |
+| Content-token rendering (marks, mentions, chips, typed-link display) | **Today** (marks editing + capture gestures ship; see the outliner section) |
+| Backlinks as data (API, CLI, web client) | **Today** (direct + source-side containment roll-up with "in <page>" context) |
 | Promotion/demotion | **Today** (CLI/API; in-editor gesture designed) |
-| Class view, focused block view | Designed |
+| Class view, focused block view | Class View **Today**; focused block view Designed (a block opens by zooming its page today) |
 | Interactive outliner: text core | **Today** (typing, Enter/shift+Enter/Backspace, Tab indent / shift+Tab outdent, Enter sibling placement) |
-| System sections UI with the lazy-loading contract | **Today** (page-level: linked references, unlinked references, child pages); block-level gutter toggle and classed-nodes section Designed |
-| Typed-link capture UX (create-and-bind, target resolution) | Designed |
-| Whiteboards | Designed |
+| Outliner: marks editing, collapse, prose mode, drag reorder | **Today** |
+| System sections UI with the lazy-loading contract | **Today** (page-level: linked references, unlinked references, child pages; classed-nodes section ships in Class View); block-level gutter toggle Designed |
+| Capture gestures: `@` mentions, `#` tags, `+` classes, verb-on-selection | **Today** (free-string verbs; bound-schema verbs + target resolution Designed) |
+| Embeds (live subtree transclusion) | **Today** (read-only projection, cycle-guarded) |
+| Whiteboards (spatial canvas) | Designed (class + token + cards-as-children model specced) |
 
 ## Views follow node_type
 
@@ -26,7 +28,7 @@ View resolution is a pure function of one column — `node_type ∈ {page, block
 
 Two placement rules complete the picture. **Nested pages keep `node_type='page'`** — a child page opens in Page View and renders in its parent's dedicated **Child pages** section, never inline in the parent's body. And class nodes are tree-external by construction: a class can never be a parent or a child, enforced by schema and by a fail-loud move-guard.
 
-**Today:** Page View is what the web app renders — header plus the block tree (child pages intentionally filtered out of the body, per the projection rule above). Focused Block View and Class View are designed; the class catalog is inspectable today via `notees class list` and `GET /api/v1/classes` ([usage.md](usage.md)).
+**Today:** the web app renders Page View (interactive) and Class View (view resolution is `f(node_type)`); a block is reached by zooming its page, and the class catalog is inspectable via `notees class list` and `GET /api/v1/classes` ([usage.md](usage.md)). Focused Block View as a standalone chrome remains designed.
 
 ## The outliner
 
@@ -45,7 +47,7 @@ Long-form writing emerges from nesting bullets, not from a document mode. That i
 
 Blocks are first-class storage but second-class display. Display defaults keep them quiet: backlinks aggregate mentions per containing page, the graph collapses children, search ranks root pages first with block hits nested beneath their parents, and queries default to root scope. When a bullet matters enough to stand alone, you promote it — see [Promotion and demotion](#promotion-and-demotion).
 
-**Today:** the web app ships the interactive text core — typing with debounced saves, Enter (a new sibling placed right after the current block), Shift+Enter hard breaks, Backspace delete, and Tab / Shift+Tab reparenting via `object.move` with fractional sibling-midpoint ordering. Marks editing, typed-link/chips capture gestures, collapse, and drag reorder remain the designed editor milestone; the tree machinery the rest ports is already the machinery sync uses.
+**Today:** the web app ships the full outliner interaction set — the text core (typing with debounced saves, Enter placing a new sibling right after the current block, Shift+Enter hard breaks, Backspace delete, Tab / Shift+Tab reparenting via `object.move` with fractional sibling-midpoint ordering), **marks editing** (structural edits preserve untouched runs; selection toolbar + Ctrl/Cmd+B/I/Shift+X + `**`-wrap), **collapse** (chevron per block, session-local), **prose mode** (a pure view transform: bullets hidden, indents flattened), and **drag reorder** (dnd-kit, deep-drop to reparent, guard-railed against cycles and CHECK violations). Still designed: editing-through-embeds, the tablet shell ([.plans/2026-09-24-object-graph-pim-evolution/assessment.md](../.plans/2026-09-24-object-graph-pim-evolution/assessment.md) §34.16.4), and bound-schema verbs.
 
 ## System sections — and the lazy-loading contract
 
@@ -71,11 +73,11 @@ All three are tokens in the same flat content stream ([SCHEMA.md grammar](../pac
 - **Class chip** — render-only, by decision. Inserting a chip does not assign the class; it references the class node and renders its current name. Assignment is a separate gesture, and a lint may suggest it ("chip present, node not classed — assign?"). Suggestion, never enforcement.
 - **Typed link** — the distinctive one. You write the sentence naturally ("argument X *contradicts* argument Y"); the verb is a **mark on the word**, with an optional target and token metadata such as a locator. Rendering is a subtle colored underline with a hover card, plus a global "show types" overlay (off by default in reading mode). Lifecycle is honest: delete the word and the mark dies with it — the graph stops claiming what the sentence no longer claims. The verb is a property-schema reference *or a bare free string*; when the verb you want doesn't exist yet, **create-and-bind** makes the schema at capture time (the Tana lesson: schema-at-capture or the feature dies in setup). The adorned mention pill survives only as the escape hatch for when there is no natural verb ("see <<Y>>").
 
-**Record, don't resolve.** Capture records candidate target spans as an ordered list of token IDs in the token metadata — nothing smarter, no scoring, no filtering. The sentence context present at capture is irrecoverable later, so deferring the *resolution rule* is sound design while deferring the *recording* would be data loss. Target resolution lands in M2, designed against real captured data.
+**Record, don't resolve.** Capture records candidate target spans as an ordered list — implemented as the `targetNodeId`s of the block's mention tokens, nearest-first by prose distance from the mark, capped at 8 (the flat grammar has no token ids; this interpretation is recorded in SCHEMA.md). No scoring, no filtering. Target resolution lands in M2, designed against real captured data.
 
 Citations are the canonical dogfood: a `cites` verb with the locator auto-filled from the current PDF selection, grouped backlinks by verb, bibliography views — the M2 research environment.
 
-**Today:** the grammar is specced and fixture-tested, and the web renderer displays all three token types (resolved names, underlined verbs) read-only. The capture UX — selection binding, `@`-insert, create-and-bind, locator autofill — is designed.
+**Today:** the capture gestures ship in the web editor — `@` opens the node picker (mentions), `#` opens tag vocabulary (**Enter assigns the tag-class to the node, creating it if missing; Shift+Enter inserts a render-only chip inline**), `+` picks existing classes with the same assign/insert split, and a selection + Cmd/Ctrl+K (or the toolbar verb button) binds a free-string verb with an optional locator. Rendering resolves names everywhere. Still designed: bound-schema verbs with create-and-bind, locator autofill from PDF selections, M2 target resolution.
 
 ## Whiteboards — spatial views of subtrees
 
