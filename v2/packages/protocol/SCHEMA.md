@@ -132,13 +132,14 @@ Classes define **bound property schemas** (with per-binding metadata and a `defa
 - **Unset deletes the carrier** (trash + retention, consistent with node deletion). **"Promote to block" is a separate gesture** — reparent the carrier into the owner's body.
 - Multi-value `text` = m2m list of carrier block ids, each with its own subtree.
 
-## Citations — source family and authorship (NORMATIVE, owner decisions 2026-09-27)
+## Citations — source family and authorship (NORMATIVE, FINAL owner decision 2026-09-27)
 
-- **`source` is the base class; subclasses extend it.** Seeded source family: `book`, `paper`, `article`, `thesis`, `document`, `movie`, `song`, `tv_series`, `conference` — all `extends: [source]`. Users may define their own source subclasses at runtime (classes are data; `extends [source]` puts them in the family, and the class hierarchy makes `class:source` queries see them all). BibTeX/CSL import maps entry types onto this family (unknown types → `document` fallback, or a user-created subclass of the same name if one exists).
-- **`authors` is a plain multi-value TEXT property — never auto-created person nodes.** Import writes the author string list as-is; no `person` nodes are created for bibliography entries (clutter avoidance, owner decision). Rendering/export uses the strings verbatim.
-- **Explicit person linkage is a separate node-typed property `linkedAuthors`** (multi, node-typed, target filter `agent`): the user links a `person` node for the authors who matter to the graph (the C. S. Lewis case). Explicit, deliberate, queryable, backlink-generating — never automatic.
-- **Export unions both**: text authors in order, then `linkedAuthors` persons (resolved names) not already present in the text list, appended.
-- **Lint (suggestion only, M2+):** "author 'X' matches an existing person node — link?" — the design law: suggestions, never enforcement.
+History: the owner first asked for text authors + optional links, then reversed — *"commit fully to authors as a property linked to agent-classed nodes"* (and rejected an author→person link-suggestion lint: linking stays user-configured). This section is the FINAL state.
+
+- **`source` is the base class; subclasses extend it.** Seeded source family: `book`, `paper`, `article`, `thesis`, `document`, `movie`, `song`, `tv_series`, `conference` — all `extends: [source]`. Users may define their own source subclasses at runtime (classes are data; `extends [source]` joins the family and `class:source` queries see them via the hierarchy). Import maps entry types onto the family (unknown → `document` fallback).
+- **`authors` is a node-typed multi-value property on `source`, targeting `agent`** (fixed UUID …0000-000000000012; `targetClassFilter: ["agent"]` — `person` and `organization` both extend `agent`). Full commitment: bibliography authors ARE agent nodes (backlinks, queries, the Lewis person node is just an author link). **Import find-or-creates agent nodes** for authors (exact-name match, else create a `person`); export resolves their names.
+- **`linkedAuthors` is WITHDRAWN** (introduced 2026-09-27, reversed same day): UUID `00000000-0000-0000-0000-000000000025` must never be reused (v1 `locator` …0018 precedent).
+- **No link-suggestion lint** (owner decision): whether/how authors map to person nodes is user configuration, not app behavior.
 
 ## Sources as containers — files, properties, notes (NORMATIVE, owner decision 2026-09-27)
 
