@@ -516,6 +516,174 @@ button {
   border-left: 1px solid #e4e7eb;
 }
 
+/* --- query blocks (live query token) ----------------------------------------------
+   QueryBlockView: a sober bordered container (embed-adjacent chrome) with a
+   header (title + count badge + settings/export actions), a result list in
+   the references-section idiom, and the minimal builder popover. */
+
+.nt-query {
+  display: block;
+  margin: 4px 0;
+  border: 1px solid #d9dce1;
+  border-left: 3px solid #c11574;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: #fafbfc;
+}
+
+.nt-query-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nt-query-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7b8794;
+}
+
+.nt-query-badge {
+  background: #eef1f4;
+  border: 1px solid #d9dce1;
+  border-radius: 10px;
+  padding: 0 8px;
+  font-size: 0.82em;
+  line-height: 1.5;
+  color: #52606d;
+}
+
+.nt-query-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nt-query-action {
+  border: 1px solid #d9dce1;
+  border-radius: 4px;
+  background: #fff;
+  color: #52606d;
+  font-size: 11px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+
+.nt-query-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.nt-query-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.nt-query-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #323f4b;
+}
+
+.nt-query-item:hover {
+  background: #eef1f4;
+}
+
+.nt-query-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-query-chip {
+  flex-shrink: 0;
+  background: #eef1f4;
+  border: 1px solid #d9dce1;
+  border-radius: 10px;
+  padding: 0 8px;
+  font-size: 0.78em;
+  line-height: 1.5;
+  color: #7b8794;
+}
+
+.nt-query-more,
+.nt-query-empty {
+  color: #7b8794;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+.nt-query-invalid {
+  border: 1px dashed #c8cdd4;
+  border-radius: 6px;
+  margin: 4px 0 0;
+  padding: 2px 10px;
+  color: #b42318;
+  font-size: 12px;
+  background: #fff;
+}
+
+.nt-query-builder {
+  margin-top: 6px;
+  border: 1px solid #d9dce1;
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nt-query-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #52606d;
+}
+
+.nt-query-field > span {
+  width: 96px;
+  flex-shrink: 0;
+}
+
+.nt-query-field select,
+.nt-query-field input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #d9dce1;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.nt-query-builder-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.nt-query-builder-actions button {
+  border: 1px solid #d9dce1;
+  border-radius: 4px;
+  background: #fff;
+  color: #323f4b;
+  font-size: 12px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
 /* --- block drag-and-drop --------------------------------------------------------- */
 
 /* The bullet/chevron area is the drag handle (whole-row drag would fight
