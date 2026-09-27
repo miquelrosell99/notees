@@ -629,6 +629,126 @@ describe("bibliography round-trip (bibtex)", () => {
 });
 
 
+describe("search (query language)", () => {
+  /** Direct-fixture helper: the CLI has no property-schema write command. */
+  async function apiPost<T>(path: string, body: unknown): Promise<T> {
+    const response = await fetch(`${harness.baseUrl}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": API_KEY },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`fixture POST ${path} failed: HTTP ${response.status}: ${await response.text()}`);
+    }
+    return (await response.json()) as T;
+  }
+
+  let yearSchemaId = "";
+  async function makePaper(name: string, year?: number): Promise<string> {
+    if (yearSchemaId === "") {
+      yearSchemaId = (
+        await apiPost<{ propertySchema: { id: string } }>("/api/v1/property-schemas", {
+          propertySchemaId: crypto.randomUUID(),
+          name: "year",
+          type: "number",
+        })
+      ).propertySchema.id;
+    }
+    const { id } = await apiPost<{ id: string }>("/api/v1/objects", {
+      nodeType: "page",
+      name,
+      contentAst: [{ type: "text", text: `${name} body text` }],
+      classIds: [SYSTEM_CLASS_UUIDS.paper],
+    });
+    if (year !== undefined) {
+      await apiPost(`/api/v1/objects/${id}/properties`, {
+        propertySchemaId: yearSchemaId,
+        value: year,
+        idx: 0,
+      });
+    }
+    return id;
+  }
+
+  it("class:paper AND year:>2010 returns the right pages (DSL → AST → POST /query)", async () => {
+    const h = harness;
+    const old = await makePaper("dslpaper1901", 1901);
+    const modern = await makePaper("dslpaper2015", 2015);
+    await makePaper("dslplainpage");
+
+    expect(await h.runCli("--json", "search", "class:paper AND year:>2010")).toBe(EXIT.ok);
+    const body = JSON.parse(h.io.stdoutText) as { ids: string[]; rows: { id: string; name: string | null }[] };
+    expect(body.ids).toEqual([modern]);
+    expect(body.rows.map((row) => row.name)).toEqual(["dslpaper2015"]);
+    expect(body.ids).not.toContain(old);
+  });
+
+  it("prop: comparison operators and bare-schema shorthand select by year", async () => {
+    const h = harness;
+    const a = await makePaper("dslyear1937", 1937);
+    const b = await makePaper("dslyear2060", 2060);
+
+    // Earlier tests' papers share the workspace; assert containment.
+    expect(await h.runCli("--json", "search", "prop:year:>=1900")).toBe(EXIT.ok);
+    const all = JSON.parse(h.io.stdoutText).ids as string[];
+    expect(all).toContain(a);
+    expect(all).toContain(b);
+
+    expect(await h.runCli("--json", "search", "year:<1950")).toBe(EXIT.ok);
+    const below = JSON.parse(h.io.stdoutText).ids as string[];
+    expect(below).toContain(a);
+    expect(below).not.toContain(b);
+  });
+
+  it("text:, quoted phrases, boolean composition and linked:Name", async () => {
+    const h = harness;
+    const target = await makePaper("dsllinktarget");
+    const notes = await h.createPage("dsllinknotes", [
+      { type: "mention", targetNodeId: target, text: "dsllinktarget" },
+      { type: "text", text: "revolutionary ideas" },
+    ]);
+    const other = await h.createPage("dsllinkother", [
+      { type: "text", text: "revolutionary manifesto" },
+    ]);
+
+    // text: term + phrase both hit the notes page; NOT excludes it.
+    expect(await h.runCli("--json", "search", 'text:revolutionary AND "ideas"')).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).ids).toEqual([notes]);
+
+    expect(await h.runCli("--json", "search", "text:revolutionary NOT linked:dsllinktarget")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).ids).toEqual([other]);
+
+    // linked:<name> resolves the node by name and matches its referrers.
+    expect(await h.runCli("--json", "search", "linked:dsllinktarget")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).ids).toEqual([notes]);
+  });
+
+  it("human mode lists result names; plain text still routes to FTS", async () => {
+    const h = harness;
+    await makePaper("dslhuman2015", 2015);
+    expect(await h.runCli("search", "class:paper AND year:>=2010")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("dslhuman2015");
+    expect(h.io.stdoutText).not.toContain("{");
+
+    expect(await h.runCli("--json", "search", "dslhuman2015")).toBe(EXIT.ok);
+    const body = JSON.parse(h.io.stdoutText);
+    expect(body.results.map((r: { id: string }) => r.id).length).toBeGreaterThan(0);
+  });
+
+  it("unknown classes, schemas and bad syntax fail loud with exit 2", async () => {
+    const h = harness;
+    expect(await h.runCli("search", "class:nosuchclass AND year:>2010")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("invalid query");
+    expect(h.io.stderrText).toContain("unknown class 'nosuchclass'");
+
+    expect(await h.runCli("search", "wobble:42")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("unknown field 'wobble'");
+
+    expect(await h.runCli("search", "year:>")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("requires a value");
+  });
+});
+
 describe("shell (scripted mode)", () => {
   it("scripted create → get → search → effective → delete; stdout carries the ids", async () => {
     const h = harness;
