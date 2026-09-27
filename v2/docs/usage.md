@@ -60,6 +60,21 @@ Every command accepts `--json` (stable machine-readable output — the human out
 
 **Destructive commands require `--yes`.** Without it, they fetch the object, print a blast-radius preview, and exit 2 — they never drop into an interactive prompt when `--json` is set or stdout is not a TTY. Scripts stay safe by construction.
 
+## The shell
+
+`notees shell` drops you into a Node REPL with the object API preloaded — the Odoo-shell equivalent: arbitrary graph scripting against the live server, top-level `await` included:
+
+```bash
+notees shell
+# > const p = await create({ nodeType: "page", name: "Reading list" })
+# > await search("Kuhn")
+# > await effective(p.id)        # authored + derived class defaults
+# > await exportMd([p.id])       # markdown bundle (alias of helpers.export)
+# > .help                        # the full helper list
+```
+
+Helpers: `api` (raw client), `get`, `list`, `search`, `classes`, `classInfo`, `backlinks`, `props`, `effective`, `create`, `update`, `del`, `setProperty`, `upload(filePath)`, `exportMd`. Piped stdin runs as a script and exits (`echo 'console.log((await search("Kuhn")).length)' | notees shell`) — exit 0 ok, 1 script error, 3 auth, 5 unreachable.
+
 ## A real session
 
 The transcript below is one actual run against a fresh server (docs build, 2026-09-26). IDs are UUIDv7 — yours will differ.
