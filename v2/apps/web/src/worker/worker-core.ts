@@ -9,7 +9,7 @@
  *  - exposes the worker API: applyBatch (remote frames), the read surface
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
  *    getLinkedReferences / getUnlinkedReferences / getChildPages / getChildren
- *    / runQueryAst / getBacklinkCount / getChildPageCount / getDisplayName /
+ *    / runQueryAst / runAggregateAst / getBacklinkCount / getChildPageCount / getDisplayName /
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
  *    getAnnotationsForAsset / listPropertySchemas), the write
  *    surface (createObject / updateObject / deleteObject / moveObject /
@@ -463,6 +463,8 @@ export class WorkerCore {
         return this.getChildren(args[0] as string);
       case "runQueryAst":
         return this.client.runQueryAst(args[0]);
+      case "runAggregateAst":
+        return this.client.runAggregateAst(args[0]);
       case "getBacklinkCount":
         return this.getBacklinkCount(args[0] as string);
       case "getChildPageCount":

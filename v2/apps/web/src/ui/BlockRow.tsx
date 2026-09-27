@@ -127,6 +127,7 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
                   ownerId={node.id}
                   tokenIndex={index}
                   queryAst={(token as { queryAst?: unknown }).queryAst}
+                  view={(token as { view?: unknown }).view}
                   rootId={rootId}
                   onOpenNode={openNode}
                 />

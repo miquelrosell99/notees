@@ -14,6 +14,7 @@
  *
  *   Property schema "priority": Place binds default "medium", City "high";
  *   Lone Page has an authored value "low".
+ *   Property schema "rating" (number): Place binds default 1; Paris authors 3.
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -29,10 +30,13 @@ import { sqljsBackend } from "@notees/store/sqljs";
 
 import {
   compile,
+  compileAggregate,
   countQuery,
   matches,
   parseQueryAst,
+  runAggregate,
   runQuery,
+  type Aggregation,
   type Child,
   type QueryAst,
   type Scope,
@@ -55,6 +59,7 @@ const PLACE = "0192a000-0000-7000-8000-000000000201";
 const CITY = "0192a000-0000-7000-8000-000000000202";
 
 const PRIORITY = "0192a000-0000-7000-8000-000000000301";
+const RATING = "0192a000-0000-7000-8000-000000000302";
 
 const T0 = 1727200000000; // France
 const STEP = 1000;
@@ -124,6 +129,9 @@ function worldEnvelopes(): Envelope[] {
       contentAst: [...text("Traveller notes"), ...mention(LONE, "Lone Page")],
     }, t(12)),
     env("property.set", { objectId: LONE, propertySchemaId: PRIORITY, value: "low" }, t(13)),
+    env("propertySchema.create", { propertySchemaId: RATING, name: "rating", type: "number" }, t(14)),
+    env("class.property.set", { classId: PLACE, propertySchemaId: RATING, defaultValue: 1 }, t(15)),
+    env("property.set", { objectId: PARIS, propertySchemaId: RATING, value: 3 }, t(16)),
   ];
 }
 
@@ -339,18 +347,6 @@ describe("compile: SQL shape", () => {
     expect(sql.match(/\?/g)!.length).toBeGreaterThanOrEqual(params.length);
   });
 
-  it("fails loud: aggregation not implemented in M1", () => {
-    const withAggregation: QueryAst = {
-      ...allIn(pages),
-      aggregation: {
-        type: "aggregation",
-        dimensions: [{ type: "dimension", field: "nodeType" }],
-        measure: { type: "measure", function: "count" },
-      },
-    };
-    expect(() => compile(withAggregation)).toThrow(/aggregation/);
-  });
-
   it("fails loud: fts value with no searchable terms; property eq without value", () => {
     expect(() => compile(ast(entire, [{ type: "content", op: "fts", value: "!!!" }]))).toThrow(
       /no search terms/,
@@ -358,6 +354,126 @@ describe("compile: SQL shape", () => {
     expect(() =>
       compile(ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq" }])),
     ).toThrow(/requires a non-null value/);
+  });
+});
+
+// --- aggregation: schema validation (adapter-independent) ---------------------------
+
+const countByType: Aggregation = {
+  dimensions: [{ kind: "nodeType" }],
+  measures: [{ function: "count" }],
+};
+
+describe("aggregation schema", () => {
+  const base = { version: 1, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } };
+
+  it("accepts a well-formed aggregation (dimensions + measures)", () => {
+    const parsed = parseQueryAst({
+      ...base,
+      aggregation: {
+        dimensions: [{ kind: "nodeType" }, { kind: "class", id: PLACE }, { kind: "property", id: PRIORITY }],
+        measures: [
+          { function: "count" },
+          { function: "countDistinct", kind: "node" },
+          { function: "sum", kind: "property", id: RATING },
+        ],
+      },
+    });
+    expect(parsed.aggregation?.dimensions).toHaveLength(3);
+    expect(parsed.aggregation?.measures).toHaveLength(3);
+  });
+
+  it("rejects malformed aggregations loudly", () => {
+    // Unknown dimension kind.
+    expect(() =>
+      parseQueryAst({
+        ...base,
+        aggregation: { dimensions: [{ kind: "wobble" }], measures: [{ function: "count" }] },
+      }),
+    ).toThrow();
+    // sum/avg/min/max require a property id.
+    expect(() =>
+      parseQueryAst({ ...base, aggregation: { dimensions: [], measures: [{ function: "sum" }] } }),
+    ).toThrow();
+    // At least one measure.
+    expect(() => parseQueryAst({ ...base, aggregation: { dimensions: [], measures: [] } })).toThrow();
+    // count over a property is not a measure shape.
+    expect(() =>
+      parseQueryAst({
+        ...base,
+        aggregation: { dimensions: [], measures: [{ function: "count", kind: "property", id: RATING }] },
+      }),
+    ).toThrow();
+  });
+
+  it("aggregation: filtered CTE + GROUP BY + deterministic aliases", () => {
+    const { sql, params } = compile({ ...allIn(pages), aggregation: countByType });
+    expect(sql).toContain("WITH filtered AS (");
+    expect(sql).toContain("SELECT n.id, n.node_type, n.class_ids");
+    expect(sql).toContain("GROUP BY \"nodeType\"");
+    expect(sql).toContain('AS "nodeType"');
+    expect(sql).toContain('AS "count"');
+    expect(sql).not.toContain("ORDER BY n.id"); // sort is ignored under aggregation
+    expect(params).toEqual([]);
+  });
+
+  it("aggregation: class dimension is the hierarchy-aware membership probe", () => {
+    const { sql, params } = compile({
+      ...allIn(entire),
+      aggregation: { dimensions: [{ kind: "class", id: PLACE }], measures: [{ function: "count" }] },
+    });
+    expect(sql).toContain("json_each(f.class_ids)");
+    expect(sql).toContain("class_hierarchy WHERE ancestor_id = ?");
+    expect(sql).toContain(`AS "class:${PLACE}"`);
+    expect(params).toEqual([PLACE]);
+  });
+
+  it("aggregation: property dimensions/measures reuse the effective read model", () => {
+    const { sql, params } = compile({
+      ...allIn(entire),
+      aggregation: {
+        dimensions: [{ kind: "property", id: PRIORITY }],
+        measures: [
+          { function: "countDistinct", kind: "node" },
+          { function: "avg", kind: "property", id: RATING },
+        ],
+      },
+    });
+    // Three schema-id params per property dimension/measure (authored,
+    // binding, derived-shadow) — property first, then the measure.
+    expect(params).toEqual([PRIORITY, PRIORITY, PRIORITY, RATING, RATING, RATING]);
+    expect(sql).toContain("json_extract(ev.value, '$')");
+    expect(sql).toContain("property_value_tombstone");
+    expect(sql).toContain("COUNT(DISTINCT f.id)");
+    expect(sql).toContain(`AS "avg:${RATING}"`);
+  });
+
+  it("aggregation: scope/condition params precede dimension/measure params", () => {
+    const { params } = compile({
+      ...ast(entire, [{ type: "class", classId: PLACE }]),
+      aggregation: countByType,
+    });
+    expect(params).toEqual([PLACE]);
+  });
+
+  it("compileAggregate exposes columns; duplicate names get positional suffixes", () => {
+    const compiled = compileAggregate({
+      ...allIn(pages),
+      aggregation: {
+        dimensions: [{ kind: "nodeType" }],
+        measures: [{ function: "count" }, { function: "count" }],
+      },
+    });
+    expect(compiled.columns).toEqual(["nodeType", "count", "count#2"]);
+    expect(compiled.sql).toContain('AS "count#2"');
+  });
+
+  it("runQuery rejects aggregation ASTs; compileAggregate requires one", () => {
+    const store = { database: undefined } as unknown as Parameters<typeof runQuery>[0];
+    expect(() => runQuery(store, { ...allIn(pages), aggregation: countByType })).toThrow(
+      /runAggregate/,
+    );
+    expect(() => compileAggregate(allIn(pages))).toThrow(/requires an AST with an aggregation/);
   });
 });
 
@@ -661,6 +777,112 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       expect(asc.ids).toEqual([FRANCE, LONE, PARIS]);
       const desc = runQuery(store, ast(pages, [], [{ field: "name", dir: "desc" }]));
       expect(desc.ids).toEqual([PARIS, LONE, FRANCE]);
+    });
+  });
+
+  describe("aggregation execution (runAggregate)", () => {
+    it("groups by nodeType with count over the workspace", () => {
+      const result = runAggregate(worldStore(), { ...allIn(entire), aggregation: countByType });
+      expect(result.columns).toEqual(["nodeType", "count"]);
+      // 7 world nodes + 2 class nodes: pages 3, blocks 4, classes 2.
+      expect(result.rows).toEqual([
+        ["block", 4],
+        ["class", 2],
+        ["page", 3],
+      ]);
+    });
+
+    it("count and countDistinct agree (filtered is one row per node)", () => {
+      const result = runAggregate(worldStore(), {
+        ...allIn(entire),
+        aggregation: {
+          dimensions: [{ kind: "nodeType" }],
+          measures: [{ function: "count" }, { function: "countDistinct", kind: "node" }],
+        },
+      });
+      expect(result.columns).toEqual(["nodeType", "count", "countDistinct"]);
+      expect(result.rows).toEqual([
+        ["block", 4, 4],
+        ["class", 2, 2],
+        ["page", 3, 3],
+      ]);
+    });
+
+    it("groups classed nodes by a property value, summing/averaging a numeric property (effective read model)", () => {
+      const result = runAggregate(worldStore(), {
+        ...ast(entire, [{ type: "class", classId: PLACE }]),
+        aggregation: {
+          dimensions: [{ kind: "property", id: PRIORITY }],
+          measures: [
+            { function: "sum", kind: "property", id: RATING },
+            { function: "avg", kind: "property", id: RATING },
+          ],
+        },
+      });
+      expect(result.columns).toEqual([`property:${PRIORITY}`, `sum:${RATING}`, `avg:${RATING}`]);
+      // Paris: priority "high" (City default), rating authored 3.
+      // France: priority "medium" (Place default), rating default 1.
+      expect(result.rows).toEqual([
+        ["high", 3, 3],
+        ["medium", 1, 1],
+      ]);
+    });
+
+    it("class dimension groups by hierarchy-aware membership", () => {
+      const result = runAggregate(worldStore(), {
+        ...allIn(entire),
+        aggregation: {
+          dimensions: [{ kind: "class", id: CITY }],
+          measures: [{ function: "count" }],
+        },
+      });
+      expect(result.rows).toEqual([
+        [0, 8],
+        [1, 1], // Paris — class nodes carry no class memberships
+      ]);
+    });
+
+    it("empty dimensions = a single grand-total row", () => {
+      const result = runAggregate(worldStore(), {
+        ...allIn(entire),
+        aggregation: { dimensions: [], measures: [{ function: "count" }] },
+      });
+      expect(result.columns).toEqual(["count"]);
+      expect(result.rows).toEqual([[9]]);
+    });
+
+    it("composes with scopes and conditions", () => {
+      const byTypeInFrance = runAggregate(worldStore(), {
+        ...allIn({ type: "subtree", pageId: FRANCE }),
+        aggregation: countByType,
+      });
+      expect(byTypeInFrance.rows).toEqual([
+        ["block", 3],
+        ["page", 2],
+      ]);
+
+      const capitalBlocks = runAggregate(worldStore(), {
+        ...ast(entire, [{ type: "content", op: "contains", value: "capital" }]),
+        aggregation: countByType,
+      });
+      expect(capitalBlocks.rows).toEqual([["block", 2]]);
+
+      const pagesOnly = runAggregate(worldStore(), { ...allIn(pages), aggregation: countByType });
+      expect(pagesOnly.rows).toEqual([["page", 3]]);
+    });
+
+    it("live updates: the aggregate reflects later applies", () => {
+      const store = worldStore();
+      store.apply(
+        env("object.create", {
+          objectId: "0192a000-0000-7000-8000-000000000105",
+          nodeType: "page",
+          name: "Rome",
+          classIds: [CITY],
+        }, T0 + 30 * STEP),
+      );
+      const result = runAggregate(store, { ...allIn(pages), aggregation: countByType });
+      expect(result.rows).toEqual([["page", 4]]);
     });
   });
 
