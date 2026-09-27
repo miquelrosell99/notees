@@ -62,16 +62,17 @@ describe("system seeds (v1 port)", () => {
     }
   });
 
-  it("never reuses the withdrawn v1 locator id", () => {
+  it("never reuses withdrawn ids (v1 locator …0018; linkedAuthors …0025)", () => {
     const allIds = [
       ...Object.values(SYSTEM_CLASS_UUIDS),
       ...Object.values(SYSTEM_PROPERTY_UUIDS),
       ...Object.values(SYSTEM_PAGE_UUIDS),
     ];
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000018");
+    expect(allIds).not.toContain("00000000-0000-0000-0000-000000000025");
   });
 
-  it("citations revision (2026-09-27): source family + authorship seeds", () => {
+  it("citations revision (2026-09-27, FINAL): source family + authorship seeds", () => {
     // New source subclasses: fixed ids in the next block, icons, extends, seeded.
     expect(SYSTEM_CLASS_UUIDS.song).toBe("00000000-0000-0000-0001-000000000036");
     expect(SYSTEM_CLASS_UUIDS.tv_series).toBe("00000000-0000-0000-0001-000000000037");
@@ -81,16 +82,17 @@ describe("system seeds (v1 port)", () => {
       expect(SYSTEM_CLASS_EXTENDS[name]).toEqual(["source"]);
       expect(SEEDED_SYSTEM_CLASSES).toContain(name);
     }
-    // Authorship split: `authors` is plain text-multi; `linkedAuthors` is the
-    // node-typed agent-filtered sibling.
-    expect(SYSTEM_PROPERTY_UUIDS.linkedAuthors).toBe("00000000-0000-0000-0000-000000000025");
-    expect(SYSTEM_PROPERTY_SPECS.authors).toEqual({ type: "text", multi: true, bindTo: "source" });
-    expect(SYSTEM_PROPERTY_SPECS.linkedAuthors).toEqual({
+    // FINAL authorship: `authors` is node-typed to agent nodes; the
+    // text-authors + `linkedAuthors` experiment is withdrawn (…0025 never reused).
+    expect(SYSTEM_PROPERTY_UUIDS.authors).toBe("00000000-0000-0000-0000-000000000012");
+    expect(SYSTEM_PROPERTY_SPECS.authors).toEqual({
       type: "object",
       multi: true,
       bindTo: "source",
       targetClassFilter: ["agent"],
     });
+    expect(SYSTEM_PROPERTY_UUIDS).not.toHaveProperty("linkedAuthors");
+    expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("linkedAuthors");
   });
 });
 

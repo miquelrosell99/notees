@@ -175,7 +175,6 @@ describe("Class View", () => {
     expect(names).toEqual([
       "attachments",
       "authors",
-      "linkedAuthors",
       "isbn",
       "doi",
       "publicationDate",
@@ -186,16 +185,12 @@ describe("Class View", () => {
     expect(names.indexOf("authors")).toBeLessThan(names.indexOf("isbn"));
 
     const rows = [...container.querySelectorAll(".nt-class-binding")];
-    // Citations revision (2026-09-27): authors is a plain text-multi property…
+    // FINAL citations authorship (2026-09-27): authors is the node-typed,
+    // agent-filtered property (linkedAuthors was withdrawn same day, …0025).
     const authorsRow = rows[1]!;
-    expect(authorsRow.textContent).toContain("text");
+    expect(authorsRow.textContent).toContain("object");
     expect(authorsRow.textContent).toContain("multi");
-    expect(authorsRow.textContent).not.toContain("agent");
-    // …and linkedAuthors is the node-typed, agent-filtered sibling.
-    const linkedRow = rows[2]!;
-    expect(linkedRow.textContent).toContain("object");
-    expect(linkedRow.textContent).toContain("multi");
-    expect(linkedRow.textContent).toContain("agent");
+    expect(authorsRow.textContent).toContain("agent");
   });
 
   it("renders the class content in the description shelf", async () => {
