@@ -657,3 +657,105 @@ describe("bibliography round-trip (bibtex)", () => {
     expect(h.io.stderrText).toContain("no BibTeX entries");
   });
 });
+
+
+describe("shell (scripted mode)", () => {
+  it("scripted create → get → search → effective → delete; stdout carries the ids", async () => {
+    const h = harness;
+    // Piped stdin runs as a script: helpers are globals, top-level await works.
+    const script = `
+      const p = await create({
+        nodeType: "page",
+        name: "shell-t1-page",
+        contentAst: [{ type: "text", text: "shellabyss crossing notes" }],
+      });
+      console.log("created " + p.id);
+      const got = await get(p.id);
+      console.log("got " + got.name);
+      const hits = await search("shellabyss");
+      console.log("hits " + hits.map((hit) => hit.id).join(","));
+      const eff = await effective(p.id);
+      console.log("effective-count " + eff.length);
+      const removed = await del(p.id, { permanent: true });
+      console.log("deleted " + removed.id);
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+
+    const createdLine = h.io.stdoutText.split("\n").find((line) => line.startsWith("created "));
+    expect(createdLine).toBeDefined();
+    const id = createdLine!.slice("created ".length).trim();
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(h.io.stdoutText).toContain(`got shell-t1-page`);
+    // The search hit echoes the created id on the hits line.
+    expect(h.io.stdoutText).toContain(`hits ${id}`);
+    expect(h.io.stdoutText).toContain("deleted " + id);
+
+    // The script really deleted the object.
+    expect(await h.runCli("--json", "object", "get", id)).toBe(EXIT.domain);
+  });
+
+  it("scripted helper sweep: list, classes, classInfo, backlinks, props, setProperty, upload, export", async () => {
+    const h = harness;
+    // The server sniffs the file type (jpeg/png/webp/pdf/epub/audio) — reuse
+    // the fake-PNG pattern from the asset round-trip test above.
+    const assetFile = join(h.dataDir, "shell-t2-upload.png");
+    writeFileSync(
+      assetFile,
+      Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.from("shell-upload"),
+      ]),
+    );
+
+    const script = `
+      const p = await create({
+        nodeType: "page",
+        name: "shell-t2-src",
+        classIds: ["${SYSTEM_CLASS_UUIDS.book}"],
+      });
+      await setProperty(p.id, "${SYSTEM_PROPERTY_UUIDS.citekey}", "shellt2key");
+      const mine = await props(p.id);
+      console.log("citekey " + mine.find((x) => x.schemaName === "citekey").value);
+      const found = await list({ property: "${SYSTEM_PROPERTY_UUIDS.citekey}:shellt2key" });
+      console.log("found " + found.map((o) => o.id).join(","));
+      const klasses = await classes();
+      const person = klasses.find((c) => c.name === "person");
+      const info = await classInfo(person.id);
+      console.log("class " + info.name + " members=" + info.members.length);
+      console.log("backlinks " + (await backlinks(p.id)).length);
+      console.log("asset " + (await upload("${assetFile.replace(/\\/g, "\\\\")}")));
+      console.log("export " + (await exportMd([p.id])).includes("shell-t2-src"));
+      console.log("export-alias " + (await helpers.export([p.id])).includes("shell-t2-src"));
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("citekey shellt2key");
+    expect(h.io.stdoutText).toMatch(/found [0-9a-f-]{36}/);
+    // The person class already has members from the bibtex tests above.
+    expect(h.io.stdoutText).toMatch(/class person members=\d+/);
+    expect(h.io.stdoutText).toContain("backlinks 0");
+    expect(h.io.stdoutText).toMatch(/asset [0-9a-f-]{36}/);
+    expect(h.io.stdoutText).toContain("export true");
+    expect(h.io.stdoutText).toContain("export-alias true");
+  });
+
+  it("erroring script exits 1 with the failure on stderr", async () => {
+    const h = harness;
+    const missing = crypto.randomUUID();
+    const code = await h.runCliWithStdin(`await get("${missing}");`, "shell");
+    expect(code).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("script failed");
+    expect(h.io.stderrText).toContain("does not exist");
+  });
+
+  it("bad API key → 3 with a clear probe message", async () => {
+    const h = harness;
+    const io = new Capture();
+    io.stdin = Readable.from(["const x = 1;\n"]);
+    const code = await run(["--server", h.baseUrl, "--key", `nk_${"q".repeat(32)}`, "shell"], io);
+    expect(code).toBe(EXIT.auth);
+    expect(io.stderrText).toContain("authentication failed");
+    io.stdin = undefined;
+  });
+});
