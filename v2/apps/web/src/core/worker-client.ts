@@ -12,6 +12,8 @@
  */
 
 import type {
+  AssetInfo,
+  AssetUploadResult,
   BlockTreeNode,
   ClassBinding,
   ClientEdge,
@@ -27,6 +29,7 @@ import type {
   SyncStatusSnapshot,
   UpdateObjectInput,
 } from "./workspace-client.js";
+import { fetchAssetBlob, postAssetUpload } from "./workspace-client.js";
 import type {
   WorkerInitMessage,
   WorkerRequestMessage,
@@ -45,6 +48,9 @@ export interface WorkerClientOptions {
 export class WorkerClient {
   private readonly worker: Worker;
   private readonly workspaceId: string;
+  /** Server REST access for the main-thread asset upload/download calls. */
+  private readonly serverUrl: string;
+  private readonly apiKey: string;
   private nextId = 1;
   private readonly pending = new Map<
     number,
@@ -57,9 +63,11 @@ export class WorkerClient {
   private refreshInFlight: Promise<void> | null = null;
   private closed = false;
 
-  private constructor(worker: Worker, workspaceId: string) {
+  private constructor(worker: Worker, workspaceId: string, serverUrl: string, apiKey: string) {
     this.worker = worker;
     this.workspaceId = workspaceId;
+    this.serverUrl = serverUrl;
+    this.apiKey = apiKey;
     worker.onmessage = this.handleMessage;
   }
 
@@ -68,7 +76,7 @@ export class WorkerClient {
     const worker =
       options.spawn?.() ??
       new Worker(new URL("../worker/store-worker.ts", import.meta.url), { type: "module" });
-    const client = new WorkerClient(worker, options.workspaceId);
+    const client = new WorkerClient(worker, options.workspaceId, options.serverUrl, options.apiKey);
     const init: WorkerInitMessage = {
       sqlWasmUrl: options.sqlWasmUrl,
       workspaceId: options.workspaceId,
@@ -193,6 +201,11 @@ export class WorkerClient {
     return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
   }
 
+  /** Asset metadata for a node reference (derived node_asset rows). */
+  getAssetInfo(id: string): AssetInfo | undefined {
+    return this.cachedRead<AssetInfo | undefined>("getAssetInfo", [id], undefined);
+  }
+
   listPropertySchemas(): ClientPropertySchema[] {
     return this.cachedRead<ClientPropertySchema[]>("listPropertySchemas", [], []);
   }
@@ -307,6 +320,26 @@ export class WorkerClient {
   /** Clear an authored property value (property.unset). */
   async unsetProperty(objectId: string, propertySchemaId: string, idx?: number): Promise<void> {
     await this.call("unsetProperty", [objectId, propertySchemaId, idx]);
+  }
+
+  // --- assets (REST upload/download on the main thread; the link op runs in
+  // the worker, which owns the store) ----------------------------------------
+
+  /** Upload file bytes to the server's CAS asset store (POST /api/v1/assets). */
+  async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
+    return postAssetUpload(this.serverUrl, this.apiKey, this.workspaceId, file, filename);
+  }
+
+  /** Record an uploaded asset on a node (asset.attach op, enqueued in the worker). */
+  async attachAsset(objectId: string, asset: AssetUploadResult): Promise<void> {
+    await this.call("attachAsset", [objectId, asset]);
+  }
+
+  /** Download an asset's bytes (workspace key) and open them in a new tab. */
+  async downloadAsset(assetId: string): Promise<void> {
+    const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, assetId);
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
   }
 
   /** No-op when the worker already booted this workspace (init bootstraps it). */

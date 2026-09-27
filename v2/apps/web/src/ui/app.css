@@ -999,6 +999,150 @@ button {
   color: #7b8794;
 }
 
+/* --- node-typed property rows (chips + picker) ------------------------------------ */
+
+.nt-property-object {
+  position: relative;
+  align-items: flex-start;
+}
+
+.nt-property-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  flex: 1;
+}
+
+.nt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid #c8cdd4;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 13px;
+  padding: 1px 4px 1px 10px;
+}
+
+.nt-chip-default {
+  border-style: dashed;
+  color: #9aa5b1;
+}
+
+.nt-chip-label {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+span.nt-chip-label {
+  cursor: default;
+}
+
+.nt-chip-remove {
+  font: inherit;
+  color: #9aa5b1;
+  background: none;
+  border: none;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.nt-chip-remove:hover {
+  color: #d64545;
+}
+
+.nt-chip-add {
+  font: inherit;
+  font-size: 13px;
+  color: #616e7c;
+  background: none;
+  border: 1px dashed #c8cdd4;
+  border-radius: 999px;
+  padding: 1px 10px;
+  cursor: pointer;
+}
+
+.nt-chip-add:hover {
+  border-color: #616e7c;
+}
+
+.nt-property-picker {
+  position: absolute;
+  top: 100%;
+  left: 148px;
+  z-index: 30;
+  width: 280px;
+  background: #ffffff;
+  border: 1px solid #e4e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15, 30, 45, 0.12);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nt-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.nt-picker-item {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.nt-picker-item:hover {
+  background: #f0f4f8;
+}
+
+.nt-picker-empty {
+  color: #9aa5b1;
+  font-size: 13px;
+  padding: 4px 6px;
+}
+
+.nt-picker-upload {
+  font: inherit;
+  font-size: 13px;
+  background: none;
+  border: 1px solid #c8cdd4;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-picker-upload:hover {
+  border-color: #616e7c;
+}
+
+.nt-file-input {
+  display: none;
+}
+
+.nt-picker-error {
+  color: #d64545;
+  font-size: 12px;
+  margin: 0;
+}
+
 .nt-class-description-body {
   white-space: pre-wrap;
   word-break: break-word;
