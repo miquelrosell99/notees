@@ -138,3 +138,7 @@ Classes define **bound property schemas** (with per-binding metadata and a `defa
 - **Explicit person linkage is a separate node-typed property `linkedAuthors`** (multi, node-typed, target filter `agent`): the user links a `person` node for the authors who matter to the graph (the C. S. Lewis case). Explicit, deliberate, queryable, backlink-generating — never automatic.
 - **Export unions both**: text authors in order, then `linkedAuthors` persons (resolved names) not already present in the text list, appended.
 - **Lint (suggestion only, M2+):** "author 'X' matches an existing person node — link?" — the design law: suggestions, never enforcement.
+
+## Sources as containers — files, properties, notes (NORMATIVE, owner decision 2026-09-27)
+
+A **source node is the Zotero-style container**: its files are **asset nodes** linked via the multi-value node-typed `attachments` property (seeded on `source`, fixed UUID `…0000-000000000011`, `targetClassFilter: ["asset"]`); its bibliographic data lives in the source property family (title/authors/linkedAuthors/doi/isbn/publicationDate/publisher/citekey/url); its **notes are ordinary child blocks** (full grammar, backlinks, focused view — nothing special to build). One source, many files, properties on the source, thinking in the tree. Asset nodes stay content-addressed and independently lifecycle'd; the property only links.
