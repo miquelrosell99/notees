@@ -204,8 +204,13 @@ describe("property schemas", () => {
     });
 
     const authors = await api("GET", `/api/v1/property-schemas/${SYSTEM_PROPERTY_UUIDS.authors}`);
-    expect(authors.json().propertySchema).toMatchObject({ multi: true, type: "object" });
-    expect(authors.json().propertySchema.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.agent]);
+    expect(authors.json().propertySchema).toMatchObject({ multi: true, type: "text" });
+    expect(authors.json().propertySchema.targetClassFilter).toBeNull();
+
+    // Explicit person linkage is the node-typed sibling property.
+    const linked = await api("GET", `/api/v1/property-schemas/${SYSTEM_PROPERTY_UUIDS.linkedAuthors}`);
+    expect(linked.json().propertySchema).toMatchObject({ multi: true, type: "object" });
+    expect(linked.json().propertySchema.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.agent]);
 
     const missing = await api("GET", `/api/v1/property-schemas/${crypto.randomUUID()}`);
     expect(missing.statusCode).toBe(404);
