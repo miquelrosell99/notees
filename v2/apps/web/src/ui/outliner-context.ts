@@ -16,6 +16,7 @@ import type {
   CreateObjectInput,
   DeleteObjectOptions,
   EffectiveProperty,
+  QueryAggregateResult,
   QueryRunResult,
   UpdateObjectInput,
 } from "@/core/workspace-client.js";
@@ -77,6 +78,8 @@ export interface OutlinerReader {
   subscribe(listener: () => void): () => void;
   /** Live-query bridge for `query` content tokens (QueryBlockView). */
   runQueryAst(rawAst: unknown): QueryRunResult | Promise<QueryRunResult>;
+  /** Aggregation bridge for `query` tokens carrying an `aggregation`. */
+  runAggregateAst(rawAst: unknown): QueryAggregateResult | Promise<QueryAggregateResult>;
   /** Direct children in child order (export-on-query's nested-bullets read). */
   getChildren(id: string): ClientNode[];
   /** Effective properties (export-on-query's frontmatter read). */

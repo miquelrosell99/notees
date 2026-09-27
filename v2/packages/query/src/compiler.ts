@@ -24,17 +24,35 @@
  * (no workspace filter), matching the store's read helpers.
  *
  * M1 boundaries (fail loud, cleanly extensible):
- *  - `aggregation` is defined in the AST schema but compilation is not
- *    implemented — compiling an AST with `aggregation` throws;
+ *  - `aggregation` compiles: the filtered-node set becomes a `filtered` CTE,
+ *    dimensions GROUP BY it, measures aggregate over it (see compileAggregate).
+ *    Execution goes through runAggregate — runQuery rejects aggregation ASTs;
  *  - scopes/conditions outside the v1 AST subset (style marks, parent/child
  *    paths, regex, flags) are not part of the v2 M1 model.
  */
 
-import type { Condition, Group, Not, QueryAst, SortSpec } from "./ast.js";
+import type {
+  Aggregation,
+  AggregationDimension,
+  AggregationMeasure,
+  Condition,
+  Group,
+  Not,
+  QueryAst,
+  SortSpec,
+} from "./ast.js";
 
 export interface CompiledQuery {
   sql: string;
   params: unknown[];
+}
+
+/** An aggregate compilation additionally carries the deterministic column order. */
+export interface CompiledAggregate {
+  sql: string;
+  params: unknown[];
+  /** Column labels, in result order: dimensions (declared order), then measures. */
+  columns: string[];
 }
 
 export interface CompileOptions {
@@ -70,8 +88,48 @@ const SORT_COLUMNS: Record<SortSpec["field"], { column: string; nullable: boolea
   nodeType: { column: "n.node_type", nullable: false },
 };
 
+/**
+ * Deterministic aggregate column labels: dimensions in declared order, then
+ * measures in declared order. Generated names (never user text) keep compile-
+ * time column identity without store lookups; collisions (e.g. two identical
+ * measures) get a positional `#n` suffix.
+ */
+function aggregationColumns(aggregation: Aggregation): string[] {
+  const names = aggregation.dimensions.map((dimension) =>
+    dimension.kind === "nodeType" ? "nodeType" : `${dimension.kind}:${dimension.id}`,
+  );
+  names.push(
+    ...aggregation.measures.map((measure) => {
+      switch (measure.function) {
+        case "count":
+          return "count";
+        case "countDistinct":
+          return "countDistinct";
+        default:
+          return `${measure.function}:${measure.id}`;
+      }
+    }),
+  );
+  const used = new Set<string>();
+  return names.map((name) => {
+    if (!used.has(name)) {
+      used.add(name);
+      return name;
+    }
+    let index = 2;
+    while (used.has(`${name}#${index}`)) index += 1;
+    const suffixed = `${name}#${index}`;
+    used.add(suffixed);
+    return suffixed;
+  });
+}
+
 export function compile(ast: QueryAst, options: CompileOptions = {}): CompiledQuery {
   return new Compiler(options).compile(ast);
+}
+
+export function compileAggregate(ast: QueryAst, options: CompileOptions = {}): CompiledAggregate {
+  return new Compiler(options).compileAggregate(ast);
 }
 
 class Compiler {
@@ -86,12 +144,153 @@ class Compiler {
 
   compile(ast: QueryAst): CompiledQuery {
     if (ast.aggregation !== undefined) {
-      throw new Error(
-        "query compile: AST carries an aggregation, but aggregation compilation " +
-          "is not implemented in M1 (schema-defined, execution deferred)",
-      );
+      const aggregate = this.aggregationSql(ast, ast.aggregation);
+      return { sql: aggregate.sql, params: this.params };
     }
 
+    const { from, where, hasDistance } = this.filteredFromWhere(ast);
+
+    const columns = hasDistance ? "n.*, sc.distance AS distance" : "n.*";
+    const sql =
+      `SELECT ${columns}\nFROM ${from}\nWHERE ${where.join(" AND ")}\n` +
+      `ORDER BY ${this.orderSql(ast.sort)}`;
+    return { sql, params: this.params };
+  }
+
+  /**
+   * Aggregation compilation: the same filtered-node set as the plain query
+   * (scope joins + conditions) becomes a `filtered` CTE; the outer query
+   * groups it by the dimensions and aggregates the measures. Zero dimensions
+   * = one grand-total row (no GROUP BY). Column order is deterministic:
+   * dimensions in declared order, then measures; labels are `nodeType`,
+   * `class:<id>`, `property:<id>`, `count`, `countDistinct`, `<fn>:<id>`
+   * (collisions suffixed `#2`, `#3`, …). `sort` does not apply to aggregates
+   * — the grid is ordered by its dimension expressions.
+   */
+  compileAggregate(ast: QueryAst): CompiledAggregate {
+    if (ast.aggregation === undefined) {
+      throw new Error("query compile: compileAggregate requires an AST with an aggregation");
+    }
+    const aggregate = this.aggregationSql(ast, ast.aggregation);
+    return { sql: aggregate.sql, params: this.params, columns: aggregate.columns };
+  }
+
+  private aggregationSql(
+    ast: QueryAst,
+    aggregation: Aggregation,
+  ): { sql: string; columns: string[] } {
+    const { from, where } = this.filteredFromWhere(ast);
+    const dimExprs = aggregation.dimensions.map((dimension) => this.dimensionSql(dimension));
+    const measureExprs = aggregation.measures.map((measure) => this.measureSql(measure));
+    const columns = aggregationColumns(aggregation);
+    // GROUP BY/ORDER BY reference the output aliases: repeating the
+    // expressions would repeat their `?` placeholders (one param push per
+    // generation), and SQLite resolves result-column names in both clauses.
+    const dimAliases = columns.slice(0, dimExprs.length).map((column) => `"${column}"`);
+    const selectList = [...dimExprs, ...measureExprs].map(
+      (expr, index) => `${expr} AS "${columns[index]}"`,
+    );
+    let sql =
+      "WITH filtered AS (\n" +
+      "SELECT n.id, n.node_type, n.class_ids\n" +
+      `FROM ${from}\n` +
+      `WHERE ${where.join(" AND ")}\n` +
+      ")\n" +
+      `SELECT ${selectList.join(", ")}\nFROM filtered f\n`;
+    if (dimExprs.length > 0) {
+      sql += `GROUP BY ${dimAliases.join(", ")}\n`;
+      sql += `ORDER BY ${dimAliases.join(", ")} ASC`;
+    }
+    return { sql, columns };
+  }
+
+  // --- aggregation ----------------------------------------------------------------
+
+  private dimensionSql(dimension: AggregationDimension): string {
+    switch (dimension.kind) {
+      case "nodeType":
+        return "f.node_type";
+      case "class": {
+        // Same membership probe as the class condition: class_hierarchy
+        // carries the extends closure (self-row included). The key is the
+        // boolean membership (1/0) — a node is or is not in the class.
+        const classId = this.push(dimension.id);
+        return (
+          "CASE WHEN EXISTS (\n  SELECT 1 FROM json_each(f.class_ids)\n" +
+          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ${classId})\n` +
+          ") THEN 1 ELSE 0 END"
+        );
+      }
+      case "property":
+        return this.effectiveValueSql(dimension.id);
+    }
+  }
+
+  private measureSql(measure: AggregationMeasure): string {
+    switch (measure.function) {
+      case "count":
+        return "COUNT(*)";
+      case "countDistinct":
+        return "COUNT(DISTINCT f.id)";
+      case "sum":
+      case "avg":
+      case "min":
+      case "max":
+        // json_extract yields the JSON number for numeric values; text values
+        // aggregate as SQLite's numeric coercion dictates (non-numeric text
+        // sums error out — bind numeric schemas to sum/avg, as the builder does).
+        return `${measure.function.toUpperCase()}(${this.effectiveValueSql(measure.id)})`;
+    }
+  }
+
+  /**
+   * The effective/authored value at idx 0 of a property for the filtered node
+   * (alias `f`) — the same read model as the property conditions: authored
+   * idx-0 rows (tombstone-suppressed) UNION the winning binding's default
+   * when no authored row at idx 0 shadows it (first-class-applied-wins),
+   * surfaced as json_extract(value, '$'). Params per call: three schema ids
+   * (authored filter, binding filter, derived-shadow check), mirroring
+   * propertySql's parameter pattern.
+   */
+  private effectiveValueSql(schemaId: string): string {
+    const authored = this.push(schemaId);
+    const binding = this.push(schemaId);
+    const shadow = this.push(schemaId);
+    const tombstone =
+      "NOT EXISTS (\n  SELECT 1 FROM property_value_tombstone t\n" +
+      "  WHERE t.node_id = pv.node_id AND t.property_schema_id = pv.property_schema_id\n" +
+      "    AND t.idx = pv.idx\n" +
+      "    AND (t.hlc_physical, t.hlc_logical, COALESCE(t.actor_id, '')) >=\n" +
+      "        (pv.hlc_physical, pv.hlc_logical, COALESCE(pv.actor_id, ''))\n)";
+    return (
+      "(SELECT json_extract(ev.value, '$') FROM (\n" +
+      `  SELECT pv.node_id, pv.value FROM property_value pv\n` +
+      `  WHERE pv.property_schema_id = ${authored} AND pv.node_id = f.id AND pv.idx = 0 AND ${tombstone}\n` +
+      "  UNION ALL\n" +
+      "  SELECT wb.node_id, wb.default_value FROM (\n" +
+      "    SELECT cms.node_id, cp.default_value,\n" +
+      "           ROW_NUMBER() OVER (\n" +
+      "             PARTITION BY cms.node_id\n" +
+      "             ORDER BY cms.hlc_physical, cms.hlc_logical, cms.class_id\n" +
+      "           ) AS rn\n" +
+      "    FROM class_member_set cms\n" +
+      "    JOIN class_property cp ON cp.class_id = cms.class_id\n" +
+      `    WHERE cms.present = 1 AND cp.property_schema_id = ${binding}\n` +
+      "      AND cp.default_value IS NOT NULL\n" +
+      "  ) wb\n" +
+      "  WHERE wb.rn = 1 AND wb.node_id = f.id\n" +
+      "    AND NOT EXISTS (\n" +
+      "      SELECT 1 FROM property_value pv\n" +
+      `      WHERE pv.node_id = wb.node_id AND pv.property_schema_id = ${shadow}\n` +
+      `        AND pv.idx = 0 AND ${tombstone}\n` +
+      "    )\n" +
+      ") ev LIMIT 1)"
+    );
+  }
+
+  // --- filtered set (shared by the plain query and the aggregation) ---------------
+
+  private filteredFromWhere(ast: QueryAst): { from: string; where: string[]; hasDistance: boolean } {
     let from = "node n";
     let hasDistance = false;
     switch (ast.scope.type) {
@@ -118,12 +317,7 @@ class Compiler {
     if (group !== undefined) {
       where.push(`(${group})`);
     }
-
-    const columns = hasDistance ? "n.*, sc.distance AS distance" : "n.*";
-    const sql =
-      `SELECT ${columns}\nFROM ${from}\nWHERE ${where.join(" AND ")}\n` +
-      `ORDER BY ${this.orderSql(ast.sort)}`;
-    return { sql, params: this.params };
+    return { from, where, hasDistance };
   }
 
   // --- scope -----------------------------------------------------------------
