@@ -34,6 +34,7 @@ import {
   type DropLine,
 } from "./block-dnd.js";
 import { EmbedBoundary } from "./EmbedView.js";
+import { PropertiesPanel } from "./PropertiesPanel.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
@@ -193,6 +194,7 @@ export function PageView({
             {moveError}
           </div>
         )}
+        <PropertiesPanel client={client} nodeId={pageId} />
         <EmbedBoundary rootId={pageId}>
           <DndContext
             sensors={sensors}

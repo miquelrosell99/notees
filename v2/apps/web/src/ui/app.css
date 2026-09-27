@@ -699,11 +699,22 @@ button {
 }
 
 .nt-class-binding-seq {
-  width: 18px;
+  width: 48px;
   text-align: right;
   color: #9aa5b1;
   font-size: 12px;
   flex-shrink: 0;
+  font: inherit;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.nt-class-binding-seq:hover,
+.nt-class-binding-seq:focus {
+  border-color: #c8cdd4;
+  background: #ffffff;
 }
 
 .nt-class-binding-name {
@@ -724,6 +735,100 @@ button {
 .nt-class-binding-default {
   color: #7b8794;
   font-size: 12px;
+  font: inherit;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  min-width: 90px;
+}
+
+.nt-class-binding-default:hover,
+.nt-class-binding-default:focus {
+  border-color: #c8cdd4;
+  background: #ffffff;
+}
+
+.nt-class-binding-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #7b8794;
+  white-space: nowrap;
+}
+
+.nt-class-binding-remove {
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  font-size: 13px;
+  color: #7b8794;
+}
+
+.nt-class-binding-remove:hover {
+  color: #b42318;
+}
+
+.nt-class-add-binding {
+  margin-top: 6px;
+  font: inherit;
+  font-size: 13px;
+  padding: 3px 6px;
+  border: 1px solid #c8cdd4;
+  border-radius: 6px;
+  color: #52606d;
+  background: #ffffff;
+}
+
+/* --- properties panel (effective values) -------------------------------------------- */
+
+.nt-properties-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nt-property {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 14px;
+}
+
+.nt-property-name {
+  font-weight: 600;
+  min-width: 140px;
+}
+
+.nt-property-hint {
+  color: #9aa5b1;
+  font-size: 11px;
+  border: 1px solid #e4e7eb;
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.nt-property-default .nt-property-value {
+  color: #9aa5b1;
+}
+
+.nt-property-value {
+  font: inherit;
+  font-size: 13px;
+  padding: 2px 6px;
+  border: 1px solid #c8cdd4;
+  border-radius: 6px;
+  background: #ffffff;
+  min-width: 160px;
+}
+
+.nt-property-default .nt-property-name {
+  color: #7b8794;
 }
 
 .nt-class-description-body {

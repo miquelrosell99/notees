@@ -728,6 +728,97 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
   return summary(opType, [p.classId]);
 }
 
+// --- class.property.* ---------------------------------------------------------
+//
+// Binding rows on `class_property` (SCHEMA.md "Class properties"): pure
+// configuration (sequence, flags, defaultValue). Row-level LWW by envelope
+// HLC; on update the payload PATCHES the row — omitted fields keep their
+// existing values. Defaults are never materialized into property_value; the
+// effective-values read model (effective.ts) derives them at query time.
+
+function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "class.property.set";
+  const p = env.payload as OpPayload<"class.property.set">;
+  const incoming = winnerFromEnvelope(env);
+
+  const existing = db
+    .prepare(
+      "SELECT hlc_physical, hlc_logical, actor_id FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+    )
+    .get(p.classId, p.propertySchemaId) as
+    | { hlc_physical: number; hlc_logical: number; actor_id: string | null }
+    | undefined;
+
+  if (existing && compareLww(incoming, rowWinner(existing)) <= 0) {
+    return summary(opType, [p.classId], true);
+  }
+
+  const required = p.required === undefined ? null : p.required ? 1 : 0;
+  const readonlyFlag = p.readonly === undefined ? null : p.readonly ? 1 : 0;
+  const hideWhenEmpty = p.hideWhenEmpty === undefined ? null : p.hideWhenEmpty ? 1 : 0;
+  const defaultValue = p.defaultValue !== undefined ? JSON.stringify(p.defaultValue) : null;
+
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO class_property
+         (class_id, property_schema_id, sequence, required, readonly, hide_when_empty,
+          default_value, hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      p.classId,
+      p.propertySchemaId,
+      p.sequence ?? 0,
+      required,
+      readonlyFlag,
+      hideWhenEmpty,
+      defaultValue,
+      env.hlc.physical,
+      env.hlc.logical,
+      env.actorId,
+    );
+  } else {
+    // Partial update: COALESCE keeps the stored value for omitted fields
+    // (present fields update, including explicit false / JSON null).
+    db.prepare(
+      `UPDATE class_property SET
+         sequence = COALESCE(?, sequence),
+         required = COALESCE(?, required),
+         readonly = COALESCE(?, readonly),
+         hide_when_empty = COALESCE(?, hide_when_empty),
+         default_value = COALESCE(?, default_value),
+         hlc_physical = ?, hlc_logical = ?, actor_id = ?
+       WHERE class_id = ? AND property_schema_id = ?`,
+    ).run(
+      p.sequence ?? null,
+      required,
+      readonlyFlag,
+      hideWhenEmpty,
+      defaultValue,
+      env.hlc.physical,
+      env.hlc.logical,
+      env.actorId,
+      p.classId,
+      p.propertySchemaId,
+    );
+  }
+  return summary(opType, [p.classId]);
+}
+
+/**
+ * Binding removal: plain DELETE — a config row, last write wins, no tombstone
+ * (SCHEMA.md). The read model stops deriving the schema's default for the
+ * class's nodes; authored property_value rows are untouched by design.
+ */
+function applyClassPropertyUnset(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "class.property.unset";
+  const p = env.payload as OpPayload<"class.property.unset">;
+  db.prepare("DELETE FROM class_property WHERE class_id = ? AND property_schema_id = ?").run(
+    p.classId,
+    p.propertySchemaId,
+  );
+  return summary(opType, [p.classId]);
+}
+
 // --- propertySchema.* ---------------------------------------------------------
 
 function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
@@ -959,6 +1050,8 @@ const APPLIERS: Record<
   "class.update": applyClassUpdate,
   "class.delete": applyClassDelete,
   "class.setExtends": applyClassSetExtends,
+  "class.property.set": applyClassPropertySet,
+  "class.property.unset": applyClassPropertyUnset,
   "propertySchema.create": applyPropertySchemaCreate,
   "propertySchema.update": applyPropertySchemaUpdate,
   "propertySchema.delete": applyPropertySchemaDelete,

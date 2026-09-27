@@ -19,7 +19,9 @@
  * rebuilds; `applied_envelope.seq` is assigned from MAX(seq)+1).
  */
 
-export const SCHEMA_VERSION = 2;
+import type { SqliteDB } from "./db.js";
+
+export const SCHEMA_VERSION = 3;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -144,9 +146,12 @@ CREATE TABLE IF NOT EXISTS property_schema (
 CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
     ON property_schema (workspace_id);
 
--- Class -> property binding rows (sequence, flags, default). Registry rows
--- written by the schema-binding ops (none in the M1 registry; table kept so
--- the derived schema is complete and wipe -> replay -> identical).
+-- Class -> property binding rows (sequence, flags, default), authored by
+-- class.property.set / class.property.unset (SCHEMA.md "Class properties").
+-- Row-level LWW by (hlc, actor): the winning write's causality is stored on
+-- the row, so a stale set replayed after a newer one is dropped. Defaults
+-- here are configuration only — the applier never writes property_value rows
+-- for them; the effective-values read model derives them at query time.
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
@@ -155,6 +160,9 @@ CREATE TABLE IF NOT EXISTS class_property (
     readonly INTEGER,
     hide_when_empty INTEGER,
     default_value TEXT,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0,
+    actor_id TEXT,
     PRIMARY KEY (class_id, property_schema_id)
 );
 
@@ -305,10 +313,7 @@ const SCHEMA_SQL_FTS4 = SCHEMA_SQL.replace(
 
 /** Create or upgrade the derived schema in ``db`` (PRAGMA user_version). */
 export function migrate(
-  db: {
-    pragma(source: string, options?: { simple?: boolean }): unknown;
-    exec(sql: string): unknown;
-  },
+  db: Pick<SqliteDB, "pragma" | "exec" | "prepare">,
   ftsModule: FtsModule = "fts5",
 ): void {
   const current = db.pragma("user_version", { simple: true }) as number;
@@ -320,5 +325,16 @@ export function migrate(
     );
   }
   db.exec(schemaSql(ftsModule));
+  // v2 -> v3: class_property gained LWW causality columns. Databases created
+  // at v2 keep their rows; fresh v3 creates already have the columns, so the
+  // backfill is a no-op there. (CREATE TABLE IF NOT EXISTS never alters.)
+  const columns = db.prepare("PRAGMA table_info(class_property)").all() as { name: string }[];
+  if (!columns.some((c) => c.name === "hlc_physical")) {
+    db.exec(`
+      ALTER TABLE class_property ADD COLUMN hlc_physical INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE class_property ADD COLUMN hlc_logical INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE class_property ADD COLUMN actor_id TEXT;
+    `);
+  }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
 }

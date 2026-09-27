@@ -91,8 +91,10 @@ export interface BlockTreeNode {
 
 /**
  * One class → property-schema binding, as projected by the Class View.
- * M1 truth: the designed system seeds (@notees/domain) — no op authors
- * `class_property` registry rows yet, so the registry-only flags read null.
+ * Registry rows (class_property joined to property_schema) now that
+ * class.property.set authors them; the designed system seeds
+ * (@notees/domain) fill schemas the registry does not bind yet, with
+ * registry rows winning per schema.
  */
 export interface ClassBinding {
   propertySchemaId: string;
@@ -106,6 +108,56 @@ export interface ClassBinding {
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
   defaultValue: string | null;
+}
+
+/** Editable fields of a class.property.set write (all optional — patch). */
+export interface SetClassPropertyInput {
+  sequence?: number;
+  required?: boolean | null;
+  readonly?: boolean | null;
+  hideWhenEmpty?: boolean | null;
+  defaultValue?: unknown;
+}
+
+/** A property schema row as listed by the bindings picker's candidate set. */
+export interface ClientPropertySchema {
+  id: string;
+  name: string;
+  type: string;
+  multi: boolean;
+  scope: string;
+  options: Array<{ id: string; label: string }> | null;
+  targetClassFilter: string[] | null;
+}
+
+export interface CreatePropertySchemaInput {
+  name: string;
+  type: string;
+  multi?: boolean;
+  scope?: string;
+  options?: Array<{ id: string; label: string }>;
+  targetClassFilter?: string[];
+}
+
+/**
+ * One effective (schema, idx) row of a node (SCHEMA.md "Class properties"):
+ * authored values and derived class-binding defaults, aggregated across all
+ * the node's classes (first-class-applied-wins). `boundBy` names the class
+ * supplying the binding metadata, or null when no current class binds the
+ * schema (an authored value that outlived its bindings).
+ */
+export interface EffectiveProperty {
+  propertySchemaId: string;
+  idx: number;
+  schema: { id: string; name: string; type: string; multi: boolean } | null;
+  value: unknown;
+  metadata: Record<string, unknown> | null;
+  source: "authored" | "default";
+  boundBy: string | null;
+  required: boolean | null;
+  readonly: boolean | null;
+  hideWhenEmpty: boolean | null;
+  sequence: number | null;
 }
 
 export interface ClientEdge {
@@ -373,36 +425,135 @@ export class WorkspaceClient {
   }
 
   /**
-   * The class's property bindings in sequence order. M1 derives them from
-   * the designed system seeds (@notees/domain, keyed by the class's stored
-   * name): `class_property` registry rows have no authoring op yet, so the
-   * registry-only flags (required/readonly/hideWhenEmpty) read null and
-   * SYSTEM_EXTRA_CLASS_BINDINGS (cover) is not projected. User-named classes
-   * (no seed spec) have no bindings.
+   * The class's property bindings in sequence order. Registry rows
+   * (`class_property` joined to `property_schema`, authored by
+   * class.property.set) win; the designed system seeds (@notees/domain,
+   * keyed by the class's stored name) fill the schemas the registry does not
+   * bind yet — so a seeded class keeps its designed bindings, and user
+   * classes (no seed spec) show exactly their registry rows.
    */
   getClassBindings(classId: string): ClassBinding[] {
     const node = this.getNode(classId);
     if (node === undefined || node.nodeType !== "class" || node.name === null) {
       return [];
     }
-    const bindings: ClassBinding[] = [];
-    let sequence = 0;
+    const decodeDefault = (raw: string | null): string | null => {
+      if (raw === null) return null;
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+      } catch {
+        return raw;
+      }
+    };
+    const rows = this.store.database
+      .prepare(
+        `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.readonly, cp.hide_when_empty,
+                cp.default_value, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active
+         FROM class_property cp
+         LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
+         WHERE cp.class_id = ?
+         ORDER BY cp.sequence, cp.property_schema_id`,
+      )
+      .all(classId) as Array<Record<string, unknown>>;
+    const bindings: ClassBinding[] = rows.map((row) => {
+      let targetClassFilter: string[] | null = null;
+      try {
+        const parsed: unknown = JSON.parse((row.target_class_filter as string | null) ?? "null");
+        if (Array.isArray(parsed)) {
+          targetClassFilter = parsed.filter((v): v is string => typeof v === "string");
+        }
+      } catch {
+        targetClassFilter = null;
+      }
+      return {
+        propertySchemaId: String(row.property_schema_id),
+        name: (row.name as string | null) ?? "(missing schema)",
+        type: (row.type as string | null) ?? "",
+        multi: row.multi === 1,
+        targetClassFilter,
+        sequence: (row.sequence as number) ?? 0,
+        required: row.required === null || row.required === undefined ? null : row.required === 1,
+        readonly: row.readonly === null || row.readonly === undefined ? null : row.readonly === 1,
+        hideWhenEmpty:
+          row.hide_when_empty === null || row.hide_when_empty === undefined
+            ? null
+            : row.hide_when_empty === 1,
+        defaultValue: decodeDefault((row.default_value as string | null) ?? null),
+      };
+    });
+    const bound = new Set(bindings.map((b) => b.propertySchemaId));
+    let fallbackSeq = bindings.length;
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       if (spec === undefined || spec.bindTo !== node.name) continue;
+      const id = SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS];
+      if (bound.has(id)) continue;
       bindings.push({
-        propertySchemaId: SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS],
+        propertySchemaId: id,
         name,
         type: spec.type,
         multi: spec.multi ?? false,
         targetClassFilter: spec.targetClassFilter ?? null,
-        sequence: sequence++,
+        sequence: fallbackSeq++,
         required: null,
         readonly: null,
         hideWhenEmpty: null,
         defaultValue: spec.defaultValue ?? null,
       });
     }
-    return bindings;
+    return bindings.sort((a, b) => a.sequence - b.sequence || a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Effective properties of a node (SCHEMA.md "Class properties"): authored
+   * values plus derived binding defaults, aggregated across all its classes
+   * with first-class-applied-wins conflicts. Pure read over the local store.
+   */
+  getEffectiveProperties(id: string): EffectiveProperty[] {
+    return this.store.getEffectiveProperties(id);
+  }
+
+  /** Active property schemas of the workspace (the add-binding picker set). */
+  listPropertySchemas(): ClientPropertySchema[] {
+    const rows = this.store.database
+      .prepare(
+        `SELECT id, name, type, multi, scope, options, target_class_filter
+         FROM property_schema WHERE workspace_id = ? AND active = 1
+         ORDER BY name, id`,
+      )
+      .all(this.workspaceId) as Array<Record<string, unknown>>;
+    return rows.map((row) => {
+      const parseJsonArray = (raw: unknown): string[] | null => {
+        if (raw === null || raw === undefined) return null;
+        try {
+          const parsed: unknown = JSON.parse(raw as string);
+          return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : null;
+        } catch {
+          return null;
+        }
+      };
+      let options: Array<{ id: string; label: string }> | null = null;
+      try {
+        const parsed: unknown = JSON.parse((row.options as string | null) ?? "null");
+        if (Array.isArray(parsed)) {
+          options = parsed.filter(
+            (v): v is { id: string; label: string } =>
+              typeof v === "object" && v !== null && "id" in v && "label" in v,
+          );
+        }
+      } catch {
+        options = null;
+      }
+      return {
+        id: String(row.id),
+        name: String(row.name),
+        type: String(row.type),
+        multi: row.multi === 1,
+        scope: String(row.scope),
+        options,
+        targetClassFilter: parseJsonArray(row.target_class_filter),
+      };
+    });
   }
 
   /**
@@ -670,6 +821,100 @@ export class WorkspaceClient {
         "class.setExtends",
         { classId, parentClassIds },
         [classId, ...parentClassIds],
+      ),
+    );
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
+   * Upsert a class → property-schema binding (class.property.set). The
+   * payload PATCHES the row: omitted fields keep their existing values.
+   * Applied locally, push kicked off.
+   */
+  async setClassProperty(
+    classId: string,
+    propertySchemaId: string,
+    fields: SetClassPropertyInput,
+  ): Promise<void> {
+    const engine = this.requireEngine();
+    const payload: Record<string, unknown> = { classId, propertySchemaId };
+    if (fields.sequence !== undefined) payload.sequence = fields.sequence;
+    if (fields.required !== undefined) payload.required = fields.required;
+    if (fields.readonly !== undefined) payload.readonly = fields.readonly;
+    if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;
+    if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
+    engine.enqueue(this.buildEnvelope("class.property.set", payload, [classId]));
+    this.notify();
+    this.kickPush();
+  }
+
+  /** Remove a class → property-schema binding (class.property.unset). */
+  async unsetClassProperty(classId: string, propertySchemaId: string): Promise<void> {
+    const engine = this.requireEngine();
+    engine.enqueue(
+      this.buildEnvelope(
+        "class.property.unset",
+        { classId, propertySchemaId },
+        [classId],
+      ),
+    );
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
+   * Create a property schema (propertySchema.create); returns the new id.
+   * The bindings picker's "+ new schema" path.
+   */
+  async createPropertySchema(input: CreatePropertySchemaInput): Promise<string> {
+    const engine = this.requireEngine();
+    const id = uuidv7();
+    const payload: Record<string, unknown> = {
+      propertySchemaId: id,
+      name: input.name,
+      type: input.type,
+    };
+    if (input.multi !== undefined) payload.multi = input.multi;
+    if (input.scope !== undefined) payload.scope = input.scope;
+    if (input.options !== undefined) payload.options = input.options;
+    if (input.targetClassFilter !== undefined) payload.targetClassFilter = input.targetClassFilter;
+    engine.enqueue(this.buildEnvelope("propertySchema.create", payload, []));
+    this.notify();
+    this.kickPush();
+    return id;
+  }
+
+  /**
+   * Author a property value (property.set) — the panel's edit path. Writing
+   * an authored value shadows any derived class-binding default at the slot.
+   */
+  async setProperty(
+    objectId: string,
+    propertySchemaId: string,
+    value: unknown,
+    idx = 0,
+  ): Promise<void> {
+    const engine = this.requireEngine();
+    engine.enqueue(
+      this.buildEnvelope(
+        "property.set",
+        { objectId, propertySchemaId, value, idx },
+        [objectId],
+      ),
+    );
+    this.notify();
+    this.kickPush();
+  }
+
+  /** Clear an authored property value (property.unset) — the default resurfaces. */
+  async unsetProperty(objectId: string, propertySchemaId: string, idx = 0): Promise<void> {
+    const engine = this.requireEngine();
+    engine.enqueue(
+      this.buildEnvelope(
+        "property.unset",
+        { objectId, propertySchemaId, idx },
+        [objectId],
       ),
     );
     this.notify();

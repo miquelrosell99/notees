@@ -40,11 +40,12 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the eight required fixtures", () => {
+  it("has exactly the nine required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-extends-cycle.json",
       "class-extends-m2m.json",
+      "class-property-defaults.json",
       "envelope-minimal.json",
       "object-create.json",
       "object-move.json",
@@ -120,6 +121,40 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
     expect(moves[0]!.payload).toMatchObject({ objectId: c, parentId: a });
     expect(moves[1]!.payload).toMatchObject({ objectId: b, parentId: p, afterId: a });
     // Applicable in sequence: move HLCs strictly follow every create HLC.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("class-property-defaults binds priority on Task and Project, aggregates on the node, and unsets Task's binding last", () => {
+    const fixture = fixtures.find((f) => f.name === "class-property-defaults.json")!;
+    const [schema, task, project, node, taskBinding, projectBinding, assignProject, unsetTask] =
+      fixture.envelopes;
+    const priority = "0192a000-0000-7000-8000-000000000301";
+    const nodePayload = node!.payload as { objectId: string };
+    const taskPayload = task!.payload as { classId: string };
+    expect(schema!.opType).toBe("propertySchema.create");
+    expect(task!.payload).toMatchObject({ name: "Task" });
+    expect(project!.payload).toMatchObject({ name: "Project" });
+    // The node is created with Task, then Project is assigned via the OR-Set
+    // add carrier (a re-issued object.create on the same id).
+    expect(node!.opType).toBe("object.create");
+    expect(assignProject!.opType).toBe("object.create");
+    expect(assignProject!.payload).toMatchObject({ objectId: nodePayload.objectId });
+    // Both bindings carry defaults; Task's unset is the final envelope.
+    expect(taskBinding!.payload).toMatchObject({
+      propertySchemaId: priority,
+      defaultValue: "medium",
+    });
+    expect(projectBinding!.payload).toMatchObject({
+      propertySchemaId: priority,
+      defaultValue: "high",
+    });
+    expect(unsetTask!.opType).toBe("class.property.unset");
+    expect(unsetTask!.payload).toMatchObject({
+      classId: taskPayload.classId,
+      propertySchemaId: priority,
+    });
+    // Applicable in sequence: every HLC strictly follows the previous one.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });

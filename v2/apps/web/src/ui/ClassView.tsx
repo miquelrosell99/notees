@@ -7,9 +7,12 @@
  *   removable) plus an add-parent picker over the workspace's classes.
  *   Writes go through `class.setExtends` (replace semantics); the store's
  *   CycleError surfaces as a transient banner.
- * - Property bindings: READ-ONLY for M1 — bound property schemas in sequence
- *   order, derived from the designed system seeds (registry rows have no
- *   authoring op yet; editing bindings stays Designed, not built).
+ * - Property bindings: EDITABLE — bound property schemas in sequence order
+ *   (registry rows authored by class.property.set; the designed system seeds
+ *   fill unbound schemas). Per-binding default/required/readonly/
+ *   hideWhenEmpty editors patch via class.property.set (missing fields keep
+ *   their values), remove writes class.property.unset, and an add-binding
+ *   picker binds existing property schemas (class.property.set).
  * - Description shelf: the class node's own content, read-only for M1.
  * - Classed nodes: lazy per the section contract — no member query until the
  *   section first expands. Members link to their page (blocks resolve to
@@ -61,6 +64,8 @@ export function ClassView({
 
   const parents = client.getClassParents(classId);
   const bindings = client.getClassBindings(classId);
+  const boundSchemaIds = new Set(bindings.map((b) => b.propertySchemaId));
+  const schemaCandidates = client.listPropertySchemas().filter((s) => !boundSchemaIds.has(s.id));
   const candidates = client
     .listClasses()
     .filter((candidate) => candidate.id !== classId && !parents.includes(candidate.id));
@@ -195,7 +200,21 @@ export function ClassView({
             <ul className="nt-class-bindings">
               {bindings.map((binding) => (
                 <li key={binding.propertySchemaId} className="nt-class-binding">
-                  <span className="nt-class-binding-seq">{binding.sequence + 1}</span>
+                  <input
+                    key={`seq:${binding.propertySchemaId}:${binding.sequence}`}
+                    type="number"
+                    className="nt-class-binding-seq"
+                    defaultValue={binding.sequence}
+                    aria-label={`Sequence for ${binding.name}`}
+                    onBlur={(event) => {
+                      const next = Number.parseInt(event.target.value, 10);
+                      if (Number.isFinite(next) && next !== binding.sequence) {
+                        void client.setClassProperty(classId, binding.propertySchemaId, {
+                          sequence: next,
+                        });
+                      }
+                    }}
+                  />
                   <span className="nt-class-binding-name">{binding.name}</span>
                   <span className="nt-class-binding-type">
                     {binding.type}
@@ -204,12 +223,80 @@ export function ClassView({
                   {binding.targetClassFilter !== null && (
                     <span className="nt-class-binding-target">→ {binding.targetClassFilter.join(", ")}</span>
                   )}
-                  {binding.defaultValue !== null && (
-                    <span className="nt-class-binding-default">default: {binding.defaultValue}</span>
-                  )}
+                  <input
+                    key={`def:${binding.propertySchemaId}:${binding.defaultValue ?? ""}`}
+                    type="text"
+                    className="nt-class-binding-default"
+                    placeholder="default"
+                    defaultValue={binding.defaultValue ?? ""}
+                    aria-label={`Default for ${binding.name}`}
+                    onBlur={(event) => {
+                      const value = event.target.value;
+                      if (value !== (binding.defaultValue ?? "")) {
+                        void client.setClassProperty(classId, binding.propertySchemaId, {
+                          defaultValue: value,
+                        });
+                      }
+                    }}
+                  />
+                  {(
+                    [
+                      ["required", "Required", binding.required],
+                      ["readonly", "Readonly", binding.readonly],
+                      ["hideWhenEmpty", "Hide when empty", binding.hideWhenEmpty],
+                    ] as const
+                  ).map(([field, label, current]) => (
+                    <label key={field} className="nt-class-binding-flag">
+                      <input
+                        type="checkbox"
+                        checked={current === true}
+                        aria-label={`${label} for ${binding.name}`}
+                        onChange={(event) => {
+                          void client.setClassProperty(classId, binding.propertySchemaId, {
+                            [field]: event.target.checked,
+                          });
+                        }}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    className="nt-class-binding-remove"
+                    aria-label={`Remove binding ${binding.name}`}
+                    onClick={() =>
+                      void client.unsetClassProperty(classId, binding.propertySchemaId)
+                    }
+                  >
+                    ×
+                  </button>
                 </li>
               ))}
             </ul>
+          )}
+          {schemaCandidates.length > 0 && (
+            <select
+              className="nt-class-add-binding"
+              aria-label="Add property binding"
+              value=""
+              onChange={(event) => {
+                const propertySchemaId = event.target.value;
+                if (propertySchemaId !== "") {
+                  void client.setClassProperty(classId, propertySchemaId, {
+                    sequence: bindings.length,
+                  });
+                }
+              }}
+            >
+              <option value="" disabled>
+                Add property binding…
+              </option>
+              {schemaCandidates.map((schema) => (
+                <option key={schema.id} value={schema.id}>
+                  {schema.name}
+                </option>
+              ))}
+            </select>
           )}
         </section>
 

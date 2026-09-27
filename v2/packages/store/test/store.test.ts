@@ -527,6 +527,251 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("class properties (bindings, defaults, aggregation)", () => {
+    const PRIORITY = "0192a000-0000-7000-8000-000000000301";
+    const TASK = "0192a000-0000-7000-8000-000000000302";
+    const PROJECT = "0192a000-0000-7000-8000-000000000303";
+    const ITEM = "0192a000-0000-7000-8000-000000000304";
+
+    const EFFORT = "0192a000-0000-7000-8000-0000000003a1";
+    const IMPACT = "0192a000-0000-7000-8000-0000000003a2";
+    const CLASS_X = "0192a000-0000-7000-8000-0000000003b1";
+    const CLASS_Y = "0192a000-0000-7000-8000-0000000003b2";
+
+    function makeSchema(store: Store, id: string, name: string, physical: number): void {
+      store.apply(
+        env("propertySchema.create", { propertySchemaId: id, name, type: "text" }, physical),
+      );
+    }
+
+    function makeClass(store: Store, id: string, name: string, physical: number): void {
+      store.apply(env("class.create", { classId: id, name }, physical));
+    }
+
+    function bind(
+      store: Store,
+      classId: string,
+      schemaId: string,
+      defaultValue: string,
+      physical: number,
+    ): void {
+      store.apply(
+        env(
+          "class.property.set",
+          { classId, propertySchemaId: schemaId, sequence: 0, defaultValue },
+          physical,
+        ),
+      );
+    }
+
+    it("class.property.set upserts the binding row; a patch keeps omitted fields and a stale set is dropped", () => {
+      const store = makeStore();
+      store.applyMany(loadFixture("class-property-defaults.json").slice(0, 5));
+      const row = () =>
+        store.database
+          .prepare("SELECT * FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+          .get(TASK, PRIORITY) as Record<string, unknown>;
+      expect(row()).toMatchObject({ sequence: 0, default_value: '"medium"' });
+
+      // Patch only the default + required: sequence survives the update.
+      store.apply(
+        env(
+          "class.property.set",
+          { classId: TASK, propertySchemaId: PRIORITY, defaultValue: "low", required: true },
+          1727200012000,
+        ),
+      );
+      expect(row()).toMatchObject({
+        sequence: 0,
+        required: 1,
+        default_value: '"low"',
+        hlc_physical: 1727200012000,
+      });
+
+      // A lower-HLC set is dropped by row LWW (state unchanged).
+      const stale = store.apply(
+        env(
+          "class.property.set",
+          { classId: TASK, propertySchemaId: PRIORITY, defaultValue: "stale" },
+          1727200010500,
+        ),
+      );
+      expect(stale.ignored).toBe(true);
+      expect(row()).toMatchObject({ default_value: '"low"', hlc_physical: 1727200012000 });
+    });
+
+    it("class.property.unset deletes the binding row", () => {
+      const store = makeStore();
+      store.applyMany(loadFixture("class-property-defaults.json").slice(0, 6));
+      expect(
+        store.database
+          .prepare("SELECT 1 FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+          .get(PROJECT, PRIORITY),
+      ).toBeDefined();
+      store.apply(env("class.property.unset", { classId: PROJECT, propertySchemaId: PRIORITY }, 1727200013000));
+      expect(
+        store.database
+          .prepare("SELECT 1 FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+          .get(PROJECT, PRIORITY),
+      ).toBeUndefined();
+    });
+
+    it("fixture: default applies; multi-class conflict resolves first-applied-wins; unset flips the winner", () => {
+      const store = makeStore();
+      const fixture = loadFixture("class-property-defaults.json");
+      const priorityOf = () => store.getEffectiveProperties(ITEM);
+
+      store.applyMany(fixture.slice(0, 5)); // schema, classes, node (Task), Task binding
+      expect(priorityOf()).toEqual([
+        {
+          propertySchemaId: PRIORITY,
+          idx: 0,
+          schema: { id: PRIORITY, name: "priority", type: "select", multi: false },
+          value: "medium",
+          metadata: null,
+          source: "default",
+          boundBy: TASK,
+          required: null,
+          readonly: null,
+          hideWhenEmpty: null,
+          sequence: 0,
+        },
+      ]);
+      // The default is DERIVED: no property_value row was ever written.
+      expect(
+        (
+          store.database
+            .prepare("SELECT COUNT(*) AS n FROM property_value WHERE node_id = ?")
+            .get(ITEM) as { n: number }
+        ).n,
+      ).toBe(0);
+
+      store.applyMany(fixture.slice(5, 7)); // Project binding + Project assignment
+      // Task's membership add HLC (fixture envelope 4) precedes Project's
+      // (envelope 7): Task's 'medium' wins the default conflict over 'high'.
+      expect(priorityOf()).toEqual([
+        expect.objectContaining({ value: "medium", source: "default", boundBy: TASK }),
+      ]);
+      expect(
+        JSON.parse(store.getNode(ITEM)?.class_ids ?? "[]").sort(),
+      ).toEqual([TASK, PROJECT].sort());
+
+      store.apply(fixture[7]!); // unset Task's binding
+      expect(priorityOf()).toEqual([
+        expect.objectContaining({ value: "high", source: "default", boundBy: PROJECT }),
+      ]);
+    });
+
+    it("aggregates the union of bindings across ALL of the node's classes", () => {
+      const store = makeStore();
+      makeSchema(store, EFFORT, "effort", 1727200011000);
+      makeSchema(store, IMPACT, "impact", 1727200011100);
+      makeClass(store, CLASS_X, "X", 1727200011200);
+      makeClass(store, CLASS_Y, "Y", 1727200011300);
+      bind(store, CLASS_X, EFFORT, "xs", 1727200011400);
+      bind(store, CLASS_Y, IMPACT, "xl", 1727200011500);
+      const node = "0192a000-0000-7000-8000-0000000003c1";
+      store.apply(
+        env("object.create", { objectId: node, nodeType: "page", classIds: [CLASS_X, CLASS_Y] }, 1727200011600),
+      );
+
+      const effective = store.getEffectiveProperties(node);
+      expect(effective.map((row) => [row.schema?.name, row.value, row.boundBy])).toEqual([
+        ["effort", "xs", CLASS_X],
+        ["impact", "xl", CLASS_Y],
+      ]);
+    });
+
+    it("conflict resolution follows assignment HLC (earliest first), not class id or write order", () => {
+      const store = makeStore();
+      makeSchema(store, EFFORT, "effort", 1727200011000);
+      makeClass(store, CLASS_X, "X", 1727200011100);
+      makeClass(store, CLASS_Y, "Y", 1727200011200);
+      // Write order is the reverse of assignment order, and the binding
+      // defaults are written in between.
+      bind(store, CLASS_Y, EFFORT, "y", 1727200012500);
+      bind(store, CLASS_X, EFFORT, "x", 1727200012600);
+
+      // Node 1: X assigned first, Y later.
+      const node1 = "0192a000-0000-7000-8000-0000000003c1";
+      store.apply(env("object.create", { objectId: node1, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+      store.apply(env("object.create", { objectId: node1, nodeType: "page", classIds: [CLASS_Y] }, 1727200012000));
+
+      // Node 2: Y assigned first, X later.
+      const node2 = "0192a000-0000-7000-8000-0000000003c2";
+      store.apply(env("object.create", { objectId: node2, nodeType: "page", classIds: [CLASS_Y] }, 1727200011400));
+      store.apply(env("object.create", { objectId: node2, nodeType: "page", classIds: [CLASS_X] }, 1727200012100));
+
+      expect(store.getEffectiveProperties(node1)).toEqual([
+        expect.objectContaining({ value: "x", boundBy: CLASS_X }),
+      ]);
+      expect(store.getEffectiveProperties(node2)).toEqual([
+        expect.objectContaining({ value: "y", boundBy: CLASS_Y }),
+      ]);
+    });
+
+    it("an exact assignment-HLC tie breaks by class id", () => {
+      const store = makeStore();
+      makeSchema(store, EFFORT, "effort", 1727200011000);
+      makeClass(store, CLASS_X, "X", 1727200011100);
+      makeClass(store, CLASS_Y, "Y", 1727200011200);
+      bind(store, CLASS_Y, EFFORT, "y", 1727200011300);
+      bind(store, CLASS_X, EFFORT, "x", 1727200011400);
+      // Both classes seeded by ONE object.create: identical membership HLCs.
+      const node = "0192a000-0000-7000-8000-0000000003c1";
+      store.apply(env("object.create", { objectId: node, nodeType: "page", classIds: [CLASS_Y, CLASS_X] }, 1727200011500));
+
+      expect(store.getEffectiveProperties(node)).toEqual([
+        expect.objectContaining({ value: "x", boundBy: CLASS_X }),
+      ]);
+    });
+
+    it("class removal drops the derived default; an authored value survives unbound", () => {
+      const store = makeStore();
+      makeSchema(store, EFFORT, "effort", 1727200011000);
+      makeClass(store, CLASS_X, "X", 1727200011100);
+      bind(store, CLASS_X, EFFORT, "xs", 1727200011200);
+
+      const authoredNode = "0192a000-0000-7000-8000-0000000003c1";
+      store.apply(env("object.create", { objectId: authoredNode, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+      store.apply(env("property.set", { objectId: authoredNode, propertySchemaId: EFFORT, value: "authored" }, 1727200011400));
+      const derivedNode = "0192a000-0000-7000-8000-0000000003c2";
+      store.apply(env("object.create", { objectId: derivedNode, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+
+      // Simulate the unassign (no class.member.remove op in the M1 registry):
+      // the OR-Set membership row goes away.
+      for (const node of [authoredNode, derivedNode]) {
+        store.database.prepare("DELETE FROM class_member_set WHERE node_id = ? AND class_id = ?").run(node, CLASS_X);
+      }
+
+      // Derived default: gone — nothing stored, nothing to clean.
+      expect(store.getEffectiveProperties(derivedNode)).toEqual([]);
+      // Authored value: survives, marked unbound (boundBy null).
+      expect(store.getEffectiveProperties(authoredNode)).toEqual([
+        expect.objectContaining({
+          value: "authored",
+          source: "authored",
+          boundBy: null,
+          required: null,
+          sequence: null,
+        }),
+      ]);
+    });
+
+    it("binding unset removes the derived default", () => {
+      const store = makeStore();
+      makeSchema(store, EFFORT, "effort", 1727200011000);
+      makeClass(store, CLASS_X, "X", 1727200011100);
+      bind(store, CLASS_X, EFFORT, "xs", 1727200011200);
+      const node = "0192a000-0000-7000-8000-0000000003c1";
+      store.apply(env("object.create", { objectId: node, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+      expect(store.getEffectiveProperties(node)).toHaveLength(1);
+
+      store.apply(env("class.property.unset", { classId: CLASS_X, propertySchemaId: EFFORT }, 1727200011400));
+      expect(store.getEffectiveProperties(node)).toEqual([]);
+    });
+  });
+
   describe("determinism", () => {
     it("reset() empties the store", () => {
       const store = makeStore();

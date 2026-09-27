@@ -22,6 +22,7 @@
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
 import type { SqliteDB, StoreBackend } from "./db.js";
 import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
+import { getEffectiveProperties, type EffectiveProperty } from "./effective.js";
 import { buildMatchQuery } from "./search.js";
 import { migrate } from "./schema.js";
 
@@ -261,6 +262,16 @@ export class Store {
     return this.db
       .prepare("SELECT * FROM edge WHERE source_id = ? ORDER BY type, verb, id")
       .all(nodeId);
+  }
+
+  /**
+   * Effective properties of a node (SCHEMA.md "Class properties"): authored
+   * property values plus derived class-binding defaults, aggregated across
+   * ALL the node's classes with first-class-applied-wins conflict
+   * resolution. Pure read — see effective.ts for the merge algorithm.
+   */
+  getEffectiveProperties(nodeId: string): EffectiveProperty[] {
+    return getEffectiveProperties(this.db, nodeId);
   }
 
   /** FTS prefix-AND search over active nodes; ordered by node id. */
