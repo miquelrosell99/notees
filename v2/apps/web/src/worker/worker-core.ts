@@ -11,7 +11,7 @@
  *    getLinkedReferences / getUnlinkedReferences / getChildPages / getChildren
  *    / runQueryAst / getBacklinkCount / getChildPageCount / getDisplayName /
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
- *    listPropertySchemas), the write
+ *    getAnnotationsForAsset / listPropertySchemas), the write
  *    surface (createObject / updateObject / deleteObject / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset), syncOnce, the realtime
@@ -338,6 +338,11 @@ export class WorkerCore {
     return this.client.getAssetInfo(id);
   }
 
+  /** Highlight-classed annotations whose highlight_asset links this asset node. */
+  getAnnotationsForAsset(assetId: string): ClientNode[] {
+    return this.client.getAnnotationsForAsset(assetId);
+  }
+
   listPropertySchemas(): ClientPropertySchema[] {
     return this.client.listPropertySchemas();
   }
@@ -466,6 +471,8 @@ export class WorkerCore {
         return this.getEffectiveProperties(args[0] as string);
       case "getAssetInfo":
         return this.getAssetInfo(args[0] as string);
+      case "getAnnotationsForAsset":
+        return this.getAnnotationsForAsset(args[0] as string);
       case "listPropertySchemas":
         return this.listPropertySchemas();
       case "setClassProperty":

@@ -17,6 +17,10 @@
  * class — an "upload file" action (POST /api/v1/assets → asset node +
  * asset.attach + property.set). Chip removal unlinks the value's slot
  * (property.unset), the same per-idx write pattern the scalar editor uses.
+ * Asset chips additionally carry an annotations affordance (❝) opening the
+ * lazy Annotations section for that asset (SCHEMA.md annotation family:
+ * highlight-classed objects linked via the seeded highlight_asset property):
+ * the annotation list plus the add-annotation form (quote/page/note).
  *
  * The panel is node-typed agnostic: PageView mounts it for the page; any
  * future Block View can mount it for a block with the same props.
@@ -33,6 +37,8 @@ import type {
   EffectiveProperty,
   WorkspaceClient,
 } from "@/core/workspace-client.js";
+
+import { AnnotationsSection } from "./AnnotationsSection.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -108,6 +114,7 @@ function ObjectPropertyRow({
   multi,
   bindingFilter,
   rows,
+  onOpenPage,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -117,11 +124,14 @@ function ObjectPropertyRow({
   /** The class binding's targetClassFilter (seed fallback may carry names). */
   bindingFilter: string[] | null;
   rows: EffectiveProperty[];
+  onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Chip ref whose annotations section is open (one at a time), null = none. */
+  const [annotatingRef, setAnnotatingRef] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const targetClassIds = resolveTargetClassIds(client, propertySchemaId, bindingFilter);
@@ -240,6 +250,18 @@ function ObjectPropertyRow({
                   ×
                 </button>
               )}
+              {isAssetTarget && (
+                <button
+                  type="button"
+                  className="nt-chip-annotations"
+                  title="Annotations"
+                  aria-label={`Annotate ${chipLabel(ref)}`}
+                  aria-expanded={annotatingRef === ref}
+                  onClick={() => setAnnotatingRef((cur) => (cur === ref ? null : ref))}
+                >
+                  ❝
+                </button>
+              )}
             </span>
           );
         })}
@@ -254,6 +276,13 @@ function ObjectPropertyRow({
           </button>
         )}
       </span>
+      {annotatingRef !== null && (
+        <AnnotationsSection
+          client={client}
+          assetId={annotatingRef}
+          onOpenPage={onOpenPage}
+        />
+      )}
       {pickerOpen && (
         <div className="nt-property-picker">
           <input
@@ -312,9 +341,12 @@ function ObjectPropertyRow({
 export function PropertiesPanel({
   client,
   nodeId,
+  onOpenPage,
 }: {
   client: AnyClient;
   nodeId: string;
+  /** Page navigation for the annotations section's annotation rows. */
+  onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const rows = client.getEffectiveProperties(nodeId);
 
@@ -367,6 +399,7 @@ export function PropertiesPanel({
       multi={multi}
       bindingFilter={bindingFilter}
       rows={groupRows}
+      onOpenPage={onOpenPage}
     />
   );
 

@@ -207,7 +207,7 @@ export function PageView({
             {moveError}
           </div>
         )}
-        <PropertiesPanel client={client} nodeId={pageId} />
+        <PropertiesPanel client={client} nodeId={pageId} onOpenPage={onOpenPage} />
         {whiteboardTokenIndex >= 0 ? (
           <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
         ) : (
