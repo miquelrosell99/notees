@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
+import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
 import { WorkspaceClient, type SyncStatusSnapshot } from "@/core/workspace-client.js";
@@ -268,8 +268,12 @@ export function App() {
     );
   }
 
-  const pages = client.listPages();
+  // Asset-class nodes (uploaded files linked via the attachments property)
+  // are library objects, not pages — keep them out of the page sidebar.
   const classes = client.listClasses();
+  const assetClassId =
+    classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
+  const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
 
   return (
     <div className="nt-app">

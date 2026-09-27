@@ -55,6 +55,7 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
       }),
     );
   }
+  const bindingSequence = new Map<string, number>();
   for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
     if (spec === undefined) continue;
     const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
@@ -73,6 +74,25 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
             ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
             : {}),
         },
+        client: "seed",
+      }),
+    );
+    // The binding is a configuration ROW (class.property.*), not just spec
+    // metadata — effective-properties derives boundBy/defaults from rows.
+    const classId = SYSTEM_CLASS_UUIDS[spec.bindTo];
+    const sequence = bindingSequence.get(classId) ?? 0;
+    bindingSequence.set(classId, sequence + 1);
+    envelopes.push(
+      factory.make({
+        workspaceId,
+        opType: "class.property.set",
+        payload: {
+          classId,
+          propertySchemaId,
+          sequence,
+          ...(spec.defaultValue !== undefined ? { defaultValue: spec.defaultValue } : {}),
+        },
+        affectedNodeIds: [classId],
         client: "seed",
       }),
     );

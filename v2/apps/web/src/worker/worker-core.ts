@@ -10,10 +10,11 @@
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
  *    getLinkedReferences / getUnlinkedReferences / getChildPages / getChildren
  *    / runQueryAst / getBacklinkCount / getChildPageCount / getDisplayName /
- *    getNode / getNodeRaw / getEffectiveProperties / listPropertySchemas), the write
+ *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
+ *    listPropertySchemas), the write
  *    surface (createObject / updateObject / deleteObject / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
- *    setProperty / unsetProperty), syncOnce, the realtime
+ *    setProperty / unsetProperty / attachAsset), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, and flush;
  *  - persists db.export() bytes to OPFS debounced (~500 ms, coalesced) after
@@ -32,6 +33,8 @@ import type { CatchUpResponse, SendBatchResult, SnapshotMeta, SyncConflict, Tran
 
 import {
   WorkspaceClient,
+  type AssetInfo,
+  type AssetUploadResult,
   type BlockTreeNode,
   type ClientEdge,
   type ClientNode,
@@ -331,6 +334,10 @@ export class WorkerCore {
     return this.client.getEffectiveProperties(id);
   }
 
+  getAssetInfo(id: string): AssetInfo | undefined {
+    return this.client.getAssetInfo(id);
+  }
+
   listPropertySchemas(): ClientPropertySchema[] {
     return this.client.listPropertySchemas();
   }
@@ -351,6 +358,11 @@ export class WorkerCore {
 
   moveObject(id: string, parentId: string | null, afterId?: string): Promise<void> {
     return this.client.moveObject(id, parentId, afterId);
+  }
+
+  /** Record an uploaded asset on a node (asset.attach op; optimistic local apply). */
+  attachAsset(objectId: string, asset: AssetUploadResult): Promise<void> {
+    return this.client.attachAsset(objectId, asset);
   }
 
   // --- sync & lifecycle ---------------------------------------------------------------------
@@ -452,6 +464,8 @@ export class WorkerCore {
         return this.getChildPageCount(args[0] as string);
       case "getEffectiveProperties":
         return this.getEffectiveProperties(args[0] as string);
+      case "getAssetInfo":
+        return this.getAssetInfo(args[0] as string);
       case "listPropertySchemas":
         return this.listPropertySchemas();
       case "setClassProperty":
@@ -489,6 +503,8 @@ export class WorkerCore {
           args[1] as string | null,
           args[2] as string | undefined,
         );
+      case "attachAsset":
+        return this.attachAsset(args[0] as string, args[1] as AssetUploadResult);
       case "assignClass":
         return this.client.assignClass(args[0] as string, args[1] as string);
       case "createClass":

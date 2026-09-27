@@ -245,12 +245,42 @@ export interface DeleteObjectOptions {
   permanent?: boolean;
 }
 
+/**
+ * One row of the derived node_asset table (asset.attach op), as read by the
+ * panel: the link between a node (usually an asset-class node referenced by a
+ * node-typed property value) and its content-addressed file metadata.
+ */
+export interface AssetInfo {
+  assetId: string;
+  hash: string;
+  mimeType: string;
+  size: number;
+  originalName: string;
+  uploadedAt: string | null;
+}
+
+/** POST /api/v1/assets response shape (the fields the client consumes). */
+export interface AssetUploadResult {
+  assetId: string;
+  hash: string;
+  mimeType: string;
+  size: number;
+  originalName: string;
+}
+
 export interface WorkspaceClientOptions {
   transport: Transport;
   /** Defaults to a fixed local actor; pass a real user id when known. */
   actorId?: string;
   deviceId?: string;
   client?: string;
+  /**
+   * Server REST access (POST /api/v1/assets upload + download). createHttp
+   * passes these through; tests inject them beside a MemoryTransport so
+   * uploadAsset/downloadAsset can run against a mocked fetch.
+   */
+  serverUrl?: string;
+  apiKey?: string;
   /** Pre-initialized sql.js module (tests); defaults to initSqlJs(). */
   sqlJs?: SqlJsStatic;
   /** Config for the internal initSqlJs() call (browser wasm locateFile). */
@@ -269,6 +299,65 @@ function parseContentAst(raw: string | null | undefined): ContentAst {
   } catch {
     return [];
   }
+}
+
+/**
+ * POST /api/v1/assets (multipart, CAS upload). The web client's upload path:
+ * the server sniffs magic bytes, stores the bytes content-addressed, records
+ * the asset metadata and returns the new asset id + original name. Auth is
+ * the workspace API key header, same as the relay transport.
+ * Shared by WorkspaceClient (in-process) and WorkerClient (main-thread proxy
+ * — the worker owns the store, but the REST call needs no store).
+ */
+export async function postAssetUpload(
+  serverUrl: string,
+  apiKey: string,
+  workspaceId: string,
+  file: Blob,
+  filename: string,
+): Promise<AssetUploadResult> {
+  const form = new FormData();
+  form.append("file", file, filename);
+  const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/v1/assets`, {
+    method: "POST",
+    headers: { "X-API-Key": apiKey, "X-Workspace-Id": workspaceId },
+    body: form,
+  });
+  if (!response.ok) {
+    throw new Error(`asset upload failed: HTTP ${response.status}: ${await response.text()}`);
+  }
+  const body = (await response.json()) as Partial<AssetUploadResult>;
+  if (
+    typeof body.assetId !== "string" ||
+    typeof body.originalName !== "string" ||
+    typeof body.hash !== "string" ||
+    !/^[0-9a-f]{64}$/.test(body.hash)
+  ) {
+    throw new Error("asset upload failed: response missing assetId/originalName/hash");
+  }
+  return {
+    assetId: body.assetId,
+    hash: body.hash,
+    mimeType: typeof body.mimeType === "string" ? body.mimeType : "application/octet-stream",
+    size: typeof body.size === "number" ? body.size : file.size,
+    originalName: body.originalName,
+  };
+}
+
+/**
+ * GET /api/v1/assets/:id (auth; Range-capable). Fetched with the API key
+ * header (a bare window.open cannot set headers), then opened as a blob URL
+ * so the chip click lands in a new tab without leaking the key into a URL.
+ */
+export async function fetchAssetBlob(serverUrl: string, apiKey: string, assetId: string): Promise<Blob> {
+  const response = await fetch(
+    `${serverUrl.replace(/\/$/, "")}/api/v1/assets/${encodeURIComponent(assetId)}`,
+    { headers: { "X-API-Key": apiKey } },
+  );
+  if (!response.ok) {
+    throw new Error(`asset download failed: HTTP ${response.status}`);
+  }
+  return response.blob();
 }
 
 function mapNode(row: NodeRow): ClientNode {
@@ -306,6 +395,9 @@ export class WorkspaceClient {
   private readonly userOnSyncError: ((error: Error) => void) | undefined;
   private readonly clock: Clock;
   private readonly listeners = new Set<() => void>();
+  /** Server REST access (asset upload/download); null without serverUrl/apiKey. */
+  private readonly restServerUrl: string | null;
+  private readonly restApiKey: string | null;
 
   private workspaceId: string = DEFAULT_WORKSPACE_ID;
   private engine: SyncEngine | null = null;
@@ -322,6 +414,9 @@ export class WorkspaceClient {
     this.userOnConflict = options.onConflict;
     this.userOnSyncError = options.onSyncError;
     this.clock = new Clock(this.deviceId);
+    this.restServerUrl =
+      options.serverUrl !== undefined && options.serverUrl !== "" ? options.serverUrl : null;
+    this.restApiKey = options.apiKey !== undefined && options.apiKey !== "" ? options.apiKey : null;
   }
 
   /** Open a Store over the sql.js backend and wrap it in a client. */
@@ -353,6 +448,8 @@ export class WorkspaceClient {
     });
     return WorkspaceClient.create({
       transport,
+      serverUrl: options.serverUrl,
+      apiKey: options.apiKey,
       sqlJsConfig: options.sqlJsConfig,
     });
   }
@@ -545,6 +642,38 @@ export class WorkspaceClient {
    */
   getEffectiveProperties(id: string): EffectiveProperty[] {
     return this.store.getEffectiveProperties(id);
+  }
+
+  /**
+   * Asset metadata for a node reference (the derived node_asset rows that
+   * asset.attach/detach maintain): the panel resolves attachment chips to
+   * original names and download ids through this read. Purely local; the row
+   * arrives with the asset.attach op (optimistic local write or catch-up).
+   */
+  getAssetInfo(id: string): AssetInfo | undefined {
+    const row = this.store.database
+      .prepare(
+        `SELECT asset_id, hash, mime_type, size, original_name, uploaded_at
+         FROM node_asset WHERE node_id = ? ORDER BY uploaded_at DESC LIMIT 1`,
+      )
+      .get(id) as Record<string, unknown> | undefined;
+    const mapped = (r: Record<string, unknown>): AssetInfo => ({
+      assetId: String(r.asset_id),
+      hash: String(r.hash),
+      mimeType: String(r.mime_type),
+      size: Number(r.size),
+      originalName: String(r.original_name),
+      uploadedAt: r.uploaded_at === null || r.uploaded_at === undefined ? null : String(r.uploaded_at),
+    });
+    if (row !== undefined) return mapped(row);
+    // Fallback: id is an asset id itself (e.g. resolved from an asset_ref).
+    const byAsset = this.store.database
+      .prepare(
+        `SELECT asset_id, hash, mime_type, size, original_name, uploaded_at
+         FROM node_asset WHERE asset_id = ? ORDER BY uploaded_at DESC LIMIT 1`,
+      )
+      .get(id) as Record<string, unknown> | undefined;
+    return byAsset !== undefined ? mapped(byAsset) : undefined;
   }
 
   /** Active property schemas of the workspace (the add-binding picker set). */
@@ -1001,6 +1130,65 @@ export class WorkspaceClient {
     );
     this.notify();
     this.kickPush();
+  }
+
+  // --- assets (REST upload + op-log link) -------------------------------------
+
+  private requireRest(): { serverUrl: string; apiKey: string } {
+    if (this.restServerUrl === null || this.restApiKey === null) {
+      throw new Error(
+        "WorkspaceClient: asset upload/download requires serverUrl + apiKey (use createHttp)",
+      );
+    }
+    return { serverUrl: this.restServerUrl, apiKey: this.restApiKey };
+  }
+
+  /**
+   * Upload file bytes to the server's CAS asset store (POST /api/v1/assets).
+   * Returns the server-issued asset metadata; the caller links it into the
+   * graph (asset node + property.set) — this method does NOT touch the store.
+   */
+  async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
+    const { serverUrl, apiKey } = this.requireRest();
+    return postAssetUpload(serverUrl, apiKey, this.workspaceId, file, filename);
+  }
+
+  /**
+   * Record an uploaded asset on a node (asset.attach op, the same envelope
+   * the server submits when the multipart carries an objectId). Enqueued
+   * client-side so the derived node_asset row — and with it the attachment
+   * chip's name/download read — is local immediately (local-first), then
+   * pushed with the rest of the outbox.
+   */
+  async attachAsset(objectId: string, asset: AssetUploadResult): Promise<void> {
+    const engine = this.requireEngine();
+    engine.enqueue(
+      this.buildEnvelope(
+        "asset.attach",
+        {
+          objectId,
+          assetId: asset.assetId,
+          hash: asset.hash,
+          mimeType: asset.mimeType,
+          size: asset.size,
+          originalName: asset.originalName,
+        },
+        [objectId, asset.assetId],
+      ),
+    );
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
+   * Download an asset's bytes (GET /api/v1/assets/:id, workspace key) and open
+   * them in a new tab as a blob URL — the key stays out of any URL.
+   */
+  async downloadAsset(assetId: string): Promise<void> {
+    const { serverUrl, apiKey } = this.requireRest();
+    const blob = await fetchAssetBlob(serverUrl, apiKey, assetId);
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
   }
 
   /**
