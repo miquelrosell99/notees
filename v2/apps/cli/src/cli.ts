@@ -25,24 +25,29 @@ import {
 } from "@notees/domain";
 import {
   bibToCsl,
-  bundleMarkdown,
   concatBundleMarkdown,
   cslToBib,
   cslToNodeSpecs,
-  deriveDisplayName,
   formatAuthorName,
   nodeToCsl,
   parseBibtex,
   serializeBibEntry,
   sourceClassOf,
   type BibliographicPerson,
-  type ExportContext,
   type ExportNode,
 } from "@notees/export";
 
 import { ApiClient } from "./client.js";
 import { CliError, EXIT } from "./exit-codes.js";
+import {
+  buildMarkdownBundle,
+  collectClosure,
+  isRecord,
+  makeObjectResolver,
+} from "./markdown-export.js";
+import { runShell } from "./shell.js";
 import { defaultStatePath, serverState } from "./state.js";
+import { queryString, readStdin } from "./util.js";
 import { DEFAULT_WORKSPACE_ID } from "./uuid.js";
 
 const API_KEY_PATTERN = /^nk_[A-Za-z0-9_-]{32}$/;
@@ -99,25 +104,6 @@ function requireServerAndKey(opts: GlobalOptions): { server: string; apiKey: str
     failUsage(`API key must match ${API_KEY_PATTERN} (got "${apiKey.slice(0, 8)}…")`);
   }
   return { server, apiKey };
-}
-
-function readStdin(io: CliIo): Promise<string> {
-  const stdin = io.stdin ?? process.stdin;
-  return new Promise((resolve, reject) => {
-    let data = "";
-    stdin.setEncoding?.("utf8");
-    stdin.on("data", (chunk) => {
-      data += String(chunk);
-    });
-    stdin.on("end", () => resolve(data));
-    stdin.on("error", reject);
-  });
-}
-
-function queryString(params: Record<string, string | number | undefined>): string {
-  const entries = Object.entries(params).filter(([, value]) => value !== undefined && value !== "");
-  if (entries.length === 0) return "";
-  return `?${entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join("&")}`;
 }
 
 // --- command handlers --------------------------------------------------------
@@ -340,119 +326,6 @@ async function doctor(ctx: CommandContext): Promise<void> {
 
 // --- export --------------------------------------------------------------------
 
-interface ExportApiObject {
-  id: string;
-  nodeType: string;
-  parentId: string | null;
-  classIds: string[];
-  name: string | null;
-  contentAst?: unknown;
-  properties?: { schemaId: string; schemaName: string; value: unknown; metadata?: unknown }[];
-}
-
-interface ApiEdgeRow {
-  id: string;
-  source_id: string;
-  target_id: string | null;
-  type: string;
-  verb: string | null;
-}
-
-interface ApiObjectStub {
-  id: string;
-  nodeType: string;
-  parentId: string | null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toExportNode(obj: ExportApiObject): ExportNode {
-  const nodeType = (
-    obj.nodeType === "page" || obj.nodeType === "class" ? obj.nodeType : "block"
-  ) as ExportNode["nodeType"];
-  return {
-    id: obj.id,
-    nodeType,
-    name: obj.name ?? null,
-    contentAst: Array.isArray(obj.contentAst) ? (obj.contentAst as ExportNode["contentAst"]) : [],
-    classIds: Array.isArray(obj.classIds) ? obj.classIds : [],
-    properties: (Array.isArray(obj.properties) ? obj.properties : []).map((property) => ({
-      schemaId: property.schemaId,
-      schemaName: property.schemaName,
-      value: property.value,
-      ...(isRecord(property.metadata) ? { metadata: property.metadata } : {}),
-    })),
-  };
-}
-
-/** Collect every id export rendering may resolve: mentions, chips, bound verbs, class ids, node-typed property values. */
-function collectReferenceIds(node: ExportNode, into: Set<string>): void {
-  for (const classId of node.classIds) into.add(classId);
-  for (const property of node.properties) {
-    const value = property.value;
-    if (isRecord(value) && typeof value.nodeId === "string") into.add(value.nodeId);
-  }
-  const walk = (tokens: readonly ExportNode["contentAst"][number][]): void => {
-    for (const token of tokens) {
-      if (token.type === "mention") into.add(token.targetNodeId);
-      else if (token.type === "class_chip") into.add(token.classId);
-      else if (token.type === "typed_link") {
-        if (typeof token.verb === "object") into.add(token.verb.propertySchemaId);
-      } else if (token.type === "quote") {
-        walk(token.children);
-      }
-    }
-  };
-  walk(node.contentAst);
-}
-
-// --- shared object resolution + backlink closure (markdown & bibtex exports) ----
-
-interface ObjectResolver {
-  getObject(id: string): Promise<ExportNode | undefined>;
-  containingPage(id: string): Promise<ExportNode | undefined>;
-}
-
-/**
- * Cached full-object fetch shared by both exporters; parent ids kept on the
- * side for containing-page walks (ExportNode deliberately carries no
- * placement).
- */
-function makeObjectResolver(ctx: CommandContext): ObjectResolver {
-  const objectCache = new Map<string, ExportNode | undefined>();
-  const parentOf = new Map<string, string | null>();
-  const getObject = async (id: string): Promise<ExportNode | undefined> => {
-    if (objectCache.has(id)) return objectCache.get(id);
-    let node: ExportNode | undefined;
-    try {
-      const body = await ctx.client.getJson<{ object: ExportApiObject }>(
-        `/api/v1/objects/${encodeURIComponent(id)}`,
-      );
-      parentOf.set(id, body.object.parentId ?? null);
-      node = toExportNode(body.object);
-    } catch (error) {
-      if (error instanceof CliError && error.exitCode === EXIT.domain) node = undefined;
-      else throw error;
-    }
-    objectCache.set(id, node);
-    return node;
-  };
-  const containingPage = async (id: string): Promise<ExportNode | undefined> => {
-    let currentId: string | null = id;
-    for (let hops = 0; currentId !== null && hops < 64; hops += 1) {
-      const node = await getObject(currentId);
-      if (node === undefined) return undefined;
-      if (node.nodeType === "page") return node;
-      if (node.nodeType === "class") return undefined;
-      currentId = parentOf.get(currentId) ?? null;
-    }
-    return undefined;
-  };
-  return { getObject, containingPage };
-}
-
 /** Closure depth: depth N follows N+1 backlink hops (depth 0 = the seed's
  * direct referrers only), per §34.16.3; default 3. */
 function parseDepth(options: { depth?: string; fixpoint?: boolean }): number {
@@ -473,57 +346,6 @@ function requireExportSelectors(command: string, options: { ids?: string[]; link
   return ids;
 }
 
-/**
- * Node set: --ids exports exactly the given set; --linked-to adds the backlink
- * closure (pages only — a block referrer contributes its containing page,
- * which then renders the block inline).
- */
-async function collectClosure(
-  ctx: CommandContext,
-  resolver: ObjectResolver,
-  options: { ids: string[]; linkedTo?: string | undefined; depth: number },
-): Promise<Map<string, ExportNode>> {
-  const included = new Map<string, ExportNode>();
-  const addSeed = async (id: string): Promise<void> => {
-    const node = await resolver.getObject(id);
-    if (node === undefined) throw new CliError(EXIT.domain, `object ${id} does not exist`);
-    included.set(id, node);
-  };
-  if (options.linkedTo !== undefined) await addSeed(options.linkedTo);
-  for (const id of options.ids) await addSeed(id);
-
-  if (options.linkedTo !== undefined) {
-    const seedId = options.linkedTo;
-    const visitedSources = new Set<string>(); // edge-source guard (cycle guard)
-    const visitedPages = new Set<string>([seedId]);
-    let frontier: string[] = [seedId];
-    let level = 0;
-    while (frontier.length > 0 && level <= options.depth) {
-      const next: string[] = [];
-      for (const id of frontier) {
-        const body = await ctx.client.getJson<{ nodeId: string; backlinks: ApiEdgeRow[] }>(
-          `/api/v1/objects/${encodeURIComponent(id)}/backlinks`,
-        );
-        for (const edge of body.backlinks) {
-          const sourceId = edge.source_id;
-          if (visitedSources.has(sourceId)) continue;
-          visitedSources.add(sourceId);
-          const source = await resolver.getObject(sourceId);
-          if (source === undefined) continue;
-          const page = source.nodeType === "page" ? source : await resolver.containingPage(sourceId);
-          if (page === undefined || visitedPages.has(page.id)) continue;
-          visitedPages.add(page.id);
-          included.set(page.id, page);
-          next.push(page.id);
-        }
-      }
-      frontier = next;
-      level += 1;
-    }
-  }
-  return included;
-}
-
 async function exportMarkdown(ctx: CommandContext, options: {
   ids?: string[];
   linkedTo?: string;
@@ -540,52 +362,9 @@ async function exportMarkdown(ctx: CommandContext, options: {
     failUsage("export markdown requires --output-dir <dir> or --stdout");
   }
   const depth = parseDepth(options);
-  const resolver = makeObjectResolver(ctx);
-  const included = await collectClosure(ctx, resolver, { ids, linkedTo: options.linkedTo, depth });
-
-  // Children map: the object API exposes no children endpoint (M1), so the
-  // parent→children map is derived from the paged object list (id-ordered —
-  // bullet order is id order, not child-position order; documented deviation),
-  // then each child is full-gotten for its contentAst.
-  const childrenMap = new Map<string, ExportNode[]>();
-  const stubs: ApiObjectStub[] = [];
-  let cursor: string | undefined;
-  do {
-    const query = queryString({ nodeType: "block", limit: 500, cursor });
-    const body = await ctx.client.getJson<{ objects: ApiObjectStub[]; nextCursor: string | null }>(
-      `/api/v1/objects${query}`,
-    );
-    stubs.push(...body.objects);
-    cursor = body.nextCursor ?? undefined;
-  } while (cursor !== undefined);
-  for (const stub of stubs) {
-    if (stub.parentId === null) continue;
-    const child = await resolver.getObject(stub.id);
-    if (child === undefined) continue;
-    const list = childrenMap.get(stub.parentId);
-    if (list === undefined) childrenMap.set(stub.parentId, [child]);
-    else list.push(child);
-  }
-
-  // Pre-resolve every referenced id's current display name (rename-free:
-  // mentions render the target's current name, SCHEMA.md Fork 4).
-  const referenceIds = new Set<string>();
-  for (const node of included.values()) collectReferenceIds(node, referenceIds);
-  for (const children of childrenMap.values()) {
-    for (const child of children) collectReferenceIds(child, referenceIds);
-  }
-  const names = new Map<string, string>();
-  for (const refId of referenceIds) {
-    const node = await resolver.getObject(refId);
-    if (node === undefined) continue;
-    names.set(refId, deriveDisplayName(node) || node.name?.trim() || refId);
-  }
-
-  const exportCtx: ExportContext = {
-    nameOf: (id) => names.get(id),
-    childrenOf: (id) => childrenMap.get(id) ?? [],
-  };
-  const bundle = bundleMarkdown([...included.values()], exportCtx);
+  // Seeds + closure + children + reference names live in markdown-export.ts,
+  // shared with the shell's export(ids) helper.
+  const bundle = await buildMarkdownBundle(ctx.client, { ids, linkedTo: options.linkedTo, depth });
   const machine = { files: bundle.files.length, nodes: bundle.manifest.nodes };
   if (options.stdout === true) {
     const text = concatBundleMarkdown(bundle);
@@ -815,8 +594,8 @@ async function exportBibtex(ctx: CommandContext, options: {
 }): Promise<void> {
   const ids = requireExportSelectors("export bibtex", options);
   const depth = parseDepth(options);
-  const resolver = makeObjectResolver(ctx);
-  const included = await collectClosure(ctx, resolver, { ids, linkedTo: options.linkedTo, depth });
+  const resolver = makeObjectResolver(ctx.client);
+  const included = await collectClosure(ctx.client, resolver, { ids, linkedTo: options.linkedTo, depth });
 
   // Only source-class nodes render as entries; the rest of the closure is
   // context (skipped, counted for the report).
@@ -991,6 +770,14 @@ function buildProgram(): Command {
     .description("auth + reachability + version probe")
     .action(async (_options: object, command: Command) => {
       await doctor(ctxOf(command));
+    });
+
+  program
+    .command("shell")
+    .description("interactive object-API shell (Node REPL with helpers; piped stdin runs as a script)")
+    .action(async (_options: object, command: Command) => {
+      const ctx = ctxOf(command);
+      await runShell({ client: ctx.client, io: ctx.io, json: ctx.opts.json === true, stdin: ctx.io.stdin });
     });
 
   const exportCmd = program.command("export").description("export operations");
