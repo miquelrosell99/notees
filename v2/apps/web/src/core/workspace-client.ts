@@ -22,6 +22,7 @@ import {
   type ContentAst,
   type Envelope,
 } from "@notees/protocol";
+import { parseQueryAst, runQuery, type QueryAst } from "@notees/query";
 import { Store, type NodeRow } from "@notees/store";
 import {
   HttpTransport,
@@ -87,6 +88,39 @@ export interface ClientNode {
 export interface BlockTreeNode {
   node: ClientNode;
   children: BlockTreeNode[];
+}
+
+/**
+ * Typed error for a `query` content token whose serialized AST fails
+ * validation (`parseQueryAst` — unknown condition types / versions fail loud)
+ * or whose compilation the M1 engine does not support (e.g. aggregation).
+ * The query block view renders an "invalid query" placeholder for it; the
+ * worker RPC path surfaces the same shape as an Error message.
+ */
+export class InvalidQueryAstError extends Error {
+  readonly code = "invalid_query_ast" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidQueryAstError";
+  }
+}
+
+/** One row of a query run result: the node summary the list view renders. */
+export interface QueryRunSummary {
+  id: string;
+  name: string | null;
+  nodeType: "page" | "block" | "class";
+  parentId: string | null;
+}
+
+/**
+ * The web slice of @notees/query's QueryResult: deterministic ids (the count
+ * badge reads ids.length) + node summaries, projected from the store rows.
+ */
+export interface QueryRunResult {
+  ids: string[];
+  rows: QueryRunSummary[];
 }
 
 /**
@@ -583,6 +617,52 @@ export class WorkspaceClient {
       .filter((node): node is ClientNode => node !== undefined);
   }
 
+  /**
+   * Live-query bridge for `query` content tokens: validate the token's
+   * serialized AST with @notees/query's fail-loud parser (unknown condition
+   * types / versions, and M1-unsupported compilation such as aggregation,
+   * throw InvalidQueryAstError — the view renders an "invalid query"
+   * placeholder) and execute it against the local store. The Store satisfies
+   * the query package's structural QueryStore interface, so no mapping layer
+   * is needed. Rows come back as node summaries (id, name, nodeType,
+   * parentId) — enough for the result list and the containing-page walk.
+   */
+  runQueryAst(rawAst: unknown): QueryRunResult {
+    let ast: QueryAst;
+    try {
+      ast = parseQueryAst(rawAst);
+    } catch (error) {
+      throw new InvalidQueryAstError(
+        `invalid query AST: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    let result: ReturnType<typeof runQuery>;
+    try {
+      result = runQuery(this.store, ast);
+    } catch (error) {
+      throw new InvalidQueryAstError(
+        `query not supported: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return {
+      ids: result.ids,
+      rows: result.rows.map((row) => ({
+        id: String(row.id),
+        name: (row.name as string | null) ?? null,
+        nodeType: row.node_type as QueryRunSummary["nodeType"],
+        parentId: (row.parent_id as string | null) ?? null,
+      })),
+    };
+  }
+
+  /** Direct children of a node in child order, active only (export's nested-bullets read). */
+  getChildren(id: string): ClientNode[] {
+    return this.store
+      .children(id)
+      .filter((row) => row.is_active === 1)
+      .map(mapNode);
+  }
+
   /** Edges pointing at the node (mentions, typed links, property refs). */
   getBacklinks(id: string): ClientEdge[] {
     const rows = this.store.backlinks(id) as Array<Record<string, unknown>>;
@@ -794,6 +874,8 @@ export class WorkspaceClient {
   /**
    * Create a class (class.create: node row + class registry row — the
    * registry row is what keeps the extends closure rebuild authoritative).
+   * The store seeds the hierarchy self-row at create time, so no setExtends
+   * is needed for a class that never extends anything.
    * Returns the new class id. Applied locally, push kicked off.
    */
   async createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string> {

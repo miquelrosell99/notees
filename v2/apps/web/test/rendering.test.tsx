@@ -139,7 +139,9 @@ describe("PageView rendering", () => {
     // exist, so the broken-embed placeholder shows with the raw id visible.
     expect(screen.getByText(/broken embed/)).not.toBeNull();
     expect(screen.getByText("0192a000-0000-7000-8000-0000000000a2")).not.toBeNull();
-    expect(screen.getByText("query")).not.toBeNull();
+    // The query token renders live (QueryBlockView): a malformed AST shows
+    // the "invalid query" placeholder, never a crash.
+    expect(screen.getByText("invalid query")).not.toBeNull();
     expect(screen.getByText("whiteboard")).not.toBeNull();
     expect(screen.getByText("E = mc^2").tagName).toBe("CODE");
     const link = screen.getByText("Example");

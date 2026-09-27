@@ -21,6 +21,7 @@ import type {
   CreatePropertySchemaInput,
   DeleteObjectOptions,
   EffectiveProperty,
+  QueryRunResult,
   ReferenceEntry,
   SetClassPropertyInput,
   SyncStatusSnapshot,
@@ -202,6 +203,18 @@ export class WorkerClient {
 
   search(query: string): ClientNode[] {
     return this.cachedRead<ClientNode[]>("search", [query], []);
+  }
+
+  getChildren(id: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getChildren", [id], []);
+  }
+
+  /**
+   * Live-query bridge (async RPC; an invalid AST rejects with the worker's
+   * Error message — the view renders the "invalid query" placeholder).
+   */
+  runQueryAst(rawAst: unknown): Promise<QueryRunResult> {
+    return this.call("runQueryAst", [rawAst]) as Promise<QueryRunResult>;
   }
 
   getBacklinks(id: string): ClientEdge[] {

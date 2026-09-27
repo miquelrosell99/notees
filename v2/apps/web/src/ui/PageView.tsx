@@ -113,7 +113,10 @@ export function PageView({
   const page = client.getPage(pageId);
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
 
-  const outliner = useOutlinerValue(client, pageId);
+  const outliner = useOutlinerValue(client, pageId, {
+    // f(node_type) navigation for query result lists (App routes the id).
+    openNode: (id) => onOpenPage?.(id),
+  });
   const positions = outliner.positions;
 
   const handleDragStart = (event: DragStartEvent) => {

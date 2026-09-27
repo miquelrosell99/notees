@@ -32,6 +32,7 @@ import type { BlockTreeNode } from "@/core/workspace-client.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
 import { EmbedView } from "./EmbedView.js";
+import { QueryBlockView } from "./QueryBlockView.js";
 import { DropLineContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
 
@@ -42,7 +43,15 @@ interface BlockRowProps {
 
 export function BlockRow({ tree, resolveName }: BlockRowProps) {
   const { node, children } = tree;
-  const { focusRequest, acknowledgeFocus, collapsed, toggleCollapse } = useOutliner();
+  const {
+    client: outlinerClient,
+    rootId,
+    openNode,
+    focusRequest,
+    acknowledgeFocus,
+    collapsed,
+    toggleCollapse,
+  } = useOutliner();
   const dropLine = useContext(DropLineContext);
   const [editing, setEditing] = useState(false);
   const [caret, setCaret] = useState<EditorCaret>("end");
@@ -111,6 +120,16 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
               tokens={node.contentAst}
               resolveName={resolveName}
               renderEmbed={(id) => <EmbedView nodeId={id} />}
+              renderQuery={(token, index) => (
+                <QueryBlockView
+                  client={outlinerClient}
+                  ownerId={node.id}
+                  tokenIndex={index}
+                  queryAst={(token as { queryAst?: unknown }).queryAst}
+                  rootId={rootId}
+                  onOpenNode={openNode}
+                />
+              )}
             />
           )}
         </div>
