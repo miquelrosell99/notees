@@ -33,7 +33,12 @@
 
 import { useRef, useState } from "react";
 
-import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import {
+  deriveDisplayName,
+  parseDateNodeId,
+  SYSTEM_CLASS_UUIDS,
+  type DatePrecision,
+} from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type {
@@ -44,6 +49,7 @@ import type {
 } from "@/core/workspace-client.js";
 
 import { AnnotationsSection } from "./AnnotationsSection.js";
+import { DatePicker } from "./DatePicker.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -77,6 +83,33 @@ function nodeRefOf(value: unknown): string | null {
     return typeof id === "string" && id.length > 0 ? id : null;
   }
   return null;
+}
+
+/** A date ref reads as its period label (2026 / 2026-09 / 2026-09-27). */
+function dateLabelOf(ref: string): string {
+  const parsed = parseDateNodeId(ref);
+  if (parsed === null) return ref;
+  const y = String(parsed.year).padStart(4, "0");
+  if (parsed.precision === "year") return y;
+  if (parsed.precision === "month") return `${y}-${String(parsed.month).padStart(2, "0")}`;
+  return `${y}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
+}
+
+/** date_range value shape: { start, end } of date refs, either side open. */
+interface DateRangeValue {
+  start: string | null;
+  end: string | null;
+}
+
+function rangeValueOf(value: unknown): DateRangeValue {
+  if (typeof value !== "object" || value === null) return { start: null, end: null };
+  const range = value as { start?: unknown; end?: unknown };
+  return { start: nodeRefOf(range.start), end: nodeRefOf(range.end) };
+}
+
+/** The schema's commit ceiling for date values (day when unspecified). */
+function precisionOf(schema: { datePrecision?: DatePrecision | null } | null | undefined): DatePrecision {
+  return schema?.datePrecision ?? "day";
 }
 
 /**
@@ -142,6 +175,8 @@ function ObjectPropertyRow({
   const targetClassIds = resolveTargetClassIds(client, propertySchemaId, bindingFilter);
   const assetClassId = targetClassIds?.find((id) => isAssetClass(client, id));
   const isAssetTarget = assetClassId !== undefined;
+  const schemaRow = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
+  const dateQualified = schemaRow?.dateQualified === true;
 
   const chips = rows
     .map((row) => ({ row, ref: nodeRefOf(row.value) }))
@@ -267,6 +302,21 @@ function ObjectPropertyRow({
                   ❝
                 </button>
               )}
+              {dateQualified && (
+                <QualifierRange
+                  start={typeof row.metadata?.startDate === "string" ? row.metadata.startDate : ""}
+                  end={typeof row.metadata?.endDate === "string" ? row.metadata.endDate : ""}
+                  ariaLabel={chipLabel(ref)}
+                  onCommit={(startIso, endIso) => {
+                    const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
+                    if (startIso === "") delete metadata.startDate;
+                    else metadata.startDate = startIso;
+                    if (endIso === "") delete metadata.endDate;
+                    else metadata.endDate = endIso;
+                    void client.setProperty(nodeId, propertySchemaId, row.value, row.idx, metadata);
+                  }}
+                />
+              )}
             </span>
           );
         })}
@@ -343,6 +393,301 @@ function ObjectPropertyRow({
   );
 }
 
+/**
+ * One date-typed property (SCHEMA.md "Dates"): the schema's effective rows
+ * render as date chips; picking a date ensures the year/month/day chain and
+ * links the node at the schema's precision ({ "nodeId": … }, the shape the
+ * edge index projects — the year node backlinks everything dated that year).
+ * Editing an existing chip's date overwrites the same slot's ref.
+ */
+function DatePropertyRow({
+  client,
+  nodeId,
+  propertySchemaId,
+  label,
+  multi,
+  schema,
+  rows,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  propertySchemaId: string;
+  label: string;
+  multi: boolean;
+  schema: { datePrecision?: DatePrecision | null } | null;
+  rows: EffectiveProperty[];
+}) {
+  const [pickerFor, setPickerFor] = useState<number | "new" | null>(null);
+  const precision = precisionOf(schema);
+
+  const ordered = [...rows].sort((a, b) => a.idx - b.idx);
+  const authoredIdx = ordered.filter((row) => row.source === "authored").map((row) => row.idx);
+  const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
+
+  const commit = async (isoDate: string, idx: number): Promise<void> => {
+    await client.setDateProperty(nodeId, propertySchemaId, isoDate, idx);
+    setPickerFor(null);
+  };
+
+  const chipText = (row: EffectiveProperty): string => {
+    const ref = nodeRefOf(row.value);
+    if (ref !== null) return dateLabelOf(ref);
+    return toEditableText(row.value); // scalar binding default, shown as-is
+  };
+
+  const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
+  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+
+  return (
+    <li
+      className={
+        allDefault ? "nt-property nt-property-default nt-property-date" : "nt-property nt-property-date"
+      }
+    >
+      <span className="nt-property-name">{label}</span>
+      {allDefault && <span className="nt-property-hint">default</span>}
+      {unbound && <span className="nt-property-hint">unbound</span>}
+      <span className="nt-property-chips">
+        {ordered.map((row) => (
+          <span
+            key={`${propertySchemaId}:${row.idx}`}
+            className={row.source === "default" ? "nt-chip nt-chip-default" : "nt-chip"}
+          >
+            <button
+              type="button"
+              className="nt-chip-label"
+              aria-label={`Set ${label}`}
+              aria-expanded={pickerFor === row.idx}
+              onClick={() => setPickerFor((cur) => (cur === row.idx ? null : row.idx))}
+            >
+              {chipText(row)}
+            </button>
+            {row.source === "authored" && (
+              <button
+                type="button"
+                className="nt-chip-remove"
+                aria-label={`Clear ${label}`}
+                onClick={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {!(multi === false && ordered.length > 0) && (
+          <button
+            type="button"
+            className="nt-chip-add"
+            aria-expanded={pickerFor === "new"}
+            onClick={() => setPickerFor((cur) => (cur === "new" ? null : "new"))}
+          >
+            + Add
+          </button>
+        )}
+      </span>
+      {pickerFor !== null && (
+        <DatePicker
+          precision={precision}
+          selectedIso={
+            pickerFor === "new"
+              ? null
+              : isoOfRef(nodeRefOf(ordered.find((row) => row.idx === pickerFor)?.value ?? null))
+          }
+          onCommit={(iso) => void commit(iso, pickerFor === "new" ? nextIdx : pickerFor)}
+          onClose={() => setPickerFor(null)}
+        />
+      )}
+    </li>
+  );
+}
+
+/** A date ref back to a full ISO date at its own precision (range merges). */
+function isoOfRef(ref: string | null): string | null {
+  if (ref === null) return null;
+  const parsed = parseDateNodeId(ref);
+  if (parsed === null) return null;
+  const y = String(parsed.year).padStart(4, "0");
+  const m = String(parsed.month).padStart(2, "0");
+  const d = String(parsed.day).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * One date_range property: start/end slots, each pickable and clearable —
+ * either side open keeps an open range. Values are { start, end } of date
+ * refs; precision applies to both ends (schema row).
+ */
+function DateRangePropertyRow({
+  client,
+  nodeId,
+  propertySchemaId,
+  label,
+  multi,
+  schema,
+  rows,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  propertySchemaId: string;
+  label: string;
+  multi: boolean;
+  schema: { datePrecision?: DatePrecision | null } | null;
+  rows: EffectiveProperty[];
+}) {
+  const [picking, setPicking] = useState<{ idx: number; end: "start" | "end" } | null>(null);
+  const precision = precisionOf(schema);
+
+  const ordered = [...rows].sort((a, b) => a.idx - b.idx);
+  const authoredIdx = ordered.filter((row) => row.source === "authored").map((row) => row.idx);
+  const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
+
+  /** Override one end (null clears); the other end survives from the row. */
+  const setEnd = async (idx: number, end: "start" | "end", iso: string | null): Promise<void> => {
+    const current = rangeValueOf(ordered.find((row) => row.idx === idx)?.value);
+    const start = end === "start" ? iso : isoOfRef(current.start);
+    const stop = end === "end" ? iso : isoOfRef(current.end);
+    await client.setDateRangeProperty(nodeId, propertySchemaId, start, stop, idx);
+    setPicking(null);
+  };
+
+  const slot = (row: EffectiveProperty | undefined, idx: number, end: "start" | "end") => {
+    const title = end === "start" ? "Start" : "End";
+    const ref = rangeValueOf(row?.value)[end];
+    return (
+      <span className="nt-range-slot">
+        <span className="nt-range-slot-name">{title}</span>
+        <button
+          type="button"
+          className="nt-chip-label"
+          aria-label={`Set ${title.toLowerCase()} for ${label}`}
+          aria-expanded={picking?.idx === idx && picking.end === end}
+          onClick={() =>
+            setPicking((cur) =>
+              cur !== null && cur.idx === idx && cur.end === end ? null : { idx, end },
+            )
+          }
+        >
+          {ref !== null ? dateLabelOf(ref) : "…"}
+        </button>
+        {row?.source === "authored" && ref !== null && (
+          <button
+            type="button"
+            className="nt-chip-remove"
+            aria-label={`Clear ${title.toLowerCase()} for ${label}`}
+            onClick={() => void setEnd(idx, end, null)}
+          >
+            ×
+          </button>
+        )}
+      </span>
+    );
+  };
+
+  const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
+  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+
+  return (
+    <li
+      className={
+        allDefault
+          ? "nt-property nt-property-default nt-property-date-range"
+          : "nt-property nt-property-date-range"
+      }
+    >
+      <span className="nt-property-name">{label}</span>
+      {allDefault && <span className="nt-property-hint">default</span>}
+      {unbound && <span className="nt-property-hint">unbound</span>}
+      <span className="nt-property-chips">
+        {ordered.map((row) => (
+          <span key={`${propertySchemaId}:${row.idx}`} className="nt-range">
+            {slot(row, row.idx, "start")}
+            <span aria-hidden="true">→</span>
+            {slot(row, row.idx, "end")}
+            {row.source === "authored" && (
+              <button
+                type="button"
+                className="nt-chip-remove"
+                aria-label={`Clear ${label}`}
+                onClick={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {!(multi === false && ordered.length > 0) && (
+          <button
+            type="button"
+            className="nt-chip-add"
+            aria-expanded={picking !== null && picking.idx === nextIdx}
+            onClick={() =>
+              setPicking((cur) =>
+                cur !== null && cur.idx === nextIdx ? null : { idx: nextIdx, end: "start" },
+              )
+            }
+          >
+            + Add
+          </button>
+        )}
+      </span>
+      {picking !== null && (
+        <DatePicker
+          precision={precision}
+          selectedIso={isoOfRef(rangeValueOf(ordered.find((r) => r.idx === picking.idx)?.value)[picking.end])}
+          onCommit={(iso) => void setEnd(picking.idx, picking.end, iso)}
+          onClose={() => setPicking(null)}
+        />
+      )}
+    </li>
+  );
+}
+
+/**
+ * Link qualifier range control (SCHEMA.md "Dates", dateQualified schemas):
+ * small start/end date inputs next to a node-typed chip; values persist as
+ * property.set metadata.startDate/endDate (ISO strings — node-backed date
+ * qualifiers are the possible M2 evolution).
+ */
+function QualifierRange({
+  start,
+  end,
+  ariaLabel,
+  onCommit,
+}: {
+  start: string;
+  end: string;
+  ariaLabel: string;
+  onCommit: (start: string, end: string) => void;
+}) {
+  const [startValue, setStartValue] = useState(start);
+  const [endValue, setEndValue] = useState(end);
+  return (
+    <span className="nt-chip-qualifier">
+      <input
+        type="date"
+        className="nt-chip-qualifier-input"
+        aria-label={`${ariaLabel} start date`}
+        value={startValue}
+        onChange={(event) => {
+          setStartValue(event.target.value);
+          onCommit(event.target.value, endValue);
+        }}
+      />
+      <span aria-hidden="true">–</span>
+      <input
+        type="date"
+        className="nt-chip-qualifier-input"
+        aria-label={`${ariaLabel} end date`}
+        value={endValue}
+        onChange={(event) => {
+          setEndValue(event.target.value);
+          onCommit(startValue, event.target.value);
+        }}
+      />
+    </span>
+  );
+}
+
 export function PropertiesPanel({
   client,
   nodeId,
@@ -357,29 +702,40 @@ export function PropertiesPanel({
 
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
 
-  // Node-typed schemas render as one chip row per schema; scalar rows keep the
-  // minimal text editor. Object rows are grouped at their first appearance so
-  // the panel order is unchanged.
+  // Node-typed / date / date_range schemas render as one grouped row per
+  // schema; scalar rows keep the minimal text editor. Grouped rows appear at
+  // their first occurrence so the panel order is unchanged.
   const renderedGroups = new Set<string>();
   const rendered = rows.map((row) => {
-    if (row.schema?.type !== "object") return { kind: "scalar" as const, row };
+    const type = row.schema?.type;
+    if (type !== "object" && type !== "date" && type !== "date_range") {
+      return { kind: "scalar" as const, row };
+    }
     if (renderedGroups.has(row.propertySchemaId)) return null;
     renderedGroups.add(row.propertySchemaId);
     return {
-      kind: "object" as const,
+      kind: "grouped" as const,
       propertySchemaId: row.propertySchemaId,
+      type,
       groupRows: rows.filter((r) => r.propertySchemaId === row.propertySchemaId),
     };
   });
 
-  // A bound object-typed property with no effective rows still renders: the
-  // chips row hosts the add/upload affordance (the scalar editor has no way
-  // to author a first node link). hideWhenEmpty bindings are the exception.
+  // A bound grouped property with no effective rows still renders: the row
+  // hosts the add/set affordance (the scalar editor has no way to author a
+  // first value). hideWhenEmpty bindings are the exception.
   const emptyObjectBindings: ClassBinding[] = [];
   const node = client.getNode(nodeId);
   for (const classId of node?.classIds ?? []) {
     for (const binding of client.getClassBindings(classId)) {
-      if (binding.type !== "object" || renderedGroups.has(binding.propertySchemaId)) continue;
+      if (
+        binding.type !== "object" &&
+        binding.type !== "date" &&
+        binding.type !== "date_range"
+      ) {
+        continue;
+      }
+      if (renderedGroups.has(binding.propertySchemaId)) continue;
       if (emptyObjectBindings.some((b) => b.propertySchemaId === binding.propertySchemaId)) continue;
       if (binding.hideWhenEmpty === true) continue;
       emptyObjectBindings.push(binding);
@@ -391,25 +747,57 @@ export function PropertiesPanel({
 
   if (rows.length === 0 && emptyObjectBindings.length === 0 && classIds.length === 0) return null;
 
-  const objectRow = (
+  const groupedRow = (
+    type: string,
     propertySchemaId: string,
     label: string,
     multi: boolean,
+    schema: { datePrecision?: DatePrecision | null } | null,
     bindingFilter: string[] | null,
     groupRows: EffectiveProperty[],
-  ) => (
-    <ObjectPropertyRow
-      key={propertySchemaId}
-      client={client}
-      nodeId={nodeId}
-      propertySchemaId={propertySchemaId}
-      label={label}
-      multi={multi}
-      bindingFilter={bindingFilter}
-      rows={groupRows}
-      onOpenPage={onOpenPage}
-    />
-  );
+  ) => {
+    if (type === "date") {
+      return (
+        <DatePropertyRow
+          key={propertySchemaId}
+          client={client}
+          nodeId={nodeId}
+          propertySchemaId={propertySchemaId}
+          label={label}
+          multi={multi}
+          schema={schema}
+          rows={groupRows}
+        />
+      );
+    }
+    if (type === "date_range") {
+      return (
+        <DateRangePropertyRow
+          key={propertySchemaId}
+          client={client}
+          nodeId={nodeId}
+          propertySchemaId={propertySchemaId}
+          label={label}
+          multi={multi}
+          schema={schema}
+          rows={groupRows}
+        />
+      );
+    }
+    return (
+      <ObjectPropertyRow
+        key={propertySchemaId}
+        client={client}
+        nodeId={nodeId}
+        propertySchemaId={propertySchemaId}
+        label={label}
+        multi={multi}
+        bindingFilter={bindingFilter}
+        rows={groupRows}
+        onOpenPage={onOpenPage}
+      />
+    );
+  };
 
   return (
     <section className="nt-class-panel nt-properties-panel" aria-label="Properties">
@@ -437,12 +825,14 @@ export function PropertiesPanel({
       <ul className="nt-properties-list">
         {rendered.map((entry) => {
           if (entry === null) return null;
-          if (entry.kind === "object") {
-            const schema = entry.groupRows[0]?.schema;
-            return objectRow(
+          if (entry.kind === "grouped") {
+            const schema = entry.groupRows[0]?.schema ?? null;
+            return groupedRow(
+              entry.type,
               entry.propertySchemaId,
               schema?.name ?? entry.propertySchemaId,
               schema?.multi ?? true,
+              schema,
               null,
               entry.groupRows,
             );
@@ -480,10 +870,12 @@ export function PropertiesPanel({
           );
         })}
         {emptyObjectBindings.map((binding) =>
-          objectRow(
+          groupedRow(
+            binding.type,
             binding.propertySchemaId,
             binding.name,
             binding.multi,
+            { datePrecision: binding.datePrecision },
             binding.targetClassFilter,
             [],
           ),

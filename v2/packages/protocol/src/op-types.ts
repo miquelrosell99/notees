@@ -183,6 +183,12 @@ export const propertySchemaCreatePayload = z
     options: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
     /** Node-typed (m2o/m2m) schemas constrain their targets to these classes. */
     targetClassFilter: z.array(uuid).optional(),
+    /** Date schemas: the finest granularity a value may claim (SCHEMA.md "Dates";
+     * default "day" at the read model when absent). */
+    datePrecision: z.enum(["year", "month", "day"]).optional(),
+    /** Node-typed schemas: values may carry date qualifiers (metadata
+     * startDate/endDate — the panel renders a small range control per chip). */
+    dateQualified: z.boolean().optional(),
   })
   .strict();
 
@@ -191,6 +197,10 @@ export const propertySchemaUpdatePayload = z
     propertySchemaId: uuid,
     name: z.string().min(1).max(256).optional(),
     options: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
+    /** Patchable so the Class View bindings editor can retune date behavior
+     * after creation (same optional-fields contract as name/options). */
+    datePrecision: z.enum(["year", "month", "day"]).optional(),
+    dateQualified: z.boolean().optional(),
   })
   .strict();
 

@@ -457,6 +457,18 @@ class Compiler {
    * numeric values (numeric comparison) and everything else as text
    * (lexicographic — ISO-8601 dates order correctly); the bound value keeps
    * the type the caller gave it.
+   *
+   * ISO-date bound values (YYYY-MM-DD) gain a second arm for the SCHEMA.md
+   * "Dates" value shape: date property values are `{ "nodeId": <deterministic
+   * date-node id> }` and the id embeds the date — layout frozen with v1
+   * (packages/domain/src/dates.ts): id chars 22..23 are the precision marker
+   * (dd/aa/bb — the last two of the `00dd`/`00aa`/`00bb` segment), chars
+   * 25..36 the zero-padded date payload. eq/contains match when the
+   * referenced period CONTAINS the queried date (a year-precision value
+   * answers any date of that year); range ops compare the payload, which
+   * orders chronologically across precisions (a period compares at its
+   * start). Plain scalar values (e.g. binding defaults) keep matching through
+   * the unchanged first arm.
    */
   private propertySql(condition: Extract<Condition, { type: "property" }>): string {
     const valueOps: readonly PropertyOp[] = ["eq", "neq", "contains", "gt", "gte", "lt", "lte"];
@@ -516,21 +528,62 @@ class Compiler {
     }
 
     let predicate = "";
+    const boundIso =
+      typeof condition.value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(condition.value)
+        ? condition.value
+        : null;
     if (condition.op === "eq") {
-      predicate = `WHERE json_extract(value, '$') = ${this.push(condition.value)}`;
+      const scalar = `json_extract(value, '$') = ${this.push(condition.value)}`;
+      predicate =
+        boundIso !== null ? `WHERE ${scalar} OR ${this.dateRefSql("=", boundIso)}` : `WHERE ${scalar}`;
     } else if (condition.op === "neq") {
-      predicate = `WHERE json_extract(value, '$') != ${this.push(condition.value)}`;
+      if (boundIso !== null) {
+        const scalar = `json_extract(value, '$') = ${this.push(condition.value)}`;
+        predicate = `WHERE NOT (${scalar} OR ${this.dateRefSql("=", boundIso)})`;
+      } else {
+        predicate = `WHERE json_extract(value, '$') != ${this.push(condition.value)}`;
+      }
     } else if (condition.op === "contains") {
-      predicate = `WHERE CAST(json_extract(value, '$') AS TEXT) LIKE '%' || ${this.push(condition.value)} || '%'`;
+      const scalar = `CAST(json_extract(value, '$') AS TEXT) LIKE '%' || ${this.push(condition.value)} || '%'`;
+      predicate =
+        boundIso !== null ? `WHERE ${scalar} OR ${this.dateRefSql("=", boundIso)}` : `WHERE ${scalar}`;
     } else if (condition.op !== "exists") {
       // gt/gte/lt/lte — plain comparison over the extracted scalar (numeric
       // for JSON numbers, lexicographic for text such as ISO-8601 dates).
       const sqlOp = { gt: ">", gte: ">=", lt: "<", lte: "<=" }[condition.op];
-      predicate = `WHERE json_extract(value, '$') ${sqlOp} ${this.push(condition.value)}`;
+      if (boundIso !== null) {
+        // The scalar arm is gated to non-object values: a { "nodeId": … } ref
+        // would otherwise compare as raw JSON text ('{' sorts after digits).
+        const scalar =
+          `json_type(value, '$') != 'object' AND json_extract(value, '$') ${sqlOp} ${this.push(condition.value)}`;
+        predicate = `WHERE (${scalar}) OR ${this.dateRefSql(sqlOp, boundIso)}`;
+      } else {
+        predicate = `WHERE json_extract(value, '$') ${sqlOp} ${this.push(condition.value)}`;
+      }
     }
 
     const membership = `n.id IN (\n  ${ctes},\n  effective AS (\n  ${unions}\n  )\n  SELECT node_id FROM effective\n  ${predicate}\n)`;
     return membership;
+  }
+
+  /**
+   * Date-ref match arms over the deterministic date-node id carried in a
+   * `{"nodeId": …}` value (see propertySql's doc). `"="` matches when the
+   * referenced period contains the bound date; comparison ops order by the
+   * id's date payload (period start). Params are pushed in arm order.
+   */
+  private dateRefSql(op: string, iso: string): string {
+    const compact = iso.replace(/-/g, "");
+    const nodeId = "json_extract(value, '$.nodeId')";
+    const marker = `substr(${nodeId}, 22, 2)`;
+    if (op === "=") {
+      return (
+        `(${marker} = 'dd' AND substr(${nodeId}, 25, 8) = ${this.push(compact)} ` +
+        `OR ${marker} = 'aa' AND ${this.push(compact.slice(0, 6))} = substr(${nodeId}, 25, 6) ` +
+        `OR ${marker} = 'bb' AND ${this.push(compact.slice(0, 4))} = substr(${nodeId}, 25, 4))`
+      );
+    }
+    return `(${marker} IN ('dd', 'aa', 'bb') AND substr(${nodeId}, 25) ${op} ${this.push(`${compact}0000`)})`;
   }
 
   // --- sort -----------------------------------------------------------------------

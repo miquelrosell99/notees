@@ -22,6 +22,7 @@
 
 import { createHash } from "node:crypto";
 
+import { monthNodeId, parseDateNodeId, yearNodeId } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { parseContentAst } from "./content.js";
@@ -93,11 +94,40 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
   walk(ast);
 
   // Node-typed property values project into the edge index (verb = schema).
+  // Keying is VALUE-SHAPE based, not type-based, so date refs ({ "nodeId": … }
+  // on date schemas) project like any node-typed value. A date ref also fans
+  // out to its deterministic chain ANCESTORS (SCHEMA.md "Dates": "backlinks
+  // on a year node list everything dated that year") — ids are
+  // content-addressed (domain dates.ts), so a day ref implies the month and
+  // year edges, a month ref the year edge. date_range values ({ start, end }
+  // of date refs, either side open) project each present end the same way.
   const propertyRows = db
     .prepare(
       "SELECT property_schema_id, value, metadata FROM property_value WHERE node_id = ? ORDER BY property_schema_id, idx",
     )
     .all(nodeId) as { property_schema_id: string; value: string; metadata: string | null }[];
+  const pushRefEdge = (
+    propertySchemaId: string,
+    ref: unknown,
+    metadata: string | null,
+  ): void => {
+    if (typeof ref !== "object" || ref === null || !("nodeId" in ref)) return;
+    const target = (ref as { nodeId: unknown }).nodeId;
+    if (typeof target !== "string" || target.length === 0) return;
+    desired.push({ targetId: target, type: "property", verb: propertySchemaId, metadata });
+    // Date-chain ancestors: the ref claims its own precision; coarser periods
+    // are implied. Deterministic ids keep wipe -> replay identical.
+    const parsed = parseDateNodeId(target);
+    if (parsed !== null) {
+      const iso = `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
+      if (parsed.precision === "day") {
+        desired.push({ targetId: monthNodeId(iso), type: "property", verb: propertySchemaId, metadata });
+      }
+      if (parsed.precision === "day" || parsed.precision === "month") {
+        desired.push({ targetId: yearNodeId(iso), type: "property", verb: propertySchemaId, metadata });
+      }
+    }
+  };
   for (const pr of propertyRows) {
     let parsed: unknown;
     try {
@@ -106,15 +136,11 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
       continue;
     }
     if (typeof parsed === "object" && parsed !== null && "nodeId" in parsed) {
-      const target = (parsed as { nodeId: unknown }).nodeId;
-      if (typeof target === "string" && target.length > 0) {
-        desired.push({
-          targetId: target,
-          type: "property",
-          verb: pr.property_schema_id,
-          metadata: pr.metadata,
-        });
-      }
+      pushRefEdge(pr.property_schema_id, parsed, pr.metadata);
+    } else if (typeof parsed === "object" && parsed !== null) {
+      const range = parsed as { start?: unknown; end?: unknown };
+      pushRefEdge(pr.property_schema_id, range.start, pr.metadata);
+      pushRefEdge(pr.property_schema_id, range.end, pr.metadata);
     }
   }
 
