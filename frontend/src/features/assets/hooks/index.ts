@@ -1,1 +1,0 @@
-export { useAssetMimeType } from './useAssetMimeType';
