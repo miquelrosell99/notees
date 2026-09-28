@@ -23,8 +23,13 @@ import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.
 import type { SqliteDB, StoreBackend } from "./db.js";
 import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
 import { getEffectiveProperties, type EffectiveProperty } from "./effective.js";
-import { buildMatchQuery } from "./search.js";
-import { migrate } from "./schema.js";
+import {
+  buildMatchQuery,
+  dropSearchIndex,
+  isSearchIndexQueryable,
+  reindexAllSearch,
+} from "./search.js";
+import { migrate, schemaSql } from "./schema.js";
 
 export interface NodeRow {
   id: string;
@@ -299,9 +304,35 @@ export class Store {
     return this.db.serialize();
   }
 
-  /** Replace the database with a previously snapshotted byte stream. */
+  /**
+   * Replace the database with a previously snapshotted byte stream.
+   *
+   * Cross-backend snapshots: a server-side snapshot's search_index is FTS5,
+   * which an FTS4-only build (stock sql.js) can neither query nor maintain.
+   * The index is derived state, so when the probe query fails (missing
+   * module, or a missing/corrupt table), the table is dropped module-free,
+   * the connection is re-opened from freshly exported bytes (sqlite_master
+   * surgery leaves the schema cache stale), and the schema is re-applied with
+   * the LOCAL fts module before reindexing from node name + content.
+   * Deterministic: wipe + replay converges to the same index regardless of
+   * which backend produced the snapshot.
+   */
   restore(bytes: Uint8Array): void {
-    const next = this.backend.restore(bytes);
+    let next = this.backend.restore(bytes);
+    if (!isSearchIndexQueryable(next)) {
+      dropSearchIndex(next);
+      if (next.serialize === undefined) {
+        next.close?.();
+        throw new Error("store: search_index rebuild requires a serializable backend");
+      }
+      const repaired = next.serialize();
+      next.close?.();
+      next = this.backend.restore(repaired);
+      // Idempotent DDL (not migrate(): the carried user_version already
+      // matches, but the rebuilt connection is missing the index tables).
+      next.exec(schemaSql(this.backend.ftsModule));
+      reindexAllSearch(next);
+    }
     this.db.close?.();
     this.db = next;
     this.db

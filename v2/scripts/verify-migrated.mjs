@@ -416,6 +416,13 @@ try {
   // --- search: the prepared term must return the discovered page's row --------
   await page.locator(".nt-search-input").fill(searchTerm);
   await page.waitForSelector(".nt-search-results", { timeout: 15_000 });
+  // The first render is the seeded empty state; the worker read is async and
+  // lands on the next cache drain. Wait for the dropdown to settle either
+  // way (hits or the explicit "No results." row) before counting.
+  await page
+    .waitForSelector(".nt-search-hit, .nt-search-empty", { timeout: 30_000 })
+    .catch(() => {});
+  await page.waitForTimeout(500);
   const hitCount = await page.locator(".nt-search-hit").count();
   // Nameless pages render their id in the hit row (SearchBox: name ?? id).
   const expectedRow = page.locator(".nt-search-hit", { hasText: expectedHit.id }).first();

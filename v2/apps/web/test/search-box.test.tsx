@@ -71,10 +71,29 @@ function typeQuery(text: string): void {
 }
 
 describe("SearchBox", () => {
+  it("re-runs the search when cacheVersion bumps (async cache refresh lands)", async () => {
+    const { client } = await seedWorld();
+    // Model the WorkerClient read cache: search() seeds [] and only converges
+    // after a notification (cacheVersion bump), like the real boot.
+    let converged = false;
+    const cached = {
+      ...client,
+      search: (q: string) => (converged ? client.search(q) : []),
+    };
+    const { rerender } = render(
+      <SearchBox client={cached as WorkspaceClient} onOpenNode={() => {}} cacheVersion={0} />,
+    );
+    typeQuery("cooking");
+    expect(await screen.findByText("No results.")).not.toBeNull();
+    converged = true;
+    rerender(<SearchBox client={cached as WorkspaceClient} onOpenNode={() => {}} cacheVersion={1} />);
+    expect(await screen.findByText("Cooking Notes")).not.toBeNull();
+  });
+
   it("plain text falls back to FTS search", async () => {
     const { client } = await seedWorld();
     const opened: string[] = [];
-    render(<SearchBox client={client} onOpenNode={(id) => opened.push(id)} />);
+    render(<SearchBox client={client} onOpenNode={(id) => opened.push(id)} cacheVersion={0} />);
 
     typeQuery("cooking");
     const hit = await screen.findByText("Cooking Notes");
@@ -86,7 +105,7 @@ describe("SearchBox", () => {
 
   it("query-language input runs through runQueryAst with name resolvers", async () => {
     const { client } = await seedWorld();
-    render(<SearchBox client={client} onOpenNode={() => {}} />);
+    render(<SearchBox client={client} onOpenNode={() => {}} cacheVersion={0} />);
 
     typeQuery("class:paper AND year:>2010");
     expect(await screen.findByText("Modern Paper")).not.toBeNull();
@@ -97,7 +116,7 @@ describe("SearchBox", () => {
 
   it("resolves linked: node names and prop: schema names", async () => {
     const { client } = await seedWorld();
-    render(<SearchBox client={client} onOpenNode={() => {}} />);
+    render(<SearchBox client={client} onOpenNode={() => {}} cacheVersion={0} />);
 
     typeQuery('linked:"Modern Paper"');
     expect(await screen.findByText("Reading Notes")).not.toBeNull();
@@ -110,7 +129,7 @@ describe("SearchBox", () => {
 
   it("DSL errors surface inline and never fall back to text search", async () => {
     const { client } = await seedWorld();
-    render(<SearchBox client={client} onOpenNode={() => {}} />);
+    render(<SearchBox client={client} onOpenNode={() => {}} cacheVersion={0} />);
 
     typeQuery("class:nosuchclass");
     const alert = await screen.findByRole("alert");
@@ -120,7 +139,7 @@ describe("SearchBox", () => {
 
   it("the syntax hint toggles the grammar cheatsheet", async () => {
     const { client } = await seedWorld();
-    render(<SearchBox client={client} onOpenNode={() => {}} />);
+    render(<SearchBox client={client} onOpenNode={() => {}} cacheVersion={0} />);
 
     expect(screen.queryByText(/quoted phrase/)).toBeNull();
     fireEvent.click(screen.getByLabelText("Search syntax"));
@@ -132,7 +151,7 @@ describe("SearchBox", () => {
 
   it("empty input shows no results", async () => {
     const { client } = await seedWorld();
-    const { container } = render(<SearchBox client={client} onOpenNode={() => {}} />);
+    const { container } = render(<SearchBox client={client} onOpenNode={() => {}} cacheVersion={0} />);
 
     typeQuery("paper");
     await screen.findByText("Old Paper");

@@ -131,7 +131,7 @@ export function App() {
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
-  const [, setPagesVersion] = useState(0);
+  const [pagesVersion, setPagesVersion] = useState(0);
 
   /**
    * The single owner of the live client for teardown. State (`client`) drives
@@ -279,7 +279,7 @@ export function App() {
   return (
     <div className="nt-app">
       <aside className="nt-sidebar">
-        <SearchBox client={client} onOpenNode={setSelectedPageId} />
+        <SearchBox client={client} onOpenNode={setSelectedPageId} cacheVersion={pagesVersion} />
         <div className="nt-sidebar-header">
           <span>Pages</span>
           <button type="button" className="nt-new-page" onClick={() => void handleNewPage()}>
