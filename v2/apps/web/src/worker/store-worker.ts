@@ -43,5 +43,23 @@ const ctx: WorkerContext = {
 };
 
 workerScope.onmessage = (event: MessageEvent<WorkerRequestMessage>) => {
-  void handleMessage(ctx, event.data).then((response) => workerScope.postMessage(response));
+  // Both fulfillment and rejection must post a response: a caller awaits its
+  // id forever otherwise (a silent hang — the read cache then strands its
+  // in-flight refresh and every cached read stays at its seeded empty value).
+  void handleMessage(ctx, event.data).then(
+    (response) => workerScope.postMessage(response),
+    (error: unknown) => {
+      console.error(
+        "store-worker: message handler failed without a response:",
+        error instanceof Error ? (error.stack ?? error.message) : error,
+      );
+      const id = (event.data as { id?: unknown }).id;
+      if (typeof id === "number") {
+        workerScope.postMessage({
+          id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+  );
 };

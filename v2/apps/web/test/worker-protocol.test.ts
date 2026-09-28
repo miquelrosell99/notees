@@ -137,4 +137,29 @@ describe("worker message protocol (handleMessage)", () => {
     expect(response.result).toBeUndefined();
     expect(response.error).toMatch(/unknown method/);
   });
+
+  it("getBlockTree treats a JSON-null depth (omitted optional over RPC) as the default cap", async () => {
+    const { ctx } = createTestContext();
+    await send(ctx, "init", [
+      { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "https://x.example.com", apiKey: "k" },
+    ]);
+    const page = await send(ctx, "createObject", [{ nodeType: "page", name: "P" }], 2);
+    const pageId = page.result as string;
+    const block = await send(
+      ctx,
+      "createObject",
+      [{ nodeType: "block", parentId: pageId, contentAst: [{ type: "text", text: "child" }] }],
+      3,
+    );
+    expect(block.error).toBeUndefined();
+
+    // PageView calls getBlockTree(pageId) with the depth omitted; the worker
+    // wire carries it as JSON null. null <= 0 is true — the tree must not be
+    // empty (regression: every page rendered with zero block rows).
+    const tree = await send(ctx, "getBlockTree", [pageId, null], 4);
+    expect(tree.error).toBeUndefined();
+    const rows = tree.result as Array<{ node: { nodeType: string } }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ node: { nodeType: "block" } });
+  });
 });

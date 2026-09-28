@@ -61,9 +61,17 @@ export class WorkerClient {
   >();
   private readonly listeners = new Set<() => void>();
   private readonly cache = new Map<string, unknown>();
-  /** Keys queued for the current refresh; grows if reads arrive mid-refresh. */
-  private refreshQueue: string[] | null = null;
-  private refreshInFlight: Promise<void> | null = null;
+  /**
+   * Read-cache convergence, dirty-set style: every seeded key (and every
+   * cached key on a worker "changed") lands here and a batched macrotask
+   * drain fetches them all. The previous in-flight/queue design could strand
+   * a key seeded while a refresh was finishing (in-flight but queue already
+   * drained) — every boot-time seed landed exactly there and the synced
+   * workspace rendered as an empty sidebar with zero errors.
+   */
+  private readonly refreshDirty = new Set<string>();
+  private refreshScheduled = false;
+  private refreshRunning = false;
   private closed = false;
 
   private constructor(worker: Worker, workspaceId: string, serverUrl: string, apiKey: string) {
@@ -99,7 +107,8 @@ export class WorkerClient {
   private handleMessage = (event: MessageEvent): void => {
     const message = event.data as WorkerResponseMessage | { type: "changed" };
     if ("type" in message && message.type === "changed") {
-      void this.refreshCache();
+      for (const key of this.cache.keys()) this.refreshDirty.add(key);
+      this.scheduleRefresh();
       return;
     }
     const response = message as WorkerResponseMessage;
@@ -126,40 +135,55 @@ export class WorkerClient {
     const key = JSON.stringify([method, args]);
     if (this.cache.has(key)) return this.cache.get(key) as T;
     this.cache.set(key, empty);
-    if (this.refreshInFlight !== null && this.refreshQueue !== null) {
-      // A refresh is running; extend its queue so the new key is fetched too.
-      this.refreshQueue.push(key);
-    } else {
-      void this.refreshCache();
-    }
+    this.refreshDirty.add(key);
+    this.scheduleRefresh();
     return empty;
   }
 
-  private refreshCache(): Promise<void> {
-    if (this.refreshInFlight !== null) return this.refreshInFlight;
-    this.refreshQueue = Array.from(this.cache.keys());
-    this.refreshInFlight = (async () => {
-      try {
-        const queue = this.refreshQueue;
-        if (queue === null) return;
-        // Indexed loop: keys pushed mid-refresh (new cached reads) are fetched too.
-        for (let i = 0; i < queue.length; i += 1) {
-          const key = queue[i]!;
+  /** Batched on a macrotask so a render burst seeds once and drains once. */
+  private scheduleRefresh(): void {
+    if (this.refreshScheduled) return;
+    this.refreshScheduled = true;
+    setTimeout(() => {
+      this.refreshScheduled = false;
+      void this.drainRefresh();
+    }, 0);
+  }
+
+  private async drainRefresh(): Promise<void> {
+    if (this.refreshRunning) return; // the running drain re-checks dirty keys before exit
+    this.refreshRunning = true;
+    try {
+      // Loop: reads seeded mid-drain mark themselves dirty and are fetched too.
+      while (this.refreshDirty.size > 0) {
+        const batch = Array.from(this.refreshDirty);
+        this.refreshDirty.clear();
+        for (const key of batch) {
           if (!this.cache.has(key)) continue;
           const [method, args] = JSON.parse(key) as [string, unknown[]];
           try {
             this.cache.set(key, await this.call(method, args));
-          } catch {
-            // Keep the previous value; the next "changed" retries.
+          } catch (error) {
+            // Keep the previous value; the next "changed" retries. Surface the
+            // failure loudly, though: a silent stale cache is how real outages
+            // hid (an FTS5 snapshot restore made every search return [] with
+            // zero console output). The message crosses the worker RPC
+            // boundary, so the original stack stays on the worker — the
+            // engine logs it there.
+            console.error(
+              `WorkerClient: read "${method}" failed; keeping the cached value:`,
+              error instanceof Error ? error.message : error,
+            );
           }
         }
-        this.notify();
-      } finally {
-        this.refreshInFlight = null;
-        this.refreshQueue = null;
       }
-    })();
-    return this.refreshInFlight;
+      this.notify();
+    } finally {
+      this.refreshRunning = false;
+      // Keys seeded after the last batch but before the finally (or while a
+      // wedged call delayed this drain) get another drain.
+      if (this.refreshDirty.size > 0) this.scheduleRefresh();
+    }
   }
 
   // --- read API (served from the cache; converges via "changed") -------------------------

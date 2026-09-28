@@ -1486,3 +1486,126 @@ describe("sql.js snapshot round-trip", () => {
     source.close();
   });
 });
+
+// --- cross-backend restore (server FTS5 snapshot -> sql.js FTS4 client) --------
+
+describe("cross-backend snapshot restore", () => {
+  const MIGRATED_PAGE = "0192a000-0000-7000-8000-0000000000f0";
+
+  function seededServerStore(): Store {
+    const store = Store.open(betterSqlite3Backend(":memory:"));
+    store.applyMany([
+      createPage(MIGRATED_PAGE, 1727200000000),
+      env(
+        "object.update",
+        { objectId: MIGRATED_PAGE, nodeType: "page", contentAst: [{ type: "text", text: "20180900 daily note" }] },
+        1727200001000,
+      ),
+    ]);
+    return store;
+  }
+
+  it("server (FTS5) snapshot restores into sql.js (FTS4) with data and index intact", () => {
+    const server = seededServerStore();
+    expect(server.search("20180900").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
+    const counts = (store: Store) => ({
+      nodes: (store.database.prepare("SELECT COUNT(*) AS n FROM node").get() as { n: number }).n,
+      pages: (
+        store.database
+          .prepare("SELECT COUNT(*) AS n FROM node WHERE node_type='page' AND is_active=1")
+          .get() as { n: number }
+      ).n,
+      childOrder: (store.database.prepare("SELECT COUNT(*) AS n FROM node_child_order").get() as { n: number })
+        .n,
+      properties: (store.database.prepare("SELECT COUNT(*) AS n FROM property_value").get() as { n: number })
+        .n,
+    });
+    const before = counts(server);
+    const bytes = server.snapshot();
+    server.close();
+
+    const client = Store.open(sqljsBackend(sqlModule));
+    client.restore(bytes);
+
+    // Node data survives the module-free drop + export/re-open sequence
+    // (regression guard: the rebuilt connection must carry the snapshot's
+    // full data, not just the re-created index).
+    expect(counts(client)).toEqual(before);
+
+    // The rebuilt index finds the migrated content — previously every search
+    // threw "no such module: fts5" and surfaced as silent "No results.".
+    expect(client.search("20180900").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
+    expect(client.search("daily").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
+    // ...and it stays maintainable: local writes keep the index correct.
+    client.apply(
+      env(
+        "object.update",
+        { objectId: MIGRATED_PAGE, nodeType: "page", contentAst: [{ type: "text", text: "clasificaciones taxonomy" }] },
+        1727200002000,
+      ),
+    );
+    expect(client.search("clasificaciones").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
+    // Node data itself is untouched by the rebuild.
+    expect(client.getNode(MIGRATED_PAGE)?.node_type).toBe("page");
+    // The docid index must exist: without it, common-prefix MATCH queries
+    // degrade to a full docid-map scan per matched row (query-of-death).
+    const indexes = client.database
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_search_index%'")
+      .all() as { name: string }[];
+    expect(indexes.map((r) => r.name)).toContain("idx_search_index_docid_docid");
+    client.close();
+  });
+
+  it("is deterministic: the rebuilt index matches a fresh sql.js rebuild of the same envelopes", () => {
+    const server = seededServerStore();
+    const bytes = server.snapshot();
+    server.close();
+
+    const restored = Store.open(sqljsBackend(sqlModule));
+    restored.restore(bytes);
+    const fresh = Store.open(sqljsBackend(sqlModule));
+    fresh.applyMany([
+      createPage(MIGRATED_PAGE, 1727200000000),
+      env(
+        "object.update",
+        { objectId: MIGRATED_PAGE, nodeType: "page", contentAst: [{ type: "text", text: "20180900 daily note" }] },
+        1727200001000,
+      ),
+    ]);
+
+    const docids = (store: Store) =>
+      (
+        store.database
+          .prepare("SELECT node_id, docid FROM search_index_docid ORDER BY node_id")
+          .all() as { node_id: string; docid: number }[]
+      ).map((r) => r.node_id);
+    const indexed = (store: Store) =>
+      (store.database.prepare("SELECT content FROM search_index").all() as { content: string }[]).map(
+        (r) => r.content,
+      );
+    expect(docids(restored)).toEqual(docids(fresh));
+    expect(indexed(restored).sort()).toEqual(indexed(fresh).sort());
+    restored.close();
+    fresh.close();
+  });
+
+  it("reverse direction (sql.js FTS4 snapshot into better-sqlite3 FTS5) stays queryable", () => {
+    const source = Store.open(sqljsBackend(sqlModule));
+    source.applyMany([
+      createPage(MIGRATED_PAGE, 1727200000000),
+      env(
+        "object.update",
+        { objectId: MIGRATED_PAGE, nodeType: "page", contentAst: [{ type: "text", text: "sqlite cross-backend" }] },
+        1727200001000,
+      ),
+    ]);
+    expect(source.search("backend").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
+    const bytes = source.snapshot();
+    source.close();
+
+    const restored = Store.open(betterSqlite3Backend(":memory:"));
+    restored.restore(bytes);
+    expect(restored.search("backend").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
+    restored.close();
+  });
+});
