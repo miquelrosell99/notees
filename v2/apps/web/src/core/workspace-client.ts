@@ -886,7 +886,15 @@ export class WorkspaceClient {
    * (bodies only: child pages render in their own section per SCHEMA.md
    * projection rule 3, so the tree is filtered to node_type = 'block').
    */
-  getBlockTree(pageId: string, depth: number = DEFAULT_TREE_DEPTH): BlockTreeNode[] {
+  /**
+   * Block-subtree rooted at `id`, capped at `depth` levels (cycle protection).
+   * `depth` normalizes null → default: the worker RPC boundary turns an
+   * omitted optional into JSON null, and `null <= 0` is true — without the
+   * normalization the worker path silently renders every page with zero
+   * block rows.
+   */
+  getBlockTree(pageId: string, depth?: number | null): BlockTreeNode[] {
+    const cap = depth ?? DEFAULT_TREE_DEPTH;
     const build = (id: string, remaining: number): BlockTreeNode[] => {
       if (remaining <= 0) return [];
       return this.store
@@ -897,7 +905,7 @@ export class WorkspaceClient {
           children: build(row.id, remaining - 1),
         }));
     };
-    return build(pageId, depth);
+    return build(pageId, cap);
   }
 
   /** FTS prefix-AND search over active nodes. */

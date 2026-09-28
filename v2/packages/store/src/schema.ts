@@ -21,10 +21,13 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
+
+const SEARCH_INDEX_DDL_FTS5 = `CREATE VIRTUAL TABLE IF NOT EXISTS search_index
+    USING fts5(content, tokenize = 'unicode61');`;
 
 /**
  * Canonical DDL (FTS5). `schemaSql("fts4")` builds the same schema for
@@ -263,14 +266,19 @@ CREATE INDEX IF NOT EXISTS idx_collection_member_object
     ON collection_member (object_id);
 
 -- FTS5 over derived node plaintext (v1 used FTS4; same docid-map pattern).
--- Rows are addressed by rowid through search_index_docid.
-CREATE VIRTUAL TABLE IF NOT EXISTS search_index
-    USING fts5(content, tokenize = 'unicode61');
+-- Rows are addressed by rowid through search_index_docid. The docid index is
+-- load-bearing: without it the join from FTS rowids back to node ids degrades
+-- to a full docid-map scan per matched row, and a common-prefix query (e.g.
+-- "de*" on a Spanish corpus) wedges the whole process at 100% CPU.
+${SEARCH_INDEX_DDL_FTS5}
 
 CREATE TABLE IF NOT EXISTS search_index_docid (
     node_id TEXT PRIMARY KEY,
     docid INTEGER NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_search_index_docid_docid
+    ON search_index_docid (docid);
 
 CREATE TABLE IF NOT EXISTS node_stats (
     node_id TEXT PRIMARY KEY,
@@ -312,8 +320,8 @@ CREATE TABLE IF NOT EXISTS app_meta (
 `;
 
 const SCHEMA_SQL_FTS4 = SCHEMA_SQL.replace(
-  "USING fts5(content, tokenize = 'unicode61')",
-  "USING fts4(content, tokenize = 'unicode61')",
+  SEARCH_INDEX_DDL_FTS5,
+  SEARCH_INDEX_DDL_FTS5.replace("fts5(", "fts4("),
 );
 
 /** Create or upgrade the derived schema in ``db`` (PRAGMA user_version). */

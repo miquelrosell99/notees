@@ -197,7 +197,16 @@ export class WorkerCore {
       ...(options.onConflict !== undefined ? { onConflict: options.onConflict } : {}),
       ...(options.onSyncError !== undefined ? { onSyncError: options.onSyncError } : {}),
     });
-    const core = new WorkerCore(client, options, setTimeout, clearTimeout);
+    const core = new WorkerCore(
+      client,
+      options,
+      // Bind the host timers: these are stored and called later as plain
+      // functions, and DOM-defined timers (WorkerGlobalScope.setTimeout)
+      // throw "Illegal invocation" when detached from their `this` — Node's
+      // timers don't, which is why no in-process test ever caught it.
+      setTimeout.bind(globalThis),
+      clearTimeout.bind(globalThis),
+    );
     client.subscribe(() => {
       core.schedulePersist();
       options.onNotify?.();

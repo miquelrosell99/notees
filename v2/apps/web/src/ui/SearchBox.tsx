@@ -62,9 +62,17 @@ function toHitsFromQuery(rows: QueryRunResult["rows"]): Hit[] {
 export function SearchBox({
   client,
   onOpenNode,
+  cacheVersion,
 }: {
   client: AnyClient;
   onOpenNode: (nodeId: string) => void;
+  /**
+   * Bumped by the App on every client notification. Cached reads (search
+   * included) resolve asynchronously after the seed value, so the effect must
+   * re-run when the cache refreshes — otherwise a search typed before the
+   * worker answers stays at its seeded "No results." forever.
+   */
+  cacheVersion: number;
 }) {
   const [input, setInput] = useState("");
   const [state, setState] = useState<SearchState>({ kind: "idle" });
@@ -99,7 +107,9 @@ export function SearchBox({
           setState({ kind: "error", message: error instanceof Error ? error.message : String(error) });
         }
       });
-  }, [input, client]);
+    // cacheVersion: cached reads resolve asynchronously after their seed;
+    // re-run when the cache refreshes so results never freeze at the seed.
+  }, [input, client, cacheVersion]);
 
   return (
     <div className="nt-search">
