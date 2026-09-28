@@ -1,0 +1,47 @@
+{
+  "name": "@notees/query",
+  "version": "0.1.0-m1",
+  "description": "Notees v2 query engine: versioned QueryAST model + parameterized SQLite compiler over the derived store.",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@notees/protocol": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@notees/domain": "workspace:*",
+    "@notees/store": "workspace:*",
+    "@types/node": "^20.14.0",
+    "@types/sql.js": "^1.4.9",
+    "better-sqlite3": "^11.0.0",
+    "sql.js": "^1.10.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com:miquelrosell99/notees.git",
+    "directory": "packages/query"
+  }
+}

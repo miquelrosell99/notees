@@ -1,73 +1,78 @@
-# Notees
+# Notees v2
 
-A self-hosted, privacy-first, local-first note-taking application with bidirectional linking and offline support.
+**One object graph. The operation log is the only authority. Every interface — UI, CLI, API, export — is a projection of the same derived state.**
 
-![Python](https://img.shields.io/badge/python-3.12+-blue.svg)
-![React](https://img.shields.io/badge/react-19-61dafb.svg)
-![TypeScript](https://img.shields.io/badge/typescript-6-3176c6.svg)
-![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
+Notees is a local-first personal knowledge environment: a single node table for pages, blocks, and classes; three information layers (attributes, discourse links, plain prose) feeding one edge index; and an append-only op log that syncs between your devices and converges without a server you have to trust.
 
-## What is Notees?
+It is also a greenfield rewrite at **M1 alpha**. The model below is settled; the surface is young. See [Status](#status-m1-alpha) before planning your workflow around it.
 
-Notees is a local-first, self-hosted note-taking app. Your workspace data lives in a client-side SQLite database inside the browser; edits happen instantly and sync to your own server when you are online. It supports wiki-style `[[links]]`, backlinks, block-based editing, daily journals, tasks, queries, graph view, whiteboards, flashcards, and plugins.
+## The five bets
 
-The mobile app is a native Flutter companion focused on phone workflows. It lives in its own repository: [miquelrosell99/notees-flutter](https://github.com/miquelrosell99/notees-flutter).
+Five design decisions no competitor makes, which together define what Notees is ([why we made them](docs/philosophy.md)):
 
-## Documentation
+| # | Bet | What it means |
+|---|---|---|
+| 1 | **Op log as sole authority** | Event-sourced storage: append-only, idempotent, local-first, total offline, with an E2EE slot in the protocol. SQLite is a rebuildable projection, never the truth. |
+| 2 | **Unified node table — classes are nodes** | Pages, blocks, and classes are rows of one table with one identity scheme. Inheritance (`extends`) is an m2m property on class nodes; the hierarchy closure is derived, not stored. |
+| 3 | **Typed discourse links as marks on prose words** | "X *contradicts* Y" is a mark on the word you wrote — a verb in your sentence, not a field in a form. Verbs group backlinks and color the graph. |
+| 4 | **Two-way link propagation along the tree** | Backlinks roll up to containing pages, and links inherit down the tree: `refset(n) = own_links(n) ∪ refset(parent(n))`. Containment is context; nobody tags anything. |
+| 5 | **Agent-first surface** | Scoped API keys, one grammar for humans and machines, and a full CLI from M1. Agents are peers of the UI, not plugins bolted on later. |
 
-- [Installation](docs/installation.md) — prerequisites, development stack, production deployment
-- [Configuration](docs/configuration.md) — environment variables, security settings, first-boot registration
-- [Usage](docs/usage.md) — pages/blocks, links, journals, tasks, queries, graph/whiteboard, export, offline use
-- [Developer Guide](docs/developer-guide.md) — project structure, tests, lint, local development, key conventions
-- [Architecture](docs/architecture.md) — technical architecture: data model, query layer, sync, performance
-- [API Reference](docs/api.md) — REST API and operation relay endpoints
-- [Plugins](docs/plugins.md) — plugin system, manifest, built-in plugins
-- [Troubleshooting](docs/troubleshooting.md) — common issues and fixes
-- [FAQ](docs/faq.md) — frequently asked questions
-- [Security Policy](docs/SECURITY.md)
-- [Changelog](docs/CHANGELOG.md)
+## Status: M1 alpha
 
-## Quick Start
+The model is implemented; the product around it is a slice. We say exactly which is which in every document — [philosophy](docs/philosophy.md) for the ideas, [usage](docs/usage.md) for what you can run now, [ux](docs/ux.md) for the interaction model (each feature labeled Today or Designed).
+
+**Works today**
+
+- Object model — pages, blocks, classes over one node table, with `node_type`, tree placement, class membership, and content tokens (the full SCHEMA.md grammar)
+- Local-first sync engine — outbox push, seq-cursor catch-up, snapshot shortcut, optimistic local apply
+- Fastify server — relay (batch/catch-up/snapshot/compact/stats + WebSocket), object API, CAS asset storage
+- CLI — object CRUD, search, backlinks, class list, asset add/get, sync status, doctor
+- Web client — interactive outliner (text core, marks editing, `@`/`#`/`+` capture gestures, collapse, prose mode, drag reorder), Page View + Class View (editable property bindings), system sections with the lazy-loading contract, live embed transclusion, whiteboard canvas, WebSocket realtime with sync status, OPFS persistence in a worker
+- Live query blocks (query tokens render results with a builder + export-on-query), citations (BibTeX/CSL round-trip; sources carry files via `attachments` and notes as child blocks), class-property defaults as a derived read model (first-applied-wins), Markdown export (CLI: `--ids` / `--linked-to` closures)
+
+**Designed, coming**
+
+- M2 — research environment: interactive outliner editor, typed-link capture UX, whiteboards UI, citations/bibliography, annotations on assets, Markdown export, typed-link target resolution
+- M3 — trust & extension: E2EE activation, plugin runtime, multi-user, realtime collaboration
+
+## Quickstart
+
+Prereqs: Node 22+, pnpm 9. From the repo root:
 
 ```bash
-# Configure environment
-cp .env.example .env
-# Edit .env and set SECRET_KEY, ADMIN_PASSWORD, POSTGRES_PASSWORD
-
-# Run the development stack
-task dev
-# Or: docker compose -f compose.dev.yaml up
+pnpm install
+export NOTEES_DATA_DIR=$PWD/data          # relay log, assets, and the key file live here
+pnpm --filter @notees/server dev &        # 1. start the server (port 8377)
+export NOTEES_SERVER=http://localhost:8377
+export NOTEES_API_KEY=$(cat data/api_key.txt)   # generated on first boot, logged once
+pnpm --filter @notees/cli dev -- doctor   # 2. verify reachability + auth
+pnpm --filter @notees/cli dev -- object create --nodeType page --name "Hello Notees"   # 3. a page exists
 ```
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8001
+The full walkthrough — server env, a real CLI session, the web app, the object API — is in [docs/usage.md](docs/usage.md).
 
-For production deployment, see [docs/installation.md](docs/installation.md#production-deployment).
+## Docs
 
-## AI-Assisted Development
+- [docs/philosophy.md](docs/philosophy.md) — the ideas: op-log truth, the design law, single-sourcing, classes as nodes, UUID identity, and the wounds that became our rules
+- [docs/usage.md](docs/usage.md) — install, run, CLI tutorial, web app, object API reference
+- [docs/ux.md](docs/ux.md) — the interaction model: outliner, system sections, marks on words, whiteboards, promotion (Today vs Designed per feature)
+- [.plans/design/](.plans/design/) — the normative design stack (`00-INDEX.md`, `01-knowledge-model.md`, `02-model-assessment.md`, `03-paradigm-assessment.md`)
+- [packages/protocol/SCHEMA.md](packages/protocol/SCHEMA.md) — content grammar, node structure, typed-link tokens, sections contract (normative)
+- [packages/protocol/WIRE.md](packages/protocol/WIRE.md) — relay wire spec: envelopes, endpoints, WebSocket framing
 
-This project was developed with the assistance of AI tools. AI was used throughout the development process to help design architecture, write code, and solve problems.
+## Layout
 
-## Contributing
+- `packages/protocol` — envelopes, HLC, op registry, content grammar, canonical fixtures
+- `packages/domain` — display-name derivation, seeds, shared domain logic
+- `packages/store` — SQLite derived state (server: better-sqlite3; web: sql.js)
+- `packages/sync` — SyncEngine: outbox, catch-up, snapshot restore
+- `packages/query`, `packages/search`, `packages/editor`, `packages/api-client`, `packages/plugin-sdk` — per-milestone scope (see plan assessment §34.3)
+- `apps/server`, `apps/web`, `apps/cli` — the three surfaces you can run today
 
-Contributions are welcome!
+## Development
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-See [Developer Guide](docs/developer-guide.md) for tests and linting commands.
-
-## License
-
-Notees is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
-
-This ensures the software remains free and open-source, even when used over a network. If you modify and deploy Notees as a web service, you must make your source code available to users.
-
-See the [LICENSE](LICENSE) file for the full license text.
-
-## Acknowledgments
-
-Inspired by tools like Roam Research, Logseq, and Obsidian. Built with FastAPI, React, and PostgreSQL.
+```bash
+pnpm test        # all packages
+pnpm typecheck   # all packages
+```

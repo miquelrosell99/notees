@@ -1,8 +1,6 @@
-# Notees v2 — production stack (notees-sync server + notees-web client).
-# Images are prebuilt and published to ghcr (see v2/apps/*/Dockerfile);
-# tags are pinned per release. Dev stack: compose.dev.yaml (v1, legacy).
-# Data lives under ./config/notees/ (gitignored); the v1 app data in ./data/
-# is untouched by this stack.
+# Notees — production stack (notees-sync server + notees-web client).
+# Images are prebuilt and published to ghcr (see apps/*/Dockerfile);
+# tags are pinned per release. Data lives under ./config/notees/ (gitignored).
 
 services:
   notees-sync:
