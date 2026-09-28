@@ -68,16 +68,15 @@ export interface CompileOptions {
 /**
  * Prefix-AND FTS match expression (port of the store's buildMatchQuery —
  * kept here so the query package stays standalone, dependency-free). Each
- * whitespace term becomes a bare prefix token (`term*`), all terms ANDed;
- * non-alphanumerics are dropped per term (unicode61 discards them anyway and
- * bare tokens must not carry FTS query syntax). Null when nothing searchable
- * remains.
+ * maximal run of letters/digits becomes a bare prefix token (`term*`), all
+ * terms ANDed; splitting at every non-alphanumeric boundary mirrors the
+ * unicode61 tokenizer ("11607-1" → `11607* AND 1*`). Null when nothing
+ * searchable remains.
  */
 export function buildMatchExpression(query: string): string | null {
   const terms = query
     .trim()
-    .split(/\s+/)
-    .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ""))
+    .split(/[^\p{L}\p{N}]+/u)
     .filter((t) => t.length > 0);
   if (terms.length === 0) return null;
   return terms.map((t) => `${t}*`).join(" AND ");
