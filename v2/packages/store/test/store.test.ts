@@ -1318,6 +1318,27 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.search("Gamma")).toEqual([]);
       expect(store.search("Beta")).toEqual([{ nodeId: id }]);
     });
+
+    it("matches hyphenated identifiers across the punctuation boundary", () => {
+      const store = baseStore();
+      const id = "0192a000-0000-7000-8000-0000000000d1";
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: id,
+            nodeType: "page",
+            name: "Standards",
+            contentAst: [{ type: "text", text: "Packaging validation per ISO 11607-1" }],
+          },
+          1727200002000,
+        ),
+      );
+      // unicode61 indexes "11607-1" as the tokens 11607 and 1; the query must
+      // split at the same boundary instead of merging into "116071".
+      expect(store.search("11607-1")).toEqual([{ nodeId: id }]);
+      expect(store.search("ISO 11607")).toEqual([{ nodeId: id }]);
+    });
   });
 
   describe("backlinksWithRollup (source-side containment roll-up, 01 §8)", () => {

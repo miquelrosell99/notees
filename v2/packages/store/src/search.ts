@@ -40,19 +40,20 @@ export function reindexNode(db: StoreDatabase, nodeId: string): void {
 }
 
 /**
- * Prefix-AND FTS query (v1 client search pattern): each whitespace term
- * becomes a bare prefix token, all terms ANDed. Bare tokens (not quoted
- * prefix phrases) are the intersection of the FTS4 and FTS5 query languages
- * — FTS5's `"term"*` quoted-phrase prefix is a silent no-match on FTS4
- * (stock sql.js). Non-alphanumeric characters are dropped per term: the
- * unicode61 tokenizer discards them either way, and bare tokens must not
- * carry FTS query syntax (quotes, parens, colons).
+ * Prefix-AND FTS query (v1 client search pattern): each maximal run of
+ * letters/digits becomes a bare prefix token, all terms ANDed. Splitting at
+ * every non-alphanumeric boundary mirrors the unicode61 tokenizer (which
+ * splits indexed text at the same boundaries), so "11607-1" compiles to
+ * `11607* AND 1*` and matches the indexed tokens instead of merging into a
+ * nonexistent "116071". Bare tokens (not quoted prefix phrases) are the
+ * intersection of the FTS4 and FTS5 query languages — FTS5's `"term"*` quoted
+ * phrase prefix is a silent no-match on FTS4 (stock sql.js) — and bare tokens
+ * must not carry FTS query syntax (quotes, parens, colons).
  */
 export function buildMatchQuery(query: string): string | null {
   const terms = query
     .trim()
-    .split(/\s+/)
-    .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ""))
+    .split(/[^\p{L}\p{N}]+/u)
     .filter((t) => t.length > 0);
   if (terms.length === 0) return null;
   return terms.map((t) => `${t}*`).join(" AND ");
