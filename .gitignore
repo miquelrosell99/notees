@@ -1,67 +1,11 @@
-# Config and data directories
-.config/
-/data/
-postgres_data/
-
-ai/
-
-# Python cache
-**/__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-
-# Virtual environment
-.venv/
-venv/
-env/
-ENV/
-
-# Environment variables
-.env
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.clj-kondo/.cache/
-.lsp/.cache/
-
-# Logs
-logs/
-*.log
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build
-*.egg-info/
+node_modules/
 dist/
-build/
-frontend/static/dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
 
-# Development instance tracking
-.dev_pids.json
-
-# Cache
-.pytest_cache/
-.ruff_cache/
-htmlcov/
-
-# Temp files
-logs.txt
-frontend/lint-errors.txt
-frontend/lint-final.txt
-.coverage
-
-.github/prompts/Base.prompt.md
-.github/copilot-instructions.md
-.coverage
-.worktrees/
-
-# v2 production stack runtime data
+# Environment and runtime data (never tracked)
+.env
 config/
+apps/server/data/
+scripts/migrated-verify/

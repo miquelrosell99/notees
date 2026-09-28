@@ -1,76 +1,41 @@
 # AGENTS.md
 
-Self-hosted, privacy-first, local-first note-taking application with FastAPI backend and React frontend.
+Notees — a self-hosted, privacy-first, local-first **personal information environment**: one object graph (nodes with `node_type ∈ {page, block, class}`, typed properties, typed link marks, assets) whose only authority is an immutable **operation log**; every SQLite database (server, browser worker, CLI) is a derived projection of that log. TypeScript everywhere (Node 22, pnpm 9).
 
-Formal docs live under `skills/`. Read `skills/*/SKILL.md` — default to `primary: true` skill; only switch when task clearly matches another skill's description.
+This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React codebase is removed; it remains reachable at git tag **`v1-archive`** (runtime data archived outside the repo at `/etc/periphery/stacks/notees-v1-data-archive/`).
 
-Conflicts between loaded project instructions → formal docs in `skills/notees/` win. This does not override harness-native skill name precedence.
+## Layout
 
-## Documentation layout (v2)
+- `packages/protocol` — op wire spec, envelopes, fixtures (the convergence gate corpus), `SCHEMA.md` (normative model + owed-work register)
+- `packages/domain` — seeds (fixed system-class UUIDs), name derivation
+- `packages/store` — derived SQLite schema + appliers; one TS implementation, three backends (better-sqlite3, sql.js)
+- `packages/sync` — SyncEngine (HLC + server seq, snapshots, compaction, WebSocket)
+- `packages/query` — QueryAST model + SQLite compiler
+- `packages/export` — Markdown/BibTeX round-trips
+- `apps/server` — sync relay + object API + CAS assets (`notees-sync` image)
+- `apps/web` — React/Vite outliner editor + worker (`notees-web` image)
+- `apps/cli` — object/property/search surface over the public API
+- `docs/` — **user-facing only** (usage, philosophy, ux)
+- `.plans/` — internal: decision record (`2026-09-24-object-graph-pim-evolution/`), design stack (`design/`), dev docs (`dev/`: architecture, development, deployment, sdk-publishing)
+- `.audits/` — internal audit reports
+- Internal notes never go in `docs/`; user docs never go in dot-folders.
 
-- `v2/docs/` — **user-facing only** (usage, philosophy, ux).
-- `v2/.plans/` — internal plans, the decision record (`2026-09-24-object-graph-pim-evolution/`), the design stack (`design/`), and dev docs (`dev/`: architecture, development, deployment).
-- `v2/.audits/` — internal audit reports (evidence-based assessments, gap analyses, competitive sweeps).
+## Commands
 
-Internal project notes never go in `docs/`; user-facing docs never go in dot-folders.
+- Install: `pnpm install` · Build: `pnpm -r --workspace-concurrency=1 build` · Test: `pnpm test` (all green = blocking gate)
+- After changing a package's public API, rebuild its dist before typechecking dependents (dev-condition exports: vitest reads `src`, `tsc` reads `dist`).
+- Deploy: `docker compose up -d --force-recreate` (images built from `apps/*/Dockerfile`, context = repo root). Smoke: `node scripts/screenshots/verify-min.mjs` (run from `scripts/screenshots/`).
 
-## v2 repo split & SDK — STATUS (owner decision, in progress)
+## Invariants (design law — see `.plans/` decision record §34)
 
-Owner decided (2026-09-26): split into `notees-sync` + `notees-web` repos **inside this folder** (`/etc/periphery/stacks/notees/{notees-sync,notees-web}`), deployed by a **folder-level `compose.yaml`** at `/etc/periphery/stacks/notees/compose.yaml`; existing `notees-gtk`/`notees-flutter` stay separate. The monorepo (this repo, `v2/`) remains the source of truth for the shared packages and the fixture gate.
+- The operation log is the only authority; semantic state only — device state is never an op.
+- Conflict semantics: LWW by HLC (scalars, property values), OR-Set add-wins (class membership), CRDT only for collaborative text/tree. No CRDT-everywhere.
+- New op types are additive and require protocol fixtures exercising every client applier (TS is the reference; GTK/Flutter lockstep) before implementation counts as complete.
+- Identity is UUIDv7 everywhere; titles/paths/citekeys are attributes, never identity.
+- Sync server (PostgreSQL relay) is coordination, not the object database.
 
-**Decided 2026-09-26 (owner, after friction assessment):** NO repo split for now — the monorepo stays the single source of truth (splitting without a published SDK produced non-standalone repos and weakened the one-semantics gate). Deployment independence is achieved as **two services from one repo**: Dockerfiles at `v2/apps/server/Dockerfile` + `v2/apps/web/Dockerfile`, deployed by the folder-level `/etc/periphery/stacks/notees/compose.yaml` (services `notees-sync` + `notees-web`). The repo split is parked as a post-SDK decision (revisit once `@notees/*` is published and a consumer needs independent cadence). The earlier status:
+## Parked decisions (owner)
 
-**Pending:**
-- **SDK publish — BLOCKED on an npmjs token** (owner doesn't have one; GitHub Packages rejects the `@notees/*` scope — it must equal the owner). Publish infra is READY: tsup builds per package, `pnpm release` in `v2/`, flow in `v2/.plans/dev/sdk-publishing.md`. Owner action: create a free token at npmjs.com, then run the release flow.
-- **Client lockstep — current with TS (unpushed)**: `notees-gtk@protocol-v2` (12 commits, 359 tests) and `notees-flutter@protocol-v2` (9 commits, 341 tests) — class-property ops + effective read model; citations seed revision (song/tv_series/conference, authors-as-text, linkedAuthors). Structural note: GTK has NO seed manifest (seeds arrive via catch-up; parity pinned by an apply-surface test); Flutter's local-mode seed is a deliberate subset (full seed via server catch-up). Live e2e (GTK vs real server) green. Known unported (low severity): Yjs `contentDeltaB64` carrier, node_link analytics rows. **Awaiting owner approval to push.**
-
-<!-- The <always-applicable> and <task-routing> XML tags below are load-bearing.
-     Rationale: LLMs parse XML-tag blocks as discrete hard-constraint sections
-     more reliably than plain markdown headings, especially after context
-     compression. See skill's references/thin-shells.md § XML-Tag Injection. -->
-
-<always-applicable>
-
-**Always Read (every task, in addition to route-specific reads)**
-
-<!-- ALWAYS_READ_START -->
-- `skills/notees/rules/project-rules.md`
-- `skills/notees/rules/coding-standards.md`
-- `skills/notees/rules/agent-behavior.md`
-<!-- ALWAYS_READ_END -->
-
-**Route-before-routing check**: if the request contains vague improvement verbs ("refactor / clean up / optimize / make it better / 整理 / 重构 / 优化") **without** a concrete module/file or verifiable outcome → stop and ask for scope. Do not offer partial plans; see `skills/notees/protocol-blocks/ambiguous-request-gate.md` if present.
-
-</always-applicable>
-
-Route metadata lives in `skills/notees/routing.yaml`; the bootstrap below tells agents how to match it.
-
-<task-routing>
-
-**Quick Routing (survives context truncation)**
-
-<!-- ROUTING_BOOTSTRAP_START -->
-Task routes live in `skills/notees/routing.yaml`.
-
-For every new task:
-1. Read `skills/notees/routing.yaml`.
-2. Match by `labels`, `trigger_examples`, and task intent.
-3. Read only that route's `required_reads` plus Always Read files.
-4. Follow that route's `workflow`.
-5. If no route matches, use the `other` route.
-<!-- ROUTING_BOOTSTRAP_END -->
-
-</task-routing>
-
-<!-- BEHAVIOR_BLOCK_START -->
-## Auto-Triggers
-
-- **New task in same session** → always re-match the route (Common Tasks / `routing.yaml`); the new task may need a different route. Re-read the route's files only if the route changed or context was compacted (a fresh `skills/notees/SKILL.md` injection is the signal) — unchanged background stays in context, don't re-read it every task. Can't tell if context compacted? Re-read.
-- Before declaring any non-trivial task complete → run Task Closure Protocol (see `skills/notees/workflows/task-closure.md`)
-- Skip closure only for: formatting-only, comment-only, dependency-version-only, or behavior-preserving refactors
-- When user asks to "record/save/remember" something → project-level knowledge goes to `skills/notees/` docs; personal preferences go to agent memory
-
-## Red Flags — STOP
-
-- "Just this once I'll skip the AAR" → stop. See `skills/notees/workflows/task-closure.md` § Rationalizations to Reject.
-<!-- BEHAVIOR_BLOCK_END -->
+- **SDK publish — BLOCKED on an npmjs token** (GitHub Packages rejects the `@notees/*` scope). Publish infra is ready: `pnpm release`, flow in `.plans/dev/sdk-publishing.md`.
+- **Client lockstep — current with TS (unpushed)**: `notees-gtk@protocol-v2` and `notees-flutter@protocol-v2` (sibling repos) carry the class-property + citations protocol; awaiting owner approval to push.
+- Repo split (notees-sync / notees-web) — parked until the SDK is published; two services from one monorepo for now.
