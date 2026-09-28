@@ -30,6 +30,7 @@ import { Store } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 
 import {
+  buildMatchExpression,
   compile,
   compileAggregate,
   countQuery,
@@ -1093,5 +1094,21 @@ describe.each(adapters)("$name", ({ makeStore }) => {
         runQuery(store, ast(entire, [{ type: "property", schemaId: OPENED, op: "lte", value: "1937-05-06" }])).ids.sort(),
       ).toEqual([FRANCE, PARIS, LONE].sort());
     });
+  });
+});
+
+describe("buildMatchExpression (FTS match compilation)", () => {
+  it("splits terms at punctuation boundaries the way unicode61 tokenizes", () => {
+    expect(buildMatchExpression("ISO 11607-1")).toBe("ISO* AND 11607* AND 1*");
+    expect(buildMatchExpression("state-of-the-art")).toBe("state* AND of* AND the* AND art*");
+  });
+
+  it("keeps plain terms as bare prefix tokens and ANDs them", () => {
+    expect(buildMatchExpression("Kuhn Scient")).toBe("Kuhn* AND Scient*");
+  });
+
+  it("returns null when nothing searchable remains", () => {
+    expect(buildMatchExpression("---")).toBeNull();
+    expect(buildMatchExpression("   ")).toBeNull();
   });
 });
