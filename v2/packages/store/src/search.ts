@@ -57,3 +57,67 @@ export function buildMatchQuery(query: string): string | null {
   if (terms.length === 0) return null;
   return terms.map((t) => `${t}*`).join(" AND ");
 }
+
+// --- cross-backend restore (FTS module mismatch) -------------------------------
+//
+// Server-produced snapshots carry an FTS5 search_index (better-sqlite3), which
+// stock sql.js (FTS4-only) can neither query nor maintain — every search and
+// every reindex throws "no such module: fts5". The index is derived state, so
+// the fix is to detect the mismatch at restore time and rebuild the table
+// with the locally compiled module, reindexing from node name + content.
+
+/**
+ * True when a trivial query against search_index succeeds with the locally
+ * compiled fts modules. False covers both a missing module (cross-backend
+ * snapshot) and a missing/corrupt table — both are rebuilt the same way.
+ */
+export function isSearchIndexQueryable(db: StoreDatabase): boolean {
+  try {
+    db.prepare("SELECT content FROM search_index LIMIT 1").get();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove the search_index virtual table WITHOUT requiring its fts module.
+ * The shadow tables are plain tables (normal DROP); the virtual table's own
+ * sqlite_master row is then removed directly (writable_schema) because
+ * `DROP TABLE search_index` would re-resolve the missing module and throw.
+ * The caller must re-open the database afterwards — the connection's schema
+ * cache is stale after direct sqlite_master edits.
+ */
+export function dropSearchIndex(db: StoreDatabase): void {
+  db.exec(`
+    DROP TABLE IF EXISTS search_index_data;
+    DROP TABLE IF EXISTS search_index_idx;
+    DROP TABLE IF EXISTS search_index_config;
+    DROP TABLE IF EXISTS search_index_docsize;
+    DROP TABLE IF EXISTS search_index_content;
+    DROP TABLE IF EXISTS search_index_segments;
+    DROP TABLE IF EXISTS search_index_segdir;
+    DROP TABLE IF EXISTS search_index_stat;
+  `);
+  try {
+    db.exec("DROP TABLE IF EXISTS search_index");
+  } catch {
+    db.exec("PRAGMA writable_schema=ON");
+    db.exec("DELETE FROM sqlite_master WHERE type='table' AND name='search_index'");
+    db.exec("PRAGMA writable_schema=OFF");
+  }
+}
+
+/**
+ * Reindex every active node from its stored name + content (derived plaintext
+ * via reindexNode). Wraps the scan in a transaction; the docid map is cleared
+ * first because the rowids it references belonged to the dropped table.
+ */
+export function reindexAllSearch(db: StoreDatabase): void {
+  const run = db.transaction(() => {
+    db.exec("DELETE FROM search_index_docid");
+    const rows = db.prepare("SELECT id FROM node WHERE is_active = 1").all() as { id: string }[];
+    for (const row of rows) reindexNode(db, row.id);
+  });
+  run();
+}

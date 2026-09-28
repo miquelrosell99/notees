@@ -144,6 +144,13 @@ export class SyncEngine {
   }
 
   private setStatus(status: SyncStatus, error: Error | null = null): void {
+    if (error !== null) {
+      // Surface sync/realtime failures with their full stack: the UI footer
+      // shows only the message, and the worker RPC boundary drops stacks
+      // entirely (handleMessage serializes { error: message }), so without
+      // this the original throw site is unrecoverable.
+      console.error(`[notees-sync] status=${status}:`, error.stack ?? error.message);
+    }
     this.status = status;
     this.lastError = error;
     this.callbacks.onStatusChange?.(status, error);
