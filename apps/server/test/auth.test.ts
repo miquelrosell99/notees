@@ -231,3 +231,182 @@ describe("relay authorization for accounts", () => {
     expect(response.statusCode).toBe(200);
   });
 });
+
+describe("api keys", () => {
+  it("minted keys authenticate as their owner and list workspaces", async () => {
+    server = await makeTestServer();
+    const session = (await setupAdmin()).json().token as string;
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/api-keys",
+      headers: { authorization: `Bearer ${session}` },
+      payload: { name: "laptop CLI" },
+    });
+    expect(created.statusCode).toBe(201);
+    const key = created.json().token as string;
+    expect(key).toMatch(/^nk_[A-Za-z0-9_-]{40}$/);
+    expect(created.json().apiKey.prefix).toBe(key.slice(0, 12));
+
+    const workspaces = await server.app.inject({
+      method: "GET",
+      url: "/api/v1/workspaces",
+      headers: { authorization: `Bearer ${key}` },
+    });
+    expect(workspaces.statusCode).toBe(200);
+    expect(workspaces.json().workspaces.length).toBeGreaterThan(0);
+  });
+
+  it("key management is session-only; keys cannot mint keys", async () => {
+    server = await makeTestServer();
+    const session = (await setupAdmin()).json().token as string;
+    const key = (
+      await server.app.inject({
+        method: "POST",
+        url: "/api/v1/api-keys",
+        headers: { authorization: `Bearer ${session}` },
+        payload: { name: "k" },
+      })
+    ).json().token as string;
+    const denied = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/api-keys",
+      headers: { authorization: `Bearer ${key}` },
+      payload: { name: "nested" },
+    });
+    expect(denied.statusCode).toBe(401);
+  });
+
+  it("revoked keys stop authenticating; keys cannot manage themselves", async () => {
+    server = await makeTestServer();
+    const session = (await setupAdmin()).json().token as string;
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/api-keys",
+      headers: { authorization: `Bearer ${session}` },
+      payload: { name: "temp" },
+    });
+    const { id } = created.json().apiKey as { id: string };
+    const key = created.json().token as string;
+
+    const revoked = await server.app.inject({
+      method: "DELETE",
+      url: `/api/v1/api-keys/${id}`,
+      headers: { authorization: `Bearer ${session}` },
+    });
+    expect(revoked.statusCode).toBe(200);
+    const me = await server.app.inject({
+      method: "GET",
+      url: "/api/v1/auth/me",
+      headers: { authorization: `Bearer ${key}` },
+    });
+    expect(me.statusCode).toBe(401);
+  });
+
+  it("an api key syncs the relay with its owner's memberships", async () => {
+    server = await makeTestServer();
+    const session = (await setupAdmin()).json().token as string;
+    const key = (
+      await server.app.inject({
+        method: "POST",
+        url: "/api/v1/api-keys",
+        headers: { authorization: `Bearer ${session}` },
+        payload: { name: "sync" },
+      })
+    ).json().token as string;
+    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), nodeType: "page", name: "Via key" } });
+    const response = await server.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      payload: { envelopes: [env] },
+    });
+    expect(response.statusCode).toBe(200);
+  });
+});
+
+describe("per-account lockout", () => {
+  it("locks after 5 failures for 15 minutes, even with the right password", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    const bad = { email: "admin@example.com", password: "wrong-password" };
+    // Failures 1–4 answer 401; the 5th crosses the threshold and answers 429.
+    for (let i = 0; i < 4; i += 1) {
+      const response = await server.app.inject({ method: "POST", url: "/api/v1/auth/login", payload: bad });
+      expect(response.statusCode).toBe(401);
+    }
+    const fifth = await server.app.inject({ method: "POST", url: "/api/v1/auth/login", payload: bad });
+    expect(fifth.statusCode).toBe(429);
+    expect(fifth.json().error.code).toBe("account_locked");
+    // The next attempt with the CORRECT password is refused while locked.
+    const locked = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { email: "admin@example.com", password: "admin-password-1" },
+    });
+    expect(locked.statusCode).toBe(429);
+    expect(locked.json().error.code).toBe("account_locked");
+  });
+
+  it("a successful login clears the failure count", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    for (let i = 0; i < 3; i += 1) {
+      await server.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/login",
+        payload: { email: "admin@example.com", password: "wrong-password" },
+      });
+    }
+    const good = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { email: "admin@example.com", password: "admin-password-1" },
+    });
+    expect(good.statusCode).toBe(200);
+    // Failures were reset: it takes a full 5 again to lock.
+    for (let i = 0; i < 4; i += 1) {
+      const response = await server.app.inject({
+        method: "POST",
+        url: "/api/v1/auth/login",
+        payload: { email: "admin@example.com", password: "wrong-password" },
+      });
+      expect(response.statusCode).toBe(401);
+    }
+    const stillOpen = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { email: "admin@example.com", password: "admin-password-1" },
+    });
+    expect(stillOpen.statusCode).toBe(200);
+  });
+});
+
+describe("password-derived encryption keys", () => {
+  it("setup and login return the kdf record; it backfills lazily", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    expect(setup.statusCode).toBe(201);
+    const kdf = setup.json().kdf;
+    expect(kdf.algorithm).toBe("scrypt");
+    expect(kdf.N).toBe(131072);
+    expect(typeof kdf.salt).toBe("string");
+    expect(typeof kdf.wrappedMasterKey).toBe("string");
+    expect(typeof kdf.keyVerifier).toBe("string");
+
+    // Accounts created directly in storage (no setup) get the record on login.
+    const legacy = server.ctx.auth.createUser({
+      email: "legacy@example.com",
+      passwordHash: await hashPassword("legacy-password-1"),
+    });
+    const login = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/auth/login",
+      payload: { email: "legacy@example.com", password: "legacy-password-1" },
+    });
+    expect(login.statusCode).toBe(200);
+    expect(login.json().kdf.wrappedMasterKey).toBeTruthy();
+    // The record persisted: a second login returns the SAME wrapped key.
+    const stored = server.ctx.auth.getKdfRecord(legacy.id);
+    expect(stored?.wrappedMasterKey).toBe(login.json().kdf.wrappedMasterKey);
+  });
+});

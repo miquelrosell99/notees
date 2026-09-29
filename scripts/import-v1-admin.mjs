@@ -92,6 +92,11 @@ if (existing !== null) {
 const existingUser = auth.findUserByEmail(email);
 if (existingUser === null) throw new Error(`user ${email} vanished after import`);
 const userId = existingUser.id;
+// Password-derived encryption key record (E2EE groundwork): backfilled now,
+// while the plaintext password is at hand, for accounts imported before the
+// KDF columns existed. Idempotent — skipped when a record exists.
+const kdf = await auth.ensureKdfRecord(userId, password);
+console.log(`kdf record present for user (scrypt N=${kdf.N}).`);
 const workspaces = auth.listAllWorkspaceIds();
 for (const workspaceId of workspaces) {
   try {
