@@ -5,11 +5,14 @@
  * batch frames, and the object/assets API share this one path).
  */
 
+import { randomBytes } from "node:crypto";
+
 import { Clock } from "@notees/protocol";
 import type { Envelope } from "@notees/protocol";
 
 import type { ServerConfig } from "./config.js";
 import { actorIdForKey, defaultWorkspaceId } from "./identity.js";
+import { AuthStorage, hashPassword } from "./auth.js";
 import { EnvelopeFactory } from "./envelope-factory.js";
 import { AppError } from "./errors.js";
 import { FixedWindowLimiter } from "./rate-limit.js";
@@ -27,29 +30,49 @@ export class ServerContext {
   readonly actorId: string;
   readonly clock: Clock;
   readonly relay: RelayStorage;
+  readonly auth: AuthStorage;
   readonly workspaces: WorkspaceManager;
   readonly factory: EnvelopeFactory;
   readonly bus: SubscriptionBus;
-  readonly limiters: { relayBatch: FixedWindowLimiter; global: FixedWindowLimiter };
+  readonly limiters: {
+    relayBatch: FixedWindowLimiter;
+    global: FixedWindowLimiter;
+    login: FixedWindowLimiter;
+  };
   readonly defaultWorkspace: string;
+  readonly serverVersion: string;
+  /**
+   * Hash of a random unreachable password: the login endpoint verifies
+   * against it when the email is unknown so response time reveals nothing.
+   */
+  dummyPasswordHash = "";
 
   private readonly seededWorkspaces = new Set<string>();
   private readonly seedingInFlight = new Map<string, Promise<SeedResult>>();
 
-  constructor(readonly config: ServerConfig) {
+  constructor(readonly config: ServerConfig, serverVersion = "dev") {
     this.actorId = actorIdForKey(config.apiKey);
+    this.serverVersion = serverVersion;
     this.relay = new RelayStorage(
       `${config.dataDir}/relay.db`,
       `${config.dataDir}/snapshots`,
     );
+    this.auth = new AuthStorage(`${config.dataDir}/relay.db`);
     // Seed the device clock from the log so server-stamped HLCs never regress
     // across restarts.
     this.clock = new Clock("notees-server", this.relay.globalMaxHlc());
     this.workspaces = new WorkspaceManager(this.relay, `${config.dataDir}/derived`);
     this.factory = new EnvelopeFactory(this.clock, this.actorId);
     this.bus = new SubscriptionBus();
-    this.limiters = { relayBatch: new FixedWindowLimiter(), global: new FixedWindowLimiter() };
+    this.limiters = {
+      relayBatch: new FixedWindowLimiter(),
+      global: new FixedWindowLimiter(),
+      login: new FixedWindowLimiter(),
+    };
     this.defaultWorkspace = defaultWorkspaceId();
+    void hashPassword(randomBytesForDummy()).then((hash) => {
+      this.dummyPasswordHash = hash;
+    });
   }
 
   /**
@@ -145,6 +168,11 @@ export class ServerContext {
 
   async close(): Promise<void> {
     await this.workspaces.close();
+    this.auth.close();
     this.relay.close();
   }
+}
+
+function randomBytesForDummy(): string {
+  return randomBytes(24).toString("base64url");
 }

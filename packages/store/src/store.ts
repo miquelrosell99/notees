@@ -97,6 +97,47 @@ export class Store {
     );
   }
 
+  // --- durable local op log -----------------------------------------------------
+  //
+  // Every locally-authored envelope is recorded here until the server
+  // acknowledges it (the engine's outbox is memory-only; this table is what
+  // makes offline work survive reloads and lets a device push its local-only
+  // data on the first connection after logging in).
+
+  recordLocalEnvelope(envelope: { id: string } & Record<string, unknown>): void {
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO local_op_log (id, envelope, created_at)
+         VALUES (?, ?, ?)`,
+      )
+      .run(envelope.id, JSON.stringify(envelope), Date.now());
+  }
+
+  markLocalEnvelopesPushed(ids: string[]): void {
+    if (ids.length === 0) return;
+    const mark = this.db.prepare("UPDATE local_op_log SET pushed_at = ? WHERE id = ?");
+    const now = Date.now();
+    const run = this.db.transaction(() => {
+      for (const id of ids) mark.run(now, id);
+    });
+    run();
+  }
+
+  /** Locally-authored envelopes not yet acknowledged by the server. */
+  unpushedEnvelopes(): unknown[] {
+    const rows = this.db
+      .prepare(
+        "SELECT envelope FROM local_op_log WHERE pushed_at IS NULL ORDER BY created_at ASC",
+      )
+      .all() as { envelope: string }[];
+    return rows.map((row) => JSON.parse(row.envelope) as unknown);
+  }
+
+  /** Retention: drop acknowledged rows (called after catch-up converges). */
+  prunePushedLocalEnvelopes(): void {
+    this.db.prepare("DELETE FROM local_op_log WHERE pushed_at IS NOT NULL").run();
+  }
+
   apply(input: unknown): ChangeSummary {
     return this.applyMany([input])[0]!;
   }

@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 
 const API = "http://localhost:8377";
-const WEB = "http://localhost:8080";
+const WEB = "http://localhost:8378";
 const KEY = (await import("node:fs")).readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
 const WS = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 

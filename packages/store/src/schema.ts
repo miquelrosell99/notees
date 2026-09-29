@@ -303,6 +303,18 @@ CREATE TABLE IF NOT EXISTS sync_state (
     restore_epoch INTEGER NOT NULL DEFAULT 0
 );
 
+-- Durable local op log: every locally-authored envelope is recorded here
+-- before it can be pushed, and cleared when the server acknowledges it.
+-- Unlike the engine's in-memory outbox, this survives reloads, so offline
+-- work is never lost and can be pushed on the first later connection
+-- (login). Remote-applied envelopes never enter this table.
+CREATE TABLE IF NOT EXISTS local_op_log (
+    id TEXT PRIMARY KEY,
+    envelope TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    pushed_at INTEGER
+);
+
 -- Soft-delete retention. is_permanent distinguishes trash rows recorded for
 -- retention cleanup before a hard delete from plain soft deletes.
 CREATE TABLE IF NOT EXISTS trash (
