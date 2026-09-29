@@ -146,7 +146,21 @@ function SyncStatusLine({ snapshot }: { snapshot: SyncStatusSnapshot }) {
 function initialServerUrl(): string {
   const remembered = readStored(STORAGE_KEYS.serverUrl);
   if (remembered !== "") return remembered;
-  if (window.NOTEES_CONFIG?.serverUrl) return window.NOTEES_CONFIG.serverUrl;
+  // Same-host guess wins over the baked /config.js default: config.js is a
+  // deploy-time value that may not match how this browser actually reaches
+  // the host, while the guess derives from the page origin itself.
+  const guess = sameHostServerUrl();
+  if (guess !== "") return guess;
+  return window.NOTEES_CONFIG?.serverUrl || "";
+}
+
+/**
+ * Best guess for a colocated sync server: same host as this page, port 8377.
+ * `localhost` entered by hand points at the user's own device, which is the
+ * classic first-connect failure — this guess is what the auto-retry falls
+ * back to.
+ */
+function sameHostServerUrl(): string {
   if (typeof location !== "undefined" && location.hostname !== "") {
     return `${location.protocol}//${location.hostname}:8377`;
   }
@@ -347,30 +361,46 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function probeServer(url: string): Promise<void> {
+    const info = await fetchServerInfo(url);
+    setServerUrl(url);
+    if (info.setupRequired) {
+      setPhase({ name: "setup" });
+    } else {
+      setPhase({ name: "login" });
+    }
+  }
+
   async function handleServerSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setHint(null);
     const url = serverUrl.trim().replace(/\/$/, "");
     try {
-      const info = await fetchServerInfo(url);
-      setServerUrl(url);
-      if (info.setupRequired) {
-        setPhase({ name: "setup" });
-      } else {
-        setPhase({ name: "login" });
-      }
+      await probeServer(url);
+      return;
     } catch (err) {
-      // A failed fetch surfaces as TypeError("NetworkError…") with no status:
-      // distinguish "unreachable/CORS-blocked" from an HTTP error response.
-      if (err instanceof TypeError) {
-        setHint(
-          `Could not reach a sync server at ${url}. Note: "localhost" is THIS device — ` +
-            `if the server runs on the host serving this page, use its address ` +
-            `(e.g. ${location.protocol}//${location.hostname}:8377) instead.`,
-        );
+      // A failed fetch surfaces as TypeError("NetworkError…"/"Failed to
+      // fetch") with no status: unreachable host, connection refused, or a
+      // CORS preflight block. Whatever the cause, the single most common fix
+      // on first connect is the same-host guess (hand-typed "localhost"
+      // points at the user's own device) — so try it once, automatically.
+      const guess = sameHostServerUrl();
+      if (err instanceof TypeError && guess !== "" && guess !== url) {
+        try {
+          await probeServer(guess);
+          return;
+        } catch {
+          // Both failed: fall through to the generic message below.
+        }
       }
       setError(err instanceof Error ? err.message : String(err));
+      setHint(
+        "Could not reach a sync server at that address. Check that the URL " +
+          "points at the machine running the sync server — not this device — " +
+          "and that the port is reachable (a firewall or a reverse proxy can " +
+          "also block it).",
+      );
     }
   }
 
@@ -422,7 +452,7 @@ export function App() {
     event.preventDefault();
     setError(null);
     setHint(null);
-    const url = serverUrl.trim().replace(/\/$/, "");
+    let url = serverUrl.trim().replace(/\/$/, "");
     const key = apiKeyInput.trim();
     if (key === "") {
       setError("Enter an API key.");
@@ -430,8 +460,20 @@ export function App() {
     }
     try {
       // Validating against /workspaces also proves the key: a user API key
-      // authenticates as its owner (routes-auth requireUser).
-      const { workspaces: list } = await listWorkspaces(url, key);
+      // authenticates as its owner (routes-auth requireUser). NetworkError →
+      // same one-shot same-host fallback as the account flow.
+      let list: WorkspaceEntry[];
+      try {
+        list = (await listWorkspaces(url, key)).workspaces;
+      } catch (err) {
+        const guess = sameHostServerUrl();
+        if (err instanceof TypeError && guess !== "" && guess !== url) {
+          url = guess;
+          list = (await listWorkspaces(url, key)).workspaces;
+        } else {
+          throw err;
+        }
+      }
       setServerUrl(url);
       setToken(key);
       setWorkspaces(list);
