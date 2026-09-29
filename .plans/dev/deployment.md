@@ -208,21 +208,21 @@ Two images build from this monorepo (context = the repo root):
   text/html only); `01-log` disables `access_log` so the 30s container
   healthcheck doesn't write one log line per poll forever.
 
-Deployment is managed by **Komodo** (stack `notees`, server `atlas`):
-files-on-host, `run_directory` = this repo, `file_paths = [compose.yaml]`,
+Deployment is managed by **Komodo** (stack `notees`): files-on-host,
+`run_directory` = this repo, `file_paths = [compose.yaml]`,
 `env_file_path = .env`, `auto_pull = false`. Redeploy from the Komodo UI or
 the Core API (`POST /execute/DeployStack {"stack":"notees"}`). The stack's
-`environment` pins `NOTEES_WEB_PORT` / `NOTEES_CORS_ORIGIN` (Komodo env beats
-`.env`). The pinned ghcr tags (`2.0.0-m1`) exist on the host only — build
-them from the Dockerfiles above and tag, or fix the parked registry-token
-issue in `AGENTS.md`.
+`environment` can pin `NOTEES_WEB_PORT` / `NOTEES_CORS_ORIGIN` (Komodo env
+beats `.env`). The pinned ghcr tags (`2.0.0-m1`) exist on the host only —
+build them from the Dockerfiles above and tag, or fix the parked
+registry-token issue in `AGENTS.md`.
 
 - Ports: `NOTEES_SYNC_PORT` (default 8377), `NOTEES_WEB_PORT` (default 8378).
 - Data: bind mount `./config/notees/sync` → `/data` (relay.db, snapshots,
   derived/, workspaces/, `api_key.txt`).
-- CORS: compose defaults `NOTEES_CORS_ORIGIN=http://localhost:8378` so a
-  browser on the host can talk to the API. LAN clients add their origin
-  (`http://<lan-ip>:8378`) — comma-separated — or set `*` on trusted LANs.
+- CORS: compose defaults `NOTEES_CORS_ORIGIN=*` (safe: header-based auth, no
+  cookies); LAN/domain deployments can pin a comma-separated origin list via
+  `.env` or the stack environment.
 - Logging: the sync container sets `NOTEES_LOG=false` (no per-request pino
   lines); nginx `access_log` is off in the web image. Errors still reach
   stderr in both.
