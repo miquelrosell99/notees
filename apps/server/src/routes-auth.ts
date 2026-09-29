@@ -73,11 +73,13 @@ function constantTimeEquals(a: string, b: string): boolean {
 
 export interface ResolvedRequest {
   principal: Principal;
-  /** The raw session token when the principal is an account (null for API key). */
+  /** The raw session token when the principal is an account session (null for API keys). */
   sessionToken: string | null;
+  /** The raw API key token when the principal authenticated via a user API key. */
+  apiKeyToken?: string;
 }
 
-/** Resolves the request credential to a principal (API key or session). */
+/** Resolves the request credential to a principal (API key, session, or user API key). */
 export function resolvePrincipal(ctx: ServerContext, request: FastifyRequest): ResolvedRequest | null {
   const credential = extractCredential(request);
   if (credential === null) return null;
@@ -85,16 +87,31 @@ export function resolvePrincipal(ctx: ServerContext, request: FastifyRequest): R
     return { principal: { kind: "apikey", actorId: ctx.actorId }, sessionToken: null };
   }
   const session = ctx.auth.resolveSession(credential);
-  if (session === null) return null;
-  return {
-    principal: {
-      kind: "user",
-      userId: session.user.id,
-      actorId: actorIdForUser(session.user.id),
-      isAdmin: session.user.isAdmin,
-    },
-    sessionToken: credential,
-  };
+  if (session !== null) {
+    return {
+      principal: {
+        kind: "user",
+        userId: session.user.id,
+        actorId: actorIdForUser(session.user.id),
+        isAdmin: session.user.isAdmin,
+      },
+      sessionToken: credential,
+    };
+  }
+  const apiKey = ctx.auth.resolveApiKey(credential);
+  if (apiKey !== null) {
+    return {
+      principal: {
+        kind: "user",
+        userId: apiKey.userId,
+        actorId: actorIdForUser(apiKey.userId),
+        isAdmin: apiKey.isAdmin,
+      },
+      sessionToken: null,
+      apiKeyToken: credential,
+    };
+  }
+  return null;
 }
 
 export interface AccountRequest {
@@ -112,6 +129,22 @@ export function requireAccount(ctx: ServerContext, request: FastifyRequest): Acc
     principal: resolved.principal as Extract<Principal, { kind: "user" }>,
     sessionToken: resolved.sessionToken,
   };
+}
+
+/**
+ * Any user-authenticated principal (session or user API key). Used by routes
+ * that describe the account or its workspaces — a minted API key is how
+ * machines (and the web client's API-key sign-in) discover where to sync.
+ */
+export function requireUser(
+  ctx: ServerContext,
+  request: FastifyRequest,
+): Extract<Principal, { kind: "user" }> {
+  const resolved = resolvePrincipal(ctx, request);
+  if (resolved === null || resolved.principal.kind !== "user") {
+    throw new AppError(401, "unauthenticated", "a valid session or API key is required");
+  }
+  return resolved.principal as Extract<Principal, { kind: "user" }>;
 }
 
 export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): void {
@@ -138,6 +171,10 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       displayName: parsed.data.displayName ?? null,
       isAdmin: true,
     });
+    // Password-derived encryption key record (E2EE groundwork): the master
+    // key is wrapped with the password-derived key; only the wrapped form
+    // and a verifier tag are stored.
+    const kdf = await ctx.auth.ensureKdfRecord(user.id, parsed.data.password);
     // The first account owns the server's default workspace (the object/assets
     // API surface) so reads there never 403 before the first write.
     try {
@@ -152,6 +189,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       token,
       expiresAt,
       user: { id: user.id, email: user.email, displayName: user.displayName, isAdmin: true },
+      kdf,
     };
   });
 
@@ -167,15 +205,40 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid login request");
     }
-    const user = ctx.auth.findUserByEmail(parsed.data.email);
+    const email = parsed.data.email;
+    // Per-account lockout (5 failures → 15 min), keyed by normalized email —
+    // checked before the IP limiter would even matter and before verifying,
+    // so a locked account stays silent about whether the password was right.
+    const lock = ctx.lockout.status(email);
+    if (lock.locked) {
+      throw new AppError(
+        429,
+        "account_locked",
+        `too many failed attempts — try again in ${Math.ceil(lock.retryAfterSeconds / 60)} minutes`,
+      );
+    }
+    const user = ctx.auth.findUserByEmail(email);
     // Verify against a dummy hash when the account is unknown so response
     // time does not reveal which emails exist.
     const stored = user?.passwordHash ?? ctx.dummyPasswordHash;
     const ok = await verifyPassword(parsed.data.password, stored);
     if (user === null || !ok) {
+      const after = ctx.lockout.recordFailure(email);
+      if (after.locked) {
+        throw new AppError(
+          429,
+          "account_locked",
+          `too many failed attempts — try again in ${Math.ceil(after.retryAfterSeconds / 60)} minutes`,
+        );
+      }
       throw new AppError(401, "invalid_credentials", "invalid email or password");
     }
+    ctx.lockout.recordSuccess(email);
     const { token, expiresAt } = ctx.auth.createSession(user.id);
+    // Backfill the password-derived key record for accounts that predate it
+    // (the plaintext password is only in memory here, so this is the one
+    // place the upgrade can happen).
+    const kdf = await ctx.auth.ensureKdfRecord(user.id, parsed.data.password);
     return {
       token,
       expiresAt,
@@ -185,6 +248,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
         displayName: user.displayName,
         isAdmin: user.isAdmin === 1,
       },
+      kdf,
     };
   });
 
@@ -195,7 +259,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
   });
 
   app.get("/auth/me", async (request) => {
-    const { principal } = requireAccount(ctx, request);
+    const principal = requireUser(ctx, request);
     const user = ctx.auth.findUserById(principal.userId);
     if (user === null) throw new AppError(401, "unauthenticated", "account no longer exists");
     return {
@@ -207,7 +271,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
   });
 
   app.get("/workspaces", async (request) => {
-    const { principal } = requireAccount(ctx, request);
+    const principal = requireUser(ctx, request);
     return {
       workspaces: ctx.auth.listWorkspacesForUser(principal.userId, (workspaceId) => ({
         envelopeCount: ctx.relay.stats(workspaceId).envelopeCount,
@@ -229,5 +293,37 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     ctx.auth.addMember(id, principal.userId, "owner");
     reply.code(201);
     return { id, name: parsed.data.name ?? null, role: "owner" };
+  });
+
+  // --- API keys (session-managed; the keys themselves authenticate as the user) ----
+
+  app.get("/api-keys", async (request) => {
+    const { principal } = requireAccount(ctx, request);
+    return { apiKeys: ctx.auth.listApiKeys(principal.userId) };
+  });
+
+  app.post("/api-keys", async (request, reply) => {
+    const { principal } = requireAccount(ctx, request);
+    const parsed = z
+      .object({ name: z.string().trim().min(1).max(120) })
+      .strict()
+      .safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "name is required");
+    }
+    const { row, token } = ctx.auth.createApiKey(principal.userId, parsed.data.name);
+    reply.code(201);
+    // The full token is returned exactly once; only its sha256 is stored.
+    return { apiKey: row, token };
+  });
+
+  app.delete("/api-keys/:id", async (request) => {
+    const { principal } = requireAccount(ctx, request);
+    const { id } = request.params as { id: string };
+    const revoked = ctx.auth.revokeApiKey(principal.userId, id);
+    if (!revoked) {
+      throw new AppError(404, "not_found", "no such API key (or already revoked)");
+    }
+    return { ok: true };
   });
 }
