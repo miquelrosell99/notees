@@ -59,6 +59,8 @@ export interface WorkerInitMessage {
   workspaceId: string;
   serverUrl: string;
   apiKey: string;
+  /** Offline-first mode: no server calls at all; edits stay on the device. */
+  offline?: boolean;
 }
 
 export interface WorkerRequestMessage {

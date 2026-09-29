@@ -1,5 +1,46 @@
 :root {
   color-scheme: light;
+
+  /* --- theme tokens ---------------------------------------------------------
+     Semantic palette. Light values are the defaults; [data-theme="dark"]
+     overrides them. */
+
+  /* surfaces */
+  --nt-bg: #f5f6f8;
+  --nt-surface: #ffffff;
+  --nt-surface-2: #fafbfc;
+  --nt-surface-3: #eef1f4;
+
+  /* borders */
+  --nt-border: #d9dce1;
+  --nt-border-2: #c8cdd4;
+  --nt-border-soft: #e4e7eb;
+
+  /* text */
+  --nt-text: #1f2933;
+  --nt-text-2: #3e4c59;
+  --nt-muted: #52606d;
+  --nt-faint: #7b8794;
+  --nt-fainter: #9aa5b1;
+  --nt-faintest: #c2c9d1;
+
+  /* accent (light: near-black; dark: white) */
+  --nt-accent: #111111;
+  --nt-accent-strong: #000000;
+  --nt-on-accent: #ffffff;
+  --nt-accent-soft: #e4e7eb;
+  --nt-accent-softer: #eef1f4;
+  --nt-accent-wash: rgba(17, 17, 17, 0.06);
+
+  /* status */
+  --nt-danger: #b42318;
+  --nt-danger-2: #d64545;
+  --nt-danger-soft: #fdf3f2;
+  --nt-danger-border: #f3c1bc;
+  --nt-warn: #fde68a;
+
+  /* misc */
+  --nt-grid: #dfe3e8;
   font-family:
     system-ui,
     -apple-system,
@@ -7,8 +48,45 @@
     Roboto,
     sans-serif;
   line-height: 1.5;
-  color: #1f2933;
-  background: #f5f6f8;
+  color: var(--nt-text);
+  background: var(--nt-bg);
+}
+
+/* --- dark theme ------------------------------------------------------------- */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --nt-bg: #14181d;
+  --nt-surface: #1b2127;
+  --nt-surface-2: #232a32;
+  --nt-surface-3: #2b333d;
+
+  --nt-border: #333c47;
+  --nt-border-2: #3d4753;
+  --nt-border-soft: #2b333d;
+
+  --nt-text: #e8ecf1;
+  --nt-text-2: #c3ccd6;
+  --nt-muted: #9aa7b4;
+  --nt-faint: #7b8794;
+  --nt-fainter: #5f6b76;
+  --nt-faintest: #49525c;
+
+  --nt-accent: #ffffff;
+  --nt-accent-strong: #e8ecf1;
+  --nt-on-accent: #14181d;
+  --nt-accent-soft: rgba(255, 255, 255, 0.14);
+  --nt-accent-softer: rgba(255, 255, 255, 0.07);
+  --nt-accent-wash: rgba(255, 255, 255, 0.08);
+
+  --nt-danger: #f97066;
+  --nt-danger-2: #f98d85;
+  --nt-danger-soft: rgba(249, 112, 102, 0.12);
+  --nt-danger-border: rgba(249, 112, 102, 0.4);
+  --nt-warn: #fcd34d;
+
+  --nt-grid: #333c47;
 }
 
 * {
@@ -34,8 +112,8 @@ button {
 }
 
 .nt-bootstrap-form {
-  background: #ffffff;
-  border: 1px solid #d9dce1;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
   border-radius: 8px;
   padding: 24px;
   width: 340px;
@@ -54,15 +132,15 @@ button {
   flex-direction: column;
   gap: 4px;
   font-size: 13px;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-field input {
   font: inherit;
   padding: 6px 8px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
-  color: #1f2933;
+  color: var(--nt-text);
 }
 
 .nt-bootstrap-form button[type="submit"] {
@@ -70,8 +148,8 @@ button {
   padding: 8px;
   border: none;
   border-radius: 6px;
-  background: #2563eb;
-  color: #ffffff;
+  background: var(--nt-accent);
+  color: var(--nt-on-accent);
 }
 
 .nt-bootstrap-form button[type="submit"]:disabled {
@@ -81,7 +159,7 @@ button {
 
 .nt-error {
   margin: 0;
-  color: #b42318;
+  color: var(--nt-danger);
   font-size: 13px;
 }
 
@@ -95,8 +173,8 @@ button {
 .nt-sidebar {
   width: 260px;
   flex-shrink: 0;
-  background: #ffffff;
-  border-right: 1px solid #d9dce1;
+  background: var(--nt-surface);
+  border-right: 1px solid var(--nt-border);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -109,14 +187,14 @@ button {
   justify-content: space-between;
   font-weight: 600;
   font-size: 13px;
-  color: #52606d;
+  color: var(--nt-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .nt-new-page {
-  border: 1px solid #c8cdd4;
-  background: #ffffff;
+  border: 1px solid var(--nt-border-2);
+  background: var(--nt-surface);
   border-radius: 6px;
   padding: 2px 8px;
   font-size: 12px;
@@ -139,15 +217,15 @@ button {
   background: transparent;
   border-radius: 6px;
   padding: 6px 8px;
-  color: #1f2933;
+  color: var(--nt-text);
 }
 
 .nt-page-item:hover {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-page-item-active {
-  background: #e0e9ff;
+  background: var(--nt-accent-soft);
 }
 
 .nt-main {
@@ -158,7 +236,7 @@ button {
 
 .nt-empty,
 .nt-page-missing {
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 /* --- page ------------------------------------------------------------------- */
@@ -187,23 +265,23 @@ button {
 }
 
 .nt-view-toggle {
-  border: 1px solid #c8cdd4;
-  background: #ffffff;
+  border: 1px solid var(--nt-border-2);
+  background: var(--nt-surface);
   border-radius: 6px;
   padding: 2px 10px;
   font-size: 12px;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-view-toggle:hover {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-view-toggle-active,
 .nt-view-toggle-active:hover {
-  background: #e0e9ff;
-  border-color: #b3c7f5;
-  color: #102a43;
+  background: var(--nt-accent-soft);
+  border-color: var(--nt-border-2);
+  color: var(--nt-text);
 }
 
 /* --- blocks ------------------------------------------------------------------- */
@@ -226,7 +304,7 @@ button {
 }
 
 .nt-bullet {
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   flex-shrink: 0;
   width: 12px;
   text-align: center;
@@ -239,7 +317,7 @@ button {
   padding: 0;
   border: none;
   background: transparent;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   text-align: center;
   user-select: none;
   font: inherit;
@@ -247,7 +325,7 @@ button {
 }
 
 .nt-block-chevron:hover {
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-block-content {
@@ -260,7 +338,7 @@ button {
 }
 
 .nt-block-content:focus-within {
-  background: #ffffff;
+  background: var(--nt-surface);
 }
 
 .nt-block-text {
@@ -276,8 +354,8 @@ button {
   display: flex;
   gap: 2px;
   padding: 3px;
-  background: #ffffff;
-  border: 1px solid #d9dee4;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 40;
@@ -291,25 +369,25 @@ button {
   padding: 2px 6px;
   font-size: 12px;
   font-family: inherit;
-  color: #3e4c59;
+  color: var(--nt-text-2);
   cursor: pointer;
 }
 
 .nt-mark-button:hover {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-mark-active,
 .nt-mark-active:hover {
-  background: #e4e7eb;
-  color: #102a43;
+  background: var(--nt-accent-soft);
+  color: var(--nt-text);
 }
 
 .nt-mark-sep {
   width: 1px;
   align-self: stretch;
   margin: 2px 2px;
-  background: #d9dee4;
+  background: var(--nt-border);
 }
 
 /* --- capture gestures ----------------------------------------------------------- */
@@ -325,8 +403,8 @@ button {
   max-height: 240px;
   overflow-y: auto;
   padding: 3px;
-  background: #ffffff;
-  border: 1px solid #d9dee4;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 50;
@@ -336,7 +414,7 @@ button {
   padding: 3px 8px;
   border-radius: 4px;
   font-size: 13px;
-  color: #3e4c59;
+  color: var(--nt-text-2);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -344,13 +422,13 @@ button {
 }
 
 .nt-capture-selected {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-capture-empty {
   padding: 3px 8px;
   font-size: 12px;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
 }
 
 .nt-verb-popover {
@@ -361,8 +439,8 @@ button {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: #ffffff;
-  border: 1px solid #d9dee4;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 50;
@@ -373,15 +451,15 @@ button {
   flex-direction: column;
   gap: 2px;
   font-size: 11px;
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 .nt-verb-field input {
   font-size: 13px;
   padding: 3px 6px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 4px;
-  color: #102a43;
+  color: var(--nt-text);
 }
 
 .nt-verb-actions {
@@ -401,36 +479,36 @@ button {
 }
 
 .nt-verb-apply {
-  background: #e4e7eb;
-  color: #102a43;
+  background: var(--nt-accent-soft);
+  color: var(--nt-text);
 }
 
 .nt-verb-cancel {
   background: transparent;
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 .nt-verb-apply:hover {
-  background: #d9dee4;
+  background: var(--nt-border);
 }
 
 .nt-verb-cancel:hover {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-add-block {
   margin-top: 4px;
-  border: 1px dashed #c8cdd4;
+  border: 1px dashed var(--nt-border-2);
   background: transparent;
   border-radius: 6px;
   padding: 4px 12px;
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 13px;
 }
 
 .nt-add-block:hover {
-  background: #eef1f4;
-  color: #52606d;
+  background: var(--nt-surface-3);
+  color: var(--nt-muted);
 }
 
 .nt-title-editable {
@@ -441,13 +519,13 @@ button {
 
 .nt-title-editable:empty::before {
   content: "Untitled";
-  color: #9aa5b1;
+  color: var(--nt-fainter);
 }
 
 .nt-block-children {
   margin-left: 20px;
   padding-left: 8px;
-  border-left: 1px solid #e4e7eb;
+  border-left: 1px solid var(--nt-border-soft);
 }
 
 /* --- view transforms: prose mode -------------------------------------------------
@@ -477,17 +555,17 @@ button {
 .nt-embed {
   display: block;
   margin: 4px 0;
-  border: 1px solid #d9dce1;
-  border-left: 3px solid #b3c7f5;
+  border: 1px solid var(--nt-border);
+  border-left: 3px solid var(--nt-accent);
   border-radius: 6px;
   padding: 6px 10px;
-  background: #fafbfc;
+  background: var(--nt-surface-2);
 }
 
 .nt-embed-header {
   font-size: 12px;
   font-weight: 600;
-  color: #7b8794;
+  color: var(--nt-faint);
   margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -513,7 +591,7 @@ button {
 .nt-embed-block-children {
   margin-left: 16px;
   padding-left: 8px;
-  border-left: 1px solid #e4e7eb;
+  border-left: 1px solid var(--nt-border-soft);
 }
 
 /* --- query blocks (live query token) ----------------------------------------------
@@ -524,11 +602,11 @@ button {
 .nt-query {
   display: block;
   margin: 4px 0;
-  border: 1px solid #d9dce1;
+  border: 1px solid var(--nt-border);
   border-left: 3px solid #c11574;
   border-radius: 6px;
   padding: 6px 10px;
-  background: #fafbfc;
+  background: var(--nt-surface-2);
 }
 
 .nt-query-header {
@@ -540,17 +618,17 @@ button {
 .nt-query-title {
   font-size: 12px;
   font-weight: 600;
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 .nt-query-badge {
-  background: #eef1f4;
-  border: 1px solid #d9dce1;
+  background: var(--nt-surface-3);
+  border: 1px solid var(--nt-border);
   border-radius: 10px;
   padding: 0 8px;
   font-size: 0.82em;
   line-height: 1.5;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-query-actions {
@@ -561,10 +639,10 @@ button {
 }
 
 .nt-query-action {
-  border: 1px solid #d9dce1;
+  border: 1px solid var(--nt-border);
   border-radius: 4px;
-  background: #fff;
-  color: #52606d;
+  background: var(--nt-surface);
+  color: var(--nt-muted);
   font-size: 11px;
   padding: 1px 8px;
   cursor: pointer;
@@ -593,11 +671,11 @@ button {
   cursor: pointer;
   border-radius: 4px;
   font-size: 13px;
-  color: #323f4b;
+  color: var(--nt-text-2);
 }
 
 .nt-query-item:hover {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-query-item-name {
@@ -608,37 +686,37 @@ button {
 
 .nt-query-chip {
   flex-shrink: 0;
-  background: #eef1f4;
-  border: 1px solid #d9dce1;
+  background: var(--nt-surface-3);
+  border: 1px solid var(--nt-border);
   border-radius: 10px;
   padding: 0 8px;
   font-size: 0.78em;
   line-height: 1.5;
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 .nt-query-more,
 .nt-query-empty {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 12px;
   padding: 2px 4px;
 }
 
 .nt-query-invalid {
-  border: 1px dashed #c8cdd4;
+  border: 1px dashed var(--nt-border-2);
   border-radius: 6px;
   margin: 4px 0 0;
   padding: 2px 10px;
-  color: #b42318;
+  color: var(--nt-danger);
   font-size: 12px;
-  background: #fff;
+  background: var(--nt-surface);
 }
 
 .nt-query-builder {
   margin-top: 6px;
-  border: 1px solid #d9dce1;
+  border: 1px solid var(--nt-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--nt-surface);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -650,7 +728,7 @@ button {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-query-field > span {
@@ -662,7 +740,7 @@ button {
 .nt-query-field input {
   flex: 1;
   min-width: 0;
-  border: 1px solid #d9dce1;
+  border: 1px solid var(--nt-border);
   border-radius: 4px;
   padding: 2px 6px;
   font-size: 12px;
@@ -675,10 +753,10 @@ button {
 }
 
 .nt-query-builder-actions button {
-  border: 1px solid #d9dce1;
+  border: 1px solid var(--nt-border);
   border-radius: 4px;
-  background: #fff;
-  color: #323f4b;
+  background: var(--nt-surface);
+  color: var(--nt-text-2);
   font-size: 12px;
   padding: 2px 10px;
   cursor: pointer;
@@ -692,9 +770,9 @@ button {
 }
 
 .nt-query-action[aria-pressed="true"] {
-  background: #eef1f4;
-  border-color: #9aa5b1;
-  color: #323f4b;
+  background: var(--nt-surface-3);
+  border-color: var(--nt-fainter);
+  color: var(--nt-text-2);
 }
 
 /* Table mode + the aggregate grid: a sober bordered grid in the token's
@@ -705,20 +783,20 @@ button {
   margin: 4px 0 0;
   border-collapse: collapse;
   font-size: 13px;
-  color: #323f4b;
+  color: var(--nt-text-2);
 }
 
 .nt-query-table th {
   text-align: left;
   font-size: 11px;
   font-weight: 600;
-  color: #7b8794;
-  border-bottom: 1px solid #d9dce1;
+  color: var(--nt-faint);
+  border-bottom: 1px solid var(--nt-border);
   padding: 2px 6px;
 }
 
 .nt-query-table td {
-  border-bottom: 1px solid #eef1f4;
+  border-bottom: 1px solid var(--nt-border-soft);
   padding: 2px 6px;
   vertical-align: baseline;
 }
@@ -747,7 +825,7 @@ button {
   display: inline-flex;
   align-items: baseline;
   cursor: grab;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   touch-action: none;
 }
 
@@ -758,24 +836,24 @@ button {
 /* Drop indicator: a line at the drop line, or a left accent for the
    child-indent intent. */
 .nt-block.nt-drop-above > .nt-block-row {
-  box-shadow: 0 -2px 0 0 #2563eb;
+  box-shadow: 0 -2px 0 0 var(--nt-accent);
 }
 
 .nt-block.nt-drop-below > .nt-block-row {
-  box-shadow: 0 2px 0 0 #2563eb;
+  box-shadow: 0 2px 0 0 var(--nt-accent);
 }
 
 .nt-block.nt-drop-child > .nt-block-row {
-  box-shadow: inset 3px 0 0 0 #2563eb;
-  background: #eef4ff;
+  box-shadow: inset 3px 0 0 0 var(--nt-accent);
+  background: var(--nt-accent-softer);
   border-radius: 4px;
 }
 
 /* The row clone that follows the pointer (DragOverlay). */
 .nt-drag-ghost {
   padding: 2px 8px;
-  background: #ffffff;
-  border: 1px solid #d9dce1;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   font-size: 14px;
@@ -789,10 +867,10 @@ button {
 .nt-dnd-error {
   margin: 4px 0 8px;
   padding: 6px 10px;
-  border: 1px solid #f3c1bc;
+  border: 1px solid var(--nt-danger-border);
   border-radius: 6px;
-  background: #fdf3f2;
-  color: #b42318;
+  background: var(--nt-danger-soft);
+  color: var(--nt-danger);
   font-size: 13px;
 }
 
@@ -811,9 +889,9 @@ button {
   font: inherit;
   font-size: 13px;
   padding: 4px 8px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
-  color: #52606d;
+  color: var(--nt-muted);
   flex-shrink: 0;
 }
 
@@ -827,18 +905,18 @@ button {
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--nt-border-2);
   padding: 0;
 }
 
 .nt-class-swatch-active {
-  outline: 2px solid #1f2933;
+  outline: 2px solid var(--nt-text);
   outline-offset: 1px;
 }
 
 .nt-class-panel {
   margin-top: 16px;
-  border-top: 1px solid #e4e7eb;
+  border-top: 1px solid var(--nt-border-soft);
   padding-top: 8px;
 }
 
@@ -846,13 +924,13 @@ button {
   margin: 0 0 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #52606d;
+  color: var(--nt-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .nt-class-empty {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 13px;
 }
 
@@ -868,9 +946,9 @@ button {
 .nt-class-chip {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #d9dce1;
+  border: 1px solid var(--nt-border);
   border-radius: 12px;
-  background: #eef1f4;
+  background: var(--nt-surface-3);
   overflow: hidden;
 }
 
@@ -879,7 +957,7 @@ button {
   background: transparent;
   padding: 2px 4px 2px 10px;
   font-size: 13px;
-  color: #175cd3;
+  color: var(--nt-accent-strong);
 }
 
 /* Chip label variant for non-navigating chips (the properties panel's
@@ -887,7 +965,7 @@ button {
 .nt-class-chip-name {
   padding: 2px 4px 2px 10px;
   font-size: 13px;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-class-chip-remove {
@@ -895,21 +973,21 @@ button {
   background: transparent;
   padding: 2px 8px 2px 4px;
   font-size: 13px;
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 .nt-class-chip-remove:hover {
-  color: #b42318;
+  color: var(--nt-danger);
 }
 
 .nt-class-add-parent {
   font: inherit;
   font-size: 13px;
   padding: 3px 6px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
-  color: #52606d;
-  background: #ffffff;
+  color: var(--nt-muted);
+  background: var(--nt-surface);
 }
 
 .nt-class-bindings {
@@ -932,7 +1010,7 @@ button {
 .nt-class-binding-seq {
   width: 48px;
   text-align: right;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   font-size: 12px;
   flex-shrink: 0;
   font: inherit;
@@ -944,8 +1022,8 @@ button {
 
 .nt-class-binding-seq:hover,
 .nt-class-binding-seq:focus {
-  border-color: #c8cdd4;
-  background: #ffffff;
+  border-color: var(--nt-border-2);
+  background: var(--nt-surface);
 }
 
 .nt-class-binding-name {
@@ -954,17 +1032,17 @@ button {
 }
 
 .nt-class-binding-type {
-  color: #52606d;
+  color: var(--nt-muted);
   font-size: 13px;
 }
 
 .nt-class-binding-target {
-  color: #175cd3;
+  color: var(--nt-accent-strong);
   font-size: 13px;
 }
 
 .nt-class-binding-default {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 12px;
   font: inherit;
   padding: 2px 6px;
@@ -976,8 +1054,8 @@ button {
 
 .nt-class-binding-default:hover,
 .nt-class-binding-default:focus {
-  border-color: #c8cdd4;
-  background: #ffffff;
+  border-color: var(--nt-border-2);
+  background: var(--nt-surface);
 }
 
 .nt-class-binding-flag {
@@ -985,7 +1063,7 @@ button {
   align-items: center;
   gap: 3px;
   font-size: 12px;
-  color: #7b8794;
+  color: var(--nt-faint);
   white-space: nowrap;
 }
 
@@ -994,11 +1072,11 @@ button {
   background: transparent;
   padding: 2px 6px;
   font-size: 13px;
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 .nt-class-binding-remove:hover {
-  color: #b42318;
+  color: var(--nt-danger);
 }
 
 .nt-class-add-binding {
@@ -1006,10 +1084,10 @@ button {
   font: inherit;
   font-size: 13px;
   padding: 3px 6px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
-  color: #52606d;
-  background: #ffffff;
+  color: var(--nt-muted);
+  background: var(--nt-surface);
 }
 
 /* --- properties panel (effective values) -------------------------------------------- */
@@ -1037,29 +1115,29 @@ button {
 }
 
 .nt-property-hint {
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   font-size: 11px;
-  border: 1px solid #e4e7eb;
+  border: 1px solid var(--nt-border-soft);
   border-radius: 999px;
   padding: 0 6px;
 }
 
 .nt-property-default .nt-property-value {
-  color: #9aa5b1;
+  color: var(--nt-fainter);
 }
 
 .nt-property-value {
   font: inherit;
   font-size: 13px;
   padding: 2px 6px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--nt-surface);
   min-width: 160px;
 }
 
 .nt-property-default .nt-property-name {
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 /* --- node-typed property rows (chips + picker) ------------------------------------ */
@@ -1081,16 +1159,16 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--nt-surface);
   font-size: 13px;
   padding: 1px 4px 1px 10px;
 }
 
 .nt-chip-default {
   border-style: dashed;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
 }
 
 .nt-chip-label {
@@ -1108,7 +1186,7 @@ span.nt-chip-label {
 
 .nt-chip-remove {
   font: inherit;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   background: none;
   border: none;
   padding: 0 4px;
@@ -1117,27 +1195,27 @@ span.nt-chip-label {
 }
 
 .nt-chip-remove:hover {
-  color: #d64545;
+  color: var(--nt-danger-2);
 }
 
 .nt-chip-add {
   font: inherit;
   font-size: 13px;
-  color: #616e7c;
+  color: var(--nt-muted);
   background: none;
-  border: 1px dashed #c8cdd4;
+  border: 1px dashed var(--nt-border-2);
   border-radius: 999px;
   padding: 1px 10px;
   cursor: pointer;
 }
 
 .nt-chip-add:hover {
-  border-color: #616e7c;
+  border-color: var(--nt-muted);
 }
 
 .nt-chip-annotations {
   font: inherit;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   background: none;
   border: none;
   padding: 0 2px;
@@ -1148,7 +1226,7 @@ span.nt-chip-label {
 
 .nt-chip-annotations:hover,
 .nt-chip-annotations[aria-expanded="true"] {
-  color: #616e7c;
+  color: var(--nt-muted);
 }
 
 /* --- annotations section (asset chip affordance) ------------------------------ */
@@ -1171,7 +1249,7 @@ span.nt-chip-label {
 }
 
 .nt-annotation-page {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 0.82em;
   white-space: nowrap;
 }
@@ -1187,9 +1265,9 @@ span.nt-chip-label {
   font: inherit;
   font-size: 13px;
   padding: 3px 8px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--nt-surface);
 }
 
 .nt-annotation-quote-input {
@@ -1207,21 +1285,21 @@ span.nt-chip-label {
 .nt-annotation-add {
   font: inherit;
   font-size: 13px;
-  color: #616e7c;
+  color: var(--nt-muted);
   background: none;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
   padding: 3px 10px;
 }
 
 .nt-annotation-add:hover {
-  border-color: #616e7c;
+  border-color: var(--nt-muted);
 }
 
 .nt-annotation-error {
   margin: 0;
   padding-left: 20px;
-  color: #d64545;
+  color: var(--nt-danger-2);
   font-size: 13px;
 }
 
@@ -1231,8 +1309,8 @@ span.nt-chip-label {
   left: 148px;
   z-index: 30;
   width: 280px;
-  background: #ffffff;
-  border: 1px solid #e4e7eb;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border-soft);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(15, 30, 45, 0.12);
   padding: 8px;
@@ -1252,8 +1330,8 @@ span.nt-chip-label {
 .nt-datepicker {
   margin: 4px 0 8px 148px;
   width: 280px;
-  background: #ffffff;
-  border: 1px solid #e4e7eb;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border-soft);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(15, 30, 45, 0.12);
   padding: 8px;
@@ -1270,7 +1348,7 @@ span.nt-chip-label {
 .nt-datepicker-close {
   font: inherit;
   font-size: 14px;
-  color: #616e7c;
+  color: var(--nt-muted);
   background: none;
   border: none;
   border-radius: 6px;
@@ -1280,7 +1358,7 @@ span.nt-chip-label {
 
 .nt-datepicker-nav:hover,
 .nt-datepicker-close:hover {
-  background: #f2f4f7;
+  background: var(--nt-surface-3);
 }
 
 .nt-datepicker-breadcrumb {
@@ -1288,14 +1366,14 @@ span.nt-chip-label {
   text-align: center;
   font-size: 13px;
   font-weight: 600;
-  color: #3e4c59;
+  color: var(--nt-text-2);
 }
 
 .nt-datepicker-crumb {
   font: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: #175cd3;
+  color: var(--nt-accent-strong);
   background: none;
   border: none;
   padding: 0;
@@ -1315,7 +1393,7 @@ span.nt-chip-label {
 .nt-datepicker-weekday {
   text-align: center;
   font-size: 11px;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   padding: 2px 0;
 }
 
@@ -1326,14 +1404,14 @@ span.nt-chip-label {
 }
 
 .nt-datepicker-cellbox:hover {
-  background: #eef4ff;
+  background: var(--nt-accent-softer);
 }
 
 .nt-datepicker-cell {
   flex: 1;
   font: inherit;
   font-size: 13px;
-  color: #3e4c59;
+  color: var(--nt-text-2);
   background: none;
   border: none;
   border-radius: 6px;
@@ -1344,21 +1422,21 @@ span.nt-chip-label {
 
 .nt-datepicker-cell:hover,
 .nt-datepicker-cell:focus {
-  background: #eef4ff;
+  background: var(--nt-accent-softer);
   outline: none;
 }
 
 .nt-datepicker-cell-selected,
 .nt-datepicker-cell-selected:hover {
-  background: #175cd3;
-  color: #ffffff;
+  background: var(--nt-accent);
+  color: var(--nt-on-accent);
 }
 
 .nt-datepicker-cell-drill {
   font: inherit;
   font-size: 9px;
   line-height: 1;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   background: none;
   border: none;
   border-radius: 6px;
@@ -1368,13 +1446,13 @@ span.nt-chip-label {
 
 .nt-datepicker-cell-drill:hover,
 .nt-datepicker-cell-drill:focus {
-  color: #175cd3;
+  color: var(--nt-accent-strong);
   outline: none;
 }
 
 .nt-datepicker-cell-muted .nt-datepicker-cell,
 .nt-datepicker-cell-muted .nt-datepicker-cell-drill {
-  color: #c2c9d1;
+  color: var(--nt-faintest);
 }
 
 /* --- date range rows + link qualifiers ---------------------------------------- */
@@ -1383,10 +1461,10 @@ span.nt-chip-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid #e4e7eb;
+  border: 1px solid var(--nt-border-soft);
   border-radius: 999px;
   padding: 1px 10px;
-  background: #ffffff;
+  background: var(--nt-surface);
 }
 
 .nt-range-slot {
@@ -1397,7 +1475,7 @@ span.nt-chip-label {
 
 .nt-range-slot-name {
   font-size: 11px;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
 }
 
 .nt-chip-qualifier {
@@ -1410,22 +1488,22 @@ span.nt-chip-label {
 .nt-chip-qualifier-input {
   font: inherit;
   font-size: 12px;
-  color: #616e7c;
+  color: var(--nt-muted);
   padding: 1px 4px;
-  border: 1px solid #e4e7eb;
+  border: 1px solid var(--nt-border-soft);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--nt-surface);
   width: 130px;
 }
 
 .nt-class-binding-precision {
   font: inherit;
   font-size: 12px;
-  color: #616e7c;
+  color: var(--nt-muted);
   padding: 1px 4px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--nt-surface);
 }
 
 .nt-picker-list {
@@ -1449,11 +1527,11 @@ span.nt-chip-label {
 }
 
 .nt-picker-item:hover {
-  background: #f0f4f8;
+  background: var(--nt-surface-3);
 }
 
 .nt-picker-empty {
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   font-size: 13px;
   padding: 4px 6px;
 }
@@ -1462,7 +1540,7 @@ span.nt-chip-label {
   font: inherit;
   font-size: 13px;
   background: none;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
   padding: 4px 8px;
   cursor: pointer;
@@ -1470,7 +1548,7 @@ span.nt-chip-label {
 }
 
 .nt-picker-upload:hover {
-  border-color: #616e7c;
+  border-color: var(--nt-muted);
 }
 
 .nt-file-input {
@@ -1478,7 +1556,7 @@ span.nt-chip-label {
 }
 
 .nt-picker-error {
-  color: #d64545;
+  color: var(--nt-danger-2);
   font-size: 12px;
   margin: 0;
 }
@@ -1489,7 +1567,7 @@ span.nt-chip-label {
 }
 
 .nt-class-list-icon {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 12px;
   margin-right: 4px;
 }
@@ -1503,7 +1581,7 @@ span.nt-chip-label {
 }
 
 .nt-section {
-  border-top: 1px solid #e4e7eb;
+  border-top: 1px solid var(--nt-border-soft);
   padding: 4px 0 8px;
 }
 
@@ -1515,7 +1593,7 @@ span.nt-chip-label {
   border: none;
   background: transparent;
   padding: 4px 0;
-  color: #52606d;
+  color: var(--nt-muted);
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1525,7 +1603,7 @@ span.nt-chip-label {
 
 .nt-section-chevron {
   width: 12px;
-  color: #9aa5b1;
+  color: var(--nt-fainter);
   flex-shrink: 0;
 }
 
@@ -1534,15 +1612,15 @@ span.nt-chip-label {
 }
 
 .nt-section-badge {
-  background: #eef1f4;
-  border: 1px solid #d9dce1;
+  background: var(--nt-surface-3);
+  border: 1px solid var(--nt-border);
   border-radius: 10px;
   padding: 0 8px;
   font-size: 12px;
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-section-body {
@@ -1567,12 +1645,12 @@ span.nt-chip-label {
   background: transparent;
   border-radius: 6px;
   padding: 4px 8px 4px 20px;
-  color: #1f2933;
+  color: var(--nt-text);
   font-size: 14px;
 }
 
 .nt-section-item:hover {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 /* Class View member rows: the navigation row plus an unassign × that issues
@@ -1592,19 +1670,19 @@ span.nt-chip-label {
   background: transparent;
   padding: 4px 10px;
   font-size: 14px;
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 .nt-class-member-remove:hover {
-  color: #b42318;
+  color: var(--nt-danger);
 }
 
 .nt-section-crumb {
-  color: #1f2933;
+  color: var(--nt-text);
 }
 
 .nt-section-source {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 0.88em;
   min-width: 0;
   overflow: hidden;
@@ -1613,14 +1691,14 @@ span.nt-chip-label {
 }
 
 .nt-section-context {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 0.82em;
   font-style: italic;
   white-space: nowrap;
 }
 
 .nt-section-empty {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 13px;
   padding: 4px 8px 4px 20px;
 }
@@ -1629,8 +1707,8 @@ span.nt-chip-label {
 
 .nt-chip {
   display: inline-block;
-  background: #eef1f4;
-  border: 1px solid #d9dce1;
+  background: var(--nt-surface-3);
+  border: 1px solid var(--nt-border);
   border-radius: 10px;
   padding: 0 8px;
   font-size: 0.92em;
@@ -1638,8 +1716,8 @@ span.nt-chip-label {
 }
 
 .nt-mention {
-  background: #e0e9ff;
-  border-color: #b3c7f5;
+  background: var(--nt-accent-soft);
+  border: 1px solid var(--nt-border-2);
 }
 
 .nt-typed-link {
@@ -1651,36 +1729,36 @@ span.nt-chip-label {
 
 .nt-quote {
   display: block;
-  border-left: 3px solid #c8cdd4;
+  border-left: 3px solid var(--nt-border-2);
   padding: 2px 12px;
   margin: 4px 0;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-external-link {
-  color: #2563eb;
+  color: var(--nt-accent);
 }
 
 .nt-placeholder {
   display: inline-block;
-  border: 1px dashed #c8cdd4;
+  border: 1px dashed var(--nt-border-2);
   border-radius: 6px;
   padding: 0 10px;
   margin: 1px 0;
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 0.88em;
-  background: #fafbfc;
+  background: var(--nt-surface-2);
 }
 
 code {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
   border-radius: 4px;
   padding: 0 4px;
   font-size: 0.92em;
 }
 
 mark {
-  background: #fde68a;
+  background: var(--nt-warn);
   border-radius: 2px;
   padding: 0 2px;
 }
@@ -1692,7 +1770,7 @@ mark {
   right: 0;
   padding: 4px 12px;
   font-size: 11px;
-  color: #7b8794;
+  color: var(--nt-faint);
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -1707,7 +1785,7 @@ mark {
 }
 
 .nt-sync-status-error {
-  color: #b42318;
+  color: var(--nt-danger);
 }
 
 /* --- whiteboard canvas ------------------------------------------------------ */
@@ -1715,9 +1793,9 @@ mark {
 .nt-wb {
   display: flex;
   flex-direction: column;
-  border: 1px solid #d9dce1;
+  border: 1px solid var(--nt-border);
   border-radius: 8px;
-  background: #f8f9fb;
+  background: var(--nt-surface-2);
   overflow: hidden;
 }
 
@@ -1731,21 +1809,21 @@ mark {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border-bottom: 1px solid #e4e7eb;
-  background: #ffffff;
+  border-bottom: 1px solid var(--nt-border-soft);
+  background: var(--nt-surface);
   font-size: 12px;
 }
 
 .nt-wb-toolbar button {
-  border: 1px solid #d9dce1;
+  border: 1px solid var(--nt-border);
   border-radius: 6px;
-  background: #fafbfc;
+  background: var(--nt-surface-2);
   padding: 2px 8px;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-wb-toolbar button:hover:not(:disabled) {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-wb-toolbar button:disabled {
@@ -1754,9 +1832,9 @@ mark {
 }
 
 .nt-wb-tool-active {
-  background: #dbe7ff;
-  border-color: #2563eb;
-  color: #2563eb;
+  background: var(--nt-accent-soft);
+  border-color: var(--nt-accent);
+  color: var(--nt-accent);
 }
 
 .nt-wb-surface {
@@ -1764,7 +1842,7 @@ mark {
   flex: 1;
   overflow: hidden;
   touch-action: none;
-  background-image: radial-gradient(#dfe3e8 1px, transparent 1px);
+  background-image: radial-gradient(var(--nt-grid) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -1794,50 +1872,50 @@ mark {
 
 .nt-wb-shape rect,
 .nt-wb-shape ellipse {
-  fill: rgba(37, 99, 235, 0.06);
-  stroke: #52606d;
+  fill: var(--nt-accent-wash);
+  stroke: var(--nt-muted);
   stroke-width: 1.5;
 }
 
 .nt-wb-shape line {
-  stroke: #52606d;
+  stroke: var(--nt-muted);
   stroke-width: 1.5;
 }
 
 .nt-wb-shape text {
-  fill: #52606d;
+  fill: var(--nt-muted);
   font-size: 12px;
   pointer-events: none;
 }
 
 .nt-wb-arrowhead {
-  fill: #52606d;
+  fill: var(--nt-muted);
 }
 
 .nt-wb-shape-selected rect,
 .nt-wb-shape-selected ellipse,
 .nt-wb-shape-selected line {
-  stroke: #2563eb;
+  stroke: var(--nt-accent);
 }
 
 .nt-wb-stroke {
   fill: none;
-  stroke: #52606d;
+  stroke: var(--nt-muted);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .nt-wb-drawing {
-  stroke: #2563eb;
+  stroke: var(--nt-accent);
 }
 
 .nt-wb-card {
   position: absolute;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  border: 1px solid #d9dce1;
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
   border-radius: 6px;
   box-shadow: 0 1px 2px rgba(31, 41, 51, 0.08);
   overflow: hidden;
@@ -1848,11 +1926,11 @@ mark {
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  background: #eef1f4;
-  border-bottom: 1px solid #e4e7eb;
+  background: var(--nt-surface-3);
+  border-bottom: 1px solid var(--nt-border-soft);
   font-size: 12px;
   font-weight: 600;
-  color: #52606d;
+  color: var(--nt-muted);
   cursor: grab;
   user-select: none;
 }
@@ -1867,14 +1945,14 @@ mark {
 .nt-wb-card-delete {
   border: none;
   background: none;
-  color: #7b8794;
+  color: var(--nt-faint);
   padding: 0 2px;
   line-height: 1;
   font-size: 14px;
 }
 
 .nt-wb-card-delete:hover {
-  color: #b42318;
+  color: var(--nt-danger);
 }
 
 .nt-wb-card-body {
@@ -1894,7 +1972,7 @@ mark {
   position: absolute;
   font-size: 12px;
   padding: 1px 4px;
-  border: 1px solid #2563eb;
+  border: 1px solid var(--nt-accent);
   border-radius: 4px;
 }
 
@@ -1903,9 +1981,9 @@ mark {
   left: 32px;
   top: 32px;
   padding: 24px 32px;
-  border: 2px dashed #c8cdd4;
+  border: 2px dashed var(--nt-border-2);
   border-radius: 10px;
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 13px;
   white-space: nowrap;
   pointer-events: none;
@@ -1913,7 +1991,7 @@ mark {
 
 .nt-wb-missing {
   padding: 16px;
-  color: #7b8794;
+  color: var(--nt-faint);
 }
 
 /* --- search box ------------------------------------------------------------- */
@@ -1935,37 +2013,37 @@ mark {
   font: inherit;
   font-size: 13px;
   padding: 5px 8px;
-  border: 1px solid #c8cdd4;
+  border: 1px solid var(--nt-border-2);
   border-radius: 6px;
-  color: #1f2933;
-  background: #ffffff;
+  color: var(--nt-text);
+  background: var(--nt-surface);
 }
 
 .nt-search-syntax {
-  border: 1px solid #c8cdd4;
-  background: #ffffff;
+  border: 1px solid var(--nt-border-2);
+  background: var(--nt-surface);
   border-radius: 6px;
   width: 28px;
   font-size: 12px;
-  color: #52606d;
+  color: var(--nt-muted);
 }
 
 .nt-search-syntax[aria-expanded="true"] {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-search-help {
   font-size: 11px;
   line-height: 1.6;
-  color: #52606d;
-  background: #f5f6f8;
-  border: 1px solid #e4e7eb;
+  color: var(--nt-muted);
+  background: var(--nt-bg);
+  border: 1px solid var(--nt-border-soft);
   border-radius: 6px;
   padding: 6px 8px;
 }
 
 .nt-search-help code {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
   border-radius: 4px;
   padding: 0 3px;
 }
@@ -1973,7 +2051,7 @@ mark {
 .nt-search-error {
   margin: 0;
   font-size: 12px;
-  color: #b33a3a;
+  color: var(--nt-danger);
 }
 
 .nt-search-results {
@@ -1997,17 +2075,34 @@ mark {
   background: transparent;
   text-align: left;
   font-size: 13px;
-  color: #323f4b;
+  color: var(--nt-text-2);
   padding: 3px 6px;
   border-radius: 6px;
 }
 
 .nt-search-hit:hover {
-  background: #eef1f4;
+  background: var(--nt-surface-3);
 }
 
 .nt-search-empty {
-  color: #7b8794;
+  color: var(--nt-faint);
   font-size: 12px;
   padding: 2px 4px;
+}
+
+/* --- theme toggle ----------------------------------------------------------- */
+
+.nt-theme-toggle {
+  border: 1px solid var(--nt-border-2);
+  background: var(--nt-surface);
+  color: var(--nt-muted);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.nt-theme-toggle:hover {
+  background: var(--nt-surface-3);
+  color: var(--nt-text);
 }
