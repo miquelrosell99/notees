@@ -22,6 +22,16 @@ export interface LoginResponse {
   token: string;
   expiresAt: number;
   user: AccountUser;
+  /** Password-derived key record (E2EE groundwork): scrypt params + wrapped master key. */
+  kdf: {
+    algorithm: "scrypt";
+    N: number;
+    r: number;
+    p: number;
+    salt: string;
+    wrappedMasterKey: string;
+    keyVerifier: string;
+  };
 }
 
 export interface WorkspaceEntry {
@@ -91,4 +101,37 @@ export function createWorkspace(serverUrl: string, token: string, name?: string)
     { method: "POST", body: JSON.stringify(name ? { name } : {}) },
     token,
   );
+}
+
+// --- API keys (user settings → machine credentials) -------------------------------
+
+export interface ApiKeyEntry {
+  id: string;
+  userId: string;
+  name: string;
+  prefix: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+  revokedAt: number | null;
+}
+
+export function listApiKeys(serverUrl: string, token: string): Promise<{ apiKeys: ApiKeyEntry[] }> {
+  return request<{ apiKeys: ApiKeyEntry[] }>(serverUrl, "/api-keys", {}, token);
+}
+
+export function createApiKey(
+  serverUrl: string,
+  token: string,
+  name: string,
+): Promise<{ apiKey: ApiKeyEntry; token: string }> {
+  return request<{ apiKey: ApiKeyEntry; token: string }>(
+    serverUrl,
+    "/api-keys",
+    { method: "POST", body: JSON.stringify({ name }) },
+    token,
+  );
+}
+
+export function revokeApiKey(serverUrl: string, token: string, id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(serverUrl, `/api-keys/${id}`, { method: "DELETE" }, token);
 }
