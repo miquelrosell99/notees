@@ -325,6 +325,43 @@ export class HttpTransport implements Transport {
   }
 }
 
+// --- offline-first (no account, no server) ---------------------------------------
+
+/**
+ * Transport for "work offline" mode: every call rejects with an offline
+ * error, so the engine keeps local ops pending in the outbox (and, via the
+ * embedding client's durable local-op-log hook, on disk). When the user
+ * later connects with a real transport on the same workspace, the backlog
+ * drains through the normal push path — that is the "push local-only data
+ * on first login" flow.
+ */
+export class OfflineTransport implements Transport {
+  private readonly error = new TransportError(
+    "offline",
+    "not connected to a sync server (offline mode)",
+    0,
+  );
+
+  async sendBatch(): Promise<SendBatchResult> {
+    throw this.error;
+  }
+  async catchUp(): Promise<CatchUpResponse> {
+    throw this.error;
+  }
+  async getSnapshotMeta(): Promise<SnapshotMeta> {
+    throw this.error;
+  }
+  async getSnapshotData(): Promise<Uint8Array> {
+    throw this.error;
+  }
+  async uploadSnapshot(): Promise<void> {
+    throw this.error;
+  }
+  subscribe(): () => void {
+    return () => undefined;
+  }
+}
+
 // --- in-process fake relay -------------------------------------------------------
 
 interface RelayRow {

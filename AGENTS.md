@@ -24,7 +24,7 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 
 - Install: `pnpm install` · Build: `pnpm -r --workspace-concurrency=1 build` · Test: `pnpm test` (all green = blocking gate)
 - After changing a package's public API, rebuild its dist before typechecking dependents (dev-condition exports: vitest reads `src`, `tsc` reads `dist`).
-- Deploy: `docker compose up -d --force-recreate` (images built from `apps/*/Dockerfile`, context = repo root). Smoke: `node scripts/screenshots/verify-min.mjs` (run from `scripts/screenshots/`).
+- Deploy: Komodo stack `notees` (files-on-host → this repo's `compose.yaml`; web :8378, sync :8377). Redeploy from the Komodo UI or the Core API (`DeployStack`). Images must exist on the host (`auto_pull: false`; ghcr tags unpublished — see parked decisions). Smoke: `node scripts/screenshots/verify-min.mjs` (run from `scripts/screenshots/`).
 
 ## Invariants (design law — see `.plans/` decision record §34)
 
@@ -37,5 +37,6 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 ## Parked decisions (owner)
 
 - **SDK publish — BLOCKED on an npmjs token** (GitHub Packages rejects the `@notees/*` scope). Publish infra is ready: `pnpm release`, flow in `.plans/dev/sdk-publishing.md`.
+- **ghcr image publish — BLOCKED on a registry write token** (the host's ghcr login is read-only: push → `permission_denied: token scopes`). Compose pins `2.0.0-m1`; images exist on the host only.
 - **Client lockstep — current with TS (unpushed)**: `notees-gtk@protocol-v2` and `notees-flutter@protocol-v2` (sibling repos) carry the class-property + citations protocol; awaiting owner approval to push.
 - Repo split (notees-sync / notees-web) — parked until the SDK is published; two services from one monorepo for now.

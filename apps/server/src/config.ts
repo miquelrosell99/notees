@@ -34,6 +34,8 @@ export interface ServerConfig {
   maxMediaBytes: number;
   /** Document (pdf/epub) size cap (v1: 100MB). */
   maxDocumentBytes: number;
+  /** Login attempts per minute per IP (account routes). */
+  loginPerMinute: number;
   /**
    * Browser origins allowed to call the API cross-origin (parsed from
    * NOTEES_CORS_ORIGIN). Empty means no CORS headers are sent at all.
@@ -115,6 +117,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig &
     globalRequestsPerMinute: intFromEnv(env, "NOTEES_GLOBAL_REQ_PER_MINUTE", 10_000),
     maxMediaBytes: intFromEnv(env, "NOTEES_MAX_MEDIA_BYTES", 50 * 1024 * 1024),
     maxDocumentBytes: intFromEnv(env, "NOTEES_MAX_DOCUMENT_BYTES", 100 * 1024 * 1024),
+    loginPerMinute: intFromEnv(env, "NOTEES_LOGIN_PER_MINUTE", 10),
     corsOrigins: parseCorsOrigins(env.NOTEES_CORS_ORIGIN),
   };
 }

@@ -39,6 +39,20 @@ export function actorIdForKey(apiKey: string): string {
   return deriveUuid(`notees:actor:${apiKey}`);
 }
 
+/** The actor identity for an account: stable per user across sessions. */
+export function actorIdForUser(userId: string): string {
+  return deriveUuid(`notees:actor:user:${userId}`);
+}
+
+/**
+ * The authenticated principal of a request. The API key is the
+ * machine/operator principal (CLI, owned devices) with unrestricted access;
+ * user principals are accounts authorized per workspace via membership.
+ */
+export type Principal =
+  | { kind: "apikey"; actorId: string }
+  | { kind: "user"; userId: string; actorId: string; isAdmin: boolean };
+
 /** Stable default workspace for the single-user object/assets API. */
 export function defaultWorkspaceId(): string {
   return deriveUuid("notees:workspace:default");

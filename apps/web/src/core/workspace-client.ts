@@ -36,6 +36,7 @@ import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/qu
 import { Store, type NodeRow } from "@notees/store";
 import {
   HttpTransport,
+  OfflineTransport,
   SyncEngine,
   type SyncConflict,
   type SyncStatus,
@@ -546,7 +547,9 @@ export class WorkspaceClient {
     return new WorkspaceClient(store, options);
   }
 
-  /** Factory for the app path: HTTP transport against a relay server. */
+  /** Factory for the app path: HTTP transport against a relay server. The
+   * `apiKey` slot carries the credential — the operator API key or an
+   * account session token (the server accepts both, see routes-auth). */
   static async createHttp(options: {
     serverUrl: string;
     apiKey: string;
@@ -563,6 +566,24 @@ export class WorkspaceClient {
       serverUrl: options.serverUrl,
       apiKey: options.apiKey,
       sqlJsConfig: options.sqlJsConfig,
+    });
+  }
+
+  /**
+   * Offline-first factory: no server, no account. Edits apply locally and
+   * are recorded in the durable local op log; when the user later connects
+   * this workspace to a server (login), the backlog pushes through the
+   * normal outbox path.
+   */
+  static async createOffline(options: {
+    workspaceId: string;
+    sqlJs?: SqlJsStatic;
+    sqlJsConfig?: Parameters<typeof initSqlJs>[0];
+  }): Promise<WorkspaceClient> {
+    return WorkspaceClient.create({
+      transport: new OfflineTransport(),
+      ...(options.sqlJs !== undefined ? { sqlJs: options.sqlJs } : {}),
+      ...(options.sqlJsConfig !== undefined ? { sqlJsConfig: options.sqlJsConfig } : {}),
     });
   }
 
@@ -594,8 +615,26 @@ export class WorkspaceClient {
         // Realtime (WS) frames applied to the store refresh the UI exactly
         // like a pull does.
         onRemoteBatch: () => this.notify(),
+        // Durable local op log: locally-authored envelopes survive reloads
+        // (the outbox is memory-only), and acknowledged envelopes are
+        // cleared so the log holds only the unpushed backlog.
+        onEnqueued: (envelope) => this.store.recordLocalEnvelope(envelope),
+        onAcknowledged: (ids) => {
+          this.store.markLocalEnvelopesPushed(ids);
+          this.store.prunePushedLocalEnvelopes();
+        },
       },
     });
+    // Re-envelope the durable unpushed backlog (offline work from a previous
+    // session): apply is idempotent by envelope id, so already-applied ops
+    // are no-ops and the rest re-enter the outbox for the next push. Only
+    // envelopes of THIS workspace re-enter — a backlog from another local
+    // workspace never leaks across a workspace switch.
+    for (const env of this.store.unpushedEnvelopes()) {
+      if ((env as Envelope).workspaceId === workspaceId) {
+        this.engine.enqueue(env as Envelope);
+      }
+    }
     await this.engine.sync();
     this.notify();
   }

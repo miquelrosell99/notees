@@ -172,7 +172,7 @@ pnpm --filter @notees/web dev
 
 Slice 1 is deliberately read-mostly. What works today:
 
-1. **Bootstrap form** — server URL, API key, workspace ID; remembered in `localStorage`. Use the default workspace ID `c491595f-9f94-5ade-a620-e30ed063d8d2` (derived deterministically from `notees:workspace:default`; the CLI and server share it, and `sync status` prints it under `workspaceId`).
+1. **Account boot** — server URL, then sign in (or the initial-setup screen when the server has no users yet: it creates the admin account). No API key or workspace UUID prompts: after login you pick a workspace from your list, create one, or adopt "this device" (an offline workspace pushes its backlog on connect). "Work offline" skips the account entirely — edits stay on the device and sync on the first later connection. The session is remembered; sign out from the footer.
 2. **Page list** — every active page, sidebar, `+ New page` creates one (a local-first write: applied to the local SQLite projection immediately, pushed to the relay in the background).
 3. **Page view** — the page header and its block tree, rendered from content tokens: text marks (bold/italic/strike/highlight/code), mentions and class chips resolved to current names, quotes, external links, math (plain-code fallback until KaTeX), `hard_break`; asset/embed/query/whiteboard tokens render as labeled placeholders.
 
@@ -207,9 +207,9 @@ curl -s -X POST localhost:8377/api/v1/objects \
 
 The relay surface your clients sync through (`POST /api/relay/v2/batch`, `POST /catch-up`, snapshot endpoints, `/stats`, `/ws/:workspaceId`) is specified in [packages/protocol/WIRE.md](../packages/protocol/WIRE.md). You rarely touch it directly — the `packages/sync` engine and the web `WorkspaceClient` speak it for you.
 
-## Scope: single user, by design
+## Scope: accounts + operator key
 
-M1 auth is one API key: the server accepts exactly the configured key, derives the actor from it, and every workspace is yours. There are no users, roles, shares, or registration — multi-user lands with M3 hardening, and the wire spec already reserves what it needs (JWT sessions, E2EE envelope slot). Until then, expose the port to machines you trust.
+The server has accounts (email + password, scrypt-hashed) with sessions, and an initial-setup screen gates the first admin. Workspace access is membership-based: the first account to write to an unclaimed workspace adopts it; reads require membership. The operator API key (`nk_…`) remains the machine path — the CLI and owned devices use it with unrestricted access. Multi-user hardening (roles, shares, registration) still lands with M3; expose the port to machines you trust.
 
 ## See also
 
