@@ -188,6 +188,7 @@ export class SyncEngine {
   enqueue(envelope: Envelope): ChangeSummary {
     const summary = this.store.apply(envelope);
     this.outbox.add(envelope);
+    this.callbacks.onEnqueued?.(envelope);
     return summary;
   }
 
@@ -223,6 +224,7 @@ export class SyncEngine {
         // server-side — the server omits duplicate ids from savedIds, but
         // duplicate-only chunks still leave the outbox.
         this.outbox.markAcknowledged(ids);
+        this.callbacks.onAcknowledged?.(ids);
         sent += chunk.length;
         onProgress?.({ sent, total });
       } catch (err) {

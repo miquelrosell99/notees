@@ -30,6 +30,7 @@ export function makeConfig(dataDir: string, overrides: Partial<ServerConfig> = {
     globalRequestsPerMinute: 10_000,
     maxMediaBytes: 50 * 1024 * 1024,
     maxDocumentBytes: 100 * 1024 * 1024,
+    loginPerMinute: 10,
     corsOrigins: [],
     ...overrides,
   };

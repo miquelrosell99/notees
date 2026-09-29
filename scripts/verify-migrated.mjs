@@ -1,5 +1,5 @@
 // Read-only web-UI verification of the migrated v1 "Notas" workspace against
-// the PRODUCTION stack (notees-web :8080 + notees-sync :8377).
+// the PRODUCTION stack (notees-web :8378 + notees-sync :8377).
 //
 // Premise: a server-side snapshot now exists for this workspace (created
 // 2026-09-28 during verification), so the client's first boot is the snapshot
@@ -18,7 +18,7 @@
 //      - search prep: a term that resolves to that page via /api/v1/search
 //        (fallback chain: derived name -> content word -> "clasificaciones",
 //        the migration spot-check word from report.json).
-//   1. Browser: localStorage prefill (App.tsx STORAGE_KEYS), goto :8080,
+//   1. Browser: localStorage prefill (App.tsx STORAGE_KEYS), goto :8378,
 //      Connect, poll the sidebar until page rows render and settle. Times the
 //      boot (Connect click -> first sidebar rows) and asserts the 5-min budget.
 //   2. Assertions (fail loud: debug-failure.jpg + page-text dump):
@@ -70,7 +70,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.join(SCRIPT_DIR, "screenshots", "package.json"));
 const { chromium } = require("playwright");
 
-const BASE = (process.env.BASE_URL ?? "http://localhost:8080").replace(/\/$/, "");
+const BASE = (process.env.BASE_URL ?? "http://localhost:8378").replace(/\/$/, "");
 const API = (process.env.API_URL ?? "http://localhost:8377").replace(/\/$/, "");
 const API_KEY =
   process.env.API_KEY ??

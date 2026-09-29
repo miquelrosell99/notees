@@ -40,10 +40,13 @@ import type {
 } from "../worker/worker-core.js";
 
 export interface WorkerClientOptions {
+  /** Credential: operator API key or account session token (server accepts both). */
   serverUrl: string;
   apiKey: string;
   workspaceId: string;
   sqlWasmUrl: string;
+  /** Offline-first mode: no server, edits stay on the device. */
+  offline?: boolean;
   /** Test seam: supply a fake worker instead of spawning the real one. */
   spawn?: () => Worker;
 }
@@ -54,6 +57,7 @@ export class WorkerClient {
   /** Server REST access for the main-thread asset upload/download calls. */
   private readonly serverUrl: string;
   private readonly apiKey: string;
+  private readonly offline: boolean;
   private nextId = 1;
   private readonly pending = new Map<
     number,
@@ -74,11 +78,18 @@ export class WorkerClient {
   private refreshRunning = false;
   private closed = false;
 
-  private constructor(worker: Worker, workspaceId: string, serverUrl: string, apiKey: string) {
+  private constructor(
+    worker: Worker,
+    workspaceId: string,
+    serverUrl: string,
+    apiKey: string,
+    offline: boolean,
+  ) {
     this.worker = worker;
     this.workspaceId = workspaceId;
     this.serverUrl = serverUrl;
     this.apiKey = apiKey;
+    this.offline = offline;
     worker.onmessage = this.handleMessage;
   }
 
@@ -87,12 +98,19 @@ export class WorkerClient {
     const worker =
       options.spawn?.() ??
       new Worker(new URL("../worker/store-worker.ts", import.meta.url), { type: "module" });
-    const client = new WorkerClient(worker, options.workspaceId, options.serverUrl, options.apiKey);
+    const client = new WorkerClient(
+      worker,
+      options.workspaceId,
+      options.serverUrl,
+      options.apiKey,
+      options.offline === true,
+    );
     const init: WorkerInitMessage = {
       sqlWasmUrl: options.sqlWasmUrl,
       workspaceId: options.workspaceId,
       serverUrl: options.serverUrl,
       apiKey: options.apiKey,
+      offline: options.offline === true,
     };
     await client.call("init", [init]);
     return client;
@@ -451,6 +469,7 @@ export class WorkerClient {
 
   /** Wire the WS acceleration path in the worker. */
   async startRealtime(): Promise<void> {
+    if (this.offline) return; // nothing to subscribe to
     await this.call("startRealtime", []);
   }
 
