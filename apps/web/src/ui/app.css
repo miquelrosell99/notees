@@ -102,6 +102,37 @@ button {
   cursor: pointer;
 }
 
+/* Focus rings + selection — the v1 design-language elements every interactive
+   surface shares (inputs, buttons, contenteditable). */
+:focus-visible {
+  outline: 2px solid var(--nt-accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.nt-field input:focus-visible,
+.nt-workspace-new input:focus-visible,
+.nt-apikey-new input:focus-visible {
+  outline: none;
+  border-color: var(--nt-accent);
+  box-shadow: 0 0 0 3px var(--nt-accent-softer);
+}
+
+::selection {
+  background: var(--nt-accent-soft);
+  color: var(--nt-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* --- bootstrap screen ------------------------------------------------------ */
 
 .nt-bootstrap {
@@ -109,58 +140,388 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px;
 }
 
 .nt-bootstrap-form {
   background: var(--nt-surface);
   border: 1px solid var(--nt-border);
+  border-radius: 12px;
+  padding: 28px;
+  width: 360px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.nt-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nt-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
-  padding: 24px;
-  width: 340px;
+  background: var(--nt-accent);
+  color: var(--nt-on-accent);
+  font-size: 16px;
+}
+
+.nt-bootstrap-title {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+}
+
+.nt-bootstrap-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--nt-muted);
+}
+
+.nt-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.nt-bootstrap-title {
-  margin: 0 0 4px;
-  font-size: 20px;
+.nt-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--nt-surface-2);
+  border: 1px solid var(--nt-border);
+  border-radius: 9px;
+}
+
+.nt-tab {
+  flex: 1;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nt-muted);
+  font-size: 13px;
+}
+
+.nt-tab:hover {
+  color: var(--nt-text);
+}
+
+.nt-tab-active,
+.nt-tab-active:hover {
+  background: var(--nt-surface);
+  color: var(--nt-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .nt-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   font-size: 13px;
   color: var(--nt-muted);
 }
 
 .nt-field input {
   font: inherit;
-  padding: 6px 8px;
+  padding: 8px 10px;
   border: 1px solid var(--nt-border-2);
-  border-radius: 6px;
+  border-radius: 8px;
+  background: var(--nt-bg);
   color: var(--nt-text);
 }
 
-.nt-bootstrap-form button[type="submit"] {
-  margin-top: 4px;
-  padding: 8px;
-  border: none;
-  border-radius: 6px;
-  background: var(--nt-accent);
-  color: var(--nt-on-accent);
+.nt-field input:disabled {
+  opacity: 0.6;
 }
 
-.nt-bootstrap-form button[type="submit"]:disabled {
-  opacity: 0.6;
+.nt-btn {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.nt-btn-primary {
+  margin-top: 2px;
+  background: var(--nt-accent);
+  color: var(--nt-on-accent);
+  border-color: var(--nt-accent);
+}
+
+.nt-btn-primary:hover:not(:disabled) {
+  background: var(--nt-accent-strong);
+  border-color: var(--nt-accent-strong);
+}
+
+.nt-btn-primary:disabled {
+  opacity: 0.55;
   cursor: default;
+}
+
+.nt-btn-secondary {
+  background: transparent;
+  color: var(--nt-text-2);
+  border-color: var(--nt-border-2);
+}
+
+.nt-btn-secondary:hover {
+  background: var(--nt-surface-2);
+  color: var(--nt-text);
+}
+
+.nt-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--nt-muted);
+  border-left: 3px solid var(--nt-border-2);
+  padding-left: 10px;
+}
+
+.nt-bootstrap-footer {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .nt-error {
   margin: 0;
   color: var(--nt-danger);
   font-size: 13px;
+}
+
+/* --- settings modal --------------------------------------------------------- */
+
+.nt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.nt-modal {
+  background: var(--nt-surface);
+  border: 1px solid var(--nt-border);
+  border-radius: 12px;
+  width: 480px;
+  max-width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+}
+
+.nt-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nt-modal-title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.nt-modal-close {
+  border: none;
+  background: transparent;
+  color: var(--nt-muted);
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.nt-modal-close:hover {
+  background: var(--nt-surface-2);
+  color: var(--nt-text);
+}
+
+.nt-settings-account {
+  margin: 0;
+  font-size: 13px;
+  color: var(--nt-muted);
+}
+
+.nt-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nt-settings-heading {
+  margin: 0;
+  font-size: 14px;
+}
+
+.nt-settings-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--nt-muted);
+}
+
+.nt-apikey-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nt-apikey {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--nt-border);
+  border-radius: 8px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.nt-apikey-revoked {
+  opacity: 0.55;
+}
+
+.nt-apikey-name {
+  font-weight: 500;
+}
+
+.nt-apikey-prefix {
+  color: var(--nt-muted);
+  font-size: 12px;
+}
+
+.nt-apikey-meta {
+  margin-left: auto;
+  color: var(--nt-faint);
+  font-size: 12px;
+}
+
+.nt-apikey-revoke,
+.nt-apikey-revoke-confirm button {
+  border: 1px solid var(--nt-border-2);
+  background: transparent;
+  color: var(--nt-danger);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.nt-apikey-revoke:hover,
+.nt-apikey-revoke-confirm button:hover {
+  background: var(--nt-danger-soft);
+}
+
+.nt-apikey-revoke-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--nt-danger);
+}
+
+.nt-apikey-empty {
+  color: var(--nt-faint);
+  font-size: 13px;
+}
+
+.nt-apikey-new {
+  display: flex;
+  gap: 8px;
+}
+
+.nt-apikey-new input {
+  flex: 1;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--nt-border-2);
+  border-radius: 8px;
+  background: var(--nt-bg);
+  color: var(--nt-text);
+}
+
+.nt-apikey-new button {
+  border: 1px solid var(--nt-accent);
+  background: var(--nt-accent);
+  color: var(--nt-on-accent);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.nt-apikey-new button:disabled {
+  opacity: 0.55;
+}
+
+.nt-apikey-fresh {
+  border: 1px solid var(--nt-accent);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.nt-apikey-fresh p {
+  margin: 0;
+}
+
+.nt-apikey-token {
+  word-break: break-all;
+  background: var(--nt-surface-2);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.nt-apikey-fresh-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.nt-apikey-fresh-actions button {
+  border: 1px solid var(--nt-border-2);
+  background: transparent;
+  color: var(--nt-text);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+}
+
+.nt-theme-toggle,
+.nt-signout,
+.nt-settings {
+  border: 1px solid var(--nt-border-2);
+  background: transparent;
+  color: var(--nt-text-2);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 12px;
+}
+
+.nt-theme-toggle:hover,
+.nt-signout:hover,
+.nt-settings:hover {
+  background: var(--nt-surface-2);
+  color: var(--nt-text);
 }
 
 /* --- app shell ------------------------------------------------------------- */

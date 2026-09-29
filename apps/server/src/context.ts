@@ -12,7 +12,7 @@ import type { Envelope } from "@notees/protocol";
 
 import type { ServerConfig } from "./config.js";
 import { actorIdForKey, defaultWorkspaceId } from "./identity.js";
-import { AuthStorage, hashPassword } from "./auth.js";
+import { AuthStorage, AccountLockout, hashPassword } from "./auth.js";
 import { EnvelopeFactory } from "./envelope-factory.js";
 import { AppError } from "./errors.js";
 import { FixedWindowLimiter } from "./rate-limit.js";
@@ -31,6 +31,7 @@ export class ServerContext {
   readonly clock: Clock;
   readonly relay: RelayStorage;
   readonly auth: AuthStorage;
+  readonly lockout: AccountLockout;
   readonly workspaces: WorkspaceManager;
   readonly factory: EnvelopeFactory;
   readonly bus: SubscriptionBus;
@@ -58,6 +59,7 @@ export class ServerContext {
       `${config.dataDir}/snapshots`,
     );
     this.auth = new AuthStorage(`${config.dataDir}/relay.db`);
+    this.lockout = new AccountLockout();
     // Seed the device clock from the log so server-stamped HLCs never regress
     // across restarts.
     this.clock = new Clock("notees-server", this.relay.globalMaxHlc());

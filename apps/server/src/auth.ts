@@ -17,7 +17,7 @@
  * every authenticated use extends the expiry (capped at 30 days past now).
  */
 
-import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createHash, createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
@@ -33,6 +33,23 @@ const SCRYPT_P = 1;
 const SCRYPT_KEYLEN = 64;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TOKEN_BYTES = 36; // 48 base64url chars.
+
+// Key-derivation parameters for password-derived encryption keys (the E2EE
+// groundwork, Standard-Notes-style): auth uses fast scrypt above; deriving
+// the user's master-key wrap key uses memory-hard parameters. The derived
+// key never leaves the client in an E2EE flow; the server stores only the
+// salt/params, the wrapped master key, and a verifier tag.
+const KDF_N = 131072;
+const KDF_R = 8;
+const KDF_P = 1;
+
+// Per-account login lockout: 5 failures → 15-minute lock (Sonarly /
+// NextExplorer pattern). In-memory, like the fleet's lockouts — state resets
+// on restart, which is the accepted tradeoff (a restart clears a lockout but
+// also clears the failure count).
+const LOCKOUT_THRESHOLD = 5;
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
 export interface UserRow {
   id: string;
@@ -83,7 +100,13 @@ CREATE TABLE IF NOT EXISTS "user" (
     password_hash TEXT NOT NULL,
     display_name TEXT,
     is_admin INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    kdf_salt TEXT,
+    kdf_n INTEGER,
+    kdf_r INTEGER,
+    kdf_p INTEGER,
+    wrapped_master_key TEXT,
+    key_verifier TEXT
 );
 CREATE TABLE IF NOT EXISTS session (
     token_hash TEXT PRIMARY KEY,
@@ -106,6 +129,21 @@ CREATE TABLE IF NOT EXISTS workspace_member (
     PRIMARY KEY (workspace_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_member_user ON workspace_member (user_id);
+
+-- Per-user API keys: machine credentials minted from user settings. Only the
+-- sha256 of the key is stored; the full nk_-prefixed token is shown once at
+-- creation (like session tokens, nt_-prefixed, only hashed at rest).
+CREATE TABLE IF NOT EXISTS api_key (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    prefix TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER,
+    revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key (user_id);
 `;
 
 export async function hashPassword(password: string): Promise<string> {
@@ -139,6 +177,90 @@ export function tokenDigest(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/** User API keys: `nk_` + 40 base64url chars (operator keys are nk_+32). */
+export function generateApiKeyToken(): string {
+  return `nk_${randomBytes(30).toString("base64url")}`;
+}
+
+// --- password-derived encryption keys (E2EE groundwork) ---------------------------
+//
+// Every account carries a random 256-bit master key. At rest the server
+// stores only: the scrypt KDF parameters + salt, the master key encrypted
+// with the password-derived key (AES-256-GCM), and a verifier tag the client
+// can check after deriving the key (so a wrong password is detectable before
+// attempting to unwrap). The password-derived key itself is never stored or
+// transmitted. Created at setup, backfilled lazily on login for accounts
+// that predate the column (e.g. the v1 import).
+
+export interface KdfRecord {
+  algorithm: "scrypt";
+  N: number;
+  r: number;
+  p: number;
+  salt: string;
+  wrappedMasterKey: string;
+  keyVerifier: string;
+}
+
+async function deriveKey(password: string, salt: Buffer, N: number, r: number, p: number): Promise<Buffer> {
+  // maxmem: N=131072/r=8 needs ~128MiB of scratch, above OpenSSL's default
+  // cap — the explicit ceiling is required, not optional.
+  return (await scrypt(password, salt, 32, { N, r, p, maxmem: 256 * 1024 * 1024 })) as Buffer;
+}
+
+/** Wrap a fresh master key with the password-derived key; returns the record. */
+export async function createKdfRecord(password: string): Promise<KdfRecord> {
+  const salt = randomBytes(16);
+  const key = await deriveKey(password, salt, KDF_N, KDF_R, KDF_P);
+  const masterKey = randomBytes(32);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(masterKey), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const verifier = createHmac("sha256", key).update("notees-key-check").digest();
+  return {
+    algorithm: "scrypt",
+    N: KDF_N,
+    r: KDF_R,
+    p: KDF_P,
+    salt: salt.toString("base64url"),
+    wrappedMasterKey: Buffer.concat([iv, tag, ciphertext]).toString("base64url"),
+    keyVerifier: verifier.toString("base64url"),
+  };
+}
+
+export interface ApiKeyRow {
+  id: string;
+  userId: string;
+  name: string;
+  prefix: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+  revokedAt: number | null;
+}
+
+interface ApiKeyRaw {
+  id: string;
+  user_id: string;
+  name: string;
+  prefix: string;
+  created_at: number;
+  last_used_at: number | null;
+  revoked_at: number | null;
+}
+
+function toApiKeyRow(raw: ApiKeyRaw): ApiKeyRow {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    name: raw.name,
+    prefix: raw.prefix,
+    createdAt: raw.created_at,
+    lastUsedAt: raw.last_used_at,
+    revokedAt: raw.revoked_at,
+  };
+}
+
 type Db = Database.Database;
 
 export class AuthStorage {
@@ -151,6 +273,24 @@ export class AuthStorage {
     this.db.pragma("synchronous = NORMAL");
     this.db.pragma("busy_timeout = 5000");
     this.db.exec(DDL);
+    // Additive column migrations: relay.db may predate a column (CREATE TABLE
+    // IF NOT EXISTS never alters an existing table).
+    const columns = new Set(
+      (this.db.pragma('table_info("user")') as { name: string }[]).map((c) => c.name),
+    );
+    const additions: [string, string][] = [
+      ["kdf_salt", "TEXT"],
+      ["kdf_n", "INTEGER"],
+      ["kdf_r", "INTEGER"],
+      ["kdf_p", "INTEGER"],
+      ["wrapped_master_key", "TEXT"],
+      ["key_verifier", "TEXT"],
+    ];
+    for (const [name, type] of additions) {
+      if (!columns.has(name)) {
+        this.db.exec(`ALTER TABLE "user" ADD COLUMN ${name} ${type}`);
+      }
+    }
   }
 
   // --- users -------------------------------------------------------------------
@@ -316,7 +456,175 @@ export class AuthStorage {
     return rows.map((row) => row.id);
   }
 
+  // --- API keys -------------------------------------------------------------------
+
+  /** Mint a key; returns the row plus the full token (shown to the user once). */
+  createApiKey(userId: string, name: string): { row: ApiKeyRow; token: string } {
+    const token = generateApiKeyToken();
+    const id = uuidv7();
+    this.db
+      .prepare(
+        `INSERT INTO api_key (id, user_id, name, key_hash, prefix, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(id, userId, name.trim() || "API key", tokenDigest(token), token.slice(0, 12), Date.now());
+    const row = this.db.prepare("SELECT * FROM api_key WHERE id = ?").get(id) as ApiKeyRaw;
+    return { row: toApiKeyRow(row), token };
+  }
+
+  listApiKeys(userId: string): ApiKeyRow[] {
+    const rows = this.db
+      .prepare("SELECT * FROM api_key WHERE user_id = ? ORDER BY created_at ASC")
+      .all(userId) as ApiKeyRaw[];
+    return rows.map(toApiKeyRow);
+  }
+
+  revokeApiKey(userId: string, keyId: string): boolean {
+    const result = this.db
+      .prepare("UPDATE api_key SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL")
+      .run(Date.now(), keyId, userId);
+    return result.changes > 0;
+  }
+
+  /** Resolve a key to its owning user id; updates last_used_at. */
+  resolveApiKey(token: string): { userId: string; isAdmin: boolean } | null {
+    const row = this.db
+      .prepare(
+        `SELECT k.id AS key_id, k.revoked_at AS revoked_at, u.id AS user_id, u.is_admin AS is_admin
+         FROM api_key k JOIN "user" u ON u.id = k.user_id
+         WHERE k.key_hash = ?`,
+      )
+      .get(tokenDigest(token)) as
+      | { key_id: string; revoked_at: number | null; user_id: string; is_admin: number }
+      | undefined;
+    if (row === undefined || row.revoked_at !== null) return null;
+    this.db
+      .prepare("UPDATE api_key SET last_used_at = ? WHERE id = ?")
+      .run(Date.now(), row.key_id);
+    return { userId: row.user_id, isAdmin: row.is_admin === 1 };
+  }
+
+  // --- password-derived keys ------------------------------------------------------
+
+  getKdfRecord(userId: string): KdfRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT kdf_salt, kdf_n, kdf_r, kdf_p, wrapped_master_key, key_verifier
+         FROM "user" WHERE id = ?`,
+      )
+      .get(userId) as
+      | {
+          kdf_salt: string | null;
+          kdf_n: number | null;
+          kdf_r: number | null;
+          kdf_p: number | null;
+          wrapped_master_key: string | null;
+          key_verifier: string | null;
+        }
+      | undefined;
+    if (
+      row === undefined ||
+      row.kdf_salt === null ||
+      row.kdf_n === null ||
+      row.kdf_r === null ||
+      row.kdf_p === null ||
+      row.wrapped_master_key === null ||
+      row.key_verifier === null
+    ) {
+      return null;
+    }
+    return {
+      algorithm: "scrypt",
+      N: row.kdf_n,
+      r: row.kdf_r,
+      p: row.kdf_p,
+      salt: row.kdf_salt,
+      wrappedMasterKey: row.wrapped_master_key,
+      keyVerifier: row.key_verifier,
+    };
+  }
+
+  /** Backfill the KDF record for accounts that predate it (idempotent). */
+  async ensureKdfRecord(userId: string, password: string): Promise<KdfRecord> {
+    const existing = this.getKdfRecord(userId);
+    if (existing !== null) return existing;
+    const record = await createKdfRecord(password);
+    this.db
+      .prepare(
+        `UPDATE "user" SET kdf_salt = ?, kdf_n = ?, kdf_r = ?, kdf_p = ?,
+                wrapped_master_key = ?, key_verifier = ? WHERE id = ?`,
+      )
+      .run(record.salt, record.N, record.r, record.p, record.wrappedMasterKey, record.keyVerifier, userId);
+    return record;
+  }
+
   close(): void {
     this.db.close();
+  }
+}
+
+// --- per-account login lockout -------------------------------------------------------
+
+interface LockoutEntry {
+  count: number;
+  firstFailureAt: number;
+  lockedUntil: number;
+}
+
+export interface LockoutStatus {
+  locked: boolean;
+  retryAfterSeconds: number;
+}
+
+/**
+ * In-memory per-account lockout (5 failures within 15 min → locked for
+ * 15 min). Deliberately not persisted: a restart clears both the failure
+ * count and any active lock, the accepted fleet-wide tradeoff (Sonarly,
+ * NextExplorer do the same).
+ */
+export class AccountLockout {
+  private readonly entries = new Map<string, LockoutEntry>();
+
+  private entry(email: string): LockoutEntry {
+    const key = email.toLowerCase();
+    let entry = this.entries.get(key);
+    if (entry === undefined) {
+      entry = { count: 0, firstFailureAt: 0, lockedUntil: 0 };
+      this.entries.set(key, entry);
+    }
+    return entry;
+  }
+
+  status(email: string, now = Date.now()): LockoutStatus {
+    const entry = this.entry(email);
+    if (entry.lockedUntil > now) {
+      return { locked: true, retryAfterSeconds: Math.ceil((entry.lockedUntil - now) / 1000) };
+    }
+    if (entry.lockedUntil !== 0 && entry.lockedUntil <= now) {
+      // Lock expired: reset the window.
+      entry.count = 0;
+      entry.lockedUntil = 0;
+    }
+    return { locked: false, retryAfterSeconds: 0 };
+  }
+
+  /** Record a failure; returns the resulting lock state. */
+  recordFailure(email: string, now = Date.now()): LockoutStatus {
+    const entry = this.entry(email);
+    if (now - entry.firstFailureAt > LOCKOUT_WINDOW_MS) {
+      entry.count = 0;
+      entry.firstFailureAt = now;
+    }
+    entry.count += 1;
+    if (entry.count >= LOCKOUT_THRESHOLD) {
+      entry.lockedUntil = now + LOCKOUT_DURATION_MS;
+      entry.count = 0;
+      entry.firstFailureAt = 0;
+    }
+    return this.status(email, now);
+  }
+
+  recordSuccess(email: string): void {
+    this.entries.delete(email.toLowerCase());
   }
 }

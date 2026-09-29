@@ -13,7 +13,11 @@ services:
     environment:
       - NOTEES_DATA_DIR=/data
       - NOTEES_LOG=false
-      - NOTEES_CORS_ORIGIN=${NOTEES_CORS_ORIGIN:-http://localhost:8378}
+      # Browser clients call the API cross-origin (the web UI on another
+      # port/host). Auth is header-based (no cookies), so a wildcard origin
+      # exposes no credential surface on a LAN-trusted deployment; override
+      # with a comma-separated origin list for stricter setups.
+      - NOTEES_CORS_ORIGIN=${NOTEES_CORS_ORIGIN:-*}
     healthcheck:
       test: wget -qO- http://127.0.0.1:8377/healthz || exit 1
       interval: 30s
