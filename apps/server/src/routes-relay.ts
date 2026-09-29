@@ -2,7 +2,11 @@
  * Relay routes — WIRE.md §1–2 implemented exactly: POST /batch, POST
  * /catch-up, GET /snapshot, GET|PUT /snapshot/data, POST /compact, GET /stats,
  * and the /ws/{workspaceId} socket (hello/ops/ack/error frames, framing
- * version 2). Auth: X-API-Key on HTTP, ?token= or Authorization on the socket.
+ * version 2). Auth: the credential (operator API key or account session
+ * token) travels as X-API-Key on HTTP and ?token= / Authorization on the
+ * socket (transport.ts). Account principals are authorized per workspace via
+ * membership: a workspace with no members is claimed by the first account
+ * that writes to it (owner); reads require an existing membership.
  */
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -13,27 +17,11 @@ import type { WebSocket } from "ws";
 import type { Envelope } from "@notees/protocol";
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
-import { constantTimeKeyEqual } from "./identity.js";
+import type { Principal } from "./identity.js";
+import { resolvePrincipal } from "./routes-auth.js";
 import { RelayValidationError, validateRelayBatch } from "./validate.js";
 
 const WS_PROTOCOL_VERSION = 2;
-
-export function extractApiKey(request: FastifyRequest): string | null {
-  const header = request.headers["x-api-key"];
-  if (typeof header === "string" && header.length > 0) return header;
-  const authorization = request.headers.authorization;
-  if (authorization !== undefined && authorization.startsWith("Bearer ")) {
-    return authorization.slice("Bearer ".length).trim();
-  }
-  return null;
-}
-
-export function requireApiKey(ctx: ServerContext, request: FastifyRequest): void {
-  const key = extractApiKey(request);
-  if (key === null || !constantTimeKeyEqual(key, ctx.config.apiKey)) {
-    throw new AppError(401, "unauthenticated", "invalid or missing API key");
-  }
-}
 
 const catchUpBodySchema = z
   .object({
@@ -63,12 +51,60 @@ const snapshotPutQuerySchema = z.object({
   logical: z.coerce.number().int().nonnegative(),
 });
 
-export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): void {
-  const relayPreHandler = async (request: FastifyRequest) => {
-    requireApiKey(ctx, request);
-  };
+/**
+ * Resolves the request credential (throws 401 when absent/invalid) and
+ * enforces workspace membership for account principals. The operator API
+ * key keeps its historical unrestricted access (CLI, owned devices).
+ * `access: "write"` claims unclaimed workspaces for the first account.
+ */
+export function requireCredential(
+  ctx: ServerContext,
+  request: FastifyRequest,
+  workspaceId?: string,
+  access: "read" | "write" = "read",
+): Principal {
+  const resolved = resolvePrincipal(ctx, request);
+  if (resolved === null) {
+    throw new AppError(401, "unauthenticated", "invalid or missing credentials");
+  }
+  if (workspaceId !== undefined) {
+    authorizeWorkspace(ctx, resolved.principal, workspaceId, access);
+  }
+  return resolved.principal;
+}
 
-  app.post("/batch", { preHandler: relayPreHandler }, async (request) => {
+export function authorizeWorkspace(
+  ctx: ServerContext,
+  principal: Principal,
+  workspaceId: string,
+  access: "read" | "write",
+): void {
+  if (principal.kind === "apikey") return;
+  if (ctx.auth.membership(workspaceId, principal.userId) !== null) return;
+  if (access === "write" && !ctx.auth.hasAnyMembership(workspaceId)) {
+    // First account to write to an unclaimed workspace adopts it — this is
+    // also how a migrated workspace (data present, no membership rows yet)
+    // is claimed by its owner. Migration assigns memberships explicitly.
+    try {
+      ctx.auth.createWorkspace({ id: workspaceId });
+    } catch {
+      // UNIQUE conflict: the workspace row already exists.
+    }
+    ctx.auth.addMember(workspaceId, principal.userId, "owner");
+    return;
+  }
+  throw new AppError(
+    403,
+    "forbidden",
+    access === "write"
+      ? "this workspace belongs to another account"
+      : "you are not a member of this workspace",
+  );
+}
+
+export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): void {
+  app.post("/batch", async (request) => {
+    const principal = requireCredential(ctx, request);
     let envelopes: Envelope[];
     try {
       envelopes = validateRelayBatch(request.body);
@@ -78,17 +114,21 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
       }
       throw error;
     }
+    for (const workspaceId of new Set(envelopes.map((env) => env.workspaceId))) {
+      authorizeWorkspace(ctx, principal, workspaceId, "write");
+    }
     const { savedIds } = await ctx.ingestBatch(envelopes);
     return { savedCount: savedIds.length, savedIds };
   });
 
-  app.post("/catch-up", { preHandler: relayPreHandler }, async (request) => {
+  app.post("/catch-up", async (request) => {
     const parsed = catchUpBodySchema.safeParse(request.body);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid catch-up request");
     }
     const { workspaceId, afterSeq } = parsed.data;
     const limit = Math.min(Math.max(parsed.data.limit, 1), 10_000);
+    requireCredential(ctx, request, workspaceId, "read");
     const page = ctx.relay.catchUp(workspaceId, afterSeq, limit);
     return {
       envelopes: page.envelopes,
@@ -99,12 +139,13 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     };
   });
 
-  app.get("/snapshot", { preHandler: relayPreHandler }, async (request) => {
+  app.get("/snapshot", async (request) => {
     const parsed = workspaceQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", "workspaceId (uuid) query parameter required");
     }
     const { workspaceId } = parsed.data;
+    requireCredential(ctx, request, workspaceId, "read");
     const snapshot = ctx.relay.latestSnapshot(workspaceId);
     const restoreEpoch = ctx.relay.restoreEpoch(workspaceId);
     if (snapshot === null) {
@@ -125,11 +166,12 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     };
   });
 
-  app.get("/snapshot/data", { preHandler: relayPreHandler }, async (request, reply) => {
+  app.get("/snapshot/data", async (request, reply) => {
     const parsed = workspaceQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", "workspaceId (uuid) query parameter required");
     }
+    requireCredential(ctx, request, parsed.data.workspaceId, "read");
     const snapshot = ctx.relay.latestSnapshot(parsed.data.workspaceId);
     if (snapshot === null) {
       throw new AppError(404, "not_found", "no snapshot for this workspace");
@@ -141,12 +183,13 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     return reply.header("content-type", "application/octet-stream").send(bytes);
   });
 
-  app.put("/snapshot/data", { preHandler: relayPreHandler }, async (request, reply) => {
+  app.put("/snapshot/data", async (request, reply) => {
     const parsed = snapshotPutQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", "workspaceId, physical and logical query parameters required");
     }
     const { workspaceId, physical, logical } = parsed.data;
+    requireCredential(ctx, request, workspaceId, "write");
     const body = request.body;
     if (!Buffer.isBuffer(body) || body.length === 0) {
       throw new AppError(422, "validation_failed", "snapshot data must be a non-empty binary body");
@@ -163,12 +206,13 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     };
   });
 
-  app.post("/compact", { preHandler: relayPreHandler }, async (request) => {
+  app.post("/compact", async (request) => {
     const parsed = compactBodySchema.safeParse(request.body);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid compact request");
     }
     const { workspaceId, upToHlc, prune, dataBase64 } = parsed.data;
+    requireCredential(ctx, request, workspaceId, "write");
     if (prune && dataBase64.length === 0) {
       throw new AppError(422, "validation_failed", "prune: true requires non-empty dataBase64");
     }
@@ -196,23 +240,25 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     };
   });
 
-  app.get("/stats", { preHandler: relayPreHandler }, async (request) => {
+  app.get("/stats", async (request) => {
     const parsed = workspaceQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", "workspaceId (uuid) query parameter required");
     }
+    requireCredential(ctx, request, parsed.data.workspaceId, "read");
     return ctx.relay.stats(parsed.data.workspaceId);
   });
 
   // --- WebSocket -------------------------------------------------------------
 
-  // WIRE.md: socket auth via ?token= (API key) or the Authorization header.
+  // WIRE.md: socket auth via ?token= (credential) or the Authorization header.
+  // The preHandler answers plain-HTTP probes with the 401 JSON envelope; the
+  // in-handler check re-resolves the principal for per-frame authorization.
   const wsPreHandler = async (request: FastifyRequest) => {
-    const query = request.query as { token?: unknown };
-    if (typeof query.token === "string" && constantTimeKeyEqual(query.token, ctx.config.apiKey)) {
-      return;
+    const { workspaceId } = request.params as { workspaceId: string };
+    if (z.string().uuid().safeParse(workspaceId).success) {
+      requireCredential(ctx, request, workspaceId, "read");
     }
-    requireApiKey(ctx, request);
   };
 
   app.get("/ws/:workspaceId", { websocket: true, preHandler: wsPreHandler }, (socket, request) => {
@@ -221,6 +267,13 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     if (!z.string().uuid().safeParse(workspaceId).success) {
       ws.send(JSON.stringify({ type: "error", message: "invalid workspaceId" }));
       ws.close(1002, "invalid workspaceId");
+      return;
+    }
+    let principal: Principal;
+    try {
+      principal = requireCredential(ctx, request, workspaceId, "read");
+    } catch {
+      ws.close(1002, "unauthorized");
       return;
     }
     const send = (frame: unknown) => {
@@ -287,6 +340,9 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
         return;
       }
       try {
+        for (const envWorkspaceId of new Set(envelopes.map((env) => env.workspaceId))) {
+          authorizeWorkspace(ctx, principal, envWorkspaceId, "write");
+        }
         const { savedIds } = await ctx.ingestBatch(envelopes);
         send({ type: "ack", savedIds });
       } catch (error) {

@@ -3,7 +3,9 @@
  * shared handleMessage protocol over a WorkerCore. The init message carries
  * { sqlWasmUrl, workspaceId, serverUrl, apiKey }: the worker initializes
  * sql.js (locateFile → sqlWasmUrl), builds an HttpTransport, and opens the
- * OPFS-backed core. Spawnable via:
+ * OPFS-backed core. With `offline: true` it builds an OfflineTransport
+ * instead (no server, no account; edits stay on the device until the
+ * workspace is later connected). Spawnable via:
  *
  *   new Worker(new URL("./store-worker.ts", import.meta.url), { type: "module" })
  *
@@ -14,7 +16,7 @@
 
 import initSqlJs from "sql.js";
 
-import { HttpTransport } from "@notees/sync";
+import { HttpTransport, OfflineTransport } from "@notees/sync";
 
 import { opfsStore } from "./opfs.js";
 import {
@@ -28,9 +30,11 @@ const workerScope = self as unknown as Worker;
 
 const ctx: WorkerContext = {
   core: null,
-  init: async ({ sqlWasmUrl, workspaceId, serverUrl, apiKey }) => {
+  init: async ({ sqlWasmUrl, workspaceId, serverUrl, apiKey, offline }) => {
     const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl });
-    const transport = new HttpTransport({ baseUrl: serverUrl, apiKey, workspaceId });
+    const transport = offline
+      ? new OfflineTransport()
+      : new HttpTransport({ baseUrl: serverUrl, apiKey, workspaceId });
     ctx.core = await WorkerCore.create({
       SQL,
       opfs: opfsStore(),

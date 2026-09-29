@@ -103,4 +103,8 @@ export interface SyncEngineCallbacks {
   onSyncPhase?: (phase: string, message: string) => void;
   /** A realtime (WS) frame was applied to the store; the embedding client refreshes. */
   onRemoteBatch?: (appliedCount: number) => void;
+  /** A local envelope was enqueued (durable local-op-log hook). */
+  onEnqueued?: (envelope: Envelope) => void;
+  /** A chunk of local envelopes was acknowledged by the server (durable-log hook). */
+  onAcknowledged?: (ids: string[]) => void;
 }

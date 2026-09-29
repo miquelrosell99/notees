@@ -12,7 +12,8 @@ services:
       - ./config/notees/sync:/data
     environment:
       - NOTEES_DATA_DIR=/data
-      - NOTEES_CORS_ORIGIN=${NOTEES_CORS_ORIGIN:-http://localhost:8080}
+      - NOTEES_LOG=false
+      - NOTEES_CORS_ORIGIN=${NOTEES_CORS_ORIGIN:-http://localhost:8378}
     healthcheck:
       test: wget -qO- http://127.0.0.1:8377/healthz || exit 1
       interval: 30s
@@ -25,7 +26,7 @@ services:
     image: ghcr.io/miquelrosell99/notees-web:${NOTEES_WEB_TAG:-2.0.0-m1}
     container_name: notees-web
     ports:
-      - "${NOTEES_WEB_PORT:-8080}:80"
+      - "${NOTEES_WEB_PORT:-8378}:80"
     environment:
       - NOTEES_SERVER_URL=${NOTEES_SERVER_URL:-http://localhost:8377}
     depends_on:

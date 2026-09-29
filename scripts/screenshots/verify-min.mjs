@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 
 const API = "http://localhost:8377";
-const WEB = "http://localhost:8080";
+const WEB = "http://localhost:8378";
 const KEY = (await import("node:fs")).readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
 const WS = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
@@ -37,20 +37,27 @@ context.on("workercreated", (w) => {
 });
 
 const t0 = Date.now();
-await page.addInitScript(([url, key, ws]) => {
+// New account-based flow: obtain a session token via the login API and seed
+// it — the app's resume effect validates it, then auto-connects the
+// remembered workspace (no Connect click needed).
+const loginRes = await fetch(API + "/api/v1/auth/login", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ email: "miquelroselltarrago@gmail.com", password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }),
+});
+if (!loginRes.ok) throw new Error(`login: ${loginRes.status}`);
+const { token: SESSION } = await loginRes.json();
+await page.addInitScript(([url, token, ws]) => {
   localStorage.setItem("notees.serverUrl", url);
-  localStorage.setItem("notees.apiKey", key);
+  localStorage.setItem("notees.sessionToken", token);
   localStorage.setItem("notees.workspaceId", ws);
-}, [API, KEY, WS]);
+}, [API, SESSION, WS]);
 
 await page.goto(WEB, { waitUntil: "commit", timeout: 120_000 });
-// Connect button (bootstrap prefilled from localStorage).
-await page.getByRole("button", { name: /connect/i }).waitFor({ timeout: 30_000 });
-await page.getByRole("button", { name: /connect/i }).click();
-console.log("connect clicked");
-
-// Wait for the sidebar to render rows (snapshot restore + settle).
-await page.waitForSelector("[class*=sidebar] *, .nt-sidebar *", { timeout: 5_000 }).catch(() => {});
+// The resume effect connects automatically; the app shell (sidebar) is the
+// ready signal.
+await page.waitForSelector(".nt-sidebar *, [class*=sidebar] *", { timeout: 5_000 }).catch(() => {});
+console.log("resume-connect in flight");
 // Diagnostic first: what did the boot actually show?
 await page.waitForTimeout(8000);
 console.log("body text:", JSON.stringify(await page.evaluate(() => document.body.innerText)));

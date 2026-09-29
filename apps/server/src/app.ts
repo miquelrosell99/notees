@@ -17,8 +17,9 @@ import type { ServerConfig } from "./config.js";
 import { ServerContext } from "./context.js";
 import { AppError, errorBody, type ErrorCode } from "./errors.js";
 import { registerAssetRoutes } from "./assets.js";
+import { registerAuthRoutes } from "./routes-auth.js";
 import { registerObjectRoutes } from "./routes-objects.js";
-import { registerRelayRoutes, requireApiKey } from "./routes-relay.js";
+import { registerRelayRoutes, requireCredential } from "./routes-relay.js";
 
 export const SERVER_VERSION = "2.0.0-m1";
 
@@ -32,7 +33,7 @@ export async function buildServer(
   options: { logger?: boolean } = {},
 ): Promise<BuiltServer> {
   mkdirSync(config.dataDir, { recursive: true });
-  const ctx = new ServerContext(config);
+  const ctx = new ServerContext(config, SERVER_VERSION);
   const app = Fastify({
     logger: options.logger ?? config.logger,
     bodyLimit: 128 * 1024 * 1024,
@@ -124,8 +125,21 @@ export async function buildServer(
     { prefix: "/api/relay/v2" },
   );
 
+  // Account surface: server-info/setup/login are UNAUTHENTICATED (the client
+  // needs them to decide which first-run screen to show); auth/me, logout,
+  // and the workspace list live here too, gated per-route by requireAccount.
+  await app.register(
+    async (api) => {
+      registerAuthRoutes(api, ctx);
+    },
+    { prefix: "/api/v1" },
+  );
+
+  // The object/assets machine API: any authenticated principal (operator API
+  // key or account session) — v1 of multi-account object authorization is the
+  // default workspace, claimed by the first account (see routes-auth /setup).
   const apiAuth = async (request: import("fastify").FastifyRequest) => {
-    requireApiKey(ctx, request);
+    requireCredential(ctx, request, ctx.defaultWorkspace, "write");
   };
 
   await app.register(
