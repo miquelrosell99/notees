@@ -41,16 +41,20 @@ import {
 import { PageView } from "./PageView.js";
 import { ClassView } from "./ClassView.js";
 import { SearchBox } from "./SearchBox.js";
+import { SettingsPanel } from "./SettingsPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import "./app.css";
 
 const STORAGE_KEYS = {
   serverUrl: "notees.serverUrl",
   sessionToken: "notees.sessionToken",
+  apiKey: "notees.apiKey",
   workspaceId: "notees.workspaceId",
   /** Device-local workspace created by "Work offline". */
   localWorkspaceId: "notees.localWorkspaceId",
 } as const;
+
+type CredentialType = "session" | "apikey";
 
 /** Footer status before the first status() snapshot arrives. */
 const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {
@@ -133,13 +137,20 @@ function SyncStatusLine({ snapshot }: { snapshot: SyncStatusSnapshot }) {
 }
 
 /**
- * Initial server URL: a remembered value (localStorage) wins; otherwise the
- * /config.js runtime prefill (window.NOTEES_CONFIG, written by the web
- * container entrypoint from NOTEES_SERVER_URL) defaults the form field.
- * Empty result → the user types it manually.
+ * Initial server URL: a remembered value (localStorage) wins; then the
+ * /config.js runtime prefill (window.NOTEES_CONFIG); then a same-host guess —
+ * a sync server colocated with the web client conventionally listens on
+ * :8377, and `localhost` would point at the user's own device, not the host
+ * serving this page (the classic "NetworkError" trap on first connect).
  */
 function initialServerUrl(): string {
-  return readStored(STORAGE_KEYS.serverUrl) || window.NOTEES_CONFIG?.serverUrl || "";
+  const remembered = readStored(STORAGE_KEYS.serverUrl);
+  if (remembered !== "") return remembered;
+  if (window.NOTEES_CONFIG?.serverUrl) return window.NOTEES_CONFIG.serverUrl;
+  if (typeof location !== "undefined" && location.hostname !== "") {
+    return `${location.protocol}//${location.hostname}:8377`;
+  }
+  return "";
 }
 
 /**
@@ -175,8 +186,14 @@ export function App() {
   const [displayName, setDisplayName] = useState("");
   const [phase, setPhase] = useState<Phase>({ name: "server" });
   const [error, setError] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
   const [user, setUser] = useState<AccountUser | null>(null);
   const [token, setToken] = useState(() => readStored(STORAGE_KEYS.sessionToken));
+  const [authTab, setAuthTab] = useState<"account" | "apikey">("account");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** True when the live credential is a session (API-key management needs one). */
+  const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
@@ -245,7 +262,7 @@ export function App() {
     url: string,
     credential: string,
     workspaceId: string,
-    options: { isOffline: boolean; saveSession: boolean },
+    options: { isOffline: boolean; credentialType: CredentialType },
   ): Promise<void> {
     setPhase({ name: "connecting", label: options.isOffline ? "Opening local workspace…" : "Connecting…" });
     setError(null);
@@ -276,7 +293,15 @@ export function App() {
         // The worker path bootstraps during init; the in-process path syncs here.
         await nextClient.bootstrapWorkspace(workspaceId);
       }
-      if (options.saveSession) writeStored(STORAGE_KEYS.sessionToken, credential);
+      if (options.credentialType === "session") {
+        writeStored(STORAGE_KEYS.sessionToken, credential);
+        clearStored(STORAGE_KEYS.apiKey);
+        setSessionSignedIn(true);
+      } else if (options.credentialType === "apikey") {
+        writeStored(STORAGE_KEYS.apiKey, credential);
+        clearStored(STORAGE_KEYS.sessionToken);
+        setSessionSignedIn(false);
+      }
       clientRef.current = nextClient;
       setClient(nextClient);
       setOffline(options.isOffline);
@@ -294,24 +319,29 @@ export function App() {
     }
   }
 
-  /** Resume a remembered session (token + workspace) or the offline workspace. */
+  /** Resume a remembered session or API key, or the offline workspace. */
   useEffect(() => {
     const rememberedUrl = readStored(STORAGE_KEYS.serverUrl);
-    const rememberedToken = readStored(STORAGE_KEYS.sessionToken);
     const rememberedWorkspace = readStored(STORAGE_KEYS.workspaceId);
-    if (rememberedUrl !== "" && rememberedToken !== "" && rememberedWorkspace !== "") {
-      // Validate the token first: an expired session must land on login, not
-      // on an empty-looking local store with a silent sync error.
-      listWorkspaces(rememberedUrl, rememberedToken)
-        .then(() => connect(rememberedUrl, rememberedToken, rememberedWorkspace, { isOffline: false, saveSession: true }))
+    const rememberedSession = readStored(STORAGE_KEYS.sessionToken);
+    const rememberedApiKey = readStored(STORAGE_KEYS.apiKey);
+    const credential = rememberedSession !== "" ? rememberedSession : rememberedApiKey;
+    const credentialType: CredentialType = rememberedSession !== "" ? "session" : "apikey";
+    if (rememberedUrl !== "" && credential !== "" && rememberedWorkspace !== "") {
+      // Validate the credential first: an expired session or revoked key must
+      // land on the sign-in screen, not on an empty-looking local store with
+      // a silent sync error.
+      listWorkspaces(rememberedUrl, credential)
+        .then(() => connect(rememberedUrl, credential, rememberedWorkspace, { isOffline: false, credentialType }))
         .catch(() => {
           clearStored(STORAGE_KEYS.sessionToken);
+          clearStored(STORAGE_KEYS.apiKey);
           setToken("");
           setPhase({ name: "server" });
         });
       return;
     }
-    // No session: fall through to the server screen (offline users keep
+    // No credential: fall through to the server screen (offline users keep
     // their local workspace id for the workspaces/offline flows).
     setPhase({ name: "server" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -320,6 +350,7 @@ export function App() {
   async function handleServerSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setHint(null);
     const url = serverUrl.trim().replace(/\/$/, "");
     try {
       const info = await fetchServerInfo(url);
@@ -330,6 +361,15 @@ export function App() {
         setPhase({ name: "login" });
       }
     } catch (err) {
+      // A failed fetch surfaces as TypeError("NetworkError…") with no status:
+      // distinguish "unreachable/CORS-blocked" from an HTTP error response.
+      if (err instanceof TypeError) {
+        setHint(
+          `Could not reach a sync server at ${url}. Note: "localhost" is THIS device — ` +
+            `if the server runs on the host serving this page, use its address ` +
+            `(e.g. ${location.protocol}//${location.hostname}:8377) instead.`,
+        );
+      }
       setError(err instanceof Error ? err.message : String(err));
     }
   }
@@ -378,13 +418,36 @@ export function App() {
     }
   }
 
+  async function handleApiKeySubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setHint(null);
+    const url = serverUrl.trim().replace(/\/$/, "");
+    const key = apiKeyInput.trim();
+    if (key === "") {
+      setError("Enter an API key.");
+      return;
+    }
+    try {
+      // Validating against /workspaces also proves the key: a user API key
+      // authenticates as its owner (routes-auth requireUser).
+      const { workspaces: list } = await listWorkspaces(url, key);
+      setServerUrl(url);
+      setToken(key);
+      setWorkspaces(list);
+      setPhase({ name: "workspaces", user: { id: "", email: "API key", displayName: null, isAdmin: false } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function handleCreateWorkspace(event: FormEvent) {
     event.preventDefault();
     setError(null);
     try {
       const { id } = await createWorkspace(serverUrl, token, newWorkspaceName.trim() || undefined);
       setNewWorkspaceName("");
-      await connect(serverUrl, token, id, { isOffline: false, saveSession: true });
+      await connect(serverUrl, token, id, { isOffline: false, credentialType: authTab === "apikey" ? "apikey" : "session" });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -399,7 +462,7 @@ export function App() {
     }
     await connect(readStored(STORAGE_KEYS.serverUrl), "", localId, {
       isOffline: true,
-      saveSession: false,
+      credentialType: "session",
     });
   }
 
@@ -410,12 +473,14 @@ export function App() {
       try {
         await logout(url, sessionToken);
       } catch {
-        // Best-effort: the local session is cleared regardless.
+        // Best-effort: the local credential is cleared regardless.
       }
     }
     clearStored(STORAGE_KEYS.sessionToken);
+    clearStored(STORAGE_KEYS.apiKey);
     setToken("");
     setUser(null);
+    setSettingsOpen(false);
     const live = clientRef.current;
     clientRef.current = null;
     live?.close();
@@ -436,115 +501,209 @@ export function App() {
     !workspaces.some((ws) => ws.id === localWorkspaceId);
 
   if (phase.name === "server" || phase.name === "setup" || phase.name === "login") {
+    const isLogin = phase.name === "login";
     return (
       <div className="nt-bootstrap">
-        <form
-          className="nt-bootstrap-form"
-          onSubmit={(e) =>
-            void (phase.name === "setup"
-              ? handleSetup(e)
-              : phase.name === "login"
-                ? handleLogin(e)
-                : handleServerSubmit(e))
-          }
-        >
-          <h1 className="nt-bootstrap-title">Notees</h1>
-          {phase.name !== "server" && (
-            <p className="nt-bootstrap-subtitle">
-              {phase.name === "setup" ? "Initial setup — create the admin account" : `Sign in to ${serverUrl}`}
-            </p>
+        <div className="nt-bootstrap-form nt-card">
+          <div className="nt-brand">
+            <span className="nt-brand-mark" aria-hidden="true">
+              ◈
+            </span>
+            <h1 className="nt-bootstrap-title">Notees</h1>
+          </div>
+          {phase.name === "server" && (
+            <p className="nt-bootstrap-subtitle">Connect to your sync server — or work offline.</p>
           )}
-          <label className="nt-field">
-            <span>Server URL</span>
-            <input
-              value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
-              placeholder="https://notees.example.com"
-              disabled={phase.name !== "server"}
-              required
-            />
-          </label>
           {phase.name === "setup" && (
-            <label className="nt-field">
-              <span>Name (optional)</span>
-              <input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                autoComplete="name"
-              />
-            </label>
+            <p className="nt-bootstrap-subtitle">Initial setup — create the admin account</p>
           )}
-          {phase.name !== "server" && (
-            <>
+          {isLogin && (
+            <div className="nt-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authTab === "account"}
+                className={authTab === "account" ? "nt-tab nt-tab-active" : "nt-tab"}
+                onClick={() => {
+                  setAuthTab("account");
+                  setError(null);
+                }}
+              >
+                Account
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authTab === "apikey"}
+                className={authTab === "apikey" ? "nt-tab nt-tab-active" : "nt-tab"}
+                onClick={() => {
+                  setAuthTab("apikey");
+                  setError(null);
+                }}
+              >
+                API key
+              </button>
+            </div>
+          )}
+
+          {isLogin && authTab === "apikey" ? (
+            <form
+              className="nt-form"
+              onSubmit={(e) => void handleApiKeySubmit(e)}
+            >
               <label className="nt-field">
-                <span>Email</span>
+                <span>Server URL</span>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
+                  placeholder="https://notees.example.com"
                   required
                 />
               </label>
               <label className="nt-field">
-                <span>Password</span>
+                <span>API key</span>
                 <input
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete={phase.name === "setup" ? "new-password" : "current-password"}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="nk_…"
+                  autoComplete="off"
                   required
                 />
               </label>
-            </>
-          )}
-          {phase.name === "setup" && (
-            <label className="nt-field">
-              <span>Confirm password</span>
-              <input
-                type="password"
-                value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </label>
-          )}
-          <button type="submit">
-            {phase.name === "setup" ? "Create account" : phase.name === "login" ? "Sign in" : "Continue"}
-          </button>
-          {phase.name === "server" && (
-            <button type="button" className="nt-bootstrap-secondary" onClick={() => void handleWorkOffline()}>
-              Work offline
-            </button>
-          )}
-          {phase.name === "login" && (
-            <button
-              type="button"
-              className="nt-bootstrap-secondary"
-              onClick={() => {
-                setEmail("");
-                setPassword("");
-                setPhase({ name: "server" });
-              }}
+              <button type="submit" className="nt-btn nt-btn-primary">
+                Sign in with key
+              </button>
+              <button
+                type="button"
+                className="nt-btn nt-btn-secondary"
+                onClick={() => {
+                  setApiKeyInput("");
+                  setError(null);
+                  setPhase({ name: "server" });
+                }}
+              >
+                Change server
+              </button>
+              {hint !== null && <p className="nt-hint">{hint}</p>}
+              {error !== null && <p className="nt-error">{error}</p>}
+            </form>
+          ) : (
+            <form
+              className="nt-form"
+              onSubmit={(e) =>
+                void (phase.name === "setup"
+                  ? handleSetup(e)
+                  : isLogin
+                    ? handleLogin(e)
+                    : handleServerSubmit(e))
+              }
             >
-              Change server
-            </button>
+              <label className="nt-field">
+                <span>Server URL</span>
+                <input
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
+                  placeholder="https://notees.example.com"
+                  disabled={phase.name !== "server"}
+                  required
+                />
+              </label>
+              {phase.name === "setup" && (
+                <label className="nt-field">
+                  <span>Name (optional)</span>
+                  <input
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    autoComplete="name"
+                  />
+                </label>
+              )}
+              {phase.name !== "server" && (
+                <>
+                  <label className="nt-field">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      required
+                    />
+                  </label>
+                  <label className="nt-field">
+                    <span>Password</span>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete={phase.name === "setup" ? "new-password" : "current-password"}
+                      required
+                    />
+                  </label>
+                </>
+              )}
+              {phase.name === "setup" && (
+                <label className="nt-field">
+                  <span>Confirm password</span>
+                  <input
+                    type="password"
+                    value={passwordConfirm}
+                    onChange={(e) => setPasswordConfirm(e.target.value)}
+                    autoComplete="new-password"
+                    required
+                  />
+                </label>
+              )}
+              <button type="submit" className="nt-btn nt-btn-primary">
+                {phase.name === "setup" ? "Create account" : isLogin ? "Sign in" : "Continue"}
+              </button>
+              {phase.name === "server" && (
+                <button
+                  type="button"
+                  className="nt-btn nt-btn-secondary"
+                  onClick={() => void handleWorkOffline()}
+                >
+                  Work offline
+                </button>
+              )}
+              {isLogin && (
+                <button
+                  type="button"
+                  className="nt-btn nt-btn-secondary"
+                  onClick={() => {
+                    setEmail("");
+                    setPassword("");
+                    setError(null);
+                    setPhase({ name: "server" });
+                  }}
+                >
+                  Change server
+                </button>
+              )}
+              {hint !== null && <p className="nt-hint">{hint}</p>}
+              {error !== null && <p className="nt-error">{error}</p>}
+            </form>
           )}
-          {error !== null && <p className="nt-error">{error}</p>}
           <div className="nt-bootstrap-footer">
             <ThemeToggle />
           </div>
-        </form>
+        </div>
       </div>
     );
   }
 
   if (phase.name === "workspaces") {
+    const credentialType: CredentialType = authTab === "apikey" ? "apikey" : "session";
     return (
       <div className="nt-bootstrap">
-        <div className="nt-bootstrap-form nt-workspaces">
-          <h1 className="nt-bootstrap-title">Notees</h1>
+        <div className="nt-bootstrap-form nt-card nt-workspaces">
+          <div className="nt-brand">
+            <span className="nt-brand-mark" aria-hidden="true">
+              ◈
+            </span>
+            <h1 className="nt-bootstrap-title">Notees</h1>
+          </div>
           <p className="nt-bootstrap-subtitle">
             Signed in as {user?.email}. Choose a workspace:
           </p>
@@ -555,7 +714,7 @@ export function App() {
                   type="button"
                   className="nt-workspace-item"
                   onClick={() =>
-                    void connect(serverUrl, token, ws.id, { isOffline: false, saveSession: true })
+                    void connect(serverUrl, token, ws.id, { isOffline: false, credentialType })
                   }
                 >
                   <span className="nt-workspace-name">{ws.name ?? ws.id.slice(0, 8)}</span>
@@ -573,7 +732,7 @@ export function App() {
                   onClick={() =>
                     void connect(serverUrl, token, localWorkspaceId, {
                       isOffline: false,
-                      saveSession: true,
+                      credentialType,
                     })
                   }
                 >
@@ -689,10 +848,23 @@ export function App() {
         </span>
         <SyncStatusLine snapshot={syncStatus} />
         <ThemeToggle />
+        {sessionSignedIn && user !== null && !offline && (
+          <button type="button" className="nt-settings" onClick={() => setSettingsOpen(true)}>
+            Settings
+          </button>
+        )}
         <button type="button" className="nt-signout" onClick={() => void handleSignOut()}>
           Sign out
         </button>
       </footer>
+      {settingsOpen && sessionSignedIn && user !== null && !offline && (
+        <SettingsPanel
+          serverUrl={serverUrl}
+          token={token}
+          user={user}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 }
