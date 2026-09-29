@@ -186,7 +186,7 @@ there is no `notees export`.
   multi-user authorization (M3), scoped keys. Until M3, "whoever holds the key" is the
   entire threat-model boundary.
 
-## 9. Docker + Compose (shipped 2026-09-26)
+## 9. Docker + Compose (shipped 2026-09-26, Komodo-managed since 2026-09-29)
 
 Two images build from this monorepo (context = the repo root):
 
@@ -203,32 +203,34 @@ Two images build from this monorepo (context = the repo root):
   (`window.NOTEES_CONFIG = { serverUrl: … }`) from `NOTEES_SERVER_URL`
   (baked as a build ARG, overridable at runtime with `-e`) before nginx
   starts; `index.html` loads it first and the App bootstrap prefills the
-  server URL from it (manual form remains the fallback). A conf.d snippet
-  extends gzip to js/css/wasm (stock nginx gzips text/html only).
+  server URL from it (manual form remains the fallback). Two conf.d snippets
+  ship in the image: `00-gzip` extends gzip to js/css/wasm (stock nginx gzips
+  text/html only); `01-log` disables `access_log` so the 30s container
+  healthcheck doesn't write one log line per poll forever.
 
-The folder-level deployment project lives at
-`/etc/periphery/stacks/notees/compose.yaml` (project name `notees-v2` — kept
-distinct from the running v1-dev `notees` project):
+Deployment is managed by **Komodo** (stack `notees`, server `atlas`):
+files-on-host, `run_directory` = this repo, `file_paths = [compose.yaml]`,
+`env_file_path = .env`, `auto_pull = false`. Redeploy from the Komodo UI or
+the Core API (`POST /execute/DeployStack {"stack":"notees"}`). The stack's
+`environment` pins `NOTEES_WEB_PORT` / `NOTEES_CORS_ORIGIN` (Komodo env beats
+`.env`). The pinned ghcr tags (`2.0.0-m1`) exist on the host only — build
+them from the Dockerfiles above and tag, or fix the parked registry-token
+issue in `AGENTS.md`.
 
-```sh
-cd /etc/periphery/stacks/notees
-docker compose config          # validate
-docker compose up -d --build   # notees-sync (:8377) + notees-web (:8080)
-```
-
-- Ports: `NOTEES_SYNC_PORT` (default 8377), `NOTEES_WEB_PORT` (default 8080).
-- Data: named volume `notees-sync-data` → `/data` (relay.db, snapshots,
+- Ports: `NOTEES_SYNC_PORT` (default 8377), `NOTEES_WEB_PORT` (default 8378).
+- Data: bind mount `./config/notees/sync` → `/data` (relay.db, snapshots,
   derived/, workspaces/, `api_key.txt`).
-- CORS: compose sets `NOTEES_CORS_ORIGIN=http://localhost:8080` so a browser
-  on the host can talk to the API. LAN clients add their origin
-  (`http://<lan-ip>:8080`) — comma-separated — or set `*` on trusted LANs.
+- CORS: compose defaults `NOTEES_CORS_ORIGIN=http://localhost:8378` so a
+  browser on the host can talk to the API. LAN clients add their origin
+  (`http://<lan-ip>:8378`) — comma-separated — or set `*` on trusted LANs.
+- Logging: the sync container sets `NOTEES_LOG=false` (no per-request pino
+  lines); nginx `access_log` is off in the web image. Errors still reach
+  stderr in both.
 - First boot generates the API key; read it with
   `docker compose exec notees-sync cat /data/api_key.txt` (also logged once).
 - `NOTEES_SERVER_URL` is baked into the web image at build time
-  (`http://notees-sync:8377` in compose — only resolvable inside the docker
-  network). For real browsers rebuild with a LAN/domain URL
-  (`docker compose build --build-arg …` or an override file), or override at
-  runtime: `docker run -e NOTEES_SERVER_URL=http://<host>:8377 …`.
+  (`http://localhost:8377` by default); compose overrides it at runtime so
+  browsers reach the API on the host.
 
 Operator caveats: the server binds `0.0.0.0` (right inside a container); put
 a reverse proxy in front for TLS. Bind-mounting `/data` instead of the named

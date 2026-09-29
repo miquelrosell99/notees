@@ -1341,6 +1341,27 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("local op log (durable offline backlog)", () => {
+    it("records local envelopes, lists unpushed, marks pushed, prunes", () => {
+      const store = baseStore();
+      const a = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e1", nodeType: "page", name: "A" }, 1727200002000);
+      const b = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e2", nodeType: "page", name: "B" }, 1727200003000);
+      store.recordLocalEnvelope(a);
+      store.recordLocalEnvelope(b);
+      // Idempotent: recording the same envelope twice changes nothing.
+      store.recordLocalEnvelope(a);
+      const unpushed = store.unpushedEnvelopes();
+      expect(unpushed.map((e) => (e as { id: string }).id)).toEqual([a.id, b.id]);
+      store.markLocalEnvelopesPushed([a.id]);
+      expect(store.unpushedEnvelopes().map((e) => (e as { id: string }).id)).toEqual([b.id]);
+      store.prunePushedLocalEnvelopes();
+      expect(store.unpushedEnvelopes().map((e) => (e as { id: string }).id)).toEqual([b.id]);
+      store.markLocalEnvelopesPushed([b.id]);
+      store.prunePushedLocalEnvelopes();
+      expect(store.unpushedEnvelopes()).toEqual([]);
+    });
+  });
+
   describe("backlinksWithRollup (source-side containment roll-up, 01 §8)", () => {
     const FRANCE = "0192a000-0000-7000-8000-0000000000e2";
     const PARIS = "0192a000-0000-7000-8000-0000000000e3";
