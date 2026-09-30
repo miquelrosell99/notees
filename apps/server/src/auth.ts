@@ -106,6 +106,7 @@ export interface WorkspaceListEntry {
   id: string;
   name: string | null;
   role: string;
+  createdAt: number;
   envelopeCount: number;
   latestSeq: number;
 }
@@ -473,12 +474,12 @@ export class AuthStorage {
   ): WorkspaceListEntry[] {
     const rows = this.db
       .prepare(
-        `SELECT w.id AS id, w.name AS name, m.role AS role
+        `SELECT w.id AS id, w.name AS name, m.role AS role, w.created_at AS created_at
          FROM workspace_member m JOIN workspace w ON w.id = m.workspace_id
          WHERE m.user_id = ? ORDER BY w.created_at ASC`,
       )
-      .all(userId) as { id: string; name: string | null; role: string }[];
-    return rows.map((row) => ({ ...row, ...stats(row.id) }));
+      .all(userId) as { id: string; name: string | null; role: string; created_at: number }[];
+    return rows.map((row) => ({ ...row, createdAt: row.created_at, ...stats(row.id) }));
   }
 
   /** Every workspace id present in the relay log (migration helper). */
