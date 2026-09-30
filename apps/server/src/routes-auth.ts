@@ -439,6 +439,27 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       .send(markdown);
   });
 
+  // GET /nodes/:id/location — which of the account's workspaces holds this
+  // node. Deep-link resolution: a /<node-uuid> URL can then connect to the
+  // right workspace instead of the remembered one. Only the caller's own
+  // workspaces are searched, so a foreign node id returns 404.
+  app.get("/nodes/:id/location", async (request) => {
+    const principal = requireUser(ctx, request);
+    const { id } = request.params as { id: string };
+    const workspaces = ctx.auth.listWorkspacesForUser(principal.userId, () => ({
+      envelopeCount: 0,
+      latestSeq: 0,
+    }));
+    for (const workspace of workspaces) {
+      const found = ctx.workspaces
+        .storeFor(workspace.id)
+        .database.prepare("SELECT 1 FROM node WHERE id = ?")
+        .get(id);
+      if (found !== undefined) return { workspaceId: workspace.id };
+    }
+    throw new AppError(404, "not_found", "node not found in any of your workspaces");
+  });
+
   // --- API keys (session-managed; the keys themselves authenticate as the user) ----
 
   app.get("/api-keys", async (request) => {

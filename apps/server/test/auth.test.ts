@@ -424,6 +424,64 @@ describe("workspace delete and export", () => {
     });
     expect(byStranger.statusCode).toBe(404);
   });
+
+  it("GET /nodes/:id/location resolves the workspace holding the node", async () => {
+    server = await makeTestServer();
+    const owner = (await setupAdmin("owner@example.com")).json().token as string;
+    const first = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "First" },
+    });
+    const firstId = first.json().id as string;
+    const second = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "Second" },
+    });
+    const secondId = second.json().id as string;
+
+    // A page in the SECOND workspace.
+    const pageId = crypto.randomUUID();
+    const batch = await ingest(server, [
+      testEnvelope({
+        workspaceId: secondId,
+        opType: "object.create",
+        payload: pagePayload("Faraway Page", { objectId: pageId }),
+      }),
+    ]);
+    expect(batch.statusCode).toBe(200);
+
+    const located = await server.app.inject({
+      method: "GET",
+      url: `/api/v1/nodes/${pageId}/location`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(located.statusCode).toBe(200);
+    expect(located.json()).toEqual({ workspaceId: secondId });
+
+    // Unknown node: 404. Stranger asking about a node they cannot reach: 404.
+    const unknown = await server.app.inject({
+      method: "GET",
+      url: `/api/v1/nodes/${crypto.randomUUID()}/location`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(unknown.statusCode).toBe(404);
+
+    const strangerUser = server.ctx.auth.createUser({
+      email: "stranger@example.com",
+      passwordHash: await hashPassword("stranger-password-1"),
+    });
+    const stranger = server.ctx.auth.createSession(strangerUser.id).token;
+    const byStranger = await server.app.inject({
+      method: "GET",
+      url: `/api/v1/nodes/${pageId}/location`,
+      headers: { authorization: `Bearer ${stranger}` },
+    });
+    expect(byStranger.statusCode).toBe(404);
+  });
 });
 
 describe("api keys", () => {
