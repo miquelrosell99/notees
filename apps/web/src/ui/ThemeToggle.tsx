@@ -3,10 +3,13 @@
  *
  * Reads/writes `data-theme` on <html> and persists the choice in
  * localStorage under "notees.theme"; index.html applies the stored choice
- * before first paint so there is no theme flash on reload.
+ * before first paint so there is no theme flash on reload. Rendered as a
+ * v1-style icon button (mdi moon/sun).
  */
 
 import { useState } from "react";
+
+import { Icon } from "./Icon.js";
 
 const THEME_KEY = "notees.theme";
 
@@ -29,12 +32,12 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      className="nt-theme-toggle"
-      title="Toggle theme"
+      className="nt-icon-btn"
+      title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       aria-label="Toggle theme"
       onClick={toggle}
     >
-      {theme === "dark" ? "\u263E" : "\u2600"}
+      <Icon path={theme === "dark" ? "mdi-weather-night" : "mdi-white-balance-sunny"} size={1} />
     </button>
   );
 }
