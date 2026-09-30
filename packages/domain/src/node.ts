@@ -83,10 +83,13 @@ export function deriveDisplayName(node: NodeLike): string {
 
 const DATE_CLASS_IDS = new Set(["00000000-0000-0000-0001-000000000003", "00000000-0000-0000-0001-000000000004", "00000000-0000-0000-0001-000000000005"]);
 
-/** Format a raw date-node name; null when the node is not a date node. */
+/**
+ * Format a raw date-node name; null when the name is not the YYYYMMDD shape.
+ * The class check is deliberately NOT required: migrated date pages may lack
+ * the day/month/year classes, and an 8-digit name is unambiguous.
+ */
 export function formatDateNodeName(name: string, classIds?: readonly string[]): string | null {
-  const isDate = classIds !== undefined && classIds.some((id) => DATE_CLASS_IDS.has(id));
-  if (!isDate) return null;
+  void classIds; // retained in the signature for callers that have it
   const digits = name.replace(/\D/g, "");
   if (!/^\d{8}$/.test(digits)) return null;
   const year = digits.slice(0, 4);
