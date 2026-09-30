@@ -7,7 +7,7 @@
  */
 
 import { useState } from "react";
-import { Spinner } from "../modals/Spinner.js";
+import { Spinner } from "./Spinner.js";
 import { Icon } from "../../Icon.js";
 import type { SyncStatusSnapshot } from "@/core/workspace-client.js";
 import "./BackendUnavailableOverlay.css";

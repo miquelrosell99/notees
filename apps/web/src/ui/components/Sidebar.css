@@ -190,3 +190,56 @@
     box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.3));
   }
 }
+
+/* Pinned bottom row: settings + account. */
+.nt-sidebar-bottom {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  position: relative;
+}
+
+.nt-account-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: var(--spacing-2, 8px);
+  z-index: 60;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-2, 8px);
+  background: var(--color-surface-container-high, var(--color-surface));
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.25));
+}
+
+.nt-account-email {
+  padding: 4px var(--spacing-2, 8px);
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-account-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  width: 100%;
+  padding: 6px var(--spacing-2, 8px);
+  border: none;
+  border-radius: var(--shape-small, 6px);
+  background: transparent;
+  color: var(--color-on-surface);
+  font-size: 13px;
+  text-align: left;
+}
+
+.nt-account-menu button:hover {
+  background: var(--color-hover-overlay);
+}
