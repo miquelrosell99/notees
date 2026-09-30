@@ -612,6 +612,9 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
     p.classId,
     p.classId,
   );
+  // Classes are nodes: index the new class so full-text search finds it by
+  // name (the picker and global search both rely on this).
+  reindexNode(db, p.classId);
   return summary(opType, [p.classId]);
 }
 
@@ -641,6 +644,9 @@ function applyClassUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   values.push(env.timestamp, p.classId);
   db.prepare(`UPDATE class SET ${sets.join(", ")} WHERE id = ?`).run(...values);
   upsertClassNode(db, env, p.classId, { name: p.name, icon: p.icon, color: p.color });
+  // A rename re-renders the class unfindable under its old name — reindex
+  // whenever the indexed fields may have changed.
+  if (p.name !== undefined) reindexNode(db, p.classId);
   return summary(opType, [p.classId]);
 }
 

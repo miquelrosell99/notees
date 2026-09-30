@@ -402,6 +402,13 @@ export class AuthStorage {
     return id;
   }
 
+  /** Rename an existing workspace; no-op when the workspace row is missing. */
+  renameWorkspace(workspaceId: string, name: string): void {
+    this.db
+      .prepare("UPDATE workspace SET name = ? WHERE id = ?")
+      .run(name, workspaceId);
+  }
+
   addMember(workspaceId: string, userId: string, role = "owner"): void {
     this.db
       .prepare(

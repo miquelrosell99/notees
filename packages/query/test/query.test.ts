@@ -876,8 +876,9 @@ describe.each(adapters)("$name", ({ makeStore }) => {
 
     it("fts matches whole-token prefixes; contains matches any substring", () => {
       const store = worldStore();
-      // "ity" is a substring of "city" but no token STARTS with it.
-      expect(runQuery(store, ast(entire, [{ type: "content", op: "contains", value: "ity" }])).ids).toEqual([FR_BLOCK]);
+      // "ity" is a substring of "city" but no token STARTS with it. Classes
+      // are indexed nodes, so the City class also matches the substring arm.
+      expect(runQuery(store, ast(entire, [{ type: "content", op: "contains", value: "ity" }])).ids.sort()).toEqual([CITY, FR_BLOCK].sort());
       expect(runQuery(store, ast(entire, [{ type: "content", op: "fts", value: "ity" }])).ids).toEqual([]);
       // Prefix-AND across terms: both tokens must be present.
       expect(runQuery(store, ast(entire, [{ type: "content", op: "fts", value: "capital france" }])).ids).toEqual([PARIS_BLOCK]);
