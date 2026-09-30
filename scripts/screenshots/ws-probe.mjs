@@ -1,0 +1,26 @@
+import { chromium } from "playwright";
+const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
+if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin login email)");
+const browser = await chromium.launch({ headless: true });
+const page = await (await browser.newContext({ viewport: { width: 1500, height: 950 } })).newPage();
+await page.goto("http://127.0.0.1:8378/login", { waitUntil: "commit", timeout: 60_000 });
+const urlBox = page.getByRole("textbox", { name: /server url/i });
+await urlBox.waitFor({ timeout: 30_000 });
+await urlBox.fill("http://127.0.0.1:8377");
+await page.getByRole("button", { name: /^continue$/i }).click();
+await page.getByRole("textbox", { name: /email/i }).waitFor({ timeout: 15_000 });
+await page.getByRole("textbox", { name: /email/i }).fill(ADMIN_EMAIL);
+await page.getByRole("textbox", { name: /password/i }).fill(process.env.NOTEES_ADMIN_PASSWORD ?? "");
+await page.getByRole("button", { name: /^sign in$/i }).click();
+await page.waitForURL(/\/workspaces$/, { timeout: 20_000 });
+await page.waitForTimeout(1200);
+console.log("url after login:", page.url());
+console.log("fullscreen view:", await page.locator(".workspaces-view").isVisible());
+console.log("cards:", await page.locator(".workspaces-view__card").count());
+await page.screenshot({ path: "/tmp/workspaces-view.jpg", type: "jpeg", quality: 85 });
+// Enter the first workspace
+await page.locator(".workspaces-view__open").first().click();
+await page.waitForTimeout(11000);
+console.log("url after enter:", page.url());
+console.log("app shell:", await page.locator(".nt-topbar").isVisible());
+await browser.close();
