@@ -5,7 +5,7 @@
  *  RIGHT  palette, theme, settings, sign out, right-sidebar show/hide
  */
 
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 
 import type { SyncStatusSnapshot } from "@/core/workspace-client.js";
 
@@ -68,6 +68,9 @@ export function TopBar({
   breadcrumbs,
   sidebarOpen,
   rightPanelOpen,
+  calendarOpen = false,
+  onToggleCalendar,
+  calendarButtonRef,
   onToggleSidebar,
   onToggleRightPanel,
 }: {
@@ -76,6 +79,10 @@ export function TopBar({
   breadcrumbs?: ReactNode;
   sidebarOpen: boolean;
   rightPanelOpen: boolean;
+  /** Calendar popup state; the popup itself renders in the App layer (it needs the client). */
+  calendarOpen?: boolean;
+  onToggleCalendar?: (() => void) | undefined;
+  calendarButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
   onToggleSidebar: () => void;
   onToggleRightPanel: () => void;
 }) {
@@ -97,6 +104,19 @@ export function TopBar({
       </div>
       <div className="nt-topbar-center">{breadcrumbs}</div>
       <div className="nt-topbar-right">
+        {onToggleCalendar !== undefined && (
+          <button
+            type="button"
+            ref={calendarButtonRef}
+            className={calendarOpen ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+            title={calendarOpen ? "Close calendar" : "Open calendar"}
+            aria-label="Toggle calendar"
+            aria-expanded={calendarOpen}
+            onClick={onToggleCalendar}
+          >
+            <Icon path="mdi-calendar-month-outline" size={1} />
+          </button>
+        )}
         <button
           type="button"
           className={rightPanelOpen ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
