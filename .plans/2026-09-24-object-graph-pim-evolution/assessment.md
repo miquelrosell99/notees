@@ -1111,3 +1111,68 @@ The pre-rewrite UI is being transferred wholesale (components + CSS, adapted to 
 10. Accent-color variants (sage/teal/rose/navy) + icon picker.
 
 Rule: items land in the order above unless the owner re-prioritizes; each port pass must end with the deployed stack verified by screenshots in both themes.
+
+### 34.19 UI/UX parity register — full v1 inventory vs v2 (2026-09-30, deep audit)
+
+Supersedes §34.18 (its items fold in here with real scope). Source of truth for "what v1 had": three-area inventory of the archived frontend (content/views/editor; shell/navigation/queries/whiteboard; integrations/properties/workspace), evidence-cited. Goal the owner set: **v2 ends up equivalent to v1 in UI, UX, and features.** Status legend: ✅ ported · 🟡 partial (listed gap) · ❌ missing · ⛔ no v2 backend (port UI inert or build backend first).
+
+**P0 — core daily UX (highest value per day; no backend blockers):**
+| Feature (v1 evidence) | Status | Gap |
+|---|---|---|
+| Undo/redo (Ctrl+Z/Y, history menu w/ jump-to, `undoStore`) | ❌ | Biggest single UX hole; needs op-inverse log (client-side undo journal over the op log) |
+| Back/Forward nav (`navigationHistoryStore` + History API) | ❌ | We have URL sync but no in-app history buttons |
+| Block multi-selection (box select, Shift+arrows, Ctrl+A/C/X/V, delete) (`useBlockSelection`) | ❌ | Selection store + clipboard internal format |
+| Ghost trailing block ("click to create") at list end | ❌ | We have a separate "+ Add a block" affordance |
+| Block move via Alt+Shift+↑/↓; fold via Ctrl+. or Alt+←/→ | ❌ | Keyboard map entries |
+| Keyboard map breadth: Ctrl+N new page, Ctrl+Shift+T today, Ctrl+, settings, Ctrl+\ sidebar, Ctrl+Alt+P add property, Ctrl+F find (`keyboardStore`) | 🟡 | Only palette/quick-add/find exist |
+| Floating toolbar: underline + math (KaTeX) marks | 🟡 | bold/italic/strike/highlight/code only |
+| Slash commands: v1 had ~17 (embed, table, code, whiteboard, comment, template, date, image/audio/file, link variants) | 🟡 | 5 exist; port rest as AST shapes allow |
+| SuggestionPopup details: multi-select checkbox mode, `daily:`/filter prefixes, NL date parsing (`parseDate`) | 🟡 | Basic pickers exist |
+| Link pills: LinkEditModal Page/Block modes, NodeLinkContextMenu (open-in-sidebar, unlink-keep-text, broken-link fix), Shift+click → sidebar | 🟡 | URL-only modal; no pill context menu |
+| Breadcrumbs: hover chevron reassign-parent, right-click edit/remove parent, "+ Add parent", property crumbs | 🟡 | Nav-only crumbs |
+| Metadata rows: Aliases (pages), per-node color, non-removable-class rules | 🟡 | Classes/tags done; aliases missing |
+| Page footer: word count, Created/Updated date buttons → day pages | ❌ | Cheap, high polish |
+| Unlinked mentions: Promote → real link, Ignore dismiss | 🟡 | Section exists, flat |
+| Topbar right: Undo/Redo, Back/Forward, Calendar popup, Tasks popup, Scratchpad, Focus mode (Ctrl+Shift+F), LiveSyncIndicator (`MainContentTopbar`/`TopBar`) | ❌ | Only right-toggle remains by owner request — re-add per-owner |
+| Sidebar: icon rail + panel (v1 two-panel), Pinned section, drag-reorder favorites, SidebarTools footer (Archived, Trash, SupportBadge) | 🟡 | Single panel; no rail/pinned/reorder |
+| Command palette: filter prefixes (`class:` `uuid:` `is_page:` `is_daily:`), sections (Recently Accessed/Created, Random, Commands, Date Pages, Blocks, Properties), "+ Add page", quick-add ⌘↵ | 🟡 | Basic pages/classes/actions |
+| View modes for query results: kanban + document + table polish (v1 has 10 modes; kanban dnd mutates properties) | 🟡 | list/table only; prose mode was cut |
+| JournalsView: reverse-chron feed, inline editing, load-more | 🟡 | Hub list only |
+| TasksPopup: Overdue/Today/Upcoming/Unscheduled/Completed sections, recurrence picker, completion history | ❌ | Tasks nav entry is a plain filter |
+| Daily-page sections: Scheduled/Overdue tasks on day pages | ❌ | — |
+| TrashView (restore/permanent delete/empty trash/batch) + ArchivedPagesView | ❌ | Store has trash; no UI |
+| Templates: `{{variables}}`, TemplateGallery, slash instantiate, TemplateVariableDialog | ❌ | Template class exists; no machinery |
+| PresentationModal (children as slides) | ❌ | — |
+
+**P1 — research/library (owner's domain; some backend needed):**
+| Library plugin: 3-pane manager, collection tree, Work→Edition grouping, Add-by-identifier (ISBN/DOI), PDF drop → metadata resolve (`plugins/builtin/library`) | ❌ | The v1 crown jewel for sources; needs resolver backend |
+| Property controls: url/email/number/integer/image renderers; PropertyCreateModal (icon, type grid, scope, multi, options editor, allowed classes, default) | 🟡 | text/number/bool/date/select/node exist |
+| ClassPropertiesEditor: drag-reorder, tri-state required/readOnly/hideWhenEmpty, DefaultValueEditor | 🟡 | Bindings editor basic |
+| PropertyView (dedicated property page + population query) | ❌ | — |
+| PropertyReferencesSection (relation-property references above linked refs) | ❌ | Needs relation properties (M2) |
+| ActivityLog section (Created/Edited/Moved/… per node, relative time) | 🟡 | Ops exist; projection+UI missing |
+| Page banner/cover images (drag-drop, collapse, persisted) | ❌ | Needs image property + AST banner slot |
+| View modes focus/zen; card layouts (no-cover/cover-top/left/right) | ❌ | Display-mode switcher was in topbar |
+| Saved views per section: ViewTabs (dnd order, rename/dup/default/delete), QueryEditModal, group-by, multi-sort toolbar | ❌ | Query blocks single-view |
+| Text query language (`content:"x" AND create_date >= {this_week}`, `{today}` placeholders) + FilterBuilderModal + "Save as view" | ❌ | AST builder only |
+| Quick-create modals (Source: authors/year/DOI; Agent: given/family split) | ❌ | Pickers create plain pages |
+| NodeCollectionView (temporary ad-hoc queries) + global graph/timeline pseudo-pages | ❌ | — |
+| AssetUploadModal (drag-drop, categories, preview) | 🟡 | Upload exists via property picker |
+
+**P2 — power/social/infra:**
+| GraphView (WebGL force-directed, settings sidebar, color groups, local graph, minimap) | ❌ | Biggest single component in v1 |
+| Gantt/Calendar/Chart/Pivot/Timeline views | ❌ | Timeline+DatePropertiesPanel sizable |
+| RightSidebarCards (shift+click cards, local-graph card) + context sections (TOC/Comments/Activity/Versions) | 🟡 | Empty panel placeholder exists |
+| Scratchpad (transient blocks, send-all) | ❌ | — |
+| Whiteboard full toolset (15 shapes, pen/highlighter/eraser widths, connectors, cards, context menu, minimap, grid/snap) | 🟡 | Basic canvas + cards |
+| Import (Markdown/Logseq folder/data JSON) + workspace export (dump/md/txt/AST, assets) + auto-export | ⛔/🟡 | v1 backend jobs; CLI export exists |
+| Flashcards (SM-2 study mode, stats, editor) | ⛔ | Plugin runtime (M3) |
+| Shares (per-node public links, Shares Inbox, public view) | ⛔ | Needs backend |
+| Presence (block avatars/locks/typing) + ConflictResolutionModal (3-way diff) + LiveSyncIndicator | ⛔/🟡 | Needs WS presence protocol |
+| 2FA (TOTP enrollment, backup codes) + Onboarding/Enrollment/InviteAccept views | ⛔ | M3 |
+| API keys with scopes (Read/Write/Admin checkboxes) | 🟡 | Name-only keys |
+| Plugin manager UI (git/ZIP install, settings rendering) | ⛔ | M3 |
+| MobileLayout (drawer + References bottom sheet + FAB) | 🟡 | Basic responsive only |
+| Shortcuts cheatsheet, SupportBadge | 🟡 | About tab exists |
+
+Execution rule: same transfer discipline as §34.17 — components + CSS verbatim from the archive, rewired to the v2 client; no paraphrase. Order within a tier is owner's call; the table is the backlog.
