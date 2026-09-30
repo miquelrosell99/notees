@@ -443,13 +443,24 @@ export function App() {
     const rememberedApiKey = readStored(STORAGE_KEYS.apiKey);
     const credential = rememberedSession !== "" ? rememberedSession : rememberedApiKey;
     const credentialType: CredentialType = rememberedSession !== "" ? "session" : "apikey";
-    if (rememberedUrl !== "" && credential !== "" && rememberedWorkspace !== "") {
+    if (rememberedUrl !== "" && credential !== "") {
       // Validate the credential first: an expired session or revoked key must
       // land on the sign-in screen, not on an empty-looking local store with
       // a silent sync error.
       Promise.all([listWorkspaces(rememberedUrl, credential), fetchMe(rememberedUrl, credential)])
         .then(([{ workspaces: list }, me]) => {
           setUser(me);
+          if (window.location.pathname === "/workspaces" || rememberedWorkspace === "") {
+            // Reload/deep link on the manager (or no workspace to resume
+            // yet): land there instead of auto-connecting. connect would
+            // rewrite the URL to "/" and boot the app shell.
+            setServerUrl(rememberedUrl);
+            setToken(credential);
+            setSessionSignedIn(credentialType === "session");
+            setWorkspaces(list);
+            setPhase({ name: "workspaces", user: me });
+            return;
+          }
           return connect(rememberedUrl, credential, rememberedWorkspace, {
             isOffline: false,
             credentialType,
@@ -520,6 +531,12 @@ export function App() {
   async function enterWorkspaces(url: string, sessionToken: string, account: AccountUser) {
     setUser(account);
     setToken(sessionToken);
+    // Persist the session NOW (not only after connect): a reload while the
+    // manager is open must resume back onto it instead of the server form.
+    writeStored(STORAGE_KEYS.serverUrl, url);
+    writeStored(STORAGE_KEYS.sessionToken, sessionToken);
+    clearStored(STORAGE_KEYS.apiKey);
+    setSessionSignedIn(true);
     setPhase({ name: "connecting", label: "Loading workspaces…" });
     try {
       const { workspaces: list } = await listWorkspaces(url, sessionToken);
@@ -590,6 +607,11 @@ export function App() {
       }
       setServerUrl(url);
       setToken(key);
+      // Persist the key NOW (not only after connect): a reload while the
+      // manager is open must resume back onto it instead of the server form.
+      writeStored(STORAGE_KEYS.serverUrl, url);
+      writeStored(STORAGE_KEYS.apiKey, key);
+      clearStored(STORAGE_KEYS.sessionToken);
       setWorkspaces(list);
       setPhase({ name: "workspaces", user: { id: "", email: "API key", displayName: null, name: null, surnames: null, avatarUrl: null, isAdmin: false } });
     } catch (err) {
