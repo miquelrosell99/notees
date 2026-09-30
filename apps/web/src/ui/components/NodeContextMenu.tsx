@@ -82,13 +82,17 @@ export function NodeContextMenu({
         void navigator.clipboard?.writeText(url).catch(() => undefined);
       },
     },
-    {
+  ];
+  // Favorites surface pages/classes in the sidebar; a bare block has no
+  // sidebar presence, so the toggle is hidden for node_type === 'block'.
+  if (node.nodeType !== "block") {
+    items.push({
       id: "favorite",
       label: favorite ? "Remove from favorites" : "Add to favorites",
       icon: favorite ? "mdi-star" : "mdi-star-outline",
       onClick: () => toggleFavorite(node.id),
-    },
-  ];
+    });
+  }
   if (isPage && onExport !== undefined) {
     items.push({
       id: "export",

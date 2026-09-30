@@ -47,7 +47,6 @@ import {
 import { Icon } from "./Icon.js";
 import { PageView } from "./PageView.js";
 import { ClassView } from "./ClassView.js";
-import { SettingsPanel } from "./SettingsPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
@@ -57,6 +56,9 @@ import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, type NavKey } from "./components/Sidebar.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
+import { ManageWorkspacesModal } from "./components/modals/ManageWorkspacesModal.js";
+import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
+import { applyAppearance, readDeviceSetting } from "./components/modals/deviceSettings.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
 import { Button } from "./components/ui/Button.js";
 import { NotificationToaster } from "./components/ui/NotificationToaster.js";
@@ -163,6 +165,17 @@ function sameHostServerUrl(): string {
 }
 
 /**
+ * Initial nav hub: the device-local "default view" preference picks the hub
+ * shown when a workspace opens (there is no graph-view hub in this build, so
+ * that legacy choice lands on Pages).
+ */
+function initialNav(): NavKey {
+  const view = readDeviceSetting<string | null>("defaultView", null);
+  if (view === "journal" || view === "today") return "journal";
+  return "pages";
+}
+
+/**
  * View resolution = f(node_type) (SCHEMA.md): a class node renders the Class
  * View, everything else the Page View. Exported for the view-routing tests.
  */
@@ -206,6 +219,8 @@ export function App() {
   const [authTab, setAuthTab] = useState<"account" | "apikey">("account");
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Manage Workspaces view, opened from the workspace switcher popup. */
+  const [manageWorkspacesOpen, setManageWorkspacesOpen] = useState(false);
   /** True when the live credential is a session (API-key management needs one). */
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
@@ -229,7 +244,7 @@ export function App() {
     );
     return match !== null ? match[1]! : null;
   });
-  const [activeNav, setActiveNav] = useState<NavKey>("pages");
+  const [activeNav, setActiveNav] = useState<NavKey>(initialNav);
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
 
@@ -262,6 +277,18 @@ export function App() {
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // Appearance (theme / OLED / accent) is device-local; apply it to <html>
+  // on boot (index.html already applied it pre-paint) and re-apply when the
+  // OS color scheme flips while "system" theme is selected.
+  useEffect(() => {
+    applyAppearance();
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyAppearance();
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
   }, []);
 
   // Ctrl/Cmd+Shift+N — the global quick-capture shortcut (Quick Add).
@@ -553,7 +580,7 @@ export function App() {
       setServerUrl(url);
       setToken(key);
       setWorkspaces(list);
-      setPhase({ name: "workspaces", user: { id: "", email: "API key", displayName: null, isAdmin: false } });
+      setPhase({ name: "workspaces", user: { id: "", email: "API key", displayName: null, name: null, surnames: null, avatarUrl: null, isAdmin: false } });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -918,18 +945,13 @@ export function App() {
         syncStatus={syncStatus}
         breadcrumbs={
           selectedPageId !== null ? (
-            <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} />
+            <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} showCurrent />
           ) : null
         }
         sidebarOpen={sidebarOpen}
         rightPanelOpen={rightPanelOpen}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onToggleRightPanel={() => setRightPanelOpen((open) => !open)}
-        onNewPage={() => void handleNewPage()}
-        onOpenPalette={() => setPaletteOpen(true)}
-        showSettings={sessionSignedIn && user !== null && !offline}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onSignOut={() => void handleSignOut()}
       />
       <div className="nt-body">
         <Sidebar
@@ -938,7 +960,7 @@ export function App() {
           workspaceId={readStored(STORAGE_KEYS.workspaceId)}
           serverUrl={serverUrl}
           credential={token}
-          userEmail={user?.email ?? null}
+          user={user}
           offline={offline}
           showSettings={sessionSignedIn && user !== null && !offline}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -959,7 +981,11 @@ export function App() {
               label: name,
             });
           }}
+          onManageWorkspaces={() => setManageWorkspacesOpen(true)}
           onSignOut={() => void handleSignOut()}
+          onRenameWorkspace={(id, name) => {
+            if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
+          }}
         />
         <PageCard>
           {selectedPageId !== null ? (
@@ -984,11 +1010,33 @@ export function App() {
         onSignOut={() => void handleSignOut()}
       />
       {settingsOpen && sessionSignedIn && user !== null && !offline && (
-        <SettingsPanel
+        <UserSettingsModal
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
           serverUrl={serverUrl}
           token={token}
           user={user}
-          onClose={() => setSettingsOpen(false)}
+          onSignOut={() => void handleSignOut()}
+        />
+      )}
+      {manageWorkspacesOpen && !offline && (
+        <ManageWorkspacesModal
+          isOpen
+          onClose={() => setManageWorkspacesOpen(false)}
+          serverUrl={serverUrl}
+          credential={token}
+          activeWorkspaceId={readStored(STORAGE_KEYS.workspaceId)}
+          onSwitch={(id, name) => {
+            setSelectedPageId(null);
+            void connect(serverUrl, token, id, {
+              isOffline: false,
+              credentialType: sessionSignedIn ? "session" : "apikey",
+              label: name,
+            });
+          }}
+          onRenamed={(id, name) => {
+            if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
+          }}
         />
       )}
       {quickAddOpen && (

@@ -249,3 +249,15 @@ span.pill__text {
   background: var(--color-surface);
   width: 8.5rem;
 }
+
+/* Node-backed text property: editable block inside the value cell. */
+.nt-property-blockcell {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.nt-property-blockcell .nt-refblock-tree {
+  padding: 0;
+}

@@ -5,41 +5,60 @@
  *  RIGHT  palette, theme, settings, sign out, right-sidebar show/hide
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { SyncStatusSnapshot } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
-import { ThemeToggle } from "../ThemeToggle.js";
 import "./TopBar.css";
 
-/** Compact sync indicator: icon only; the full status line is its tooltip. */
-function SyncStatusLine({ snapshot }: { snapshot: SyncStatusSnapshot }) {
+/**
+ * SyncDot — the overall sync indicator: a colored dot only. Hover opens a
+ * small panel with the operational details (state, backlog, cursor,
+ * realtime, last error).
+ */
+function SyncDot({ snapshot }: { snapshot: SyncStatusSnapshot }) {
+  const [hover, setHover] = useState(false);
   const backlog = snapshot.pending + snapshot.failed;
-  const label =
-    snapshot.status === "idle"
-      ? `Sync: idle · ${backlog} pending`
-      : snapshot.status === "syncing"
-        ? `Sync: syncing… · ${backlog} pending`
-        : `Sync error${snapshot.error ? `: ${snapshot.error}` : ""} · ${backlog} pending`;
-  const fullTitle = snapshot.realtime ? label : `${label} · realtime off`;
-  const icon =
-    snapshot.status === "error"
-      ? "mdi-cloud-alert-outline"
-      : snapshot.status === "syncing"
-        ? "mdi-cloud-sync-outline"
-        : backlog > 0
-          ? "mdi-cloud-upload-outline"
-          : "mdi-cloud-check-outline";
+  const state =
+    snapshot.status === "error" ? "error" : snapshot.status === "syncing" ? "syncing" : backlog > 0 ? "backlog" : "idle";
+  const close = () => setHover(false);
   return (
     <span
-      className={
-        snapshot.status === "error" ? "nt-sync-status nt-sync-status-error" : "nt-sync-status"
-      }
-      title={fullTitle}
-      aria-label={fullTitle}
+      className={`nt-sync-dot nt-sync-dot-${state}`}
+      role="status"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={close}
+      onFocus={() => setHover(true)}
+      onBlur={close}
     >
-      <Icon path={icon} size={0.95} />
+      <span className="nt-sync-dot-disc" aria-hidden="true" />
+      <span className="sr-only">{`Sync: ${state}`}</span>
+      {hover && (
+        <span className="nt-sync-panel" role="tooltip">
+          <span className="nt-sync-panel-row">
+            <strong>Sync</strong>
+            <span>{snapshot.status}{snapshot.realtime ? " · realtime" : " · realtime off"}</span>
+          </span>
+          <span className="nt-sync-panel-row">
+            <span>Backlog</span>
+            <span>{snapshot.pending} pending · {snapshot.failed} failed</span>
+          </span>
+          {snapshot.quarantined > 0 && (
+            <span className="nt-sync-panel-row">
+              <span>Quarantined</span>
+              <span>{snapshot.quarantined}</span>
+            </span>
+          )}
+          <span className="nt-sync-panel-row">
+            <span>Server seq</span>
+            <span>{snapshot.cursorSeq}</span>
+          </span>
+          {snapshot.error !== null && (
+            <span className="nt-sync-panel-row nt-sync-panel-error">{snapshot.error}</span>
+          )}
+        </span>
+      )}
     </span>
   );
 }
@@ -51,11 +70,6 @@ export function TopBar({
   rightPanelOpen,
   onToggleSidebar,
   onToggleRightPanel,
-  onNewPage,
-  onOpenPalette,
-  showSettings,
-  onOpenSettings,
-  onSignOut,
 }: {
   syncStatus: SyncStatusSnapshot;
   /** The current node's breadcrumb trail (center section). */
@@ -64,12 +78,6 @@ export function TopBar({
   rightPanelOpen: boolean;
   onToggleSidebar: () => void;
   onToggleRightPanel: () => void;
-  onNewPage: () => void;
-  onOpenPalette: () => void;
-  /** Settings requires a live session on a server workspace (API-key admin). */
-  showSettings: boolean;
-  onOpenSettings: () => void;
-  onSignOut: () => void;
 }) {
   return (
     <header className="nt-topbar">
@@ -81,54 +89,14 @@ export function TopBar({
           aria-pressed={sidebarOpen}
           onClick={onToggleSidebar}
         >
-          <Icon path="mdi-menu" size={1} />
+          <Icon path="mdi-page-layout-sidebar-left" size={1} />
         </button>
         <span className="nt-wordmark">Notees</span>
-        <span className="nt-status-dot" aria-hidden="true" />
-        <SyncStatusLine snapshot={syncStatus} />
+        
+        <SyncDot snapshot={syncStatus} />
       </div>
       <div className="nt-topbar-center">{breadcrumbs}</div>
       <div className="nt-topbar-right">
-        <button
-          type="button"
-          className="nt-icon-btn"
-          title="New page"
-          aria-label="New page"
-          onClick={onNewPage}
-        >
-          <Icon path="mdi-plus" size={1} />
-        </button>
-        <button
-          type="button"
-          className="nt-topbar-search"
-          title="Search (Ctrl+K)"
-          aria-label="Search pages, classes and actions"
-          onClick={onOpenPalette}
-        >
-          <Icon path="mdi-magnify" size={0.9} />
-          <span className="nt-topbar-search-hint">Search</span>
-        </button>
-        <ThemeToggle />
-        {showSettings && (
-          <button
-            type="button"
-            className="nt-icon-btn"
-            title="Settings"
-            aria-label="Settings"
-            onClick={onOpenSettings}
-          >
-            <Icon path="mdi-cog-outline" size={1} />
-          </button>
-        )}
-        <button
-          type="button"
-          className="nt-icon-btn"
-          title="Sign out"
-          aria-label="Sign out"
-          onClick={onSignOut}
-        >
-          <Icon path="mdi-logout-variant" size={1} />
-        </button>
         <button
           type="button"
           className={rightPanelOpen ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}

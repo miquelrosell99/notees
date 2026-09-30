@@ -15,6 +15,9 @@ export interface AccountUser {
   id: string;
   email: string;
   displayName: string | null;
+  name: string | null;
+  surnames: string | null;
+  avatarUrl: string | null;
   isAdmin: boolean;
 }
 
@@ -92,6 +95,24 @@ export function logout(serverUrl: string, token: string): Promise<{ ok: boolean 
 
 export function fetchMe(serverUrl: string, token: string): Promise<AccountUser> {
   return request<AccountUser>(serverUrl, "/auth/me", {}, token);
+}
+
+export function updateMe(
+  serverUrl: string,
+  token: string,
+  input: {
+    displayName?: string | null;
+    name?: string | null;
+    surnames?: string | null;
+    avatarUrl?: string | null;
+  },
+): Promise<AccountUser> {
+  return request<AccountUser>(
+    serverUrl,
+    "/auth/me",
+    { method: "PATCH", body: JSON.stringify(input) },
+    token,
+  );
 }
 
 export function listWorkspaces(serverUrl: string, token: string): Promise<{ workspaces: WorkspaceEntry[] }> {
