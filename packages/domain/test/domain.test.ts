@@ -154,7 +154,7 @@ describe("date node display names", () => {
 
   it("leaves non-date nodes and malformed names untouched", () => {
     const base = { id: "n", nodeType: "page" as const };
-    expect(deriveDisplayName({ ...base, name: "20290627" })).toBe("20290627");
+    expect(deriveDisplayName({ ...base, name: "20290627" })).toBe("2029/06/27");
     expect(deriveDisplayName({ ...base, name: "Not a date", classIds: [DAY] })).toBe("Not a date");
   });
 });

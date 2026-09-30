@@ -52,6 +52,8 @@ import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
 import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { Breadcrumbs } from "./components/Breadcrumbs.js";
+import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, type NavKey } from "./components/Sidebar.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
@@ -181,6 +183,9 @@ export function NodeView({
       <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
     );
   }
+  if (node.nodeType === "block") {
+    return <FocusedBlockView client={client} blockId={nodeId} onOpenNode={onOpenNode} />;
+  }
   return <PageView client={client} pageId={nodeId} onOpenPage={onOpenNode} />;
 }
 
@@ -204,7 +209,13 @@ export function App() {
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [workspaceName, setWorkspaceName] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    // Default: open on desktop, closed on narrow screens. jsdom lacks
+    // matchMedia — default open there.
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
+    return window.matchMedia("(min-width: 801px)").matches;
+  });
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
@@ -904,7 +915,15 @@ export function App() {
     <div className={sidebarOpen ? "nt-app nt-sidebar-open" : "nt-app"}>
       <TopBar
         syncStatus={syncStatus}
+        breadcrumbs={
+          selectedPageId !== null ? (
+            <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} />
+          ) : null
+        }
+        sidebarOpen={sidebarOpen}
+        rightPanelOpen={rightPanelOpen}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
+        onToggleRightPanel={() => setRightPanelOpen((open) => !open)}
         onNewPage={() => void handleNewPage()}
         onOpenPalette={() => setPaletteOpen(true)}
         showSettings={sessionSignedIn && user !== null && !offline}
@@ -947,6 +966,11 @@ export function App() {
             <HubView client={client} nav={activeNav} onOpenNode={openPage} />
           )}
         </PageCard>
+        {rightPanelOpen && (
+          <aside className="nt-right-card" aria-label="Right sidebar">
+            <div className="nt-right-card-placeholder" />
+          </aside>
+        )}
       </div>
       <CommandPalette
         client={client}
