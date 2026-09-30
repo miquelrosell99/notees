@@ -5,7 +5,7 @@
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
@@ -82,29 +82,33 @@ describe("PageView rendering", () => {
     // Header uses the stored name.
     expect(screen.getByRole("heading", { name: "Render Me" })).toBeInTheDocument();
 
-    // Marks.
-    expect(screen.getByText("bold part").tagName).toBe("STRONG");
-    expect(screen.getByText("italic part").tagName).toBe("EM");
+    // Marks (scoped to the block tree — Linked references may echo a block
+    // that mentions this page).
+    const tree = container.querySelector(".nt-block-tree")!;
+    expect(within(tree).getByText("bold part").tagName).toBe("STRONG");
+    expect(within(tree).getByText("italic part").tagName).toBe("EM");
 
     // Hard break.
-    expect(container.querySelector("br")).not.toBeNull();
+    expect(tree.querySelector("br")).not.toBeNull();
 
-    // Mention chip resolves the target's current name.
-    const mention = screen.getByText("Mention Target");
-    expect(mention.className).toContain("nt-mention");
+    // Mention renders as a clickable dashed-underline link resolving the
+    // target's current name.
+    const mention = within(tree).getByText("Mention Target");
+    expect(mention.className).toContain("nt-link");
+    expect(mention.tagName).toBe("BUTTON");
 
     // Typed link: underlined span carrying the verb as its title.
-    const typedLink = screen.getByText("Kuhn");
+    const typedLink = within(tree).getByText("Kuhn");
     expect(typedLink.className).toContain("nt-typed-link");
     expect(typedLink.getAttribute("title")).toBe("cites");
 
     // Quote renders its children recursively inside the quote style.
-    expect(screen.getByText("quoted words")).not.toBeNull();
-    expect(container.querySelector(".nt-quote")).not.toBeNull();
+    expect(within(tree).getByText("quoted words")).not.toBeNull();
+    expect(tree.querySelector(".nt-quote")).not.toBeNull();
 
     // Nested child renders inside the indented children container.
-    expect(screen.getByText("nested child")).not.toBeNull();
-    expect(container.querySelector(".nt-block-children")).not.toBeNull();
+    expect(within(tree).getByText("nested child")).not.toBeNull();
+    expect(tree.querySelector(".nt-block-children")).not.toBeNull();
 
     // Unknown token types never crash the renderer.
     await client.updateObject(nestedParent, {
