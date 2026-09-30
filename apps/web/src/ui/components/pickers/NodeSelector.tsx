@@ -16,10 +16,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { chainNodeIds, deriveDisplayName } from "@notees/domain";
+import { chainNodeIds } from "@notees/domain";
 
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import type { WorkerClient } from "@/core/worker-client.js";
+import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { parseDate } from "./dateParser.js";
 import { NodePill } from "./NodePill.js";
@@ -285,7 +286,7 @@ export function NodeSelector({
     if (searchMode === "classes") {
       const classes = client.listClasses().filter((node) => {
         if (q === "") return true;
-        const name = deriveDisplayName(node) ?? node.id;
+        const name = displayNameForSettings(node) ?? node.id;
         return name.toLowerCase().includes(q);
       });
       return classes;
@@ -432,7 +433,7 @@ export function NodeSelector({
     while (currentId !== null && guard < 64) {
       const parent: ClientNode | undefined = client.getNode(currentId);
       if (!parent || parent.nodeType !== "page") break;
-      segments.unshift(deriveDisplayName(parent) || "Untitled");
+      segments.unshift(displayNameForSettings(parent) || "Untitled");
       currentId = parent.parentId;
       guard += 1;
     }
@@ -456,7 +457,7 @@ export function NodeSelector({
       .map((classUuid) => {
         const classNode = client.getNode(classUuid);
         if (!classNode) return null;
-        const name = deriveDisplayName(classNode);
+        const name = displayNameForSettings(classNode);
         if (!name) return null;
         return { nodeUuid: classUuid, name };
       })

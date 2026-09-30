@@ -11,11 +11,10 @@
 
 import { useState } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
+import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import "./Breadcrumbs.css";
 
@@ -48,7 +47,7 @@ function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {
     chain.unshift({
       node: parent,
       name:
-        deriveDisplayName(parent) ||
+        displayNameForSettings(parent) ||
         (parent.nodeType === "page" ? "Untitled page" : "Untitled block"),
     });
     current = parent;

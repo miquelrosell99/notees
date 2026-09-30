@@ -21,6 +21,8 @@ import type {
   UpdateObjectInput,
 } from "@/core/workspace-client.js";
 
+import { displayNameFromClient } from "./dateDisplay.js";
+
 export interface OutlinerClient {
   createObject(partial: CreateObjectInput): Promise<string>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
@@ -174,11 +176,11 @@ export function useOutlinerValue(
           if (seen.has(node.id)) return false;
           seen.add(node.id);
           if (q === "") return true;
-          return (client.getDisplayName(node.id) ?? "").toLowerCase().includes(q);
+          return (displayNameFromClient(client, node.id) ?? "").toLowerCase().includes(q);
         });
       },
       listClasses: () => client.listClasses(),
-      displayName: (id) => client.getDisplayName(id),
+      displayName: (id) => displayNameFromClient(client, id),
     },
   };
 }

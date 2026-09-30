@@ -50,7 +50,8 @@ import {
   type ExportNode,
 } from "@notees/export";
 import { parseQueryAst, type Aggregation, type AggregationMeasure, type Child, type QueryAst, type Scope } from "@notees/query";
-import { deriveDisplayName } from "@notees/domain";
+
+import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
 import type {
   ClientNode,
@@ -276,7 +277,7 @@ export function buildQueryExportMarkdown(client: QueryExportClient, ids: readonl
     .map((id) => toExportNode(client, id))
     .filter((node): node is ExportNode => node !== undefined);
   const exportCtx: ExportContext = {
-    nameOf: (id) => client.getDisplayName(id) ?? undefined,
+    nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
     childrenOf: (id) =>
       client
         .getChildren(id)
@@ -430,7 +431,7 @@ export function QueryBlockView({
   }
   const numericProperties = boundProperties.filter((property) => property.type === "number");
 
-  const classNames = new Map(classes.map((cls) => [cls.id, deriveDisplayName(cls) || cls.id]));
+  const classNames = new Map(classes.map((cls) => [cls.id, displayNameForSettings(cls) || cls.id]));
   const propertyNames = new Map(boundProperties.map((property) => [property.id, property.name]));
 
   const openBuilder = () => {
@@ -594,7 +595,7 @@ export function QueryBlockView({
                     onClick={() => openResult(row)}
                   >
                     <span className="nt-query-item-name">
-                      {client.getDisplayName(row.id) ?? row.name ?? row.id}
+                      {displayNameFromClient(client, row.id) ?? row.name ?? row.id}
                     </span>
                   </button>
                 </td>
@@ -615,7 +616,7 @@ export function QueryBlockView({
               <li key={row.id}>
                 <button type="button" className="nt-query-item" onClick={() => openResult(row)}>
                   <span className="nt-query-item-name">
-                    {client.getDisplayName(row.id) ?? row.name ?? row.id}
+                    {displayNameFromClient(client, row.id) ?? row.name ?? row.id}
                   </span>
                   <span className="nt-query-chip">{row.nodeType}</span>
                 </button>
@@ -656,7 +657,7 @@ export function QueryBlockView({
               <option value="">Any class</option>
               {classes.map((cls) => (
                 <option key={cls.id} value={cls.id}>
-                  {deriveDisplayName(cls) || cls.id}
+                  {displayNameForSettings(cls) || cls.id}
                 </option>
               ))}
             </select>
@@ -697,7 +698,7 @@ export function QueryBlockView({
               <option value="nodeType">Type</option>
               {classes.map((cls) => (
                 <option key={cls.id} value={`class:${cls.id}`}>
-                  Class: {deriveDisplayName(cls) || cls.id}
+                  Class: {displayNameForSettings(cls) || cls.id}
                 </option>
               ))}
               {boundProperties.map((property) => (

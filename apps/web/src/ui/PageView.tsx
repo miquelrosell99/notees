@@ -34,7 +34,7 @@ import { proseFromAst } from "@/editor/prose.js";
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
-import { displayNameForSettings } from "./dateDisplay.js";
+import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
 import { BlockRow } from "./BlockRow.js";
 import {
@@ -203,7 +203,7 @@ export function PageView({
 
   const handleDragStart = (event: DragStartEvent) => {
     const id = String(event.active.id);
-    setDragging({ id, label: client.getDisplayName(id) ?? id });
+    setDragging({ id, label: displayNameFromClient(client, id) ?? id });
     setMoveError(null);
   };
 
@@ -323,7 +323,7 @@ collisionDetection={blockCollisionDetection}
               <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
                 <div className="nt-block-tree">
                   {tree.map((child) => (
-                    <BlockRow key={child.node.id} tree={child} resolveName={(id) => client.getDisplayName(id)} />
+                    <BlockRow key={child.node.id} tree={child} resolveName={(id) => displayNameFromClient(client, id)} />
                   ))}
                 </div>
               </SortableContext>
