@@ -10,6 +10,9 @@ export type ErrorCode =
   | "not_found"
   | "rate_limited"
   | "conflict"
+  | "already_provisioned"
+  | "invalid_credentials"
+  | "account_locked"
   | "idempotency_replay"
   | "internal";
 

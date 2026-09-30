@@ -1,30 +1,31 @@
 /**
  * ThemeToggle — flips the app between the dark (default) and light themes.
  *
- * Reads/writes `data-theme` on <html> and persists the choice in
- * localStorage under "notees.theme"; index.html applies the stored choice
- * before first paint so there is no theme flash on reload. Rendered as a
+ * Reads/writes the device-local setting (`notees.settings.theme`) and
+ * applies `data-theme` on <html>; index.html applies the stored choice
+ * before first paint so there is no theme flash on reload. Flipping from
+ * "system" picks the opposite of the currently resolved theme.
  */
 
 import { useState } from "react";
 
 import { Icon } from "./Icon.js";
 
-const THEME_KEY = "notees.theme";
-
-type Theme = "dark" | "light";
-
-function currentTheme(): Theme {
+function currentTheme(): "dark" | "light" {
   return document.documentElement.dataset.theme === "light" ? "light" : "dark";
 }
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(currentTheme);
+  const [theme, setTheme] = useState<"dark" | "light">(currentTheme);
 
   const toggle = () => {
-    const next: Theme = theme === "dark" ? "light" : "dark";
+    const next: "dark" | "light" = theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
-    localStorage.setItem(THEME_KEY, next);
+    try {
+      localStorage.setItem("notees.settings.theme", JSON.stringify(next));
+    } catch {
+      // Storage unavailable; the flip just won't persist.
+    }
     setTheme(next);
   };
 

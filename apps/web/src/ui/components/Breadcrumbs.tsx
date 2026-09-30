@@ -44,7 +44,13 @@ function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {
     seen.add(parentId);
     const parent = client.getNode(parentId);
     if (parent === undefined) break;
-    chain.unshift({ node: parent, name: deriveDisplayName(parent) || parent.id });
+    // Never render a raw UUID: unnamed pages/blocks get a human label.
+    chain.unshift({
+      node: parent,
+      name:
+        deriveDisplayName(parent) ||
+        (parent.nodeType === "page" ? "Untitled page" : "Untitled block"),
+    });
     current = parent;
   }
   return chain;
@@ -57,6 +63,8 @@ export function Breadcrumbs({
   stopAfterId,
   excludeIds,
   excludeLeaf = false,
+  /** Append the current node itself as a highlighted trailing crumb. */
+  showCurrent = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -68,9 +76,11 @@ export function Breadcrumbs({
   excludeIds?: readonly string[] | undefined;
   /** Drop the trailing crumb (the node itself) — its content renders below. */
   excludeLeaf?: boolean | undefined;
+  showCurrent?: boolean | undefined;
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
 
+  const current = showCurrent ? client.getNode(nodeId) : undefined;
   let items = ancestryOf(client, nodeId);
   if (stopAfterId !== undefined) {
     const stopAt = items.findIndex((item) => item.node.id === stopAfterId);
