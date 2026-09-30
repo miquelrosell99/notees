@@ -1,0 +1,124 @@
+/**
+ * ToggleSwitch Component Styles
+ * 
+ * A toggle with labels on both sides for A/B selection.
+ */
+
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-switch--disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.toggle-switch:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--spacing-micro);
+  border-radius: var(--shape-small);
+}
+
+/* Labels */
+.toggle-switch__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  transition: color var(--motion-duration-short) var(--motion-easing-standard);
+  white-space: nowrap;
+}
+
+.toggle-switch__label--active {
+  color: var(--color-on-surface);
+  font-weight: 500;
+}
+
+/* Track */
+.toggle-switch__track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--color-surface-container-high);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Track sizes */
+.toggle-switch--sm .toggle-switch__track {
+  width: calc(var(--height-sm) * 1.75);
+  height: var(--height-xs);
+}
+
+.toggle-switch--md .toggle-switch__track {
+  width: calc(var(--height-md) * 1.6);
+  height: var(--height-sm);
+}
+
+.toggle-switch--lg .toggle-switch__track {
+  width: calc(var(--height-lg) * 1.45);
+  height: var(--height-md);
+}
+
+/* Thumb */
+.toggle-switch__thumb {
+  position: absolute;
+  background: var(--color-on-surface-variant);
+  border-radius: 50%;
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Active thumb (checked state) */
+.toggle-switch--checked .toggle-switch__thumb {
+  background: var(--color-accent);
+}
+
+/* Thumb sizes and resting position */
+.toggle-switch--sm .toggle-switch__thumb {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  left: var(--spacing-micro);
+}
+
+.toggle-switch--md .toggle-switch__thumb {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  left: var(--spacing-micro);
+}
+
+.toggle-switch--lg .toggle-switch__thumb {
+  width: var(--toggle-thumb-size-lg);
+  height: var(--toggle-thumb-size-lg);
+  left: var(--spacing-micro);
+}
+
+/* Checked state - move thumb to the right */
+.toggle-switch--checked.toggle-switch--sm .toggle-switch__thumb {
+  transform: translateX(calc(var(--height-xs) - var(--spacing-micro)));
+}
+
+.toggle-switch--checked.toggle-switch--md .toggle-switch__thumb {
+  transform: translateX(calc(var(--height-sm) - var(--spacing-micro)));
+}
+
+.toggle-switch--checked.toggle-switch--lg .toggle-switch__thumb {
+  transform: translateX(calc(var(--height-md) - var(--spacing-micro)));
+}
+
+/* Hover state */
+.toggle-switch:not(.toggle-switch--disabled):hover .toggle-switch__track {
+  background: var(--color-surface-container-highest);
+}
+
+/* Size variants for labels */
+.toggle-switch--sm .toggle-switch__label {
+  font-size: var(--font-size-xs);
+}
+
+.toggle-switch--lg .toggle-switch__label {
+  font-size: var(--font-size-base);
+}
