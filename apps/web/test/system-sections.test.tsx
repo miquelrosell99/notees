@@ -233,7 +233,7 @@ describe("PageView system sections", () => {
     // rendered as content below it (Logseq-style grouping).
     expect(linked.querySelector(".nt-refgroup-name")?.textContent).toBe("France");
     expect(linked.querySelector(".nt-refgroup-count")?.textContent).toBe("1");
-    expect(linked.querySelector(".nt-refblock")).not.toBeNull();
+    expect(linked.querySelector(".nt-refblock-tree .nt-block")).not.toBeNull();
     expect(client.getLinkedReferences(franceId).map((r) => ({
       source: r.source.id,
       kind: r.kind,
@@ -263,12 +263,12 @@ describe("PageView system sections", () => {
     expect(
       within(screen.getByRole("button", { name: /Linked references/ })).getByText("1"),
     ).toBeInTheDocument();
-    const items = Array.from(linked.querySelectorAll(".nt-refblock"));
+    const items = Array.from(linked.querySelectorAll(".nt-refblock-tree"));
     expect(items).toHaveLength(2);
-    // Direct mention of France opens the block itself (focused view).
-    expect(items[0]!.textContent).toContain("France");
-    // Containment entry opens the containing page — its header says France.
-    expect(linked.querySelectorAll(".nt-refgroup-name")[1]?.textContent).toBe("France");
+    // Each reference renders the source block with its content (and children
+    // recursively — the fixture's mention block has none, the tree still shows
+    // the block row).
+    expect(items[0]!.querySelector(".nt-block-content")?.textContent).toContain("France");
   });
 
   it("an expanded linked-references section updates when a remote change notifies", async () => {
