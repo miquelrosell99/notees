@@ -38,24 +38,6 @@
   white-space: nowrap;
 }
 
-.workspace-switcher__add-btn {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: var(--shape-medium, 8px);
-  background: transparent;
-  color: var(--color-on-surface-variant);
-}
-
-.workspace-switcher__add-btn:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
-}
-
 .workspace-switcher__popup {
   position: absolute;
   top: calc(100% + var(--spacing-1, 4px));
@@ -91,6 +73,43 @@
   margin: 0;
   padding: var(--spacing-1, 4px);
   overflow-y: auto;
+}
+
+.workspace-switcher__row-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+}
+
+.workspace-switcher__row-item .workspace-switcher__item {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-switcher__row-item:hover .workspace-switcher__settings-btn,
+.workspace-switcher__row-item:focus-within .workspace-switcher__settings-btn {
+  opacity: 1;
+}
+
+.workspace-switcher__settings-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--shape-medium, 8px);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease);
+}
+
+.workspace-switcher__settings-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
 }
 
 .workspace-switcher__item {
@@ -134,40 +153,24 @@
   color: var(--color-on-primary-container);
 }
 
+.workspace-switcher__create-suggestion {
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.workspace-switcher__create-suggestion .workspace-switcher__item-icon {
+  color: var(--color-primary);
+}
+
 .workspace-switcher__empty {
   padding: var(--spacing-3, 12px);
   font-size: 12.5px;
   color: var(--color-on-surface-variant);
 }
 
-.workspace-switcher__create {
+.workspace-switcher__footer {
   display: flex;
-  gap: var(--spacing-1, 4px);
-  padding: var(--spacing-2, 8px);
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
-}
-
-.workspace-switcher__create input {
-  flex: 1;
-  min-width: 0;
-  padding: 6px var(--spacing-2, 8px);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  font-size: 13px;
-}
-
-.workspace-switcher__create button {
-  border: var(--border-width-default, 1px) solid var(--color-outline);
-  background: transparent;
-  color: var(--color-on-surface);
-  border-radius: var(--shape-small, 6px);
-  padding: 4px 10px;
-  font-size: 12.5px;
-}
-
-.workspace-switcher__create button:hover {
-  background: var(--color-hover-overlay);
+  flex-direction: column;
 }
 
 .workspace-switcher__manage {
@@ -176,7 +179,6 @@
   gap: var(--spacing-2, 8px);
   padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
   border: none;
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
   background: transparent;
   color: var(--color-on-surface-variant);
   font-size: 12.5px;

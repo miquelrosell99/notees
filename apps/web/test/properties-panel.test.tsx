@@ -171,3 +171,21 @@ describe("Properties panel (effective values)", () => {
     expect(screen.getByText("unbound")).not.toBeNull();
   });
 });
+
+describe("carrier blocks vs the child block list", () => {
+  it("getBlockTree excludes blocks referenced as property values (no duplicate)", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "notes", type: "object" });
+    const owner = await client.createObject({ nodeType: "page", name: "Owner" });
+    const carrier = await client.createObject({
+      nodeType: "block",
+      parentId: owner,
+      contentAst: [{ type: "text", text: "Carrier text" }],
+    });
+    await client.setProperty(owner, schemaId, { nodeId: carrier }, 0);
+    const tree = client.getBlockTree(owner);
+    expect(tree.map((entry) => entry.node.id)).not.toContain(carrier);
+    // The block still exists and resolves (the property cell renders it).
+    expect(client.getNode(carrier)?.contentAst).toEqual([{ type: "text", text: "Carrier text" }]);
+  });
+});
