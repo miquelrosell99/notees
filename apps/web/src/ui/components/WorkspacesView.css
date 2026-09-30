@@ -1,191 +1,415 @@
 /**
- * WorkspacesView styles — the fullscreen workspace manager. Token-only.
+ * WorkspaceManagementView styles
+ *
+ * Fullscreen workspace management interface.
+ * Uses design-system CSS variables from variables.css and shared components
+ * (Button, Card, Pill) for chrome; this file only carries layout and page-level
+ * tokens.
  */
 
-.workspaces-view {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+.workspace-management {
+  position: fixed;
+  inset: 0;
   background: var(--color-background);
-  color: var(--color-on-surface);
-}
-
-.workspaces-view__topbar {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-3, 12px);
-  height: var(--topbar-height, 48px);
-  padding: 0 var(--spacing-4, 16px);
-  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  flex-shrink: 0;
-}
-
-.workspaces-view__title {
-  flex: 1;
-  font-size: var(--font-size-md, 14px);
-  font-weight: var(--font-weight-semibold, 600);
-  color: var(--color-on-surface-variant);
-}
-
-.workspaces-view__body {
-  flex: 1;
-  width: min(720px, calc(100% - 32px));
-  margin: 0 auto;
-  padding: var(--spacing-10, 40px) 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4, 16px);
-}
-
-.workspaces-view__subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-on-surface-variant);
-}
-
-.workspaces-view__loading {
-  display: flex;
+  align-items: flex-start;
   justify-content: center;
-  padding: var(--spacing-8) 0;
-}
-
-.workspaces-view__error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width-default, 1px) solid var(--color-error);
-  border-radius: var(--shape-medium, 8px);
-  background: var(--color-error-container);
-  color: var(--color-on-error-container);
-  font-size: 13px;
-}
-
-.workspaces-view__error button {
-  border: var(--border-width-default, 1px) solid var(--color-error);
-  border-radius: var(--shape-medium, 8px);
-  background: transparent;
-  color: var(--color-on-error-container);
-  padding: 4px var(--spacing-3, 12px);
-  font-size: 12.5px;
-}
-
-.workspaces-view__error button:hover {
-  background: var(--color-hover-overlay);
-}
-
-.workspaces-view__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2, 8px);
+  z-index: var(--z-fixed);
   overflow-y: auto;
 }
 
-.workspaces-view__card {
+.workspace-management__container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-6);
+  margin: 0 auto;
+
+  /* Clamp keeps the reading line comfortable on all viewports without
+     hardcoding a one-off pixel width. */
+  max-width: clamp(320px, 90vw, 56rem);
+}
+
+/* Header */
+.workspace-management__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-4);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  margin-bottom: var(--spacing-6);
+  gap: var(--spacing-4);
+}
+
+.workspace-management__header-content {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  padding: var(--spacing-1, 4px);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-large, 12px);
-  background: var(--color-surface);
-  transition: border-color var(--motion-duration-short, 120ms) ease;
+  gap: var(--spacing-8);
 }
 
-.workspaces-view__card:hover {
-  border-color: var(--color-outline);
+.workspace-management__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
 }
 
-.workspaces-view__card--active {
-  border-color: var(--color-primary);
+.workspace-management__title {
+  font: var(--font-title-large);
+  color: var(--color-on-surface);
+  margin: 0;
 }
 
-.workspaces-view__open {
+/* Main content */
+.workspace-management__main {
   flex: 1;
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-management__welcome {
+  text-align: center;
+  margin-bottom: var(--spacing-6);
+}
+
+.workspace-management__welcome h2 {
+  font: var(--font-title-large);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-2);
+}
+
+.workspace-management__subtitle {
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-large);
+  margin: 0;
+}
+
+/* Action buttons */
+.workspace-management__actions {
+  display: flex;
+  gap: var(--spacing-4);
+  justify-content: center;
+  margin-bottom: var(--spacing-8);
+}
+
+/* Database grid (cards layout) */
+.workspace-management__grid {
+  display: grid;
+
+  /* 16rem is a token-friendly replacement for the previous 280px magic value. */
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--spacing-4);
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Database card */
+.workspace-management__card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-management__card--active {
+  background: var(--color-primary-container);
+}
+
+.workspace-management__card--delete-confirm {
+  border-color: var(--color-error);
+  background: var(--color-error-container);
+}
+
+.workspace-management__card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-4) var(--spacing-5);
+  gap: var(--spacing-2);
+}
+
+.workspace-management__card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-2) var(--spacing-5);
+  background: var(--color-surface-container);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.workspace-management__card-title {
   display: flex;
   align-items: center;
-  gap: var(--spacing-3, 12px);
-  padding: var(--spacing-3, 12px);
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.workspace-management__card-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+.workspace-management__pill--active,
+.workspace-management__pill--active:hover {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: transparent;
+}
+
+.workspace-management__pill--shared,
+.workspace-management__pill--shared:hover {
+  background: var(--color-tertiary);
+  color: var(--color-on-tertiary);
+  border-color: transparent;
+}
+
+.workspace-management__card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+  margin-top: auto;
+}
+
+.workspace-management__card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.workspace-management__card-actions .btn--icon-only.btn--ghost {
+  opacity: var(--opacity-70);
+}
+
+.workspace-management__card-actions .btn--icon-only.btn--ghost:hover:not(:disabled) {
+  opacity: var(--opacity-100);
+}
+
+.workspace-management__access-btn {
+  opacity: var(--opacity-100) !important;
+}
+
+.workspace-management__card-name {
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+}
+
+.workspace-management__card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.workspace-management__error {
+  padding: var(--spacing-2) var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-error);
+  border-radius: var(--shape-small);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  color: var(--color-error);
+  font: var(--font-body-small);
+}
+
+/* Restore confirmation */
+.workspace-management__restore-confirm {
+  padding: var(--spacing-2) var(--spacing-3);
+  margin-bottom: var(--spacing-2);
+  border: var(--border-width-default) solid var(--color-error);
+  border-radius: var(--shape-small);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.workspace-management__restore-warn {
+  font: var(--font-body-small);
+  color: var(--color-error);
+}
+
+.workspace-management__restore-error {
+  font: var(--font-label-medium);
+  color: var(--color-error);
+}
+
+.workspace-management__restore-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-1);
+}
+
+/* Overlays */
+.workspace-management__switching-overlay,
+.workspace-management__deleting-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-scrim);
+  backdrop-filter: blur(2px);
+  pointer-events: all;
+}
+
+.workspace-management__switching-box,
+.workspace-management__deleting-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-extra-large);
+  color: var(--color-on-surface);
+  font: var(--font-title-medium);
+}
+
+/* Footer */
+.workspace-management__footer {
+  text-align: center;
+  padding-top: var(--spacing-4);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  margin-top: var(--spacing-6);
+}
+
+.workspace-management__footer p {
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
+  margin: 0;
+}
+
+/* Responsive */
+@media (width <= 768px) {
+  .workspace-management__container {
+    padding: var(--spacing-4);
+  }
+
+  .workspace-management__header {
+    flex-direction: column;
+    gap: var(--spacing-4);
+    align-items: flex-start;
+  }
+
+  .workspace-management__actions {
+    flex-direction: column;
+  }
+
+  .workspace-management__action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Account button (header right) + its menu. */
+.workspace-management__account {
+  position: relative;
+  display: inline-flex;
+}
+
+.workspace-management__account-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 6px var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.workspace-management__account-btn:hover {
+  background: var(--color-hover-overlay);
+}
+
+.workspace-management__account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--shape-full);
+  overflow: hidden;
+  color: var(--color-on-surface-variant);
+}
+
+.workspace-management__account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.workspace-management__account-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.workspace-management__account-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--z-dropdown, 60);
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high, var(--color-surface));
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.25));
+}
+
+.workspace-management__account-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: 7px var(--spacing-2);
   border: none;
+  border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface);
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
 
-.workspaces-view__icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  color: var(--color-on-surface-variant);
+.workspace-management__account-menu button:hover {
+  background: var(--color-hover-overlay);
 }
 
-.workspaces-view__identity {
-  flex: 1;
-  min-width: 0;
+/* Ghost create card at the end of the grid. */
+.workspace-management__card--create {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.workspaces-view__name {
-  font-size: 14.5px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspaces-view__meta {
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-}
-
-.workspaces-view__rename {
-  flex-shrink: 0;
-  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin-right: var(--spacing-2, 8px);
-  border: none;
-  border-radius: var(--shape-medium, 8px);
-  background: transparent;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-}
-
-.workspaces-view__rename:hover:not(:disabled) {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
-}
-
-.workspaces-view__rename:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.workspaces-view__create {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2, 8px);
-  padding: var(--spacing-4, 16px);
-  border: var(--border-width-default, 1px) dashed var(--color-outline);
+  gap: var(--spacing-2);
+  min-height: 8.5rem;
+  border: var(--border-width-default) dashed var(--color-outline);
   border-radius: var(--shape-large, 12px);
   background: transparent;
   color: var(--color-on-surface-variant);
-  font-size: 14px;
+  font-size: 13.5px;
   cursor: pointer;
+  transition:
+    background var(--motion-duration-short, 120ms) ease,
+    color var(--motion-duration-short, 120ms) ease,
+    border-color var(--motion-duration-short, 120ms) ease;
 }
 
-.workspaces-view__create:hover {
+.workspace-management__card--create:hover {
   background: var(--color-hover-overlay);
   color: var(--color-on-surface);
+  border-color: var(--color-outline);
 }

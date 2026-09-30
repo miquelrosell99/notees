@@ -14,10 +14,10 @@ await page.waitForURL(/\/workspaces$/, { timeout: 20_000 });
 await page.waitForTimeout(1200);
 console.log("url after login:", page.url());
 console.log("fullscreen view:", await page.locator(".workspaces-view").isVisible());
-console.log("cards:", await page.locator(".workspaces-view__card").count());
+console.log("cards:", await page.locator(".workspace-management__card").count());
 await page.screenshot({ path: "/tmp/workspaces-view.jpg", type: "jpeg", quality: 85 });
 // Enter the first workspace
-await page.locator(".workspaces-view__open").first().click();
+await page.getByRole("button", { name: /open /i }).first().click();
 await page.waitForTimeout(11000);
 console.log("url after enter:", page.url());
 console.log("app shell:", await page.locator(".nt-topbar").isVisible());
