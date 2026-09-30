@@ -26,6 +26,7 @@ export const objectCreatePayload = z
      * the tree (parent_id). Domain typing (whiteboard, meeting, …) is class_ids. */
     nodeType: z.enum(["page", "block", "class"]).optional(),
     classIds: z.array(uuid).default([]),
+    tagIds: z.array(uuid).default([]),
     name: z.string().max(1024).optional(),
     contentAst: z.array(z.unknown()).optional(),
     parentId: uuid.nullable().optional(),
@@ -111,6 +112,10 @@ export const classDeletePayload = z.object({ classId: uuid }).strict();
  */
 export const classUnassignPayload = z
   .object({ objectId: uuid, classId: uuid })
+  .strict();
+
+export const tagUnassignPayload = z
+  .object({ objectId: uuid, tagId: uuid })
   .strict();
 
 export const classSetExtendsPayload = z
@@ -275,6 +280,7 @@ export const OP_PAYLOAD_SCHEMAS = {
   "class.update": classUpdatePayload,
   "class.delete": classDeletePayload,
   "class.unassign": classUnassignPayload,
+  "tag.unassign": tagUnassignPayload,
   "class.setExtends": classSetExtendsPayload,
   "class.property.set": classPropertySetPayload,
   "class.property.unset": classPropertyUnsetPayload,
