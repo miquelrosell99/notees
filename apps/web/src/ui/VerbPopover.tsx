@@ -1,7 +1,7 @@
 /**
  * VerbPopover — the typed-link gesture on a selection: a free-string verb
  * ("cites", "contradicts") plus an optional locator. Rendered by
- * BlockTextEditor next to the MarkToolbar; its inputs take focus (the
+ * BlockTextEditor next to the FloatingToolbar; its inputs take focus (the
  * editor's blur handler treats focus-within as "stay in edit mode").
  * Enter submits, Esc cancels. Fixed-positioned at the selection anchor.
  */

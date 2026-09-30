@@ -1,0 +1,74 @@
+/**
+ * FloatingToolbar styles
+ */
+
+.floating-toolbar {
+  pointer-events: auto;
+  animation: floating-toolbar-fade-in var(--motion-duration-short) var(--motion-easing-standard)-out;
+}
+
+@keyframes floating-toolbar-fade-in {
+  from {
+    opacity: var(--opacity-0);
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: var(--opacity-100);
+    transform: translateY(0);
+  }
+}
+
+.floating-toolbar__card {
+  display: inline-flex;
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.floating-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.floating-toolbar__button {
+  min-width: 1.75rem;
+  height: var(--height-sm);
+  padding: var(--spacing-1);
+}
+
+.floating-toolbar__button:hover {
+  background: var(--color-surface-container-high);
+}
+
+/* ─── App-shell adaptation ────────────────────────────────────────
+   The archived toolbar's markup keeps the shared design-system classes
+   (.card--*, .btn--*); this app shell ships no such primitives, so the
+   chrome the toolbar relies on is supplied here, scoped to the toolbar's
+   own classes. Tokens only — no new values. */
+
+/* .card--padded.card--padding-sm */
+.floating-toolbar__card {
+  padding: var(--spacing-2);
+}
+
+/* .btn reset + .btn--ghost */
+.floating-toolbar__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font-family: var(--font-family-base);
+  font-weight: 500;
+  user-select: none;
+}
+
+/* .btn--ghost.btn--active */
+.floating-toolbar__button.btn--active {
+  background: var(--color-surface-container-active);
+  color: var(--color-on-surface);
+}

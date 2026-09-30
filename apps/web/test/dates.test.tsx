@@ -7,9 +7,11 @@
  *  - year-precision values link the YEAR node;
  *  - date_range persists { start, end } refs with either side open;
  *  - a year node's backlink list includes the dated node (edge projection);
- *  - the panel's date row hosts the zoom picker: year→month→day commits the
- *    day ref, and the schema precision is the commit ceiling (a year
- *    precision commits the year even when zoomed into days);
+ *  - the panel's date row hosts the ported date-picker popup: a typed-date
+ *    input with a parsed preview (Enter commits), a days/months/years
+ *    drill-down, and a Today shortcut; the schema precision is the commit
+ *    ceiling (a year-precision picker opens at the year grid and the data
+ *    layer links the year node);
  *  - dateQualified link qualifiers persist metadata.startDate/endDate and
  *    round-trip through the effective read model;
  *  - the Class View bindings editor edits precision (date schemas) and the
@@ -18,7 +20,7 @@
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { chainNodeIds, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
@@ -80,7 +82,7 @@ describe("dates (SCHEMA.md)", () => {
     await client.setDateProperty(pageId, schemaId, "2026-09-27");
     const ids = chainNodeIds("2026-09-27");
     expect(dateNodeCount(client)).toBe(3);
-    // v1 journal layout: year at the workspace root, month under year, day under month.
+    // Journal layout: year at the workspace root, month under year, day under month.
     expect(client.getNode(ids.year)?.parentId).toBeNull();
     expect(client.getNode(ids.month)?.parentId).toBe(ids.year);
     expect(client.getNode(ids.day)?.parentId).toBe(ids.month);
@@ -159,7 +161,7 @@ describe("dates (SCHEMA.md)", () => {
     expect(client.getBacklinkCount(ids.year)).toBe(1);
   });
 
-  it("picker zoom year→month→day commits the day ref (day precision)", async () => {
+  it("picker drill-down commits the day ref (day precision)", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "date" });
     const classId = await client.createClass("Dated");
@@ -168,27 +170,36 @@ describe("dates (SCHEMA.md)", () => {
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
 
-    // The unvalued date binding renders the add affordance; the picker opens
+    // The unvalued date binding renders the add affordance; the popup opens
     // at the day grid (day precision).
     fireEvent.click(screen.getByRole("button", { name: "+ Add" }));
     expect(screen.getByRole("dialog", { name: "Date picker" })).not.toBeNull();
 
-    // Up to the year grid via the breadcrumbs, then drill back down.
-    fireEvent.click(screen.getByRole("button", { name: "September 2026" }));
-    fireEvent.click(screen.getByRole("button", { name: "2026" }));
-    // Year cell click drills (coarser than the day ceiling)…
-    fireEvent.click(screen.getByRole("button", { name: "2026" }));
-    // …month cell click drills…
-    fireEvent.click(screen.getByRole("button", { name: "September 2026" }));
-    // …day cell click commits the day.
-    fireEvent.click(screen.getByRole("button", { name: "2026-09-15" }));
+    // The typed-date input parses with a preview and commits on Enter.
+    fireEvent.change(screen.getByLabelText("Type a date"), { target: { value: "2026-02-14" } });
+    expect(screen.getByText("↵ February 14, 2026")).not.toBeNull();
+    fireEvent.keyDown(screen.getByLabelText("Type a date"), { key: "Enter" });
     await flushWrites();
 
     expect(valueOf(client, pageId, schemaId)).toEqual({
-      nodeId: chainNodeIds("2026-09-15").day,
+      nodeId: chainNodeIds("2026-02-14").day,
     });
     // The chip renders the committed date.
-    expect(screen.getByRole("button", { name: "Set published" }).textContent).toBe("2026-09-15");
+    expect(screen.getByRole("button", { name: "Set published" }).textContent).toBe("2026-02-14");
+
+    // Editing the existing pill reopens the popup on the value's month;
+    // the zoom selector drills out and back, then a day click overwrites
+    // the same slot.
+    fireEvent.click(screen.getByRole("button", { name: "Set published" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Show years" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Show days" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("14"));
+    await flushWrites();
+
+    // No-op re-pick of the same day still resolves to the same ref.
+    expect(valueOf(client, pageId, schemaId)).toEqual({
+      nodeId: chainNodeIds("2026-02-14").day,
+    });
   });
 
   it("the schema precision is the commit ceiling: a year-precision picker commits the year", async () => {
@@ -205,16 +216,14 @@ describe("dates (SCHEMA.md)", () => {
     render(<PageView client={client} pageId={pageId} />);
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add" }));
-    // Year precision opens at the YEAR grid.
-    // Drill into 2026 → months (view-only), drill into September → days
-    // (view-only); selecting a day still commits at year granularity.
-    fireEvent.click(screen.getByRole("button", { name: "Zoom into 2026" }));
-    fireEvent.click(screen.getByRole("button", { name: "Zoom into September 2026" }));
-    fireEvent.click(screen.getByRole("button", { name: "2026-09-15" }));
+    // Year precision opens at the YEAR grid; clicking a year resolves the
+    // canonical ISO and the data layer links the YEAR node at the schema's
+    // precision (the commit ceiling).
+    fireEvent.click(screen.getByRole("button", { name: "2026" }));
     await flushWrites();
 
     expect(valueOf(client, pageId, schemaId)).toEqual({
-      nodeId: chainNodeIds("2026-09-15").year,
+      nodeId: chainNodeIds("2026-01-01").year,
     });
     expect(dateNodeCount(client)).toBe(3); // chain created below the year anyway
   });
@@ -229,12 +238,13 @@ describe("dates (SCHEMA.md)", () => {
     render(<PageView client={client} pageId={pageId} />);
 
     // The unvalued range row's "+ Add" opens the picker for the START slot;
-    // the end stays open.
+    // the end stays open. (Day cells are queried by their text — the
+    // aria-label is locale-dependent.)
     fireEvent.click(screen.getByRole("button", { name: "+ Add" }));
-    fireEvent.click(screen.getByRole("button", { name: "2026-10-01" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("28"));
     await flushWrites();
     expect(valueOf(client, pageId, schemaId)).toEqual({
-      start: { nodeId: chainNodeIds("2026-10-01").day },
+      start: { nodeId: chainNodeIds("2026-09-28").day },
       end: null,
     });
 

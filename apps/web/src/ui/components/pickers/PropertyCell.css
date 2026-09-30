@@ -1,0 +1,155 @@
+/**
+ * Property cell styles — the metadata property editors' cell + picker
+ * (selection options picker, boolean toggle cell).
+ */
+
+.property-cell {
+  padding: var(--spacing-2) var(--spacing-3);
+  min-height: var(--height-md);
+  font-size: var(--font-size-button);
+  color: var(--color-on-surface);
+  cursor: default;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+/* Reset native <button> defaults when a cell is made interactive. */
+button.property-cell {
+  appearance: none;
+  border: none;
+  background: none;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: auto;
+}
+
+.property-cell:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.property-cell--editable {
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.property-cell--editable:hover {
+  background: var(--color-hover-overlay);
+}
+
+.property-cell--empty {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.property-cell--empty-wrapper {
+  position: relative;
+  padding: 0;
+}
+
+.property-cell--empty-wrapper > button.property-cell {
+  width: 100%;
+  min-height: var(--height-md);
+  padding: var(--spacing-2) var(--spacing-3);
+  text-align: left;
+}
+
+.property-placeholder {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.property-cell--selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  position: relative;
+}
+
+.property-cell--boolean {
+  justify-content: flex-start;
+  cursor: pointer;
+  min-height: var(--height-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
+.property-cell__checkbox {
+  cursor: pointer;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+/* Selection picker dropdown */
+.property-cell__picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--z-floating);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  max-height: var(--layout-size-7xl);
+  overflow-y: auto;
+  min-width: var(--layout-size-2xl);
+  margin-top: var(--spacing-1);
+}
+
+.property-cell__picker-option {
+  padding: var(--spacing-2) var(--spacing-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.property-cell__picker-option:hover {
+  background: var(--color-hover-overlay);
+}
+
+.property-cell__picker-empty {
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
+}
+
+.property-cell__add-button {
+  min-width: var(--spacing-6);
+  height: var(--height-xs);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.property-cell__add-button:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+/* Colored dot for selection options */
+.selection-color-dot {
+  display: inline-block;
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
+  border-radius: 50%;
+  flex-shrink: 0;
+}

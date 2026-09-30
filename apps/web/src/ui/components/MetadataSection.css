@@ -1,9 +1,9 @@
 /**
- *    NodeMetadataSection.css + NodeView.css;
- *    hover-reveal right button) — class pills use the class color or the
- *    primary-container token background;
- *  - the effective-property rows (labels, hints, scalar editor, picker
- *    popover) restyled as metadata rows (moved out of app.css).
+ * MetadataSection styles — the metadata panel rows: classes pills (+ the add
+ * ghost pill), the effective-property rows (labels, hints, scalar editor,
+ * grouped pill rows), the hidden asset file input, and the date-range /
+ * link-qualifier controls. The property pickers render their own ported
+ * styles (see ./pickers/*).
  *
  * All colors/spacing resolve to design tokens — no raw hex values.
  */
@@ -166,11 +166,6 @@ span.pill__text {
   color: var(--color-on-surface);
 }
 
-.nt-class-picker {
-  left: 0;
-  top: 100%;
-}
-
 /* --- effective-property rows ---------------------------------------------- */
 
 .nt-properties-list {
@@ -216,73 +211,9 @@ span.pill__text {
   max-width: 100%;
 }
 
-/* The picker popover (property search / add-class). */
-.nt-property-picker {
-  position: absolute;
-  top: 100%;
-  left: var(--layout-size-sm);
-  z-index: var(--z-node-overlay);
-  width: var(--layout-size-5xl);
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
-  box-shadow: var(--shadow-elevation-2);
-  padding: var(--spacing-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-}
-
-.nt-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: var(--layout-size-5xl);
-  overflow-y: auto;
-}
-
-.nt-picker-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  background: none;
-  border: none;
-  padding: var(--spacing-2);
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  color: var(--color-on-surface);
-}
-
-.nt-picker-item:hover {
-  background: var(--color-surface-container-high);
-}
-
-.nt-picker-empty {
-  color: var(--color-on-surface-variant);
-  font-size: var(--font-size-sm);
-  padding: var(--spacing-2);
-}
-
-.nt-picker-upload {
-  font: inherit;
-  font-size: var(--font-size-sm);
-  background: none;
-  border: var(--border-width-default) solid var(--color-outline);
-  border-radius: var(--shape-small);
-  padding: var(--spacing-2);
-  cursor: pointer;
-  text-align: left;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-picker-upload:hover {
-  border-color: var(--color-on-surface-variant);
-}
-
+/* The picker popover styles moved with the ported pickers
+ * (./pickers/NodeSelector.css, ./pickers/PropertyCell.css); the asset file
+ * input and picker error stay here with their rows. */
 .nt-file-input {
   display: none;
 }

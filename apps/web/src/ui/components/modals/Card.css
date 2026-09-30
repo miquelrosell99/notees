@@ -1,0 +1,174 @@
+/**
+ * Card Component Styles
+ * 
+ * Reusable card styling for floating UI elements like
+ * dropdowns, context menus, popovers, and content containers.
+ */
+
+.card {
+  background: var(--color-surface);
+}
+
+/* Variants */
+.card--variant-default {
+  border: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.card--variant-outlined {
+  border: var(--border-width-default) solid var(--color-outline);
+  background: transparent;
+}
+
+.card--variant-filled {
+  border: none;
+  background: var(--color-surface-variant);
+}
+
+.card--variant-transparent {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.card--variant-dashed {
+  border: var(--border-width-thick) dashed var(--color-outline-variant);
+  background: transparent;
+}
+
+.card--variant-dashed:hover,
+.card--variant-dashed:focus-within {
+  border-color: var(--color-primary);
+  background: var(--color-surface-container-high);
+}
+
+/* Border radius
+   Use --shape-card (20px) for the default content card radius.
+   For small floating panels that need the previous 8px radius, apply the
+   --shape-floating-panel token via a custom class or use radius="sm" when the
+   design-system mapping is updated. */
+.card--radius-none {
+  border-radius: 0;
+}
+
+.card--radius-sm {
+  border-radius: var(--shape-small);
+  overflow: hidden;
+}
+
+.card--radius-floating {
+  border-radius: var(--shape-floating-panel);
+  overflow: hidden;
+}
+
+.card--radius-md {
+  border-radius: var(--shape-card);
+  overflow: hidden;
+}
+
+.card--radius-lg {
+  border-radius: var(--shape-card);
+  overflow: hidden;
+}
+
+.card--radius-xl {
+  border-radius: var(--shape-sheet);
+  overflow: hidden;
+}
+
+/* Reduced-radius class for the main layout containers (sidebars, main view).
+   Keeps the app chrome less rounded without affecting floating UI cards. */
+.layout-card {
+  border-radius: var(--shape-layout-card);
+  overflow: hidden;
+}
+
+/* Mobile layout: full-bleed cards with no border radius. */
+.card[data-mobile-layout] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Elevation levels — zero visual noise (design system mandate) */
+.card--elevation-none {
+  box-shadow: none;
+}
+
+.card--elevation-low {
+  box-shadow: none;
+}
+
+.card--elevation-medium {
+  box-shadow: none;
+}
+
+.card--elevation-high {
+  box-shadow: none;
+}
+
+/* Padding options */
+.card--padded.card--padding-sm {
+  padding: var(--spacing-2);
+}
+
+.card--padded.card--padding-md {
+  padding: var(--spacing-4);
+}
+
+.card--padded.card--padding-lg {
+  padding: var(--spacing-6);
+}
+
+/* Interactive state — TE tactile: lift on hover, press-in on click */
+.card--interactive {
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-short) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.card--interactive:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-outline);
+  transform: translateY(calc(var(--spacing-hairline) * -1));
+}
+
+.card--interactive:active {
+  background: var(--color-pressed-overlay);
+  transform: translateY(0) scale(0.99);
+}
+
+/* Selected state */
+.card--selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+/* Close button support */
+.card--has-close {
+  position: relative;
+}
+
+.card__close-btn {
+  position: absolute;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  z-index: var(--z-1);
+}
+
+/* Animation for appearing cards */
+@keyframes cardFadeIn {
+  from {
+    opacity: var(--opacity-0);
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: var(--opacity-100);
+    transform: scale(1);
+  }
+}
+
+.card--animated {
+  animation: cardFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+}

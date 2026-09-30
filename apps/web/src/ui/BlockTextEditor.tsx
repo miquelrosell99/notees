@@ -14,7 +14,7 @@
  *
  * Marks editing (edit-apply.ts / marks.ts): saves apply the draft
  * structurally, so untouched runs keep their marks and identity. Mark
- * commands (Ctrl/Cmd+B/I/Shift+X, the floating MarkToolbar, or typing `**`
+ * commands (Ctrl/Cmd+B/I/Shift+X, the floating FloatingToolbar, or typing `**`
  * over a selection) read the DOM selection, map it to prose offsets, split
  * the covered runs, and write the new token array directly — the prose does
  * not change, so the debounced flush is not involved and cannot clobber the
@@ -32,9 +32,16 @@
  *   instead (no assignment).
  * - `+`  class picker: same popup over EXISTING classes only (no auto-create);
  *   Enter assigns, Shift+Enter inserts the chip.
- * - Verb on selection: MarkToolbar → button / Cmd+K opens the VerbPopover
- *   (free-string verb + optional locator); commit wraps the covered prose in
- *   a typed_link mark via spliceTokens.
+ * - `/`  slash commands: the ported TriggerPopup (inline mode) over the
+ *   block-type actions the content grammar executes — Text (strip the
+ *   trigger), Quote (wrap the block's inline tokens in a quote token),
+ *   Task/checkbox (assign the task class, OR-set add), Line break (insert a
+ *   hard_break token), Add URL (strip the trigger, then open the page-level
+ *   LinkEditModal to author an external_link token at the trigger offset).
+ *   No match + Enter falls back to plain prose (the query text stays).
+ * - Verb on selection: FloatingToolbar → link button / Cmd+K opens the
+ *   VerbPopover (free-string verb + optional locator); commit wraps the
+ *   covered prose in a typed_link mark via spliceTokens.
  * All capture commits build on the current draft through applyTextEdit (so
  * unflushed typing is preserved), splice tokens through spliceTokens, then
  * write the result directly with client.updateObject and re-sync the DOM.
@@ -61,6 +68,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import type { ContentAst, Mark } from "@notees/protocol";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { uuidv7 } from "uuidv7";
 
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
@@ -71,9 +79,11 @@ import { withCandidateSpans } from "@/editor/capture.js";
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import { CapturePopup, type CaptureCandidate } from "./CapturePopup.js";
-import { MarkToolbar } from "./MarkToolbar.js";
 import { VerbPopover } from "./VerbPopover.js";
 import { useOutliner } from "./outliner-context.js";
+import { FloatingToolbar } from "./editor-popups/FloatingToolbar.js";
+import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUsage } from "./editor-popups/TriggerPopup.js";
+import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
 
 export const SAVE_DEBOUNCE_MS = 400;
 
@@ -81,9 +91,9 @@ export const SAVE_DEBOUNCE_MS = 400;
 export type EditorCaret = CaretPlacement | { x: number; y: number };
 
 /** Which capture trigger opened the popup. */
-type CaptureKind = "mention" | "tag" | "class";
+type CaptureKind = "mention" | "tag" | "class" | "slash";
 
-const TRIGGER_CHAR: Record<CaptureKind, string> = { mention: "@", tag: "#", class: "+" };
+const TRIGGER_CHAR: Record<CaptureKind, string> = { mention: "@", tag: "#", class: "+", slash: "/" };
 
 interface CaptureState {
   kind: CaptureKind;
@@ -94,6 +104,17 @@ interface CaptureState {
   /** Selected candidate row. */
   index: number;
 }
+
+/** Inline token types the quote token admits as children (SCHEMA.md grammar). */
+const QUOTE_CHILD_TYPES = new Set([
+  "text",
+  "typed_link",
+  "mention",
+  "class_chip",
+  "external_link",
+  "math",
+  "hard_break",
+]);
 
 interface BlockTextEditorProps {
   node: ClientNode;
@@ -175,6 +196,23 @@ function selectionAnchor(): { top: number; left: number } {
   return { top: 0, left: 0 };
 }
 
+/**
+ * Viewport anchor for the slash popup: `top` = caret bottom, `caretTop` =
+ * caret top (the popup is position: fixed). Same zero-rect jsdom fallback.
+ */
+function caretLineAnchor(): { top: number; left: number; caretTop: number } {
+  try {
+    const selection = window.getSelection();
+    if (selection !== null && selection.rangeCount > 0) {
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      return { top: rect.bottom, left: rect.left, caretTop: rect.top };
+    }
+  } catch {
+    // jsdom / edge layouts: the popup lands at the viewport origin.
+  }
+  return { top: 0, left: 0, caretTop: 0 };
+}
+
 export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProps) {
   const { client, positions, requestFocus, capture: captureApi } = useOutliner();
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -186,12 +224,15 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Range captured by the first "*" of the `**`-over-selection shortcut. */
   const starRef = useRef<{ start: number; end: number } | null>(null);
-  const [toolbar, setToolbar] = useState<{ top: number; left: number } | null>(null);
   const [activeMarks, setActiveMarks] = useState<readonly Mark[]>([]);
   const [capture, setCapture] = useState<CaptureState | null>(null);
   const [verb, setVerb] = useState<{ start: number; end: number; top: number; left: number } | null>(
     null,
   );
+  /** Slash-command usage counts for this session (ranking ties in the popup). */
+  const [slashUsage] = useState(readSlashCommandUsage);
+  /** Opens the page-level LinkEditModal (slash "Add URL" flow). */
+  const openLinkEditor = useLinkEditModalOpener();
 
   const flush = useCallback(() => {
     if (timerRef.current !== null) {
@@ -213,17 +254,16 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     void client.updateObject(nodeRef.current.id, { contentAst: next });
   }, [client]);
 
-  // Selection → toolbar state. Listened on document (selectionchange does
-  // not bubble) for the whole edit session.
+  // Selection → active-marks state (the FloatingToolbar decides its own
+  // visibility/position from the same selectionchange stream). Listened on
+  // document (selectionchange does not bubble) for the whole edit session.
   const syncSelectionUi = useCallback(() => {
     const el = spanRef.current;
     const range = el === null ? null : selectionOffsets(el);
     if (range === null || range.start === range.end) {
-      setToolbar(null);
       setActiveMarks([]);
       return;
     }
-    setToolbar(selectionAnchor());
     setActiveMarks([...marksOnRange(nodeRef.current.contentAst, range.start, range.end)]);
   }, []);
 
@@ -287,6 +327,19 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     if (capture === null) return [];
     const query = capture.query.trim();
     const q = query.toLowerCase();
+    if (capture.kind === "slash") {
+      // Slash commands: label match outranks description match, usage breaks
+      // ties (the ranking contract the TriggerPopup rows were designed for).
+      return SLASH_COMMANDS.map((cmd) => {
+        const labelMatch = cmd.label.toLowerCase().includes(q);
+        const descMatch = cmd.description.toLowerCase().includes(q);
+        const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
+        return { cmd, textScore, freq: slashUsage[cmd.id] || 0 };
+      })
+        .filter((s) => s.textScore > 0 || query === "")
+        .sort((a, b) => (b.textScore !== a.textScore ? b.textScore - a.textScore : b.freq - a.freq))
+        .map((s) => ({ id: s.cmd.id, label: s.cmd.label }));
+    }
     if (capture.kind === "mention") {
       const nodes: ClientNode[] =
         query === ""
@@ -310,7 +363,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       if (items.length >= 8) break;
     }
     return items;
-  }, [capture, captureApi]);
+  }, [capture, captureApi, slashUsage]);
 
   /**
    * Reconcile the capture popup with the draft + caret: close when the
@@ -336,6 +389,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       if (ch === "@") return { kind: "mention", start: caret - 1, query: "", index: 0 };
       if (ch === "#") return { kind: "tag", start: caret - 1, query: "", index: 0 };
       if (ch === "+") return { kind: "class", start: caret - 1, query: "", index: 0 };
+      if (ch === "/") return { kind: "slash", start: caret - 1, query: "", index: 0 };
       return null;
     });
   };
@@ -390,6 +444,66 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   };
 
   const chipToken = (classId: string) => ({ type: "class_chip", classId });
+
+  // --- slash commands -------------------------------------------------------
+
+  /**
+   * Execute a slash command picked in the TriggerPopup. The trigger span is
+   * [start, caret) of the draft; one blank after the query is consumed so
+   * "/quote hello" leaves "hello". Offsets are draft-prose offsets.
+   */
+  const runSlashCommand = (commandId: string, start: number, caret: number, query: string) => {
+    const el = spanRef.current;
+    if (el === null) return;
+    const draft = draftRef.current;
+    const consume = draft[caret] === " " ? 1 : 0;
+    const end = caret + consume;
+    bumpSlashCommandUsage(commandId);
+    if (commandId === "text") {
+      applySplice(start, end, [], start);
+      return;
+    }
+    if (commandId === "hard_break") {
+      applySplice(start, end, [{ type: "hard_break" }], start + 1);
+      return;
+    }
+    if (commandId === "quote") {
+      const base = applyTextEdit(nodeRef.current.contentAst, draft);
+      const stripped = spliceTokens(base, start, end, []);
+      const children = stripped.filter(
+        (token): token is ContentAst[number] =>
+          QUOTE_CHILD_TYPES.has(String((token as { type?: string }).type)),
+      );
+      commitAst([{ type: "quote", children } as ContentAst[number]], start);
+      return;
+    }
+    if (commandId === "checkbox") {
+      applySplice(start, end, [], start);
+      // The task system class is this grammar's checkbox: assign it (OR-set
+      // add), preferring a live class named "task" over the designed seed id.
+      const taskClassId =
+        captureApi.listClasses().find((cls) => cls.name === "task")?.id ?? SYSTEM_CLASS_UUIDS.task;
+      void client.assignClass(nodeRef.current.id, taskClassId).catch((error: unknown) => {
+        console.warn(`[capture] assignClass (${taskClassId}) failed:`, error);
+      });
+      return;
+    }
+    if (commandId === "url") {
+      applySplice(start, end, [], start);
+      // The page-level LinkEditModal authors the external_link token at the
+      // trigger offset; a typed URL-looking query pre-fills the URL field.
+      const looksLikeUrl = /^https?:\/\//i.test(query.trim());
+      openLinkEditor({
+        blockId: nodeRef.current.id,
+        tokenIndex: null,
+        insertAt: start,
+        initialUrl: looksLikeUrl ? query.trim() : "",
+        initialLabel: looksLikeUrl ? "" : query.trim(),
+      });
+      return;
+    }
+    applySplice(start, end, [], start);
+  };
 
   /**
    * Enter/Shift+Enter (or click) on a capture row. `candidate` is undefined
@@ -449,6 +563,16 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         .catch((error: unknown) => {
           console.warn(`[capture] class.create "${trimmed}" failed:`, error);
         });
+      return;
+    }
+    // "/" commands: pick executes the block-type action; no matching row
+    // falls back to plain prose (the typed query stays as text).
+    if (state.kind === "slash") {
+      if (candidate === undefined) {
+        plainFallback(start);
+        return;
+      }
+      runSlashCommand(candidate.id, start, caret, query);
       return;
     }
     // "+" picker: existing classes only, no auto-create.
@@ -642,45 +766,68 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         onKeyDown={handleKeyDown}
         onBlur={(event) => {
           flush();
-          // Focus moved into the verb popover (its inputs) — stay in edit
+          // Focus moved into a surface that belongs to the edit session
+          // (the verb popover, rendered inside the root, or a portaled
+          // editor companion such as the link edit modal) — stay in edit
           // mode; anything else ends the session (and closes the popups).
           const nextTarget = event.relatedTarget as Node | null;
-          if (
-            nextTarget !== null &&
-            rootRef.current !== null &&
-            rootRef.current.contains(nextTarget)
-          ) {
-            return;
+          if (nextTarget !== null) {
+            if (rootRef.current !== null && rootRef.current.contains(nextTarget)) return;
+            if (
+              nextTarget instanceof Element &&
+              nextTarget.closest("[data-editor-companion]") !== null
+            ) {
+              return;
+            }
           }
           setCapture(null);
           setVerb(null);
           onExitEdit();
         }}
       />
-      {toolbar !== null && (
-        <MarkToolbar
-          top={toolbar.top}
-          left={toolbar.left}
-          activeMarks={activeMarks}
-          onToggle={toggleMark}
-          onVerb={openVerb}
-        />
-      )}
-      {capture !== null && (
-        <CapturePopup
-          top={selectionAnchor().top}
-          left={selectionAnchor().left}
-          items={captureItems}
-          selectedIndex={Math.min(capture.index, Math.max(captureItems.length - 1, 0))}
-          emptyHint="No matches"
-          onPick={(id) =>
-            commitCapture(
-              captureItems.find((item) => item.id === id),
-              false,
-            )
-          }
-        />
-      )}
+      <FloatingToolbar
+        rootRef={rootRef}
+        activeMarks={new Set(activeMarks)}
+        onToggleMark={toggleMark}
+        onVerb={openVerb}
+      />
+      {capture !== null &&
+        (capture.kind === "slash" ? (
+          <TriggerPopup
+            position={caretLineAnchor()}
+            query={capture.query}
+            selectedIndex={Math.min(capture.index, Math.max(captureItems.length - 1, 0))}
+            onHighlightChange={(index) =>
+              setCapture((current) =>
+                current !== null && current.kind === "slash" ? { ...current, index } : current,
+              )
+            }
+            onSelectCommand={(commandId) => {
+              const state = capture;
+              const el = spanRef.current;
+              setCapture(null);
+              if (state === null || el === null) return;
+              const caret = caretOffset(el);
+              if (caret === null) return;
+              runSlashCommand(commandId, state.start, caret, state.query);
+            }}
+            onClose={() => setCapture(null)}
+          />
+        ) : (
+          <CapturePopup
+            top={selectionAnchor().top}
+            left={selectionAnchor().left}
+            items={captureItems}
+            selectedIndex={Math.min(capture.index, Math.max(captureItems.length - 1, 0))}
+            emptyHint="No matches"
+            onPick={(id) =>
+              commitCapture(
+                captureItems.find((item) => item.id === id),
+                false,
+              )
+            }
+          />
+        ))}
       {verb !== null && (
         <VerbPopover
           top={verb.top}

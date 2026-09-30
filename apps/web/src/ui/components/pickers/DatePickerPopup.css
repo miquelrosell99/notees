@@ -1,0 +1,79 @@
+/**
+ * DatePickerPopup Styles
+ * Reuses calendar-* classes from CalendarPopup where possible
+ */
+
+/* ==================== Container ==================== */
+.date-picker-popup {
+  position: fixed;
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+
+  /* Design system: zero visual noise — no elevation shadows */
+  padding: var(--spacing-3);
+  z-index: var(--z-popover);
+  min-width: var(--layout-size-4xl);
+}
+
+/* ==================== Text Input ==================== */
+.date-picker-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+}
+
+.date-picker-text-input {
+  flex: 1;
+  padding: var(--spacing-2) var(--spacing-3);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+  background: var(--color-surface-container);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  outline: none;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.date-picker-text-input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+/* ==================== Parsed Preview ==================== */
+.date-picker-preview {
+  font: var(--font-label-small);
+  color: var(--color-primary);
+  padding: 0 var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+  min-height: var(--font-size-lg);
+}
+
+.date-picker-preview--invalid {
+  color: var(--color-error);
+}
+
+/* ==================== Selected Date Indicator ==================== */
+
+/* Selected-day styles live in CalendarPopup.css, which DatePickerPopup reuses. */
+
+/*
+ * Container, header, weekday and day-cell styles are shared with the top-bar
+ * calendar via CalendarPopup.css (imported by DatePickerPopup.tsx). Only the
+ * type-a-date input + preview above the grid are date-picker-specific.
+ */
+
+.date-picker-popup .calendar-today-btn {
+  min-height: var(--height-sm);
+  min-width: var(--height-sm);
+}
+
+/* ==================== Insert Error ==================== */
+.date-picker-error {
+  font: var(--font-label-small);
+  color: var(--color-error);
+  padding: var(--spacing-1) var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+  background: var(--color-error-container, var(--color-surface-container));
+  border-radius: var(--shape-small);
+  overflow-wrap: break-word;
+}

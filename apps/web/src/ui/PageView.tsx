@@ -14,15 +14,25 @@
  * request that hands the caret between blocks after structural gestures, and
  * the session-local view transforms: subtree collapse (a Set of hidden node
  * ids, display-only) and prose mode (the `nt-prose` class on the tree).
+ *
+ * Editor chrome owned here: the find & replace widget (Ctrl/Cmd+Shift+F)
+ * searching the block tree's prose projection, and the page-level
+ * LinkEditModal host — read-mode clicks on external_link chips open the
+ * modal, and the editor's slash "Add URL" flow opens it through the same
+ * opener (see editor-popups/).
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client.js";
+import { proseFromAst } from "@/editor/prose.js";
+import { deriveDisplayName } from "@notees/domain";
+
+import { ExportPageTrigger } from "./components/modals/ExportPageTrigger.js";
 
 import { BlockRow } from "./BlockRow.js";
 import {
@@ -43,6 +53,12 @@ import { Icon } from "./Icon.js";
 import { TitleEditor } from "./TitleEditor.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
+import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
+import {
+  LinkEditModalHost,
+  type LinkEditModalOpener,
+} from "./editor-popups/LinkEditModal.js";
+import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 
 export function PageView({
   client,
@@ -63,6 +79,71 @@ export function PageView({
    * (Collapse state itself lives in the OutlinerContext value, see the hook.)
    */
   const [prose, setProse] = useState(false);
+
+  // --- editor chrome: find & replace + link edit modal -----------------------
+
+  /** Page root: find/replace highlights blocks inside it; link clicks delegate. */
+  const pageRootRef = useRef<HTMLDivElement>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  /** The LinkEditModal opener, published by the host below (context lives a level down). */
+  const linkOpenerRef = useRef<LinkEditModalOpener | null>(null);
+
+  // Ctrl/Cmd+Shift+F opens the find & replace widget.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFindOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  const handleFindReplace = useCallback(
+    (blockId: string, start: number, end: number, text: string) => {
+      const block = client.getNode(blockId);
+      if (block === undefined) return;
+      void client.updateObject(blockId, {
+        contentAst: replaceRangeInAst(block.contentAst, start, end, text),
+      });
+    },
+    [client],
+  );
+
+  /**
+   * Read-mode clicks on an external_link chip open the LinkEditModal for
+   * that token (the anchor's default navigation is suppressed only when the
+   * token resolves). The slash "Add URL" flow reaches the same modal through
+   * the opener while editing.
+   */
+  const handleExternalLinkClick = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const anchor = target.closest("a.nt-external-link");
+    if (anchor === null) return;
+    const blockId = anchor.closest("[data-block-id]")?.getAttribute("data-block-id");
+    if (blockId === null || blockId === undefined) return;
+    const block = client.getNode(blockId);
+    if (block === undefined) return;
+    const href = anchor.getAttribute("href") ?? "";
+    const text = anchor.textContent ?? "";
+    const tokenIndex = block.contentAst.findIndex(
+      (token) =>
+        (token as { type?: string }).type === "external_link" &&
+        (token as { href?: string }).href === href &&
+        (token as { text?: string }).text === text,
+    );
+    if (tokenIndex < 0) return;
+    event.preventDefault();
+    linkOpenerRef.current?.({
+      blockId,
+      tokenIndex,
+      insertAt: null,
+      initialUrl: href,
+      initialLabel: text,
+    });
+  };
 
   // --- drag-and-drop reordering (block-dnd.ts intent model) -------------------
   const sensors = useBlockDndSensors();
@@ -92,6 +173,19 @@ export function PageView({
     openNode: (id) => onOpenPage?.(id),
   });
   const positions = outliner.positions;
+
+  /** Searchable documents: one prose projection per block in the tree. */
+  const findDocs = useMemo(() => {
+    const docs: { id: string; prose: string }[] = [];
+    const walk = (nodes: BlockTreeNode[]) => {
+      for (const entry of nodes) {
+        docs.push({ id: entry.node.id, prose: proseFromAst(entry.node.contentAst) });
+        walk(entry.children);
+      }
+    };
+    walk(tree);
+    return docs;
+  }, [tree]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const id = String(event.active.id);
@@ -152,8 +246,17 @@ export function PageView({
 
   return (
     <OutlinerContext.Provider value={outliner}>
-      <div className="nt-page">
-        <Breadcrumbs client={client} nodeId={pageId} onOpenNode={onOpenPage} />
+      <LinkEditModalHost client={client} openerRef={linkOpenerRef}>
+        <div className="nt-page" ref={pageRootRef} onClick={handleExternalLinkClick}>
+          {findOpen && (
+            <FindReplaceWidget
+              blocks={findDocs}
+              highlightRootRef={pageRootRef}
+              onReplace={handleFindReplace}
+              onClose={() => setFindOpen(false)}
+            />
+          )}
+          <Breadcrumbs client={client} nodeId={pageId} onOpenNode={onOpenPage} />
         <header className="nt-page-header">
           <div className="page-header__title-row">
             <span className="page-icon-btn" title="Page icon" aria-hidden="true">
@@ -165,6 +268,11 @@ export function PageView({
             </span>
             <TitleEditor page={page} />
             <div className="nt-page-toolbar">
+              <ExportPageTrigger
+                client={client}
+                pageId={pageId}
+                pageName={deriveDisplayName(page) || undefined}
+              />
               <button
                 type="button"
                 className={prose ? "nt-view-toggle nt-view-toggle-active" : "nt-view-toggle"}
@@ -217,7 +325,8 @@ collisionDetection={blockCollisionDetection}
           </>
         )}
         <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
-      </div>
+        </div>
+      </LinkEditModalHost>
     </OutlinerContext.Provider>
   );
 }
