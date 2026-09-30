@@ -8,7 +8,7 @@
  * chronological sorting and the v1 lookup contract).
  */
 
-import { deriveDisplayName, parseDateNodeId, type NodeLike } from "@notees/domain";
+import { deriveDisplayName, parseDateNodeId, dateNodeLabel, type NodeLike } from "@notees/domain";
 
 import { readDeviceSetting } from "./components/modals/deviceSettings.js";
 
@@ -109,4 +109,38 @@ export function displayNameForSettings(node: NodeLike): string {
     if (formatted !== null) return formatted;
   }
   return deriveDisplayName(node);
+}
+
+/**
+ * The compact storage label of a date page (YYYYMMDD / YYYYMM00 / YYYY0000)
+ * when its id is a deterministic date id — the raw form users type when
+ * searching. Null for non-date nodes.
+ */
+export function rawDateKeywordOf(node: { id: string }): string {
+  const parsed = parseDateNodeId(node.id);
+  if (parsed === null) return "";
+  return dateNodeLabel(
+    { year: parsed.year, month: parsed.month, day: parsed.day },
+    parsed.precision,
+  );
+}
+
+/**
+ * Setting-aware drop-in for client.getDisplayName — the single funnel for
+ * name rendering in the UI (titles, mention chips, links, date properties,
+ * pickers, breadcrumbs, exports). Date pages format per the user's
+ * dateFormat; every other node defers to the client (deriveDisplayName).
+ * The client's own method stays pure because it also runs in the worker,
+ * where device settings do not exist.
+ */
+export function displayNameFromClient(
+  client: Pick<
+    { getNode(id: string): NodeLike | undefined },
+    "getNode"
+  > & { getDisplayName(id: string): string | null },
+  id: string,
+): string | null {
+  const node = client.getNode(id);
+  if (node === undefined) return client.getDisplayName(id);
+  return displayNameForSettings(node);
 }

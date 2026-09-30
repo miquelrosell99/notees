@@ -15,11 +15,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
+import { displayNameForSettings, rawDateKeywordOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import "./Modal.css";
 import "./CommandPalette.css";
@@ -123,15 +124,17 @@ export function CommandPalette({
       .map<PaletteItem>((page) => ({
         key: `page:${page.id}`,
         group: "Pages",
-        label: deriveDisplayName(page) || page.id,
+        label: displayNameForSettings(page) || page.id,
         icon: page.icon ?? "mdi-file-document-outline",
-        keywords: `${page.name ?? ""}`,
+        // The raw compact label stays a search keyword: display is formatted,
+        // but users still type YYYYMMDD to find a date page.
+        keywords: `${page.name ?? ""} ${rawDateKeywordOf(page)}`.trim(),
         run: () => onOpenNode(page.id),
       }));
     const classItems = classes.map<PaletteItem>((cls) => ({
       key: `class:${cls.id}`,
       group: "Classes",
-      label: deriveDisplayName(cls) || cls.id,
+      label: displayNameForSettings(cls) || cls.id,
       icon: cls.icon ?? "mdi-shape-outline",
       keywords: `${cls.name ?? ""}`,
       run: () => onOpenNode(cls.id),
