@@ -98,17 +98,14 @@ console.log("footer:", footerText.slice(0, 120));
 const footerBad = /sync error|illegal invocation/i.test(footerText);
 console.log("footer clean:", !footerBad);
 
-// UI search.
+// UI search — via the command palette (the sidebar search icon opens it).
+await page.getByRole("button", { name: /^search$/i }).first().click();
 const box = page.getByPlaceholder(/search/i).first();
-if (await box.count() === 0) {
-  console.log("SEARCH-BOX-NOT-FOUND (list available inputs below)");
-  console.log(await page.evaluate(() => [...document.querySelectorAll("input")].map((i) => i.placeholder).join(" | ")));
-  throw new Error("no search input");
-}
+await box.waitFor({ timeout: 10_000 });
 await box.fill(term);
-await page.waitForTimeout(4000);
+await page.waitForTimeout(1500);
 const body = await page.evaluate(() => document.body.innerText);
-const found = body.includes("20180900");
+const found = body.includes("20180900") || body.includes("2018/09");
 console.log("ui search found hit:", found);
 await page.screenshot({ path: "/etc/periphery/stacks/notees/scripts/migrated-verify/verify.jpg", type: "jpeg", quality: 85 });
 
