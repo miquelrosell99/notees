@@ -1,0 +1,191 @@
+/**
+ * Sidebar styles — 260px transparent navigator on the background canvas.
+ *
+ * Desktop: no surface fill, only a hairline right border (the canvas hosts
+ * the chrome directly). Mobile (≤800px): the sidebar becomes a fixed
+ * overlay drawer and needs a real surface + shadow to read above content.
+ * The hamburger that reveals it lives in the TopBar.
+ */
+
+.nt-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  padding: var(--spacing-3);
+  gap: var(--spacing-2);
+  min-height: 0;
+}
+
+.nt-sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-ws-switch {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  color: var(--color-on-surface);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.04em;
+}
+
+.nt-ws-switch:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-outline-variant);
+}
+
+.nt-sidebar-search {
+  padding-bottom: var(--spacing-1);
+}
+
+.nt-sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-1) 0;
+  min-height: 0;
+}
+
+.nt-side-section {
+  margin-bottom: var(--spacing-3);
+}
+
+.nt-side-header {
+  margin: var(--spacing-2) var(--spacing-2) var(--spacing-1);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-section);
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-side-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nt-side-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nt-side-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: 28px;
+  padding: 0 var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  text-align: left;
+}
+
+.nt-side-item:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.nt-side-item-active,
+.nt-side-item-active:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.nt-side-item-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-side-item-active .nt-side-item-icon {
+  color: var(--color-on-surface);
+}
+
+.nt-side-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-side-star {
+  position: absolute;
+  right: var(--spacing-1);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-xs);
+  height: var(--height-xs);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-side-row:hover .nt-side-star {
+  display: inline-flex;
+}
+
+.nt-side-star:hover {
+  background: var(--color-pressed-overlay);
+  color: var(--color-on-surface);
+}
+
+.nt-sidebar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-sidebar-user {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-sidebar-store {
+  flex-shrink: 0;
+  opacity: var(--opacity-80);
+}
+
+@media (max-width: 800px) {
+  .nt-sidebar {
+    display: none;
+    position: fixed;
+    top: var(--topbar-height);
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-sticky);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-elevation-2);
+  }
+
+  .nt-sidebar-open .nt-sidebar {
+    display: flex;
+  }
+}

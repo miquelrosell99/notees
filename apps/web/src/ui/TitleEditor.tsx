@@ -1,7 +1,6 @@
 /**
  * TitleEditor — the page header's editable title. Pages carry a stored
  * `name` (SCHEMA.md name derivation: the stored name wins), committed via
- * updateObject({ name }) on blur or Enter. Migrated v1 pages have a null
  * stored name (their title lives in content), so the header displays the
  * derived content excerpt until the user types a real title. The DOM text is
  * managed imperatively (no children rendered), so external renames

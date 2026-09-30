@@ -1,10 +1,13 @@
 /**
- * PageView — a page: editable header title + the recursive block tree of
- * its children + the "add block" affordance for an empty page + the page's
- * system sections (linked references, unlinked references, child pages) per
- * SCHEMA.md: collapsed by default, no query until first expand. Reads from a
- * client (in-process WorkspaceClient or the WorkerClient proxy — same
- * surface) and re-renders on its (naive) notifications.
+ * PageView — a page inside the floating content card: the ancestor
+ * breadcrumbs, the page header (icon + editable title + view toggles), the
+ * collapsible Metadata section, the recursive block tree of the page's
+ * children + the "add block" affordance for an empty page, then (after a
+ * divider) the system sections (linked references — expanded, child pages
+ * and unlinked references — collapsed) per SCHEMA.md's lazy-loading
+ * contract. Reads from a client (in-process WorkspaceClient or the
+ * WorkerClient proxy — same surface) and re-renders on its (naive)
+ * notifications.
  *
  * PageView also owns the OutlinerContext: the write surface, the per-render
  * outline position map (sibling/parent facts for Tab/Backspace), the focus
@@ -13,14 +16,13 @@
  * ids, display-only) and prose mode (the `nt-prose` class on the tree).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { deriveDisplayName } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { BlockRow } from "./BlockRow.js";
 import {
@@ -33,46 +35,14 @@ import {
   useBlockDndSensors,
   type DropLine,
 } from "./block-dnd.js";
+import { Breadcrumbs } from "./components/Breadcrumbs.js";
+import { MetadataSection } from "./components/MetadataSection.js";
+import { SystemSections } from "./components/SystemSections.js";
 import { EmbedBoundary } from "./EmbedView.js";
-import { PropertiesPanel } from "./PropertiesPanel.js";
-import { Section } from "./Section.js";
+import { Icon } from "./Icon.js";
 import { TitleEditor } from "./TitleEditor.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
-
-/** One references row: containing-page breadcrumb, source excerpt, containment context. */
-function ReferenceList({
-  entries,
-  onOpenPage,
-}: {
-  entries: ReferenceEntry[];
-  onOpenPage?: ((pageId: string) => void) | undefined;
-}) {
-  return (
-    <ul className="nt-section-list">
-      {entries.map((entry) => (
-        <li key={entry.source.id}>
-          <button
-            type="button"
-            className="nt-section-item"
-            onClick={() => onOpenPage?.(entry.containingPageId)}
-          >
-            <span className="nt-section-crumb">{entry.containingPageName}</span>
-            {entry.source.id !== entry.containingPageId && (
-              <span className="nt-section-source">
-                {" › "}
-                {deriveDisplayName(entry.source) || entry.source.id}
-              </span>
-            )}
-            {entry.kind === "containment" && (
-              <span className="nt-section-context">in {entry.containingPageName}</span>
-            )}
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 export function PageView({
   client,
@@ -104,12 +74,6 @@ export function PageView({
     const timer = setTimeout(() => setMoveError(null), 4000);
     return () => clearTimeout(timer);
   }, [moveError]);
-
-  // Section queries (SCHEMA.md lazy-loading contract): the closures are
-  // created here but only INVOKED by Section after the first expand.
-  const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
-  const loadUnlinkedRefs = useCallback(() => client.getUnlinkedReferences(pageId), [client, pageId]);
-  const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
 
   const page = client.getPage(pageId);
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
@@ -189,17 +153,27 @@ export function PageView({
   return (
     <OutlinerContext.Provider value={outliner}>
       <div className="nt-page">
+        <Breadcrumbs client={client} nodeId={pageId} onOpenNode={onOpenPage} />
         <header className="nt-page-header">
-          <TitleEditor page={page} />
-          <div className="nt-page-toolbar">
-            <button
-              type="button"
-              className={prose ? "nt-view-toggle nt-view-toggle-active" : "nt-view-toggle"}
-              aria-pressed={prose}
-              onClick={() => setProse((p) => !p)}
-            >
-              Prose
-            </button>
+          <div className="page-header__title-row">
+            <span className="page-icon-btn" title="Page icon" aria-hidden="true">
+              {page.icon !== null ? (
+                <Icon path={page.icon} size={1.4} className="page-icon-large" />
+              ) : (
+                <span className="page-icon-placeholder">◈</span>
+              )}
+            </span>
+            <TitleEditor page={page} />
+            <div className="nt-page-toolbar">
+              <button
+                type="button"
+                className={prose ? "nt-view-toggle nt-view-toggle-active" : "nt-view-toggle"}
+                aria-pressed={prose}
+                onClick={() => setProse((p) => !p)}
+              >
+                Prose
+              </button>
+            </div>
           </div>
         </header>
         {moveError !== null && (
@@ -207,7 +181,7 @@ export function PageView({
             {moveError}
           </div>
         )}
-        <PropertiesPanel client={client} nodeId={pageId} onOpenPage={onOpenPage} />
+        <MetadataSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
         {whiteboardTokenIndex >= 0 ? (
           <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
         ) : (
@@ -242,51 +216,7 @@ collisionDetection={blockCollisionDetection}
             )}
           </>
         )}
-        <div className="nt-page-sections">
-          <Section
-            key={`linked-${pageId}`}
-            client={client}
-            title="Linked references"
-            badge={client.getBacklinkCount(pageId)}
-            load={loadLinkedRefs}
-            emptyText="No linked references."
-            renderResults={(entries) => <ReferenceList entries={entries} onOpenPage={onOpenPage} />}
-          />
-          <Section
-            key={`unlinked-${pageId}`}
-            client={client}
-            title="Unlinked references"
-            load={loadUnlinkedRefs}
-            emptyText="No unlinked references."
-            renderResults={(entries) => <ReferenceList entries={entries} onOpenPage={onOpenPage} />}
-          />
-          <Section
-            key={`child-${pageId}`}
-            client={client}
-            title="Child pages"
-            badge={client.getChildPageCount(pageId)}
-            load={loadChildPages}
-            emptyText="No child pages."
-            renderResults={(pages) => (
-              <ul className="nt-section-list">
-                {pages.map((child) => (
-                  <li key={child.id}>
-                    <button
-                      type="button"
-                      className="nt-section-item"
-                      onClick={() => onOpenPage?.(child.id)}
-                    >
-                      <span className="nt-bullet" aria-hidden="true">
-                        •
-                      </span>
-                      <span>{deriveDisplayName(child) || child.id}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          />
-        </div>
+        <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
       </div>
     </OutlinerContext.Provider>
   );
