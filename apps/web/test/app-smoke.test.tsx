@@ -10,6 +10,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { App } from "../src/ui/App.js";
 
+// connect() boots the in-process sql.js store; emscripten takes its NODE
+// loader under jsdom (process is defined) and fs-opens the wasm path that
+// vite's `?url` import resolves to. Point the import at the real file so the
+// client reaches the (stubbed) sync layer instead of aborting.
+vi.mock("sql.js/dist/sql-wasm.wasm?url", () => ({
+  default: `${process.cwd()}/node_modules/sql.js/dist/sql-wasm.wasm`,
+}));
+
 afterEach(() => {
   localStorage.clear();
   vi.unstubAllGlobals();
@@ -158,6 +166,70 @@ describe("session resume", () => {
     expect(await screen.findByText(/create your first workspace/i)).toBeInTheDocument();
     expect(window.location.pathname).toBe("/workspaces");
     window.history.pushState({}, "", "/");
+  });
+
+  it("a deep link to a node in another workspace connects to that workspace", async () => {
+    rememberSession();
+    const nodeId = "11111111-2222-4333-8444-555555555555";
+    window.history.pushState({}, "", `/${nodeId}`);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/v1/workspaces")) {
+          return Response.json({
+            workspaces: [
+              { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
+              { id: "ws2", name: "Orchard", role: "owner", createdAt: 2, envelopeCount: 0, latestSeq: 0 },
+            ],
+          });
+        }
+        if (url.endsWith("/api/v1/auth/me")) {
+          return Response.json(ME);
+        }
+        if (url.endsWith(`/api/v1/nodes/${nodeId}/location`)) {
+          return Response.json({ workspaceId: "ws2" });
+        }
+        // Relay catch-up for the located workspace: unreachable, so connect
+        // fails after recording which workspace it targeted.
+        return new Response("unreachable", { status: 502 });
+      }),
+    );
+    render(<App />);
+    // connect() persists the workspace id before the (failing) sync: the
+    // deep link must have rerouted the connection from ws1 to ws2.
+    await waitFor(() =>
+      expect(localStorage.getItem("notees.workspaceId")).toBe("ws2"),
+    );
+  });
+
+  it("an unknown deep-link node falls back to the remembered workspace", async () => {
+    rememberSession();
+    window.history.pushState({}, "", "/11111111-2222-4333-8444-555555555555");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/v1/workspaces")) {
+          return Response.json({
+            workspaces: [
+              { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
+            ],
+          });
+        }
+        if (url.endsWith("/api/v1/auth/me")) {
+          return Response.json(ME);
+        }
+        if (url.endsWith("/api/v1/nodes/11111111-2222-4333-8444-555555555555/location")) {
+          return new Response("not found", { status: 404 });
+        }
+        return new Response("unreachable", { status: 502 });
+      }),
+    );
+    render(<App />);
+    await waitFor(() =>
+      expect(localStorage.getItem("notees.workspaceId")).toBe("ws1"),
+    );
   });
 
   it("an expired session on /workspaces lands on the server form", async () => {
