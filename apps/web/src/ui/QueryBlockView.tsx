@@ -610,7 +610,7 @@ export function QueryBlockView({
         </table>
       ) : (
         <>
-          <ul className="nt-query-list">
+          <ul className="nt-query-list" aria-label="Query results">
             {result.rows.slice(0, QUERY_RESULT_CAP).map((row) => (
               <li key={row.id}>
                 <button type="button" className="nt-query-item" onClick={() => openResult(row)}>
