@@ -10,7 +10,8 @@
  *  - POST /auth/logout        revoke the current session (Bearer token);
  *  - GET  /auth/me            the authenticated account;
  *  - GET  /workspaces         the account's workspaces (membership view);
- *  - POST /workspaces         create a workspace (creator becomes owner).
+ *  - POST /workspaces         create a workspace (creator becomes owner);
+ *  - PATCH /workspaces/:id    rename a workspace (owner-only via membership).
  *
  * Sessions travel in the Authorization: Bearer header or the X-API-Key slot
  * (the sync transport already uses both — see transport.ts).
@@ -43,6 +44,10 @@ const setupBodySchema = z
 
 const createWorkspaceSchema = z
   .object({ name: z.string().trim().max(120).optional() })
+  .strict();
+
+const renameWorkspaceSchema = z
+  .object({ name: z.string().trim().min(1).max(120) })
   .strict();
 
 /** Extracts a credential from X-API-Key, Authorization: Bearer, or ?token=. */
@@ -293,6 +298,26 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     ctx.auth.addMember(id, principal.userId, "owner");
     reply.code(201);
     return { id, name: parsed.data.name ?? null, role: "owner" };
+  });
+
+  app.patch("/workspaces/:id", async (request) => {
+    const { principal } = requireAccount(ctx, request);
+    const { id } = request.params as { id: string };
+    const parsed = renameWorkspaceSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid workspace rename request");
+    }
+    // Owner-only via membership: non-members get a 404 (the workspace's
+    // existence is not revealed), members without the owner role get a 403.
+    const role = ctx.auth.membership(id, principal.userId);
+    if (role === null) {
+      throw new AppError(404, "not_found", "no such workspace");
+    }
+    if (role !== "owner") {
+      throw new AppError(403, "forbidden", "only the workspace owner can rename it");
+    }
+    ctx.auth.renameWorkspace(id, parsed.data.name);
+    return { id, name: parsed.data.name };
   });
 
   // --- API keys (session-managed; the keys themselves authenticate as the user) ----

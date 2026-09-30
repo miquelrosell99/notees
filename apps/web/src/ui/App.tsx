@@ -52,6 +52,9 @@ import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { TopBar } from "./components/TopBar.js";
+import { QuickAddModal } from "./components/modals/QuickAddModal.js";
+import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
+import { NotificationToaster } from "./components/ui/NotificationToaster.js";
 import "./app.css";
 
 const STORAGE_KEYS = {
@@ -208,11 +211,29 @@ export function App() {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   /** Open a node and record it in Recents (the Sidebar wraps this hook). */
   function openPage(id: string): void {
     setSelectedPageId(id);
   }
+
+  // Ctrl/Cmd+Shift+N — the global quick-capture shortcut (Quick Add).
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "n" || !event.shiftKey || !(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      // Don't steal the gesture from text fields (the browser needs
+      // Ctrl+Shift+N nowhere else, but a focused editor should keep typing).
+      if (target?.closest("input, textarea, select, [contenteditable]")) return;
+      event.preventDefault();
+      setQuickAddOpen(true);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   /**
    * The single owner of the live client for teardown. State (`client`) drives
@@ -904,6 +925,11 @@ export function App() {
           onClose={() => setSettingsOpen(false)}
         />
       )}
+      {quickAddOpen && (
+        <QuickAddModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} client={client} />
+      )}
+      <BackendUnavailableOverlay syncStatus={syncStatus} />
+      <NotificationToaster />
     </div>
   );
 }

@@ -1,0 +1,272 @@
+/* ─── LinkEditModal ──────────────────────────────────────────── */
+
+.link-edit-modal .modal__content {
+  padding: 0;
+}
+
+.link-edit-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-4);
+}
+
+.link-edit-modal__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.link-edit-modal__mode-section {
+  align-items: flex-start;
+}
+
+.link-edit-modal__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ─── Label / URL input ───────────────────────────────────────── */
+
+.link-edit-modal__input {
+  padding: var(--spacing-2);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: var(--font-size-button);
+  outline: none;
+}
+
+.link-edit-modal__input:focus {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus-ring-primary-container);
+}
+
+.link-edit-modal__input::placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: var(--opacity-60);
+}
+
+.link-edit-modal__hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.link-edit-modal__hint--warning {
+  color: var(--color-warning);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-1);
+}
+
+/* ─── Unavailable target stub (node/block pickers) ────────────── */
+
+.link-edit-modal__unavailable {
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  line-height: 1.4;
+}
+
+/* ─── Info box ────────────────────────────────────────────────── */
+
+.link-edit-modal__info {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-medium);
+}
+
+.link-edit-modal__info-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  line-height: 1.4;
+}
+
+/* ─── Footer ──────────────────────────────────────────────────── */
+
+.link-edit-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+/* ─── App-shell adaptation ──────────────────────────────────────
+   The archived modal's markup keeps the shared design-system classes
+   (.modal-backdrop, .modal, .modal__*, .selection-button*, .btn--*);
+   this app shell ships no such primitives, so the chrome the modal relies
+   on is supplied here, scoped to the modal's own classes. Tokens only. */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-scrim);
+  z-index: var(--z-modal-backdrop);
+  padding: var(--spacing-4);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  min-width: min(min-content, calc(100vw - 2 * var(--spacing-4)));
+  background: var(--color-surface);
+  box-shadow: var(--shadow-elevation-3);
+  overflow: hidden;
+}
+
+.modal--sm {
+  width: 100%;
+  max-width: min(var(--modal-width-sm), calc(100vw - 2 * var(--spacing-4)));
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-4);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  flex-shrink: 0;
+  gap: var(--spacing-2);
+}
+
+.modal__title {
+  margin: 0;
+  font: var(--font-title-medium);
+  color: var(--color-on-surface);
+  flex: 1;
+}
+
+.modal__close {
+  flex-shrink: 0;
+  margin-left: var(--spacing-2);
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-medium);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-sm);
+  height: var(--height-sm);
+}
+
+.modal__close:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.modal__content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  flex-shrink: 0;
+}
+
+/* .btn reset + variants used by the modal footer. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-button-small);
+  font-family: var(--font-family-base);
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--spacing-2) var(--spacing-3);
+  user-select: none;
+  white-space: nowrap;
+  background: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-on-surface-variant);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-container);
+  border-color: var(--color-outline-variant);
+  color: var(--color-on-surface);
+}
+
+.btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  color: var(--color-on-primary);
+}
+
+/* Mode toggle (the archived SelectionButton chrome). */
+.selection-button {
+  position: relative;
+  display: inline-flex;
+  background: var(--color-surface-container);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-1);
+  gap: var(--spacing-micro);
+}
+
+.selection-button__indicator {
+  position: absolute;
+  top: var(--spacing-1);
+  left: var(--spacing-1);
+  background: var(--color-accent);
+  border-radius: var(--shape-medium);
+  height: calc(100% - 2 * var(--spacing-1));
+  z-index: var(--z-0);
+  pointer-events: none;
+}
+
+.selection-button__option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  background: transparent;
+  border: none;
+  padding: var(--spacing-1) var(--spacing-2);
+  min-height: var(--button-min-height);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  z-index: var(--z-1);
+}
+
+.selection-button__option--selected {
+  color: var(--color-on-accent);
+}
