@@ -1205,8 +1205,8 @@ export function MetadataSection({
 
   // The node's own classes: pills with an × that unassigns (class.unassign).
   const classIds = node?.classIds ?? [];
+  const tagIds = node?.tagIds ?? [];
 
-  if (rows.length === 0 && emptyObjectBindings.length === 0 && classIds.length === 0) return null;
 
   const groupedRow = (
     type: string | undefined,
@@ -1288,7 +1288,7 @@ export function MetadataSection({
     );
   };
 
-  const count = classIds.length + rows.length + emptyObjectBindings.length;
+  const count = classIds.length + tagIds.length + rows.length + emptyObjectBindings.length;
 
   return (
     <NodeViewSection
@@ -1299,9 +1299,7 @@ export function MetadataSection({
       defaultExpanded
     >
       <div className="node-metadata-content">
-        {classIds.length > 0 && (
-          <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
-        )}
+        <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
         {node !== undefined && node.nodeType === "page" && (
           <TagsRow client={client} nodeId={nodeId} tagIds={node.tagIds} onOpenPage={onOpenPage} />
         )}

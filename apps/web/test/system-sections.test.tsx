@@ -97,20 +97,20 @@ describe("PageView system sections", () => {
     // Linked references is expanded on mount: one query, results listed.
     expect(linkedSpy).toHaveBeenCalledTimes(1);
     const linked = section(/Linked references/);
-    within(linked).getByText("Linked Source");
+    within(linked).getAllByText("Linked Source");
     expect(within(linked).queryByText("Plain Source")).toBeNull();
 
     // Unlinked: the plain-text source shows, the already-linked source never does.
     fireEvent.click(screen.getByRole("button", { name: /Unlinked references/ }));
     const unlinked = section(/Unlinked references/);
-    within(unlinked).getByText("Plain Source");
+    within(unlinked).getAllByText("Plain Source");
     expect(within(unlinked).queryByText("Linked Source")).toBeNull();
 
     // Collapse + re-expand without any change: the cached result serves, no re-query.
     fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
     fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
     expect(linkedSpy).toHaveBeenCalledTimes(1);
-    within(section(/Linked references/)).getByText("Linked Source");
+    within(section(/Linked references/)).getAllByText("Linked Source");
   });
 
   it("blocks unlinked references for blocks (pages only)", async () => {
@@ -302,7 +302,7 @@ describe("PageView system sections", () => {
     });
 
     const linked = section(/Linked references/);
-    await within(linked).findByText("Remote Source");
+    await within(linked).findAllByText("Remote Source");
     expect(within(screen.getByRole("button", { name: /Linked references/ })).getByText("1")).toBeInTheDocument();
   });
 });

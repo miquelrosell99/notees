@@ -15,6 +15,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
+import { Breadcrumbs } from "./Breadcrumbs.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { Section } from "../Section.js";
 import "./SystemSections.css";
@@ -64,6 +65,11 @@ function ReferenceList({
           <ul className="nt-refgroup-blocks">
             {group.items.map((entry) => (
               <li key={entry.source.id}>
+                <Breadcrumbs
+                  client={client}
+                  nodeId={entry.source.id}
+                  onOpenNode={onOpenPage}
+                />
                 <ReferenceSubtree client={client} rootId={entry.source.id} onOpenNode={onOpenPage} />
               </li>
             ))}
