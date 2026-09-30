@@ -74,6 +74,7 @@ function node(id: string, children: BlockTreeNode[] = []): BlockTreeNode {
       nodeType: "block",
       parentId: null,
       classIds: [],
+      tagIds: [],
       name: null,
       contentAst: [],
       icon: null,
