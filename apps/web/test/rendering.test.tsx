@@ -84,7 +84,7 @@ describe("PageView rendering", () => {
 
     // Marks (scoped to the block tree — Linked references may echo a block
     // that mentions this page).
-    const tree = container.querySelector(".nt-block-tree")!;
+    const tree = container.querySelector(".nt-block-tree") as HTMLElement;
     expect(within(tree).getByText("bold part").tagName).toBe("STRONG");
     expect(within(tree).getByText("italic part").tagName).toBe("EM");
 
