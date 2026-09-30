@@ -1,0 +1,232 @@
+/**
+ * UserSettingsModal styles — per-modal extensions on top of the shared
+ * settings modal chrome (settingsModal.css), ported verbatim (class names
+ * and token values) from the archived user settings modal stylesheet.
+ */
+
+/* ==================== Accent Color Swatches ==================== */
+.settings-accent-options {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
+}
+
+.settings-accent-swatch {
+  width: var(--icon-size-xl);
+  height: var(--icon-size-xl);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: var(--border-width-thick) solid transparent;
+  cursor: pointer;
+  transition: transform var(--motion-duration-short) var(--motion-easing-tactile),
+              border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-accent-swatch:hover {
+  transform: scale(1.15);
+}
+
+.settings-accent-swatch:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.settings-accent-swatch--active {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-focus-ring-primary-container);
+}
+
+.settings-accent-swatch--custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width-thick) solid transparent;
+}
+
+.settings-accent-swatch__icon {
+  font-size: var(--font-size-md);
+  line-height: 1;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-accent-custom-input {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
+}
+
+.settings-accent-color-picker {
+  width: var(--icon-size-2xl);
+  height: var(--icon-size-2xl);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.settings-accent-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-accent-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.settings-accent-color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.settings-accent-hex-input {
+  width: var(--spacing-24);
+  text-transform: uppercase;
+}
+
+.settings-item--indented {
+  padding-left: var(--spacing-4);
+}
+
+/* ==================== About Section ==================== */
+.settings-about {
+  text-align: center;
+  padding: var(--spacing-4);
+}
+
+.settings-about__logo {
+  width: var(--spacing-16);
+  height: var(--spacing-16);
+  margin-bottom: var(--spacing-2);
+}
+
+.settings-about__name {
+  font: var(--font-title-large);
+  color: var(--color-on-surface);
+  margin: 0 0 var(--spacing-1) 0;
+}
+
+.settings-about__description {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.settings-about__copyright {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  margin: var(--spacing-3) 0 0 0;
+}
+
+/* ==================== Settings Links ==================== */
+.settings-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--shape-small);
+  font: var(--font-label-large);
+  color: var(--color-primary);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-link:hover {
+  background: var(--color-primary-container);
+}
+
+/* ==================== Privacy Card ==================== */
+.settings-privacy-card {
+  padding: var(--spacing-4);
+  background: var(--color-surface-container);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+}
+
+.settings-privacy-card__text {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+/* ==================== Support Section ==================== */
+.settings-support-channels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.settings-support-channel {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  text-decoration: none;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-support-channel:hover {
+  background: var(--color-surface-container);
+  border-color: var(--color-accent);
+}
+
+.settings-support-channel:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--spacing-micro);
+}
+
+.settings-support-channel__icon {
+  flex-shrink: 0;
+  font-size: var(--icon-size-lg);
+  color: var(--color-accent);
+  display: inline-flex;
+  align-items: center;
+}
+
+.settings-support-channel__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-support-channel__name {
+  font: var(--font-body-medium);
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.settings-support-channel__description {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.settings-support-channel__arrow {
+  flex-shrink: 0;
+  font-size: var(--icon-size-md);
+  color: var(--color-on-surface-variant);
+  display: inline-flex;
+  align-items: center;
+}

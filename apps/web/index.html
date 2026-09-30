@@ -7,10 +7,81 @@
     <title>Notees</title>
     <script>
       // Theme bootstrap: dark is the default; a stored preference wins.
-      // Runs before first paint (and before /config.js) to avoid a theme flash.
+      // "system" follows the OS color scheme. Runs before first paint (and
+      // before /config.js) to avoid a theme flash. Device-local appearance
+      // settings live under "notees.settings.*"; "notees.theme" is the
+      // legacy key, still read as a fallback.
       (() => {
-        const t = localStorage.getItem("notees.theme");
-        document.documentElement.dataset.theme = t === "light" ? "light" : "dark";
+        const read = (key) => {
+          try {
+            return localStorage.getItem(key);
+          } catch {
+            return null;
+          }
+        };
+        let t = read("notees.settings.theme");
+        if (t !== null) {
+          try {
+            t = JSON.parse(t);
+          } catch {
+            t = null;
+          }
+        }
+        if (t === null) t = read("notees.theme");
+        const systemDark =
+          window.matchMedia &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const resolved =
+          t === "system" ? (systemDark ? "dark" : "light") : t === "light" ? "light" : "dark";
+        document.documentElement.dataset.theme = resolved;
+        let oled = read("notees.settings.oledMode");
+        if (oled !== null) {
+          try {
+            oled = JSON.parse(oled);
+          } catch {
+            oled = false;
+          }
+        }
+        document.documentElement.dataset.oled = oled === true && resolved === "dark" ? "true" : "false";
+        let accent = read("notees.settings.accentColor");
+        if (accent !== null) {
+          try {
+            accent = JSON.parse(accent);
+          } catch {
+            accent = null;
+          }
+        }
+        accent = accent ?? "monochrome";
+        document.documentElement.dataset.accent = accent;
+        if (accent === "custom") {
+          let hex = read("notees.settings.customAccentHex");
+          if (hex !== null) {
+            try {
+              hex = JSON.parse(hex);
+            } catch {
+              hex = null;
+            }
+          }
+          if (typeof hex === "string" && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hex)) {
+            document.documentElement.style.setProperty("--color-accent-custom", hex);
+            const full =
+              hex.length === 4
+                ? hex
+                    .slice(1)
+                    .split("")
+                    .map((c) => c + c)
+                    .join("")
+                : hex.slice(1);
+            const r = parseInt(full.slice(0, 2), 16);
+            const g = parseInt(full.slice(2, 4), 16);
+            const b = parseInt(full.slice(4, 6), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            document.documentElement.style.setProperty(
+              "--color-on-accent-custom",
+              luminance > 0.5 ? "#000000" : "#ffffff",
+            );
+          }
+        }
       })();
     </script>
     <script src="/config.js"></script>

@@ -21,7 +21,6 @@ import type { NodeRow, Store } from "@notees/store";
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
-import { requireApiKey } from "./routes-relay.js";
 
 const listQuerySchema = z
   .object({
