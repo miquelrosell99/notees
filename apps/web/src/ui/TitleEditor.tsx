@@ -14,6 +14,7 @@ import { deriveDisplayName } from "@notees/domain";
 
 import type { ClientNode } from "@/core/workspace-client.js";
 
+import { displayNameForSettings, isDatePageNode } from "./dateDisplay.js";
 import { useOutliner } from "./outliner-context.js";
 
 export function TitleEditor({ page }: { page: ClientNode }) {
@@ -24,6 +25,18 @@ export function TitleEditor({ page }: { page: ClientNode }) {
   const draftRef = useRef(page.name ?? "");
   /** Last value WE wrote — guards the Enter→blur double commit. */
   const committedRef = useRef(page.name ?? "");
+
+  // A date page's name IS its date: display it in the user's dateFormat and
+  // don't offer renaming (the compact stored label must stay canonical for
+  // sorting and date lookups). Identity comes from the deterministic date
+  // id, so migrated pages with a null name still render formatted.
+  if (isDatePageNode(page)) {
+    return (
+      <h1 className="nt-page-title" role="heading" aria-level={1}>
+        {displayNameForSettings(page)}
+      </h1>
+    );
+  }
 
   const commit = () => {
     const el = headingRef.current;

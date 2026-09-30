@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { App } from "../src/ui/App.js";
+import { App, navFromPath, pathForNav } from "../src/ui/App.js";
 
 // connect() boots the in-process sql.js store; emscripten takes its NODE
 // loader under jsdom (process is defined) and fs-opens the wasm path that
@@ -252,5 +252,27 @@ describe("session resume", () => {
     );
     expect(screen.queryByText("Your workspaces")).toBeNull();
     window.history.pushState({}, "", "/");
+  });
+});
+
+describe("hub URL routes", () => {
+  it("maps hub paths to nav keys (with the /journals alias)", () => {
+    expect(navFromPath("/journal")).toBe("journal");
+    expect(navFromPath("/journals")).toBe("journal");
+    expect(navFromPath("/inbox")).toBe("inbox");
+    expect(navFromPath("/pages")).toBe("pages");
+    expect(navFromPath("/classes")).toBe("classes");
+    expect(navFromPath("/whiteboards")).toBe("whiteboards");
+    expect(navFromPath("/tasks")).toBe("tasks");
+    expect(navFromPath("/tasks/")).toBe("tasks");
+    expect(navFromPath("/")).toBeNull();
+    expect(navFromPath("/workspaces")).toBeNull();
+    expect(navFromPath("/11111111-2222-4333-8444-555555555555")).toBeNull();
+  });
+
+  it("round-trips nav keys through canonical paths", () => {
+    for (const nav of ["journal", "inbox", "pages", "classes", "whiteboards", "tasks"] as const) {
+      expect(navFromPath(pathForNav(nav))).toBe(nav);
+    }
   });
 });

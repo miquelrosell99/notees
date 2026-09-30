@@ -30,11 +30,11 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { proseFromAst } from "@/editor/prose.js";
-import { deriveDisplayName } from "@notees/domain";
 
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
+import { displayNameForSettings } from "./dateDisplay.js";
 
 import { BlockRow } from "./BlockRow.js";
 import {
@@ -65,11 +65,19 @@ export function PageView({
   client,
   pageId,
   onOpenPage,
+  embedded = false,
 }: {
   client: WorkspaceClient | WorkerClient;
   pageId: string;
   /** Page navigation (child-pages rows, reference crumbs). */
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /**
+   * Embedded mode (journals feed): the title renders as a static button that
+   * navigates to the full page view instead of the inline TitleEditor, and
+   * the page-level find/replace shortcut stays off so stacked feeds don't
+   * install one document listener per entry.
+   */
+  embedded?: boolean;
 }) {
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
@@ -90,8 +98,10 @@ export function PageView({
   /** The LinkEditModal opener, published by the host below (context lives a level down). */
   const linkOpenerRef = useRef<LinkEditModalOpener | null>(null);
 
-  // Ctrl/Cmd+Shift+F opens the find & replace widget.
+  // Ctrl/Cmd+Shift+F opens the find & replace widget (page view only —
+  // embedded journal entries skip it so feeds don't stack document listeners).
   useEffect(() => {
+    if (embedded) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
@@ -100,7 +110,7 @@ export function PageView({
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  }, [embedded]);
 
   const handleFindReplace = useCallback(
     (blockId: string, start: number, end: number, text: string) => {
@@ -276,7 +286,18 @@ export function PageView({
                 <span className="page-icon-placeholder">◈</span>
               )}
             </span>
-            <TitleEditor page={page} />
+            {embedded ? (
+              <button
+                type="button"
+                className="nt-page-title-link"
+                title="Open page"
+                onClick={() => onOpenPage?.(pageId)}
+              >
+                {displayNameForSettings(page)}
+              </button>
+            ) : (
+              <TitleEditor page={page} />
+            )}
           </div>
         </header>
         {moveError !== null && (

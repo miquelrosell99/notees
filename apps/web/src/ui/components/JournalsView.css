@@ -1,0 +1,138 @@
+/* JournalsView — the today-centered journal feed. */
+
+.journals-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.journals-view__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-6) var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.journals-view__title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  font: var(--font-title-large);
+  color: var(--color-on-surface);
+  flex: 1;
+  min-width: 0;
+}
+
+.journals-view__today-btn {
+  background: none;
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  color: var(--color-primary);
+  font: var(--font-label-large);
+  padding: var(--spacing-1) var(--spacing-3);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-short) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.journals-view__today-btn:hover {
+  background: var(--color-primary-container);
+  border-color: var(--color-outline);
+}
+
+.journals-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-10);
+  padding: var(--spacing-4) var(--spacing-6) var(--spacing-12);
+}
+
+.journals-sentinel {
+  height: 1px;
+  flex-shrink: 0;
+}
+
+.journal-entry {
+  /* The list is a column flex container with a fixed height; without this
+     the items shrink to fit and their taller page content paints over the
+     siblings below. */
+  flex-shrink: 0;
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  padding-bottom: var(--spacing-8);
+  position: relative;
+  min-height: var(--layout-size-xs);
+}
+
+.journal-entry:last-child {
+  border-bottom: none;
+}
+
+.journal-entry .nt-page {
+  padding: 0;
+  background: transparent;
+}
+
+.journals-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-12) var(--spacing-4);
+  color: var(--color-on-surface-variant);
+  text-align: center;
+}
+
+.journals-empty__action {
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--shape-full);
+  color: var(--color-on-primary);
+  font: var(--font-label-large);
+  padding: var(--spacing-2) var(--spacing-4);
+  cursor: pointer;
+}
+
+.journals-empty__action:hover {
+  background: var(--color-primary-hover);
+}
+
+/* The embedded page title is a navigation button, not an editor. */
+.nt-page-title-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font: var(--font-headline-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  min-width: 0;
+  border-radius: var(--shape-small);
+}
+
+.nt-page-title-link:hover {
+  color: var(--color-primary);
+}
+
+@media (width <= 768px) {
+  .journals-view__header {
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
+  }
+  .journals-list {
+    gap: var(--spacing-6);
+    padding: var(--spacing-4);
+  }
+  .journal-entry {
+    padding-bottom: var(--spacing-4);
+  }
+}

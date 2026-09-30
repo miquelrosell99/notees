@@ -11,6 +11,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { fireEvent, render } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { OutlinerContext, type OutlinerContextValue } from "../src/ui/outliner-context.js";
@@ -29,6 +30,7 @@ const clients: WorkspaceClient[] = [];
 
 afterEach(() => {
   while (clients.length > 0) clients.pop()!.close();
+  localStorage.clear();
 });
 
 async function makeClient(): Promise<WorkspaceClient> {
@@ -106,5 +108,37 @@ describe("TitleEditor", () => {
     });
     const { container } = renderTitle(client, pageId);
     expect(container.querySelector("h1")!.textContent).toBe("Stored Name");
+  });
+
+  it("renders date pages as a static title in the user's dateFormat", async () => {
+    localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
+    const client = await makeClient();
+    const pageId = await client.createObject({
+      nodeType: "page",
+      name: "20260627",
+      classIds: [SYSTEM_CLASS_UUIDS.day],
+    });
+    const updateSpy = vi.spyOn(client, "updateObject");
+    const { container } = renderTitle(client, pageId);
+    const heading = container.querySelector("h1")!;
+    expect(heading.textContent).toBe("2026/06/27");
+    expect(heading.getAttribute("contenteditable")).toBeNull();
+    // Interacting with the static title never renames the date page.
+    fireEvent.focus(heading);
+    fireEvent.blur(heading);
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("applies the dateFormat setting to date page titles", async () => {
+    localStorage.setItem("notees.settings.dateFormat", JSON.stringify("DD-MM-YYYY"));
+    const client = await makeClient();
+    const pageId = await client.createObject({
+      id: "00000000-0000-0000-00dd-202906270000",
+      nodeType: "page",
+      classIds: [SYSTEM_CLASS_UUIDS.day],
+      contentAst: [{ type: "text", text: "20290627" }],
+    });
+    const { container } = renderTitle(client, pageId);
+    expect(container.querySelector("h1")!.textContent).toBe("27-06-2029");
   });
 });
