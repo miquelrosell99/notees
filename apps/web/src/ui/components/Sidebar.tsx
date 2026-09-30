@@ -10,12 +10,13 @@
 
 import { useState } from "react";
 
-import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { AccountUser } from "@/core/auth-api.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
+import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
@@ -165,7 +166,7 @@ export function Sidebar({
         {icon !== null && icon !== undefined && (
           <Icon path={icon} size={1} className="nt-side-item-icon" />
         )}
-        <span className="nt-side-item-label">{deriveDisplayName(node) || node.id}</span>
+        <span className="nt-side-item-label">{displayNameForSettings(node) || node.id}</span>
       </button>
       <button
         type="button"

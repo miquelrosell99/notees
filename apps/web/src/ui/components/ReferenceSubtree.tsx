@@ -23,6 +23,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 
 import { BlockRow } from "../BlockRow.js";
 import { blockCollisionDetection, useBlockDndSensors } from "../block-dnd.js";
+import { displayNameFromClient } from "../dateDisplay.js";
 import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -66,7 +67,7 @@ export function ReferenceSubtree({
       <DndContext sensors={sensors} collisionDetection={blockCollisionDetection}>
         <SortableContext items={[node.id]} strategy={verticalListSortingStrategy}>
           <div className="nt-refblock-tree">
-            <BlockRow tree={tree} resolveName={(id) => client.getDisplayName(id)} />
+            <BlockRow tree={tree} resolveName={(id) => displayNameFromClient(client, id)} />
           </div>
         </SortableContext>
       </DndContext>

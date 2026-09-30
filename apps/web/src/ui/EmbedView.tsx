@@ -19,6 +19,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 
 import type { BlockTreeNode } from "@/core/workspace-client.js";
 
+import { displayNameFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { useOutliner } from "./outliner-context.js";
 
@@ -100,9 +101,9 @@ export function EmbedView({ nodeId }: { nodeId: string }) {
     return <EmbedPlaceholder label="broken embed" detail={nodeId} />;
   }
 
-  const resolveName = (id: string) => client.getDisplayName(id);
+  const resolveName = (id: string) => displayNameFromClient(client, id);
   const renderEmbed = (id: string) => <EmbedView nodeId={id} />;
-  const name = client.getDisplayName(nodeId) ?? nodeId;
+  const name = displayNameFromClient(client, nodeId) ?? nodeId;
   const childrenTree = client.getBlockTree(nodeId);
 
   return (

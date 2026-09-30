@@ -22,7 +22,6 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
-  deriveDisplayName,
   parseDateNodeId,
   SYSTEM_CLASS_UUIDS,
   type DatePrecision,
@@ -37,6 +36,7 @@ import type {
 } from "@/core/workspace-client.js";
 
 import { AnnotationsSection } from "../AnnotationsSection.js";
+import { displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { Checkbox } from "./ui/Checkbox.js";
@@ -219,7 +219,7 @@ function ObjectPropertyRow({
       const info = client.getAssetInfo(ref);
       if (info !== undefined) return info.originalName;
     }
-    return client.getDisplayName(ref) ?? ref;
+    return displayNameFromClient(client, ref) ?? ref;
   };
 
   const linkNode = async (target: string): Promise<void> => {
@@ -917,7 +917,7 @@ function ClassesRow({
       <div className="nt-property-chips node-metadata-pills">
         {classIds.map((classId) => {
           const cls = client.getNode(classId);
-          const label = client.getDisplayName(classId) ?? classId;
+          const label = displayNameFromClient(client, classId) ?? classId;
           const colored =
             cls?.color !== null && cls?.color !== undefined ? cls.color : null;
           return (
@@ -1062,7 +1062,7 @@ function TagsRow({
       <div className="section-label">Tags:</div>
       <div className="nt-property-chips node-metadata-pills">
         {assignedTags.map((tag) => {
-          const label = client.getDisplayName(tag.id) ?? tag.id;
+          const label = displayNameFromClient(client, tag.id) ?? tag.id;
           return (
             <span
               key={tag.id}
