@@ -552,6 +552,10 @@ export class WorkerCore {
         return this.attachAsset(args[0] as string, args[1] as AssetUploadResult);
       case "assignClass":
         return this.client.assignClass(args[0] as string, args[1] as string);
+      case "assignTag":
+        return this.client.assignTag(args[0] as string, args[1] as string);
+      case "unassignTag":
+        return this.client.unassignTag(args[0] as string, args[1] as string);
       case "unassignClass":
         return this.client.unassignClass(args[0] as string, args[1] as string);
       case "createClass":

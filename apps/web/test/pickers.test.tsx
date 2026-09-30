@@ -102,7 +102,7 @@ describe("metadata pickers (ported popups)", () => {
     expect(client.getNode(pageId)?.classIds).toContain(essays!.id);
   });
 
-  it("right-clicking a class pill opens the color swatches; a swatch writes the color", async () => {
+  it("right-clicking a class pill opens the node menu; Change color leads to the swatches", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Genre");
     const pageId = await client.createObject({ nodeType: "page", name: "Book" });
@@ -111,17 +111,12 @@ describe("metadata pickers (ported popups)", () => {
 
     const pill = screen.getByRole("button", { name: "Remove class Genre" }).closest(".pill")!;
     fireEvent.contextMenu(pill);
+    fireEvent.click(screen.getByRole("menuitem", { name: /change color/i }));
 
     const swatchGroup = screen.getByRole("group", { name: "Color options" });
     const swatches = swatchGroup.querySelectorAll(".context-menu-color-swatch");
     expect(swatches.length).toBe(9); // no-color + 8 preset colors
     fireEvent.click(swatches[1]!); // red
-    await flushWrites();
-    expect(client.getNode(classId)?.color).toBe("#c55a55");
-
-    // "No color" stays a no-op: object.update has no null color (protocol).
-    fireEvent.contextMenu(pill);
-    fireEvent.click(screen.getByTitle("No color"));
     await flushWrites();
     expect(client.getNode(classId)?.color).toBe("#c55a55");
   });

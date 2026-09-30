@@ -41,6 +41,7 @@ import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { Checkbox } from "./pickers/Checkbox.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
+import { NodeContextMenu } from "./NodeContextMenu.js";
 import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
@@ -901,8 +902,10 @@ function ClassesRow({
   classIds: string[];
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
+  // (nodeMenu state lives below, next to the color menu.)
   const [pickerOpen, setPickerOpen] = useState(false);
   const [colorMenu, setColorMenu] = useState<{ classId: string; x: number; y: number } | null>(null);
+  const [nodeMenu, setNodeMenu] = useState<{ node: ClientNode; x: number; y: number } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const assignedClasses = classIds
@@ -928,10 +931,10 @@ function ClassesRow({
                   : undefined
               }
               onContextMenu={(event) => {
-                if (colored === null && cls === undefined) return;
+                if (cls === undefined) return;
                 event.preventDefault();
                 event.stopPropagation();
-                setColorMenu({ classId, x: event.clientX, y: event.clientY });
+                setNodeMenu({ node: cls, x: event.clientX, y: event.clientY });
               }}
             >
               {cls?.icon !== null && cls?.icon !== undefined && (
@@ -1020,6 +1023,119 @@ function ClassesRow({
           )}
         </>
       )}
+      <NodeContextMenu
+        state={nodeMenu === null ? null : { ...nodeMenu, ownerId: nodeId, isPage: true }}
+        client={client}
+        onClose={() => setNodeMenu(null)}
+        onOpenNode={(id) => onOpenPage?.(id)}
+        onChangeColor={(x, y) => {
+          if (nodeMenu !== null) setColorMenu({ classId: nodeMenu.node.id, x, y });
+        }}
+      />
+    </div>
+  );
+}
+
+
+/**
+ * TagsRow — the "Tags:" metadata row (page-scoped): any page can be assigned
+ * as a tag. Pills mirror the classes row; right-click opens the node menu
+ * (remove goes through unassignTag).
+ */
+function TagsRow({
+  client,
+  nodeId,
+  tagIds,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  tagIds: string[];
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [nodeMenu, setNodeMenu] = useState<{ node: ClientNode; x: number; y: number } | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const assignedTags = tagIds
+    .map((tagId) => client.getNode(tagId))
+    .filter((node): node is ClientNode => node !== undefined);
+
+  return (
+    <div className="node-metadata-row nt-tags-row">
+      <div className="section-label">Tags:</div>
+      <div className="nt-property-chips node-metadata-pills">
+        {assignedTags.map((tag) => {
+          const label = client.getDisplayName(tag.id) ?? tag.id;
+          return (
+            <span
+              key={tag.id}
+              className="nt-property-pill"
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setNodeMenu({ node: tag, x: event.clientX, y: event.clientY });
+              }}
+            >
+              <button
+                type="button"
+                className="pill__text"
+                onClick={() => onOpenPage?.(tag.id)}
+              >
+                {label}
+              </button>
+              <button
+                type="button"
+                className="pill__right-button"
+                aria-label={`Remove tag ${label}`}
+                onClick={() => void client.unassignTag(nodeId, tag.id)}
+              >
+                ×
+              </button>
+            </span>
+          );
+        })}
+        <span className="nt-class-add-anchor">
+          <button
+            ref={addButtonRef}
+            type="button"
+            className="nt-property-add"
+            onClick={() => setPickerOpen(true)}
+          >
+            + Add tag
+          </button>
+        </span>
+      </div>
+      {pickerOpen && (
+        <NodeSelector
+          client={client}
+          anchorEl={addButtonRef.current}
+          searchMode="pages"
+          excludeNodeId={nodeId}
+          alwaysShowCreate
+          searchPlaceholder="Search pages…"
+          onClose={() => setPickerOpen(false)}
+          onNodeClick={(tag) => {
+            setPickerOpen(false);
+            void client.assignTag(nodeId, tag.id);
+          }}
+          onCreateNew={(name) => {
+            setPickerOpen(false);
+            void client.createObject({ nodeType: "page", name }).then((tagId) => {
+              void client.assignTag(nodeId, tagId);
+            });
+          }}
+        />
+      )}
+      <NodeContextMenu
+        state={nodeMenu === null ? null : { ...nodeMenu, ownerId: nodeId, isPage: true }}
+        client={client}
+        onClose={() => setNodeMenu(null)}
+        onOpenNode={(id) => onOpenPage?.(id)}
+        onRemoveFromOwner={() => {
+          if (nodeMenu !== null) void client.unassignTag(nodeId, nodeMenu.node.id);
+        }}
+      />
     </div>
   );
 }
@@ -1185,6 +1301,9 @@ export function MetadataSection({
       <div className="node-metadata-content">
         {classIds.length > 0 && (
           <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+        )}
+        {node !== undefined && node.nodeType === "page" && (
+          <TagsRow client={client} nodeId={nodeId} tagIds={node.tagIds} onOpenPage={onOpenPage} />
         )}
         <ul className="nt-properties-list">
           {rendered.map((entry) => {

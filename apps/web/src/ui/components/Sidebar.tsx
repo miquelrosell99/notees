@@ -16,6 +16,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
+import { classIconMap, nodeIcon } from "../iconFor.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
 import "./Sidebar.css";
 
@@ -114,6 +115,8 @@ export function Sidebar({
     classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
   const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
   const byId = new Map<string, ClientNode>([...pages, ...classes].map((node) => [node.id, node]));
+  const iconsByClass = classIconMap(classes);
+  const rowIconFor = (node: ClientNode): string | null => nodeIcon(node, iconsByClass);
   const favoritePages = favorites
     .map((id) => byId.get(id))
     .filter((node): node is ClientNode => node !== undefined);
@@ -237,11 +240,7 @@ export function Sidebar({
           favoritePages.map((node) => renderRow(node)),
           { icon: "mdi-star-outline" },
         )}
-        {section(
-          "Recents",
-          recentPages.map((node) => renderRow(node)),
-          { icon: "mdi-clock-outline" },
-        )}
+        {section("Recents", recentPages.map((node) => renderRow(node, rowIconFor(node))))}
       </nav>
       <div className="nt-sidebar-footer">
         <span className="nt-sidebar-user">{userEmail ?? "Offline"}</span>

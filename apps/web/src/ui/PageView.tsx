@@ -32,7 +32,9 @@ import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client.js"
 import { proseFromAst } from "@/editor/prose.js";
 import { deriveDisplayName } from "@notees/domain";
 
-import { ExportPageTrigger } from "./components/modals/ExportPageTrigger.js";
+import { ExportPageModal } from "./components/modals/ExportPageModal.js";
+import { NodeContextMenu } from "./components/NodeContextMenu.js";
+import { classIconMap, nodeIcon } from "./iconFor.js";
 
 import { BlockRow } from "./BlockRow.js";
 import {
@@ -45,7 +47,6 @@ import {
   useBlockDndSensors,
   type DropLine,
 } from "./block-dnd.js";
-import { Breadcrumbs } from "./components/Breadcrumbs.js";
 import { MetadataSection } from "./components/MetadataSection.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { EmbedBoundary } from "./EmbedView.js";
@@ -70,6 +71,8 @@ export function PageView({
   /** Page navigation (child-pages rows, reference crumbs). */
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
+  const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
+  const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
   /**
@@ -78,7 +81,6 @@ export function PageView({
    * indents via the `nt-prose` class. Neither is persisted in this slice.
    * (Collapse state itself lives in the OutlinerContext value, see the hook.)
    */
-  const [prose, setProse] = useState(false);
 
   // --- editor chrome: find & replace + link edit modal -----------------------
 
@@ -157,6 +159,8 @@ export function PageView({
   }, [moveError]);
 
   const page = client.getPage(pageId);
+  const headerIcon =
+    page !== undefined ? nodeIcon(page, classIconMap(client.listClasses())) : null;
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
 
   // Fullscreen whiteboard (SCHEMA.md: a whiteboard page is node_type='page'
@@ -256,32 +260,23 @@ export function PageView({
               onClose={() => setFindOpen(false)}
             />
           )}
-          <Breadcrumbs client={client} nodeId={pageId} onOpenNode={onOpenPage} />
-        <header className="nt-page-header">
+          <header className="nt-page-header">
           <div className="page-header__title-row">
-            <span className="page-icon-btn" title="Page icon" aria-hidden="true">
-              {page.icon !== null ? (
-                <Icon path={page.icon} size={1.4} className="page-icon-large" />
+            <span
+              className="page-icon-btn"
+              title="Page icon"
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setHeaderMenu({ x: event.clientX, y: event.clientY });
+              }}
+            >
+              {headerIcon !== null ? (
+                <Icon path={headerIcon} size={1.4} className="page-icon-large" />
               ) : (
                 <span className="page-icon-placeholder">◈</span>
               )}
             </span>
             <TitleEditor page={page} />
-            <div className="nt-page-toolbar">
-              <ExportPageTrigger
-                client={client}
-                pageId={pageId}
-                pageName={deriveDisplayName(page) || undefined}
-              />
-              <button
-                type="button"
-                className={prose ? "nt-view-toggle nt-view-toggle-active" : "nt-view-toggle"}
-                aria-pressed={prose}
-                onClick={() => setProse((p) => !p)}
-              >
-                Prose
-              </button>
-            </div>
           </div>
         </header>
         {moveError !== null && (
@@ -305,7 +300,7 @@ collisionDetection={blockCollisionDetection}
           >
             <DropLineContext.Provider value={dropLine}>
               <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
-                <div className={prose ? "nt-block-tree nt-prose" : "nt-block-tree"}>
+                <div className="nt-block-tree">
                   {tree.map((child) => (
                     <BlockRow key={child.node.id} tree={child} resolveName={(id) => client.getDisplayName(id)} />
                   ))}

@@ -87,6 +87,7 @@ export interface ClientNode {
   nodeType: "page" | "block" | "class";
   parentId: string | null;
   classIds: string[];
+  tagIds: string[];
   name: string | null;
   contentAst: ContentAst;
   icon: string | null;
@@ -277,6 +278,7 @@ export interface CreateObjectInput {
   name?: string;
   contentAst?: ContentAst;
   classIds?: string[];
+  tagIds?: string[];
 }
 
 export interface UpdateObjectInput {
@@ -475,8 +477,13 @@ export async function fetchAssetBlob(serverUrl: string, apiKey: string, assetId:
 
 function mapNode(row: NodeRow): ClientNode {
   let classIds: string[] = [];
+  let tagIds: string[] = [];
   try {
-    const parsed: unknown = JSON.parse(row.class_ids);
+    const parsedTags: unknown = JSON.parse(row.tag_ids);
+  if (Array.isArray(parsedTags)) {
+    tagIds = parsedTags.filter((entry): entry is string => typeof entry === "string");
+  }
+  const parsed: unknown = JSON.parse(row.class_ids);
     if (Array.isArray(parsed)) classIds = parsed.filter((v): v is string => typeof v === "string");
   } catch {
     classIds = [];
@@ -487,6 +494,7 @@ function mapNode(row: NodeRow): ClientNode {
     nodeType: row.node_type,
     parentId: row.parent_id,
     classIds,
+    tagIds,
     name: row.name,
     contentAst: parseContentAst(row.content),
     icon: row.icon,
@@ -1161,6 +1169,7 @@ export class WorkspaceClient {
     const payload: Record<string, unknown> = { objectId: id };
     if (partial.nodeType !== undefined) payload.nodeType = partial.nodeType;
     if (partial.classIds !== undefined) payload.classIds = partial.classIds;
+    if (partial.tagIds !== undefined) payload.tagIds = partial.tagIds;
     if (partial.name !== undefined) payload.name = partial.name;
     if (partial.contentAst !== undefined) payload.contentAst = partial.contentAst;
     if (partial.parentId !== undefined) payload.parentId = partial.parentId;
@@ -1254,6 +1263,37 @@ export class WorkspaceClient {
     if (!node) throw new Error(`unassignClass: node ${id} not found`);
     if (!node.classIds.includes(classId)) return;
     engine.enqueue(this.buildEnvelope("class.unassign", { objectId: id, classId }, [id]));
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
+   * Assign a tag (any page) to a page — page-scoped by design. The add
+   * carrier is a re-issued object.create with the single tag, the same
+   * OR-Set convergence pattern as classes.
+   */
+  async assignTag(id: string, tagId: string): Promise<void> {
+    const node = this.getNode(id) ?? this.getNodeRaw(id);
+    if (!node) throw new Error(`assignTag: node ${id} not found`);
+    if (node.nodeType !== "page") throw new Error("assignTag: tags are scoped to pages");
+    if (node.tagIds.includes(tagId)) return;
+    await this.createObject({
+      id,
+      nodeType: node.nodeType,
+      parentId: node.parentId,
+      contentAst: node.contentAst,
+      tagIds: [tagId],
+      ...(node.name !== null ? { name: node.name } : {}),
+    });
+  }
+
+  /** Remove a tag (OR-Set tombstone; loses to a concurrent newer add). */
+  async unassignTag(id: string, tagId: string): Promise<void> {
+    const node = this.getNode(id) ?? this.getNodeRaw(id);
+    if (!node) throw new Error(`unassignTag: node ${id} not found`);
+    if (!node.tagIds.includes(tagId)) return;
+    const engine = this.requireEngine();
+    engine.enqueue(this.buildEnvelope("tag.unassign", { objectId: id, tagId }, [id]));
     this.notify();
     this.kickPush();
   }
