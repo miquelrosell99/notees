@@ -87,3 +87,98 @@ describe("App boot", () => {
     await waitFor(() => expect(screen.getByText(/HTTP 502/i)).toBeInTheDocument());
   });
 });
+
+describe("session resume", () => {
+  const ME = {
+    id: "u1",
+    email: "ada@example.com",
+    displayName: "Ada",
+    name: "Ada",
+    surnames: null,
+    avatarUrl: null,
+    isAdmin: false,
+  };
+
+  function rememberSession(): void {
+    localStorage.setItem("notees.serverUrl", "https://notees.example.com");
+    localStorage.setItem("notees.sessionToken", "session-token");
+    localStorage.setItem("notees.workspaceId", "ws1");
+  }
+
+  it("reload on /workspaces lands on the workspace manager, not the app shell", async () => {
+    rememberSession();
+    window.history.pushState({}, "", "/workspaces");
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/workspaces")) {
+        return Response.json({
+          workspaces: [
+            { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
+          ],
+        });
+      }
+      if (url.endsWith("/api/v1/auth/me")) {
+        return Response.json(ME);
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    // The manager renders (welcome heading + the workspace card)…
+    expect(await screen.findByText("Your workspaces")).toBeInTheDocument();
+    expect(await screen.findByText("Garden")).toBeInTheDocument();
+    // …without connecting into the remembered workspace (no relay traffic)…
+    const calls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(calls.some((url) => url.includes("/api/relay/"))).toBe(false);
+    // …and the URL stays on /workspaces.
+    expect(window.location.pathname).toBe("/workspaces");
+    window.history.pushState({}, "", "/");
+  });
+
+  it("reload on /workspaces before any workspace is entered still resumes (session persisted at the manager)", async () => {
+    // Fresh login: enterWorkspaces persisted serverUrl+sessionToken, but no
+    // workspaceId exists yet — the manager must still come back on reload.
+    localStorage.setItem("notees.serverUrl", "https://notees.example.com");
+    localStorage.setItem("notees.sessionToken", "session-token");
+    window.history.pushState({}, "", "/workspaces");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/v1/workspaces")) {
+          return Response.json({ workspaces: [] });
+        }
+        if (url.endsWith("/api/v1/auth/me")) {
+          return Response.json(ME);
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    render(<App />);
+    expect(await screen.findByText(/create your first workspace/i)).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/workspaces");
+    window.history.pushState({}, "", "/");
+  });
+
+  it("an expired session on /workspaces lands on the server form", async () => {
+    rememberSession();
+    window.history.pushState({}, "", "/workspaces");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/v1/workspaces") || url.endsWith("/api/v1/auth/me")) {
+          return new Response("unauthorized", { status: 401 });
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    render(<App />);
+    // The failed validation clears the credential and offers the server form.
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /server url/i })).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Your workspaces")).toBeNull();
+    window.history.pushState({}, "", "/");
+  });
+});
