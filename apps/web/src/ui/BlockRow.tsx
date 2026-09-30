@@ -27,11 +27,13 @@ import { useContext, useEffect, useMemo, useState, type MouseEvent } from "react
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import type { BlockTreeNode } from "@/core/workspace-client.js";
+import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkerClient } from "@/core/worker-client.js";
 
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
+import { MetadataSection } from "./components/MetadataSection.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
@@ -42,10 +44,11 @@ import { useOutliner } from "./outliner-context.js";
 
 interface BlockRowProps {
   tree: BlockTreeNode;
+  client: WorkspaceClient | WorkerClient;
   resolveName?: ((nodeId: string) => string | null) | undefined;
 }
 
-export function BlockRow({ tree, resolveName }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const {
@@ -177,6 +180,9 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
           )}
         </div>
       </div>
+      {/* Block-level metadata: classes / tags / properties, and only when
+          the block actually carries some (hideWhenEmpty). */}
+      <MetadataSection client={client} nodeId={node.id} onOpenPage={openNode} hideWhenEmpty />
       <NodeContextMenu
         state={gripMenu === null ? null : { ...gripMenu, node, isPage: false }}
         client={outlinerClient}
@@ -187,7 +193,7 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
         <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
           <div className="nt-block-children">
             {children.map((child) => (
-              <BlockRow key={child.node.id} tree={child} resolveName={resolveName} />
+              <BlockRow key={child.node.id} tree={child} client={client} resolveName={resolveName} />
             ))}
           </div>
         </SortableContext>

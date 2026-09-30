@@ -1141,11 +1141,18 @@ export function MetadataSection({
   client,
   nodeId,
   onOpenPage,
+  hideWhenEmpty = false,
 }: {
   client: AnyClient;
   nodeId: string;
   /** Page navigation for the annotations section's annotation rows. */
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /**
+   * Block-list mode: render nothing when the node carries no metadata
+   * (no classes, tags, or property values/bindings). Pages pass the default
+   * (always render); BlockRow passes true.
+   */
+  hideWhenEmpty?: boolean;
 }) {
   const rows = client.getEffectiveProperties(nodeId);
 
@@ -1286,6 +1293,7 @@ export function MetadataSection({
   };
 
   const count = classIds.length + tagIds.length + rows.length + emptyObjectBindings.length;
+  if (hideWhenEmpty && count === 0) return null;
 
   return (
     <NodeViewSection
@@ -1297,7 +1305,7 @@ export function MetadataSection({
     >
       <div className="node-metadata-content">
         <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
-        {node !== undefined && node.nodeType === "page" && (
+        {node !== undefined && (node.nodeType === "page" || node.nodeType === "block") && (
           <TagsRow client={client} nodeId={nodeId} tagIds={node.tagIds} onOpenPage={onOpenPage} />
         )}
         <ul className="nt-properties-list">

@@ -243,7 +243,10 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "#");
     typeWithCaret(editor, "#Pro");
-    expect(screen.getByText("Project")).toBeInTheDocument();
+    // Scope to the capture popup: the assigned block's own metadata section
+    // now also renders a "Project" pill below the block.
+    const popup = container.querySelector(".nt-capture-popup") ?? document.body;
+    expect(within(popup as HTMLElement).getByText("Project")).toBeInTheDocument();
     fireEvent.keyDown(editor, { key: "Enter" });
     await act(async () => {});
     fireEvent.blur(editor); // flush + exit; then edit again and re-assign
