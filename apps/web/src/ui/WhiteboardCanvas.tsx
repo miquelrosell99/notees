@@ -58,6 +58,7 @@ import type {
   UpdateObjectInput,
 } from "@/core/workspace-client.js";
 
+import { displayNameFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { SAVE_DEBOUNCE_MS } from "./BlockTextEditor.js";
 import {
@@ -503,7 +504,7 @@ export function WhiteboardCanvas({
 
   const hasContent =
     cards.length > 0 || view.shapes.length > 0 || view.strokes.length > 0 || drawing !== null;
-  const resolveName = (id: string) => client.getDisplayName(id);
+  const resolveName = (id: string) => displayNameFromClient(client, id);
 
   const toolbar = (
     <div className="nt-wb-toolbar">
@@ -631,7 +632,7 @@ export function WhiteboardCanvas({
           </svg>
           {cards.map((card, index) => {
             const geometry = view.cards[card.id] ?? autoSlot(index);
-            const name = client.getDisplayName(card.id) ?? "Untitled";
+            const name = displayNameFromClient(client, card.id) ?? "Untitled";
             return (
               <div
                 key={card.id}

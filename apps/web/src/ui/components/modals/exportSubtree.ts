@@ -12,11 +12,12 @@
 import {
   bundleMarkdown,
   concatBundleMarkdown,
-  deriveDisplayName,
   type ExportContext,
   type ExportNode,
   type ExportPropertyValue,
 } from "@notees/export";
+
+import { displayNameForSettings, displayNameFromClient } from "../../dateDisplay.js";
 
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -97,12 +98,12 @@ export function exportSubtreeMarkdown(
   collect(rootId);
 
   const exportCtx: ExportContext = {
-    nameOf: (id) => client.getDisplayName(id) ?? undefined,
+    nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
     childrenOf: (id) => blockChildrenOf(client, id),
   };
 
   const bundle = bundleMarkdown(ordered, exportCtx);
-  const title = deriveDisplayName(root).trim();
+  const title = displayNameForSettings(root).trim();
   const filename = `${title.length > 0 ? title.replace(/[\\/:*?"<>|]/g, "-") : root.id}.md`;
   return { markdown: concatBundleMarkdown(bundle), filename };
 }

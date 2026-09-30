@@ -47,11 +47,12 @@ import {
 
 import { Icon } from "./Icon.js";
 import { PageView } from "./PageView.js";
+import { displayNameForSettings } from "./dateDisplay.js";
 import { ClassView } from "./ClassView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
-import { deriveDisplayName, dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
 import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, type NavKey } from "./components/Sidebar.js";
@@ -284,14 +285,15 @@ export function App() {
   const [pagesVersion, setPagesVersion] = useState(0);
 
   // Browser tab title follows the open node: "NAME - Notees" (pagesVersion
-  // keeps it fresh across renames and sync updates).
+  // keeps it fresh across renames and sync updates). Date pages format per
+  // the user's dateFormat preference.
   useEffect(() => {
     if (client === null || selectedPageId === null) {
       document.title = "Notees";
       return;
     }
     const node = client.getNode(selectedPageId);
-    const name = node !== undefined ? deriveDisplayName(node) : "";
+    const name = node !== undefined ? displayNameForSettings(node) : "";
     document.title = name !== "" ? `${name} - Notees` : "Notees";
   }, [client, selectedPageId, pagesVersion]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -1185,7 +1187,7 @@ function HubView({
                 {icon !== null && icon !== undefined && (
                   <Icon path={icon} size={1} className="nt-hub-item-icon" />
                 )}
-                <span className="nt-hub-item-label">{deriveDisplayName(node) || node.id}</span>
+                <span className="nt-hub-item-label">{displayNameForSettings(node) || node.id}</span>
               </button>
             </li>
           );

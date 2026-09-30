@@ -22,11 +22,10 @@
 
 import { useEffect, useState } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
+import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { Section } from "./Section.js";
@@ -230,7 +229,7 @@ export function ClassView({
             <ul className="nt-class-chips">
               {parents.map((parentId) => {
                 const parent = client.getNode(parentId);
-                const label = parent !== undefined ? (deriveDisplayName(parent) ?? parentId) : parentId;
+                const label = parent !== undefined ? (displayNameForSettings(parent) ?? parentId) : parentId;
                 return (
                   <li key={parentId} className="nt-class-chip">
                     <button
@@ -268,7 +267,7 @@ export function ClassView({
               </option>
               {candidates.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
-                  {deriveDisplayName(candidate) ?? candidate.id}
+                  {displayNameForSettings(candidate) ?? candidate.id}
                 </option>
               ))}
             </select>
@@ -423,7 +422,7 @@ export function ClassView({
             <span className="nt-class-empty">No description.</span>
           ) : (
             <div className="nt-class-description-body">
-              <InlineTokens tokens={node.contentAst} resolveName={(id) => client.getDisplayName(id)} />
+              <InlineTokens tokens={node.contentAst} resolveName={(id) => displayNameFromClient(client, id)} />
             </div>
           )}
         </section>
@@ -437,7 +436,7 @@ export function ClassView({
             renderResults={(members) => (
               <ul className="nt-section-list">
                 {members.map((member) => {
-                  const label = deriveDisplayName(member) ?? member.id;
+                  const label = displayNameForSettings(member) ?? member.id;
                   return (
                     <li key={member.id} className="nt-class-member">
                       <button type="button" className="nt-section-item" onClick={() => openMember(member)}>
