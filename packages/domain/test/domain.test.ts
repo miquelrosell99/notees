@@ -139,3 +139,22 @@ describe("node type predicates", () => {
     expect(isPage({ nodeType: "class" })).toBe(false);
   });
 });
+
+describe("date node display names", () => {
+  const YEAR = "00000000-0000-0000-0001-000000000003";
+  const MONTH = "00000000-0000-0000-0001-000000000004";
+  const DAY = "00000000-0000-0000-0001-000000000005";
+
+  it("formats raw date names per the slash-separated setting shape", () => {
+    const base = { id: "n", nodeType: "page" as const };
+    expect(deriveDisplayName({ ...base, name: "20290000", classIds: [YEAR] })).toBe("2029");
+    expect(deriveDisplayName({ ...base, name: "20290600", classIds: [MONTH] })).toBe("2029/06");
+    expect(deriveDisplayName({ ...base, name: "20290627", classIds: [DAY] })).toBe("2029/06/27");
+  });
+
+  it("leaves non-date nodes and malformed names untouched", () => {
+    const base = { id: "n", nodeType: "page" as const };
+    expect(deriveDisplayName({ ...base, name: "20290627" })).toBe("20290627");
+    expect(deriveDisplayName({ ...base, name: "Not a date", classIds: [DAY] })).toBe("Not a date");
+  });
+});

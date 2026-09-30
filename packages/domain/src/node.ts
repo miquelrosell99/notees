@@ -12,6 +12,8 @@ export interface NodeLike {
   nodeType: NodeType;
   name?: string | null;
   contentAst?: ContentAst | null;
+  /** System classes (day/month/year drive date display formatting). */
+  classIds?: string[];
 }
 
 export const DISPLAY_NAME_MAX = 80;
@@ -62,13 +64,37 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
  * wins; otherwise blocks derive from their content excerpt; renames never
  * propagate (mentions render the target's current name). Callers fall back
  * to the node id when this returns "".
+ *
+ * Date nodes (year/month/day system classes) carry raw YYYYMMDD-style names
+ * for sort/match; display formats them per the workspace setting shape
+ * (default YYYY/MM/DD, slash-separated, zero-padded segments dropped):
+ * 20290000 → 2029, 20290600 → 2029/06, 20290627 → 2029/06/27.
  */
 export function deriveDisplayName(node: NodeLike): string {
   const name = node.name?.trim();
-  if (name) return name.slice(0, DISPLAY_NAME_MAX);
+  if (name) {
+    const dateFormatted = formatDateNodeName(name, node.classIds);
+    return (dateFormatted ?? name).slice(0, DISPLAY_NAME_MAX);
+  }
   const excerpt = plainTextExcerpt(node.contentAst);
   if (excerpt) return excerpt.slice(0, DISPLAY_NAME_MAX);
   return "";
+}
+
+const DATE_CLASS_IDS = new Set(["00000000-0000-0000-0001-000000000003", "00000000-0000-0000-0001-000000000004", "00000000-0000-0000-0001-000000000005"]);
+
+/** Format a raw date-node name; null when the node is not a date node. */
+export function formatDateNodeName(name: string, classIds?: readonly string[]): string | null {
+  const isDate = classIds !== undefined && classIds.some((id) => DATE_CLASS_IDS.has(id));
+  if (!isDate) return null;
+  const digits = name.replace(/\D/g, "");
+  if (!/^\d{8}$/.test(digits)) return null;
+  const year = digits.slice(0, 4);
+  const month = digits.slice(4, 6);
+  const day = digits.slice(6, 8);
+  if (month === "00") return year;
+  if (day === "00") return `${year}/${month}`;
+  return `${year}/${month}/${day}`;
 }
 
 export function isPage(node: Pick<NodeLike, "nodeType">): boolean {
