@@ -526,6 +526,7 @@ export class AuthStorage {
 
   /** Resolve a key to its owning user id; updates last_used_at. */
   resolveApiKey(token: string): { userId: string; isAdmin: boolean } | null {
+
     const row = this.db
       .prepare(
         `SELECT k.id AS key_id, k.revoked_at AS revoked_at, u.id AS user_id, u.is_admin AS is_admin
@@ -580,6 +581,12 @@ export class AuthStorage {
       wrappedMasterKey: row.wrapped_master_key,
       keyVerifier: row.key_verifier,
     };
+  }
+
+  /** Remove a workspace and all its membership rows (owner-initiated delete). */
+  deleteWorkspace(workspaceId: string): void {
+    this.db.prepare("DELETE FROM workspace_member WHERE workspace_id = ?").run(workspaceId);
+    this.db.prepare("DELETE FROM workspace WHERE id = ?").run(workspaceId);
   }
 
   /** Profile fields editable from user settings (all optional). */

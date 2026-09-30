@@ -12,6 +12,7 @@ import {
   closeTestServer,
   ingest,
   makeTestServer,
+  pagePayload,
   testEnvelope,
   type TestServer,
 } from "./helpers";
@@ -305,6 +306,123 @@ describe("workspace rename", () => {
       payload: { name: "   " },
     });
     expect(empty.statusCode).toBe(422);
+  });
+});
+
+describe("workspace delete and export", () => {
+  it("DELETE removes the workspace and its data (owner only)", async () => {
+    server = await makeTestServer();
+    const owner = (await setupAdmin("owner@example.com")).json().token as string;
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "Doomed" },
+    });
+    const workspaceId = created.json().id as string;
+
+    const memberUser = server.ctx.auth.createUser({
+      email: "member@example.com",
+      passwordHash: await hashPassword("member-password-1"),
+    });
+    const member = server.ctx.auth.createSession(memberUser.id).token;
+    server.ctx.auth.addMember(workspaceId, memberUser.id, "member");
+
+    // Non-owner member: forbidden.
+    const byMember = await server.app.inject({
+      method: "DELETE",
+      url: `/api/v1/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${member}` },
+    });
+    expect(byMember.statusCode).toBe(403);
+
+    // Owner deletes.
+    const deleted = await server.app.inject({
+      method: "DELETE",
+      url: `/api/v1/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json()).toEqual({ ok: true });
+
+    // Gone from the owner's list; memberships went with it.
+    const list = await server.app.inject({
+      method: "GET",
+      url: "/api/v1/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(list.json().workspaces.map((w: { id: string }) => w.id)).not.toContain(workspaceId);
+
+    // A second delete no longer finds it (also for the ex-member).
+    const again = await server.app.inject({
+      method: "DELETE",
+      url: `/api/v1/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(again.statusCode).toBe(404);
+    const byExMember = await server.app.inject({
+      method: "DELETE",
+      url: `/api/v1/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${member}` },
+    });
+    expect(byExMember.statusCode).toBe(404);
+  });
+
+  it("GET /workspaces/:id/export downloads the workspace as Markdown", async () => {
+    server = await makeTestServer();
+    const owner = (await setupAdmin("owner@example.com")).json().token as string;
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "Export Me" },
+    });
+    const workspaceId = created.json().id as string;
+
+    // A page with a nested block, written through the relay.
+    const pageId = crypto.randomUUID();
+    const blockId = crypto.randomUUID();
+    const batch = await ingest(server, [
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: pagePayload("Exported Page", { objectId: pageId }),
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: {
+          objectId: blockId,
+          parentId: pageId,
+          contentAst: [{ type: "text", text: "child block body" }],
+        },
+      }),
+    ]);
+    expect(batch.statusCode).toBe(200);
+
+    const exported = await server.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/export`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(exported.statusCode).toBe(200);
+    expect(exported.headers["content-type"]).toContain("text/markdown");
+    expect(exported.headers["content-disposition"]).toContain("Export-Me.md");
+    expect(exported.body).toContain("Exported Page");
+    expect(exported.body).toContain("child block body");
+
+    // Non-member: the workspace's existence is not revealed.
+    const strangerUser = server.ctx.auth.createUser({
+      email: "stranger@example.com",
+      passwordHash: await hashPassword("stranger-password-1"),
+    });
+    const stranger = server.ctx.auth.createSession(strangerUser.id).token;
+    const byStranger = await server.app.inject({
+      method: "GET",
+      url: `/api/v1/workspaces/${workspaceId}/export`,
+      headers: { authorization: `Bearer ${stranger}` },
+    });
+    expect(byStranger.statusCode).toBe(404);
   });
 });
 

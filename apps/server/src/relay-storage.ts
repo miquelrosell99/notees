@@ -15,7 +15,7 @@
  *  - compaction_segment rows: prune bookkeeping per WIRE.md POST /compact.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import Database from "better-sqlite3";
@@ -485,6 +485,50 @@ export class RelayStorage {
       | { refs_count: number }
       | undefined;
     return row?.refs_count ?? 0;
+  }
+
+  /** Wipe everything stored for a workspace (workspace deletion). */
+  deleteWorkspaceData(workspaceId: string): void {
+    const snapshots = this.db
+      .prepare("SELECT id FROM snapshot WHERE workspace_id = ?")
+      .all(workspaceId) as { id: string }[];
+    for (const snapshot of snapshots) {
+      try {
+        unlinkSync(this.snapshotPath(snapshot.id));
+      } catch {
+        // Blob already gone.
+      }
+    }
+    // asset_ref is keyed by hash globally (no workspace_id): collect the
+    // hashes this workspace referenced so their ref counts can be recomputed
+    // after its asset rows go away.
+    const hashes = (
+      this.db
+        .prepare("SELECT DISTINCT hash FROM asset WHERE workspace_id = ?")
+        .all(workspaceId) as { hash: string }[]
+    ).map((row) => row.hash);
+    const run = this.db.transaction(() => {
+      for (const table of [
+        "envelope",
+        "snapshot",
+        "compaction_segment",
+        "asset",
+        "restore_epoch",
+      ]) {
+        this.db.prepare(`DELETE FROM ${table} WHERE workspace_id = ?`).run(workspaceId);
+      }
+      for (const hash of hashes) {
+        const remaining = (
+          this.db.prepare("SELECT COUNT(*) AS n FROM asset WHERE hash = ?").get(hash) as {
+            n: number;
+          }
+        ).n;
+        if (remaining === 0) {
+          this.db.prepare("DELETE FROM asset_ref WHERE hash = ?").run(hash);
+        }
+      }
+    });
+    run();
   }
 
   close(): void {

@@ -3,9 +3,9 @@
  * login and reachable later from the switcher's "Manage workspaces".
  * Faithful transfer of the archived WorkspaceManagementView: centered column,
  * "Your workspaces" welcome, action buttons, and a responsive CARD GRID with
- * per-card open/rename actions, created date, and an Active pill; the account
+ * per-card open/actions menu, created date, and an Active pill; the account
  * button sits at the header right. Features with no backend in this build
- * (import, delete, share, export, restore) are omitted rather than faked.
+ * (import, share, restore) are omitted rather than faked.
  */
 
 import { useEffect, useState } from "react";
@@ -20,10 +20,13 @@ import {
 import { Icon } from "../Icon.js";
 import { Button } from "./ui/Button.js";
 import { Card } from "./ui/Card.js";
+import { ConfirmationModal } from "./ui/ConfirmationModal.js";
+import { ContextMenu } from "./ui/ContextMenu.js";
 import { DataStateView } from "./ui/DataStateView.js";
 import { Pill } from "./ui/Pill.js";
+import { downloadBlob } from "./modals/download.js";
 import { WorkspaceNameModal } from "./modals/WorkspaceNameModal.js";
-import { renameWorkspace } from "./modals/workspaceApi.js";
+import { deleteWorkspace, exportWorkspace, renameWorkspace } from "./modals/workspaceApi.js";
 import "./WorkspacesView.css";
 
 export interface WorkspacesViewProps {
@@ -65,6 +68,12 @@ export function WorkspacesView({
   const [submitting, setSubmitting] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [cardMenu, setCardMenu] = useState<{
+    workspace: WorkspaceEntry;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorkspaceEntry | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,7 +232,6 @@ export function WorkspacesView({
               <div className="workspace-management__grid">
                 {list.map((workspace) => {
                   const isActive = workspace.id === activeWorkspaceId;
-                  const canRename = workspace.role === "owner";
                   const displayName = workspace.name ?? "Workspace";
                   return (
                     <Card
@@ -249,16 +257,19 @@ export function WorkspacesView({
                             icon="mdi mdi-arrow-right"
                           />
                           <Button
-                            aria-label={`Rename ${displayName}`}
+                            aria-label={`Actions for ${displayName}`}
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              setNameError(null);
-                              setNameModal({ mode: "rename", workspace });
-                            }}
-                            title={canRename ? `Rename ${displayName}` : "Only the workspace owner can rename"}
-                            disabled={!canRename || switching}
-                            icon="mdi mdi-pencil-outline"
+                            onClick={(event) =>
+                              setCardMenu({
+                                workspace,
+                                x: event.clientX,
+                                y: event.clientY,
+                              })
+                            }
+                            title="Workspace actions"
+                            disabled={switching}
+                            icon="mdi mdi-dots-vertical"
                           />
                         </div>
                       </div>
@@ -317,6 +328,71 @@ export function WorkspacesView({
           submitLabel={nameModal.mode === "create" ? "Create Workspace" : "Rename Workspace"}
           isLoading={submitting}
           error={nameError}
+        />
+      )}
+
+      {cardMenu !== null && (
+        <ContextMenu
+          position={{ x: cardMenu.x, y: cardMenu.y }}
+          alignRight
+          onClose={() => setCardMenu(null)}
+          items={[
+            {
+              id: "rename",
+              label: "Rename",
+              icon: "mdi mdi-pencil-outline",
+              disabled: cardMenu.workspace.role !== "owner",
+              onClick: () => {
+                setNameError(null);
+                setNameModal({ mode: "rename", workspace: cardMenu.workspace });
+              },
+            },
+            {
+              id: "export",
+              label: "Export",
+              icon: "mdi mdi-export",
+              onClick: () => {
+                const target = cardMenu.workspace;
+                void exportWorkspace(
+                  serverUrl,
+                  credential,
+                  target.id,
+                  target.name ?? "Workspace",
+                )
+                  .then(({ blob, filename }) => downloadBlob(blob, filename))
+                  .catch((err: unknown) => {
+                    setListError(err instanceof Error ? err : new Error(String(err)));
+                  });
+              },
+            },
+            {
+              id: "delete",
+              label: "Delete",
+              icon: "mdi mdi-delete-outline",
+              danger: true,
+              disabled: cardMenu.workspace.role !== "owner",
+              onClick: () => setDeleteTarget(cardMenu.workspace),
+            },
+          ]}
+        />
+      )}
+
+      {deleteTarget !== null && (
+        <ConfirmationModal
+          isOpen
+          variant="danger"
+          title={`Delete "${deleteTarget.name ?? "Workspace"}"?`}
+          message="This permanently deletes the workspace and all of its data: pages, blocks, classes, assets, and the full edit history."
+          secondaryMessage="Other members will lose access immediately. This cannot be undone."
+          confirmLabel="Delete workspace"
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={async () => {
+            const target = deleteTarget;
+            await deleteWorkspace(serverUrl, credential, target.id);
+            setDeleteTarget(null);
+            refresh();
+            if (target.id === activeWorkspaceId) onClose?.();
+          }}
         />
       )}
 

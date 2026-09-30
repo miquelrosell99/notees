@@ -16,7 +16,7 @@
  * with a snapshot covering the log tail restores the snapshot bytes first.
  */
 
-import { mkdirSync } from "node:fs";
+import { mkdirSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { isEncryptedPayload, type Envelope } from "@notees/protocol";
@@ -136,6 +136,21 @@ export class WorkspaceManager {
 
   isHydrated(workspaceId: string): boolean {
     return this.handle(workspaceId).hydrated;
+  }
+
+  /** Drop a workspace's derived handle and database file (workspace deletion). */
+  async drop(workspaceId: string): Promise<void> {
+    const handle = this.handles.get(workspaceId);
+    if (handle !== undefined) {
+      await handle.queue.catch(() => undefined);
+      handle.store.close();
+      this.handles.delete(workspaceId);
+    }
+    try {
+      unlinkSync(this.pathFor(workspaceId));
+    } catch {
+      // File already gone — nothing to unlink.
+    }
   }
 
   async close(): Promise<void> {
