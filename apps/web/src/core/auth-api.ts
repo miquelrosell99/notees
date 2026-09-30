@@ -120,6 +120,24 @@ export function listWorkspaces(serverUrl: string, token: string): Promise<{ work
   return request<{ workspaces: WorkspaceEntry[] }>(serverUrl, "/workspaces", {}, token);
 }
 
+export interface NodeLocation {
+  workspaceId: string;
+}
+
+/** Which of the account's workspaces holds this node (deep-link resolution). */
+export function fetchNodeLocation(
+  serverUrl: string,
+  token: string,
+  nodeId: string,
+): Promise<NodeLocation> {
+  return request<NodeLocation>(
+    serverUrl,
+    `/nodes/${encodeURIComponent(nodeId)}/location`,
+    {},
+    token,
+  );
+}
+
 export function createWorkspace(serverUrl: string, token: string, name?: string): Promise<{ id: string }> {
   return request<{ id: string }>(
     serverUrl,
