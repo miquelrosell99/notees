@@ -74,7 +74,7 @@ export function fetchServerInfo(serverUrl: string): Promise<ServerInfo> {
 
 export function setupAccount(
   serverUrl: string,
-  input: { email: string; password: string; displayName?: string },
+  input: { email: string; password: string; displayName?: string | undefined },
 ): Promise<LoginResponse> {
   return request<LoginResponse>(serverUrl, "/setup", { method: "POST", body: JSON.stringify(input) });
 }

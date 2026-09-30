@@ -43,6 +43,7 @@ import { ClassView } from "./ClassView.js";
 import { SearchBox } from "./SearchBox.js";
 import { SettingsPanel } from "./SettingsPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
+import { Icon } from "./Icon.js";
 import "./app.css";
 
 const STORAGE_KEYS = {
@@ -201,6 +202,8 @@ export function App() {
   const [phase, setPhase] = useState<Phase>({ name: "server" });
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  /** Set when the auto-retry swapped the server URL, so the next screen explains it. */
+  const [bootNote, setBootNote] = useState<string | null>(null);
   const [user, setUser] = useState<AccountUser | null>(null);
   const [token, setToken] = useState(() => readStored(STORAGE_KEYS.sessionToken));
   const [authTab, setAuthTab] = useState<"account" | "apikey">("account");
@@ -209,6 +212,41 @@ export function App() {
   /** True when the live credential is a session (API-key management needs one). */
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [navFilter, setNavFilter] = useState<"journal" | "inbox" | "pages" | "whiteboards" | "tasks">("pages");
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      return JSON.parse(readStored("notees.favorites") || "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+  const [recents, setRecents] = useState<string[]>(() => {
+    try {
+      return JSON.parse(readStored("notees.recents") || "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+
+  /** Open a node and record it in Recents (local UI state, device-only). */
+  function openPage(id: string): void {
+    setSelectedPageId(id);
+    setRecents((previous) => {
+      const next = [id, ...previous.filter((entry) => entry !== id)].slice(0, 8);
+      writeStored("notees.recents", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function toggleFavorite(id: string): void {
+    setFavorites((previous) => {
+      const next = previous.includes(id) ? previous.filter((entry) => entry !== id) : [...previous, id];
+      writeStored("notees.favorites", JSON.stringify(next));
+      return next;
+    });
+  }
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
@@ -276,7 +314,7 @@ export function App() {
     url: string,
     credential: string,
     workspaceId: string,
-    options: { isOffline: boolean; credentialType: CredentialType },
+    options: { isOffline: boolean; credentialType: CredentialType; label?: string },
   ): Promise<void> {
     setPhase({ name: "connecting", label: options.isOffline ? "Opening local workspace…" : "Connecting…" });
     setError(null);
@@ -316,6 +354,7 @@ export function App() {
         clearStored(STORAGE_KEYS.sessionToken);
         setSessionSignedIn(false);
       }
+      setWorkspaceName(options.label ?? "Workspace");
       clientRef.current = nextClient;
       setClient(nextClient);
       setOffline(options.isOffline);
@@ -346,7 +385,13 @@ export function App() {
       // land on the sign-in screen, not on an empty-looking local store with
       // a silent sync error.
       listWorkspaces(rememberedUrl, credential)
-        .then(() => connect(rememberedUrl, credential, rememberedWorkspace, { isOffline: false, credentialType }))
+        .then(({ workspaces: list }) => {
+          setWorkspaceName(list.find((ws) => ws.id === rememberedWorkspace)?.name ?? "Workspace");
+          return connect(rememberedUrl, credential, rememberedWorkspace, {
+            isOffline: false,
+            credentialType,
+          });
+        })
         .catch(() => {
           clearStored(STORAGE_KEYS.sessionToken);
           clearStored(STORAGE_KEYS.apiKey);
@@ -375,6 +420,7 @@ export function App() {
     event.preventDefault();
     setError(null);
     setHint(null);
+    setBootNote(null);
     const url = serverUrl.trim().replace(/\/$/, "");
     try {
       await probeServer(url);
@@ -389,6 +435,9 @@ export function App() {
       if (err instanceof TypeError && guess !== "" && guess !== url) {
         try {
           await probeServer(guess);
+          setBootNote(
+            `"${url}" did not respond — using ${guess} instead. You can change it by going back.`,
+          );
           return;
         } catch {
           // Both failed: fall through to the generic message below.
@@ -489,7 +538,11 @@ export function App() {
     try {
       const { id } = await createWorkspace(serverUrl, token, newWorkspaceName.trim() || undefined);
       setNewWorkspaceName("");
-      await connect(serverUrl, token, id, { isOffline: false, credentialType: authTab === "apikey" ? "apikey" : "session" });
+      await connect(serverUrl, token, id, {
+        isOffline: false,
+        credentialType: authTab === "apikey" ? "apikey" : "session",
+        label: newWorkspaceName.trim() || "Workspace",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -505,6 +558,7 @@ export function App() {
     await connect(readStored(STORAGE_KEYS.serverUrl), "", localId, {
       isOffline: true,
       credentialType: "session",
+      label: "This device (offline)",
     });
   }
 
@@ -558,6 +612,9 @@ export function App() {
           )}
           {phase.name === "setup" && (
             <p className="nt-bootstrap-subtitle">Initial setup — create the admin account</p>
+          )}
+          {phase.name !== "server" && bootNote !== null && (
+            <p className="nt-hint">{bootNote}</p>
           )}
           {isLogin && (
             <div className="nt-tabs" role="tablist">
@@ -622,6 +679,7 @@ export function App() {
                 onClick={() => {
                   setApiKeyInput("");
                   setError(null);
+                  setBootNote(null);
                   setPhase({ name: "server" });
                 }}
               >
@@ -717,6 +775,7 @@ export function App() {
                     setEmail("");
                     setPassword("");
                     setError(null);
+                    setBootNote(null);
                     setPhase({ name: "server" });
                   }}
                 >
@@ -756,10 +815,14 @@ export function App() {
                   type="button"
                   className="nt-workspace-item"
                   onClick={() =>
-                    void connect(serverUrl, token, ws.id, { isOffline: false, credentialType })
+                    void connect(serverUrl, token, ws.id, {
+                      isOffline: false,
+                      credentialType,
+                      label: ws.name ?? "Workspace",
+                    })
                   }
                 >
-                  <span className="nt-workspace-name">{ws.name ?? ws.id.slice(0, 8)}</span>
+                  <span className="nt-workspace-name">{ws.name ?? "Workspace"}</span>
                   <span className="nt-workspace-meta">
                     {ws.envelopeCount} ops · {ws.role}
                   </span>
@@ -775,6 +838,7 @@ export function App() {
                     void connect(serverUrl, token, localWorkspaceId, {
                       isOffline: false,
                       credentialType,
+                      label: "This device",
                     })
                   }
                 >
@@ -827,78 +891,223 @@ export function App() {
   const assetClassId =
     classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
   const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
+  const dateClassIds: string[] = [
+    SYSTEM_CLASS_UUIDS.day,
+    SYSTEM_CLASS_UUIDS.month,
+    SYSTEM_CLASS_UUIDS.year,
+  ];
+  const journalPages = pages.filter((page) => page.classIds.some((c) => dateClassIds.includes(c)));
+  const whiteboardPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.whiteboard));
+  const taskPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.task));
+  const sectionIds = new Set([...journalPages, ...whiteboardPages, ...taskPages].map((p) => p.id));
+  const inboxPages = pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0);
+  const browsePages = pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length > 0);
+  const favoritePages = favorites
+    .map((id) => pages.find((page) => page.id === id))
+    .filter((page): page is (typeof pages)[number] => page !== undefined);
+  const recentPages = recents
+    .map((id) => pages.find((page) => page.id === id))
+    .filter((page): page is (typeof pages)[number] => page !== undefined)
+    .slice(0, 8);
+
+  const renderRow = (node: (typeof pages)[number], icon?: string | null) => (
+    <li key={node.id} className="nt-side-row">
+      <button
+        type="button"
+        className={
+          node.id === selectedPageId ? "nt-side-item nt-side-item-active" : "nt-side-item"
+        }
+        onClick={() => openPage(node.id)}
+      >
+        {icon !== null && icon !== undefined && (
+          <Icon path={icon} size={1} className="nt-side-item-icon" />
+        )}
+        <span className="nt-side-item-label">{deriveDisplayName(node) || node.id}</span>
+      </button>
+      <button
+        type="button"
+        className="nt-side-star"
+        title={favorites.includes(node.id) ? "Remove from favorites" : "Add to favorites"}
+        onClick={() => toggleFavorite(node.id)}
+      >
+        <Icon path={favorites.includes(node.id) ? "mdi-star" : "mdi-star-outline"} size={0.9} />
+      </button>
+    </li>
+  );
+
+  const renderSection = (title: string, rows: ReturnType<typeof renderRow>[]) =>
+    rows.length === 0 ? null : (
+      <section className="nt-side-section">
+        <h3 className="nt-side-header">{title}</h3>
+        <ul className="nt-side-list">{rows}</ul>
+      </section>
+    );
 
   return (
-    <div className="nt-app">
-      <aside className="nt-sidebar">
-        <SearchBox client={client} onOpenNode={setSelectedPageId} cacheVersion={pagesVersion} />
-        <div className="nt-sidebar-header">
-          <span>Pages</span>
-          <button type="button" className="nt-new-page" onClick={() => void handleNewPage()}>
-            + New page
-          </button>
-        </div>
-        <ul className="nt-page-list">
-          {pages.map((page) => (
-            <li key={page.id}>
-              <button
-                type="button"
-                className={page.id === selectedPageId ? "nt-page-item nt-page-item-active" : "nt-page-item"}
-                onClick={() => setSelectedPageId(page.id)}
-              >
-                {deriveDisplayName(page) || page.id}
-              </button>
-            </li>
-          ))}
-        </ul>
-        {classes.length > 0 && (
-          <>
-            <div className="nt-sidebar-header">
-              <span>Classes</span>
-            </div>
-            <ul className="nt-page-list">
-              {classes.map((cls) => (
-                <li key={cls.id}>
-                  <button
-                    type="button"
-                    className={cls.id === selectedPageId ? "nt-page-item nt-page-item-active" : "nt-page-item"}
-                    onClick={() => setSelectedPageId(cls.id)}
-                  >
-                    {cls.icon !== null && <span className="nt-class-list-icon">{cls.icon}</span>}
-                    {deriveDisplayName(cls) || cls.id}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </aside>
-      <main className="nt-main">
-        {selectedPageId !== null ? (
-          <NodeView client={client} nodeId={selectedPageId} onOpenNode={setSelectedPageId} />
-        ) : (
-          <div className="nt-empty">Select a page.</div>
-        )}
-      </main>
-      <footer className="nt-footer">
-        <span className="nt-footer-store">
-          {offline
-            ? "Offline — local workspace (syncs when connected)"
-            : storeMode === "worker"
-              ? "Local store: Web Worker + OPFS (persisted on this device)"
-              : "Local store: in-process (Worker/OPFS unavailable in this browser)"}
-        </span>
+    <div className={sidebarOpen ? "nt-app nt-sidebar-open" : "nt-app"}>
+      <header className="nt-topbar">
+        <button
+          type="button"
+          className="nt-icon-btn"
+          aria-label="Toggle sidebar"
+          onClick={() => setSidebarOpen((open) => !open)}
+        >
+          <Icon path="mdi-menu" size={1} />
+        </button>
+        <span className="nt-wordmark">Notees</span>
+        <span className="nt-status-dot" aria-hidden="true" />
+        <button
+          type="button"
+          className="nt-icon-btn"
+          title="New page"
+          aria-label="New page"
+          onClick={() => void handleNewPage()}
+        >
+          <Icon path="mdi-plus" size={1} />
+        </button>
+        <span className="nt-topbar-spacer" />
         <SyncStatusLine snapshot={syncStatus} />
         <ThemeToggle />
         {sessionSignedIn && user !== null && !offline && (
-          <button type="button" className="nt-settings" onClick={() => setSettingsOpen(true)}>
-            Settings
+          <button
+            type="button"
+            className="nt-icon-btn"
+            title="Settings"
+            aria-label="Settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Icon path="mdi-cog-outline" size={1} />
           </button>
         )}
-        <button type="button" className="nt-signout" onClick={() => void handleSignOut()}>
-          Sign out
+        <button
+          type="button"
+          className="nt-icon-btn"
+          title="Sign out"
+          aria-label="Sign out"
+          onClick={() => void handleSignOut()}
+        >
+          <Icon path="mdi-logout-variant" size={1} />
         </button>
-      </footer>
+      </header>
+      <div className="nt-body">
+        <aside className="nt-sidebar">
+          <div className="nt-sidebar-top">
+            <button
+              type="button"
+              className="nt-ws-switch"
+              title="Switch workspace (sign out)"
+              onClick={() => void handleSignOut()}
+            >
+              <span className="nt-ws-name">{(workspaceName || "Workspace").toUpperCase()}</span>
+              <Icon path="mdi-chevron-down" size={0.9} />
+            </button>
+            <button
+              type="button"
+              className="nt-icon-btn"
+              title="Search"
+              aria-label="Search"
+              onClick={() => document.querySelector<HTMLInputElement>(".nt-searchbox input")?.focus()}
+            >
+              <Icon path="mdi-magnify" size={1} />
+            </button>
+          </div>
+          <div className="nt-sidebar-search">
+            <SearchBox client={client} onOpenNode={openPage} cacheVersion={pagesVersion} />
+          </div>
+          <nav className="nt-sidebar-nav">
+            {renderSection(
+              "Navigation",
+              [
+                <li key="journal" className="nt-side-row">
+                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("journal")}>
+                    <Icon path="mdi-calendar-clock" size={1} className="nt-side-item-icon" />
+                    <span className="nt-side-item-label">Journal</span>
+                  </button>
+                </li>,
+                <li key="inbox" className="nt-side-row">
+                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("inbox")}>
+                    <Icon path="mdi-tray-arrow-down" size={1} className="nt-side-item-icon" />
+                    <span className="nt-side-item-label">Inbox</span>
+                  </button>
+                </li>,
+                <li key="pages" className="nt-side-row">
+                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("pages")}>
+                    <Icon path="mdi-book-open-page-variant" size={1} className="nt-side-item-icon" />
+                    <span className="nt-side-item-label">Pages</span>
+                  </button>
+                </li>,
+                <li key="whiteboards" className="nt-side-row">
+                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("whiteboards")}>
+                    <Icon path="mdi-presentation" size={1} className="nt-side-item-icon" />
+                    <span className="nt-side-item-label">Whiteboards</span>
+                  </button>
+                </li>,
+                <li key="tasks" className="nt-side-row">
+                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("tasks")}>
+                    <Icon path="mdi-format-list-checks" size={1} className="nt-side-item-icon" />
+                    <span className="nt-side-item-label">Tasks</span>
+                  </button>
+                </li>,
+              ],
+            )}
+            {renderSection("Favorites", favoritePages.map((page) => renderRow(page)))}
+            {renderSection("Recents", recentPages.map((page) => renderRow(page)))}
+            {renderSection(
+              navFilter === "journal"
+                ? "Journal"
+                : navFilter === "inbox"
+                  ? "Inbox"
+                  : navFilter === "whiteboards"
+                    ? "Whiteboards"
+                    : navFilter === "tasks"
+                      ? "Tasks"
+                      : navFilter === "pages"
+                        ? "Pages"
+                        : "Pages",
+              (
+                navFilter === "journal"
+                  ? journalPages
+                  : navFilter === "inbox"
+                    ? inboxPages
+                    : navFilter === "whiteboards"
+                      ? whiteboardPages
+                      : navFilter === "tasks"
+                        ? taskPages
+                        : navFilter === "pages"
+                          ? browsePages
+                          : pages
+              ).map((page) =>
+                renderRow(
+                  page,
+                  classes.find((cls) => page.classIds.includes(cls.id))?.icon ?? null,
+                ),
+              ),
+            )}
+            {classes.length > 0 &&
+              renderSection(
+                "Classes",
+                classes.map((cls) => renderRow(cls, cls.icon)),
+              )}
+          </nav>
+          <div className="nt-sidebar-footer">
+            <span className="nt-sidebar-user">{user?.email ?? "Offline"}</span>
+            <span className="nt-sidebar-store">
+              {offline
+                ? "local workspace"
+                : storeMode === "worker"
+                  ? "Worker + OPFS"
+                  : "in-process store"}
+            </span>
+          </div>
+        </aside>
+        <main className="nt-main">
+          {selectedPageId !== null ? (
+            <NodeView client={client} nodeId={selectedPageId} onOpenNode={openPage} />
+          ) : (
+            <div className="nt-empty">Select a page.</div>
+          )}
+        </main>
+      </div>
       {settingsOpen && sessionSignedIn && user !== null && !offline && (
         <SettingsPanel
           serverUrl={serverUrl}

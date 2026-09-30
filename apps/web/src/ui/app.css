@@ -1,100 +1,18 @@
-:root {
-  color-scheme: light;
+@import "./variables.css";
 
-  /* --- theme tokens ---------------------------------------------------------
-     Semantic palette. Light values are the defaults; [data-theme="dark"]
-     overrides them. */
+/* v2 app styles on the v1 design system (variables.css). Dark is the default
+   theme (set on <html data-theme>); the light theme is the warm-paper
+   palette from the same tokens. */
 
-  /* surfaces */
-  --nt-bg: #f5f6f8;
-  --nt-surface: #ffffff;
-  --nt-surface-2: #fafbfc;
-  --nt-surface-3: #eef1f4;
-
-  /* borders */
-  --nt-border: #d9dce1;
-  --nt-border-2: #c8cdd4;
-  --nt-border-soft: #e4e7eb;
-
-  /* text */
-  --nt-text: #1f2933;
-  --nt-text-2: #3e4c59;
-  --nt-muted: #52606d;
-  --nt-faint: #7b8794;
-  --nt-fainter: #9aa5b1;
-  --nt-faintest: #c2c9d1;
-
-  /* accent (light: near-black; dark: white) */
-  --nt-accent: #111111;
-  --nt-accent-strong: #000000;
-  --nt-on-accent: #ffffff;
-  --nt-accent-soft: #e4e7eb;
-  --nt-accent-softer: #eef1f4;
-  --nt-accent-wash: rgba(17, 17, 17, 0.06);
-
-  /* status */
-  --nt-danger: #b42318;
-  --nt-danger-2: #d64545;
-  --nt-danger-soft: #fdf3f2;
-  --nt-danger-border: #f3c1bc;
-  --nt-warn: #fde68a;
-
-  /* misc */
-  --nt-grid: #dfe3e8;
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
-  line-height: 1.5;
-  color: var(--nt-text);
-  background: var(--nt-bg);
-}
-
-/* --- dark theme ------------------------------------------------------------- */
-
-[data-theme="dark"] {
-  color-scheme: dark;
-
-  --nt-bg: #14181d;
-  --nt-surface: #1b2127;
-  --nt-surface-2: #232a32;
-  --nt-surface-3: #2b333d;
-
-  --nt-border: #333c47;
-  --nt-border-2: #3d4753;
-  --nt-border-soft: #2b333d;
-
-  --nt-text: #e8ecf1;
-  --nt-text-2: #c3ccd6;
-  --nt-muted: #9aa7b4;
-  --nt-faint: #7b8794;
-  --nt-fainter: #5f6b76;
-  --nt-faintest: #49525c;
-
-  --nt-accent: #ffffff;
-  --nt-accent-strong: #e8ecf1;
-  --nt-on-accent: #14181d;
-  --nt-accent-soft: rgba(255, 255, 255, 0.14);
-  --nt-accent-softer: rgba(255, 255, 255, 0.07);
-  --nt-accent-wash: rgba(255, 255, 255, 0.08);
-
-  --nt-danger: #f97066;
-  --nt-danger-2: #f98d85;
-  --nt-danger-soft: rgba(249, 112, 102, 0.12);
-  --nt-danger-border: rgba(249, 112, 102, 0.4);
-  --nt-warn: #fcd34d;
-
-  --nt-grid: #333c47;
+body {
+  margin: 0;
+  font-family: var(--font-family-base, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  background: var(--color-background);
+  color: var(--color-on-surface);
 }
 
 * {
   box-sizing: border-box;
-}
-
-body {
-  margin: 0;
 }
 
 button {
@@ -102,25 +20,55 @@ button {
   cursor: pointer;
 }
 
-/* Focus rings + selection — the v1 design-language elements every interactive
-   surface shares (inputs, buttons, contenteditable). */
+/* Global design elements (v1 index.css): focus rings, input resets, selection,
+   scrollbars, motion preferences. */
 :focus-visible {
-  outline: 2px solid var(--nt-accent);
-  outline-offset: 1px;
-  border-radius: 4px;
+  outline: var(--border-width-thick, 2px) solid var(--color-primary);
+  outline-offset: var(--focus-outline-offset, 2px);
 }
 
-.nt-field input:focus-visible,
-.nt-workspace-new input:focus-visible,
-.nt-apikey-new input:focus-visible {
+button:focus-visible {
+  outline: var(--border-width-thick, 2px) solid var(--color-primary);
+  outline-offset: var(--spacing-micro, 2px);
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  caret-color: var(--color-on-surface);
+  border-radius: var(--shape-extra-large, 999px);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
   outline: none;
-  border-color: var(--nt-accent);
-  box-shadow: 0 0 0 3px var(--nt-accent-softer);
+  box-shadow: var(--shadow-focus-ring, 0 0 0 2px var(--color-primary));
 }
 
 ::selection {
-  background: var(--nt-accent-soft);
-  color: var(--nt-text);
+  background: var(--color-pressed-overlay);
+  color: var(--color-on-surface);
+}
+
+::-webkit-scrollbar {
+  width: var(--shape-large, 10px);
+  height: var(--shape-large, 10px);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-outline-variant);
+  border-radius: var(--shape-full, 999px);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-outline);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -130,6 +78,7 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -144,9 +93,9 @@ button {
 }
 
 .nt-bootstrap-form {
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border);
-  border-radius: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-large, 16px);
   padding: 28px;
   width: 360px;
   max-width: 100%;
@@ -168,9 +117,9 @@ button {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  background: var(--nt-accent);
-  color: var(--nt-on-accent);
+  border-radius: var(--shape-medium, 8px);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   font-size: 16px;
 }
 
@@ -183,7 +132,7 @@ button {
 .nt-bootstrap-subtitle {
   margin: 0;
   font-size: 13px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-form {
@@ -196,8 +145,8 @@ button {
   display: flex;
   gap: 4px;
   padding: 3px;
-  background: var(--nt-surface-2);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 9px;
 }
 
@@ -207,18 +156,18 @@ button {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
 }
 
 .nt-tab:hover {
-  color: var(--nt-text);
+  color: var(--color-on-surface);
 }
 
 .nt-tab-active,
 .nt-tab-active:hover {
-  background: var(--nt-surface);
-  color: var(--nt-text);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
@@ -227,16 +176,16 @@ button {
   flex-direction: column;
   gap: 5px;
   font-size: 13px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-field input {
   font: inherit;
-  padding: 8px 10px;
-  border: 1px solid var(--nt-border-2);
-  border-radius: 8px;
-  background: var(--nt-bg);
-  color: var(--nt-text);
+  padding: 8px 12px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--shape-extra-large, 999px);
+  background: var(--color-background);
+  color: var(--color-on-surface);
 }
 
 .nt-field input:disabled {
@@ -244,8 +193,8 @@ button {
 }
 
 .nt-btn {
-  padding: 9px 12px;
-  border-radius: 8px;
+  padding: 9px 14px;
+  border-radius: var(--shape-button-small, 10px);
   border: 1px solid transparent;
   font-size: 14px;
   font-weight: 500;
@@ -253,14 +202,14 @@ button {
 
 .nt-btn-primary {
   margin-top: 2px;
-  background: var(--nt-accent);
-  color: var(--nt-on-accent);
-  border-color: var(--nt-accent);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
 }
 
 .nt-btn-primary:hover:not(:disabled) {
-  background: var(--nt-accent-strong);
-  border-color: var(--nt-accent-strong);
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 .nt-btn-primary:disabled {
@@ -270,20 +219,20 @@ button {
 
 .nt-btn-secondary {
   background: transparent;
-  color: var(--nt-text-2);
-  border-color: var(--nt-border-2);
+  color: var(--color-on-surface-variant);
+  border-color: var(--color-outline);
 }
 
 .nt-btn-secondary:hover {
-  background: var(--nt-surface-2);
-  color: var(--nt-text);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
 }
 
 .nt-hint {
   margin: 0;
   font-size: 12.5px;
-  color: var(--nt-muted);
-  border-left: 3px solid var(--nt-border-2);
+  color: var(--color-on-surface-variant);
+  border-left: 3px solid var(--color-outline);
   padding-left: 10px;
 }
 
@@ -294,7 +243,7 @@ button {
 
 .nt-error {
   margin: 0;
-  color: var(--nt-danger);
+  color: var(--color-error);
   font-size: 13px;
 }
 
@@ -312,8 +261,8 @@ button {
 }
 
 .nt-modal {
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 12px;
   width: 480px;
   max-width: 100%;
@@ -340,7 +289,7 @@ button {
 .nt-modal-close {
   border: none;
   background: transparent;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   font-size: 20px;
   line-height: 1;
   padding: 4px 8px;
@@ -348,14 +297,14 @@ button {
 }
 
 .nt-modal-close:hover {
-  background: var(--nt-surface-2);
-  color: var(--nt-text);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
 }
 
 .nt-settings-account {
   margin: 0;
   font-size: 13px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-settings-section {
@@ -372,7 +321,7 @@ button {
 .nt-settings-hint {
   margin: 0;
   font-size: 12.5px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-apikey-list {
@@ -389,7 +338,7 @@ button {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
   font-size: 13px;
   flex-wrap: wrap;
@@ -404,21 +353,21 @@ button {
 }
 
 .nt-apikey-prefix {
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   font-size: 12px;
 }
 
 .nt-apikey-meta {
   margin-left: auto;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 12px;
 }
 
 .nt-apikey-revoke,
 .nt-apikey-revoke-confirm button {
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   background: transparent;
-  color: var(--nt-danger);
+  color: var(--color-error);
   border-radius: 6px;
   padding: 3px 8px;
   font-size: 12px;
@@ -426,7 +375,7 @@ button {
 
 .nt-apikey-revoke:hover,
 .nt-apikey-revoke-confirm button:hover {
-  background: var(--nt-danger-soft);
+  background: var(--color-error-container);
 }
 
 .nt-apikey-revoke-confirm {
@@ -434,11 +383,11 @@ button {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--nt-danger);
+  color: var(--color-error);
 }
 
 .nt-apikey-empty {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
 }
 
@@ -450,17 +399,17 @@ button {
 .nt-apikey-new input {
   flex: 1;
   font: inherit;
-  padding: 8px 10px;
-  border: 1px solid var(--nt-border-2);
-  border-radius: 8px;
-  background: var(--nt-bg);
-  color: var(--nt-text);
+  padding: 8px 12px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--shape-extra-large, 999px);
+  background: var(--color-background);
+  color: var(--color-on-surface);
 }
 
 .nt-apikey-new button {
-  border: 1px solid var(--nt-accent);
-  background: var(--nt-accent);
-  color: var(--nt-on-accent);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 13px;
@@ -471,7 +420,7 @@ button {
 }
 
 .nt-apikey-fresh {
-  border: 1px solid var(--nt-accent);
+  border: 1px solid var(--color-primary);
   border-radius: 8px;
   padding: 12px;
   display: flex;
@@ -486,7 +435,7 @@ button {
 
 .nt-apikey-token {
   word-break: break-all;
-  background: var(--nt-surface-2);
+  background: var(--color-surface-container-high);
   border-radius: 6px;
   padding: 8px;
   font-size: 12px;
@@ -498,96 +447,296 @@ button {
 }
 
 .nt-apikey-fresh-actions button {
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   background: transparent;
-  color: var(--nt-text);
+  color: var(--color-on-surface);
   border-radius: 6px;
   padding: 5px 10px;
   font-size: 12.5px;
 }
 
-.nt-theme-toggle,
-.nt-signout,
-.nt-settings {
-  border: 1px solid var(--nt-border-2);
-  background: transparent;
-  color: var(--nt-text-2);
-  border-radius: 6px;
-  padding: 3px 9px;
-  font-size: 12px;
-}
 
-.nt-theme-toggle:hover,
-.nt-signout:hover,
-.nt-settings:hover {
-  background: var(--nt-surface-2);
-  color: var(--nt-text);
-}
 
-/* --- app shell ------------------------------------------------------------- */
+
+/* --- app shell (v1 design language) ---------------------------------------- */
 
 .nt-app {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  background: var(--color-background);
+  color: var(--color-on-surface);
+}
+
+.nt-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  height: 48px;
+  padding: 0 var(--spacing-3, 12px);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-outline-variant);
+  flex-shrink: 0;
+}
+
+.nt-wordmark {
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.nt-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--shape-full, 999px);
+  background: var(--color-success, #29b672);
+  margin-right: var(--spacing-1, 4px);
+}
+
+.nt-topbar-spacer {
+  flex: 1;
+}
+
+.nt-topbar .nt-sync-status {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.nt-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--shape-medium, 8px);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-icon-btn:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.nt-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.nt-sidebar {
+  width: 264px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-container-low);
+  border-right: 1px solid var(--color-outline-variant);
+  min-height: 0;
+}
+
+.nt-sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  padding: var(--spacing-2, 8px) var(--spacing-2, 8px) var(--spacing-1, 4px);
+}
+
+.nt-ws-switch {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-1, 4px);
+  padding: 6px var(--spacing-2, 8px);
+  border: 1px solid transparent;
+  border-radius: var(--shape-medium, 8px);
+  background: transparent;
+  color: var(--color-on-surface);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.nt-ws-switch:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-outline-variant);
+}
+
+.nt-sidebar-search {
+  padding: 0 var(--spacing-2, 8px) var(--spacing-1, 4px);
+}
+
+.nt-sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  min-height: 0;
+}
+
+.nt-side-section {
+  margin-bottom: var(--spacing-3, 12px);
+}
+
+.nt-side-header {
+  margin: var(--spacing-2, 8px) var(--spacing-2, 8px) var(--spacing-1, 4px);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-side-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nt-side-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nt-side-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  height: 28px;
+  padding: 0 var(--spacing-2, 8px);
+  border: none;
+  border-radius: var(--shape-medium, 8px);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  text-align: left;
+}
+
+.nt-side-item:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.nt-side-item-active,
+.nt-side-item-active:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.nt-side-item-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-side-item-active .nt-side-item-icon {
+  color: var(--color-on-surface);
+}
+
+.nt-side-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-side-star {
+  position: absolute;
+  right: 4px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--shape-small, 6px);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-side-row:hover .nt-side-star {
+  display: inline-flex;
+}
+
+.nt-side-star:hover {
+  background: var(--color-pressed-overlay);
+  color: var(--color-on-surface);
+}
+
+.nt-sidebar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  border-top: 1px solid var(--color-outline-variant);
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-sidebar-user {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-sidebar-store {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.nt-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.nt-empty {
+  padding: var(--spacing-10, 40px);
+  color: var(--color-on-surface-variant);
+}
+
+@media (max-width: 800px) {
+  .nt-sidebar {
+    display: none;
+    position: fixed;
+    top: 48px;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.3));
+  }
+  .nt-sidebar-open .nt-sidebar {
+    display: flex;
+  }
+}
+
+@media (min-width: 801px) {
+  .nt-topbar .nt-icon-btn[aria-label="Toggle sidebar"] {
+    display: none;
+  }
 }
 
 .nt-sidebar {
   width: 260px;
   flex-shrink: 0;
-  background: var(--nt-surface);
-  border-right: 1px solid var(--nt-border);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-outline-variant);
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.nt-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--nt-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.nt-new-page {
-  border: 1px solid var(--nt-border-2);
-  background: var(--nt-surface);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 12px;
-}
-
-.nt-page-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.nt-page-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  padding: 6px 8px;
-  color: var(--nt-text);
-}
-
-.nt-page-item:hover {
-  background: var(--nt-surface-3);
-}
-
-.nt-page-item-active {
-  background: var(--nt-accent-soft);
-}
 
 .nt-main {
   flex: 1;
@@ -597,7 +746,7 @@ button {
 
 .nt-empty,
 .nt-page-missing {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 /* --- page ------------------------------------------------------------------- */
@@ -626,23 +775,23 @@ button {
 }
 
 .nt-view-toggle {
-  border: 1px solid var(--nt-border-2);
-  background: var(--nt-surface);
+  border: 1px solid var(--color-outline);
+  background: var(--color-surface);
   border-radius: 6px;
   padding: 2px 10px;
   font-size: 12px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-view-toggle:hover {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-view-toggle-active,
 .nt-view-toggle-active:hover {
-  background: var(--nt-accent-soft);
-  border-color: var(--nt-border-2);
-  color: var(--nt-text);
+  background: var(--color-primary-container);
+  border-color: var(--color-outline);
+  color: var(--color-on-surface);
 }
 
 /* --- blocks ------------------------------------------------------------------- */
@@ -665,7 +814,7 @@ button {
 }
 
 .nt-bullet {
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
   width: 12px;
   text-align: center;
@@ -678,7 +827,7 @@ button {
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   text-align: center;
   user-select: none;
   font: inherit;
@@ -686,7 +835,7 @@ button {
 }
 
 .nt-block-chevron:hover {
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-block-content {
@@ -699,7 +848,7 @@ button {
 }
 
 .nt-block-content:focus-within {
-  background: var(--nt-surface);
+  background: var(--color-surface);
 }
 
 .nt-block-text {
@@ -715,8 +864,8 @@ button {
   display: flex;
   gap: 2px;
   padding: 3px;
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 40;
@@ -730,25 +879,25 @@ button {
   padding: 2px 6px;
   font-size: 12px;
   font-family: inherit;
-  color: var(--nt-text-2);
+  color: var(--color-on-surface-variant);
   cursor: pointer;
 }
 
 .nt-mark-button:hover {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-mark-active,
 .nt-mark-active:hover {
-  background: var(--nt-accent-soft);
-  color: var(--nt-text);
+  background: var(--color-primary-container);
+  color: var(--color-on-surface);
 }
 
 .nt-mark-sep {
   width: 1px;
   align-self: stretch;
   margin: 2px 2px;
-  background: var(--nt-border);
+  background: var(--color-outline-variant);
 }
 
 /* --- capture gestures ----------------------------------------------------------- */
@@ -764,8 +913,8 @@ button {
   max-height: 240px;
   overflow-y: auto;
   padding: 3px;
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 50;
@@ -775,7 +924,7 @@ button {
   padding: 3px 8px;
   border-radius: 4px;
   font-size: 13px;
-  color: var(--nt-text-2);
+  color: var(--color-on-surface-variant);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -783,13 +932,13 @@ button {
 }
 
 .nt-capture-selected {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-capture-empty {
   padding: 3px 8px;
   font-size: 12px;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-verb-popover {
@@ -800,8 +949,8 @@ button {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 50;
@@ -812,15 +961,15 @@ button {
   flex-direction: column;
   gap: 2px;
   font-size: 11px;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-verb-field input {
   font-size: 13px;
   padding: 3px 6px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 4px;
-  color: var(--nt-text);
+  color: var(--color-on-surface);
 }
 
 .nt-verb-actions {
@@ -840,36 +989,36 @@ button {
 }
 
 .nt-verb-apply {
-  background: var(--nt-accent-soft);
-  color: var(--nt-text);
+  background: var(--color-primary-container);
+  color: var(--color-on-surface);
 }
 
 .nt-verb-cancel {
   background: transparent;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-verb-apply:hover {
-  background: var(--nt-border);
+  background: var(--color-outline-variant);
 }
 
 .nt-verb-cancel:hover {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-add-block {
   margin-top: 4px;
-  border: 1px dashed var(--nt-border-2);
+  border: 1px dashed var(--color-outline);
   background: transparent;
   border-radius: 6px;
   padding: 4px 12px;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
 }
 
 .nt-add-block:hover {
-  background: var(--nt-surface-3);
-  color: var(--nt-muted);
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-title-editable {
@@ -880,13 +1029,13 @@ button {
 
 .nt-title-editable:empty::before {
   content: "Untitled";
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-block-children {
   margin-left: 20px;
   padding-left: 8px;
-  border-left: 1px solid var(--nt-border-soft);
+  border-left: 1px solid var(--color-outline-variant);
 }
 
 /* --- view transforms: prose mode -------------------------------------------------
@@ -916,17 +1065,17 @@ button {
 .nt-embed {
   display: block;
   margin: 4px 0;
-  border: 1px solid var(--nt-border);
-  border-left: 3px solid var(--nt-accent);
+  border: 1px solid var(--color-outline-variant);
+  border-left: 3px solid var(--color-primary);
   border-radius: 6px;
   padding: 6px 10px;
-  background: var(--nt-surface-2);
+  background: var(--color-surface-container-high);
 }
 
 .nt-embed-header {
   font-size: 12px;
   font-weight: 600;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -952,7 +1101,7 @@ button {
 .nt-embed-block-children {
   margin-left: 16px;
   padding-left: 8px;
-  border-left: 1px solid var(--nt-border-soft);
+  border-left: 1px solid var(--color-outline-variant);
 }
 
 /* --- query blocks (live query token) ----------------------------------------------
@@ -963,11 +1112,11 @@ button {
 .nt-query {
   display: block;
   margin: 4px 0;
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-left: 3px solid #c11574;
   border-radius: 6px;
   padding: 6px 10px;
-  background: var(--nt-surface-2);
+  background: var(--color-surface-container-high);
 }
 
 .nt-query-header {
@@ -979,17 +1128,17 @@ button {
 .nt-query-title {
   font-size: 12px;
   font-weight: 600;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-query-badge {
-  background: var(--nt-surface-3);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface-container-highest);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 10px;
   padding: 0 8px;
   font-size: 0.82em;
   line-height: 1.5;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-query-actions {
@@ -1000,10 +1149,10 @@ button {
 }
 
 .nt-query-action {
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 4px;
-  background: var(--nt-surface);
-  color: var(--nt-muted);
+  background: var(--color-surface);
+  color: var(--color-on-surface-variant);
   font-size: 11px;
   padding: 1px 8px;
   cursor: pointer;
@@ -1032,11 +1181,11 @@ button {
   cursor: pointer;
   border-radius: 4px;
   font-size: 13px;
-  color: var(--nt-text-2);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-query-item:hover {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-query-item-name {
@@ -1047,37 +1196,37 @@ button {
 
 .nt-query-chip {
   flex-shrink: 0;
-  background: var(--nt-surface-3);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface-container-highest);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 10px;
   padding: 0 8px;
   font-size: 0.78em;
   line-height: 1.5;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-query-more,
 .nt-query-empty {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 12px;
   padding: 2px 4px;
 }
 
 .nt-query-invalid {
-  border: 1px dashed var(--nt-border-2);
+  border: 1px dashed var(--color-outline);
   border-radius: 6px;
   margin: 4px 0 0;
   padding: 2px 10px;
-  color: var(--nt-danger);
+  color: var(--color-error);
   font-size: 12px;
-  background: var(--nt-surface);
+  background: var(--color-surface);
 }
 
 .nt-query-builder {
   margin-top: 6px;
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  background: var(--nt-surface);
+  background: var(--color-surface);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -1089,7 +1238,7 @@ button {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-query-field > span {
@@ -1101,7 +1250,7 @@ button {
 .nt-query-field input {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 4px;
   padding: 2px 6px;
   font-size: 12px;
@@ -1114,10 +1263,10 @@ button {
 }
 
 .nt-query-builder-actions button {
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 4px;
-  background: var(--nt-surface);
-  color: var(--nt-text-2);
+  background: var(--color-surface);
+  color: var(--color-on-surface-variant);
   font-size: 12px;
   padding: 2px 10px;
   cursor: pointer;
@@ -1131,9 +1280,9 @@ button {
 }
 
 .nt-query-action[aria-pressed="true"] {
-  background: var(--nt-surface-3);
-  border-color: var(--nt-fainter);
-  color: var(--nt-text-2);
+  background: var(--color-surface-container-highest);
+  border-color: var(--color-on-surface-variant);
+  color: var(--color-on-surface-variant);
 }
 
 /* Table mode + the aggregate grid: a sober bordered grid in the token's
@@ -1144,20 +1293,20 @@ button {
   margin: 4px 0 0;
   border-collapse: collapse;
   font-size: 13px;
-  color: var(--nt-text-2);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-query-table th {
   text-align: left;
   font-size: 11px;
   font-weight: 600;
-  color: var(--nt-faint);
-  border-bottom: 1px solid var(--nt-border);
+  color: var(--color-on-surface-variant);
+  border-bottom: 1px solid var(--color-outline-variant);
   padding: 2px 6px;
 }
 
 .nt-query-table td {
-  border-bottom: 1px solid var(--nt-border-soft);
+  border-bottom: 1px solid var(--color-outline-variant);
   padding: 2px 6px;
   vertical-align: baseline;
 }
@@ -1186,7 +1335,7 @@ button {
   display: inline-flex;
   align-items: baseline;
   cursor: grab;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   touch-action: none;
 }
 
@@ -1197,24 +1346,24 @@ button {
 /* Drop indicator: a line at the drop line, or a left accent for the
    child-indent intent. */
 .nt-block.nt-drop-above > .nt-block-row {
-  box-shadow: 0 -2px 0 0 var(--nt-accent);
+  box-shadow: 0 -2px 0 0 var(--color-primary);
 }
 
 .nt-block.nt-drop-below > .nt-block-row {
-  box-shadow: 0 2px 0 0 var(--nt-accent);
+  box-shadow: 0 2px 0 0 var(--color-primary);
 }
 
 .nt-block.nt-drop-child > .nt-block-row {
-  box-shadow: inset 3px 0 0 0 var(--nt-accent);
-  background: var(--nt-accent-softer);
+  box-shadow: inset 3px 0 0 0 var(--color-primary);
+  background: var(--color-surface-container-high);
   border-radius: 4px;
 }
 
 /* The row clone that follows the pointer (DragOverlay). */
 .nt-drag-ghost {
   padding: 2px 8px;
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   font-size: 14px;
@@ -1228,10 +1377,10 @@ button {
 .nt-dnd-error {
   margin: 4px 0 8px;
   padding: 6px 10px;
-  border: 1px solid var(--nt-danger-border);
+  border: 1px solid var(--color-error);
   border-radius: 6px;
-  background: var(--nt-danger-soft);
-  color: var(--nt-danger);
+  background: var(--color-error-container);
+  color: var(--color-error);
   font-size: 13px;
 }
 
@@ -1250,9 +1399,9 @@ button {
   font: inherit;
   font-size: 13px;
   padding: 4px 8px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
 
@@ -1266,18 +1415,18 @@ button {
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   padding: 0;
 }
 
 .nt-class-swatch-active {
-  outline: 2px solid var(--nt-text);
+  outline: 2px solid var(--color-on-surface);
   outline-offset: 1px;
 }
 
 .nt-class-panel {
   margin-top: 16px;
-  border-top: 1px solid var(--nt-border-soft);
+  border-top: 1px solid var(--color-outline-variant);
   padding-top: 8px;
 }
 
@@ -1285,13 +1434,13 @@ button {
   margin: 0 0 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .nt-class-empty {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
 }
 
@@ -1307,9 +1456,9 @@ button {
 .nt-class-chip {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 12px;
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
   overflow: hidden;
 }
 
@@ -1318,7 +1467,7 @@ button {
   background: transparent;
   padding: 2px 4px 2px 10px;
   font-size: 13px;
-  color: var(--nt-accent-strong);
+  color: var(--color-primary-hover);
 }
 
 /* Chip label variant for non-navigating chips (the properties panel's
@@ -1326,7 +1475,7 @@ button {
 .nt-class-chip-name {
   padding: 2px 4px 2px 10px;
   font-size: 13px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-class-chip-remove {
@@ -1334,21 +1483,21 @@ button {
   background: transparent;
   padding: 2px 8px 2px 4px;
   font-size: 13px;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-class-chip-remove:hover {
-  color: var(--nt-danger);
+  color: var(--color-error);
 }
 
 .nt-class-add-parent {
   font: inherit;
   font-size: 13px;
   padding: 3px 6px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
-  color: var(--nt-muted);
-  background: var(--nt-surface);
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface);
 }
 
 .nt-class-bindings {
@@ -1371,7 +1520,7 @@ button {
 .nt-class-binding-seq {
   width: 48px;
   text-align: right;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   font-size: 12px;
   flex-shrink: 0;
   font: inherit;
@@ -1383,8 +1532,8 @@ button {
 
 .nt-class-binding-seq:hover,
 .nt-class-binding-seq:focus {
-  border-color: var(--nt-border-2);
-  background: var(--nt-surface);
+  border-color: var(--color-outline);
+  background: var(--color-surface);
 }
 
 .nt-class-binding-name {
@@ -1393,17 +1542,17 @@ button {
 }
 
 .nt-class-binding-type {
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
 }
 
 .nt-class-binding-target {
-  color: var(--nt-accent-strong);
+  color: var(--color-primary-hover);
   font-size: 13px;
 }
 
 .nt-class-binding-default {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 12px;
   font: inherit;
   padding: 2px 6px;
@@ -1415,8 +1564,8 @@ button {
 
 .nt-class-binding-default:hover,
 .nt-class-binding-default:focus {
-  border-color: var(--nt-border-2);
-  background: var(--nt-surface);
+  border-color: var(--color-outline);
+  background: var(--color-surface);
 }
 
 .nt-class-binding-flag {
@@ -1424,7 +1573,7 @@ button {
   align-items: center;
   gap: 3px;
   font-size: 12px;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   white-space: nowrap;
 }
 
@@ -1433,11 +1582,11 @@ button {
   background: transparent;
   padding: 2px 6px;
   font-size: 13px;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-class-binding-remove:hover {
-  color: var(--nt-danger);
+  color: var(--color-error);
 }
 
 .nt-class-add-binding {
@@ -1445,10 +1594,10 @@ button {
   font: inherit;
   font-size: 13px;
   padding: 3px 6px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
-  color: var(--nt-muted);
-  background: var(--nt-surface);
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface);
 }
 
 /* --- properties panel (effective values) -------------------------------------------- */
@@ -1476,29 +1625,29 @@ button {
 }
 
 .nt-property-hint {
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   font-size: 11px;
-  border: 1px solid var(--nt-border-soft);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 999px;
   padding: 0 6px;
 }
 
 .nt-property-default .nt-property-value {
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-property-value {
   font: inherit;
   font-size: 13px;
   padding: 2px 6px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
-  background: var(--nt-surface);
+  background: var(--color-surface);
   min-width: 160px;
 }
 
 .nt-property-default .nt-property-name {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 /* --- node-typed property rows (chips + picker) ------------------------------------ */
@@ -1520,16 +1669,16 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 999px;
-  background: var(--nt-surface);
+  background: var(--color-surface);
   font-size: 13px;
   padding: 1px 4px 1px 10px;
 }
 
 .nt-chip-default {
   border-style: dashed;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-chip-label {
@@ -1547,7 +1696,7 @@ span.nt-chip-label {
 
 .nt-chip-remove {
   font: inherit;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   background: none;
   border: none;
   padding: 0 4px;
@@ -1556,27 +1705,27 @@ span.nt-chip-label {
 }
 
 .nt-chip-remove:hover {
-  color: var(--nt-danger-2);
+  color: var(--color-error-hover);
 }
 
 .nt-chip-add {
   font: inherit;
   font-size: 13px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   background: none;
-  border: 1px dashed var(--nt-border-2);
+  border: 1px dashed var(--color-outline);
   border-radius: 999px;
   padding: 1px 10px;
   cursor: pointer;
 }
 
 .nt-chip-add:hover {
-  border-color: var(--nt-muted);
+  border-color: var(--color-on-surface-variant);
 }
 
 .nt-chip-annotations {
   font: inherit;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   background: none;
   border: none;
   padding: 0 2px;
@@ -1587,7 +1736,7 @@ span.nt-chip-label {
 
 .nt-chip-annotations:hover,
 .nt-chip-annotations[aria-expanded="true"] {
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 /* --- annotations section (asset chip affordance) ------------------------------ */
@@ -1610,7 +1759,7 @@ span.nt-chip-label {
 }
 
 .nt-annotation-page {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 0.82em;
   white-space: nowrap;
 }
@@ -1626,9 +1775,9 @@ span.nt-chip-label {
   font: inherit;
   font-size: 13px;
   padding: 3px 8px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
-  background: var(--nt-surface);
+  background: var(--color-surface);
 }
 
 .nt-annotation-quote-input {
@@ -1646,21 +1795,21 @@ span.nt-chip-label {
 .nt-annotation-add {
   font: inherit;
   font-size: 13px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   background: none;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
   padding: 3px 10px;
 }
 
 .nt-annotation-add:hover {
-  border-color: var(--nt-muted);
+  border-color: var(--color-on-surface-variant);
 }
 
 .nt-annotation-error {
   margin: 0;
   padding-left: 20px;
-  color: var(--nt-danger-2);
+  color: var(--color-error-hover);
   font-size: 13px;
 }
 
@@ -1670,8 +1819,8 @@ span.nt-chip-label {
   left: 148px;
   z-index: 30;
   width: 280px;
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border-soft);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(15, 30, 45, 0.12);
   padding: 8px;
@@ -1691,8 +1840,8 @@ span.nt-chip-label {
 .nt-datepicker {
   margin: 4px 0 8px 148px;
   width: 280px;
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border-soft);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(15, 30, 45, 0.12);
   padding: 8px;
@@ -1709,7 +1858,7 @@ span.nt-chip-label {
 .nt-datepicker-close {
   font: inherit;
   font-size: 14px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   background: none;
   border: none;
   border-radius: 6px;
@@ -1719,7 +1868,7 @@ span.nt-chip-label {
 
 .nt-datepicker-nav:hover,
 .nt-datepicker-close:hover {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-datepicker-breadcrumb {
@@ -1727,14 +1876,14 @@ span.nt-chip-label {
   text-align: center;
   font-size: 13px;
   font-weight: 600;
-  color: var(--nt-text-2);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-datepicker-crumb {
   font: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--nt-accent-strong);
+  color: var(--color-primary-hover);
   background: none;
   border: none;
   padding: 0;
@@ -1754,7 +1903,7 @@ span.nt-chip-label {
 .nt-datepicker-weekday {
   text-align: center;
   font-size: 11px;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   padding: 2px 0;
 }
 
@@ -1765,14 +1914,14 @@ span.nt-chip-label {
 }
 
 .nt-datepicker-cellbox:hover {
-  background: var(--nt-accent-softer);
+  background: var(--color-surface-container-high);
 }
 
 .nt-datepicker-cell {
   flex: 1;
   font: inherit;
   font-size: 13px;
-  color: var(--nt-text-2);
+  color: var(--color-on-surface-variant);
   background: none;
   border: none;
   border-radius: 6px;
@@ -1783,21 +1932,21 @@ span.nt-chip-label {
 
 .nt-datepicker-cell:hover,
 .nt-datepicker-cell:focus {
-  background: var(--nt-accent-softer);
+  background: var(--color-surface-container-high);
   outline: none;
 }
 
 .nt-datepicker-cell-selected,
 .nt-datepicker-cell-selected:hover {
-  background: var(--nt-accent);
-  color: var(--nt-on-accent);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .nt-datepicker-cell-drill {
   font: inherit;
   font-size: 9px;
   line-height: 1;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   background: none;
   border: none;
   border-radius: 6px;
@@ -1807,13 +1956,13 @@ span.nt-chip-label {
 
 .nt-datepicker-cell-drill:hover,
 .nt-datepicker-cell-drill:focus {
-  color: var(--nt-accent-strong);
+  color: var(--color-primary-hover);
   outline: none;
 }
 
 .nt-datepicker-cell-muted .nt-datepicker-cell,
 .nt-datepicker-cell-muted .nt-datepicker-cell-drill {
-  color: var(--nt-faintest);
+  color: var(--color-outline);
 }
 
 /* --- date range rows + link qualifiers ---------------------------------------- */
@@ -1822,10 +1971,10 @@ span.nt-chip-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--nt-border-soft);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 999px;
   padding: 1px 10px;
-  background: var(--nt-surface);
+  background: var(--color-surface);
 }
 
 .nt-range-slot {
@@ -1836,7 +1985,7 @@ span.nt-chip-label {
 
 .nt-range-slot-name {
   font-size: 11px;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-chip-qualifier {
@@ -1849,22 +1998,22 @@ span.nt-chip-label {
 .nt-chip-qualifier-input {
   font: inherit;
   font-size: 12px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   padding: 1px 4px;
-  border: 1px solid var(--nt-border-soft);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  background: var(--nt-surface);
+  background: var(--color-surface);
   width: 130px;
 }
 
 .nt-class-binding-precision {
   font: inherit;
   font-size: 12px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   padding: 1px 4px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
-  background: var(--nt-surface);
+  background: var(--color-surface);
 }
 
 .nt-picker-list {
@@ -1888,11 +2037,11 @@ span.nt-chip-label {
 }
 
 .nt-picker-item:hover {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-picker-empty {
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
   padding: 4px 6px;
 }
@@ -1901,7 +2050,7 @@ span.nt-chip-label {
   font: inherit;
   font-size: 13px;
   background: none;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
   padding: 4px 8px;
   cursor: pointer;
@@ -1909,7 +2058,7 @@ span.nt-chip-label {
 }
 
 .nt-picker-upload:hover {
-  border-color: var(--nt-muted);
+  border-color: var(--color-on-surface-variant);
 }
 
 .nt-file-input {
@@ -1917,7 +2066,7 @@ span.nt-chip-label {
 }
 
 .nt-picker-error {
-  color: var(--nt-danger-2);
+  color: var(--color-error-hover);
   font-size: 12px;
   margin: 0;
 }
@@ -1927,11 +2076,6 @@ span.nt-chip-label {
   word-break: break-word;
 }
 
-.nt-class-list-icon {
-  color: var(--nt-faint);
-  font-size: 12px;
-  margin-right: 4px;
-}
 
 /* --- system sections ------------------------------------------------------------- */
 
@@ -1942,7 +2086,7 @@ span.nt-chip-label {
 }
 
 .nt-section {
-  border-top: 1px solid var(--nt-border-soft);
+  border-top: 1px solid var(--color-outline-variant);
   padding: 4px 0 8px;
 }
 
@@ -1954,7 +2098,7 @@ span.nt-chip-label {
   border: none;
   background: transparent;
   padding: 4px 0;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1964,7 +2108,7 @@ span.nt-chip-label {
 
 .nt-section-chevron {
   width: 12px;
-  color: var(--nt-fainter);
+  color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
 
@@ -1973,15 +2117,15 @@ span.nt-chip-label {
 }
 
 .nt-section-badge {
-  background: var(--nt-surface-3);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface-container-highest);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 10px;
   padding: 0 8px;
   font-size: 12px;
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-section-body {
@@ -2006,12 +2150,12 @@ span.nt-chip-label {
   background: transparent;
   border-radius: 6px;
   padding: 4px 8px 4px 20px;
-  color: var(--nt-text);
+  color: var(--color-on-surface);
   font-size: 14px;
 }
 
 .nt-section-item:hover {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 /* Class View member rows: the navigation row plus an unassign × that issues
@@ -2031,19 +2175,19 @@ span.nt-chip-label {
   background: transparent;
   padding: 4px 10px;
   font-size: 14px;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-class-member-remove:hover {
-  color: var(--nt-danger);
+  color: var(--color-error);
 }
 
 .nt-section-crumb {
-  color: var(--nt-text);
+  color: var(--color-on-surface);
 }
 
 .nt-section-source {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 0.88em;
   min-width: 0;
   overflow: hidden;
@@ -2052,14 +2196,14 @@ span.nt-chip-label {
 }
 
 .nt-section-context {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 0.82em;
   font-style: italic;
   white-space: nowrap;
 }
 
 .nt-section-empty {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
   padding: 4px 8px 4px 20px;
 }
@@ -2068,8 +2212,8 @@ span.nt-chip-label {
 
 .nt-chip {
   display: inline-block;
-  background: var(--nt-surface-3);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface-container-highest);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 10px;
   padding: 0 8px;
   font-size: 0.92em;
@@ -2077,8 +2221,8 @@ span.nt-chip-label {
 }
 
 .nt-mention {
-  background: var(--nt-accent-soft);
-  border: 1px solid var(--nt-border-2);
+  background: var(--color-primary-container);
+  border: 1px solid var(--color-outline);
 }
 
 .nt-typed-link {
@@ -2090,54 +2234,40 @@ span.nt-chip-label {
 
 .nt-quote {
   display: block;
-  border-left: 3px solid var(--nt-border-2);
+  border-left: 3px solid var(--color-outline);
   padding: 2px 12px;
   margin: 4px 0;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-external-link {
-  color: var(--nt-accent);
+  color: var(--color-primary);
 }
 
 .nt-placeholder {
   display: inline-block;
-  border: 1px dashed var(--nt-border-2);
+  border: 1px dashed var(--color-outline);
   border-radius: 6px;
   padding: 0 10px;
   margin: 1px 0;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 0.88em;
-  background: var(--nt-surface-2);
+  background: var(--color-surface-container-high);
 }
 
 code {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
   border-radius: 4px;
   padding: 0 4px;
   font-size: 0.92em;
 }
 
 mark {
-  background: var(--nt-warn);
+  background: var(--color-warning-container);
   border-radius: 2px;
   padding: 0 2px;
 }
 
-.nt-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 4px 12px;
-  font-size: 11px;
-  color: var(--nt-faint);
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  pointer-events: none;
-}
 
 .nt-sync-status {
   white-space: nowrap;
@@ -2146,7 +2276,7 @@ mark {
 }
 
 .nt-sync-status-error {
-  color: var(--nt-danger);
+  color: var(--color-error);
 }
 
 /* --- whiteboard canvas ------------------------------------------------------ */
@@ -2154,9 +2284,9 @@ mark {
 .nt-wb {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
-  background: var(--nt-surface-2);
+  background: var(--color-surface-container-high);
   overflow: hidden;
 }
 
@@ -2170,21 +2300,21 @@ mark {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border-bottom: 1px solid var(--nt-border-soft);
-  background: var(--nt-surface);
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--color-surface);
   font-size: 12px;
 }
 
 .nt-wb-toolbar button {
-  border: 1px solid var(--nt-border);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  background: var(--nt-surface-2);
+  background: var(--color-surface-container-high);
   padding: 2px 8px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-wb-toolbar button:hover:not(:disabled) {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-wb-toolbar button:disabled {
@@ -2193,9 +2323,9 @@ mark {
 }
 
 .nt-wb-tool-active {
-  background: var(--nt-accent-soft);
-  border-color: var(--nt-accent);
-  color: var(--nt-accent);
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .nt-wb-surface {
@@ -2203,7 +2333,7 @@ mark {
   flex: 1;
   overflow: hidden;
   touch-action: none;
-  background-image: radial-gradient(var(--nt-grid) 1px, transparent 1px);
+  background-image: radial-gradient(var(--color-outline-variant) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -2233,50 +2363,50 @@ mark {
 
 .nt-wb-shape rect,
 .nt-wb-shape ellipse {
-  fill: var(--nt-accent-wash);
-  stroke: var(--nt-muted);
+  fill: var(--color-hover-overlay);
+  stroke: var(--color-on-surface-variant);
   stroke-width: 1.5;
 }
 
 .nt-wb-shape line {
-  stroke: var(--nt-muted);
+  stroke: var(--color-on-surface-variant);
   stroke-width: 1.5;
 }
 
 .nt-wb-shape text {
-  fill: var(--nt-muted);
+  fill: var(--color-on-surface-variant);
   font-size: 12px;
   pointer-events: none;
 }
 
 .nt-wb-arrowhead {
-  fill: var(--nt-muted);
+  fill: var(--color-on-surface-variant);
 }
 
 .nt-wb-shape-selected rect,
 .nt-wb-shape-selected ellipse,
 .nt-wb-shape-selected line {
-  stroke: var(--nt-accent);
+  stroke: var(--color-primary);
 }
 
 .nt-wb-stroke {
   fill: none;
-  stroke: var(--nt-muted);
+  stroke: var(--color-on-surface-variant);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .nt-wb-drawing {
-  stroke: var(--nt-accent);
+  stroke: var(--color-primary);
 }
 
 .nt-wb-card {
   position: absolute;
   display: flex;
   flex-direction: column;
-  background: var(--nt-surface);
-  border: 1px solid var(--nt-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
   box-shadow: 0 1px 2px rgba(31, 41, 51, 0.08);
   overflow: hidden;
@@ -2287,11 +2417,11 @@ mark {
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  background: var(--nt-surface-3);
-  border-bottom: 1px solid var(--nt-border-soft);
+  background: var(--color-surface-container-highest);
+  border-bottom: 1px solid var(--color-outline-variant);
   font-size: 12px;
   font-weight: 600;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
   cursor: grab;
   user-select: none;
 }
@@ -2306,14 +2436,14 @@ mark {
 .nt-wb-card-delete {
   border: none;
   background: none;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   padding: 0 2px;
   line-height: 1;
   font-size: 14px;
 }
 
 .nt-wb-card-delete:hover {
-  color: var(--nt-danger);
+  color: var(--color-error);
 }
 
 .nt-wb-card-body {
@@ -2333,7 +2463,7 @@ mark {
   position: absolute;
   font-size: 12px;
   padding: 1px 4px;
-  border: 1px solid var(--nt-accent);
+  border: 1px solid var(--color-primary);
   border-radius: 4px;
 }
 
@@ -2342,9 +2472,9 @@ mark {
   left: 32px;
   top: 32px;
   padding: 24px 32px;
-  border: 2px dashed var(--nt-border-2);
+  border: 2px dashed var(--color-outline);
   border-radius: 10px;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 13px;
   white-space: nowrap;
   pointer-events: none;
@@ -2352,7 +2482,7 @@ mark {
 
 .nt-wb-missing {
   padding: 16px;
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
 }
 
 /* --- search box ------------------------------------------------------------- */
@@ -2374,37 +2504,37 @@ mark {
   font: inherit;
   font-size: 13px;
   padding: 5px 8px;
-  border: 1px solid var(--nt-border-2);
+  border: 1px solid var(--color-outline);
   border-radius: 6px;
-  color: var(--nt-text);
-  background: var(--nt-surface);
+  color: var(--color-on-surface);
+  background: var(--color-surface);
 }
 
 .nt-search-syntax {
-  border: 1px solid var(--nt-border-2);
-  background: var(--nt-surface);
+  border: 1px solid var(--color-outline);
+  background: var(--color-surface);
   border-radius: 6px;
   width: 28px;
   font-size: 12px;
-  color: var(--nt-muted);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-search-syntax[aria-expanded="true"] {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-search-help {
   font-size: 11px;
   line-height: 1.6;
-  color: var(--nt-muted);
-  background: var(--nt-bg);
-  border: 1px solid var(--nt-border-soft);
+  color: var(--color-on-surface-variant);
+  background: var(--color-background);
+  border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
   padding: 6px 8px;
 }
 
 .nt-search-help code {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
   border-radius: 4px;
   padding: 0 3px;
 }
@@ -2412,7 +2542,7 @@ mark {
 .nt-search-error {
   margin: 0;
   font-size: 12px;
-  color: var(--nt-danger);
+  color: var(--color-error);
 }
 
 .nt-search-results {
@@ -2436,34 +2566,18 @@ mark {
   background: transparent;
   text-align: left;
   font-size: 13px;
-  color: var(--nt-text-2);
+  color: var(--color-on-surface-variant);
   padding: 3px 6px;
   border-radius: 6px;
 }
 
 .nt-search-hit:hover {
-  background: var(--nt-surface-3);
+  background: var(--color-surface-container-highest);
 }
 
 .nt-search-empty {
-  color: var(--nt-faint);
+  color: var(--color-on-surface-variant);
   font-size: 12px;
   padding: 2px 4px;
 }
 
-/* --- theme toggle ----------------------------------------------------------- */
-
-.nt-theme-toggle {
-  border: 1px solid var(--nt-border-2);
-  background: var(--nt-surface);
-  color: var(--nt-muted);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.nt-theme-toggle:hover {
-  background: var(--nt-surface-3);
-  color: var(--nt-text);
-}
