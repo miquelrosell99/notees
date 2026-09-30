@@ -297,6 +297,10 @@ export class WorkerClient {
     return this.cachedRead<ReferenceEntry[]>("getUnlinkedReferences", [id], []);
   }
 
+  getUnlinkedReferenceCount(id: string): number {
+    return this.cachedRead<number>("getUnlinkedReferenceCount", [id], 0);
+  }
+
   getChildPages(id: string): ClientNode[] {
     return this.cachedRead<ClientNode[]>("getChildPages", [id], []);
   }

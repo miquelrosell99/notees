@@ -51,15 +51,17 @@ import { ClassView } from "./ClassView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
-import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { deriveDisplayName, dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
 import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, type NavKey } from "./components/Sidebar.js";
+import { JournalsView } from "./components/JournalsView.js";
+import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
-import { applyAppearance, readDeviceSetting } from "./components/modals/deviceSettings.js";
+import { applyAppearance, readDeviceSetting, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
 import { Button } from "./components/ui/Button.js";
 import { NotificationToaster } from "./components/ui/NotificationToaster.js";
@@ -166,12 +168,40 @@ function sameHostServerUrl(): string {
 }
 
 /**
- * Initial nav hub: the device-local "default view" preference picks the hub
- * shown when a workspace opens (there is no graph-view hub in this build, so
- * that legacy choice lands on Pages).
+ * Hub routes: each NAVIGATION entry has a URL (`/journal`, `/inbox`, …) so a
+ * reload or deep link boots straight into that hub. `/journals` is accepted
+ * as a friendly alias.
+ */
+const NAV_PATHS: Record<string, NavKey> = {
+  journal: "journal",
+  journals: "journal",
+  inbox: "inbox",
+  pages: "pages",
+  classes: "classes",
+  whiteboards: "whiteboards",
+  tasks: "tasks",
+};
+
+export function navFromPath(pathname: string): NavKey | null {
+  const key = pathname.replace(/^\//, "").replace(/\/$/, "").toLowerCase();
+  return NAV_PATHS[key] ?? null;
+}
+
+export function pathForNav(nav: NavKey): string {
+  return `/${nav}`;
+}
+
+/**
+ * Initial view: a hub URL in the address bar wins; otherwise the journal
+ * feed is the default ("open in journal view") with the device-local
+ * "default view" preference overriding it (legacy choices that have no hub
+ * in this build land on Pages).
  */
 function initialNav(): NavKey {
+  const fromPath = navFromPath(window.location.pathname);
+  if (fromPath !== null) return fromPath;
   const view = readDeviceSetting<string | null>("defaultView", null);
+  if (view === null) return "journal";
   if (view === "journal" || view === "today") return "journal";
   return "pages";
 }
@@ -234,6 +264,10 @@ export function App() {
   });
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /** Top-bar calendar popup (the popup needs the client, so it renders here). */
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const calendarButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
@@ -278,6 +312,13 @@ export function App() {
       }
       if (path === "/login" || path === "/auth") {
         setManagerOpen(false);
+        setSelectedPageId(null);
+        return;
+      }
+      const nav = navFromPath(path);
+      if (nav !== null) {
+        setManagerOpen(false);
+        setActiveNav(nav);
         setSelectedPageId(null);
         return;
       }
@@ -418,7 +459,14 @@ export function App() {
         setSessionSignedIn(false);
       }
       setWorkspaceName(options.label ?? "Workspace");
-      window.history.pushState({ view: "app" }, "", "/");
+      // Keep meaningful URLs across connect: a hub route (/journal, /inbox, …)
+      // or a node deep link survives workspace (re)connects; anything else
+      // (e.g. /workspaces after entering) resolves to the app root.
+      const bootPath = window.location.pathname;
+      const keepPath =
+        navFromPath(bootPath) !== null ||
+        /^\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bootPath);
+      window.history.pushState({ view: "app" }, "", keepPath ? bootPath : "/");
       clientRef.current = nextClient;
       setClient(nextClient);
       setOffline(options.isOffline);
@@ -972,9 +1020,34 @@ export function App() {
         }
         sidebarOpen={sidebarOpen}
         rightPanelOpen={rightPanelOpen}
+        calendarOpen={calendarOpen}
+        onToggleCalendar={() => setCalendarOpen((open) => !open)}
+        calendarButtonRef={calendarButtonRef}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onToggleRightPanel={() => setRightPanelOpen((open) => !open)}
       />
+      {calendarOpen && (
+        <CalendarPopup
+          isOpen
+          onClose={() => setCalendarOpen(false)}
+          anchorRef={calendarButtonRef}
+          firstDayOfWeek={firstDayOfWeek}
+          hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+          onSelectDay={(iso) => {
+            void client.ensureDateChain(iso).then(({ day }) => openPage(day));
+            setCalendarOpen(false);
+          }}
+          onSelectMonth={(year, month) => {
+            const iso = `${year}-${String(month).padStart(2, "0")}-01`;
+            void client.ensureDateChain(iso).then(({ month: monthId }) => openPage(monthId));
+            setCalendarOpen(false);
+          }}
+          onSelectYear={(year) => {
+            void client.ensureDateChain(`${year}-01-01`).then(({ year: yearId }) => openPage(yearId));
+            setCalendarOpen(false);
+          }}
+        />
+      )}
       <div className="nt-body">
         <Sidebar
           client={client}
@@ -991,7 +1064,7 @@ export function App() {
           onSelectNav={(key) => {
             setActiveNav(key);
             setSelectedPageId(null);
-            window.history.pushState({ node: null }, "", "/");
+            window.history.pushState({ node: null, nav: key }, "", pathForNav(key));
           }}
           onRequestSearch={() => setPaletteOpen(true)}
           onOpenPage={openPage}
@@ -1015,6 +1088,8 @@ export function App() {
         <PageCard>
           {selectedPageId !== null ? (
             <NodeView client={client} nodeId={selectedPageId} onOpenNode={openPage} />
+          ) : activeNav === "journal" ? (
+            <JournalsView client={client} onOpenPage={openPage} />
           ) : (
             <HubView client={client} nav={activeNav} onOpenNode={openPage} />
           )}

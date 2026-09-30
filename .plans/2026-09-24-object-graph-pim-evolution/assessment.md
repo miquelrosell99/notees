@@ -1133,11 +1133,11 @@ Supersedes §34.18 (its items fold in here with real scope). Source of truth for
 | Metadata rows: Aliases (pages), per-node color, non-removable-class rules | 🟡 | Classes/tags done; aliases missing |
 | Page footer: word count, Created/Updated date buttons → day pages | ❌ | Cheap, high polish |
 | Unlinked mentions: Promote → real link, Ignore dismiss | 🟡 | Section exists, flat |
-| Topbar right: Undo/Redo, Back/Forward, Calendar popup, Tasks popup, Scratchpad, Focus mode (Ctrl+Shift+F), LiveSyncIndicator (`MainContentTopbar`/`TopBar`) | ❌ | Only right-toggle remains by owner request — re-add per-owner |
+| Topbar right: Undo/Redo, Back/Forward, Calendar popup, Tasks popup, Scratchpad, Focus mode (Ctrl+Shift+F), LiveSyncIndicator (`MainContentTopbar`/`TopBar`) | 🟡 | **Calendar popup shipped** (2026-09-30, faithful port: days/months/years zoom, has-note dots, ensure-chain+open on pick); the rest still pending per-owner |
 | Sidebar: icon rail + panel (v1 two-panel), Pinned section, drag-reorder favorites, SidebarTools footer (Archived, Trash, SupportBadge) | 🟡 | Single panel; no rail/pinned/reorder |
 | Command palette: filter prefixes (`class:` `uuid:` `is_page:` `is_daily:`), sections (Recently Accessed/Created, Random, Commands, Date Pages, Blocks, Properties), "+ Add page", quick-add ⌘↵ | 🟡 | Basic pages/classes/actions |
 | View modes for query results: kanban + document + table polish (v1 has 10 modes; kanban dnd mutates properties) | 🟡 | list/table only; prose mode was cut |
-| JournalsView: reverse-chron feed, inline editing, load-more | 🟡 | Hub list only |
+| JournalsView: reverse-chron feed, inline editing, load-more | ✅ | **Shipped beyond parity** (2026-09-30): today-centered continuous scroll of live page views (windowed ±8, sentinel-grown both directions, reload re-centers); header click opens page view; default boot view; `/journal` route. Daily-page sections on day pages still pending |
 | TasksPopup: Overdue/Today/Upcoming/Unscheduled/Completed sections, recurrence picker, completion history | ❌ | Tasks nav entry is a plain filter |
 | Daily-page sections: Scheduled/Overdue tasks on day pages | ❌ | — |
 | TrashView (restore/permanent delete/empty trash/batch) + ArchivedPagesView | ❌ | Store has trash; no UI |

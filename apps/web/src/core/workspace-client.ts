@@ -1123,22 +1123,41 @@ export class WorkspaceClient {
    * Unlinked references (pages only — blocks never get this section):
    * literal-text FTS matches of the page's display name across the workspace,
    * excluding the page itself and every node that already links to it (the
-   * linked-references set). No eager count: computing this IS the query.
+   * linked-references set).
    */
   getUnlinkedReferences(id: string): ReferenceEntry[] {
+    const entries: ReferenceEntry[] = [];
+    for (const nodeId of this.unlinkedReferenceIds(id)) {
+      const source = this.getNode(nodeId);
+      if (!source) continue;
+      entries.push(this.referenceEntry(source));
+    }
+    return entries;
+  }
+
+  /**
+   * Eager unlinked-reference count for the SystemSections visibility rule
+   * (hide the section at 0). Same cost as one unlinked query — the section
+   * header must know emptiness without an expand, and windowed feeds (the
+   * journal) mount too few pages for the per-page query to matter.
+   */
+  getUnlinkedReferenceCount(id: string): number {
+    return this.unlinkedReferenceIds(id).length;
+  }
+
+  /** Source ids matching the page's name, minus itself and linked sources. */
+  private unlinkedReferenceIds(id: string): string[] {
     const node = this.getNode(id);
     if (!node || node.nodeType !== "page") return [];
     const name = deriveDisplayName(node);
     if (!name) return [];
     const linkedSources = new Set(this.getBacklinks(id).map((edge) => edge.sourceId));
-    const entries: ReferenceEntry[] = [];
+    const ids: string[] = [];
     for (const hit of this.store.search(name)) {
       if (hit.nodeId === id || linkedSources.has(hit.nodeId)) continue;
-      const source = this.getNode(hit.nodeId);
-      if (!source) continue;
-      entries.push(this.referenceEntry(source));
+      ids.push(hit.nodeId);
     }
-    return entries;
+    return ids;
   }
 
   /** Direct page-typed children (SCHEMA.md projection rule 3: never body blocks). */

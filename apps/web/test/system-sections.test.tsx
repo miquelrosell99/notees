@@ -54,7 +54,21 @@ function section(headerName: RegExp): HTMLElement {
 describe("PageView system sections", () => {
   it("renders linked references expanded, the rest collapsed; collapsed sections execute zero queries", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Quiet Page" });
+    const pageId = await client.createObject({ nodeType: "page", name: "Zebra" });
+    // One mention backlink (keeps Linked references visible) and one literal
+    // mention (keeps Unlinked references visible) — both sections render.
+    const linkedSource = await client.createObject({ nodeType: "page", name: "Linked Source" });
+    await client.createObject({
+      nodeType: "block",
+      parentId: linkedSource,
+      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+    });
+    const plainSource = await client.createObject({ nodeType: "page", name: "Plain Source" });
+    await client.createObject({
+      nodeType: "block",
+      parentId: plainSource,
+      contentAst: [{ type: "text", text: "Zebra" }],
+    });
 
     const linkedSpy = vi.spyOn(client, "getLinkedReferences");
     const unlinkedSpy = vi.spyOn(client, "getUnlinkedReferences");
@@ -73,6 +87,34 @@ describe("PageView system sections", () => {
     expect(linkedSpy).toHaveBeenCalledTimes(1);
     expect(unlinkedSpy).not.toHaveBeenCalled();
     expect(childSpy).not.toHaveBeenCalled();
+  });
+
+  it("hides linked and unlinked reference sections when their count is 0", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ nodeType: "page", name: "Quiet Page" });
+    const plainSource = await client.createObject({ nodeType: "page", name: "Plain Source" });
+    await client.createObject({
+      nodeType: "block",
+      parentId: plainSource,
+      contentAst: [{ type: "text", text: "Quiet Page" }],
+    });
+
+    render(<PageView client={client} pageId={pageId} />);
+
+    // Zero backlinks: the linked-references section is gone entirely (the
+    // literal "Quiet Page" text keeps the unlinked one alive).
+    expect(screen.queryByRole("button", { name: /Linked references/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Unlinked references/ })).toBeInTheDocument();
+  });
+
+  it("hides both reference sections on a page nobody mentions", async () => {
+    const client = await seedClient();
+    const lonelyId = await client.createObject({ nodeType: "page", name: "Xylophone QV" });
+
+    render(<PageView client={client} pageId={lonelyId} />);
+    expect(screen.queryByRole("button", { name: /Linked references/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Unlinked references/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Child pages/ })).toBeInTheDocument();
   });
 
   it("expands linked/unlinked references: mentions link, literal text does not", async () => {
@@ -189,9 +231,9 @@ describe("PageView system sections", () => {
     const linkedHeader = screen.getByRole("button", { name: /Linked references/ });
     expect(within(linkedHeader).getByText("2")).toBeInTheDocument();
 
-    // Unlinked references never shows an eager count.
-    const unlinkedHeader = screen.getByRole("button", { name: /Unlinked references/ });
-    expect(within(unlinkedHeader).queryByText(/^[0-9]+$/)).toBeNull();
+    // Unlinked references hides entirely at 0 (owner rule); every source
+    // here already links Zebra, so nothing literal remains.
+    expect(screen.queryByRole("button", { name: /Unlinked references/ })).toBeNull();
   });
 
   it("child-pages badge counts the page-typed children", async () => {
@@ -222,22 +264,16 @@ describe("PageView system sections", () => {
 
     render(<PageView client={client} pageId={franceId} />);
 
-    // Linked references is expanded on mount (no click needed). The badge
-    // reads the DIRECT count: no edge targets France.
-    expect(
-      within(screen.getByRole("button", { name: /Linked references/ })).getByText("0"),
-    ).toBeInTheDocument();
-
-    const linked = section(/Linked references/);
-    // France's own view hides it (badge 0, no groups): links written inside
-    // France's subtree are content, not references (owner rule).
-    expect(linked.querySelector(".nt-refgroup")).toBeNull();
+    // Owner rule: with zero backlinks the linked-references section hides
+    // entirely (links inside France's own subtree are content, not
+    // references — no edge targets France yet).
+    expect(screen.queryByRole("button", { name: /Linked references/ })).toBeNull();
     expect(client.getLinkedReferences(parisId).map((r) => r.kind)).toEqual(["direct"]);
     // Paris still sees the direct reference from inside France.
     expect(client.getLinkedReferences(parisId).map((r) => r.containingPageName)).toEqual(["France"]);
 
-    // A DIRECT mention of France orders first and moves the badge to 1,
-    // while the list shows two rows (list longer than the badge).
+    // A DIRECT mention of France makes the section appear (badge 1), while
+    // the list shows one row (own-subtree roll-up stays hidden).
     const notesId = await client.createObject({ nodeType: "page", name: "Notes" });
     let notesBlockId = "";
     await act(async () => {
@@ -257,6 +293,7 @@ describe("PageView system sections", () => {
     expect(
       within(screen.getByRole("button", { name: /Linked references/ })).getByText("1"),
     ).toBeInTheDocument();
+    const linked = section(/Linked references/);
     const items = Array.from(linked.querySelectorAll(".nt-refblock-tree"));
     expect(items).toHaveLength(1);
     // Each reference renders the source block with its content (and children
@@ -271,6 +308,14 @@ describe("PageView system sections", () => {
     const clientB = await seedClient(relay);
 
     const pageId = await clientA.createObject({ nodeType: "page", name: "Zebra" });
+    // One local backlink so the section renders from the start (owner rule
+    // hides a zero-count section entirely).
+    const localSourceId = await clientA.createObject({ nodeType: "page", name: "Local Source" });
+    await clientA.createObject({
+      nodeType: "block",
+      parentId: localSourceId,
+      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+    });
     await clientA.push();
     await clientB.pull();
     clientA.startRealtime();
@@ -278,10 +323,11 @@ describe("PageView system sections", () => {
     render(<PageView client={clientA} pageId={pageId} />);
 
     // Linked references starts expanded (no click needed); the badge reads
-    // the materialized count (0).
-    within(section(/Linked references/)).getByText("No linked references.");
+    // the materialized count (1 — the local source).
+    const linked = section(/Linked references/);
+    within(linked).getAllByText("Local Source");
     expect(
-      within(screen.getByRole("button", { name: /Linked references/ })).getByText("0"),
+      within(screen.getByRole("button", { name: /Linked references/ })).getByText("1"),
     ).toBeInTheDocument();
 
     // A second client adds a backlink; the relay frame notifies client A.
@@ -295,8 +341,7 @@ describe("PageView system sections", () => {
       await clientB.push();
     });
 
-    const linked = section(/Linked references/);
     await within(linked).findAllByText("Remote Source");
-    expect(within(screen.getByRole("button", { name: /Linked references/ })).getByText("1")).toBeInTheDocument();
+    expect(within(screen.getByRole("button", { name: /Linked references/ })).getByText("2")).toBeInTheDocument();
   });
 });
