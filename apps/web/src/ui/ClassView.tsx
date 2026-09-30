@@ -27,6 +27,7 @@ import { deriveDisplayName } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
+import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
@@ -34,6 +35,92 @@ import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
 
 /** Preset class-color swatches (the design system's accent scale). */
 const CLASS_COLORS = ["#b42318", "#b54708", "#067647", "#175cd3", "#6941c6", "#c11574", "#475467"];
+
+/** Curated icon set for the class icon picker (mdi names, sprite-served). */
+const CLASS_ICONS = [
+  "mdiAccount", "mdiAccountGroup", "mdiArchive", "mdiBook", "BookOpenVariant",
+  "mdiBookmark", "mdiBriefcase", "mdiCalendar", "mdiCalendarClock", "mdiCardText",
+  "mdiCheckboxMarkedCircleOutline", "mdiClipboardText", "mdiClockOutline", "mdiCog",
+  "mdiEmail", "mdiFileDocument", "mdiFlag", "mdiFolder", "mdiFormatListBulleted",
+  "mdiFormatListChecks", "mdiHeart", "mdiHome", "mdiImage", "mdiLabel", "mdiLightbulb",
+  "mdiLink", "mdiMapMarker", "mdiMicroscope", "mdiMovie", "mdiMusicNote", "mdiNotebook",
+  "mdiPackage", "mdiPhone", "mdiPound", "mdiPresentation", "mdiScriptText", "mdiShape",
+  "mdiStar", "mdiTag", "mdiTestTube", "mdiTooth", "mdiTrayArrowDown", "mdiWeb",
+].map((name) => (name.startsWith("mdi") ? name : `mdi${name}`));
+
+/** Icon button + popup grid: picks the class icon (or clears it). */
+function ClassIconButton({
+  client,
+  classId,
+  icon,
+}: {
+  client: WorkspaceClient | WorkerClient;
+  classId: string;
+  icon: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filtered =
+    query.trim() === ""
+      ? CLASS_ICONS
+      : CLASS_ICONS.filter((name) => name.toLowerCase().includes(query.trim().toLowerCase()));
+
+  return (
+    <span className="nt-class-iconpicker">
+      <button
+        type="button"
+        className="nt-class-iconbtn"
+        title="Class icon"
+        aria-label="Class icon"
+        onClick={() => setOpen((value) => !value)}
+      >
+        {icon !== null && icon !== "" ? (
+          <Icon path={icon} size={1.4} />
+        ) : (
+          <Icon path="mdi-dots-grid" size={1.2} />
+        )}
+      </button>
+      {open && (
+        <span className="nt-class-iconpop" role="dialog" aria-label="Choose class icon">
+          <input
+            autoFocus
+            value={query}
+            placeholder="Search icons…"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <span className="nt-class-icons">
+            {filtered.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className={name === icon ? "nt-class-iconopt nt-class-iconopt-active" : "nt-class-iconopt"}
+                title={name}
+                onClick={() => {
+                  setOpen(false);
+                  setQuery("");
+                  void client.updateObject(classId, { icon: name });
+                }}
+              >
+                <Icon path={name} size={1} />
+              </button>
+            ))}
+          </span>
+          <button
+            type="button"
+            className="nt-class-iconclear"
+            onClick={() => {
+              setOpen(false);
+              void client.updateObject(classId, { icon: "" });
+            }}
+          >
+            No icon
+          </button>
+        </span>
+      )}
+    </span>
+  );
+}
 
 export function ClassView({
   client,
@@ -108,20 +195,7 @@ export function ClassView({
       <div className="nt-page nt-class">
         <header className="nt-page-header">
           <div className="nt-class-title">
-            <input
-              key={`icon:${node.icon ?? ""}`}
-              type="text"
-              className="nt-class-icon"
-              defaultValue={node.icon ?? ""}
-              placeholder="icon"
-              aria-label="Class icon"
-              onBlur={(event) => {
-                const value = event.target.value.trim();
-                if (value !== (node.icon ?? "")) {
-                  void client.updateObject(classId, { icon: value });
-                }
-              }}
-            />
+            <ClassIconButton client={client} classId={classId} icon={node.icon} />
             <TitleEditor page={node} />
           </div>
           <div className="nt-page-toolbar">
