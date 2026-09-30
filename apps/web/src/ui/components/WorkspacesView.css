@@ -397,7 +397,7 @@
   gap: var(--spacing-2);
   min-height: 8.5rem;
   border: var(--border-width-default) dashed var(--color-outline);
-  border-radius: var(--shape-large, 12px);
+  border-radius: var(--shape-card);
   background: transparent;
   color: var(--color-on-surface-variant);
   font-size: 13.5px;
