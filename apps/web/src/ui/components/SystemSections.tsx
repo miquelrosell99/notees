@@ -95,19 +95,28 @@ export function SystemSections({
   const loadUnlinkedRefs = useCallback(() => client.getUnlinkedReferences(pageId), [client, pageId]);
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
 
+  // Empty reference sections hide entirely (owner rule): linked refs read
+  // the materialized backlink count, unlinked refs run its (memoized) count
+  // query — the section header must know emptiness without an expand, and
+  // windowed feeds (the journal) mount too few pages for that to matter.
+  const backlinkCount = client.getBacklinkCount(pageId);
+  const unlinkedCount = client.getUnlinkedReferenceCount(pageId);
+
   return (
     <div className="nt-page-sections">
-      <Section
-        key={`linked-${pageId}`}
-        client={client}
-        title="Linked references"
-        icon={<Icon path="mdi-link-variant" size={0.9} />}
-        badge={client.getBacklinkCount(pageId)}
-        defaultCollapsed={false}
-        load={loadLinkedRefs}
-        emptyText="No linked references."
-        renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
-      />
+      {backlinkCount > 0 && (
+        <Section
+          key={`linked-${pageId}`}
+          client={client}
+          title="Linked references"
+          icon={<Icon path="mdi-link-variant" size={0.9} />}
+          badge={backlinkCount}
+          defaultCollapsed={false}
+          load={loadLinkedRefs}
+          emptyText="No linked references."
+          renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
+        />
+      )}
       <Section
         key={`child-${pageId}`}
         client={client}
@@ -133,15 +142,17 @@ export function SystemSections({
           </ul>
         )}
       />
-      <Section
-        key={`unlinked-${pageId}`}
-        client={client}
-        title="Unlinked references"
-        icon={<Icon path="mdi-link-off" size={0.9} />}
-        load={loadUnlinkedRefs}
-        emptyText="No unlinked references."
-        renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
-      />
+      {unlinkedCount > 0 && (
+        <Section
+          key={`unlinked-${pageId}`}
+          client={client}
+          title="Unlinked references"
+          icon={<Icon path="mdi-link-off" size={0.9} />}
+          load={loadUnlinkedRefs}
+          emptyText="No unlinked references."
+          renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
+        />
+      )}
     </div>
   );
 }

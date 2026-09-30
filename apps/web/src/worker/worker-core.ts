@@ -326,6 +326,10 @@ export class WorkerCore {
     return this.client.getUnlinkedReferences(id);
   }
 
+  getUnlinkedReferenceCount(id: string): number {
+    return this.client.getUnlinkedReferenceCount(id);
+  }
+
   getChildPages(id: string): ClientNode[] {
     return this.client.getChildPages(id);
   }
@@ -469,6 +473,8 @@ export class WorkerCore {
         return this.getLinkedReferences(args[0] as string);
       case "getUnlinkedReferences":
         return this.getUnlinkedReferences(args[0] as string);
+      case "getUnlinkedReferenceCount":
+        return this.getUnlinkedReferenceCount(args[0] as string);
       case "getChildPages":
         return this.getChildPages(args[0] as string);
       case "getChildren":
