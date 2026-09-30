@@ -1,34 +1,17 @@
 /**
- * PropertiesPanel — the effective-properties panel on Page/Block views
- * (SCHEMA.md "Class properties"): authored property values plus derived
- * class-binding defaults, read through getEffectiveProperties.
+ * MetadataSection — the page's effective-properties panel, re-skinned into
+ * interaction preserved):
  *
- * Rendering contract:
- *  - derived defaults render DIMMED with a "default" hint — they are
- *    configuration projections, not authored data;
- *  - editing any row writes an authored property.set, which from then on
- *    SHADOWS the default (the row flips to source "authored" on re-render);
- *  - an authored value whose class binding went away stays visible, marked
- *    "unbound" (authored values always survive — design law).
+ *    collapsible "Metadata" header with icon + count;
+ *    label + pill chips (radius full, class-color or primary-container
+ *    background, icon + name, × revealed on hover) + a "+ Add class" ghost
+ *    pill with a search picker (client.assignClass);
+ *    .section-label): derived defaults stay dimmed with a "default" hint,
+ *    authored values win, unbound survivors are marked;
+ *  - node-typed / date / date_range values render as pills; the picker,
+ *    upload, annotations and date-qualifier affordances are unchanged.
  *
- * Node-typed properties (schema type "object") render as chips of linked
- * nodes plus an add affordance: a picker searching existing nodes filtered by
- * the schema's targetClassFilter, and — when the filter targets the asset
- * class — an "upload file" action (POST /api/v1/assets → asset node +
- * asset.attach + property.set). Chip removal unlinks the value's slot
- * (property.unset), the same per-idx write pattern the scalar editor uses.
- * Asset chips additionally carry an annotations affordance (❝) opening the
- * lazy Annotations section for that asset (SCHEMA.md annotation family:
- * highlight-classed objects linked via the seeded highlight_asset property):
- * the annotation list plus the add-annotation form (quote/page/note).
- *
- * The panel is node-typed agnostic: PageView mounts it for the page; any
- * future Block View can mount it for a block with the same props.
- *
- * The node's own classes render as chips above the property rows (the
- * panel's "Classes" affordance): each chip's × issues class.unassign — the
- * OR-Set remove drops the class's derived defaults from this panel's read
- * and leaves authored values in place, marked unbound.
+ * The nt-* class hooks the tests assert on (.nt-properties-panel,
  */
 
 import { useRef, useState } from "react";
@@ -48,8 +31,11 @@ import type {
   WorkspaceClient,
 } from "@/core/workspace-client.js";
 
-import { AnnotationsSection } from "./AnnotationsSection.js";
-import { DatePicker } from "./DatePicker.js";
+import { AnnotationsSection } from "../AnnotationsSection.js";
+import { DatePicker } from "../DatePicker.js";
+import { Icon } from "../Icon.js";
+import { NodeViewSection } from "./NodeViewSection.js";
+import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -139,8 +125,21 @@ function isAssetClass(client: AnyClient, classId: string): boolean {
 }
 
 /**
- * One node-typed property: chips of the linked nodes + the add/upload picker.
- * `rows` are the effective rows of this schema on the node (authored chips
+ * Readable text on a class-color background: relative-luminance threshold
+ * picks the black/white token (class colors are stored hex, see ClassView).
+ */
+function contrastFor(hex: string): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (match === null) return "var(--color-on-primary-container)";
+  const rgb = parseInt(match[1]!, 16);
+  const channel = (shift: number) => ((rgb >> shift) & 0xff) / 255;
+  const luminance = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
+  return luminance > 0.45 ? "var(--color-black)" : "var(--color-white)";
+}
+
+/**
+ * One node-typed property: pills of the linked nodes + the add/upload picker.
+ * `rows` are the effective rows of this schema on the node (authored pills
  * and, dimmed, any derived default) — empty when the binding has no values
  * yet, so the add affordance is reachable before the first link.
  */
@@ -168,7 +167,7 @@ function ObjectPropertyRow({
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Chip ref whose annotations section is open (one at a time), null = none. */
+  /** Pill ref whose annotations section is open (one at a time), null = none. */
   const [annotatingRef, setAnnotatingRef] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -178,16 +177,16 @@ function ObjectPropertyRow({
   const schemaRow = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
   const dateQualified = schemaRow?.dateQualified === true;
 
-  const chips = rows
+  const pills = rows
     .map((row) => ({ row, ref: nodeRefOf(row.value) }))
-    .filter((chip): chip is { row: EffectiveProperty; ref: string } => chip.ref !== null)
+    .filter((pill): pill is { row: EffectiveProperty; ref: string } => pill.ref !== null)
     .sort((a, b) => a.row.idx - b.row.idx);
-  const linkedIds = new Set(chips.map((chip) => chip.ref));
+  const linkedIds = new Set(pills.map((pill) => pill.ref));
   const authoredIdx = rows.filter((row) => row.source === "authored").map((row) => row.idx);
   // Per-slot write pattern: append at the next free idx (0 shadows a default).
   const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
 
-  const chipLabel = (ref: string): string => {
+  const pillLabel = (ref: string): string => {
     if (isAssetTarget) {
       const info = client.getAssetInfo(ref);
       if (info !== undefined) return info.originalName;
@@ -255,35 +254,47 @@ function ObjectPropertyRow({
   return (
     <li
       className={
-        allDefault ? "nt-property nt-property-default nt-property-object" : "nt-property nt-property-object"
+        allDefault
+          ? "nt-property nt-property-default nt-property-object node-metadata-row"
+          : "nt-property nt-property-object node-metadata-row"
       }
     >
-      <span className="nt-property-name">{label}</span>
+      <span className="section-label nt-property-name">{label}</span>
       {allDefault && <span className="nt-property-hint">default</span>}
       {unbound && <span className="nt-property-hint">unbound</span>}
-      <span className="nt-property-chips">
-        {chips.map(({ row, ref }) => {
-          const removeLabel = `Remove ${chipLabel(ref)}`;
+      <span className="nt-property-chips node-metadata-pills">
+        {pills.map(({ row, ref }) => {
+          const removeLabel = `Remove ${pillLabel(ref)}`;
           const download = () => {
             const info = client.getAssetInfo(ref);
             if (info !== undefined) void client.downloadAsset(info.assetId);
           };
+          const linkedNode = client.getNode(ref);
           return (
             <span
               key={`${propertySchemaId}:${row.idx}`}
-              className={row.source === "default" ? "nt-chip nt-chip-default" : "nt-chip"}
+              className={
+                row.source === "default"
+                  ? "pill pill--default"
+                  : "pill pill--hover-reveal-right"
+              }
             >
+              {linkedNode?.icon !== null && linkedNode?.icon !== undefined && (
+                <span className="pill__left-icon">
+                  <Icon path={linkedNode.icon} size={0.7} />
+                </span>
+              )}
               {isAssetTarget ? (
-                <button type="button" className="nt-chip-label" title="Download" onClick={download}>
-                  {chipLabel(ref)}
+                <button type="button" className="pill__text nt-chip-label" title="Download" onClick={download}>
+                  {pillLabel(ref)}
                 </button>
               ) : (
-                <span className="nt-chip-label">{chipLabel(ref)}</span>
+                <span className="pill__text nt-chip-label">{pillLabel(ref)}</span>
               )}
               {row.source === "authored" && (
                 <button
                   type="button"
-                  className="nt-chip-remove"
+                  className="pill__right-button nt-chip-remove"
                   aria-label={removeLabel}
                   onClick={() => void unlink(row.idx)}
                 >
@@ -293,9 +304,9 @@ function ObjectPropertyRow({
               {isAssetTarget && (
                 <button
                   type="button"
-                  className="nt-chip-annotations"
+                  className="pill__right-button nt-chip-annotations"
                   title="Annotations"
-                  aria-label={`Annotate ${chipLabel(ref)}`}
+                  aria-label={`Annotate ${pillLabel(ref)}`}
                   aria-expanded={annotatingRef === ref}
                   onClick={() => setAnnotatingRef((cur) => (cur === ref ? null : ref))}
                 >
@@ -306,7 +317,7 @@ function ObjectPropertyRow({
                 <QualifierRange
                   start={typeof row.metadata?.startDate === "string" ? row.metadata.startDate : ""}
                   end={typeof row.metadata?.endDate === "string" ? row.metadata.endDate : ""}
-                  ariaLabel={chipLabel(ref)}
+                  ariaLabel={pillLabel(ref)}
                   onCommit={(startIso, endIso) => {
                     const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
                     if (startIso === "") delete metadata.startDate;
@@ -320,7 +331,7 @@ function ObjectPropertyRow({
             </span>
           );
         })}
-        {!(multi === false && chips.length > 0) && (
+        {!(multi === false && pills.length > 0) && (
           <button
             type="button"
             className="nt-chip-add"
@@ -332,11 +343,7 @@ function ObjectPropertyRow({
         )}
       </span>
       {annotatingRef !== null && (
-        <AnnotationsSection
-          client={client}
-          assetId={annotatingRef}
-          onOpenPage={onOpenPage}
-        />
+        <AnnotationsSection client={client} assetId={annotatingRef} onOpenPage={onOpenPage} />
       )}
       {pickerOpen && (
         <div className="nt-property-picker">
@@ -395,10 +402,10 @@ function ObjectPropertyRow({
 
 /**
  * One date-typed property (SCHEMA.md "Dates"): the schema's effective rows
- * render as date chips; picking a date ensures the year/month/day chain and
+ * render as date pills; picking a date ensures the year/month/day chain and
  * links the node at the schema's precision ({ "nodeId": … }, the shape the
  * edge index projects — the year node backlinks everything dated that year).
- * Editing an existing chip's date overwrites the same slot's ref.
+ * Editing an existing pill's date overwrites the same slot's ref.
  */
 function DatePropertyRow({
   client,
@@ -429,7 +436,7 @@ function DatePropertyRow({
     setPickerFor(null);
   };
 
-  const chipText = (row: EffectiveProperty): string => {
+  const pillText = (row: EffectiveProperty): string => {
     const ref = nodeRefOf(row.value);
     if (ref !== null) return dateLabelOf(ref);
     return toEditableText(row.value); // scalar binding default, shown as-is
@@ -441,31 +448,37 @@ function DatePropertyRow({
   return (
     <li
       className={
-        allDefault ? "nt-property nt-property-default nt-property-date" : "nt-property nt-property-date"
+        allDefault
+          ? "nt-property nt-property-default nt-property-date node-metadata-row"
+          : "nt-property nt-property-date node-metadata-row"
       }
     >
-      <span className="nt-property-name">{label}</span>
+      <span className="section-label nt-property-name">{label}</span>
       {allDefault && <span className="nt-property-hint">default</span>}
       {unbound && <span className="nt-property-hint">unbound</span>}
-      <span className="nt-property-chips">
+      <span className="nt-property-chips node-metadata-pills">
         {ordered.map((row) => (
           <span
             key={`${propertySchemaId}:${row.idx}`}
-            className={row.source === "default" ? "nt-chip nt-chip-default" : "nt-chip"}
+            className={
+              row.source === "default"
+                ? "pill pill--default"
+                : "pill pill--hover-reveal-right"
+            }
           >
             <button
               type="button"
-              className="nt-chip-label"
+              className="pill__text nt-chip-label"
               aria-label={`Set ${label}`}
               aria-expanded={pickerFor === row.idx}
               onClick={() => setPickerFor((cur) => (cur === row.idx ? null : row.idx))}
             >
-              {chipText(row)}
+              {pillText(row)}
             </button>
             {row.source === "authored" && (
               <button
                 type="button"
-                className="nt-chip-remove"
+                className="pill__right-button nt-chip-remove"
                 aria-label={`Clear ${label}`}
                 onClick={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
               >
@@ -590,14 +603,14 @@ function DateRangePropertyRow({
     <li
       className={
         allDefault
-          ? "nt-property nt-property-default nt-property-date-range"
-          : "nt-property nt-property-date-range"
+          ? "nt-property nt-property-default nt-property-date-range node-metadata-row"
+          : "nt-property nt-property-date-range node-metadata-row"
       }
     >
-      <span className="nt-property-name">{label}</span>
+      <span className="section-label nt-property-name">{label}</span>
       {allDefault && <span className="nt-property-hint">default</span>}
       {unbound && <span className="nt-property-hint">unbound</span>}
-      <span className="nt-property-chips">
+      <span className="nt-property-chips node-metadata-pills">
         {ordered.map((row) => (
           <span key={`${propertySchemaId}:${row.idx}`} className="nt-range">
             {slot(row, row.idx, "start")}
@@ -644,7 +657,7 @@ function DateRangePropertyRow({
 
 /**
  * Link qualifier range control (SCHEMA.md "Dates", dateQualified schemas):
- * small start/end date inputs next to a node-typed chip; values persist as
+ * small start/end date inputs next to a node-typed pill; values persist as
  * property.set metadata.startDate/endDate (ISO strings — node-backed date
  * qualifiers are the possible M2 evolution).
  */
@@ -688,7 +701,122 @@ function QualifierRange({
   );
 }
 
-export function PropertiesPanel({
+/**
+ * primary-container background, class icon + name, × on hover) and a
+ * "+ Add class" ghost pill opening a search picker (assignClass).
+ */
+function ClassesRow({
+  client,
+  nodeId,
+  classIds,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  classIds: string[];
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const candidates = client
+    .listClasses()
+    .filter((cls) => !classIds.includes(cls.id))
+    .filter((cls) => {
+      const q = query.trim().toLowerCase();
+      return q === "" || (cls.name ?? "").toLowerCase().includes(q);
+    });
+
+  return (
+    <div className="node-metadata-row nt-classes-row">
+      <div className="section-label">Classes:</div>
+      <div className="nt-property-chips node-metadata-pills">
+        {classIds.map((classId) => {
+          const cls = client.getNode(classId);
+          const label = client.getDisplayName(classId) ?? classId;
+          const colored =
+            cls?.color !== null && cls?.color !== undefined ? cls.color : null;
+          return (
+            <span
+              key={classId}
+              className="pill pill--hover-reveal-right"
+              style={
+                colored !== null
+                  ? { background: colored, color: contrastFor(colored) }
+                  : undefined
+              }
+            >
+              {cls?.icon !== null && cls?.icon !== undefined && (
+                <span className="pill__left-icon">
+                  <Icon path={cls.icon} size={0.7} />
+                </span>
+              )}
+              <button
+                type="button"
+                className="pill__text"
+                onClick={() => onOpenPage?.(classId)}
+              >
+                {label}
+              </button>
+              <button
+                type="button"
+                className="pill__right-button"
+                aria-label={`Remove class ${label}`}
+                onClick={() => void client.unassignClass(nodeId, classId)}
+              >
+                ×
+              </button>
+            </span>
+          );
+        })}
+        <span className="nt-class-add-anchor">
+          <button
+            type="button"
+            className="nt-chip-add nt-class-add"
+            aria-expanded={pickerOpen}
+            onClick={() => setPickerOpen((open) => !open)}
+          >
+            + Add class
+          </button>
+          {pickerOpen && (
+            <div className="nt-property-picker nt-class-picker">
+              <input
+                autoFocus
+                type="text"
+                className="nt-property-value"
+                aria-label="Search classes"
+                placeholder="Search classes…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <ul className="nt-picker-list">
+                {candidates.map((cls) => (
+                  <li key={cls.id}>
+                    <button
+                      type="button"
+                      className="nt-picker-item"
+                      onClick={() => {
+                        void client.assignClass(nodeId, cls.id);
+                        setPickerOpen(false);
+                        setQuery("");
+                      }}
+                    >
+                      {cls.icon !== null && <Icon path={cls.icon} size={0.8} />}
+                      {deriveDisplayName(cls) || cls.id}
+                    </button>
+                  </li>
+                ))}
+                {candidates.length === 0 && <li className="nt-picker-empty">No classes.</li>}
+              </ul>
+            </div>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function MetadataSection({
   client,
   nodeId,
   onOpenPage,
@@ -742,7 +870,7 @@ export function PropertiesPanel({
     }
   }
 
-  // The node's own classes: chips with an × that unassigns (class.unassign).
+  // The node's own classes: pills with an × that unassigns (class.unassign).
   const classIds = node?.classIds ?? [];
 
   if (rows.length === 0 && emptyObjectBindings.length === 0 && classIds.length === 0) return null;
@@ -799,88 +927,82 @@ export function PropertiesPanel({
     );
   };
 
+  const count = classIds.length + rows.length + emptyObjectBindings.length;
+
   return (
-    <section className="nt-class-panel nt-properties-panel" aria-label="Properties">
-      <h2 className="nt-class-panel-title">Properties</h2>
-      {classIds.length > 0 && (
-        <ul className="nt-class-chips" aria-label="Classes">
-          {classIds.map((classId) => {
-            const label = client.getDisplayName(classId) ?? classId;
+    <NodeViewSection
+      title="Metadata"
+      icon={<Icon path="mdi-tag-multiple-outline" size={0.9} />}
+      count={count}
+      className="node-metadata-section nt-properties-panel"
+      defaultExpanded
+    >
+      <div className="node-metadata-content">
+        {classIds.length > 0 && (
+          <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+        )}
+        <ul className="nt-properties-list">
+          {rendered.map((entry) => {
+            if (entry === null) return null;
+            if (entry.kind === "grouped") {
+              const schema = entry.groupRows[0]?.schema ?? null;
+              return groupedRow(
+                entry.type,
+                entry.propertySchemaId,
+                schema?.name ?? entry.propertySchemaId,
+                schema?.multi ?? true,
+                schema,
+                null,
+                entry.groupRows,
+              );
+            }
+            const row = entry.row;
+            const label = labelOf(row);
+            const editable = toEditableText(row.value);
             return (
-              <li key={classId} className="nt-class-chip">
-                <span className="nt-class-chip-name">{label}</span>
-                <button
-                  type="button"
-                  className="nt-class-chip-remove"
-                  aria-label={`Remove class ${label}`}
-                  onClick={() => void client.unassignClass(nodeId, classId)}
-                >
-                  ×
-                </button>
+              <li
+                key={`${row.propertySchemaId}:${row.idx}`}
+                className={
+                  row.source === "default"
+                    ? "nt-property nt-property-default node-metadata-row"
+                    : "nt-property node-metadata-row"
+                }
+              >
+                <span className="section-label nt-property-name">{label}</span>
+                {row.source === "default" && <span className="nt-property-hint">default</span>}
+                {row.source === "authored" && row.boundBy === null && (
+                  <span className="nt-property-hint">unbound</span>
+                )}
+                <input
+                  key={`${row.propertySchemaId}:${row.idx}:${editable}`}
+                  type="text"
+                  className="nt-property-value"
+                  defaultValue={editable}
+                  aria-label={`Property ${label}`}
+                  onBlur={(event) => {
+                    const next = fromEditableText(event.target.value);
+                    // Deep-compare so a no-op blur never enqueues a write.
+                    if (JSON.stringify(next) !== JSON.stringify(row.value)) {
+                      void client.setProperty(nodeId, row.propertySchemaId, next, row.idx);
+                    }
+                  }}
+                />
               </li>
             );
           })}
+          {emptyObjectBindings.map((binding) =>
+            groupedRow(
+              binding.type,
+              binding.propertySchemaId,
+              binding.name,
+              binding.multi,
+              { datePrecision: binding.datePrecision },
+              binding.targetClassFilter,
+              [],
+            ),
+          )}
         </ul>
-      )}
-      <ul className="nt-properties-list">
-        {rendered.map((entry) => {
-          if (entry === null) return null;
-          if (entry.kind === "grouped") {
-            const schema = entry.groupRows[0]?.schema ?? null;
-            return groupedRow(
-              entry.type,
-              entry.propertySchemaId,
-              schema?.name ?? entry.propertySchemaId,
-              schema?.multi ?? true,
-              schema,
-              null,
-              entry.groupRows,
-            );
-          }
-          const row = entry.row;
-          const label = labelOf(row);
-          const editable = toEditableText(row.value);
-          return (
-            <li
-              key={`${row.propertySchemaId}:${row.idx}`}
-              className={
-                row.source === "default" ? "nt-property nt-property-default" : "nt-property"
-              }
-            >
-              <span className="nt-property-name">{label}</span>
-              {row.source === "default" && <span className="nt-property-hint">default</span>}
-              {row.source === "authored" && row.boundBy === null && (
-                <span className="nt-property-hint">unbound</span>
-              )}
-              <input
-                key={`${row.propertySchemaId}:${row.idx}:${editable}`}
-                type="text"
-                className="nt-property-value"
-                defaultValue={editable}
-                aria-label={`Property ${label}`}
-                onBlur={(event) => {
-                  const next = fromEditableText(event.target.value);
-                  // Deep-compare so a no-op blur never enqueues a write.
-                  if (JSON.stringify(next) !== JSON.stringify(row.value)) {
-                    void client.setProperty(nodeId, row.propertySchemaId, next, row.idx);
-                  }
-                }}
-              />
-            </li>
-          );
-        })}
-        {emptyObjectBindings.map((binding) =>
-          groupedRow(
-            binding.type,
-            binding.propertySchemaId,
-            binding.name,
-            binding.multi,
-            { datePrecision: binding.datePrecision },
-            binding.targetClassFilter,
-            [],
-          ),
-        )}
-      </ul>
-    </section>
+      </div>
+    </NodeViewSection>
   );
 }

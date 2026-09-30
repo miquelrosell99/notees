@@ -147,8 +147,8 @@ describe("Properties panel (effective values)", () => {
     await client.setProperty(pageId, effortSchemaId, "authored", 0);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    // Both classes render as chips, each with a remove affordance.
-    expect(container.querySelectorAll(".nt-class-chip").length).toBe(2);
+    // Both classes render as pills, each with a remove affordance.
+    expect(container.querySelectorAll(".nt-classes-row .pill").length).toBe(2);
     expect(screen.getByRole("button", { name: "Remove class Task" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Remove class Project" })).not.toBeNull();
 
@@ -157,8 +157,8 @@ describe("Properties panel (effective values)", () => {
 
     // class.unassign: membership tombstoned, class_ids recomputed.
     expect(client.getNode(pageId)?.classIds).toEqual([projectId]);
-    // The panel re-renders: Task's chip is gone.
-    expect(container.querySelectorAll(".nt-class-chip").length).toBe(1);
+    // The panel re-renders: Task's pill is gone.
+    expect(container.querySelectorAll(".nt-classes-row .pill").length).toBe(1);
     expect(screen.queryByRole("button", { name: "Remove class Task" })).toBeNull();
 
     // The read model: Task's derived defaults are gone; Project's 'high'

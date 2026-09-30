@@ -75,7 +75,6 @@ import { MarkToolbar } from "./MarkToolbar.js";
 import { VerbPopover } from "./VerbPopover.js";
 import { useOutliner } from "./outliner-context.js";
 
-/** Debounce cadence for content saves (v1 used 150 ms; M1 uses ~400 ms). */
 export const SAVE_DEBOUNCE_MS = 400;
 
 /** How the caret should land when the editor mounts. */

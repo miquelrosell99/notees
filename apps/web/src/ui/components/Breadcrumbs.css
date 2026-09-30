@@ -1,0 +1,133 @@
+/**
+ * components/nodes/NodeBreadcrumbs.css). Class names unchanged; only the
+ * edits v2 needs were made (the popup backdrop is a button, the per-item
+ */
+
+.node-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--spacing-1);
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+}
+
+.node-breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.node-breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    color var(--motion-duration-short) var(--motion-easing-standard);
+  font: inherit;
+  min-width: 0;
+}
+
+.node-breadcrumb-link:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.node-breadcrumb-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--color-on-surface-variant);
+}
+
+.node-breadcrumb-name {
+  max-width: var(--layout-size-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-breadcrumb-separator {
+  color: var(--color-outline);
+  flex-shrink: 0;
+}
+
+/* ─── Ellipsis / overflow collapse ─────────────────────────────────────── */
+
+.node-breadcrumb-ellipsis-container {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.node-breadcrumb-ellipsis {
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 1px;
+  min-width: 1.75rem;
+  justify-content: center;
+}
+
+/* ─── Overflow popup ───────────────────────────────────────────────────── */
+
+.node-breadcrumb-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sticky);
+  border: none;
+  background: transparent;
+  cursor: default;
+}
+
+.node-breadcrumb-popup-anchor {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--z-fixed);
+  padding-top: var(--spacing-1);
+}
+
+.node-breadcrumbs-popup {
+  display: flex;
+  flex-direction: column;
+  min-width: var(--layout-size-xl);
+  max-width: var(--layout-size-6xl);
+  max-height: var(--layout-size-8xl);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  padding: var(--spacing-1);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.node-breadcrumbs-popup-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface);
+  cursor: pointer;
+  font: var(--font-label-medium);
+  text-align: left;
+  white-space: nowrap;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-breadcrumbs-popup-item:hover {
+  background: var(--color-surface-container-high);
+}
+
+.node-breadcrumb-popup-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}

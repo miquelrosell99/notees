@@ -1,0 +1,335 @@
+/**
+ *    NodeMetadataSection.css + NodeView.css;
+ *    hover-reveal right button) — class pills use the class color or the
+ *    primary-container token background;
+ *  - the effective-property rows (labels, hints, scalar editor, picker
+ *    popover) restyled as metadata rows (moved out of app.css).
+ *
+ * All colors/spacing resolve to design tokens — no raw hex values.
+ */
+
+.node-metadata-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.node-metadata-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+  font-size: var(--font-size-sm);
+}
+
+.section-label {
+  flex-shrink: 0;
+  width: var(--layout-size-sm);
+  font: var(--font-title-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  margin-right: var(--spacing-2);
+  white-space: nowrap;
+}
+
+.node-metadata-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2-5);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-radius: var(--shape-full);
+  font: var(--font-label-medium);
+  border: var(--border-width-default) solid transparent;
+  min-width: 0;
+}
+
+.pill:hover {
+  border-color: var(--color-outline-variant);
+}
+
+.pill--default {
+  border-style: dashed;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+}
+
+.pill__left-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pill__text {
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  min-width: 0;
+}
+
+span.pill__text {
+  cursor: default;
+}
+
+.pill__right-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Hover-reveal right icon: the pill only grows horizontally (the text never
+.pill--hover-reveal-right .pill__text {
+  flex-shrink: 0;
+}
+
+.pill--hover-reveal-right .pill__right-button {
+  max-width: 0;
+  opacity: var(--opacity-0);
+  overflow: hidden;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    max-width var(--motion-duration-short) var(--motion-easing-standard),
+    margin var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.pill--hover-reveal-right:hover .pill__right-button,
+.pill--hover-reveal-right:focus-within .pill__right-button {
+  max-width: var(--spacing-6);
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+}
+
+.pill--hover-reveal-right .pill__right-button:hover {
+  opacity: var(--opacity-100);
+}
+
+/* The annotations affordance stays visible (it is a primary action on
+   asset pills, not a removal). */
+.pill--hover-reveal-right .pill__right-button.nt-chip-annotations {
+  max-width: var(--spacing-6);
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+}
+
+.nt-chip-annotations:hover,
+.nt-chip-annotations[aria-expanded="true"] {
+  opacity: var(--opacity-100);
+}
+
+/* "+ Add class" ghost pill + its picker anchor. */
+.nt-class-add-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.nt-chip-add {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  background: none;
+  border: var(--border-width-default) dashed var(--color-outline);
+  border-radius: var(--shape-full);
+  padding: var(--spacing-1) var(--spacing-3);
+  cursor: pointer;
+}
+
+.nt-chip-add:hover {
+  border-color: var(--color-on-surface-variant);
+  color: var(--color-on-surface);
+}
+
+.nt-class-picker {
+  left: 0;
+  top: 100%;
+}
+
+/* --- effective-property rows ---------------------------------------------- */
+
+.nt-properties-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-property {
+  position: relative;
+}
+
+.nt-property-hint {
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  padding: 0 var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.nt-property-default .nt-property-value {
+  color: var(--color-on-surface-variant);
+}
+
+.nt-property-default .section-label,
+.nt-property-default .nt-property-name {
+  color: var(--color-on-surface-variant);
+}
+
+.nt-property-value {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) solid var(--color-outline);
+  border-radius: var(--shape-medium);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  min-width: var(--layout-size-md);
+  max-width: 100%;
+}
+
+/* The picker popover (property search / add-class). */
+.nt-property-picker {
+  position: absolute;
+  top: 100%;
+  left: var(--layout-size-sm);
+  z-index: var(--z-node-overlay);
+  width: var(--layout-size-5xl);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-elevation-2);
+  padding: var(--spacing-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: var(--layout-size-5xl);
+  overflow-y: auto;
+}
+
+.nt-picker-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  background: none;
+  border: none;
+  padding: var(--spacing-2);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface);
+}
+
+.nt-picker-item:hover {
+  background: var(--color-surface-container-high);
+}
+
+.nt-picker-empty {
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-2);
+}
+
+.nt-picker-upload {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  background: none;
+  border: var(--border-width-default) solid var(--color-outline);
+  border-radius: var(--shape-small);
+  padding: var(--spacing-2);
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-picker-upload:hover {
+  border-color: var(--color-on-surface-variant);
+}
+
+.nt-file-input {
+  display: none;
+}
+
+.nt-picker-error {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+/* --- date range rows + link qualifiers ------------------------------------ */
+
+.nt-range {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  padding: var(--spacing-1) var(--spacing-3);
+  background: var(--color-surface);
+}
+
+.nt-range-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-range-slot-name {
+  font-size: var(--font-size-2xs);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-chip-qualifier {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-inline-start: var(--spacing-2);
+}
+
+.nt-chip-qualifier-input {
+  font: inherit;
+  font-size: var(--font-size-2xs);
+  color: var(--color-on-surface-variant);
+  padding: 1px var(--spacing-1);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  width: 8.5rem;
+}

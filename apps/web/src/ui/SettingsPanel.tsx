@@ -15,6 +15,8 @@ import {
   type ApiKeyEntry,
 } from "@/core/auth-api.js";
 
+import "./components/Modal.css";
+
 export function SettingsPanel({
   serverUrl,
   token,
