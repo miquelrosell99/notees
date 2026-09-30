@@ -77,11 +77,11 @@ describe("Properties panel (effective values)", () => {
     ]);
   });
 
-  it("renders nothing when the node has no effective properties", async () => {
+  it("still renders the section when the node has no effective properties (always-visible metadata)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Plain" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    expect(container.querySelector(".nt-properties-panel")).toBeNull();
+    expect(container.querySelector(".nt-properties-panel")).not.toBeNull();
   });
 
   it("editing a default writes an authored value that shadows it", async () => {

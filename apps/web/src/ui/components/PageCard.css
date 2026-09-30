@@ -56,3 +56,21 @@
   margin-left: auto;
   margin-right: auto;
 }
+
+/* Right sidebar: an empty card mirroring the main container chrome. */
+.nt-right-card {
+  width: 300px;
+  flex-shrink: 0;
+  margin: var(--spacing-3, 12px) var(--spacing-3, 12px) var(--spacing-3, 12px) 0;
+  background: var(--color-surface);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-card, 14px);
+  box-shadow: var(--shadow-elevation-1, 0 2px 8px rgba(0, 0, 0, 0.18));
+  overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+  .nt-right-card {
+    display: none;
+  }
+}

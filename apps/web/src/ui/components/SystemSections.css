@@ -154,3 +154,11 @@
 ul.nt-refgroup-blocks > li {
   list-style: none;
 }
+
+/* Compact per-reference breadcrumbs above each referencing block. */
+.nt-refgroup-blocks > li > .node-breadcrumbs {
+  display: block;
+  margin: 4px 0 0 var(--spacing-2, 8px);
+  font-size: 11.5px;
+  opacity: 0.85;
+}

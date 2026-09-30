@@ -173,19 +173,20 @@
   opacity: var(--opacity-80);
 }
 
+/* Sidebar visibility is state-driven at every width (topbar hamburger). */
+.nt-sidebar {
+  display: none;
+}
+.nt-sidebar-open .nt-sidebar {
+  display: flex;
+}
 @media (max-width: 800px) {
-  .nt-sidebar {
-    display: none;
+  .nt-sidebar-open .nt-sidebar {
     position: fixed;
     top: var(--topbar-height);
     bottom: 0;
     left: 0;
-    z-index: var(--z-sticky);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-elevation-2);
-  }
-
-  .nt-sidebar-open .nt-sidebar {
-    display: flex;
+    z-index: 50;
+    box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.3));
   }
 }

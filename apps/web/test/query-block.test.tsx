@@ -369,7 +369,7 @@ describe("query block (live query token)", () => {
 
     // Toggling back restores the list and rewrites the token.
     fireEvent.click(screen.getByLabelText("List view"));
-    await screen.findByRole("list");
+    await screen.findByRole("list", { name: "Query results" });
     expect(container.querySelector(".nt-query-table")).toBeNull();
     token = client.getNode(block)!.contentAst[0] as unknown as typeof token;
     expect(token.view).toEqual({ mode: "list" });
