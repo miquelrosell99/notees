@@ -16,7 +16,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
 import { UserSettingsModal } from "../src/ui/components/modals/UserSettingsModal.js";
 import { SystemSettingsModal } from "../src/ui/components/modals/SystemSettingsModal.js";
-import { ManageWorkspacesModal } from "../src/ui/components/modals/ManageWorkspacesModal.js";
+import { WorkspacesView } from "../src/ui/components/WorkspacesView.js";
 import { Sidebar, type AnyClient } from "../src/ui/components/Sidebar.js";
 import { WorkspaceSwitcher } from "../src/ui/components/WorkspaceSwitcher.js";
 import type { AccountUser, WorkspaceEntry } from "../src/core/auth-api.js";
@@ -481,13 +481,12 @@ describe("ManageWorkspacesModal", () => {
     });
     const onSwitch = vi.fn();
     render(
-      <ManageWorkspacesModal
-        isOpen
-        onClose={() => {}}
+      <WorkspacesView
         serverUrl="https://notees.example.com"
         credential="session-token"
+        user={null}
         activeWorkspaceId="ws1"
-        onSwitch={onSwitch}
+        onEnter={onSwitch}
       />,
     );
     expect(await screen.findByText("Garden")).toBeInTheDocument();
@@ -504,12 +503,12 @@ describe("ManageWorkspacesModal", () => {
     });
     const onRenamed = vi.fn();
     render(
-      <ManageWorkspacesModal
-        isOpen
-        onClose={() => {}}
+      <WorkspacesView
         serverUrl="https://notees.example.com"
         credential="session-token"
+        user={null}
         activeWorkspaceId="ws2"
+        onEnter={() => {}}
         onRenamed={onRenamed}
       />,
     );
@@ -528,11 +527,11 @@ describe("ManageWorkspacesModal", () => {
       "/api/v1/workspaces": () => ({ workspaces: [WS2] }),
     });
     render(
-      <ManageWorkspacesModal
-        isOpen
-        onClose={() => {}}
+      <WorkspacesView
         serverUrl="https://notees.example.com"
         credential="session-token"
+        user={null}
+        onEnter={() => {}}
         activeWorkspaceId="ws2"
       />,
     );
@@ -558,13 +557,12 @@ describe("ManageWorkspacesModal", () => {
     );
     const onSwitch = vi.fn();
     render(
-      <ManageWorkspacesModal
-        isOpen
-        onClose={() => {}}
+      <WorkspacesView
         serverUrl="https://notees.example.com"
         credential="session-token"
+        user={null}
         activeWorkspaceId="ws1"
-        onSwitch={onSwitch}
+        onEnter={onSwitch}
       />,
     );
     fireEvent.click(await screen.findByRole("button", { name: /create workspace/i }));
@@ -581,11 +579,11 @@ describe("ManageWorkspacesModal", () => {
       "/api/v1/workspaces": () => ({ workspaces: [WS] }),
     });
     render(
-      <ManageWorkspacesModal
-        isOpen
-        onClose={() => {}}
+      <WorkspacesView
         serverUrl="https://notees.example.com"
         credential="session-token"
+        user={null}
+        onEnter={() => {}}
         activeWorkspaceId="ws1"
       />,
     );

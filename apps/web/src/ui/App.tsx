@@ -56,7 +56,7 @@ import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, type NavKey } from "./components/Sidebar.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
-import { ManageWorkspacesModal } from "./components/modals/ManageWorkspacesModal.js";
+import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
 import { applyAppearance, readDeviceSetting } from "./components/modals/deviceSettings.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
@@ -220,7 +220,7 @@ export function App() {
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
-  const [manageWorkspacesOpen, setManageWorkspacesOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
   /** True when the live credential is a session (API-key management needs one). */
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
@@ -267,12 +267,21 @@ export function App() {
     window.history.pushState({ node: id }, "", `/${id}`);
   }
 
-  /** Back/forward navigation drives the selection. */
+  /** Back/forward navigation drives the selection / views. */
   useEffect(() => {
     const onPopState = () => {
-      const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
-        window.location.pathname,
-      );
+      const path = window.location.pathname;
+      if (path === "/workspaces") {
+        setManagerOpen(true);
+        return;
+      }
+      if (path === "/login" || path === "/auth") {
+        setManagerOpen(false);
+        setSelectedPageId(null);
+        return;
+      }
+      const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(path);
+      setManagerOpen(false);
       setSelectedPageId(match !== null ? match[1]! : null);
     };
     window.addEventListener("popstate", onPopState);
@@ -408,6 +417,7 @@ export function App() {
         setSessionSignedIn(false);
       }
       setWorkspaceName(options.label ?? "Workspace");
+      window.history.pushState({ view: "app" }, "", "/");
       clientRef.current = nextClient;
       setClient(nextClient);
       setOffline(options.isOffline);
@@ -514,6 +524,7 @@ export function App() {
     try {
       const { workspaces: list } = await listWorkspaces(url, sessionToken);
       setWorkspaces(list);
+      window.history.pushState({ view: "workspaces" }, "", "/workspaces");
       setPhase({ name: "workspaces", user: account });
     } catch (err) {
       setPhase({ name: "server" });
@@ -635,6 +646,7 @@ export function App() {
     clientRef.current = null;
     live?.close();
     setClient(null);
+    window.history.pushState({ view: "login" }, "", "/login");
     setPhase({ name: "server" });
   }
 
@@ -848,80 +860,34 @@ export function App() {
     );
   }
 
-  if (phase.name === "workspaces") {
-    const credentialType: CredentialType = authTab === "apikey" ? "apikey" : "session";
+  if (phase.name === "workspaces" || managerOpen) {
+    const enteringFromApp = phase.name === "ready" && client !== null;
     return (
-      <div className="nt-bootstrap">
-        <div className="nt-bootstrap-form nt-card nt-workspaces">
-          <div className="nt-brand">
-            <span className="nt-brand-mark" aria-hidden="true">
-              ◈
-            </span>
-            <h1 className="nt-bootstrap-title">Notees</h1>
-          </div>
-          <p className="nt-bootstrap-subtitle">
-            Signed in as {user?.email}. Choose a workspace:
-          </p>
-          <ul className="nt-workspace-list">
-            {workspaces.map((ws) => (
-              <li key={ws.id}>
-                <button
-                  type="button"
-                  className="nt-workspace-item"
-                  onClick={() =>
-                    void connect(serverUrl, token, ws.id, {
-                      isOffline: false,
-                      credentialType,
-                      label: ws.name ?? "Workspace",
-                    })
-                  }
-                >
-                  <span className="nt-workspace-name">{ws.name ?? "Workspace"}</span>
-                  <span className="nt-workspace-meta">
-                    {ws.envelopeCount} ops · {ws.role}
-                  </span>
-                </button>
-              </li>
-            ))}
-            {showDeviceWorkspace && (
-              <li>
-                <button
-                  type="button"
-                  className="nt-workspace-item nt-workspace-device"
-                  onClick={() =>
-                    void connect(serverUrl, token, localWorkspaceId, {
-                      isOffline: false,
-                      credentialType,
-                      label: "This device",
-                    })
-                  }
-                >
-                  <span className="nt-workspace-name">This device</span>
-                  <span className="nt-workspace-meta">offline workspace — pushes on connect</span>
-                </button>
-              </li>
-            )}
-          </ul>
-          <form className="nt-workspace-new" onSubmit={(e) => void handleCreateWorkspace(e)}>
-            <input
-              value={newWorkspaceName}
-              onChange={(e) => setNewWorkspaceName(e.target.value)}
-              placeholder="New workspace name"
-            />
-            <button type="submit">Create</button>
-          </form>
-          <div className="nt-bootstrap-actions">
-            <button type="button" className="nt-bootstrap-secondary" onClick={() => void handleWorkOffline()}>
-              Work offline
-            </button>
-            <button type="button" className="nt-bootstrap-secondary" onClick={() => void handleSignOut()}>
-              Sign out
-            </button>
-            <ThemeToggle />
-          </div>
-          {error !== null && <p className="nt-error">{error}</p>}
-        </div>
-      </div>
+      <WorkspacesView
+        serverUrl={serverUrl}
+        credential={token}
+        user={user}
+        activeWorkspaceId={readStored(STORAGE_KEYS.workspaceId) !== "" && enteringFromApp ? readStored(STORAGE_KEYS.workspaceId) : null}
+        onEnter={(workspaceId, name) => {
+          setManagerOpen(false);
+          if (enteringFromApp) {
+            setSelectedPageId(null);
+            void connect(serverUrl, token, workspaceId, {
+              isOffline: false,
+              credentialType: sessionSignedIn ? "session" : "apikey",
+              label: name,
+            });
+          } else {
+            void connect(serverUrl, token, workspaceId, {
+              isOffline: false,
+              credentialType: authTab === "apikey" ? "apikey" : "session",
+              label: name,
+            });
+          }
+        }}
+        onRenamed={(_id, name) => setWorkspaceName(name)}
+        onClose={enteringFromApp ? () => setManagerOpen(false) : undefined}
+      />
     );
   }
 
@@ -981,7 +947,10 @@ export function App() {
               label: name,
             });
           }}
-          onManageWorkspaces={() => setManageWorkspacesOpen(true)}
+          onManageWorkspaces={() => {
+            window.history.pushState({ view: "workspaces" }, "", "/workspaces");
+            setManagerOpen(true);
+          }}
           onSignOut={() => void handleSignOut()}
           onRenameWorkspace={(id, name) => {
             if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
@@ -1017,26 +986,6 @@ export function App() {
           token={token}
           user={user}
           onSignOut={() => void handleSignOut()}
-        />
-      )}
-      {manageWorkspacesOpen && !offline && (
-        <ManageWorkspacesModal
-          isOpen
-          onClose={() => setManageWorkspacesOpen(false)}
-          serverUrl={serverUrl}
-          credential={token}
-          activeWorkspaceId={readStored(STORAGE_KEYS.workspaceId)}
-          onSwitch={(id, name) => {
-            setSelectedPageId(null);
-            void connect(serverUrl, token, id, {
-              isOffline: false,
-              credentialType: sessionSignedIn ? "session" : "apikey",
-              label: name,
-            });
-          }}
-          onRenamed={(id, name) => {
-            if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
-          }}
         />
       )}
       {quickAddOpen && (
