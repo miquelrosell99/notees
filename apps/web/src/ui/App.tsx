@@ -220,6 +220,18 @@ export function App() {
   const [activeNav, setActiveNav] = useState<NavKey>("pages");
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
+
+  // Browser tab title follows the open node: "NAME - Notees" (pagesVersion
+  // keeps it fresh across renames and sync updates).
+  useEffect(() => {
+    if (client === null || selectedPageId === null) {
+      document.title = "Notees";
+      return;
+    }
+    const node = client.getNode(selectedPageId);
+    const name = node !== undefined ? deriveDisplayName(node) : "";
+    document.title = name !== "" ? `${name} - Notees` : "Notees";
+  }, [client, selectedPageId, pagesVersion]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   /** Open a node, record it in Recents (the Sidebar wraps this), and sync the URL. */
