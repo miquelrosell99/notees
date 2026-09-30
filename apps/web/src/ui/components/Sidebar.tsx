@@ -148,13 +148,32 @@ export function Sidebar({
     </li>
   );
 
-  const renderSection = (title: string, rows: ReturnType<typeof renderRow>[]) =>
-    rows.length === 0 ? null : (
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  const renderSection = (title: string, rows: ReturnType<typeof renderRow>[]) => {
+    if (rows.length === 0) return null;
+    const collapsed = collapsedSections[title] === true;
+    return (
       <section className="nt-side-section">
-        <h3 className="nt-side-header">{title}</h3>
-        <ul className="nt-side-list">{rows}</ul>
+        <button
+          type="button"
+          className="nt-side-header nt-side-header-toggle"
+          aria-expanded={!collapsed}
+          onClick={() =>
+            setCollapsedSections((previous) => ({ ...previous, [title]: !collapsed }))
+          }
+        >
+          <Icon
+            path={collapsed ? "mdi-chevron-right" : "mdi-chevron-down"}
+            size={0.8}
+            className="nt-side-header-chevron"
+          />
+          <span>{title}</span>
+        </button>
+        {!collapsed && <ul className="nt-side-list">{rows}</ul>}
       </section>
     );
+  };
 
   const navRow = (key: NavFilter, label: string, icon: string) => (
     <li key={key} className="nt-side-row">

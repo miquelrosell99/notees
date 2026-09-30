@@ -32,13 +32,10 @@
 }
 
 .nt-page-card {
-  width: min(960px, calc(100% - 48px));
-  height: calc(100% - 40px);
-  margin: 20px 0;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-card);
-  box-shadow: var(--shadow-elevation-2);
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -49,11 +46,9 @@
   color: var(--color-on-surface-variant);
 }
 
-@media (max-width: 800px) {
-  .nt-page-card {
-    width: calc(100% - 16px);
-    height: calc(100% - 16px);
-    margin: 8px 0;
-    border-radius: var(--shape-extra-large);
-  }
+
+.nt-page-card > * {
+  max-width: var(--layout-size-13xl, 960px);
+  margin-left: auto;
+  margin-right: auto;
 }
