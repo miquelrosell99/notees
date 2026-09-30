@@ -1,55 +1,55 @@
 /**
- * ManageWorkspacesModal Component
- *
- * Modal for managing the account's workspaces: lists them (name, membership
- * role, active badge), switches by clicking a row, renames via the shared
- * WorkspaceNameModal (PATCH /workspaces/:id, owner-only), and creates new
- * ones. Ported from the archived fullscreen workspace-management view;
- * features with no backend in this build (delete, members/sharing, duplicate,
- * import, export, restore) are omitted rather than faked.
+ * WorkspacesView — the FULLSCREEN workspace manager (the first screen after
+ * login, and reachable later from the switcher's "Manage workspaces").
+ * Lists the account's workspaces as cards: click to enter, rename
+ * (owner-only), create. Ported from the archived fullscreen management view;
+ * features with no backend (delete, members/sharing, duplicate, import,
+ * export) are omitted rather than faked.
  */
+
 import { useEffect, useState } from "react";
 
 import {
   createWorkspace,
   listWorkspaces,
+  type AccountUser,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
 
-import { Icon } from "../../Icon.js";
-import { Badge } from "../ui/Badge.js";
-import { Modal } from "../ui/Modal.js";
-import { Spinner } from "../ui/Spinner.js";
-import { WorkspaceNameModal } from "./WorkspaceNameModal.js";
-import { renameWorkspace } from "./workspaceApi.js";
-import "./ManageWorkspacesModal.css";
+import { Icon } from "../Icon.js";
+import { Badge } from "./ui/Badge.js";
+import { Spinner } from "./ui/Spinner.js";
+import { WorkspaceNameModal } from "./modals/WorkspaceNameModal.js";
+import { renameWorkspace } from "./modals/workspaceApi.js";
+import "./WorkspacesView.css";
 
-export interface ManageWorkspacesModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+export interface WorkspacesViewProps {
   serverUrl: string;
   credential: string;
-  /** The workspace the shell is currently connected to. */
-  activeWorkspaceId: string;
-  /** Switch the shell to a workspace (row click, and after create). */
-  onSwitch?: ((workspaceId: string, name: string) => void) | undefined;
+  user: AccountUser | null;
+  /** The workspace the shell is connected to (null before the first connect). */
+  activeWorkspaceId: string | null;
+  /** Enter a workspace (connect on first login; switch when connected). */
+  onEnter: (workspaceId: string, name: string) => void;
   /** Called after a rename so the shell can update its label. */
-  onRenamed?: ((workspaceId: string, name: string) => void) | undefined;
+  onRenamed?: ((workspaceId: string, name: string) => void | undefined) | undefined;
+  /** Present when opened from the switcher while connected: returns to the app. */
+  onClose?: (() => void) | undefined;
 }
 
 type NameModalState =
   | { mode: "create" }
   | { mode: "rename"; workspace: WorkspaceEntry };
 
-export function ManageWorkspacesModal({
-  isOpen,
-  onClose,
+export function WorkspacesView({
   serverUrl,
   credential,
+  user,
   activeWorkspaceId,
-  onSwitch,
+  onEnter,
   onRenamed,
-}: ManageWorkspacesModalProps) {
+  onClose,
+}: WorkspacesViewProps) {
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [nameModal, setNameModal] = useState<NameModalState | null>(null);
@@ -57,7 +57,6 @@ export function ManageWorkspacesModal({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
     let cancelled = false;
     setWorkspaces(null);
     setListError(null);
@@ -71,21 +70,12 @@ export function ManageWorkspacesModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, serverUrl, credential]);
+  }, [serverUrl, credential]);
 
   const refresh = (): void => {
     listWorkspaces(serverUrl, credential)
       .then(({ workspaces: list }) => setWorkspaces(list))
       .catch((err: unknown) => setListError(err instanceof Error ? err.message : String(err)));
-  };
-
-  const openWorkspace = (workspace: WorkspaceEntry): void => {
-    if (workspace.id === activeWorkspaceId) {
-      onClose();
-      return;
-    }
-    onClose();
-    onSwitch?.(workspace.id, workspace.name ?? "Workspace");
   };
 
   const handleNameSubmit = (name: string): void => {
@@ -97,8 +87,7 @@ export function ManageWorkspacesModal({
         .then(({ id }) => {
           setSubmitting(false);
           setNameModal(null);
-          onClose();
-          onSwitch?.(id, name);
+          onEnter(id, name);
         })
         .catch((err: unknown) => {
           setSubmitting(false);
@@ -129,21 +118,24 @@ export function ManageWorkspacesModal({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Manage Workspaces"
-      size="md"
-      closeOnBackdrop
-      closeOnEscape
-    >
-      <div className="manage-workspaces">
-        <p className="manage-workspaces__subtitle">
-          Select a workspace to open it, or create a new one.
+    <div className="workspaces-view">
+      <header className="workspaces-view__topbar">
+        <span className="nt-wordmark">Notees</span>
+        <span className="workspaces-view__title">Workspaces</span>
+        {onClose !== undefined && (
+          <button type="button" className="nt-icon-btn" aria-label="Back to workspace" onClick={onClose}>
+            <Icon path="mdi-close" size={1} />
+          </button>
+        )}
+      </header>
+      <div className="workspaces-view__body">
+        <p className="workspaces-view__subtitle">
+          {user !== null ? `Signed in as ${user.email}. ` : ""}
+          Choose a workspace to open it, or create a new one.
         </p>
 
         {listError !== null && (
-          <div className="manage-workspaces__error" role="alert">
+          <div className="workspaces-view__error" role="alert">
             <span>{listError}</span>
             <button type="button" onClick={refresh}>
               Retry
@@ -152,11 +144,11 @@ export function ManageWorkspacesModal({
         )}
 
         {workspaces === null && listError === null ? (
-          <div className="manage-workspaces__loading">
+          <div className="workspaces-view__loading">
             <Spinner size="sm" label="Loading workspaces…" />
           </div>
         ) : (
-          <ul className="manage-workspaces__list">
+          <ul className="workspaces-view__list">
             {(workspaces ?? []).map((workspace) => {
               const isActive = workspace.id === activeWorkspaceId;
               const displayName = workspace.name ?? "Workspace";
@@ -165,24 +157,18 @@ export function ManageWorkspacesModal({
                 <li
                   key={workspace.id}
                   className={
-                    isActive
-                      ? "manage-workspaces__row manage-workspaces__row--active"
-                      : "manage-workspaces__row"
+                    isActive ? "workspaces-view__card workspaces-view__card--active" : "workspaces-view__card"
                   }
                 >
                   <button
                     type="button"
-                    className="manage-workspaces__open"
-                    onClick={() => openWorkspace(workspace)}
+                    className="workspaces-view__open"
+                    onClick={() => onEnter(workspace.id, displayName)}
                   >
-                    <Icon
-                      path="mdi-database-outline"
-                      size={0.9}
-                      className="manage-workspaces__icon"
-                    />
-                    <span className="manage-workspaces__identity">
-                      <span className="manage-workspaces__name">{displayName}</span>
-                      <span className="manage-workspaces__meta">
+                    <Icon path="mdi-database-outline" size={1.1} className="workspaces-view__icon" />
+                    <span className="workspaces-view__identity">
+                      <span className="workspaces-view__name">{displayName}</span>
+                      <span className="workspaces-view__meta">
                         {workspace.role} · {workspace.envelopeCount} ops
                       </span>
                     </span>
@@ -190,7 +176,7 @@ export function ManageWorkspacesModal({
                   </button>
                   <button
                     type="button"
-                    className="manage-workspaces__rename"
+                    className="workspaces-view__rename"
                     aria-label={`Rename ${displayName}`}
                     title={canRename ? `Rename ${displayName}` : "Only the workspace owner can rename"}
                     disabled={!canRename}
@@ -201,20 +187,21 @@ export function ManageWorkspacesModal({
                 </li>
               );
             })}
+            <li>
+              <button
+                type="button"
+                className="workspaces-view__create"
+                onClick={() => {
+                  setNameError(null);
+                  setNameModal({ mode: "create" });
+                }}
+              >
+                <Icon path="mdi-plus" size={1} />
+                <span>Create workspace</span>
+              </button>
+            </li>
           </ul>
         )}
-
-        <button
-          type="button"
-          className="manage-workspaces__create"
-          onClick={() => {
-            setNameError(null);
-            setNameModal({ mode: "create" });
-          }}
-        >
-          <Icon path="mdi-plus" size={0.9} />
-          <span>Create workspace</span>
-        </button>
       </div>
 
       {nameModal !== null && (
@@ -232,6 +219,6 @@ export function ManageWorkspacesModal({
           error={nameError}
         />
       )}
-    </Modal>
+    </div>
   );
 }

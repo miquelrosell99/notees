@@ -1,0 +1,191 @@
+/**
+ * WorkspacesView styles — the fullscreen workspace manager. Token-only.
+ */
+
+.workspaces-view {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+  color: var(--color-on-surface);
+}
+
+.workspaces-view__topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  height: var(--topbar-height, 48px);
+  padding: 0 var(--spacing-4, 16px);
+  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  flex-shrink: 0;
+}
+
+.workspaces-view__title {
+  flex: 1;
+  font-size: var(--font-size-md, 14px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-on-surface-variant);
+}
+
+.workspaces-view__body {
+  flex: 1;
+  width: min(720px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: var(--spacing-10, 40px) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4, 16px);
+}
+
+.workspaces-view__subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+}
+
+.workspaces-view__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-8) 0;
+}
+
+.workspaces-view__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-default, 1px) solid var(--color-error);
+  border-radius: var(--shape-medium, 8px);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+  font-size: 13px;
+}
+
+.workspaces-view__error button {
+  border: var(--border-width-default, 1px) solid var(--color-error);
+  border-radius: var(--shape-medium, 8px);
+  background: transparent;
+  color: var(--color-on-error-container);
+  padding: 4px var(--spacing-3, 12px);
+  font-size: 12.5px;
+}
+
+.workspaces-view__error button:hover {
+  background: var(--color-hover-overlay);
+}
+
+.workspaces-view__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+  overflow-y: auto;
+}
+
+.workspaces-view__card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  padding: var(--spacing-1, 4px);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-large, 12px);
+  background: var(--color-surface);
+  transition: border-color var(--motion-duration-short, 120ms) ease;
+}
+
+.workspaces-view__card:hover {
+  border-color: var(--color-outline);
+}
+
+.workspaces-view__card--active {
+  border-color: var(--color-primary);
+}
+
+.workspaces-view__open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  padding: var(--spacing-3, 12px);
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspaces-view__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--color-on-surface-variant);
+}
+
+.workspaces-view__identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.workspaces-view__name {
+  font-size: 14.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspaces-view__meta {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.workspaces-view__rename {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: var(--spacing-2, 8px);
+  border: none;
+  border-radius: var(--shape-medium, 8px);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+}
+
+.workspaces-view__rename:hover:not(:disabled) {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.workspaces-view__rename:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.workspaces-view__create {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-4, 16px);
+  border: var(--border-width-default, 1px) dashed var(--color-outline);
+  border-radius: var(--shape-large, 12px);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.workspaces-view__create:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
