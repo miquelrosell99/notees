@@ -47,11 +47,12 @@ const USER: AccountUser = {
   isAdmin: false,
 };
 
-const WS = { id: "ws1", name: "Garden", role: "owner", envelopeCount: 3, latestSeq: 2 };
+const WS = { id: "ws1", name: "Garden", role: "owner", createdAt: 1727200000000, envelopeCount: 3, latestSeq: 2 };
 const WS2: WorkspaceEntry = {
   id: "ws2",
   name: "Backyard",
   role: "editor",
+  createdAt: 1727200001000,
   envelopeCount: 0,
   latestSeq: 0,
 };
@@ -442,7 +443,7 @@ describe("entry points", () => {
     fireEvent.change(screen.getByPlaceholderText(/search workspaces/i), {
       target: { value: "Orchard" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /create workspace/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create workspace “orchard”/i }));
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith("ws9", "Orchard"));
     const post = calls.find((c) => c.method === "POST");
     expect(post?.url).toBe("https://notees.example.com/api/v1/workspaces");
@@ -492,7 +493,7 @@ describe("ManageWorkspacesModal", () => {
     expect(await screen.findByText("Garden")).toBeInTheDocument();
     expect(screen.getByText("Backyard")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /^backyard/i }));
+    fireEvent.click(screen.getByRole("button", { name: /open backyard/i }));
     expect(onSwitch).toHaveBeenCalledWith("ws2", "Backyard");
   });
 
@@ -514,7 +515,7 @@ describe("ManageWorkspacesModal", () => {
     );
     fireEvent.click(await screen.findByRole("button", { name: "Rename Garden" }));
     fireEvent.change(screen.getByLabelText("Workspace Name"), { target: { value: "Orchard" } });
-    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rename Workspace" }));
     await waitFor(() => expect(onRenamed).toHaveBeenCalledWith("ws1", "Orchard"));
     const patch = calls.find((c) => c.method === "PATCH");
     expect(patch?.url).toBe("https://notees.example.com/api/v1/workspaces/ws1");
@@ -567,7 +568,7 @@ describe("ManageWorkspacesModal", () => {
     );
     fireEvent.click(await screen.findByRole("button", { name: /create workspace/i }));
     fireEvent.change(screen.getByLabelText("Workspace Name"), { target: { value: "New plots" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith("ws9", "New plots"));
     const post = calls.find((c) => c.method === "POST");
     expect(post?.url).toBe("https://notees.example.com/api/v1/workspaces");

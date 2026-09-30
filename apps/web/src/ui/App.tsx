@@ -886,6 +886,10 @@ export function App() {
           }
         }}
         onRenamed={(_id, name) => setWorkspaceName(name)}
+        onOpenUserSettings={
+          sessionSignedIn && user !== null ? () => setSettingsOpen(true) : undefined
+        }
+        onSignOut={() => void handleSignOut()}
         onClose={enteringFromApp ? () => setManagerOpen(false) : undefined}
       />
     );

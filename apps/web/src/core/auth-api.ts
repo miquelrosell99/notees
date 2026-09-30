@@ -41,6 +41,7 @@ export interface WorkspaceEntry {
   id: string;
   name: string | null;
   role: string;
+  createdAt: number;
   envelopeCount: number;
   latestSeq: number;
 }
