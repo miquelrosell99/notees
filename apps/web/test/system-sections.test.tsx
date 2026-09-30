@@ -52,7 +52,7 @@ function section(headerName: RegExp): HTMLElement {
 }
 
 describe("PageView system sections", () => {
-  it("renders all three sections collapsed and executes zero queries", async () => {
+  it("renders linked references expanded, the rest collapsed; collapsed sections execute zero queries", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Quiet Page" });
 
@@ -62,11 +62,15 @@ describe("PageView system sections", () => {
 
     render(<PageView client={client} pageId={pageId} />);
 
-    for (const name of [/Linked references/, /Unlinked references/, /Child pages/]) {
+    // Linked references starts expanded (owner-approved default): its query
+    // runs on mount. The other two stay collapsed and execute no query.
+    const linkedHeader = screen.getByRole("button", { name: /Linked references/ });
+    expect(linkedHeader.getAttribute("aria-expanded")).toBe("true");
+    for (const name of [/Unlinked references/, /Child pages/]) {
       const header = screen.getByRole("button", { name });
       expect(header.getAttribute("aria-expanded")).toBe("false");
     }
-    expect(linkedSpy).not.toHaveBeenCalled();
+    expect(linkedSpy).toHaveBeenCalledTimes(1);
     expect(unlinkedSpy).not.toHaveBeenCalled();
     expect(childSpy).not.toHaveBeenCalled();
   });
@@ -90,7 +94,7 @@ describe("PageView system sections", () => {
     const linkedSpy = vi.spyOn(client, "getLinkedReferences");
     render(<PageView client={client} pageId={targetId} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
+    // Linked references is expanded on mount: one query, results listed.
     expect(linkedSpy).toHaveBeenCalledTimes(1);
     const linked = section(/Linked references/);
     within(linked).getByText("Linked Source");
@@ -218,12 +222,12 @@ describe("PageView system sections", () => {
 
     render(<PageView client={client} pageId={franceId} />);
 
-    // The badge reads the DIRECT count: no edge targets France.
+    // Linked references is expanded on mount (no click needed). The badge
+    // reads the DIRECT count: no edge targets France.
     expect(
       within(screen.getByRole("button", { name: /Linked references/ })).getByText("0"),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
     const linked = section(/Linked references/);
     // The containing-page breadcrumb is France…
     expect(linked.querySelector(".nt-section-crumb")?.textContent).toBe("France");
@@ -276,8 +280,8 @@ describe("PageView system sections", () => {
 
     render(<PageView client={clientA} pageId={pageId} />);
 
-    // Expand while empty; the badge reads the materialized count (0).
-    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
+    // Linked references starts expanded (no click needed); the badge reads
+    // the materialized count (0).
     within(section(/Linked references/)).getByText("No linked references.");
     expect(
       within(screen.getByRole("button", { name: /Linked references/ })).getByText("0"),
