@@ -193,7 +193,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     return {
       token,
       expiresAt,
-      user: { id: user.id, email: user.email, displayName: user.displayName, isAdmin: true },
+      user: { id: user.id, email: user.email, displayName: user.displayName, name: user.name, surnames: user.surnames, avatarUrl: user.avatarUrl, isAdmin: true },
       kdf,
     };
   });
@@ -251,6 +251,9 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
         id: user.id,
         email: user.email,
         displayName: user.displayName,
+        name: user.name,
+        surnames: user.surnames,
+        avatarUrl: user.avatarUrl,
         isAdmin: user.isAdmin === 1,
       },
       kdf,
