@@ -168,7 +168,7 @@ describe("Asset attachments (node-typed properties)", () => {
     expect(row.textContent).toContain("attachments");
     // No values: no "default" hint, but the add affordance is reachable.
     expect(row.textContent).not.toContain("default");
-    expect(within(row).getByRole("button", { name: "+ Add" })).not.toBeNull();
+    expect(within(row).getByRole("button", { name: "Add" })).not.toBeNull();
   });
 
   it("picker filters candidates by the schema's target class", async () => {
@@ -178,7 +178,7 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.createObject({ nodeType: "page", name: "Random notes" });
 
     render(<PageView client={client} pageId={sourceId} />);
-    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "+ Add" }));
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
 
     // Only asset-class nodes are candidates; the plain page is filtered out.
     expect(screen.getByText("scan.pdf")).not.toBeNull();
@@ -192,7 +192,7 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.createObject({ nodeType: "page", name: "cover.png", classIds: [ASSET_CLASS] });
 
     render(<PageView client={client} pageId={sourceId} />);
-    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "+ Add" }));
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
     fireEvent.change(screen.getByLabelText("Search attachments"), { target: { value: "cover" } });
 
     expect(screen.getByText("cover.png")).not.toBeNull();
@@ -205,7 +205,7 @@ describe("Asset attachments (node-typed properties)", () => {
     const calls = stubFetch();
 
     render(<PageView client={client} pageId={sourceId} />);
-    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "+ Add" }));
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
     const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
     fireEvent.change(screen.getByLabelText("Upload attachments"), { target: { files: [file] } });
 
@@ -248,7 +248,7 @@ describe("Asset attachments (node-typed properties)", () => {
     );
 
     render(<PageView client={client} pageId={sourceId} />);
-    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "+ Add" }));
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
     const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
     fireEvent.change(screen.getByLabelText("Upload attachments"), { target: { files: [file] } });
 
@@ -375,7 +375,7 @@ describe("Asset attachments (node-typed properties)", () => {
     render(<PageView client={client} pageId={teamId} />);
     const row = screen.getByText("mentor").closest(".nt-property-object") as HTMLElement;
     expect(row.textContent).not.toContain("default");
-    fireEvent.click(within(row).getByRole("button", { name: "+ Add" }));
+    fireEvent.click(within(row).getByRole("button", { name: "Add" }));
 
     // Picker-only: filtered to persons, no upload affordance.
     expect(screen.getByText("Ada Lovelace")).not.toBeNull();

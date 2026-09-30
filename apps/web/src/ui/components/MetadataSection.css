@@ -144,26 +144,11 @@ span.pill__text {
   opacity: var(--opacity-100);
 }
 
-/* "+ Add class" ghost pill + its picker anchor. */
+/* "+ Add class" / "+ Add tag" picker anchor (the pill is the AddPill
+   primitive from components/ui). */
 .nt-class-add-anchor {
   position: relative;
   display: inline-flex;
-}
-
-.nt-chip-add {
-  font: inherit;
-  font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
-  background: none;
-  border: var(--border-width-default) dashed var(--color-outline);
-  border-radius: var(--shape-full);
-  padding: var(--spacing-1) var(--spacing-3);
-  cursor: pointer;
-}
-
-.nt-chip-add:hover {
-  border-color: var(--color-on-surface-variant);
-  color: var(--color-on-surface);
 }
 
 /* --- effective-property rows ---------------------------------------------- */

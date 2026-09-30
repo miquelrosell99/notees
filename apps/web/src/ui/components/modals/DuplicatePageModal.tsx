@@ -5,8 +5,8 @@
  * Example: "Apple" already exists as a Fruit → create "Apple" as a Company.
  */
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Modal } from "./Modal";
-import { Button } from "./Button";
+import { Modal } from "../ui/Modal.js";
+import { Button } from "../ui/Button.js";
 import { NodeIcon } from "./NodeIcon";
 import type { ClientNode } from "@/core/workspace-client.js";
 import type { WorkerClient } from "@/core/worker-client.js";

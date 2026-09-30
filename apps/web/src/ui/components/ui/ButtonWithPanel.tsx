@@ -17,9 +17,9 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button";
-import { Card } from "./Card";
-import { useClickOutside, useFocusTrap, useOverlaySurface } from "./overlayHooks";
+import { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./Button.js";
+import { Card } from "./Card.js";
+import { useClickOutside, useFocusTrap, useOverlaySurface } from "./overlay-hooks.js";
 import "./ButtonWithPanel.css";
 
 /** Space between the trigger and the floating panel. */

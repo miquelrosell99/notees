@@ -13,7 +13,7 @@ import { Icon } from "../Icon.js";
 import { ThemeToggle } from "../ThemeToggle.js";
 import "./TopBar.css";
 
-/** Subtle sync line: engine state, undelivered backlog, realtime indicator. */
+/** Compact sync indicator: icon only; the full status line is its tooltip. */
 function SyncStatusLine({ snapshot }: { snapshot: SyncStatusSnapshot }) {
   const backlog = snapshot.pending + snapshot.failed;
   const label =
@@ -22,15 +22,24 @@ function SyncStatusLine({ snapshot }: { snapshot: SyncStatusSnapshot }) {
       : snapshot.status === "syncing"
         ? `Sync: syncing… · ${backlog} pending`
         : `Sync error${snapshot.error ? `: ${snapshot.error}` : ""} · ${backlog} pending`;
+  const fullTitle = snapshot.realtime ? label : `${label} · realtime off`;
+  const icon =
+    snapshot.status === "error"
+      ? "mdi-cloud-alert-outline"
+      : snapshot.status === "syncing"
+        ? "mdi-cloud-sync-outline"
+        : backlog > 0
+          ? "mdi-cloud-upload-outline"
+          : "mdi-cloud-check-outline";
   return (
     <span
       className={
         snapshot.status === "error" ? "nt-sync-status nt-sync-status-error" : "nt-sync-status"
       }
-      title={snapshot.error ?? undefined}
+      title={fullTitle}
+      aria-label={fullTitle}
     >
-      {label}
-      {snapshot.realtime ? "" : " · realtime off"}
+      <Icon path={icon} size={0.95} />
     </span>
   );
 }

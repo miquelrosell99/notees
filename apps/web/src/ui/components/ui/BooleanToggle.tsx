@@ -6,7 +6,7 @@
 
 import { forwardRef, useId, type InputHTMLAttributes } from "react";
 import "./BooleanToggle.css";
-import { useReducedMotion } from "./overlayHooks.js";
+import { useReducedMotion } from "./overlay-hooks.js";
 
 export type BooleanToggleSize = "sm" | "md" | "lg";
 

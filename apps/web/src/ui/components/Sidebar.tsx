@@ -55,7 +55,8 @@ export function Sidebar({
   credential,
   userEmail,
   offline,
-  storeMode,
+  showSettings,
+  onOpenSettings,
   selectedPageId,
   activeNav,
   onSelectNav,
@@ -71,7 +72,8 @@ export function Sidebar({
   credential: string;
   userEmail: string | null;
   offline: boolean;
-  storeMode: "worker" | "in-process";
+  showSettings: boolean;
+  onOpenSettings: () => void;
   selectedPageId: string | null;
   activeNav: NavKey;
   onSelectNav: (key: NavKey) => void;
@@ -83,6 +85,7 @@ export function Sidebar({
   const [favorites, setFavorites] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.favorites));
   const [recents, setRecents] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.recents));
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [accountMenu, setAccountMenu] = useState(false);
 
   const openRow = (id: string): void => {
     onOpenPage(id);
@@ -242,11 +245,43 @@ export function Sidebar({
         )}
         {section("Recents", recentPages.map((node) => renderRow(node, rowIconFor(node))))}
       </nav>
-      <div className="nt-sidebar-footer">
-        <span className="nt-sidebar-user">{userEmail ?? "Offline"}</span>
-        <span className="nt-sidebar-store">
-          {offline ? "local workspace" : storeMode === "worker" ? "Worker + OPFS" : "in-process store"}
-        </span>
+      <div className="nt-sidebar-bottom">
+        {showSettings && (
+          <button
+            type="button"
+            className="nt-icon-btn"
+            title="Settings"
+            aria-label="Settings"
+            onClick={onOpenSettings}
+          >
+            <Icon path="mdi-cog-outline" size={1} />
+          </button>
+        )}
+        <button
+          type="button"
+          className="nt-icon-btn"
+          title={userEmail ?? "Account"}
+          aria-label="Account"
+          onClick={() => setAccountMenu((open) => !open)}
+        >
+          <Icon path="mdi-account-circle-outline" size={1} />
+        </button>
+        {accountMenu && (
+          <div className="nt-account-menu" role="menu">
+            <span className="nt-account-email">{userEmail ?? "Offline workspace"}</span>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAccountMenu(false);
+                onSignOut();
+              }}
+            >
+              <Icon path="mdi-logout-variant" size={0.9} />
+              <span>Sign out</span>
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
