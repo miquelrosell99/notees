@@ -1,0 +1,280 @@
+/**
+ * SelectionButton Component Styles
+ *
+ * Button-style multi-option selector with animated indicator
+ */
+
+
+
+
+.selection-button {
+  position: relative;
+  display: inline-flex;
+  background: var(--color-surface-container);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-1);
+  gap: var(--spacing-micro);
+}
+
+.selection-button--vertical {
+  flex-direction: column;
+}
+
+.selection-button--disabled {
+  pointer-events: none;
+}
+
+.selection-button--disabled .selection-button__option:not(.selection-button__option--selected) {
+  opacity: var(--opacity-40);
+}
+
+/* Animated selection indicator */
+.selection-button__indicator {
+  position: absolute;
+  top: var(--spacing-1); /* Match container padding */
+  left: var(--spacing-1); /* Match container padding */
+  background: var(--color-accent);
+  border-radius: var(--shape-medium);
+  transition: transform var(--motion-duration-medium) var(--motion-easing-collapse),
+              width var(--motion-duration-shorter) var(--motion-easing-collapse),
+              height var(--motion-duration-shorter) var(--motion-easing-collapse);
+  z-index: var(--z-0);
+  pointer-events: none;
+}
+
+/* Option buttons */
+.selection-button__option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  aspect-ratio: 1;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: var(--z-1);
+}
+
+/* Invisible minimum hit-area overlay so the target stays ≥ 44×44 even when the
+   visible option size is shrunk by a size-specific rule. */
+.selection-button__option::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+.selection-button__option:hover:not(:disabled, .selection-button__option--selected) {
+  color: var(--color-on-surface);
+}
+
+.selection-button__option:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.selection-button__option--selected {
+  color: var(--color-on-accent);
+}
+
+/* Ensure SVG icons are perfectly centered inside flex button */
+.selection-button__option svg,
+.selection-button__overflow-toggle svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Overflow toggle button */
+.selection-button__overflow-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  aspect-ratio: 1;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: var(--z-1);
+}
+
+/* Invisible minimum hit-area overlay for the overflow toggle. */
+.selection-button__overflow-toggle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+.selection-button__overflow-toggle:hover:not(:disabled) {
+  color: var(--color-on-surface);
+}
+
+.selection-button__overflow-toggle:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.selection-button__overflow-toggle--open {
+  color: var(--color-accent);
+  background: var(--color-surface-container-highest);
+}
+
+/* Overflow dropdown */
+.selection-button__overflow-dropdown {
+  position: absolute;
+  top: calc(100% + var(--spacing-1));
+  right: 0;
+  z-index: var(--z-100);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-micro);
+  min-width: var(--layout-size-xl);
+  padding: var(--spacing-1);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-2);
+}
+
+.selection-button__overflow-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-1-5) var(--spacing-2-5);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface);
+  font: var(--font-label-large);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.selection-button__overflow-item:hover:not(:disabled) {
+  background: var(--color-surface-container-highest);
+}
+
+.selection-button__overflow-item:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.selection-button__overflow-item--active {
+  color: var(--color-accent);
+}
+
+/* Size variants */
+.selection-button--sm .selection-button__option,
+.selection-button--sm .selection-button__overflow-toggle {
+  width: var(--selection-btn-size-sm);
+  height: var(--selection-btn-size-sm);
+  min-width: var(--selection-btn-size-sm);
+  min-height: var(--selection-btn-size-sm);
+}
+
+/* Mobile: tighter padding to save header space */
+@media (width <= 768px) {
+  .selection-button--sm {
+    padding: var(--spacing-micro);
+  }
+
+  .selection-button--sm .selection-button__indicator {
+    top: var(--spacing-micro);
+    left: var(--spacing-micro);
+  }
+}
+
+.selection-button--md .selection-button__option,
+.selection-button--md .selection-button__overflow-toggle {
+  width: var(--selection-btn-size-md);
+  height: var(--selection-btn-size-md);
+  min-width: var(--selection-btn-size-md);
+  min-height: var(--selection-btn-size-md);
+}
+
+.selection-button--lg .selection-button__option,
+.selection-button--lg .selection-button__overflow-toggle {
+  width: var(--selection-btn-size-lg);
+  height: var(--selection-btn-size-lg);
+  min-width: var(--selection-btn-size-lg);
+  min-height: var(--selection-btn-size-lg);
+}
+
+/* Wrapper with label layout */
+.selection-button__wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.selection-button__wrapper--label-left {
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.selection-button__wrapper--label-right {
+  flex-direction: row;
+}
+
+.selection-button__wrapper--disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+/* Label */
+.selection-button__label-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-micro);
+  min-width: 0;
+}
+
+.selection-button__wrapper--label-left .selection-button__label-wrapper {
+  flex: 1;
+}
+
+.selection-button__label {
+  font: var(--font-label-large);
+  color: var(--color-on-surface);
+  user-select: none;
+}
+
+.selection-button__description {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+/* Size-specific label adjustments */
+.selection-button__wrapper--sm .selection-button__label {
+  font: var(--font-label-medium);
+}
+
+.selection-button__wrapper--lg .selection-button__label {
+  font: var(--font-title-medium);
+}

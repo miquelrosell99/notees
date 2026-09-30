@@ -1091,3 +1091,23 @@ The rewrite's web UI was rebuilt as a minimal shell and dropped the previous UI'
 2. **Naming rule (permanent): no "v1" mentions in UI files** — no v1-prefixed directories, class names, identifiers, or comments anywhere in apps/web (provenance lives in git history, not in code). Applies to all future UI work.
 3. **Recovery scope, in order**: app chrome + layout, breadcrumbs, metadata section, system sections (linked references / child pages / unlinked references), command palette; then editor chrome visuals; other view modes (graph, kanban, covers/display modes) in later passes. Owner explicitly does not want page tabs in the topbar.
 4. **Chrome features the plan must now carry** (were unplanned, now scheduled by this directive): breadcrumbs, metadata section, system sections, command palette. The editor-mechanics list in §34.10 stands unchanged.
+
+### 34.18 Pending UI register (owner, 2026-09-30 — full port directive)
+
+The pre-rewrite UI is being transferred wholesale (components + CSS, adapted to the v2 client) for every feature v2 implements. This register tracks what remains pending after each port pass.
+
+**Ported / in progress (this pass):** app chrome (topbar, sidebar sections, workspace switcher, command palette), floating content card, breadcrumbs, metadata section, system sections (linked/unlinked references, child pages), section chrome.
+
+**Pending (scheduled, in priority order):**
+1. Editor chrome: slash/trigger popup, floating toolbar, find & replace, link-edit modal, markdown autoformat, undo/redo — §34.10 M1 mechanics, visual transfer from the archive.
+2. Metadata pickers: class/tag/alias selector popups (search + create + color), date picker popup, property editor controls (select/multi-select/boolean/date).
+3. Modals for existing features: export page, duplicate page, create-page-with-uuid, quick-add, workspace rename.
+4. UI primitives kit: Button/Dropdown/Modal/Confirmation/ContextMenu/Badge/EmptyState/Toast as shared components (reused by everything above).
+5. Overlays: backend-unavailable, notification toast wiring, empty/loading skeletons.
+6. Right-sidebar cards + hover floating node view (§34.10 M2), embeds with live updates.
+7. Covers/banners + card display modes (no-cover / cover-left / cover-right / cover-top).
+8. Views over the query engine: table/kanban/calendar/chart/gantt/pivot, graph view (needs its own portability decision), document view (deliberate bet against — §34.10).
+9. Surfaces: journals/tasks pages, import modals, shares UI, notification center, plugin UI, mobile layout.
+10. Accent-color variants (sage/teal/rose/navy) + icon picker.
+
+Rule: items land in the order above unless the owner re-prioritizes; each port pass must end with the deployed stack verified by screenshots in both themes.

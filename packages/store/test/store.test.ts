@@ -1341,6 +1341,18 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("class search indexing", () => {
+    it("classes are findable by name at create and after rename", () => {
+      const store = baseStore();
+      const id = "c0000000-0000-7000-8000-0000000000c9";
+      store.apply(env("class.create", { classId: id, name: "Zymurgy" }, 1727200001500));
+      expect(store.search("Zymurgy").map((hit) => hit.nodeId)).toContain(id);
+      store.apply(env("class.update", { classId: id, name: "Zymurgics" }, 1727200001600));
+      expect(store.search("Zymurgy")).toEqual([]);
+      expect(store.search("Zymurgics").map((hit) => hit.nodeId)).toContain(id);
+    });
+  });
+
   describe("local op log (durable offline backlog)", () => {
     it("records local envelopes, lists unpushed, marks pushed, prunes", () => {
       const store = baseStore();

@@ -1,0 +1,90 @@
+/**
+ * SelectionButton Component Styles
+ *
+ * Button-style multi-option selector with animated indicator
+ */
+
+.selection-button {
+  position: relative;
+  display: inline-flex;
+  background: var(--color-surface-container);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-1);
+  gap: var(--spacing-micro);
+}
+
+.selection-button--disabled {
+  pointer-events: none;
+}
+
+.selection-button--disabled .selection-button__option:not(.selection-button__option--selected) {
+  opacity: var(--opacity-40);
+}
+
+/* Animated selection indicator */
+.selection-button__indicator {
+  position: absolute;
+  top: var(--spacing-1); /* Match container padding */
+  left: var(--spacing-1); /* Match container padding */
+  background: var(--color-accent);
+  border-radius: var(--shape-medium);
+  transition: transform var(--motion-duration-medium) var(--motion-easing-collapse),
+              width var(--motion-duration-shorter) var(--motion-easing-collapse),
+              height var(--motion-duration-shorter) var(--motion-easing-collapse);
+  z-index: var(--z-0);
+  pointer-events: none;
+}
+
+/* Option buttons */
+.selection-button__option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  aspect-ratio: 1;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: var(--z-1);
+}
+
+/* Invisible minimum hit-area overlay so the target stays ≥ 44×44 even when the
+   visible option size is shrunk by a size-specific rule. */
+.selection-button__option::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+.selection-button__option:hover:not(:disabled, .selection-button__option--selected) {
+  color: var(--color-on-surface);
+}
+
+.selection-button__option:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.selection-button__option--selected {
+  color: var(--color-on-accent);
+}
+
+/* Ensure SVG icons are perfectly centered inside flex button */
+.selection-button__option svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

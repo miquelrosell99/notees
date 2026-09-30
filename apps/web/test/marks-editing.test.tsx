@@ -1,7 +1,7 @@
 /**
  * Marks editing tests: structural edit application (applyTextEdit) and the
  * mark commands (applyMarkToRange / removeMarkFromRange, plus the editor
- * wiring: Ctrl/Cmd shortcuts, the floating MarkToolbar, and the `**`
+ * wiring: Ctrl/Cmd shortcuts, the floating formatting bar, and the `**`
  * selection shortcut). Editor tests run PageView over the in-process
  * WorkspaceClient + MemoryRelay (jsdom), same harness as
  * outliner-editor.test.tsx.
@@ -288,9 +288,13 @@ describe("marks editing in the editor", () => {
     const editor = clickIntoBlock(container);
     selectRange(editor, 0, 5);
 
-    // The toolbar appears on selection; bold is not active yet.
-    const toolbar = screen.getByRole("toolbar", { name: "Text marks" });
-    const bold = toolbar.querySelector<HTMLButtonElement>('button[title="Bold"]')!;
+    // The toolbar appears after the archived 150 ms show debounce.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200));
+    });
+    // Bold is not active yet.
+    const toolbar = screen.getByRole("toolbar", { name: "Text formatting" });
+    const bold = toolbar.querySelector<HTMLButtonElement>('button[title="Bold (Ctrl+B)"]')!;
     expect(bold.getAttribute("aria-pressed")).toBe("false");
 
     // mousedown must not blur the editor (the click would unmount it).
