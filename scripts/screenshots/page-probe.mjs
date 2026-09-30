@@ -18,7 +18,7 @@ await page.locator(".nt-hub-item").first().click();
 await page.waitForTimeout(2500);
 await page.screenshot({ path: "/tmp/page-dark.jpg", type: "jpeg", quality: 85 });
 const body = await page.evaluate(() => document.body.innerText);
-console.log("url:", await page.evaluate(() => location.pathname), "| metadata:", body.toLowerCase().includes("metadata"), "| linked refs:", body.toLowerCase().includes("linked references"));
+console.log("tab title:", await page.evaluate(() => document.title), "| url:", await page.evaluate(() => location.pathname), "| metadata:", body.toLowerCase().includes("metadata"), "| linked refs:", body.toLowerCase().includes("linked references"));
 await page.keyboard.press("Control+k");
 await page.waitForTimeout(800);
 await page.screenshot({ path: "/tmp/palette-dark.jpg", type: "jpeg", quality: 85 });
