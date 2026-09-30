@@ -4,7 +4,6 @@
  * Reads/writes `data-theme` on <html> and persists the choice in
  * localStorage under "notees.theme"; index.html applies the stored choice
  * before first paint so there is no theme flash on reload. Rendered as a
- * v1-style icon button (mdi moon/sun).
  */
 
 import { useState } from "react";

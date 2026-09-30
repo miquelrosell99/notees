@@ -90,6 +90,10 @@ export function logout(serverUrl: string, token: string): Promise<{ ok: boolean 
   return request<{ ok: boolean }>(serverUrl, "/auth/logout", { method: "POST" }, token);
 }
 
+export function fetchMe(serverUrl: string, token: string): Promise<AccountUser> {
+  return request<AccountUser>(serverUrl, "/auth/me", {}, token);
+}
+
 export function listWorkspaces(serverUrl: string, token: string): Promise<{ workspaces: WorkspaceEntry[] }> {
   return request<{ workspaces: WorkspaceEntry[] }>(serverUrl, "/workspaces", {}, token);
 }

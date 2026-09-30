@@ -1,0 +1,95 @@
+/**
+ * components/nodes/NodeViewSection.css). Class names unchanged.
+ *
+ * Adaptations for the v2 shell:
+ *    it gains width/font/background resets and keeps the same hover/focus
+ *    treatment;
+ *    v2 shell has no right-sidebar sections).
+ */
+
+.node-view-section {
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  padding-top: var(--spacing-3);
+}
+
+.node-view-section__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2);
+  margin: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-view-section__header:hover {
+  background: var(--color-hover-overlay);
+}
+
+.node-view-section__header:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.node-view-section__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+}
+
+.node-view-section__chevron {
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-view-section.expanded .node-view-section__chevron {
+  transform: rotate(90deg);
+}
+
+.node-view-section__title-area {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.node-view-section__icon {
+  display: flex;
+  align-items: center;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.node-view-section__title {
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-view-section__count {
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+/* Align content with the section title (after toggle button + gap). */
+.node-view-section__content {
+  padding: var(--spacing-1) 0 var(--spacing-2) var(--spacing-7);
+}
+
+.node-view-section.collapsed .node-view-section__content {
+  display: none;
+}
