@@ -36,7 +36,7 @@ ENV NOTEES_SERVER_URL=$NOTEES_SERVER_URL
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 COPY apps/web/nginx-gzip.conf /etc/nginx/conf.d/00-gzip.conf
 COPY apps/web/nginx-log.conf /etc/nginx/conf.d/01-log.conf
-COPY apps/web/nginx-spa.conf /etc/nginx/conf.d/02-spa.conf
+COPY apps/web/nginx-spa.conf /etc/nginx/conf.d/default.conf
 COPY apps/web/docker-entrypoint.d/50-notees-config.sh /docker-entrypoint.d/50-notees-config.sh
 RUN chmod +x /docker-entrypoint.d/50-notees-config.sh
 EXPOSE 80

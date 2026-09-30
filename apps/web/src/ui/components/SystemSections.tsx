@@ -15,7 +15,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
-import { InlineTokens } from "../InlineTokens.js";
+import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { Section } from "../Section.js";
 import "./SystemSections.css";
 
@@ -64,19 +64,7 @@ function ReferenceList({
           <ul className="nt-refgroup-blocks">
             {group.items.map((entry) => (
               <li key={entry.source.id}>
-                <button
-                  type="button"
-                  className="nt-refblock"
-                  onClick={() =>
-                    onOpenPage?.(entry.kind === "direct" ? entry.source.id : entry.containingPageId)
-                  }
-                >
-                  <InlineTokens
-                    tokens={entry.source.contentAst}
-                    resolveName={(id) => client.getDisplayName(id)}
-                    onOpenNode={onOpenPage}
-                  />
-                </button>
+                <ReferenceSubtree client={client} rootId={entry.source.id} onOpenNode={onOpenPage} />
               </li>
             ))}
           </ul>
