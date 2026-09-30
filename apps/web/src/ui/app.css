@@ -1,9 +1,5 @@
 @import "./variables.css";
 
-/* v2 app styles on the v1 design system (variables.css). Dark is the default
-   theme (set on <html data-theme>); the light theme is the warm-paper
-   palette from the same tokens. */
-
 body {
   margin: 0;
   font-family: var(--font-family-base, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
@@ -20,8 +16,6 @@ button {
   cursor: pointer;
 }
 
-/* Global design elements (v1 index.css): focus rings, input resets, selection,
-   scrollbars, motion preferences. */
 :focus-visible {
   outline: var(--border-width-thick, 2px) solid var(--color-primary);
   outline-offset: var(--focus-outline-offset, 2px);
@@ -249,57 +243,8 @@ select:focus-visible {
 
 /* --- settings modal --------------------------------------------------------- */
 
-.nt-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 24px;
-}
-
-.nt-modal {
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 12px;
-  width: 480px;
-  max-width: 100%;
-  max-height: 80vh;
-  overflow-y: auto;
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
-}
-
-.nt-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.nt-modal-title {
-  margin: 0;
-  font-size: 17px;
-}
-
-.nt-modal-close {
-  border: none;
-  background: transparent;
-  color: var(--color-on-surface-variant);
-  font-size: 20px;
-  line-height: 1;
-  padding: 4px 8px;
-  border-radius: 6px;
-}
-
-.nt-modal-close:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-}
+/* The shared dialog chrome (.nt-modal-backdrop/.nt-modal/…) lives in
+   components/Modal.css; here remain only the settings body styles. */
 
 .nt-settings-account {
   margin: 0;
@@ -455,64 +400,21 @@ select:focus-visible {
   font-size: 12.5px;
 }
 
-
-
-
-/* --- app shell (v1 design language) ---------------------------------------- */
-
-.nt-app {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background: var(--color-background);
-  color: var(--color-on-surface);
-}
-
-.nt-topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2, 8px);
-  height: 48px;
-  padding: 0 var(--spacing-3, 12px);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-outline-variant);
-  flex-shrink: 0;
-}
-
-.nt-wordmark {
-  font-weight: 600;
-  font-size: 16px;
-  letter-spacing: -0.01em;
-}
-
-.nt-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--shape-full, 999px);
-  background: var(--color-success, #29b672);
-  margin-right: var(--spacing-1, 4px);
-}
-
-.nt-topbar-spacer {
-  flex: 1;
-}
-
-.nt-topbar .nt-sync-status {
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-  white-space: nowrap;
-}
+/* --- shared icon-button primitive -------------------------------------------
+   Used by the shell components AND the boot screens (ThemeToggle), so it
+   stays global; the topbar/sidebar chrome rules moved to components/. */
 
 .nt-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: var(--height-md);
+  height: var(--height-md);
   border: none;
-  border-radius: var(--shape-medium, 8px);
+  border-radius: var(--shape-medium);
   background: transparent;
   color: var(--color-on-surface-variant);
+  flex-shrink: 0;
 }
 
 .nt-icon-btn:hover {
@@ -520,258 +422,71 @@ select:focus-visible {
   color: var(--color-on-surface);
 }
 
-.nt-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-.nt-sidebar {
-  width: 264px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface-container-low);
-  border-right: 1px solid var(--color-outline-variant);
-  min-height: 0;
-}
-
-.nt-sidebar-top {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1, 4px);
-  padding: var(--spacing-2, 8px) var(--spacing-2, 8px) var(--spacing-1, 4px);
-}
-
-.nt-ws-switch {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-1, 4px);
-  padding: 6px var(--spacing-2, 8px);
-  border: 1px solid transparent;
-  border-radius: var(--shape-medium, 8px);
-  background: transparent;
-  color: var(--color-on-surface);
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0.04em;
-}
-
-.nt-ws-switch:hover {
-  background: var(--color-hover-overlay);
-  border-color: var(--color-outline-variant);
-}
-
-.nt-sidebar-search {
-  padding: 0 var(--spacing-2, 8px) var(--spacing-1, 4px);
-}
-
-.nt-sidebar-nav {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
-  min-height: 0;
-}
-
-.nt-side-section {
-  margin-bottom: var(--spacing-3, 12px);
-}
-
-.nt-side-header {
-  margin: var(--spacing-2, 8px) var(--spacing-2, 8px) var(--spacing-1, 4px);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-side-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.nt-side-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.nt-side-item {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2, 8px);
-  height: 28px;
-  padding: 0 var(--spacing-2, 8px);
-  border: none;
-  border-radius: var(--shape-medium, 8px);
-  background: transparent;
-  color: var(--color-on-surface-variant);
-  font-size: 13px;
-  text-align: left;
-}
-
-.nt-side-item:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
-}
-
-.nt-side-item-active,
-.nt-side-item-active:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-}
-
-.nt-side-item-icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-side-item-active .nt-side-item-icon {
-  color: var(--color-on-surface);
-}
-
-.nt-side-item-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nt-side-star {
-  position: absolute;
-  right: 4px;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: var(--shape-small, 6px);
-  background: transparent;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-side-row:hover .nt-side-star {
-  display: inline-flex;
-}
-
-.nt-side-star:hover {
-  background: var(--color-pressed-overlay);
-  color: var(--color-on-surface);
-}
-
-.nt-sidebar-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2, 8px);
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  border-top: 1px solid var(--color-outline-variant);
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-sidebar-user {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nt-sidebar-store {
-  flex-shrink: 0;
-  opacity: 0.8;
-}
-
-.nt-main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.nt-empty {
-  padding: var(--spacing-10, 40px);
-  color: var(--color-on-surface-variant);
-}
-
-@media (max-width: 800px) {
-  .nt-sidebar {
-    display: none;
-    position: fixed;
-    top: 48px;
-    bottom: 0;
-    left: 0;
-    z-index: 50;
-    box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.3));
-  }
-  .nt-sidebar-open .nt-sidebar {
-    display: flex;
-  }
-}
-
-@media (min-width: 801px) {
-  .nt-topbar .nt-icon-btn[aria-label="Toggle sidebar"] {
-    display: none;
-  }
-}
-
-.nt-sidebar {
-  width: 260px;
-  flex-shrink: 0;
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-outline-variant);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-
-.nt-main {
-  flex: 1;
-  padding: 32px 40px;
-  overflow-y: auto;
-}
-
-.nt-empty,
-.nt-page-missing {
-  color: var(--color-on-surface-variant);
-}
-
 /* --- page ------------------------------------------------------------------- */
 
 .nt-page {
-  max-width: 760px;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: var(--spacing-1) var(--spacing-6) var(--spacing-10);
+  display: flex;
+  flex-direction: column;
 }
 
 .nt-page-title {
-  margin: 0 0 16px;
-  font-size: 28px;
-  line-height: 1.25;
+  margin: 0;
+  font: var(--font-headline-medium);
+  color: var(--color-on-surface);
+  min-width: 0;
 }
 
 .nt-page-header {
+  margin-bottom: var(--spacing-2);
+}
+
+.page-header__title-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.page-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-2xl);
+  height: var(--height-2xl);
+  padding: 0;
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+}
+
+.page-icon-large {
+  display: inline-flex;
+  line-height: 1;
+}
+
+.page-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-2xl);
+  height: var(--page-icon-placeholder-size);
+  border: var(--border-width-thick) dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  font-size: var(--font-headline-small);
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-page-header:hover .page-icon-placeholder {
+  opacity: var(--opacity-60);
 }
 
 .nt-page-toolbar {
   display: flex;
-  gap: 6px;
+  gap: var(--spacing-1);
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .nt-view-toggle {
@@ -1600,146 +1315,9 @@ select:focus-visible {
   background: var(--color-surface);
 }
 
-/* --- properties panel (effective values) -------------------------------------------- */
-
-.nt-properties-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.nt-property {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: 14px;
-}
-
-.nt-property-name {
-  font-weight: 600;
-  min-width: 140px;
-}
-
-.nt-property-hint {
-  color: var(--color-on-surface-variant);
-  font-size: 11px;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 999px;
-  padding: 0 6px;
-}
-
-.nt-property-default .nt-property-value {
-  color: var(--color-on-surface-variant);
-}
-
-.nt-property-value {
-  font: inherit;
-  font-size: 13px;
-  padding: 2px 6px;
-  border: 1px solid var(--color-outline);
-  border-radius: 6px;
-  background: var(--color-surface);
-  min-width: 160px;
-}
-
-.nt-property-default .nt-property-name {
-  color: var(--color-on-surface-variant);
-}
-
-/* --- node-typed property rows (chips + picker) ------------------------------------ */
-
-.nt-property-object {
-  position: relative;
-  align-items: flex-start;
-}
-
-.nt-property-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  flex: 1;
-}
-
-.nt-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  border: 1px solid var(--color-outline);
-  border-radius: 999px;
-  background: var(--color-surface);
-  font-size: 13px;
-  padding: 1px 4px 1px 10px;
-}
-
-.nt-chip-default {
-  border-style: dashed;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-chip-label {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
-
-span.nt-chip-label {
-  cursor: default;
-}
-
-.nt-chip-remove {
-  font: inherit;
-  color: var(--color-on-surface-variant);
-  background: none;
-  border: none;
-  padding: 0 4px;
-  cursor: pointer;
-  border-radius: 999px;
-}
-
-.nt-chip-remove:hover {
-  color: var(--color-error-hover);
-}
-
-.nt-chip-add {
-  font: inherit;
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-  background: none;
-  border: 1px dashed var(--color-outline);
-  border-radius: 999px;
-  padding: 1px 10px;
-  cursor: pointer;
-}
-
-.nt-chip-add:hover {
-  border-color: var(--color-on-surface-variant);
-}
-
-.nt-chip-annotations {
-  font: inherit;
-  color: var(--color-on-surface-variant);
-  background: none;
-  border: none;
-  padding: 0 2px;
-  cursor: pointer;
-  border-radius: 999px;
-  line-height: 1;
-}
-
-.nt-chip-annotations:hover,
-.nt-chip-annotations[aria-expanded="true"] {
-  color: var(--color-on-surface-variant);
-}
-
-/* --- annotations section (asset chip affordance) ------------------------------ */
+/* --- annotations section (asset chip affordance) ------------------------------
+   Rendered by AnnotationsSection under an asset pill; the metadata rows,
+   pills, picker and range styles moved to components/MetadataSection.css. */
 
 .nt-annotations {
   display: flex;
@@ -1811,22 +1389,6 @@ span.nt-chip-label {
   padding-left: 20px;
   color: var(--color-error-hover);
   font-size: 13px;
-}
-
-.nt-property-picker {
-  position: absolute;
-  top: 100%;
-  left: 148px;
-  z-index: 30;
-  width: 280px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(15, 30, 45, 0.12);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 /* --- date picker (zoom grids) ------------------------------------------------ */
@@ -1965,46 +1527,7 @@ span.nt-chip-label {
   color: var(--color-outline);
 }
 
-/* --- date range rows + link qualifiers ---------------------------------------- */
-
-.nt-range {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 999px;
-  padding: 1px 10px;
-  background: var(--color-surface);
-}
-
-.nt-range-slot {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.nt-range-slot-name {
-  font-size: 11px;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-chip-qualifier {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-left: 6px;
-}
-
-.nt-chip-qualifier-input {
-  font: inherit;
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-  padding: 1px 4px;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
-  background: var(--color-surface);
-  width: 130px;
-}
+/* --- link qualifiers ---------------------------------------- */
 
 .nt-class-binding-precision {
   font: inherit;
@@ -2016,121 +1539,15 @@ span.nt-chip-label {
   background: var(--color-surface);
 }
 
-.nt-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.nt-picker-item {
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  font-size: 13px;
-  background: none;
-  border: none;
-  padding: 4px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.nt-picker-item:hover {
-  background: var(--color-surface-container-highest);
-}
-
-.nt-picker-empty {
-  color: var(--color-on-surface-variant);
-  font-size: 13px;
-  padding: 4px 6px;
-}
-
-.nt-picker-upload {
-  font: inherit;
-  font-size: 13px;
-  background: none;
-  border: 1px solid var(--color-outline);
-  border-radius: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.nt-picker-upload:hover {
-  border-color: var(--color-on-surface-variant);
-}
-
-.nt-file-input {
-  display: none;
-}
-
-.nt-picker-error {
-  color: var(--color-error-hover);
-  font-size: 12px;
-  margin: 0;
-}
-
 .nt-class-description-body {
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-
-/* --- system sections ------------------------------------------------------------- */
-
-.nt-page-sections {
-  margin-top: 32px;
-  display: flex;
-  flex-direction: column;
-}
-
-.nt-section {
-  border-top: 1px solid var(--color-outline-variant);
-  padding: 4px 0 8px;
-}
-
-.nt-section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 4px 0;
-  color: var(--color-on-surface-variant);
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  text-align: left;
-}
-
-.nt-section-chevron {
-  width: 12px;
-  color: var(--color-on-surface-variant);
-  flex-shrink: 0;
-}
-
-.nt-section-title {
-  flex: 1;
-}
-
-.nt-section-badge {
-  background: var(--color-surface-container-highest);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 10px;
-  padding: 0 8px;
-  font-size: 12px;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-section-body {
-  margin-top: 4px;
-}
+/* --- system section rows -------------------------------------------------------
+   The section chrome (header/chevron/badge) is the shared NodeViewSection
+   in components/; the row styles below are shared with ClassView and
+   AnnotationsSection, so they stay global. */
 
 .nt-section-list {
   list-style: none;
@@ -2266,17 +1683,6 @@ mark {
   background: var(--color-warning-container);
   border-radius: 2px;
   padding: 0 2px;
-}
-
-
-.nt-sync-status {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.nt-sync-status-error {
-  color: var(--color-error);
 }
 
 /* --- whiteboard canvas ------------------------------------------------------ */

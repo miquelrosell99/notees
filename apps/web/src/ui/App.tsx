@@ -1,5 +1,5 @@
 /**
- * App — boot flow + shell.
+ * App — boot flow + shell composition.
  *
  * Boot flow (offline-first, account-based):
  *  1. "server"     — enter the sync server URL (prefilled by /config.js or
@@ -9,26 +9,32 @@
  *  4. "workspaces" — pick a workspace, create one, or adopt "this device's"
  *                    offline workspace (its unpushed backlog pushes on
  *                    connect — the durable local op log);
- *  5. "ready"      — the outliner shell over a WorkerClient (OPFS-persisted
- *                    store). "Work offline" skips 1–4 entirely: a local
- *                    workspace with no server, sync pending until a later
- *                    login adopts it.
+ *  5. "ready"      — the shell over a WorkerClient (OPFS-persisted store):
+ *                    transparent topbar + sidebar straight on the background
+ *                    canvas, one floating content card (PageCard) hosting
+ *                    the node view, and the Ctrl/Cmd+K command palette.
+ *                    "Work offline" skips 1–4 entirely: a local workspace
+ *                    with no server, sync pending until a later login
+ *                    adopts it.
+ *
+ * The shell components live in ./components (TopBar, Sidebar, PageCard,
+ * CommandPalette); App stays composition + boot phases.
  *
  * The session token travels in the credential slot the relay API key used
  * to occupy (X-API-Key / Bearer); the operator API key keeps working for
  * the CLI. After connect the WS acceleration path is wired (startRealtime)
- * and the footer polls the worker's sync status.
+ * and the topbar polls the worker's sync status.
  */
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
 import { WorkspaceClient, type SyncStatusSnapshot } from "@/core/workspace-client.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import {
   createWorkspace,
+  fetchMe,
   fetchServerInfo,
   listWorkspaces,
   login,
@@ -40,10 +46,12 @@ import {
 
 import { PageView } from "./PageView.js";
 import { ClassView } from "./ClassView.js";
-import { SearchBox } from "./SearchBox.js";
 import { SettingsPanel } from "./SettingsPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
-import { Icon } from "./Icon.js";
+import { CommandPalette } from "./components/CommandPalette.js";
+import { PageCard } from "./components/PageCard.js";
+import { Sidebar } from "./components/Sidebar.js";
+import { TopBar } from "./components/TopBar.js";
 import "./app.css";
 
 const STORAGE_KEYS = {
@@ -113,28 +121,6 @@ function clearStored(key: string): void {
   } catch {
     // Ignore.
   }
-}
-
-/** Footer sync line: engine state, undelivered backlog, realtime indicator. */
-function SyncStatusLine({ snapshot }: { snapshot: SyncStatusSnapshot }) {
-  const backlog = snapshot.pending + snapshot.failed;
-  const label =
-    snapshot.status === "idle"
-      ? `Sync: idle · ${backlog} pending`
-      : snapshot.status === "syncing"
-        ? `Sync: syncing… · ${backlog} pending`
-        : `Sync error${snapshot.error ? `: ${snapshot.error}` : ""} · ${backlog} pending`;
-  return (
-    <span
-      className={
-        snapshot.status === "error" ? "nt-sync-status nt-sync-status-error" : "nt-sync-status"
-      }
-      title={snapshot.error ?? undefined}
-    >
-      {label}
-      {snapshot.realtime ? "" : " · realtime off"}
-    </span>
-  );
 }
 
 /**
@@ -214,39 +200,7 @@ export function App() {
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [workspaceName, setWorkspaceName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [navFilter, setNavFilter] = useState<"journal" | "inbox" | "pages" | "whiteboards" | "tasks">("pages");
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    try {
-      return JSON.parse(readStored("notees.favorites") || "[]") as string[];
-    } catch {
-      return [];
-    }
-  });
-  const [recents, setRecents] = useState<string[]>(() => {
-    try {
-      return JSON.parse(readStored("notees.recents") || "[]") as string[];
-    } catch {
-      return [];
-    }
-  });
-
-  /** Open a node and record it in Recents (local UI state, device-only). */
-  function openPage(id: string): void {
-    setSelectedPageId(id);
-    setRecents((previous) => {
-      const next = [id, ...previous.filter((entry) => entry !== id)].slice(0, 8);
-      writeStored("notees.recents", JSON.stringify(next));
-      return next;
-    });
-  }
-
-  function toggleFavorite(id: string): void {
-    setFavorites((previous) => {
-      const next = previous.includes(id) ? previous.filter((entry) => entry !== id) : [...previous, id];
-      writeStored("notees.favorites", JSON.stringify(next));
-      return next;
-    });
-  }
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
@@ -254,6 +208,11 @@ export function App() {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
+
+  /** Open a node and record it in Recents (the Sidebar wraps this hook). */
+  function openPage(id: string): void {
+    setSelectedPageId(id);
+  }
 
   /**
    * The single owner of the live client for teardown. State (`client`) drives
@@ -384,12 +343,13 @@ export function App() {
       // Validate the credential first: an expired session or revoked key must
       // land on the sign-in screen, not on an empty-looking local store with
       // a silent sync error.
-      listWorkspaces(rememberedUrl, credential)
-        .then(({ workspaces: list }) => {
-          setWorkspaceName(list.find((ws) => ws.id === rememberedWorkspace)?.name ?? "Workspace");
+      Promise.all([listWorkspaces(rememberedUrl, credential), fetchMe(rememberedUrl, credential)])
+        .then(([{ workspaces: list }, me]) => {
+          setUser(me);
           return connect(rememberedUrl, credential, rememberedWorkspace, {
             isOffline: false,
             credentialType,
+            label: list.find((ws) => ws.id === rememberedWorkspace)?.name ?? "Workspace",
           });
         })
         .catch(() => {
@@ -885,229 +845,57 @@ export function App() {
     );
   }
 
-  // Asset-class nodes (uploaded files linked via the attachments property)
-  // are library objects, not pages — keep them out of the page sidebar.
-  const classes = client.listClasses();
-  const assetClassId =
-    classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
-  const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
-  const dateClassIds: string[] = [
-    SYSTEM_CLASS_UUIDS.day,
-    SYSTEM_CLASS_UUIDS.month,
-    SYSTEM_CLASS_UUIDS.year,
-  ];
-  const journalPages = pages.filter((page) => page.classIds.some((c) => dateClassIds.includes(c)));
-  const whiteboardPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.whiteboard));
-  const taskPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.task));
-  const sectionIds = new Set([...journalPages, ...whiteboardPages, ...taskPages].map((p) => p.id));
-  const inboxPages = pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0);
-  const browsePages = pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length > 0);
-  const favoritePages = favorites
-    .map((id) => pages.find((page) => page.id === id))
-    .filter((page): page is (typeof pages)[number] => page !== undefined);
-  const recentPages = recents
-    .map((id) => pages.find((page) => page.id === id))
-    .filter((page): page is (typeof pages)[number] => page !== undefined)
-    .slice(0, 8);
-
-  const renderRow = (node: (typeof pages)[number], icon?: string | null) => (
-    <li key={node.id} className="nt-side-row">
-      <button
-        type="button"
-        className={
-          node.id === selectedPageId ? "nt-side-item nt-side-item-active" : "nt-side-item"
-        }
-        onClick={() => openPage(node.id)}
-      >
-        {icon !== null && icon !== undefined && (
-          <Icon path={icon} size={1} className="nt-side-item-icon" />
-        )}
-        <span className="nt-side-item-label">{deriveDisplayName(node) || node.id}</span>
-      </button>
-      <button
-        type="button"
-        className="nt-side-star"
-        title={favorites.includes(node.id) ? "Remove from favorites" : "Add to favorites"}
-        onClick={() => toggleFavorite(node.id)}
-      >
-        <Icon path={favorites.includes(node.id) ? "mdi-star" : "mdi-star-outline"} size={0.9} />
-      </button>
-    </li>
-  );
-
-  const renderSection = (title: string, rows: ReturnType<typeof renderRow>[]) =>
-    rows.length === 0 ? null : (
-      <section className="nt-side-section">
-        <h3 className="nt-side-header">{title}</h3>
-        <ul className="nt-side-list">{rows}</ul>
-      </section>
-    );
-
   return (
     <div className={sidebarOpen ? "nt-app nt-sidebar-open" : "nt-app"}>
-      <header className="nt-topbar">
-        <button
-          type="button"
-          className="nt-icon-btn"
-          aria-label="Toggle sidebar"
-          onClick={() => setSidebarOpen((open) => !open)}
-        >
-          <Icon path="mdi-menu" size={1} />
-        </button>
-        <span className="nt-wordmark">Notees</span>
-        <span className="nt-status-dot" aria-hidden="true" />
-        <button
-          type="button"
-          className="nt-icon-btn"
-          title="New page"
-          aria-label="New page"
-          onClick={() => void handleNewPage()}
-        >
-          <Icon path="mdi-plus" size={1} />
-        </button>
-        <span className="nt-topbar-spacer" />
-        <SyncStatusLine snapshot={syncStatus} />
-        <ThemeToggle />
-        {sessionSignedIn && user !== null && !offline && (
-          <button
-            type="button"
-            className="nt-icon-btn"
-            title="Settings"
-            aria-label="Settings"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Icon path="mdi-cog-outline" size={1} />
-          </button>
-        )}
-        <button
-          type="button"
-          className="nt-icon-btn"
-          title="Sign out"
-          aria-label="Sign out"
-          onClick={() => void handleSignOut()}
-        >
-          <Icon path="mdi-logout-variant" size={1} />
-        </button>
-      </header>
+      <TopBar
+        syncStatus={syncStatus}
+        onToggleSidebar={() => setSidebarOpen((open) => !open)}
+        onNewPage={() => void handleNewPage()}
+        onOpenPalette={() => setPaletteOpen(true)}
+        showSettings={sessionSignedIn && user !== null && !offline}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onSignOut={() => void handleSignOut()}
+      />
       <div className="nt-body">
-        <aside className="nt-sidebar">
-          <div className="nt-sidebar-top">
-            <button
-              type="button"
-              className="nt-ws-switch"
-              title="Switch workspace (sign out)"
-              onClick={() => void handleSignOut()}
-            >
-              <span className="nt-ws-name">{(workspaceName || "Workspace").toUpperCase()}</span>
-              <Icon path="mdi-chevron-down" size={0.9} />
-            </button>
-            <button
-              type="button"
-              className="nt-icon-btn"
-              title="Search"
-              aria-label="Search"
-              onClick={() => document.querySelector<HTMLInputElement>(".nt-searchbox input")?.focus()}
-            >
-              <Icon path="mdi-magnify" size={1} />
-            </button>
-          </div>
-          <div className="nt-sidebar-search">
-            <SearchBox client={client} onOpenNode={openPage} cacheVersion={pagesVersion} />
-          </div>
-          <nav className="nt-sidebar-nav">
-            {renderSection(
-              "Navigation",
-              [
-                <li key="journal" className="nt-side-row">
-                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("journal")}>
-                    <Icon path="mdi-calendar-clock" size={1} className="nt-side-item-icon" />
-                    <span className="nt-side-item-label">Journal</span>
-                  </button>
-                </li>,
-                <li key="inbox" className="nt-side-row">
-                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("inbox")}>
-                    <Icon path="mdi-tray-arrow-down" size={1} className="nt-side-item-icon" />
-                    <span className="nt-side-item-label">Inbox</span>
-                  </button>
-                </li>,
-                <li key="pages" className="nt-side-row">
-                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("pages")}>
-                    <Icon path="mdi-book-open-page-variant" size={1} className="nt-side-item-icon" />
-                    <span className="nt-side-item-label">Pages</span>
-                  </button>
-                </li>,
-                <li key="whiteboards" className="nt-side-row">
-                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("whiteboards")}>
-                    <Icon path="mdi-presentation" size={1} className="nt-side-item-icon" />
-                    <span className="nt-side-item-label">Whiteboards</span>
-                  </button>
-                </li>,
-                <li key="tasks" className="nt-side-row">
-                  <button type="button" className="nt-side-item" onClick={() => setNavFilter("tasks")}>
-                    <Icon path="mdi-format-list-checks" size={1} className="nt-side-item-icon" />
-                    <span className="nt-side-item-label">Tasks</span>
-                  </button>
-                </li>,
-              ],
-            )}
-            {renderSection("Favorites", favoritePages.map((page) => renderRow(page)))}
-            {renderSection("Recents", recentPages.map((page) => renderRow(page)))}
-            {renderSection(
-              navFilter === "journal"
-                ? "Journal"
-                : navFilter === "inbox"
-                  ? "Inbox"
-                  : navFilter === "whiteboards"
-                    ? "Whiteboards"
-                    : navFilter === "tasks"
-                      ? "Tasks"
-                      : navFilter === "pages"
-                        ? "Pages"
-                        : "Pages",
-              (
-                navFilter === "journal"
-                  ? journalPages
-                  : navFilter === "inbox"
-                    ? inboxPages
-                    : navFilter === "whiteboards"
-                      ? whiteboardPages
-                      : navFilter === "tasks"
-                        ? taskPages
-                        : navFilter === "pages"
-                          ? browsePages
-                          : pages
-              ).map((page) =>
-                renderRow(
-                  page,
-                  classes.find((cls) => page.classIds.includes(cls.id))?.icon ?? null,
-                ),
-              ),
-            )}
-            {classes.length > 0 &&
-              renderSection(
-                "Classes",
-                classes.map((cls) => renderRow(cls, cls.icon)),
-              )}
-          </nav>
-          <div className="nt-sidebar-footer">
-            <span className="nt-sidebar-user">{user?.email ?? "Offline"}</span>
-            <span className="nt-sidebar-store">
-              {offline
-                ? "local workspace"
-                : storeMode === "worker"
-                  ? "Worker + OPFS"
-                  : "in-process store"}
-            </span>
-          </div>
-        </aside>
-        <main className="nt-main">
+        <Sidebar
+          client={client}
+          cacheVersion={pagesVersion}
+          workspaceName={workspaceName}
+          workspaceId={readStored(STORAGE_KEYS.workspaceId)}
+          serverUrl={serverUrl}
+          credential={token}
+          userEmail={user?.email ?? null}
+          offline={offline}
+          storeMode={storeMode}
+          selectedPageId={selectedPageId}
+          onOpenPage={openPage}
+          onSwitchWorkspace={(id, name) => {
+            setSelectedPageId(null);
+            void connect(serverUrl, token, id, {
+              isOffline: false,
+              credentialType: sessionSignedIn ? "session" : "apikey",
+              label: name,
+            });
+          }}
+          onSignOut={() => void handleSignOut()}
+        />
+        <PageCard>
           {selectedPageId !== null ? (
             <NodeView client={client} nodeId={selectedPageId} onOpenNode={openPage} />
           ) : (
             <div className="nt-empty">Select a page.</div>
           )}
-        </main>
+        </PageCard>
       </div>
+      <CommandPalette
+        client={client}
+        open={paletteOpen}
+        onRequestOpen={() => setPaletteOpen(true)}
+        onClose={() => setPaletteOpen(false)}
+        onOpenNode={openPage}
+        onNewPage={() => void handleNewPage()}
+        onSignOut={() => void handleSignOut()}
+      />
       {settingsOpen && sessionSignedIn && user !== null && !offline && (
         <SettingsPanel
           serverUrl={serverUrl}
