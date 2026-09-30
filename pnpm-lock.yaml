@@ -66,6 +66,9 @@ importers:
       '@notees/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@notees/export':
+        specifier: workspace:*
+        version: link:../../packages/export
       '@notees/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

@@ -50,3 +50,52 @@ export function renameWorkspace(
     token,
   );
 }
+
+/** Delete a workspace AND all its data (owner-only server side). */
+export function deleteWorkspace(
+  serverUrl: string,
+  token: string,
+  workspaceId: string,
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(
+    serverUrl,
+    `/workspaces/${encodeURIComponent(workspaceId)}`,
+    { method: "DELETE" },
+    token,
+  );
+}
+
+export interface WorkspaceExport {
+  blob: Blob;
+  /** Suggested filename from the content-disposition header (already .md). */
+  filename: string;
+}
+
+/** Download a full-workspace Markdown export (any membership role). */
+export async function exportWorkspace(
+  serverUrl: string,
+  token: string,
+  workspaceId: string,
+  fallbackName: string,
+): Promise<WorkspaceExport> {
+  const headers = new Headers();
+  headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(
+    `${serverUrl.replace(/\/$/, "")}/api/v1/workspaces/${encodeURIComponent(workspaceId)}/export`,
+    { headers },
+  );
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      const body = (await response.json()) as { error?: { message?: string } };
+      if (body.error?.message) message = body.error.message;
+    } catch {
+      // Keep the HTTP status message.
+    }
+    throw new Error(message);
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(disposition);
+  const filename = match?.[1] ?? `${fallbackName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "workspace"}.md`;
+  return { blob: await response.blob(), filename };
+}
