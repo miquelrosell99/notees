@@ -44,13 +44,15 @@ import {
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
 
+import { Icon } from "./Icon.js";
 import { PageView } from "./PageView.js";
 import { ClassView } from "./ClassView.js";
 import { SettingsPanel } from "./SettingsPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
-import { Sidebar } from "./components/Sidebar.js";
+import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { NAV_ENTRIES, Sidebar, type NavKey } from "./components/Sidebar.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
@@ -208,15 +210,35 @@ export function App() {
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(() => {
+    // Deep link: /<uuid> in the address bar opens that node once synced.
+    const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
+      window.location.pathname,
+    );
+    return match !== null ? match[1]! : null;
+  });
+  const [activeNav, setActiveNav] = useState<NavKey>("pages");
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
-  /** Open a node and record it in Recents (the Sidebar wraps this hook). */
+  /** Open a node, record it in Recents (the Sidebar wraps this), and sync the URL. */
   function openPage(id: string): void {
     setSelectedPageId(id);
+    window.history.pushState({ node: id }, "", `/${id}`);
   }
+
+  /** Back/forward navigation drives the selection. */
+  useEffect(() => {
+    const onPopState = () => {
+      const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
+        window.location.pathname,
+      );
+      setSelectedPageId(match !== null ? match[1]! : null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Ctrl/Cmd+Shift+N — the global quick-capture shortcut (Quick Add).
   useEffect(() => {
@@ -880,7 +902,6 @@ export function App() {
       <div className="nt-body">
         <Sidebar
           client={client}
-          cacheVersion={pagesVersion}
           workspaceName={workspaceName}
           workspaceId={readStored(STORAGE_KEYS.workspaceId)}
           serverUrl={serverUrl}
@@ -889,6 +910,13 @@ export function App() {
           offline={offline}
           storeMode={storeMode}
           selectedPageId={selectedPageId}
+          activeNav={activeNav}
+          onSelectNav={(key) => {
+            setActiveNav(key);
+            setSelectedPageId(null);
+            window.history.pushState({ node: null }, "", "/");
+          }}
+          onRequestSearch={() => setPaletteOpen(true)}
           onOpenPage={openPage}
           onSwitchWorkspace={(id, name) => {
             setSelectedPageId(null);
@@ -904,7 +932,7 @@ export function App() {
           {selectedPageId !== null ? (
             <NodeView client={client} nodeId={selectedPageId} onOpenNode={openPage} />
           ) : (
-            <div className="nt-empty">Select a page.</div>
+            <HubView client={client} nav={activeNav} onOpenNode={openPage} />
           )}
         </PageCard>
       </div>
@@ -930,6 +958,69 @@ export function App() {
       )}
       <BackendUnavailableOverlay syncStatus={syncStatus} />
       <NotificationToaster />
+    </div>
+  );
+}
+
+/** Nav hub: the main-view list behind each NAVIGATION entry. */
+function HubView({
+  client,
+  nav,
+  onOpenNode,
+}: {
+  client: AnyClient;
+  nav: NavKey;
+  onOpenNode: (nodeId: string) => void;
+}) {
+  const [, setVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  const classes = client.listClasses();
+  const assetClassId = classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
+  const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
+  const dateClassIds: string[] = [
+    SYSTEM_CLASS_UUIDS.day,
+    SYSTEM_CLASS_UUIDS.month,
+    SYSTEM_CLASS_UUIDS.year,
+  ];
+  const journalPages = pages.filter((page) => page.classIds.some((c) => dateClassIds.includes(c)));
+  const whiteboardPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.whiteboard));
+  const taskPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.task));
+  const sectionIds = new Set([...journalPages, ...whiteboardPages, ...taskPages].map((p) => p.id));
+  const entry = NAV_ENTRIES.find((e) => e.key === nav);
+  const items =
+    nav === "journal"
+      ? journalPages
+      : nav === "whiteboards"
+        ? whiteboardPages
+        : nav === "tasks"
+          ? taskPages
+          : nav === "inbox"
+            ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
+            : pages.filter((page) => !sectionIds.has(page.id));
+  const byClass = new Map(classes.map((cls) => [cls.id, cls]));
+  return (
+    <div className="nt-hub">
+      <header className="nt-hub-header">
+        {entry !== undefined && <Icon path={entry.icon} size={1.2} className="nt-hub-icon" />}
+        <h1 className="nt-hub-title">{entry?.label ?? "Pages"}</h1>
+        <span className="nt-hub-count">{items.length}</span>
+      </header>
+      <ul className="nt-hub-list">
+        {items.map((node) => {
+          const icon = node.icon ?? node.classIds.map((c) => byClass.get(c)?.icon).find((i) => i) ?? null;
+          return (
+            <li key={node.id}>
+              <button type="button" className="nt-hub-item" onClick={() => onOpenNode(node.id)}>
+                {icon !== null && icon !== undefined && (
+                  <Icon path={icon} size={1} className="nt-hub-item-icon" />
+                )}
+                <span className="nt-hub-item-label">{deriveDisplayName(node) || node.id}</span>
+              </button>
+            </li>
+          );
+        })}
+        {items.length === 0 && <li className="nt-hub-empty">Nothing here yet.</li>}
+      </ul>
     </div>
   );
 }
