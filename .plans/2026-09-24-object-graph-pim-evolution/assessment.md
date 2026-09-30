@@ -1165,7 +1165,7 @@ Supersedes §34.18 (its items fold in here with real scope). Source of truth for
 | RightSidebarCards (shift+click cards, local-graph card) + context sections (TOC/Comments/Activity/Versions) | 🟡 | Empty panel placeholder exists |
 | Scratchpad (transient blocks, send-all) | ❌ | — |
 | Whiteboard full toolset (15 shapes, pen/highlighter/eraser widths, connectors, cards, context menu, minimap, grid/snap) | 🟡 | Basic canvas + cards |
-| Import (Markdown/Logseq folder/data JSON) + workspace export (dump/md/txt/AST, assets) + auto-export | ⛔/🟡 | v1 backend jobs; CLI export exists |
+| Import (Markdown/Logseq folder/data JSON) + workspace export (dump/md/txt/AST, assets) + auto-export | ⛔/🟡 | Workspace **Markdown export shipped** (card actions menu → Export, full-workspace .md via @notees/export; 2026-09-30); per-node/AST/asset exports + import + auto-export still backend-less |
 | Flashcards (SM-2 study mode, stats, editor) | ⛔ | Plugin runtime (M3) |
 | Shares (per-node public links, Shares Inbox, public view) | ⛔ | Needs backend |
 | Presence (block avatars/locks/typing) + ConflictResolutionModal (3-way diff) + LiveSyncIndicator | ⛔/🟡 | Needs WS presence protocol |
