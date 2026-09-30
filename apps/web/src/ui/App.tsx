@@ -35,6 +35,7 @@ import { WorkerClient } from "@/core/worker-client.js";
 import {
   createWorkspace,
   fetchMe,
+  fetchNodeLocation,
   fetchServerInfo,
   listWorkspaces,
   login,
@@ -448,7 +449,7 @@ export function App() {
       // land on the sign-in screen, not on an empty-looking local store with
       // a silent sync error.
       Promise.all([listWorkspaces(rememberedUrl, credential), fetchMe(rememberedUrl, credential)])
-        .then(([{ workspaces: list }, me]) => {
+        .then(async ([{ workspaces: list }, me]) => {
           setUser(me);
           if (window.location.pathname === "/workspaces" || rememberedWorkspace === "") {
             // Reload/deep link on the manager (or no workspace to resume
@@ -460,6 +461,35 @@ export function App() {
             setWorkspaces(list);
             setPhase({ name: "workspaces", user: me });
             return;
+          }
+          // Deep-link resolution: a /<node-uuid> URL names a node that may
+          // live in another of the account's workspaces. Connect straight to
+          // the holder instead of the remembered workspace.
+          const nodeMatch =
+            /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
+              window.location.pathname,
+            );
+          if (nodeMatch !== null) {
+            try {
+              const { workspaceId } = await fetchNodeLocation(
+                rememberedUrl,
+                credential,
+                nodeMatch[1]!,
+              );
+              if (
+                workspaceId !== rememberedWorkspace &&
+                list.some((ws) => ws.id === workspaceId)
+              ) {
+                return connect(rememberedUrl, credential, workspaceId, {
+                  isOffline: false,
+                  credentialType,
+                  label: list.find((ws) => ws.id === workspaceId)?.name ?? "Workspace",
+                });
+              }
+            } catch {
+              // Node unknown or lookup unreachable: the remembered workspace
+              // opens and the node view renders its honest not-found state.
+            }
           }
           return connect(rememberedUrl, credential, rememberedWorkspace, {
             isOffline: false,
