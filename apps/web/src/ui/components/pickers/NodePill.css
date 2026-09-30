@@ -1,0 +1,76 @@
+/**
+ * NodeRef styles — TE-inspired inline link pills.
+ * Rounded rectangle, tactile hover/press, grayscale only.
+ */
+
+.node-pill {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  position: relative;
+
+  /* Reserve a 44px minimum width so short pills stay tappable in inline flow.
+     The 44px minimum *height* must not be reserved in layout: inside flex rows
+     (table cells, metadata rows) it would stretch the whole row. An invisible
+     overlay below keeps the hit area ≥ 44×44 without affecting layout. */
+  min-width: var(--button-min-height);
+  vertical-align: middle;
+}
+
+/* Invisible minimum hit-area overlay — same pattern as .btn--icon-only::after. */
+.node-pill::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+/* Keep the pill's remove button clickable above the hit-area overlay. */
+.node-pill .pill__right-button {
+  position: relative;
+  z-index: var(--z-1);
+}
+
+/* The node-pill wrapper has an ::after hit-area overlay with pointer-events:auto.
+   That overlay can intercept hover events before they reach the inner .pill,
+   so also reveal the right icon when the wrapper itself is hovered/focused. */
+.node-pill:hover .pill--hover-reveal-right .pill__right-button,
+.node-pill:focus-within .pill--hover-reveal-right .pill__right-button {
+  max-width: 1.5rem;
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+}
+
+.node-pill:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: var(--shape-extra-small);
+}
+
+/* Pill context menu (color row wrapper) */
+.node-pill-context-menu-backdrop:focus-visible {
+  outline: none;
+}
+
+/* Context menu wrapper for the color picker */
+.node-pill-context-menu {
+  position: relative !important;
+  left: 0 !important;
+  top: 0 !important;
+  border-radius: 0 0 var(--shape-large) var(--shape-large);
+}
+
+.node-pill-context-menu__color-row {
+  border-radius: var(--shape-large) var(--shape-large) 0 0;
+}

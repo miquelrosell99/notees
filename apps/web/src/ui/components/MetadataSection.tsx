@@ -1,20 +1,25 @@
 /**
- * MetadataSection — the page's effective-properties panel, re-skinned into
- * interaction preserved):
+ * MetadataSection — the page's effective-properties panel.
  *
- *    collapsible "Metadata" header with icon + count;
- *    label + pill chips (radius full, class-color or primary-container
- *    background, icon + name, × revealed on hover) + a "+ Add class" ghost
- *    pill with a search picker (client.assignClass);
- *    .section-label): derived defaults stay dimmed with a "default" hint,
- *    authored values win, unbound survivors are marked;
- *  - node-typed / date / date_range values render as pills; the picker,
- *    upload, annotations and date-qualifier affordances are unchanged.
+ * Rows:
+ *  - the node's classes as colored pills (× unassigns; right-click opens the
+ *    color-swatch menu) + a "+ Add class" ghost pill opening the ported
+ *    node-selector popup (search / create / pick, client.assignClass);
+ *  - node-typed / date / date_range values render as pills; the object picker
+ *    is the ported NodeSelector popup (search + create, filtered by the
+ *    schema's target classes, upload for asset targets), date rows open the
+ *    ported DatePickerPopup (drill-down calendar + typed-date input);
+ *  - select schemas with options render the ported options control
+ *    (pills + picker), booleans a checkbox, everything else the minimal
+ *    text editor. Derived defaults stay dimmed with a "default" hint, authored
+ *    values win, unbound survivors are marked.
  *
  * The nt-* class hooks the tests assert on (.nt-properties-panel,
+ * .nt-property-*, .nt-classes-row, …) are unchanged.
  */
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   deriveDisplayName,
@@ -32,9 +37,13 @@ import type {
 } from "@/core/workspace-client.js";
 
 import { AnnotationsSection } from "../AnnotationsSection.js";
-import { DatePicker } from "../DatePicker.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
+import { Checkbox } from "./pickers/Checkbox.js";
+import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
+import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
+import { NodeSelector } from "./pickers/NodeSelector.js";
+import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -96,6 +105,22 @@ function rangeValueOf(value: unknown): DateRangeValue {
 /** The schema's commit ceiling for date values (day when unspecified). */
 function precisionOf(schema: { datePrecision?: DatePrecision | null } | null | undefined): DatePrecision {
   return schema?.datePrecision ?? "day";
+}
+
+/**
+ * Day keys (`y-m0-d`, 0-indexed month) backed by an existing day node — the
+ * date picker's has-note marks.
+ */
+function collectMarkedDates(client: AnyClient): Set<string> {
+  const dates = new Set<string>();
+  for (const node of client.listPages()) {
+    if (!node.classIds.includes(SYSTEM_CLASS_UUIDS.day)) continue;
+    const parsed = parseDateNodeId(node.id);
+    if (parsed !== null) {
+      dates.add(`${parsed.year}-${parsed.month - 1}-${parsed.day}`);
+    }
+  }
+  return dates;
 }
 
 /**
@@ -164,11 +189,11 @@ function ObjectPropertyRow({
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Pill ref whose annotations section is open (one at a time), null = none. */
   const [annotatingRef, setAnnotatingRef] = useState<string | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const targetClassIds = resolveTargetClassIds(client, propertySchemaId, bindingFilter);
@@ -197,7 +222,6 @@ function ObjectPropertyRow({
   const linkNode = async (target: string): Promise<void> => {
     await client.setProperty(nodeId, propertySchemaId, { nodeId: target }, nextIdx);
     setPickerOpen(false);
-    setQuery("");
   };
 
   const unlink = async (idx: number): Promise<void> => {
@@ -227,25 +251,6 @@ function ObjectPropertyRow({
       setBusy(false);
     }
   };
-
-  const matchesFilter = (node: ClientNode): boolean =>
-    targetClassIds === null || node.classIds.some((id) => targetClassIds.includes(id));
-  const candidates: ClientNode[] = (() => {
-    const q = query.trim();
-    const hits =
-      q === "" && targetClassIds !== null
-        ? targetClassIds.flatMap((id) => client.getClassMembers(id))
-        : client.search(q);
-    const seen = new Set<string>();
-    return hits
-      .filter(matchesFilter)
-      .filter((node) => !linkedIds.has(node.id))
-      .filter((node) => {
-        if (seen.has(node.id)) return false;
-        seen.add(node.id);
-        return true;
-      });
-  })();
 
   // No rows (bound, unvalued) is not a default state — no hint.
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -334,9 +339,13 @@ function ObjectPropertyRow({
         {!(multi === false && pills.length > 0) && (
           <button
             type="button"
+            ref={addButtonRef}
             className="nt-chip-add"
             aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen((open) => !open)}
+            onClick={(event) => {
+              addButtonRef.current = event.currentTarget;
+              setPickerOpen((open) => !open);
+            }}
           >
             + Add
           </button>
@@ -346,55 +355,49 @@ function ObjectPropertyRow({
         <AnnotationsSection client={client} assetId={annotatingRef} onOpenPage={onOpenPage} />
       )}
       {pickerOpen && (
-        <div className="nt-property-picker">
-          <input
-            autoFocus
-            type="text"
-            className="nt-property-value"
-            aria-label={`Search ${label}`}
-            placeholder={`Search ${label}…`}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <ul className="nt-picker-list">
-            {candidates.map((node) => (
-              <li key={node.id}>
-                <button type="button" className="nt-picker-item" onClick={() => void linkNode(node.id)}>
-                  {deriveDisplayName(node) || node.id}
-                </button>
-              </li>
-            ))}
-            {candidates.length === 0 && <li className="nt-picker-empty">No matches.</li>}
-          </ul>
-          {isAssetTarget && (
-            <>
-              <button
-                type="button"
-                className="nt-picker-upload"
-                disabled={busy}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {busy ? "Uploading…" : "Upload file…"}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="nt-file-input"
-                aria-label={`Upload ${label}`}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file !== undefined) void uploadFile(file);
-                  event.target.value = "";
-                }}
-              />
-            </>
-          )}
-          {error !== null && (
-            <p role="alert" className="nt-picker-error">
-              {error}
-            </p>
-          )}
-        </div>
+        <NodeSelector
+          client={client}
+          searchMode={isAssetTarget ? "all" : "pages"}
+          classFilters={targetClassIds ?? undefined}
+          excludeNodeId={nodeId}
+          anchorEl={addButtonRef.current}
+          onClose={() => setPickerOpen(false)}
+          searchPlaceholder={`Search ${label}`}
+          onAdd={(node) => void linkNode(node.id)}
+          allowCreate={!isAssetTarget}
+          alwaysShowCreate={isAssetTarget}
+          createLabel={isAssetTarget ? "Upload file…" : undefined}
+          onCreateNew={
+            isAssetTarget
+              ? () => {
+                  fileInputRef.current?.click();
+                }
+              : (name) =>
+                  client.createObject({
+                    nodeType: "page",
+                    name,
+                    ...(targetClassIds !== null ? { classIds: targetClassIds } : {}),
+                  })
+          }
+        />
+      )}
+      {isAssetTarget && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="nt-file-input"
+          aria-label={`Upload ${label}`}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file !== undefined) void uploadFile(file);
+            event.target.value = "";
+          }}
+        />
+      )}
+      {error !== null && (
+        <p role="alert" className="nt-picker-error">
+          {error}
+        </p>
       )}
     </li>
   );
@@ -425,7 +428,9 @@ function DatePropertyRow({
   rows: EffectiveProperty[];
 }) {
   const [pickerFor, setPickerFor] = useState<number | "new" | null>(null);
+  const anchorRef = useRef<HTMLElement | null>(null);
   const precision = precisionOf(schema);
+  const markedDates = collectMarkedDates(client);
 
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const authoredIdx = ordered.filter((row) => row.source === "authored").map((row) => row.idx);
@@ -471,7 +476,10 @@ function DatePropertyRow({
               className="pill__text nt-chip-label"
               aria-label={`Set ${label}`}
               aria-expanded={pickerFor === row.idx}
-              onClick={() => setPickerFor((cur) => (cur === row.idx ? null : row.idx))}
+              onClick={(event) => {
+                anchorRef.current = event.currentTarget;
+                setPickerFor((cur) => (cur === row.idx ? null : row.idx));
+              }}
             >
               {pillText(row)}
             </button>
@@ -492,22 +500,28 @@ function DatePropertyRow({
             type="button"
             className="nt-chip-add"
             aria-expanded={pickerFor === "new"}
-            onClick={() => setPickerFor((cur) => (cur === "new" ? null : "new"))}
+            onClick={(event) => {
+              anchorRef.current = event.currentTarget;
+              setPickerFor((cur) => (cur === "new" ? null : "new"));
+            }}
           >
             + Add
           </button>
         )}
       </span>
       {pickerFor !== null && (
-        <DatePicker
-          precision={precision}
-          selectedIso={
+        <DatePickerPopup
+          value={
             pickerFor === "new"
-              ? null
-              : isoOfRef(nodeRefOf(ordered.find((row) => row.idx === pickerFor)?.value ?? null))
+              ? ""
+              : (isoOfRef(nodeRefOf(ordered.find((row) => row.idx === pickerFor)?.value ?? null)) ?? "")
           }
-          onCommit={(iso) => void commit(iso, pickerFor === "new" ? nextIdx : pickerFor)}
+          onSelect={(iso) => commit(iso, pickerFor === "new" ? nextIdx : pickerFor)}
           onClose={() => setPickerFor(null)}
+          anchorRef={anchorRef}
+          initialMode={precision === "year" ? "years" : precision === "month" ? "months" : "days"}
+          firstDayOfWeek={1}
+          markedDates={markedDates}
         />
       )}
     </li>
@@ -548,7 +562,9 @@ function DateRangePropertyRow({
   rows: EffectiveProperty[];
 }) {
   const [picking, setPicking] = useState<{ idx: number; end: "start" | "end" } | null>(null);
+  const anchorRef = useRef<HTMLElement | null>(null);
   const precision = precisionOf(schema);
+  const markedDates = collectMarkedDates(client);
 
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const authoredIdx = ordered.filter((row) => row.source === "authored").map((row) => row.idx);
@@ -574,11 +590,12 @@ function DateRangePropertyRow({
           className="nt-chip-label"
           aria-label={`Set ${title.toLowerCase()} for ${label}`}
           aria-expanded={picking?.idx === idx && picking.end === end}
-          onClick={() =>
+          onClick={(event) => {
+            anchorRef.current = event.currentTarget;
             setPicking((cur) =>
               cur !== null && cur.idx === idx && cur.end === end ? null : { idx, end },
-            )
-          }
+            );
+          }}
         >
           {ref !== null ? dateLabelOf(ref) : "…"}
         </button>
@@ -633,22 +650,30 @@ function DateRangePropertyRow({
             type="button"
             className="nt-chip-add"
             aria-expanded={picking !== null && picking.idx === nextIdx}
-            onClick={() =>
+            onClick={(event) => {
+              anchorRef.current = event.currentTarget;
               setPicking((cur) =>
                 cur !== null && cur.idx === nextIdx ? null : { idx: nextIdx, end: "start" },
-              )
-            }
+              );
+            }}
           >
             + Add
           </button>
         )}
       </span>
       {picking !== null && (
-        <DatePicker
-          precision={precision}
-          selectedIso={isoOfRef(rangeValueOf(ordered.find((r) => r.idx === picking.idx)?.value)[picking.end])}
-          onCommit={(iso) => void setEnd(picking.idx, picking.end, iso)}
+        <DatePickerPopup
+          value={
+            isoOfRef(
+              rangeValueOf(ordered.find((r) => r.idx === picking.idx)?.value)[picking.end],
+            ) ?? ""
+          }
+          onSelect={(iso) => void setEnd(picking.idx, picking.end, iso)}
           onClose={() => setPicking(null)}
+          anchorRef={anchorRef}
+          initialMode={precision === "year" ? "years" : precision === "month" ? "months" : "days"}
+          firstDayOfWeek={1}
+          markedDates={markedDates}
         />
       )}
     </li>
@@ -702,8 +727,168 @@ function QualifierRange({
 }
 
 /**
- * primary-container background, class icon + name, × on hover) and a
- * "+ Add class" ghost pill opening a search picker (assignClass).
+ * One select-typed property: the ported options control renders the selected
+ * option pills (+ picker) for schemas that declare options; the value ids
+ * reference the schema option ids.
+ */
+function SelectPropertyRow({
+  client,
+  nodeId,
+  propertySchemaId,
+  label,
+  multi,
+  options,
+  rows,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  propertySchemaId: string;
+  label: string;
+  multi: boolean;
+  options: Array<{ id: string; label: string }>;
+  rows: EffectiveProperty[];
+}) {
+  const ordered = [...rows].sort((a, b) => a.idx - b.idx);
+  const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
+  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+
+  const valuesOf = (row: EffectiveProperty): string[] =>
+    Array.isArray(row.value)
+      ? row.value.filter((v): v is string => typeof v === "string")
+      : typeof row.value === "string" && row.value !== ""
+        ? [row.value]
+        : [];
+
+  const write = async (idx: number, value: unknown): Promise<void> => {
+    await client.setProperty(nodeId, propertySchemaId, value, idx);
+  };
+
+  const remove = async (row: EffectiveProperty, optionId: string): Promise<void> => {
+    const values = valuesOf(row).filter((id) => id !== optionId);
+    if (multi && values.length > 0) {
+      await write(row.idx, values);
+    } else {
+      await client.unsetProperty(nodeId, propertySchemaId, row.idx);
+    }
+  };
+
+  return (
+    <>
+      {ordered.map((row) => (
+        <li
+          key={`${propertySchemaId}:${row.idx}`}
+          className={
+            allDefault
+              ? "nt-property nt-property-default nt-property-select node-metadata-row"
+              : "nt-property nt-property-select node-metadata-row"
+          }
+        >
+          <span className="section-label nt-property-name">{label}</span>
+          {allDefault && <span className="nt-property-hint">default</span>}
+          {unbound && <span className="nt-property-hint">unbound</span>}
+          <SelectionPropertyControl
+            options={options}
+            values={valuesOf(row)}
+            multi={multi}
+            onAdd={(optionId) => {
+              const values = valuesOf(row);
+              void write(
+                row.idx,
+                multi ? [...values.filter((id) => id !== optionId), optionId] : optionId,
+              );
+            }}
+            onRemove={(optionId) => void remove(row, optionId)}
+          />
+        </li>
+      ))}
+      {ordered.length === 0 && (
+        <li className="nt-property nt-property-select node-metadata-row">
+          <span className="section-label nt-property-name">{label}</span>
+          <SelectionPropertyControl
+            options={options}
+            values={[]}
+            multi={multi}
+            onAdd={(optionId) => void write(nextIdxOf([]), multi ? [optionId] : optionId)}
+            onRemove={() => undefined}
+          />
+        </li>
+      )}
+    </>
+  );
+}
+
+/** Next free idx for a schema with no effective rows yet. */
+function nextIdxOf(rows: EffectiveProperty[]): number {
+  const authoredIdx = rows.filter((row) => row.source === "authored").map((row) => row.idx);
+  return authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
+}
+
+/**
+ * One boolean property: the ported checkbox toggle writes the slot directly.
+ */
+function BooleanPropertyRow({
+  client,
+  nodeId,
+  propertySchemaId,
+  label,
+  rows,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  propertySchemaId: string;
+  label: string;
+  rows: EffectiveProperty[];
+}) {
+  const ordered = [...rows].sort((a, b) => a.idx - b.idx);
+  const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
+  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+
+  return (
+    <>
+      {ordered.map((row) => (
+        <li
+          key={`${propertySchemaId}:${row.idx}`}
+          className={
+            allDefault
+              ? "nt-property nt-property-default nt-property-boolean node-metadata-row"
+              : "nt-property nt-property-boolean node-metadata-row"
+          }
+        >
+          <span className="section-label nt-property-name">{label}</span>
+          {allDefault && <span className="nt-property-hint">default</span>}
+          {unbound && <span className="nt-property-hint">unbound</span>}
+          <Checkbox
+            size="sm"
+            checked={row.value === true}
+            disabled={row.readonly === true}
+            aria-label={`Property ${label}`}
+            onChange={(event) => {
+              void client.setProperty(nodeId, propertySchemaId, event.target.checked, row.idx);
+            }}
+          />
+        </li>
+      ))}
+      {ordered.length === 0 && (
+        <li className="nt-property nt-property-boolean node-metadata-row">
+          <span className="section-label nt-property-name">{label}</span>
+          <Checkbox
+            size="sm"
+            checked={false}
+            aria-label={`Property ${label}`}
+            onChange={(event) => {
+              void client.setProperty(nodeId, propertySchemaId, event.target.checked, 0);
+            }}
+          />
+        </li>
+      )}
+    </>
+  );
+}
+
+/**
+ * The node's own classes: pills with an × that unassigns (class.unassign),
+ * a right-click color-swatch menu (object.update color), and a "+ Add class"
+ * ghost pill opening the node-selector popup (assignClass).
  */
 function ClassesRow({
   client,
@@ -717,15 +902,12 @@ function ClassesRow({
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [colorMenu, setColorMenu] = useState<{ classId: string; x: number; y: number } | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const candidates = client
-    .listClasses()
-    .filter((cls) => !classIds.includes(cls.id))
-    .filter((cls) => {
-      const q = query.trim().toLowerCase();
-      return q === "" || (cls.name ?? "").toLowerCase().includes(q);
-    });
+  const assignedClasses = classIds
+    .map((classId) => client.getNode(classId))
+    .filter((node): node is ClientNode => node !== undefined);
 
   return (
     <div className="node-metadata-row nt-classes-row">
@@ -745,6 +927,12 @@ function ClassesRow({
                   ? { background: colored, color: contrastFor(colored) }
                   : undefined
               }
+              onContextMenu={(event) => {
+                if (colored === null && cls === undefined) return;
+                event.preventDefault();
+                event.stopPropagation();
+                setColorMenu({ classId, x: event.clientX, y: event.clientY });
+              }}
             >
               {cls?.icon !== null && cls?.icon !== undefined && (
                 <span className="pill__left-icon">
@@ -772,46 +960,66 @@ function ClassesRow({
         <span className="nt-class-add-anchor">
           <button
             type="button"
+            ref={addButtonRef}
             className="nt-chip-add nt-class-add"
             aria-expanded={pickerOpen}
-            onClick={() => setPickerOpen((open) => !open)}
+            onClick={(event) => {
+              addButtonRef.current = event.currentTarget;
+              setPickerOpen((open) => !open);
+            }}
           >
             + Add class
           </button>
-          {pickerOpen && (
-            <div className="nt-property-picker nt-class-picker">
-              <input
-                autoFocus
-                type="text"
-                className="nt-property-value"
-                aria-label="Search classes"
-                placeholder="Search classes…"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-              <ul className="nt-picker-list">
-                {candidates.map((cls) => (
-                  <li key={cls.id}>
-                    <button
-                      type="button"
-                      className="nt-picker-item"
-                      onClick={() => {
-                        void client.assignClass(nodeId, cls.id);
-                        setPickerOpen(false);
-                        setQuery("");
-                      }}
-                    >
-                      {cls.icon !== null && <Icon path={cls.icon} size={0.8} />}
-                      {deriveDisplayName(cls) || cls.id}
-                    </button>
-                  </li>
-                ))}
-                {candidates.length === 0 && <li className="nt-picker-empty">No classes.</li>}
-              </ul>
-            </div>
-          )}
         </span>
       </div>
+      {pickerOpen && (
+        <NodeSelector
+          client={client}
+          searchMode="classes"
+          nodes={assignedClasses}
+          anchorEl={addButtonRef.current}
+          onClose={() => setPickerOpen(false)}
+          searchPlaceholder="Search classes"
+          onAdd={(node) => {
+            void client.assignClass(nodeId, node.id);
+            setPickerOpen(false);
+          }}
+        />
+      )}
+      {colorMenu !== null && (
+        <>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: "var(--z-9998)" }}
+            onClick={() => setColorMenu(null)}
+          />
+          {createPortal(
+            <div
+              style={{
+                position: "fixed",
+                left: colorMenu.x,
+                top: colorMenu.y,
+                zIndex: "var(--z-9999)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <ColorPickerRow
+                currentColor={client.getNode(colorMenu.classId)?.color ?? null}
+                onColorChange={(color) => {
+                  // object.update has no null color (protocol: string only) —
+                  // "No color" is a no-op until the protocol grows a clear.
+                  if (color !== null) {
+                    void client.updateObject(colorMenu.classId, { color });
+                  }
+                  setColorMenu(null);
+                }}
+              />
+            </div>,
+            document.body,
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -830,13 +1038,28 @@ export function MetadataSection({
 
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
 
-  // Node-typed / date / date_range schemas render as one grouped row per
-  // schema; scalar rows keep the minimal text editor. Grouped rows appear at
-  // their first occurrence so the panel order is unchanged.
+  // Node-typed / date / date_range / boolean schemas render as one grouped
+  // row per schema; select schemas join them only when they declare options
+  // (without options the minimal text editor is the honest editor — there is
+  // nothing to pick). Scalar rows keep the minimal text editor. Grouped rows
+  // appear at their first occurrence so the panel order is unchanged.
+  const optionsOf = (propertySchemaId: string) =>
+    client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options;
+  const isGroupedType = (type: string | undefined, propertySchemaId: string): boolean => {
+    if (type === "object" || type === "date" || type === "date_range" || type === "boolean") {
+      return true;
+    }
+    if (type === "select") {
+      const options = optionsOf(propertySchemaId);
+      return options !== null && options !== undefined && options.length > 0;
+    }
+    return false;
+  };
+
   const renderedGroups = new Set<string>();
   const rendered = rows.map((row) => {
     const type = row.schema?.type;
-    if (type !== "object" && type !== "date" && type !== "date_range") {
+    if (!isGroupedType(type, row.propertySchemaId)) {
       return { kind: "scalar" as const, row };
     }
     if (renderedGroups.has(row.propertySchemaId)) return null;
@@ -856,13 +1079,7 @@ export function MetadataSection({
   const node = client.getNode(nodeId);
   for (const classId of node?.classIds ?? []) {
     for (const binding of client.getClassBindings(classId)) {
-      if (
-        binding.type !== "object" &&
-        binding.type !== "date" &&
-        binding.type !== "date_range"
-      ) {
-        continue;
-      }
+      if (!isGroupedType(binding.type, binding.propertySchemaId)) continue;
       if (renderedGroups.has(binding.propertySchemaId)) continue;
       if (emptyObjectBindings.some((b) => b.propertySchemaId === binding.propertySchemaId)) continue;
       if (binding.hideWhenEmpty === true) continue;
@@ -876,7 +1093,7 @@ export function MetadataSection({
   if (rows.length === 0 && emptyObjectBindings.length === 0 && classIds.length === 0) return null;
 
   const groupedRow = (
-    type: string,
+    type: string | undefined,
     propertySchemaId: string,
     label: string,
     multi: boolean,
@@ -908,6 +1125,34 @@ export function MetadataSection({
           label={label}
           multi={multi}
           schema={schema}
+          rows={groupRows}
+        />
+      );
+    }
+    if (type === "select") {
+      const options =
+        client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options ?? [];
+      return (
+        <SelectPropertyRow
+          key={propertySchemaId}
+          client={client}
+          nodeId={nodeId}
+          propertySchemaId={propertySchemaId}
+          label={label}
+          multi={multi}
+          options={options}
+          rows={groupRows}
+        />
+      );
+    }
+    if (type === "boolean") {
+      return (
+        <BooleanPropertyRow
+          key={propertySchemaId}
+          client={client}
+          nodeId={nodeId}
+          propertySchemaId={propertySchemaId}
+          label={label}
           rows={groupRows}
         />
       );

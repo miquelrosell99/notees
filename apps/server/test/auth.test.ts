@@ -232,6 +232,82 @@ describe("relay authorization for accounts", () => {
   });
 });
 
+describe("workspace rename", () => {
+  it("PATCH /workspaces/:id renames for the owner and refuses non-owners", async () => {
+    server = await makeTestServer();
+    const owner = (await setupAdmin("owner@example.com")).json().token as string;
+
+    // A second account the owner adds as a plain (non-owner) member.
+    const memberUser = server.ctx.auth.createUser({
+      email: "member@example.com",
+      passwordHash: await hashPassword("member-password-1"),
+    });
+    const member = server.ctx.auth.createSession(memberUser.id).token;
+
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/v1/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "Old name" },
+    });
+    expect(created.statusCode).toBe(201);
+    const workspaceId = created.json().id as string;
+    server.ctx.auth.addMember(workspaceId, memberUser.id, "member");
+
+    // Non-owner member: forbidden.
+    const byMember = await server.app.inject({
+      method: "PATCH",
+      url: `/api/v1/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${member}` },
+      payload: { name: "Hijacked" },
+    });
+    expect(byMember.statusCode).toBe(403);
+
+    // Unrelated account: the workspace's existence is not revealed.
+    const strangerUser = server.ctx.auth.createUser({
+      email: "stranger@example.com",
+      passwordHash: await hashPassword("stranger-password-1"),
+    });
+    const stranger = server.ctx.auth.createSession(strangerUser.id).token;
+    const byStranger = await server.app.inject({
+      method: "PATCH",
+      url: `/api/v1/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${stranger}` },
+      payload: { name: "Hijacked" },
+    });
+    expect(byStranger.statusCode).toBe(404);
+
+    // Owner: renamed, and the list reflects it.
+    const renamed = await server.app.inject({
+      method: "PATCH",
+      url: `/api/v1/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "New name" },
+    });
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json()).toEqual({ id: workspaceId, name: "New name" });
+
+    const list = await server.app.inject({
+      method: "GET",
+      url: "/api/v1/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    const entry = list
+      .json()
+      .workspaces.find((ws: { id: string }) => ws.id === workspaceId);
+    expect(entry.name).toBe("New name");
+
+    // Empty names are rejected outright.
+    const empty = await server.app.inject({
+      method: "PATCH",
+      url: `/api/v1/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "   " },
+    });
+    expect(empty.statusCode).toBe(422);
+  });
+});
+
 describe("api keys", () => {
   it("minted keys authenticate as their owner and list workspaces", async () => {
     server = await makeTestServer();

@@ -376,7 +376,7 @@ describe("capture: verb-on-selection typed link", () => {
     expect(editor.textContent).toBe("hello world");
   });
 
-  it("the MarkToolbar verb button opens the same popover; Esc cancels without changes", async () => {
+  it("the floating toolbar verb button opens the same popover; Esc cancels without changes", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Home" });
     const blockId = await client.createObject({
@@ -388,7 +388,11 @@ describe("capture: verb-on-selection typed link", () => {
 
     const editor = clickIntoBlock(container);
     selectRange(editor, 0, 5);
-    const toolbar = screen.getByRole("toolbar", { name: "Text marks" });
+    // The toolbar appears after the archived 150 ms show debounce.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200));
+    });
+    const toolbar = screen.getByRole("toolbar", { name: "Text formatting" });
     fireEvent.click(toolbar.querySelector('button[title="Link verb (Cmd+K)"]')!);
     expect(screen.getByLabelText("Verb")).toBeInTheDocument();
 
