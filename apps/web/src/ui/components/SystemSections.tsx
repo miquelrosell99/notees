@@ -9,11 +9,10 @@
 
 import { useCallback } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
+import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { Breadcrumbs } from "./Breadcrumbs.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
@@ -45,9 +44,12 @@ function ReferenceList({
 }) {
   const groups = new Map<string, { pageName: string; items: ReferenceEntry[] }>();
   for (const entry of entries) {
+    // containingPageName comes from the pure client (fixed slash format);
+    // date pages reformat per the user's dateFormat at the display layer.
+    const pageName = displayNameFromClient(client, entry.containingPageId) ?? entry.containingPageName;
     const group = groups.get(entry.containingPageId);
     if (group !== undefined) group.items.push(entry);
-    else groups.set(entry.containingPageId, { pageName: entry.containingPageName, items: [entry] });
+    else groups.set(entry.containingPageId, { pageName, items: [entry] });
   }
   return (
     <div className="nt-refgroups">
@@ -135,7 +137,7 @@ export function SystemSections({
                   onClick={() => onOpenPage?.(child.id)}
                 >
                   <RowIcon node={child} />
-                  <span className="nt-section-row-name">{deriveDisplayName(child) || child.id}</span>
+                  <span className="nt-section-row-name">{displayNameForSettings(child) || child.id}</span>
                 </button>
               </li>
             ))}
