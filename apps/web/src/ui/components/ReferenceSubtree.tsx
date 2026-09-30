@@ -1,94 +1,43 @@
 /**
  * ReferenceSubtree — renders a referencing node (and its children,
- * recursively) with the main editor's block look: bullets/chevrons,
- * indentation, click-to-edit in place. Writes go through the shared
- * outliner client, so edits inside a reference behave exactly like edits
- * in the page body (same ops, same sync).
+ * recursively) with the REAL editor row (BlockRow): the node context menu
+ * on right-click, class-icon bullets, click-to-zoom bullets, collapse
+ * chevrons, in-place editing — identical to the main block tree. Writes go
+ * through the shared outliner client, so edits inside a reference behave
+ * exactly like edits in the page body (same ops, same sync).
+ *
+ * BlockRow consumes OutlinerContext and useSortable, so each subtree hosts
+ * its own OutlinerContext (via useOutlinerValue, same as PageView/ClassView)
+ * and its own local DndContext + SortableContext (mirror of PageView's,
+ * without the DragOverlay — inner drags simply show no ghost). Drop handling
+ * is a no-op: reordering references is not supported in this slice.
  */
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState } from "react";
+
+import { DndContext } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
-import { BlockTextEditor, type EditorCaret } from "../BlockTextEditor.js";
-import { InlineTokens } from "../InlineTokens.js";
+import { BlockRow } from "../BlockRow.js";
+import { blockCollisionDetection, useBlockDndSensors } from "../block-dnd.js";
+import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-function ReferenceBlock({
-  client,
-  node,
-  onOpenNode,
-}: {
-  client: AnyClient;
-  node: ClientNode;
-  onOpenNode?: ((nodeId: string) => void) | undefined;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [caret, setCaret] = useState<EditorCaret>("end");
-  const [collapsed, setCollapsed] = useState(false);
-  const [version, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  void version; // re-render trigger only
+/** Cycle-protection depth cap, mirroring the client's getBlockTree default. */
+const TREE_DEPTH_CAP = 64;
 
-  const children = client.getChildren(node.id);
-  const enterEdit = (event: MouseEvent<HTMLDivElement>) => {
-    if (editing) return;
-    setCaret({ x: event.clientX, y: event.clientY });
-    setEditing(true);
+function toTree(client: AnyClient, node: ClientNode, remaining = TREE_DEPTH_CAP): BlockTreeNode {
+  return {
+    node,
+    children:
+      remaining <= 0
+        ? []
+        : client.getChildren(node.id).map((child) => toTree(client, child, remaining - 1)),
   };
-
-  return (
-    <div className="nt-block nt-refblock-item" data-block-id={node.id}>
-      <div className="nt-block-row">
-        <span className="nt-block-grip">
-          {children.length > 0 && (
-            <button
-              type="button"
-              className="nt-block-chevron"
-              aria-label={collapsed ? "Expand block" : "Collapse block"}
-              aria-expanded={!collapsed}
-              onClick={(event) => {
-                event.stopPropagation();
-                setCollapsed((value) => !value);
-              }}
-            >
-              {collapsed ? "▸" : "▾"}
-            </button>
-          )}
-          <span
-            className={collapsed ? "nt-bullet nt-bullet-collapsed" : "nt-bullet"}
-            title="Zoom in"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenNode?.(node.id);
-            }}
-          >
-            •
-          </span>
-        </span>
-        <div className="nt-block-content" onClick={enterEdit}>
-          {editing ? (
-            <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
-          ) : (
-            <InlineTokens
-              tokens={node.contentAst}
-              resolveName={(id) => client.getDisplayName(id)}
-              onOpenNode={onOpenNode}
-            />
-          )}
-        </div>
-      </div>
-      {children.length > 0 && !collapsed && (
-        <div className="nt-block-children">
-          {children.map((child) => (
-            <ReferenceBlock key={child.id} client={client} node={child} onOpenNode={onOpenNode} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 /** The referencing node plus its whole subtree, editable. */
@@ -101,11 +50,26 @@ export function ReferenceSubtree({
   rootId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
 }) {
+  const [, setVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  const outliner = useOutlinerValue(client, rootId, {
+    openNode: (id) => onOpenNode?.(id),
+  });
+  const sensors = useBlockDndSensors();
+
   const node = client.getNode(rootId);
   if (node === undefined) return null;
+  const tree = toTree(client, node);
+
   return (
-    <div className="nt-refblock-tree">
-      <ReferenceBlock client={client} node={node} onOpenNode={onOpenNode} />
-    </div>
+    <OutlinerContext.Provider value={outliner}>
+      <DndContext sensors={sensors} collisionDetection={blockCollisionDetection}>
+        <SortableContext items={[node.id]} strategy={verticalListSortingStrategy}>
+          <div className="nt-refblock-tree">
+            <BlockRow tree={tree} resolveName={(id) => client.getDisplayName(id)} />
+          </div>
+        </SortableContext>
+      </DndContext>
+    </OutlinerContext.Provider>
   );
 }

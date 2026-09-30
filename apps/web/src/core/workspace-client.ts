@@ -476,17 +476,23 @@ export async function fetchAssetBlob(serverUrl: string, apiKey: string, assetId:
 }
 
 function mapNode(row: NodeRow): ClientNode {
+  // Each column parses independently: a missing/legacy column must never
+  // wipe the other (cross-version snapshots can predate a column).
   let classIds: string[] = [];
-  let tagIds: string[] = [];
   try {
-    const parsedTags: unknown = JSON.parse(row.tag_ids);
-  if (Array.isArray(parsedTags)) {
-    tagIds = parsedTags.filter((entry): entry is string => typeof entry === "string");
-  }
-  const parsed: unknown = JSON.parse(row.class_ids);
+    const parsed: unknown = JSON.parse(row.class_ids);
     if (Array.isArray(parsed)) classIds = parsed.filter((v): v is string => typeof v === "string");
   } catch {
     classIds = [];
+  }
+  let tagIds: string[] = [];
+  try {
+    const parsedTags: unknown = JSON.parse(row.tag_ids ?? "[]");
+    if (Array.isArray(parsedTags)) {
+      tagIds = parsedTags.filter((entry): entry is string => typeof entry === "string");
+    }
+  } catch {
+    tagIds = [];
   }
   return {
     id: row.id,
@@ -942,11 +948,37 @@ export class WorkspaceClient {
    */
   getBlockTree(pageId: string, depth?: number | null): BlockTreeNode[] {
     const cap = depth ?? DEFAULT_TREE_DEPTH;
+    // Node-backed property values (text-property carrier blocks) live as
+    // children of the owner but render inside the property cell — exclude
+    // them here or they appear twice (child list + property cell).
+    const propertyRefIds = new Set<string>();
+    for (const row of this.store.database
+      .prepare("SELECT value FROM property_value WHERE node_id = ?")
+      .all(pageId) as { value: string }[]) {
+      try {
+        const parsed: unknown = JSON.parse(row.value);
+        if (
+          typeof parsed === "object" &&
+          parsed !== null &&
+          "nodeId" in parsed &&
+          typeof (parsed as { nodeId: unknown }).nodeId === "string"
+        ) {
+          propertyRefIds.add((parsed as { nodeId: string }).nodeId);
+        }
+      } catch {
+        // Scalar value — not a node reference.
+      }
+    }
     const build = (id: string, remaining: number): BlockTreeNode[] => {
       if (remaining <= 0) return [];
       return this.store
         .children(id)
-        .filter((row) => row.node_type === "block" && row.is_active === 1)
+        .filter(
+          (row) =>
+            row.node_type === "block" &&
+            row.is_active === 1 &&
+            !propertyRefIds.has(row.id),
+        )
         .map((row) => ({
           node: mapNode(row),
           children: build(row.id, remaining - 1),
@@ -1068,12 +1100,19 @@ export class WorkspaceClient {
     for (const row of this.store.backlinksWithRollup(id) as Array<Record<string, unknown>>) {
       const sourceId = String(row.source_id);
       if (seen.has(sourceId)) continue;
+      // Links written inside the node's OWN subtree (e.g. a link to a page
+      // mentioned in that page's own blocks) are content, not references.
       // Live sources only — a trashed node no longer claims a reference.
       const source = this.getNode(sourceId);
       if (!source) continue;
+      const entry = this.referenceEntry(source);
+      if (entry === null) continue;
+      // Links written inside the node's OWN subtree (a link mentioned in the
+      // page's own blocks) are content, not references.
+      if (entry.containingPageId === id || entry.source.id === id) continue;
       seen.add(sourceId);
       entries.push({
-        ...this.referenceEntry(source),
+        ...entry,
         kind: row.kind === "containment" ? "containment" : "direct",
       });
     }

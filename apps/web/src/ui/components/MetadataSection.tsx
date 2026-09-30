@@ -43,6 +43,7 @@ import { Checkbox } from "./ui/Checkbox.js";
 import { AddPill } from "./ui/AddPill.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
+import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
@@ -295,6 +296,12 @@ function ObjectPropertyRow({
                 <button type="button" className="pill__text nt-chip-label" title="Download" onClick={download}>
                   {pillLabel(ref)}
                 </button>
+              ) : linkedNode?.nodeType === "block" ? (
+                // Text properties are node-backed carrier blocks: the value
+                // cell renders the block itself, editable — never a raw id.
+                <span className="nt-property-blockcell">
+                  <ReferenceSubtree client={client} rootId={ref} onOpenNode={onOpenPage} />
+                </span>
               ) : (
                 <span className="pill__text nt-chip-label">{pillLabel(ref)}</span>
               )}

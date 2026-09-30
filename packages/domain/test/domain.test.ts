@@ -152,6 +152,17 @@ describe("date node display names", () => {
     expect(deriveDisplayName({ ...base, name: "20290627", classIds: [DAY] })).toBe("2029/06/27");
   });
 
+  it("treats a uuid-stored name as unnamed (legacy untitled pages)", () => {
+    const base = { id: "n", nodeType: "page" as const };
+    expect(
+      deriveDisplayName({
+        ...base,
+        name: "67ceb334-2e21-40e8-99ad-d6a069f497ef",
+        contentAst: [{ type: "text", text: "Real title in content" }],
+      }),
+    ).toBe("Real title in content");
+  });
+
   it("leaves non-date nodes and malformed names untouched", () => {
     const base = { id: "n", nodeType: "page" as const };
     expect(deriveDisplayName({ ...base, name: "20290627" })).toBe("2029/06/27");

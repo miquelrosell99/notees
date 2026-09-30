@@ -12,12 +12,14 @@ import { useState } from "react";
 
 import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
+import type { AccountUser } from "@/core/auth-api.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
+import { useDeviceSetting } from "./modals/deviceSettings.js";
 import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
@@ -53,7 +55,7 @@ export function Sidebar({
   workspaceId,
   serverUrl,
   credential,
-  userEmail,
+  user,
   offline,
   showSettings,
   onOpenSettings,
@@ -63,14 +65,16 @@ export function Sidebar({
   onOpenPage,
   onRequestSearch,
   onSwitchWorkspace,
+  onManageWorkspaces,
   onSignOut,
+  onRenameWorkspace,
 }: {
   client: AnyClient;
   workspaceName: string;
   workspaceId: string;
   serverUrl: string;
   credential: string;
-  userEmail: string | null;
+  user: AccountUser | null;
   offline: boolean;
   showSettings: boolean;
   onOpenSettings: () => void;
@@ -80,12 +84,35 @@ export function Sidebar({
   onOpenPage: (nodeId: string) => void;
   onRequestSearch: () => void;
   onSwitchWorkspace: (workspaceId: string, name: string) => void;
+  /** Opens the Manage Workspaces view from the switcher popup. */
+  onManageWorkspaces: () => void;
   onSignOut: () => void;
+  onRenameWorkspace?: ((workspaceId: string, name: string) => void) | undefined;
 }) {
   const [favorites, setFavorites] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.favorites));
   const [recents, setRecents] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.recents));
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [accountMenu, setAccountMenu] = useState(false);
+
+  const fullName =
+    user !== null ? [user.name, user.surnames].filter((part) => part !== null && part !== "").join(" ").trim() : "";
+  const displayLine =
+    fullName !== ""
+      ? fullName
+      : (user?.displayName ?? "") !== ""
+        ? user!.displayName
+        : (user?.email.split("@")[0] ?? "Offline");
+  const initials =
+    fullName !== ""
+      ? fullName
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part[0]!.toUpperCase())
+          .join("")
+      : null;
+  // Workspace-settings sidebar visibility toggles (device-local).
+  const [showJournals] = useDeviceSetting("sidebarShowJournals", true);
+  const [showInbox] = useDeviceSetting("sidebarShowInbox", true);
 
   const openRow = (id: string): void => {
     onOpenPage(id);
@@ -205,7 +232,8 @@ export function Sidebar({
             activeWorkspaceId={workspaceId}
             activeName={workspaceName}
             onSwitch={onSwitchWorkspace}
-            onSignOut={onSignOut}
+            onManageWorkspaces={onManageWorkspaces}
+            onRenamed={onRenameWorkspace}
           />
         )}
         <button
@@ -221,7 +249,10 @@ export function Sidebar({
       <nav className="nt-sidebar-nav">
         {section(
           "Navigation",
-          NAV_ENTRIES.map((entry) => (
+          NAV_ENTRIES.filter(
+            (entry) =>
+              (entry.key !== "journal" || showJournals) && (entry.key !== "inbox" || showInbox),
+          ).map((entry) => (
             <li key={entry.key} className="nt-side-row">
               <button
                 type="button"
@@ -246,6 +277,27 @@ export function Sidebar({
         {section("Recents", recentPages.map((node) => renderRow(node, rowIconFor(node))))}
       </nav>
       <div className="nt-sidebar-bottom">
+        <button
+          type="button"
+          className="nt-profile"
+          title={user?.email ?? "Account"}
+          aria-label="Account"
+          onClick={() => setAccountMenu((open) => !open)}
+        >
+          <span className="nt-profile-avatar" aria-hidden="true">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" />
+            ) : initials !== null ? (
+              initials
+            ) : (
+              <Icon path="mdi-account-outline" size={1} />
+            )}
+          </span>
+          <span className="nt-profile-text">
+            <span className="nt-profile-name">{displayLine}</span>
+            <span className="nt-profile-email">{user?.email ?? "Offline workspace"}</span>
+          </span>
+        </button>
         {showSettings && (
           <button
             type="button"
@@ -257,18 +309,9 @@ export function Sidebar({
             <Icon path="mdi-cog-outline" size={1} />
           </button>
         )}
-        <button
-          type="button"
-          className="nt-icon-btn"
-          title={userEmail ?? "Account"}
-          aria-label="Account"
-          onClick={() => setAccountMenu((open) => !open)}
-        >
-          <Icon path="mdi-account-circle-outline" size={1} />
-        </button>
         {accountMenu && (
           <div className="nt-account-menu" role="menu">
-            <span className="nt-account-email">{userEmail ?? "Offline workspace"}</span>
+            <span className="nt-account-email">{user?.email ?? "Offline workspace"}</span>
             <button
               type="button"
               role="menuitem"

@@ -25,7 +25,12 @@ import { promisify } from "node:util";
 import Database from "better-sqlite3";
 import { uuidv7 } from "uuidv7";
 
-const scrypt = promisify(scryptCb);
+const scrypt = promisify(scryptCb) as unknown as (
+  password: string,
+  salt: Buffer,
+  keylen: number,
+  options: { N: number; r: number; p: number; maxmem?: number },
+) => Promise<Buffer>;
 
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
@@ -56,11 +61,17 @@ export interface UserRow {
   email: string;
   passwordHash: string;
   displayName: string | null;
+  name: string | null;
+  surnames: string | null;
+  avatarUrl: string | null;
   isAdmin: number;
   createdAt: number;
 }
 
-type UserRowRaw = Omit<UserRow, "passwordHash" | "displayName" | "isAdmin" | "createdAt"> & {
+type UserRowRaw = Omit<UserRow, "passwordHash" | "displayName" | "name" | "surnames" | "avatarUrl" | "isAdmin" | "createdAt"> & {
+  name: string | null;
+  surnames: string | null;
+  avatar_url: string | null;
   password_hash: string;
   display_name: string | null;
   is_admin: number;
@@ -73,6 +84,9 @@ function toUserRow(raw: UserRowRaw): UserRow {
     email: raw.email,
     passwordHash: raw.password_hash,
     displayName: raw.display_name,
+    name: raw.name,
+    surnames: raw.surnames,
+    avatarUrl: raw.avatar_url,
     isAdmin: raw.is_admin,
     createdAt: raw.created_at,
   };
@@ -82,6 +96,9 @@ export interface SessionUser {
   id: string;
   email: string;
   displayName: string | null;
+  name: string | null;
+  surnames: string | null;
+  avatarUrl: string | null;
   isAdmin: boolean;
 }
 
@@ -101,6 +118,9 @@ CREATE TABLE IF NOT EXISTS "user" (
     display_name TEXT,
     is_admin INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
+    name TEXT,
+    surnames TEXT,
+    avatar_url TEXT,
     kdf_salt TEXT,
     kdf_n INTEGER,
     kdf_r INTEGER,
@@ -166,7 +186,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const expected = Buffer.from(parts[5]!, "base64url");
   if (!Number.isFinite(N) || !Number.isFinite(r) || !Number.isFinite(p)) return false;
   try {
-    const derived = (await scrypt(password, salt, expected.length, { N, r, p })) as Buffer;
+    const derived = (await scrypt(password, salt, expected.length, { N, r, p }));
     return timingSafeEqual(derived, expected);
   } catch {
     return false;
@@ -205,7 +225,7 @@ export interface KdfRecord {
 async function deriveKey(password: string, salt: Buffer, N: number, r: number, p: number): Promise<Buffer> {
   // maxmem: N=131072/r=8 needs ~128MiB of scratch, above OpenSSL's default
   // cap — the explicit ceiling is required, not optional.
-  return (await scrypt(password, salt, 32, { N, r, p, maxmem: 256 * 1024 * 1024 })) as Buffer;
+  return (await scrypt(password, salt, 32, { N, r, p, maxmem: 256 * 1024 * 1024 }));
 }
 
 /** Wrap a fresh master key with the password-derived key; returns the record. */
@@ -279,6 +299,9 @@ export class AuthStorage {
       (this.db.pragma('table_info("user")') as { name: string }[]).map((c) => c.name),
     );
     const additions: [string, string][] = [
+      ["name", "TEXT"],
+      ["surnames", "TEXT"],
+      ["avatar_url", "TEXT"],
       ["kdf_salt", "TEXT"],
       ["kdf_n", "INTEGER"],
       ["kdf_r", "INTEGER"],
@@ -311,6 +334,9 @@ export class AuthStorage {
       email: input.email.trim(),
       passwordHash: input.passwordHash,
       displayName: input.displayName ?? null,
+      name: null,
+      surnames: null,
+      avatarUrl: null,
       isAdmin: input.isAdmin === true ? 1 : 0,
       createdAt: Date.now(),
     };
@@ -358,12 +384,13 @@ export class AuthStorage {
     const row = this.db
       .prepare(
         `SELECT s.expires_at AS expires_at, u.id AS id, u.email AS email,
-                u.display_name AS display_name, u.is_admin AS is_admin
+                u.display_name AS display_name, u.name AS name, u.surnames AS surnames,
+                u.avatar_url AS avatar_url, u.is_admin AS is_admin
          FROM session s JOIN "user" u ON u.id = s.user_id
          WHERE s.token_hash = ?`,
       )
       .get(digest) as
-      | { expires_at: number; id: string; email: string; display_name: string | null; is_admin: number }
+      | { expires_at: number; id: string; email: string; display_name: string | null; name: string | null; surnames: string | null; avatar_url: string | null; is_admin: number }
       | undefined;
     if (row === undefined) return null;
     const now = Date.now();
@@ -380,6 +407,9 @@ export class AuthStorage {
         id: row.id,
         email: row.email,
         displayName: row.display_name,
+        name: row.name,
+        surnames: row.surnames,
+        avatarUrl: row.avatar_url,
         isAdmin: row.is_admin === 1,
       },
       expiresAt: extended,
@@ -549,6 +579,35 @@ export class AuthStorage {
       wrappedMasterKey: row.wrapped_master_key,
       keyVerifier: row.key_verifier,
     };
+  }
+
+  /** Profile fields editable from user settings (all optional). */
+  updateProfile(
+    userId: string,
+    input: {
+      displayName?: string | null | undefined;
+      name?: string | null | undefined;
+      surnames?: string | null | undefined;
+      avatarUrl?: string | null | undefined;
+    },
+  ): void {
+    const map: Record<string, string | null | undefined> = {
+      display_name: input.displayName,
+      name: input.name,
+      surnames: input.surnames,
+      avatar_url: input.avatarUrl,
+    };
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    for (const [column, value] of Object.entries(map)) {
+      if (value !== undefined) {
+        sets.push(`${column} = ?`);
+        values.push(value);
+      }
+    }
+    if (sets.length === 0) return;
+    values.push(userId);
+    this.db.prepare(`UPDATE "user" SET ${sets.join(", ")} WHERE id = ?`).run(...values);
   }
 
   /** Backfill the KDF record for accounts that predate it (idempotent). */

@@ -208,7 +208,7 @@ describe("PageView system sections", () => {
     expect(within(childHeader).getByText("2")).toBeInTheDocument();
   });
 
-  it("linked references roll up source-side containment: a block inside France linking Paris lists on France (in France), badge stays direct", async () => {
+  it("own-subtree links are hidden from a page's linked references; other pages still see them (direct)", async () => {
     const client = await seedClient();
     const franceId = await client.createObject({ nodeType: "page", name: "France" });
     const parisId = await client.createObject({ nodeType: "page", name: "Paris" });
@@ -229,17 +229,12 @@ describe("PageView system sections", () => {
     ).toBeInTheDocument();
 
     const linked = section(/Linked references/);
-    // The containing-page group header is France, with the referencing block
-    // rendered as content below it (Logseq-style grouping).
-    expect(linked.querySelector(".nt-refgroup-name")?.textContent).toBe("France");
-    expect(linked.querySelector(".nt-refgroup-count")?.textContent).toBe("1");
-    expect(linked.querySelector(".nt-refblock-tree .nt-block")).not.toBeNull();
-    expect(client.getLinkedReferences(franceId).map((r) => ({
-      source: r.source.id,
-      kind: r.kind,
-      crumb: r.containingPageName,
-    }))).toEqual([{ source: blockId, kind: "containment", crumb: "France" }]);
+    // France's own view hides it (badge 0, no groups): links written inside
+    // France's subtree are content, not references (owner rule).
+    expect(linked.querySelector(".nt-refgroup")).toBeNull();
     expect(client.getLinkedReferences(parisId).map((r) => r.kind)).toEqual(["direct"]);
+    // Paris still sees the direct reference from inside France.
+    expect(client.getLinkedReferences(parisId).map((r) => r.containingPageName)).toEqual(["France"]);
 
     // A DIRECT mention of France orders first and moves the badge to 1,
     // while the list shows two rows (list longer than the badge).
@@ -253,18 +248,17 @@ describe("PageView system sections", () => {
       });
     });
 
+    // The Notes direct mention remains; the own-subtree containment roll-up
+    // is hidden by the owner rule.
     expect(client.getLinkedReferences(franceId).map((r) => ({
       source: r.source.id,
       kind: r.kind,
-    }))).toEqual([
-      { source: notesBlockId, kind: "direct" },
-      { source: blockId, kind: "containment" },
-    ]);
+    }))).toEqual([{ source: notesBlockId, kind: "direct" }]);
     expect(
       within(screen.getByRole("button", { name: /Linked references/ })).getByText("1"),
     ).toBeInTheDocument();
     const items = Array.from(linked.querySelectorAll(".nt-refblock-tree"));
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(1);
     // Each reference renders the source block with its content (and children
     // recursively — the fixture's mention block has none, the tree still shows
     // the block row).

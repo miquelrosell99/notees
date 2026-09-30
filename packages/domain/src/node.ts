@@ -70,9 +70,12 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
  * (default YYYY/MM/DD, slash-separated, zero-padded segments dropped):
  * 20290000 → 2029, 20290600 → 2029/06, 20290627 → 2029/06/27.
  */
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function deriveDisplayName(node: NodeLike): string {
   const name = node.name?.trim();
-  if (name) {
+  // A stored name that IS a uuid is an untitled legacy artifact, not a title.
+  if (name && !UUID_LIKE.test(name)) {
     const dateFormatted = formatDateNodeName(name, node.classIds);
     return (dateFormatted ?? name).slice(0, DISPLAY_NAME_MAX);
   }

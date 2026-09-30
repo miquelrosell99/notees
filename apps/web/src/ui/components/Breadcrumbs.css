@@ -131,3 +131,13 @@
   flex-shrink: 0;
   display: inline-flex;
 }
+
+.node-breadcrumb-current .node-breadcrumb-name {
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.node-breadcrumb-current:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
