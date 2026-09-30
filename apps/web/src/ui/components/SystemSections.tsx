@@ -69,6 +69,8 @@ function ReferenceList({
                   client={client}
                   nodeId={entry.source.id}
                   onOpenNode={onOpenPage}
+                  stopAfterId={entry.containingPageId}
+                  excludeIds={[entry.containingPageId]}
                 />
                 <ReferenceSubtree client={client} rootId={entry.source.id} onOpenNode={onOpenPage} />
               </li>

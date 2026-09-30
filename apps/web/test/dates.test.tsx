@@ -172,7 +172,7 @@ describe("dates (SCHEMA.md)", () => {
 
     // The unvalued date binding renders the add affordance; the popup opens
     // at the day grid (day precision).
-    fireEvent.click(screen.getByRole("button", { name: "+ Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(screen.getByRole("dialog", { name: "Date picker" })).not.toBeNull();
 
     // The typed-date input parses with a preview and commits on Enter.
@@ -215,7 +215,7 @@ describe("dates (SCHEMA.md)", () => {
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "+ Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
     // Year precision opens at the YEAR grid; clicking a year resolves the
     // canonical ISO and the data layer links the YEAR node at the schema's
     // precision (the commit ceiling).
@@ -237,10 +237,10 @@ describe("dates (SCHEMA.md)", () => {
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
 
-    // The unvalued range row's "+ Add" opens the picker for the START slot;
+    // The unvalued range row's "Add" pill opens the picker for the START slot;
     // the end stays open. (Day cells are queried by their text — the
     // aria-label is locale-dependent.)
-    fireEvent.click(screen.getByRole("button", { name: "+ Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("28"));
     await flushWrites();
     expect(valueOf(client, pageId, schemaId)).toEqual({

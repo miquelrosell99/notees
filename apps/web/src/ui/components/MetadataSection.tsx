@@ -39,7 +39,8 @@ import type {
 import { AnnotationsSection } from "../AnnotationsSection.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
-import { Checkbox } from "./pickers/Checkbox.js";
+import { Checkbox } from "./ui/Checkbox.js";
+import { AddPill } from "./ui/AddPill.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
 import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
@@ -338,18 +339,15 @@ function ObjectPropertyRow({
           );
         })}
         {!(multi === false && pills.length > 0) && (
-          <button
-            type="button"
+          <AddPill
             ref={addButtonRef}
-            className="nt-chip-add"
+            label="Add"
             aria-expanded={pickerOpen}
-            onClick={(event) => {
-              addButtonRef.current = event.currentTarget;
+            onClick={(element) => {
+              addButtonRef.current = element;
               setPickerOpen((open) => !open);
             }}
-          >
-            + Add
-          </button>
+          />
         )}
       </span>
       {annotatingRef !== null && (
@@ -497,17 +495,14 @@ function DatePropertyRow({
           </span>
         ))}
         {!(multi === false && ordered.length > 0) && (
-          <button
-            type="button"
-            className="nt-chip-add"
+          <AddPill
+            label="Add"
             aria-expanded={pickerFor === "new"}
-            onClick={(event) => {
-              anchorRef.current = event.currentTarget;
+            onClick={(element) => {
+              anchorRef.current = element;
               setPickerFor((cur) => (cur === "new" ? null : "new"));
             }}
-          >
-            + Add
-          </button>
+          />
         )}
       </span>
       {pickerFor !== null && (
@@ -647,19 +642,16 @@ function DateRangePropertyRow({
           </span>
         ))}
         {!(multi === false && ordered.length > 0) && (
-          <button
-            type="button"
-            className="nt-chip-add"
+          <AddPill
+            label="Add"
             aria-expanded={picking !== null && picking.idx === nextIdx}
-            onClick={(event) => {
-              anchorRef.current = event.currentTarget;
+            onClick={(element) => {
+              anchorRef.current = element;
               setPicking((cur) =>
                 cur !== null && cur.idx === nextIdx ? null : { idx: nextIdx, end: "start" },
               );
             }}
-          >
-            + Add
-          </button>
+          />
         )}
       </span>
       {picking !== null && (
@@ -961,18 +953,15 @@ function ClassesRow({
           );
         })}
         <span className="nt-class-add-anchor">
-          <button
-            type="button"
+          <AddPill
             ref={addButtonRef}
-            className="nt-chip-add nt-class-add"
+            label="Add class"
             aria-expanded={pickerOpen}
-            onClick={(event) => {
-              addButtonRef.current = event.currentTarget;
+            onClick={(element) => {
+              addButtonRef.current = element;
               setPickerOpen((open) => !open);
             }}
-          >
-            + Add class
-          </button>
+          />
         </span>
       </div>
       {pickerOpen && (
@@ -1096,14 +1085,15 @@ function TagsRow({
           );
         })}
         <span className="nt-class-add-anchor">
-          <button
+          <AddPill
             ref={addButtonRef}
-            type="button"
-            className="nt-property-add"
-            onClick={() => setPickerOpen(true)}
-          >
-            + Add tag
-          </button>
+            label="Add tag"
+            aria-expanded={pickerOpen}
+            onClick={(element) => {
+              addButtonRef.current = element;
+              setPickerOpen(true);
+            }}
+          />
         </span>
       </div>
       {pickerOpen && (

@@ -14,13 +14,13 @@
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useCopiedState } from "./overlayHooks";
-import { Modal } from "./Modal";
+import { Modal } from "../ui/Modal.js";
 import { copyToClipboard } from "./clipboard";
-import { Button } from "./Button";
-import { Spinner } from "./Spinner";
-import { SelectionButton } from "./SelectionButton";
-import { ButtonWithPanel } from "./ButtonWithPanel";
-import { BooleanToggle } from "./BooleanToggle";
+import { Button } from "../ui/Button.js";
+import { Spinner } from "../ui/Spinner.js";
+import { SelectionButton } from "../ui/SelectionButton.js";
+import { ButtonWithPanel } from "../ui/ButtonWithPanel.js";
+import { BooleanToggle } from "../ui/BooleanToggle.js";
 import { Icon } from "../../Icon";
 import { downloadBlob } from "./download";
 import { exportSubtreeMarkdown, type ExportClient } from "./exportSubtree";
