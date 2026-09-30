@@ -43,7 +43,7 @@ function ReferenceBlock({
     <div className="nt-block nt-refblock-item" data-block-id={node.id}>
       <div className="nt-block-row">
         <span className="nt-block-grip">
-          {children.length > 0 ? (
+          {children.length > 0 && (
             <button
               type="button"
               className="nt-block-chevron"
@@ -56,11 +56,17 @@ function ReferenceBlock({
             >
               {collapsed ? "▸" : "▾"}
             </button>
-          ) : (
-            <span className="nt-bullet" aria-hidden="true">
-              •
-            </span>
           )}
+          <span
+            className={collapsed ? "nt-bullet nt-bullet-collapsed" : "nt-bullet"}
+            title="Zoom in"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenNode?.(node.id);
+            }}
+          >
+            •
+          </span>
         </span>
         <div className="nt-block-content" onClick={enterEdit}>
           {editing ? (

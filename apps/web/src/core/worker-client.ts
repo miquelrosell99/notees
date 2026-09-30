@@ -338,6 +338,14 @@ export class WorkerClient {
     await this.call("unassignClass", [id, classId]);
   }
 
+  async assignTag(id: string, tagId: string): Promise<void> {
+    await this.call("assignTag", [id, tagId]);
+  }
+
+  async unassignTag(id: string, tagId: string): Promise<void> {
+    await this.call("unassignTag", [id, tagId]);
+  }
+
   /** Create a class (class.create); returns the new class id. */
   async createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string> {
     return (await this.call("createClass", [name, opts])) as string;

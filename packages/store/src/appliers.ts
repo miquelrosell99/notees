@@ -251,6 +251,17 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
         OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
             AND excluded.actor_id >= COALESCE(actor_id, ''))`,
   );
+const tagMemberUpsert = db.prepare(
+  `INSERT INTO tag_member_set (node_id, tag_id, present, hlc_physical, hlc_logical, actor_id)
+   VALUES (?, ?, 1, ?, ?, ?)
+   ON CONFLICT(node_id, tag_id) DO UPDATE SET
+     present = 1, hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+     actor_id = excluded.actor_id
+   WHERE excluded.hlc_physical > hlc_physical
+      OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+      OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+          AND excluded.actor_id > COALESCE(actor_id, ''))`,
+);
 
   // First create wins for duplicate node ids (v1 INSERT OR IGNORE): re-issuing
   // object.create on an existing id must not touch the TREE — the earlier
@@ -268,6 +279,10 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
       memberUpsert.run(p.objectId, classId, env.hlc.physical, env.hlc.logical, env.actorId);
     }
     if (p.classIds.length > 0) recomputeClassIds(db, p.objectId);
+    for (const tagId of p.tagIds) {
+      tagMemberUpsert.run(p.objectId, tagId, env.hlc.physical, env.hlc.logical, env.actorId);
+    }
+    if (p.tagIds.length > 0) recomputeTagIds(db, p.objectId);
     return summary(opType, [p.objectId], true);
   }
 
@@ -316,6 +331,10 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
     memberUpsert.run(p.objectId, classId, env.hlc.physical, env.hlc.logical, env.actorId);
   }
   recomputeClassIds(db, p.objectId);
+  for (const tagId of p.tagIds) {
+    tagMemberUpsert.run(p.objectId, tagId, env.hlc.physical, env.hlc.logical, env.actorId);
+  }
+  recomputeTagIds(db, p.objectId);
 
   if (parentId !== null) {
     db.prepare(
@@ -327,6 +346,17 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   rebuildEdges(db, p.objectId, ts);
   rebuildNodeStats(db, [p.objectId]);
   return summary(opType, [p.objectId]);
+}
+
+/** Recompute node.tag_ids from the tag OR-Set's present rows (sorted JSON). */
+function recomputeTagIds(db: StoreDatabase, nodeId: string): void {
+  const rows = db
+    .prepare("SELECT tag_id FROM tag_member_set WHERE node_id = ? AND present = 1 ORDER BY tag_id")
+    .all(nodeId) as { tag_id: string }[];
+  db.prepare("UPDATE node SET tag_ids = ? WHERE id = ?").run(
+    JSON.stringify(rows.map((r) => r.tag_id)),
+    nodeId,
+  );
 }
 
 /** Recompute node.class_ids from the OR-Set's present rows (sorted JSON). */
@@ -686,6 +716,29 @@ function applyClassUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
             AND excluded.actor_id > COALESCE(actor_id, ''))`,
   ).run(p.objectId, p.classId, env.hlc.physical, env.hlc.logical, env.actorId);
   recomputeClassIds(db, p.objectId);
+  return summary(opType, [p.objectId]);
+}
+
+/**
+ * Tag removal (tag.unassign): the OR-Set remove complement of the re-issued
+ * object.create add carrier — identical gating to class.unassign, own table.
+ */
+function applyTagUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "tag.unassign";
+  const p = env.payload as OpPayload<"tag.unassign">;
+  requireNode(db, p.objectId, opType);
+  db.prepare(
+    `INSERT INTO tag_member_set (node_id, tag_id, present, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, 0, ?, ?, ?)
+     ON CONFLICT(node_id, tag_id) DO UPDATE SET
+       present = 0, hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id
+     WHERE excluded.hlc_physical > hlc_physical
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+            AND excluded.actor_id > COALESCE(actor_id, ''))`,
+  ).run(p.objectId, p.tagId, env.hlc.physical, env.hlc.logical, env.actorId);
+  recomputeTagIds(db, p.objectId);
   return summary(opType, [p.objectId]);
 }
 
@@ -1108,6 +1161,7 @@ const APPLIERS: Record<
   "class.update": applyClassUpdate,
   "class.delete": applyClassDelete,
   "class.unassign": applyClassUnassign,
+  "tag.unassign": applyTagUnassign,
   "class.setExtends": applyClassSetExtends,
   "class.property.set": applyClassPropertySet,
   "class.property.unset": applyClassPropertyUnset,
