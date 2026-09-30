@@ -21,12 +21,13 @@ import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-export type NavKey = "journal" | "inbox" | "pages" | "whiteboards" | "tasks";
+export type NavKey = "journal" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks";
 
 export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = [
   { key: "journal", label: "Journal", icon: "mdi-calendar-clock" },
   { key: "inbox", label: "Inbox", icon: "mdi-tray-arrow-down" },
   { key: "pages", label: "Pages", icon: "mdi-book-open-page-variant" },
+  { key: "classes", label: "Classes", icon: "mdi-shape-outline" },
   { key: "whiteboards", label: "Whiteboards", icon: "mdi-presentation" },
   { key: "tasks", label: "Tasks", icon: "mdi-format-list-checks" },
 ];
@@ -81,7 +82,6 @@ export function Sidebar({
   const [favorites, setFavorites] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.favorites));
   const [recents, setRecents] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.recents));
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-  const [moreOpen, setMoreOpen] = useState(false);
 
   const openRow = (id: string): void => {
     onOpenPage(id);
@@ -242,20 +242,6 @@ export function Sidebar({
           recentPages.map((node) => renderRow(node)),
           { icon: "mdi-clock-outline" },
         )}
-        <button
-          type="button"
-          className="nt-side-more"
-          aria-expanded={moreOpen}
-          onClick={() => setMoreOpen((value) => !value)}
-        >
-          <Icon path={moreOpen ? "mdi-chevron-down" : "mdi-chevron-right"} size={0.8} />
-          <span>More</span>
-        </button>
-        {moreOpen &&
-          section(
-            "Classes",
-            classes.map((cls) => renderRow(cls, cls.icon)),
-          )}
       </nav>
       <div className="nt-sidebar-footer">
         <span className="nt-sidebar-user">{userEmail ?? "Offline"}</span>

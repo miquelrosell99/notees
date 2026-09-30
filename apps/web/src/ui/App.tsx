@@ -990,13 +990,15 @@ function HubView({
   const items =
     nav === "journal"
       ? journalPages
-      : nav === "whiteboards"
-        ? whiteboardPages
-        : nav === "tasks"
-          ? taskPages
-          : nav === "inbox"
-            ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
-            : pages.filter((page) => !sectionIds.has(page.id));
+      : nav === "classes"
+        ? classes
+        : nav === "whiteboards"
+          ? whiteboardPages
+          : nav === "tasks"
+            ? taskPages
+            : nav === "inbox"
+              ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
+              : pages.filter((page) => !sectionIds.has(page.id));
   const byClass = new Map(classes.map((cls) => [cls.id, cls]));
   return (
     <div className="nt-hub">
@@ -1007,7 +1009,10 @@ function HubView({
       </header>
       <ul className="nt-hub-list">
         {items.map((node) => {
-          const icon = node.icon ?? node.classIds.map((c) => byClass.get(c)?.icon).find((i) => i) ?? null;
+          const icon =
+            nav === "classes"
+              ? (node.icon ?? null)
+              : (node.icon ?? node.classIds.map((c) => byClass.get(c)?.icon).find((i) => i) ?? null);
           return (
             <li key={node.id}>
               <button type="button" className="nt-hub-item" onClick={() => onOpenNode(node.id)}>
