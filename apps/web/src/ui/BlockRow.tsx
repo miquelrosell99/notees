@@ -120,6 +120,7 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
             <InlineTokens
               tokens={node.contentAst}
               resolveName={resolveName}
+              onOpenNode={openNode}
               renderEmbed={(id) => <EmbedView nodeId={id} />}
               renderQuery={(token, index) => (
                 <QueryBlockView

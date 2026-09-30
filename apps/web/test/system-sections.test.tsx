@@ -229,10 +229,11 @@ describe("PageView system sections", () => {
     ).toBeInTheDocument();
 
     const linked = section(/Linked references/);
-    // The containing-page breadcrumb is France…
-    expect(linked.querySelector(".nt-section-crumb")?.textContent).toBe("France");
-    // …annotated as a containment reference. Paris's direct view: same block, direct.
-    within(linked).getByText("in France");
+    // The containing-page group header is France, with the referencing block
+    // rendered as content below it (Logseq-style grouping).
+    expect(linked.querySelector(".nt-refgroup-name")?.textContent).toBe("France");
+    expect(linked.querySelector(".nt-refgroup-count")?.textContent).toBe("1");
+    expect(linked.querySelector(".nt-refblock")).not.toBeNull();
     expect(client.getLinkedReferences(franceId).map((r) => ({
       source: r.source.id,
       kind: r.kind,
@@ -262,10 +263,12 @@ describe("PageView system sections", () => {
     expect(
       within(screen.getByRole("button", { name: /Linked references/ })).getByText("1"),
     ).toBeInTheDocument();
-    const items = Array.from(linked.querySelectorAll(".nt-section-item"));
+    const items = Array.from(linked.querySelectorAll(".nt-refblock"));
     expect(items).toHaveLength(2);
-    expect(items[0]!.textContent).toContain("Notes");
-    expect(items[1]!.textContent).toContain("in France");
+    // Direct mention of France opens the block itself (focused view).
+    expect(items[0]!.textContent).toContain("France");
+    // Containment entry opens the containing page — its header says France.
+    expect(linked.querySelectorAll(".nt-refgroup-name")[1]?.textContent).toBe("France");
   });
 
   it("an expanded linked-references section updates when a remote change notifies", async () => {
