@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
+import type { StoreBackend } from "../src/db.js";
+
 import { newEnvelope, type ContentAst, type Envelope } from "@notees/protocol";
 
 import {
@@ -1690,3 +1692,38 @@ for (const adapter of adapters) {
     });
   });
 }
+
+function makeBackendForRestore(): StoreBackend {
+  return adapters[0]!.makeBackend();
+}
+
+describe("restore migrates older-schema snapshots", () => {
+  it("a pre-tags snapshot restores with class_ids intact and tag_ids added", () => {
+    // Build a current store with a class assignment, then downgrade its bytes
+    // to a pre-tags schema (drop tag_ids, stamp v5) to simulate an old
+    // snapshot, and restore into a fresh store.
+    const source = Store.open(makeBackendForRestore());
+    const page = "0192a000-0000-7000-8000-000000000401";
+    const cls = "0192a000-0000-7000-8000-000000000402";
+    source.apply(env("object.create", { objectId: page, nodeType: "page", name: "P" }, 1727200001000));
+    source.apply(env("class.create", { classId: cls, name: "Genre" }, 1727200001100));
+    source.apply(env("object.create", { objectId: page, nodeType: "page", classIds: [cls] }, 1727200001200));
+    const bytes = source.database.serialize!();
+    source.close();
+
+    // Downgrade: strip tag_ids and stamp user_version 5.
+    const downgraded = Store.open(makeBackendForRestore());
+    downgraded.restore(bytes);
+    downgraded.database.exec("ALTER TABLE node DROP COLUMN tag_ids");
+    downgraded.database.pragma("user_version = 5");
+    const oldBytes = downgraded.database.serialize!();
+    downgraded.close();
+
+    const restored = Store.open(makeBackendForRestore());
+    restored.restore(oldBytes);
+    expect(restored.getNode(page)!.class_ids).toBe(JSON.stringify([cls]));
+    const columns = restored.database.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    expect(columns.some((c) => c.name === "tag_ids")).toBe(true);
+    restored.close();
+  });
+});

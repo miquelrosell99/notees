@@ -361,6 +361,11 @@ export class Store {
    */
   restore(bytes: Uint8Array): void {
     let next = this.backend.restore(bytes);
+    // The snapshot may carry an OLDER schema than this build (restore swaps
+    // the whole database; nothing migrates it afterwards). Bump to the
+    // current version — migrate() is version-gated and idempotent, and no-ops
+    // when the bytes are already current.
+    migrate(next, this.backend.ftsModule);
     if (!isSearchIndexQueryable(next)) {
       dropSearchIndex(next);
       if (next.serialize === undefined) {

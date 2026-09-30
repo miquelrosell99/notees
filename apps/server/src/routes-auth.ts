@@ -271,6 +271,37 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       id: user.id,
       email: user.email,
       displayName: user.displayName,
+      name: user.name,
+      surnames: user.surnames,
+      avatarUrl: user.avatarUrl,
+      isAdmin: user.isAdmin === 1,
+    };
+  });
+
+  app.patch("/auth/me", async (request) => {
+    const principal = requireUser(ctx, request);
+    const parsed = z
+      .object({
+        displayName: z.string().trim().max(120).nullable().optional(),
+        name: z.string().trim().max(60).nullable().optional(),
+        surnames: z.string().trim().max(120).nullable().optional(),
+        avatarUrl: z.string().trim().max(500).nullable().optional(),
+      })
+      .strict()
+      .safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid profile update");
+    }
+    ctx.auth.updateProfile(principal.userId, parsed.data);
+    const user = ctx.auth.findUserById(principal.userId);
+    if (user === null) throw new AppError(401, "unauthenticated", "account no longer exists");
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      name: user.name,
+      surnames: user.surnames,
+      avatarUrl: user.avatarUrl,
       isAdmin: user.isAdmin === 1,
     };
   });
