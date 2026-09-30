@@ -7,7 +7,8 @@
  * a mocked /api-keys surface; controls with no v2 backend render honestly
  * inert with a "not available in this build" note; the workspace switcher
  * offers create-from-query and opens Manage Workspaces; the Manage
- * Workspaces modal lists, renames, creates, and switches workspaces.
+ * Workspaces modal lists, renames, creates, switches, exports, and deletes
+ * workspaces via the per-card actions menu.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -497,7 +498,7 @@ describe("ManageWorkspacesModal", () => {
     expect(onSwitch).toHaveBeenCalledWith("ws2", "Backyard");
   });
 
-  it("renames a workspace via WorkspaceNameModal → PATCH /workspaces/:id", async () => {
+  it("renames a workspace via the card actions menu → PATCH /workspaces/:id", async () => {
     const calls = stubFetch({
       "/api/v1/workspaces": () => ({ workspaces: [WS, WS2] }),
       "/api/v1/workspaces/ws1": () => ({ id: "ws1", name: "Orchard" }),
@@ -513,7 +514,8 @@ describe("ManageWorkspacesModal", () => {
         onRenamed={onRenamed}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Rename Garden" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /rename/i }));
     fireEvent.change(screen.getByLabelText("Workspace Name"), { target: { value: "Orchard" } });
     fireEvent.click(screen.getByRole("button", { name: "Rename Workspace" }));
     await waitFor(() => expect(onRenamed).toHaveBeenCalledWith("ws1", "Orchard"));
@@ -523,7 +525,7 @@ describe("ManageWorkspacesModal", () => {
     expect(await screen.findByText("Orchard")).toBeInTheDocument();
   });
 
-  it("disables rename for non-owner workspaces", async () => {
+  it("disables rename and delete for non-owner workspaces", async () => {
     stubFetch({
       "/api/v1/workspaces": () => ({ workspaces: [WS2] }),
     });
@@ -536,7 +538,67 @@ describe("ManageWorkspacesModal", () => {
         activeWorkspaceId="ws2"
       />,
     );
-    expect(await screen.findByRole("button", { name: "Rename Backyard" })).toBeDisabled();
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Backyard" }));
+    expect(screen.getByRole("menuitem", { name: /rename/i })).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: /delete/i })).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: /export/i })).toBeEnabled();
+  });
+
+  it("deletes a workspace after confirmation and refreshes the list", async () => {
+    let deleted = false;
+    const calls: { url: string; method: string; body: string | null }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        calls.push({ url, method, body: (init?.body as string) ?? null });
+        if (url.endsWith("/api/v1/workspaces") && method === "GET") {
+          return Response.json({ workspaces: deleted ? [WS2] : [WS, WS2] });
+        }
+        if (url.endsWith("/api/v1/workspaces/ws1") && method === "DELETE") {
+          deleted = true;
+          return Response.json({ ok: true });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+    render(
+      <WorkspacesView
+        serverUrl="https://notees.example.com"
+        credential="session-token"
+        user={null}
+        onEnter={() => {}}
+        activeWorkspaceId="ws2"
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
+    fireEvent.click(screen.getByRole("button", { name: /delete workspace/i }));
+    await waitFor(() => expect(screen.queryByText("Garden")).toBeNull());
+    const del = calls.find((c) => c.method === "DELETE");
+    expect(del?.url).toBe("https://notees.example.com/api/v1/workspaces/ws1");
+    expect(screen.getByText("Backyard")).toBeInTheDocument();
+  });
+
+  it("omits actions with no backend (share, duplicate, import)", async () => {
+    stubFetch({
+      "/api/v1/workspaces": () => ({ workspaces: [WS] }),
+    });
+    render(
+      <WorkspacesView
+        serverUrl="https://notees.example.com"
+        credential="session-token"
+        user={null}
+        onEnter={() => {}}
+        activeWorkspaceId="ws1"
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
+    expect(screen.getByRole("menuitem", { name: /rename/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /export/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /share|duplicate|import/i })).toBeNull();
   });
 
   it("creates a workspace and switches to it", async () => {
@@ -575,7 +637,7 @@ describe("ManageWorkspacesModal", () => {
     expect(JSON.parse(post!.body!)).toEqual({ name: "New plots" });
   });
 
-  it("omits legacy-only actions with no v2 backend", async () => {
+  it("omits actions with no backend (share, duplicate, import)", async () => {
     stubFetch({
       "/api/v1/workspaces": () => ({ workspaces: [WS] }),
     });
@@ -588,9 +650,10 @@ describe("ManageWorkspacesModal", () => {
         activeWorkspaceId="ws1"
       />,
     );
-    await screen.findByText("Garden");
-    expect(
-      screen.queryByRole("button", { name: /delete|share|duplicate|import/i }),
-    ).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
+    expect(screen.getByRole("menuitem", { name: /rename/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /export/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /share|duplicate|import/i })).toBeNull();
   });
 });

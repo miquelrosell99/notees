@@ -17,6 +17,7 @@
     "@fastify/multipart": "^9.0.0",
     "@fastify/websocket": "^11.0.0",
     "@notees/domain": "workspace:*",
+    "@notees/export": "workspace:*",
     "@notees/protocol": "workspace:*",
     "@notees/query": "workspace:*",
     "@notees/store": "workspace:*",

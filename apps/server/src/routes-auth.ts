@@ -19,6 +19,10 @@
 
 import { timingSafeEqual } from "node:crypto";
 
+import { deriveDisplayName } from "@notees/domain";
+import type { ExportContext, ExportNode } from "@notees/export";
+import { nodeToMarkdown } from "@notees/export";
+import type { NodeRow } from "@notees/store";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -352,6 +356,87 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     }
     ctx.auth.renameWorkspace(id, parsed.data.name);
     return { id, name: parsed.data.name };
+  });
+
+  // DELETE removes the workspace AND its data (relay log, snapshots, derived
+  // db). Owner-only; the confirmation lives in the client.
+  app.delete("/workspaces/:id", async (request) => {
+    const { principal } = requireAccount(ctx, request);
+    const { id } = request.params as { id: string };
+    const role = ctx.auth.membership(id, principal.userId);
+    if (role === null) {
+      throw new AppError(404, "not_found", "no such workspace");
+    }
+    if (role !== "owner") {
+      throw new AppError(403, "forbidden", "only the workspace owner can delete it");
+    }
+    await ctx.workspaces.drop(id);
+    ctx.relay.deleteWorkspaceData(id);
+    ctx.auth.deleteWorkspace(id);
+    return { ok: true };
+  });
+
+  // GET /workspaces/:id/export — full-workspace Markdown download built from
+  // the derived store via @notees/export (one section per page, nested
+  // bullets under each).
+  app.get("/workspaces/:id/export", async (request, reply) => {
+    const principal = requireUser(ctx, request);
+    const { id } = request.params as { id: string };
+    if (ctx.auth.membership(id, principal.userId) === null) {
+      throw new AppError(404, "not_found", "no such workspace");
+    }
+    const store = ctx.workspaces.storeFor(id);
+    const toExportNode = (row: NodeRow): ExportNode => ({
+      id: row.id,
+      nodeType: row.node_type,
+      name: row.name,
+      contentAst: JSON.parse(row.content) as ExportNode["contentAst"],
+      classIds: JSON.parse(row.class_ids) as string[],
+      properties: [],
+    });
+    const nameOf = (nodeId: string): string | undefined => {
+      const row = store.database.prepare("SELECT * FROM node WHERE id = ?").get(nodeId) as
+        | NodeRow
+        | undefined;
+      if (row === undefined) return undefined;
+      return (
+        deriveDisplayName({
+          id: row.id,
+          nodeType: row.node_type,
+          name: row.name,
+          contentAst: JSON.parse(row.content) as ExportNode["contentAst"],
+          classIds: JSON.parse(row.class_ids) as string[],
+        }) || undefined
+      );
+    };
+    const exportContext: ExportContext = {
+      nameOf,
+      childrenOf: (parentId) =>
+        store
+          .children(parentId)
+          .filter((row) => row.node_type === "block" && row.is_active === 1)
+          .map(toExportNode),
+    };
+    const pages = store.database
+      .prepare(
+        "SELECT * FROM node WHERE node_type = 'page' AND is_active = 1 ORDER BY created_at, id",
+      )
+      .all() as NodeRow[];
+    const markdown = pages
+      .map((row) => nodeToMarkdown(toExportNode(row), exportContext))
+      .join("\n\n---\n\n");
+    const workspaceName =
+      (
+        ctx.auth.listWorkspacesForUser(principal.userId, () => ({
+          envelopeCount: 0,
+          latestSeq: 0,
+        })) as Array<{ id: string; name: string | null }>
+      ).find((w) => w.id === id)?.name ?? id;
+    const slug = (workspaceName || "workspace").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "workspace";
+    return reply
+      .header("content-type", "text/markdown; charset=utf-8")
+      .header("content-disposition", `attachment; filename="${slug}.md"`)
+      .send(markdown);
   });
 
   // --- API keys (session-managed; the keys themselves authenticate as the user) ----
