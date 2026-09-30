@@ -11,12 +11,14 @@ await page.addInitScript(([url, t]) => {
 }, ["http://127.0.0.1:8377", token]);
 await page.goto("http://127.0.0.1:8378", { waitUntil: "commit", timeout: 60_000 });
 await page.waitForTimeout(11000);
-const row = page.locator(".nt-side-section").nth(2).locator(".nt-side-item").first();
-await row.click();
+// Open the Pages hub, then the first page in it.
+await page.getByRole("button", { name: /^Pages$/ }).click();
+await page.waitForTimeout(600);
+await page.locator(".nt-hub-item").first().click();
 await page.waitForTimeout(2500);
 await page.screenshot({ path: "/tmp/page-dark.jpg", type: "jpeg", quality: 85 });
 const body = await page.evaluate(() => document.body.innerText);
-console.log("breadcrumbs-ish:", /›|>/.test(body), "| metadata:", body.toLowerCase().includes("metadata"), "| linked refs:", body.toLowerCase().includes("linked references"));
+console.log("url:", await page.evaluate(() => location.pathname), "| metadata:", body.toLowerCase().includes("metadata"), "| linked refs:", body.toLowerCase().includes("linked references"));
 await page.keyboard.press("Control+k");
 await page.waitForTimeout(800);
 await page.screenshot({ path: "/tmp/palette-dark.jpg", type: "jpeg", quality: 85 });

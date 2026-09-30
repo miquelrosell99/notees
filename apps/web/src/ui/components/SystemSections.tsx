@@ -15,6 +15,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
+import { InlineTokens } from "../InlineTokens.js";
 import { Section } from "../Section.js";
 import "./SystemSections.css";
 
@@ -26,38 +27,62 @@ function RowIcon({ node }: { node: ClientNode }) {
   return <Icon path={node.icon} size={0.9} className="nt-section-row-icon" />;
 }
 
-/** One references row: containing-page crumb, source excerpt, containment context. */
+/**
+ * Logseq-style references: entries grouped under their containing page;
+ * each row renders the referencing block's content (the block/editor view),
+ * and clicking it opens the source — the block itself in focused view when
+ * the edge is direct, otherwise the containing page.
+ */
 function ReferenceList({
   entries,
+  client,
   onOpenPage,
 }: {
   entries: ReferenceEntry[];
-  onOpenPage?: ((pageId: string) => void) | undefined;
+  client: AnyClient;
+  onOpenPage?: ((nodeId: string) => void) | undefined;
 }) {
+  const groups = new Map<string, { pageName: string; items: ReferenceEntry[] }>();
+  for (const entry of entries) {
+    const group = groups.get(entry.containingPageId);
+    if (group !== undefined) group.items.push(entry);
+    else groups.set(entry.containingPageId, { pageName: entry.containingPageName, items: [entry] });
+  }
   return (
-    <ul className="nt-section-list">
-      {entries.map((entry) => (
-        <li key={entry.source.id}>
+    <div className="nt-refgroups">
+      {[...groups.entries()].map(([pageId, group]) => (
+        <section key={pageId} className="nt-refgroup">
           <button
             type="button"
-            className="nt-section-item"
-            onClick={() => onOpenPage?.(entry.containingPageId)}
+            className="nt-refgroup-page"
+            onClick={() => onOpenPage?.(pageId)}
           >
-            <RowIcon node={entry.source} />
-            <span className="nt-section-crumb">{entry.containingPageName}</span>
-            {entry.source.id !== entry.containingPageId && (
-              <span className="nt-section-source">
-                {" › "}
-                {deriveDisplayName(entry.source) || entry.source.id}
-              </span>
-            )}
-            {entry.kind === "containment" && (
-              <span className="nt-section-context">in {entry.containingPageName}</span>
-            )}
+            <Icon path="mdi-file-document-outline" size={0.9} className="nt-section-row-icon" />
+            <span className="nt-refgroup-name">{group.pageName}</span>
+            <span className="nt-refgroup-count">{group.items.length}</span>
           </button>
-        </li>
+          <ul className="nt-refgroup-blocks">
+            {group.items.map((entry) => (
+              <li key={entry.source.id}>
+                <button
+                  type="button"
+                  className="nt-refblock"
+                  onClick={() =>
+                    onOpenPage?.(entry.kind === "direct" ? entry.source.id : entry.containingPageId)
+                  }
+                >
+                  <InlineTokens
+                    tokens={entry.source.contentAst}
+                    resolveName={(id) => client.getDisplayName(id)}
+                    onOpenNode={onOpenPage}
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -85,7 +110,7 @@ export function SystemSections({
         defaultCollapsed={false}
         load={loadLinkedRefs}
         emptyText="No linked references."
-        renderResults={(entries) => <ReferenceList entries={entries} onOpenPage={onOpenPage} />}
+        renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
       />
       <Section
         key={`child-${pageId}`}
@@ -119,7 +144,7 @@ export function SystemSections({
         icon={<Icon path="mdi-link-off" size={0.9} />}
         load={loadUnlinkedRefs}
         emptyText="No unlinked references."
-        renderResults={(entries) => <ReferenceList entries={entries} onOpenPage={onOpenPage} />}
+        renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
       />
     </div>
   );
