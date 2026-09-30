@@ -67,7 +67,7 @@ export function ReferenceSubtree({
       <DndContext sensors={sensors} collisionDetection={blockCollisionDetection}>
         <SortableContext items={[node.id]} strategy={verticalListSortingStrategy}>
           <div className="nt-refblock-tree">
-            <BlockRow tree={tree} resolveName={(id) => displayNameFromClient(client, id)} />
+            <BlockRow tree={tree} client={client} resolveName={(id) => displayNameFromClient(client, id)} />
           </div>
         </SortableContext>
       </DndContext>

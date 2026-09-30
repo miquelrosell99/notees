@@ -485,6 +485,22 @@ select:focus-visible {
   flex-direction: column;
 }
 
+/* Block-level metadata (BlockRow → MetadataSection with hideWhenEmpty):
+   aligns with the block text column (bullet 12px + row gap 8px) and keeps
+   the chrome compact so a metadata-carrying block reads as one row. */
+.nt-block > .node-metadata-section {
+  margin-left: 20px;
+  padding-bottom: var(--spacing-1);
+}
+
+.nt-block > .node-metadata-section .node-view-section__header {
+  font: var(--font-label-medium);
+}
+
+.nt-block > .node-metadata-section .node-metadata-content {
+  gap: var(--spacing-1);
+}
+
 .nt-block-row {
   display: flex;
   align-items: baseline;

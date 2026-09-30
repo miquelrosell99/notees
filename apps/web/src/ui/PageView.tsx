@@ -323,7 +323,7 @@ collisionDetection={blockCollisionDetection}
               <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
                 <div className="nt-block-tree">
                   {tree.map((child) => (
-                    <BlockRow key={child.node.id} tree={child} resolveName={(id) => displayNameFromClient(client, id)} />
+                    <BlockRow key={child.node.id} tree={child} client={client} resolveName={(id) => displayNameFromClient(client, id)} />
                   ))}
                 </div>
               </SortableContext>
