@@ -2,7 +2,7 @@
  * Metadata pickers (ported popup controls) — web level, jsdom over the
  * in-process WorkspaceClient:
  *
- *  - the "+ Add class" popup is the ported node-selector picker: it lists
+ *  - the "Add class" pill popup is the ported node-selector picker: it lists
  *    classes, filters by search text, picks assign (class.add), and the
  *    "Create" row creates + assigns a new class;
  *  - right-clicking a class pill opens the color-swatch menu; a swatch writes
@@ -65,9 +65,9 @@ describe("metadata pickers (ported popups)", () => {
     await client.assignClass(pageId, poetryId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    // The assigned class renders as a pill; "+ Add class" opens the picker.
+    // The assigned class renders as a pill; the "Add class" pill opens the picker.
     expect(screen.getByRole("button", { name: "Remove class Poetry" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "+ Add class" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add class" }));
 
     // Both remaining classes list; the search input narrows.
     const dialog = screen.getByRole("dialog", { name: "Select node" });
@@ -90,10 +90,10 @@ describe("metadata pickers (ported popups)", () => {
     expect(classIds).toEqual(expect.arrayContaining([poetryId, fictionId]));
     expect(screen.getByRole("button", { name: "Remove class Fiction" })).not.toBeNull();
     expect(screen.queryByRole("dialog", { name: "Select node" })).toBeNull();
-    expect(container.querySelectorAll(".nt-classes-row .pill").length).toBe(2);
+    expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(2);
 
     // The "Create" row creates a class and assigns it.
-    fireEvent.click(screen.getByRole("button", { name: "+ Add class" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add class" }));
     fireEvent.change(screen.getByLabelText("Search classes"), { target: { value: "Essays" } });
     fireEvent.click(screen.getByText('Create "Essays"'));
     await flushWrites();
@@ -203,7 +203,7 @@ describe("metadata pickers (ported popups)", () => {
     render(<PageView client={client} pageId={teamId} />);
 
     const row = screen.getByText("mentor").closest(".nt-property-object") as HTMLElement;
-    fireEvent.click(within(row).getByRole("button", { name: "+ Add" }));
+    fireEvent.click(within(row).getByRole("button", { name: "Add" }));
     fireEvent.change(screen.getByLabelText("Search mentor"), { target: { value: "Ada" } });
     fireEvent.click(screen.getByText('Create "Ada"'));
     await flushWrites();

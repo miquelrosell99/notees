@@ -27,7 +27,7 @@ import { Spinner } from './Spinner.js';
 import { useReducedMotion } from './overlay-hooks.js';
 import { cn } from './cn';
 
-export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger' | 'danger-solid';
+export type ButtonVariant = 'default' | 'primary' | 'outline' | 'ghost' | 'danger' | 'danger-solid';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 export type ButtonHapticIntensity = 'light' | 'medium' | 'none';
 

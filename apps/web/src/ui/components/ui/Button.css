@@ -225,6 +225,32 @@
   color: var(--color-on-surface-variant);
 }
 
+/* Outline variant — transparent background with a persistent outline
+   border; the secondary action style next to a primary filled button. */
+.btn--outline {
+  background: transparent;
+  border-color: var(--color-outline);
+  color: var(--color-on-surface-variant);
+}
+
+.btn--outline:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+  border-color: var(--color-outline);
+  color: var(--color-on-surface);
+}
+
+.btn--outline.btn--active {
+  background: var(--color-surface-container-active);
+  border-color: var(--color-outline);
+  color: var(--color-on-surface);
+}
+
+.btn--outline:active:not(:disabled) {
+  background: var(--color-surface-container-high);
+  border-color: var(--color-outline);
+  color: var(--color-on-surface);
+}
+
 .btn--ghost:hover:not(:disabled) {
   background: var(--color-surface-container);
   border-color: var(--color-outline-variant);

@@ -54,14 +54,33 @@ export function Breadcrumbs({
   client,
   nodeId,
   onOpenNode,
+  stopAfterId,
+  excludeIds,
+  excludeLeaf = false,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
+  /** Truncate the chain AT this node (inclusive): ancestors above it drop. */
+  stopAfterId?: string | undefined;
+  /** Crumb ids to drop from the rendered trail (e.g. the page under a
+   *  group-by-page reference list, whose header already names it). */
+  excludeIds?: readonly string[] | undefined;
+  /** Drop the trailing crumb (the node itself) — its content renders below. */
+  excludeLeaf?: boolean | undefined;
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
 
-  const items = ancestryOf(client, nodeId);
+  let items = ancestryOf(client, nodeId);
+  if (stopAfterId !== undefined) {
+    const stopAt = items.findIndex((item) => item.node.id === stopAfterId);
+    if (stopAt !== -1) items = items.slice(stopAt);
+  }
+  if (excludeIds !== undefined && excludeIds.length > 0) {
+    const drop = new Set(excludeIds);
+    items = items.filter((item) => !drop.has(item.node.id));
+  }
+  if (excludeLeaf && items.length > 0) items = items.slice(0, -1);
   if (items.length === 0) return null;
 
   const needsCollapse = items.length > COLLAPSE_AT;

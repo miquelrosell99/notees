@@ -58,6 +58,7 @@ import { NAV_ENTRIES, Sidebar, type NavKey } from "./components/Sidebar.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
+import { Button } from "./components/ui/Button.js";
 import { NotificationToaster } from "./components/ui/NotificationToaster.js";
 import "./app.css";
 
@@ -696,12 +697,12 @@ export function App() {
                   required
                 />
               </label>
-              <button type="submit" className="nt-btn nt-btn-primary">
+              <Button type="submit" variant="primary">
                 Sign in with key
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="nt-btn nt-btn-secondary"
+                variant="outline"
                 onClick={() => {
                   setApiKeyInput("");
                   setError(null);
@@ -710,7 +711,7 @@ export function App() {
                 }}
               >
                 Change server
-              </button>
+              </Button>
               {hint !== null && <p className="nt-hint">{hint}</p>}
               {error !== null && <p className="nt-error">{error}</p>}
             </form>
@@ -781,22 +782,22 @@ export function App() {
                   />
                 </label>
               )}
-              <button type="submit" className="nt-btn nt-btn-primary">
+              <Button type="submit" variant="primary">
                 {phase.name === "setup" ? "Create account" : isLogin ? "Sign in" : "Continue"}
-              </button>
+              </Button>
               {phase.name === "server" && (
-                <button
+                <Button
                   type="button"
-                  className="nt-btn nt-btn-secondary"
+                  variant="outline"
                   onClick={() => void handleWorkOffline()}
                 >
                   Work offline
-                </button>
+                </Button>
               )}
               {isLogin && (
-                <button
+                <Button
                   type="button"
-                  className="nt-btn nt-btn-secondary"
+                  variant="outline"
                   onClick={() => {
                     setEmail("");
                     setPassword("");
@@ -806,7 +807,7 @@ export function App() {
                   }}
                 >
                   Change server
-                </button>
+                </Button>
               )}
               {hint !== null && <p className="nt-hint">{hint}</p>}
               {error !== null && <p className="nt-error">{error}</p>}
@@ -939,7 +940,8 @@ export function App() {
           credential={token}
           userEmail={user?.email ?? null}
           offline={offline}
-          storeMode={storeMode}
+          showSettings={sessionSignedIn && user !== null && !offline}
+          onOpenSettings={() => setSettingsOpen(true)}
           selectedPageId={selectedPageId}
           activeNav={activeNav}
           onSelectNav={(key) => {

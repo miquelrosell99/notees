@@ -1,0 +1,164 @@
+/**
+ * Slider Component Styles
+ *
+ * A styled range input with label and optional value display.
+ * Uses design tokens from variables.css.
+ */
+
+
+
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  width: 100%;
+}
+
+/* ─── Header row (label + value) ─────────────────────────────────── */
+
+.slider__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.slider__label {
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  line-height: 1;
+}
+
+.slider__value {
+  font: var(--font-label-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface-variant);
+  min-width: 2.5em;
+  text-align: right;
+}
+
+/* ─── Track wrapper ───────────────────────────────────────────────── */
+
+.slider__track-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* ─── Range input ────────────────────────────────────────────────── */
+
+.slider__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--button-min-height);
+  border-radius: var(--shape-full);
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+  z-index: var(--z-1);
+}
+
+/* Filled track via box-shadow trick on the thumb — use a filled background
+   approach instead by overlaying a div that tracks the value */
+.slider__filled {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: var(--shape-small);
+  border-radius: var(--shape-full);
+  background: var(--color-primary);
+  pointer-events: none;
+  z-index: var(--z-0);
+}
+
+.slider__bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: var(--shape-small);
+  border-radius: var(--shape-full);
+  background: var(--color-outline-variant);
+  pointer-events: none;
+  z-index: var(--z-0);
+}
+
+/* Thumb — WebKit */
+.slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: var(--border-width-thick) solid var(--color-surface);
+  cursor: pointer;
+  position: relative;
+  z-index: var(--z-2);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.slider__input::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+/* Thumb — Firefox */
+.slider__input::-moz-range-thumb {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: var(--border-width-thick) solid var(--color-surface);
+  cursor: pointer;
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.slider__input::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+
+/* Focus ring */
+.slider__input:focus-visible::-webkit-slider-thumb {
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--spacing-micro);
+}
+
+/* ─── Size variants ───────────────────────────────────────────────── */
+
+.slider--sm .slider__input::-webkit-slider-thumb {
+  width: var(--slider-thumb-size-sm);
+  height: var(--slider-thumb-size-sm);
+}
+
+.slider--sm .slider__input::-moz-range-thumb {
+  width: var(--slider-thumb-size-sm);
+  height: var(--slider-thumb-size-sm);
+}
+
+.slider--sm .slider__filled,
+.slider--sm .slider__bg {
+  height: 3px;
+}
+
+.slider--sm .slider__input {
+  height: var(--button-min-height);
+}
+
+/* ─── Disabled ───────────────────────────────────────────────────── */
+
+.slider--disabled .slider__input {
+  cursor: not-allowed;
+  opacity: var(--opacity-40);
+}
+
+.slider--disabled .slider__filled {
+  background: var(--color-disabled);
+}

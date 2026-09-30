@@ -1,0 +1,119 @@
+/**
+ * InlineConfirmButton Component
+ *
+ * A button that requires inline confirmation before executing an action.
+ * Shows confirm (check) and cancel (close) buttons when clicked.
+ * Used for destructive actions like delete without opening a modal.
+ */
+import { useState, useCallback, useEffect } from 'react';
+import { Button } from './Button.js';
+import { Icon } from '../../Icon.js';
+import './InlineConfirmButton.css';
+
+interface InlineConfirmButtonProps {
+  /** Called when action is confirmed */
+  onConfirm: () => void | Promise<void>;
+  /** The trigger button content (icon/text) */
+  children: React.ReactNode;
+  /** Button variant for the trigger */
+  variant?: 'ghost' | 'default' | 'primary' | 'danger';
+  /** Button size */
+  size?: 'sm' | 'md';
+  /** Title tooltip for trigger button */
+  title?: string;
+  /** Title tooltip for confirm button */
+  confirmTitle?: string;
+  /** Title tooltip for cancel button */
+  cancelTitle?: string;
+  /** Additional CSS class */
+  className?: string;
+  /** Whether the button is disabled */
+  disabled?: boolean;
+}
+
+export function InlineConfirmButton({
+  onConfirm,
+  children,
+  variant = 'ghost',
+  size = 'sm',
+  title,
+  confirmTitle = 'Confirm',
+  cancelTitle = 'Cancel',
+  className = '',
+  disabled = false,
+}: InlineConfirmButtonProps) {
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+
+  // Reset confirming state when disabled changes
+  useEffect(() => {
+    if (disabled) {
+
+      setIsConfirming(false);
+    }
+  }, [disabled]);
+
+  const handleTriggerClick = useCallback(() => {
+    setIsConfirming(true);
+  }, []);
+
+  const handleConfirm = useCallback(async () => {
+    if (isPending) return;
+    setIsPending(true);
+    try {
+      await onConfirm();
+    } catch (error) {
+      // Errors surface through the callers' own channels (e.g. the global
+      // mutation error toast) — swallow here to avoid unhandled rejections,
+      // but keep a console trail for debugging.
+      console.error('[InlineConfirmButton] Confirm action failed:', error);
+    } finally {
+      setIsPending(false);
+      setIsConfirming(false);
+    }
+  }, [isPending, onConfirm]);
+
+  const handleCancel = useCallback(() => {
+    setIsConfirming(false);
+  }, []);
+
+  if (isConfirming) {
+    return (
+      <div className={`inline-confirm-button inline-confirm-button--confirming ${className}`}>
+        <Button
+          variant="danger"
+          size={size}
+          onClick={handleConfirm}
+          loading={isPending}
+          title={confirmTitle}
+          aria-label={confirmTitle}
+        >
+          <Icon path="mdi mdi-check" size={size} />
+        </Button>
+        <Button
+          variant="ghost"
+          size={size}
+          onClick={handleCancel}
+          title={cancelTitle}
+          aria-label={cancelTitle}
+        >
+          <Icon path="mdi mdi-close" size={size} />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`inline-confirm-button ${className}`}>
+      <Button
+        variant={variant}
+        size={size}
+        onClick={handleTriggerClick}
+        title={title}
+        disabled={disabled}
+      >
+        {children}
+      </Button>
+    </div>
+  );
+}

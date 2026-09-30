@@ -123,3 +123,9 @@
     padding: 0 var(--spacing-2);
   }
 }
+
+.nt-sync-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-on-surface-variant);
+}
