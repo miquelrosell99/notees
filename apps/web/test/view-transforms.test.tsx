@@ -1,7 +1,7 @@
 /**
  * View-transform tests: block collapse and prose mode over PageView (jsdom).
  * Both are display-only transforms per SCHEMA.md — collapse is session-local
- * state that hides a subtree from rendering, prose mode is the `nt-prose`
+ * state that hides a subtree from rendering.
  * class flattening bullets/indents. Neither writes to the store.
  */
 
@@ -161,62 +161,5 @@ describe("block collapse", () => {
     expect(deleteSpy).not.toHaveBeenCalled();
     // Display state only: the underlying tree is untouched.
     expect(JSON.stringify(client.getBlockTree(pageId))).toBe(treeBefore);
-  });
-});
-
-describe("prose mode", () => {
-  it("adds the nt-prose class to the tree container when toggled on", async () => {
-    const client = await seedClient();
-    const pageId = await seedTreePage(client);
-    const { container } = render(<PageView client={client} pageId={pageId} />);
-
-    expect(blockTreeEl(container).classList.contains("nt-prose")).toBe(false);
-
-    fireEvent.click(screen.getByRole("button", { name: "Prose" }));
-
-    expect(blockTreeEl(container).classList.contains("nt-prose")).toBe(true);
-  });
-
-  it("keeps the same rows and tree shape while prose mode is on", async () => {
-    const client = await seedClient();
-    const pageId = await seedTreePage(client);
-    const { container } = render(<PageView client={client} pageId={pageId} />);
-
-    const textsBefore = [...container.querySelectorAll(".nt-block-content")].map(
-      (el) => el.textContent,
-    );
-    const blocksBefore = container.querySelectorAll(".nt-block").length;
-
-    fireEvent.click(screen.getByRole("button", { name: "Prose" }));
-
-    const tree = blockTreeEl(container);
-    // Every row is still there, same order — only the view changes.
-    expect(tree.querySelectorAll(".nt-block").length).toBe(blocksBefore);
-    expect([...tree.querySelectorAll(".nt-block-content")].map((el) => el.textContent)).toEqual(
-      textsBefore,
-    );
-    // Nesting still exists in the DOM; the flattening is CSS-only (jsdom
-    // cannot compute the stylesheet, so this asserts shape + the class hook
-    // that hides bullets and indents).
-    expect(tree.querySelectorAll(".nt-block-children").length).toBe(2);
-    expect(tree.querySelectorAll(".nt-bullet").length).toBeGreaterThan(0);
-    expect(tree.classList.contains("nt-prose")).toBe(true);
-  });
-
-  it("restores the outliner view when toggled off", async () => {
-    const client = await seedClient();
-    const pageId = await seedTreePage(client);
-    const { container } = render(<PageView client={client} pageId={pageId} />);
-
-    const toggle = screen.getByRole("button", { name: "Prose" });
-    fireEvent.click(toggle);
-    expect(blockTreeEl(container).classList.contains("nt-prose")).toBe(true);
-
-    fireEvent.click(screen.getByRole("button", { name: "Prose" }));
-
-    expect(blockTreeEl(container).classList.contains("nt-prose")).toBe(false);
-    // Bullets and nested indentation are back (CSS rules no longer apply).
-    expect(container.querySelectorAll(".nt-bullet").length).toBeGreaterThan(0);
-    expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
   });
 });

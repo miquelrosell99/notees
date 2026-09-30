@@ -528,6 +528,33 @@ select:focus-visible {
   padding: 2px 0;
 }
 
+/* Chevron: separate element, left of the bullet; revealed on block hover or
+   while the block holds the edit focus (one editor per window); stays visible
+   when collapsed so the subtree can be reopened. */
+.nt-block-chevron {
+  opacity: 0;
+  transition: opacity var(--motion-duration-short, 120ms) var(--motion-easing-standard, ease);
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.nt-block:hover .nt-block-chevron,
+.nt-block:focus-within .nt-block-chevron,
+.nt-block-chevron[aria-expanded="true"] {
+  opacity: 1;
+}
+
+/* Collapsed state: outline around the bullet. */
+.nt-bullet-collapsed {
+  outline: 1.5px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--shape-full, 999px);
+}
+
+.nt-bullet {
+  cursor: pointer;
+}
+
 .nt-bullet {
   color: var(--color-on-surface-variant);
   flex-shrink: 0;
@@ -1035,10 +1062,12 @@ select:focus-visible {
    text editing); a 4px activation distance keeps plain clicks untouched. */
 .nt-block-grip {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 1px;
   cursor: grab;
   color: var(--color-on-surface-variant);
   touch-action: none;
+  flex-shrink: 0;
 }
 
 .nt-block-grip:active {

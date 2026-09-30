@@ -21,7 +21,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS node (
         CHECK (node_type IN ('page', 'block', 'class')),
     parent_id TEXT REFERENCES node(id),
     class_ids TEXT NOT NULL DEFAULT '[]',
+    tag_ids TEXT NOT NULL DEFAULT '[]',
     name TEXT,
     content TEXT NOT NULL DEFAULT '[]',
     icon TEXT,
@@ -89,6 +90,21 @@ CREATE TABLE IF NOT EXISTS class_member_set (
 
 CREATE INDEX IF NOT EXISTS idx_class_member_set_class
     ON class_member_set (class_id);
+
+-- OR-Set of tag assignments (tags are pages assigned to a page — the same
+-- membership semantics as classes, own table, no role overlap).
+CREATE TABLE IF NOT EXISTS tag_member_set (
+    node_id TEXT NOT NULL,
+    tag_id TEXT NOT NULL,
+    present INTEGER NOT NULL,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0,
+    actor_id TEXT,
+    PRIMARY KEY (node_id, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tag_member_set_tag
+    ON tag_member_set (tag_id);
 
 -- Direct extends edges (m2m: a class may have MULTIPLE parents, per the
 -- designed model in 01-knowledge-model.md §6). class.setExtends replaces
@@ -350,6 +366,14 @@ export function migrate(
     );
   }
   db.exec(schemaSql(ftsModule));
+  // v5 -> v6: tags. node.tag_ids backfill for pre-existing databases
+  // (CREATE TABLE never alters); the member table is CREATE IF NOT EXISTS.
+  if (current < 6) {
+    const nodeColumns = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    if (!nodeColumns.some((c) => c.name === "tag_ids")) {
+      db.exec("ALTER TABLE node ADD COLUMN tag_ids TEXT NOT NULL DEFAULT '[]';");
+    }
+  }
   // v2 -> v3: class_property gained LWW causality columns. Databases created
   // at v2 keep their rows; fresh v3 creates already have the columns, so the
   // backfill is a no-op there. (CREATE TABLE IF NOT EXISTS never alters.)

@@ -22,15 +22,18 @@
  * API; the client itself arrives through OutlinerContext.
  */
 
-import { useContext, useEffect, useState, type MouseEvent } from "react";
+import { useContext, useEffect, useMemo, useState, type MouseEvent } from "react";
 
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 import type { BlockTreeNode } from "@/core/workspace-client.js";
 
+import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
+import { NodeContextMenu } from "./components/NodeContextMenu.js";
+import { classIconMap, nodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
 import { QueryBlockView } from "./QueryBlockView.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
@@ -43,6 +46,7 @@ interface BlockRowProps {
 }
 
 export function BlockRow({ tree, resolveName }: BlockRowProps) {
+  const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const {
     client: outlinerClient,
@@ -77,6 +81,12 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
     setEditing(true);
   };
 
+  const gripIcon = useMemo(
+    () => nodeIcon(node, classIconMap(outlinerClient.listClasses())),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [node, node.classIds],
+  );
+
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
 
@@ -92,8 +102,18 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
       }}
     >
       <div className="nt-block-row">
-        <span className="nt-block-grip" title="Drag to move" {...attributes} {...listeners}>
-          {children.length > 0 ? (
+        <span
+          className="nt-block-grip"
+          title="Drag to move"
+          {...attributes}
+          {...listeners}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setGripMenu({ x: event.clientX, y: event.clientY });
+          }}
+        >
+          {children.length > 0 && (
             <button
               type="button"
               className="nt-block-chevron"
@@ -107,11 +127,23 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
             >
               {isCollapsed ? "\u25B8" : "\u25BE"}
             </button>
-          ) : (
-            <span className="nt-bullet" aria-hidden="true">
-              •
-            </span>
           )}
+          <span
+            className={
+              isCollapsed
+                ? "nt-bullet nt-bullet-collapsed"
+                : gripIcon !== null
+                  ? "nt-bullet nt-bullet-icon"
+                  : "nt-bullet"
+            }
+            title="Zoom in"
+            onClick={(event) => {
+              event.stopPropagation();
+              openNode(node.id);
+            }}
+          >
+            {gripIcon !== null ? <Icon path={gripIcon} size={0.8} /> : "\u2022"}
+          </span>
         </span>
         <div className="nt-block-content" onClick={enterEdit}>
           {editing ? (
@@ -145,6 +177,12 @@ export function BlockRow({ tree, resolveName }: BlockRowProps) {
           )}
         </div>
       </div>
+      <NodeContextMenu
+        state={gripMenu === null ? null : { ...gripMenu, node, isPage: false }}
+        client={outlinerClient}
+        onClose={() => setGripMenu(null)}
+        onOpenNode={openNode}
+      />
       {children.length > 0 && !isCollapsed && (
         <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
           <div className="nt-block-children">
