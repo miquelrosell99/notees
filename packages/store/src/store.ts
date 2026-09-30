@@ -37,6 +37,7 @@ export interface NodeRow {
   node_type: "page" | "block" | "class";
   parent_id: string | null;
   class_ids: string;
+  tag_ids: string;
   name: string | null;
   content: string;
   icon: string | null;

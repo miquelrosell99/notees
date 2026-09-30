@@ -1663,3 +1663,30 @@ describe("cross-backend snapshot restore", () => {
     restored.close();
   });
 });
+
+for (const adapter of adapters) {
+  describe(`tags on ${adapter.name} (page-scoped page assignments)`, () => {
+    it("assign via create carrier, unassign tombstones, re-add wins; tag_ids derived", () => {
+      const store = Store.open(adapter.makeBackend());
+      const page = "0192a000-0000-7000-8000-000000000301";
+      const tagA = "0192a000-0000-7000-8000-000000000302";
+      const tagB = "0192a000-0000-7000-8000-000000000303";
+      store.apply(env("object.create", { objectId: page, nodeType: "page", name: "P" }, 1727200001000));
+      store.apply(env("object.create", { objectId: tagA, nodeType: "page", name: "tag A" }, 1727200001100));
+      store.apply(env("object.create", { objectId: tagB, nodeType: "page", name: "tag B" }, 1727200001200));
+      // Assign: the create carrier re-issue (same pattern as classes).
+      store.apply(env("object.create", { objectId: page, nodeType: "page", tagIds: [tagA, tagB] }, 1727200002000));
+      expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagA, tagB].sort()));
+      // Unassign tombstones the pair.
+      store.apply(env("tag.unassign", { objectId: page, tagId: tagA }, 1727200003000));
+      expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagB]));
+      // A stale re-add (lower HLC than the remove) loses.
+      store.apply(env("object.create", { objectId: page, nodeType: "page", tagIds: [tagA] }, 1727200002500));
+      expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagB]));
+      // A newer re-add wins.
+      store.apply(env("object.create", { objectId: page, nodeType: "page", tagIds: [tagA] }, 1727200004000));
+      expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagA, tagB].sort()));
+      store.close();
+    });
+  });
+}
