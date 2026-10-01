@@ -73,27 +73,27 @@ def is_flat_token_stream(ast: list[Any]) -> bool:
     return True
 
 
-def normalize_content_ast(ast: list[Any]) -> list[dict[str, Any]]:
+def normalize_content_ast(ast: list[Any], resolve_name: Any = None) -> list[dict[str, Any]]:
     unwrapped = unwrap_crdt_content_ast(ast)
     if is_flat_token_stream(unwrapped):
         return [e for e in unwrapped if isinstance(e, dict)]
-    return legacy_ast_to_tokens(unwrapped)
+    return legacy_ast_to_tokens(unwrapped, resolve_name)
 
 
-def legacy_ast_to_tokens(ast: list[Any]) -> list[dict[str, Any]]:
+def legacy_ast_to_tokens(ast: list[Any], resolve_name: Any = None) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for block in ast:
         if isinstance(block, dict):
-            _convert_block(block, out, frozenset())
+            _convert_block(block, out, frozenset(), resolve_name)
     return out
 
 
-def _convert_block(block: dict[str, Any], out: list[dict[str, Any]], inherited: frozenset[str]) -> None:
+def _convert_block(block: dict[str, Any], out: list[dict[str, Any]], inherited: frozenset[str], resolve_name: Any = None) -> None:
     block_type = block.get("type")
     if block_type in ("paragraph", "heading"):
         for child in block.get("children") or []:
             if isinstance(child, dict):
-                _convert_inline(child, out, inherited)
+                _convert_inline(child, out, inherited, resolve_name)
     elif block_type == "text":
         text = block.get("text")
         if isinstance(text, str):
@@ -109,10 +109,10 @@ def _convert_block(block: dict[str, Any], out: list[dict[str, Any]], inherited: 
         # Unknown legacy block: try its children so no text is lost.
         for child in block.get("children") or []:
             if isinstance(child, dict):
-                _convert_inline(child, out, inherited)
+                _convert_inline(child, out, inherited, resolve_name)
 
 
-def _convert_inline(node: dict[str, Any], out: list[dict[str, Any]], inherited: frozenset[str]) -> None:
+def _convert_inline(node: dict[str, Any], out: list[dict[str, Any]], inherited: frozenset[str], resolve_name: Any = None) -> None:
     node_type = node.get("type")
     if node_type == "text":
         text = node.get("text")
@@ -128,7 +128,7 @@ def _convert_inline(node: dict[str, Any], out: list[dict[str, Any]], inherited: 
             "underline": "highlight",
             "highlight": "highlight",
         }[node_type]
-        _convert_children(node, out, inherited, mark)
+        _convert_children(node, out, inherited, mark, resolve_name)
     elif node_type == "code":
         text = node.get("text")
         out.append(_text_token(text if isinstance(text, str) else "", inherited | {"code"}))
@@ -153,21 +153,27 @@ def _convert_inline(node: dict[str, Any], out: list[dict[str, Any]], inherited: 
                 token["displayText"] = label
             out.append(token)
         else:
-            out.append({"type": "mention", "targetNodeId": target, "text": label if label else target})
+            # Unlabeled links must NOT fall back to the target id: the uuid
+            # would leak into excerpts/breadcrumbs as the node's display
+            # text. Resolve the v1 name when the migrator supplies a
+            # resolver; otherwise leave the captured text empty (v2 renders
+            # resolve the target's live name at display time).
+            captured = label if label else (resolve_name(target) if callable(resolve_name) else "")
+            out.append({"type": "mention", "targetNodeId": target, "text": captured})
     elif node_type == "user_mention":
         label = node.get("label")
         out.append(_text_token(f"@{label if isinstance(label, str) else ''}", inherited))
     else:
         for child in node.get("children") or []:
             if isinstance(child, dict):
-                _convert_inline(child, out, inherited)
+                _convert_inline(child, out, inherited, resolve_name)
 
 
-def _convert_children(node: dict[str, Any], out: list[dict[str, Any]], inherited: frozenset[str], mark: str) -> None:
+def _convert_children(node: dict[str, Any], out: list[dict[str, Any]], inherited: frozenset[str], mark: str, resolve_name: Any = None) -> None:
     merged = inherited | {mark}
     for child in node.get("children") or []:
         if isinstance(child, dict):
-            _convert_inline(child, out, merged)
+            _convert_inline(child, out, merged, resolve_name)
 
 
 def _text_token(text: str, marks: frozenset[str]) -> dict[str, Any]:
@@ -196,7 +202,7 @@ def _collect_plain(node: Any) -> str:
     return "".join(buffer)
 
 
-def content_tokens_from_source(source: Any) -> list[dict[str, Any]]:
+def content_tokens_from_source(source: Any, resolve_name: Any = None) -> list[dict[str, Any]]:
     """Parse a stored content document (serialized JSON or decoded list)."""
     if source is None:
         return []
@@ -207,7 +213,7 @@ def content_tokens_from_source(source: Any) -> list[dict[str, Any]]:
         if not isinstance(parsed, list):
             # Legacy plain-text content.
             return [{"type": "text", "text": source}]
-        return normalize_content_ast(parsed)
+        return normalize_content_ast(parsed, resolve_name)
     if isinstance(source, list):
         return normalize_content_ast(source)
     return []
