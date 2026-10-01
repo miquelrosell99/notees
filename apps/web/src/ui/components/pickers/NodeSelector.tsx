@@ -18,8 +18,7 @@ import { createPortal } from "react-dom";
 
 import { chainNodeIds } from "@notees/domain";
 
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
-import type { WorkerClient } from "@/core/worker-client.js";
+import type { ClientNode, CreateObjectInput } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { parseDate } from "./dateParser.js";
@@ -29,7 +28,23 @@ import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
 import "./NodeSelector.css";
 
-type AnyClient = WorkspaceClient | WorkerClient;
+/**
+ * The client surface the picker drives — structural, so both full clients
+ * (in-process WorkspaceClient, WorkerClient proxy) and the outliner's
+ * minimal context client satisfy it.
+ */
+export interface NodeSelectorClient {
+  getNode(id: string): ClientNode | undefined;
+  getNodeRaw(id: string): ClientNode | undefined;
+  listClasses(): ClientNode[];
+  search(query: string): ClientNode[];
+  getClassMembers(classId: string): ClientNode[];
+  createObject(partial: CreateObjectInput): Promise<string>;
+  createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
+  ensureDateChain(isoDate: string): Promise<{ year: string; month: string; day: string }>;
+}
+
+type AnyClient = NodeSelectorClient;
 
 export type NodeSearchMode = "pages" | "classes" | "all";
 type TriggerMode = "pill-row" | "inline";
@@ -89,6 +104,13 @@ interface NodeSelectorProps {
    * element (no trigger is rendered — use with onClose for dismissal).
    */
   anchorEl?: HTMLElement | null | undefined;
+  /**
+   * Viewport-coordinate anchor for the anchored panel when there is no
+   * element to anchor to (editor caret popups: `{top}` = caret bottom,
+   * `{left}` = caret left). Behaves exactly like `anchorEl` with a zero-size
+   * rect at this position.
+   */
+  anchorRect?: { top: number; left: number } | null | undefined;
   /** Called when the anchored panel should close (Escape / click outside). */
   onClose?: (() => void) | undefined;
   /** Custom label for the create row (default: `Create "<query>"`). */
@@ -127,22 +149,42 @@ export function NodeSelector({
   initialSearchQuery = "",
   className = "",
   anchorEl,
+  anchorRect,
   onClose,
   createLabel,
   id,
   rightIconHoverReveal = false,
 }: NodeSelectorProps) {
-  const isAnchored = anchorEl != null;
+  const isAnchored = anchorEl != null || anchorRect != null;
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const anchorRef = useRef<HTMLElement | null>(null);
+  // Virtual zero-size anchor for viewport-coordinate anchoring (editor caret
+  // popups): getBoundingClientRect is all the positioning hook reads.
+  const virtualAnchor = useMemo<{ getBoundingClientRect(): DOMRect } | null>(() => {
+    if (anchorRect == null) return null;
+    return {
+      getBoundingClientRect: () =>
+        ({
+          x: anchorRect.left,
+          y: anchorRect.top,
+          top: anchorRect.top,
+          left: anchorRect.left,
+          right: anchorRect.left,
+          bottom: anchorRect.top,
+          width: 0,
+          height: 0,
+          toJSON: () => ({}),
+        }) as DOMRect,
+    };
+  }, [anchorRect]);
+  const anchorRef = useRef<HTMLElement | { getBoundingClientRect(): DOMRect } | null>(null);
   // Latest-value ref assignment during render so the layout-phase position
   // hook measures the current anchor on the same commit that opens the picker.
-  anchorRef.current = anchorEl ?? null;
+  anchorRef.current = anchorEl ?? virtualAnchor;
 
   // Compute value ids for fetching and exclusion.
   const valueIds = useMemo(() => {
@@ -344,19 +386,16 @@ export function NodeSelector({
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const pickerElement = pickerRef.current;
-      const triggerElement = isAnchored ? anchorEl : buttonRef.current;
-      if (
-        pickerElement &&
-        !pickerElement.contains(target) &&
-        triggerElement &&
-        !triggerElement.contains(target)
-      ) {
-        if (isAnchored) {
-          onClose?.();
-        } else {
-          setIsPickerOpen(false);
-          setSearchQuery("");
-        }
+      if (pickerElement !== null && pickerElement.contains(target)) return;
+      // Anchored pickers: a real anchor swallows clicks on itself; the
+      // virtual rect anchor has no element, so any outside click closes.
+      const triggerElement = isAnchored ? (anchorEl ?? null) : buttonRef.current;
+      if (triggerElement !== null && triggerElement.contains(target)) return;
+      if (isAnchored) {
+        onClose?.();
+      } else {
+        setIsPickerOpen(false);
+        setSearchQuery("");
       }
     };
     const handleEscape = (e: KeyboardEvent) => {
