@@ -204,11 +204,12 @@ describe("PageView system sections", () => {
     expect(body.textContent).toContain("body block");
     expect(body.textContent).not.toContain("Child Page");
 
-    // Expand: child page renders in the section and navigates on click.
+    // Expand: the child page renders as a read-only blocks-list row and
+    // navigates on click.
     fireEvent.click(screen.getByRole("button", { name: /Child pages/ }));
     const childSection = section(/Child pages/);
     const row = within(childSection).getByText("Child Page");
-    fireEvent.click(row.closest("button")!);
+    fireEvent.click(row.closest(".nt-block-content")!);
     expect(onOpenPage).toHaveBeenCalledWith(childId);
   });
 

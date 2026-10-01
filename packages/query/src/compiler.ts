@@ -83,7 +83,15 @@ export function buildMatchExpression(query: string): string | null {
 }
 
 const SORT_COLUMNS: Record<SortSpec["field"], { column: string; nullable: boolean }> = {
-  name: { column: "n.name", nullable: true },
+  // Title-is-content: the title is the node's content text (the name column
+  // is retired). Concatenate the text-run tokens for ordering; NULL/empty
+  // titles fall to the id tiebreak the runner appends.
+  name: {
+    column:
+      "(SELECT group_concat(json_extract(j.value, '$.text'), ' ') FROM json_each(n.content) j " +
+      "WHERE json_extract(j.value, '$.type') = 'text')",
+    nullable: true,
+  },
   createdAt: { column: "n.created_at", nullable: true },
   nodeType: { column: "n.node_type", nullable: false },
 };

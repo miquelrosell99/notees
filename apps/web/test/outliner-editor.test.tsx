@@ -413,7 +413,7 @@ describe("outliner editor", () => {
     expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
   });
 
-  it("editing the page title commits the stored name on Enter and on blur", async () => {
+  it("editing the page title commits the content on Enter and on blur", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Old Name" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -424,13 +424,13 @@ describe("outliner editor", () => {
 
     title.textContent = "Committed Via Enter";
     fireEvent.keyDown(title, { key: "Enter" });
-    expect(client.getPage(pageId)?.name).toBe("Committed Via Enter");
+    expect(client.getPage(pageId)?.contentAst).toEqual([{ type: "text", text: "Committed Via Enter" }]);
 
     title.textContent = "Committed Via Blur";
     fireEvent.blur(title);
-    expect(client.getPage(pageId)?.name).toBe("Committed Via Blur");
+    expect(client.getPage(pageId)?.contentAst).toEqual([{ type: "text", text: "Committed Via Blur" }]);
 
-    // Read-only header derives from the stored name.
+    // The header re-renders from the committed content.
     expect(container.querySelector(".nt-page-title")!.textContent).toBe("Committed Via Blur");
   });
 

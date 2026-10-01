@@ -71,16 +71,18 @@ describe("embeds", () => {
     const { container } = render(<PageView client={client} pageId={pageA} />);
 
     // Live subtree, not a clone: the target's blocks render inside the embed
-    // with their nesting intact.
-    expect(screen.getByText("Target Page")).not.toBeNull();
+    // with their nesting intact. (The target's title may also appear in a
+    // token span, so scope the name check to the embed header.)
+    expect(container.querySelector(".nt-embed-header")?.textContent).toContain("Target Page");
     expect(screen.getByText("child one")).not.toBeNull();
     expect(screen.getByText("child two")).not.toBeNull();
     expect(screen.getByText("grandchild")).not.toBeNull();
     const embedEl = container.querySelector(".nt-embed");
     expect(embedEl).not.toBeNull();
     expect(embedEl?.querySelector(".nt-embed-block-children")).not.toBeNull();
-    // A page target has no content of its own — only the header + subtree.
-    expect(embedEl?.querySelector(".nt-embed-content")).toBeNull();
+    // Title-is-content: the target page's title IS its content, so the embed
+    // body renders it as the content span (the header shows it too).
+    expect(embedEl?.querySelector(".nt-embed-content")?.textContent).toContain("Target Page");
   });
 
   it("re-renders when the target's content changes (notify flow)", async () => {

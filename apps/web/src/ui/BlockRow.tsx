@@ -46,9 +46,16 @@ interface BlockRowProps {
   tree: BlockTreeNode;
   client: WorkspaceClient | WorkerClient;
   resolveName?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Read-only projection (the v1 blocks-list readonly mode): renders the same
+   * row chrome but disables every mutation gesture — no drag, no edit on
+   * click, no context menu; clicking the content opens the node instead.
+   * Used by the Child pages tree and the Class View's "Extended by" list.
+   */
+  readOnly?: boolean | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const {
@@ -70,17 +77,24 @@ export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
   // distance keeps plain clicks untouched.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
+    disabled: readOnly,
   });
 
   useEffect(() => {
     if (focusRequest === null || focusRequest.id !== node.id) return;
     acknowledgeFocus();
+    if (readOnly) return;
     setCaret(focusRequest.caret);
     setEditing(true);
-  }, [focusRequest, node.id, acknowledgeFocus]);
+  }, [focusRequest, node.id, acknowledgeFocus, readOnly]);
 
   const enterEdit = (event: MouseEvent<HTMLDivElement>) => {
     if (editing) return;
+    if (readOnly) {
+      // Read-only projection: clicking the row opens the node.
+      openNode(node.id);
+      return;
+    }
     setCaret({ x: event.clientX, y: event.clientY });
     setEditing(true);
   };
@@ -96,7 +110,7 @@ export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
 
   return (
     <div
-      className={`nt-block${dropClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${dropClass}`}
       ref={setNodeRef}
       data-block-id={node.id}
       style={{
@@ -114,6 +128,7 @@ export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
+            if (readOnly) return;
             setGripMenu({ x: event.clientX, y: event.clientY });
           }}
         >
@@ -204,7 +219,13 @@ export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
         <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
           <div className="nt-block-children">
             {children.map((child) => (
-              <BlockRow key={child.node.id} tree={child} client={client} resolveName={resolveName} />
+              <BlockRow
+                key={child.node.id}
+                tree={child}
+                client={client}
+                resolveName={resolveName}
+                readOnly={readOnly}
+              />
             ))}
           </div>
         </SortableContext>

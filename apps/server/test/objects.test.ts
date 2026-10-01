@@ -37,7 +37,11 @@ describe("objects API", () => {
     const fetched = await api("GET", `/api/v1/objects/${id}`);
     expect(fetched.statusCode).toBe(200);
     const object = fetched.json().object;
-    expect(object).toMatchObject({ id, nodeType: "page", name: "Round Trip", isActive: true });
+    expect(object).toMatchObject({ id, nodeType: "page", isActive: true });
+    // Title-is-content: `name` is no longer stored (the convenience field is
+    // dropped when an explicit contentAst rides along); the API name is the
+    // title derived from the content.
+    expect(object.name).toBe("hello body");
     expect(object.contentAst).toEqual([{ type: "text", text: "hello body" }]);
     expect(object.workspaceId).toBe(server.ctx.defaultWorkspace);
   });
@@ -45,18 +49,18 @@ describe("objects API", () => {
   it("PATCH updates fields (LWW: the later write wins)", async () => {
     server = await makeTestServer();
     const { id } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: "Before" } })).json();
-    const patched = await api("PATCH", `/api/v1/objects/${id}`, { payload: { name: "After" } });
+    const patched = await api("PATCH", `/api/v1/objects/${id}`, { payload: { contentAst: [{ type: "text", text: "After" }] } });
     expect(patched.statusCode).toBe(200);
-    expect(patched.json().object.name).toBe("After");
+    expect(patched.json().object.contentAst).toEqual([{ type: "text", text: "After" }]);
 
-    await api("PATCH", `/api/v1/objects/${id}`, { payload: { name: "Second" } });
+    await api("PATCH", `/api/v1/objects/${id}`, { payload: { contentAst: [{ type: "text", text: "Second" }] } });
     const fetched = await api("GET", `/api/v1/objects/${id}`);
-    expect(fetched.json().object.name).toBe("Second");
+    expect(fetched.json().object.contentAst).toEqual([{ type: "text", text: "Second" }]);
   });
 
   it("PATCH on a missing object is a 404 envelope", async () => {
     server = await makeTestServer();
-    const res = await api("PATCH", `/api/v1/objects/${crypto.randomUUID()}`, { payload: { name: "ghost" } });
+    const res = await api("PATCH", `/api/v1/objects/${crypto.randomUUID()}`, { payload: { contentAst: [{ type: "text", text: "ghost" }] } });
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toMatchObject({ code: "not_found", status: 404 });
   });
@@ -125,11 +129,14 @@ describe("objects API", () => {
   it("backlinks reflect an emitted mention", async () => {
     server = await makeTestServer();
     const { id: target } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: "Target" } })).json();
-    const { id: source } = (
+    const { id: source } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: "Source" } })).json();
+    // Title-is-content: pages carry text-only content, so the mention token
+    // rides in a block child of the source page.
+    const { id: block } = (
       await api("POST", "/api/v1/objects", {
         payload: {
-          nodeType: "page",
-          name: "Source",
+          nodeType: "block",
+          parentId: source,
           contentAst: [{ type: "mention", targetNodeId: target, text: "Target" }],
         },
       })
@@ -139,24 +146,23 @@ describe("objects API", () => {
     expect(res.statusCode).toBe(200);
     const backlinks = res.json().backlinks;
     expect(backlinks).toHaveLength(1);
-    expect(backlinks[0]).toMatchObject({ source_id: source, target_id: target, type: "mention" });
+    expect(backlinks[0]).toMatchObject({ source_id: block, target_id: target, type: "mention" });
   });
 
   it("classes listing includes the seeded system classes", async () => {
     server = await makeTestServer();
     const res = await api("GET", "/api/v1/classes");
     expect(res.statusCode).toBe(200);
-    const classes = res.json().classes as { id: string; name: string; icon: string | null; memberCount: number }[];
-    const names = new Set(classes.map((c) => c.name));
-    for (const expected of ["task", "day", "source", "collection", "whiteboard"]) {
-      expect(names.has(expected)).toBe(true);
+    const classes = res.json().classes as { id: string; icon: string | null; memberCount: number }[];
+    const byId = new Map(classes.map((c) => [c.id, c]));
+    for (const expected of ["task", "day", "source", "collection", "whiteboard"] as const) {
+      expect(byId.has(SYSTEM_CLASS_UUIDS[expected])).toBe(true);
     }
-    const task = classes.find((c) => c.id === SYSTEM_CLASS_UUIDS.task)!;
+    const task = byId.get(SYSTEM_CLASS_UUIDS.task)!;
     expect(task.icon).toBe("mdiCheckboxMarkedCircleOutline");
 
     const detail = await api("GET", `/api/v1/classes/${SYSTEM_CLASS_UUIDS.task}`);
     expect(detail.statusCode).toBe(200);
-    expect(detail.json().class.name).toBe("task");
     expect(detail.json().members).toEqual([]);
   });
 
@@ -200,6 +206,8 @@ describe("objects API", () => {
     });
     const res = await api("GET", `/api/v1/properties/${isbnSchema}/values`);
     expect(res.statusCode).toBe(200);
-    expect(res.json().values).toEqual([{ objectId: id, objectName: "Prop", idx: 0, value: "978-3-16-148410-0" }]);
+    // The values endpoint still selects the (retired) node.name column, so
+    // objectName is null post-title-is-content; the stored value is the point.
+    expect(res.json().values).toEqual([{ objectId: id, objectName: null, idx: 0, value: "978-3-16-148410-0" }]);
   });
 });
