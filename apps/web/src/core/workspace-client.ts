@@ -1413,6 +1413,18 @@ export class WorkspaceClient {
    * Immediate (not debounced) — a discrete gesture, same optimistic envelope
    * path as any write.
    */
+  /**
+   * User-defined class ORDER (class.reorder, display-only LWW): writes the
+   * full ordered member list; the applier keeps ordered members first and
+   * appends any unlisted members sorted by id.
+   */
+  async reorderClasses(id: string, classIds: string[]): Promise<void> {
+    const engine = this.requireEngine();
+    engine.enqueue(this.buildEnvelope("class.reorder", { objectId: id, classIds }, [id]));
+    this.notify();
+    this.kickPush();
+  }
+
   async unassignClass(id: string, classId: string): Promise<void> {
     const engine = this.requireEngine();
     const node = this.getNode(id) ?? this.getNodeRaw(id);

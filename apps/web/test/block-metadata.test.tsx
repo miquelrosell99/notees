@@ -1,13 +1,13 @@
 /**
- * Block-level metadata tests: a block in the block list renders its own
- * MetadataSection (classes / tags / properties) BELOW the block content, and
- * only when the block actually carries metadata — a plain block shows none.
- * The page-level Metadata section is unaffected and always renders.
+ * Block-level metadata tests (2026-10-01 layout): classes ride the block
+ * row's right-hand column, tags a dedicated row below (only when set), and
+ * properties the collapsed "Properties N" section (hidden when empty). A
+ * plain block shows none of the below-row chrome.
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
@@ -78,10 +78,11 @@ describe("BlockRow metadata section", () => {
     await client.assignClass(classedId, classId);
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    const section = blockMetadata(container, classedId);
-    expect(section).not.toBeNull();
-    expect(section!.textContent).toContain("Highlight");
-    // The plain sibling still shows nothing.
+    // Classes render in the row's right-hand column, not a metadata section.
+    const block = container.querySelector(`[data-block-id="${classedId}"]`)!;
+    expect(block.querySelector(":scope > .node-metadata-section")).toBeNull();
+    expect(block.querySelector(".nt-block-classes")!.textContent).toContain("Highlight");
+    // The plain sibling still shows nothing below its row.
     expect(blockMetadata(container, plainId)).toBeNull();
   });
 
@@ -99,6 +100,11 @@ describe("BlockRow metadata section", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const section = blockMetadata(container, blockId);
     expect(section).not.toBeNull();
+    // The collapsed "Properties" section expands on click.
+    expect(section!.textContent).toContain("Properties");
+    const header = section!.querySelector(".node-view-section__header") as HTMLButtonElement;
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(header);
     expect(section!.textContent).toContain("status");
     // Scalar values render in a text input (defaultValue, not textContent).
     const input = section!.querySelector("input") as HTMLInputElement | null;
@@ -118,9 +124,10 @@ describe("BlockRow metadata section", () => {
     await client.assignTag(blockId, tagId);
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    const section = blockMetadata(container, blockId);
-    expect(section).not.toBeNull();
-    expect(section!.textContent).toContain("review-later");
+    // Tags render in the dedicated row below the block row (no section).
+    const block = container.querySelector(`[data-block-id="${blockId}"]`)!;
+    expect(block.querySelector(":scope > .node-metadata-section")).toBeNull();
+    expect(block.querySelector(".nt-block-tags")!.textContent).toContain("review-later");
   });
 
   it("the page-level metadata section still renders on its own", async () => {
@@ -133,7 +140,8 @@ describe("BlockRow metadata section", () => {
     });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    // Exactly one metadata section: the page's, none for the block.
+    // Exactly one below-row section: the page's "Properties" (empty for this
+    // page, so it still renders — the block carries nothing, so none for it).
     const sections = container.querySelectorAll(".node-metadata-section");
     expect(sections).toHaveLength(1);
   });

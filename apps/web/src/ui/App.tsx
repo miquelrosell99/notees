@@ -55,7 +55,7 @@ import { PageCard } from "./components/PageCard.js";
 import { dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
 import { FocusedBlockView } from "./components/FocusedBlockView.js";
-import { NAV_ENTRIES, Sidebar, type NavKey } from "./components/Sidebar.js";
+import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { JournalsView } from "./components/JournalsView.js";
 import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { TopBar } from "./components/TopBar.js";
@@ -404,10 +404,12 @@ export function App() {
   }, [client, selectedPageId, pagesVersion]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
-  /** Open a node, record it in Recents (the Sidebar wraps this), and sync the URL. */
+  /** Open a node: sync the URL and record it in Recents (every open surface
+   * funnels through here — breadcrumbs, links, bullets, sidebar rows). */
   function openPage(id: string): void {
     setSelectedPageId(id);
     window.history.pushState({ node: id }, "", `/${id}`);
+    recordRecent(id);
   }
 
   /**

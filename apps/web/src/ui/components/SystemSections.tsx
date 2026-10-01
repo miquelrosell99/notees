@@ -154,6 +154,7 @@ export function SystemSections({
           title="Child pages"
           icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
           badge={childPageCount}
+          defaultCollapsed={false}
           load={loadChildPages}
           emptyText="No child pages."
           renderResults={(pages) => (
