@@ -12,6 +12,7 @@ import { useQuickAdd } from "./useQuickAdd";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import "./QuickAddModal.css";
+import { displayNameForSettings } from "../../dateDisplay.js";
 
 export type QuickAddDestination = "today" | "inbox";
 
@@ -114,7 +115,9 @@ export function QuickAddModal({ isOpen, onClose, client }: QuickAddModalProps) {
     if (!isOpen) return;
     let cancelled = false;
     if (quickAddDestination === "inbox") {
-      const inbox = client.listPages().find((p) => p.name === "Inbox");
+      const inbox = client
+        .listPages()
+        .find((p) => displayNameForSettings(p) === "Inbox");
       if (!cancelled) setDestinationPageUuid(inbox?.id ?? null);
     } else {
       void client

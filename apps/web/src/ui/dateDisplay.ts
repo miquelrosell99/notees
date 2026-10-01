@@ -8,7 +8,7 @@
  * chronological sorting and the v1 lookup contract).
  */
 
-import { deriveDisplayName, parseDateNodeId, dateNodeLabel, type NodeLike } from "@notees/domain";
+import { deriveDisplayName, parseDateNodeId, dateNodeLabel, plainTextExcerpt, type NodeLike } from "@notees/domain";
 
 import { readDeviceSetting } from "./components/modals/deviceSettings.js";
 
@@ -55,9 +55,16 @@ export function formatDateName(
   return format.replace(/YYYY/g, year).replace(/MM/g, month).replace(/DD/g, day);
 }
 
-/** True when the node's stored name is a compact date label. */
-export function isDateNamed(node: { name: string | null }): boolean {
-  return node.name !== null && formatDateName(node.name) !== null;
+/**
+ * True when the node's CONTENT holds a compact date label (title-is-content:
+ * migrated date pages carry YYYYMMDD-style text as their content).
+ */
+export function isDateNamed(node: { name: string | null; contentAst?: unknown }): boolean {
+  if (node.name !== null && formatDateName(node.name) !== null) return true;
+  const excerpt = node.contentAst
+    ? plainTextExcerpt(node.contentAst as never)
+    : "";
+  return excerpt !== "" && formatDateName(excerpt) !== null;
 }
 
 /**
@@ -86,10 +93,11 @@ function pad2(value: number): string {
 
 /**
  * The display name for a node, with the user's dateFormat applied to date
- * pages; everything else defers to deriveDisplayName. Date identity comes
- * from the deterministic id first — migrated v1 pages can hold the compact
- * label in their content with no stored name, and the excerpt must not leak
- * through as a raw YYYYMMDD.
+ * pages; everything else defers to deriveDisplayName (title-is-content:
+ * the title is the node's own text, there is no name field). Date identity
+ * comes from the deterministic id first — migrated date pages may carry
+ * the compact label in their content with no other marker, and the excerpt
+ * must not leak through as a raw YYYYMMDD.
  */
 export function displayNameForSettings(node: NodeLike): string {
   const fromId = parseDateNodeId(node.id);
@@ -102,11 +110,6 @@ export function displayNameForSettings(node: NodeLike): string {
     return (
       formatDateName(`${year}${month}${day}`) ?? deriveDisplayName(node)
     );
-  }
-  const name = node.name?.trim();
-  if (name) {
-    const formatted = formatDateName(name);
-    if (formatted !== null) return formatted;
   }
   return deriveDisplayName(node);
 }

@@ -15,15 +15,13 @@ export function removeSearchIndexEntry(db: StoreDatabase, nodeId: string): void 
 }
 
 export function reindexNode(db: StoreDatabase, nodeId: string): void {
-  const row = db.prepare("SELECT name, content FROM node WHERE id = ?").get(nodeId) as
-    | { name: string | null; content: string }
+  const row = db.prepare("SELECT content FROM node WHERE id = ?").get(nodeId) as
+    | { content: string }
     | undefined;
   if (!row) return;
-  const plaintext = extractSearchPlaintext(db, row.content);
-  // Title search (SCHEMA.md deviation register, RECONCILED 2026-09-26): the
-  // indexed text is the stored name plus the content plaintext, so a page is
-  // findable by name; null names contribute nothing.
-  const indexed = row.name ? `${row.name} ${plaintext}`.trim() : plaintext;
+  // Title-is-content: the indexed text is the content plaintext — a page's
+  // title lives in its content, so title search rides the same index.
+  const indexed = extractSearchPlaintext(db, row.content);
   if (!indexed) {
     removeSearchIndexEntry(db, nodeId);
     return;

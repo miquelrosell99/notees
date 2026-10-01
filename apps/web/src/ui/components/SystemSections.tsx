@@ -9,17 +9,56 @@
 
 import { useCallback } from "react";
 
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
+import { BlockRow } from "../BlockRow.js";
 import { Breadcrumbs } from "./Breadcrumbs.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { Section } from "../Section.js";
 import "./SystemSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
+
+/** Cycle-protection depth cap for the recursive page tree. */
+const PAGE_TREE_DEPTH_CAP = 64;
+
+/** A page node plus its child PAGES (blocks filtered out), recursive. */
+function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_DEPTH_CAP): BlockTreeNode {
+  return {
+    node,
+    children:
+      remaining <= 0
+        ? []
+        : client
+            .getChildren(node.id)
+            .filter((child) => child.nodeType === "page")
+            .map((child) => pageTreeOf(client, child, remaining - 1)),
+  };
+}
+
+/** Read-only blocks-list rows (no surrounding DndContext: non-draggable). */
+function PageSubtreeList({ roots, client }: { roots: BlockTreeNode[]; client: AnyClient }) {
+  return (
+    <SortableContext items={roots.map((tree) => tree.node.id)} strategy={verticalListSortingStrategy}>
+      <div className="nt-block-tree nt-block-tree--readonly">
+        {roots.map((tree) => (
+          <BlockRow
+            key={tree.node.id}
+            tree={tree}
+            client={client}
+            resolveName={(id) => displayNameFromClient(client, id)}
+            readOnly
+          />
+        ))}
+      </div>
+    </SortableContext>
+  );
+}
 
 /** A small page icon for a section row (the node's own icon when set). */
 function RowIcon({ node }: { node: ClientNode }) {
@@ -118,20 +157,12 @@ export function SystemSections({
           load={loadChildPages}
           emptyText="No child pages."
           renderResults={(pages) => (
-            <ul className="nt-section-list">
-              {pages.map((child) => (
-                <li key={child.id}>
-                  <button
-                    type="button"
-                    className="nt-section-item"
-                    onClick={() => onOpenPage?.(child.id)}
-                  >
-                    <RowIcon node={child} />
-                    <span className="nt-section-row-name">{displayNameForSettings(child) || child.id}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            // The blocks list in read-only mode, filtered to pages, recursing
+            // through the child-page tree (v1's readonly blocks-list prop).
+            <PageSubtreeList
+              roots={pages.map((child) => pageTreeOf(client, child))}
+              client={client}
+            />
           )}
         />
       )}

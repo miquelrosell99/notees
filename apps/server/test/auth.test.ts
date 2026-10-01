@@ -149,7 +149,7 @@ describe("relay authorization for accounts", () => {
     server = await makeTestServer();
     const setup = await setupAdmin();
     const token = setup.json().token as string;
-    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), nodeType: "page", name: "Via session" } });
+    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), nodeType: "page", contentAst: [{ type: "text", text: "Via session" }] } });
     const response = await server.app.inject({
       method: "POST",
       url: "/api/relay/v2/batch",
@@ -174,7 +174,7 @@ describe("relay authorization for accounts", () => {
     const env = testEnvelope({
       workspaceId: workspace,
       opType: "object.create",
-      payload: { objectId: crypto.randomUUID(), nodeType: "page", name: "Claimed" },
+      payload: { objectId: crypto.randomUUID(), nodeType: "page", contentAst: [{ type: "text", text: "Claimed" }] },
     });
     const write = await server.app.inject({
       method: "POST",
@@ -209,7 +209,7 @@ describe("relay authorization for accounts", () => {
     // Seed the foreign workspace via the operator key, then attempt a read
     // with the account token (membership exists only on the default ws).
     await ingest(server, [
-      testEnvelope({ workspaceId: foreign, opType: "object.create", payload: { objectId: crypto.randomUUID(), nodeType: "page", name: "Foreign" } }),
+      testEnvelope({ workspaceId: foreign, opType: "object.create", payload: { objectId: crypto.randomUUID(), nodeType: "page", contentAst: [{ type: "text", text: "Foreign" }] } }),
     ]);
     const response = await server.app.inject({
       method: "POST",
@@ -565,7 +565,7 @@ describe("api keys", () => {
         payload: { name: "sync" },
       })
     ).json().token as string;
-    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), nodeType: "page", name: "Via key" } });
+    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), nodeType: "page", contentAst: [{ type: "text", text: "Via key" }] } });
     const response = await server.app.inject({
       method: "POST",
       url: "/api/relay/v2/batch",

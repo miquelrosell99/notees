@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { looksLikeQueryLanguage, parseQueryLanguage } from "@notees/query";
 
 import type { ClientNode, QueryRunResult, WorkspaceClient } from "@/core/workspace-client.js";
+import { displayNameForSettings } from "./dateDisplay.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -34,9 +35,11 @@ type SearchState =
 
 /** Name resolvers over the local store (both client classes satisfy this surface). */
 function makeResolvers(client: AnyClient) {
-  const byName = (name: string, pool: { id: string; name: string | null }[]) => {
+  // Title-is-content: match against the derived display name (the node's
+  // content), never the retired name column.
+  const byName = (name: string, pool: ClientNode[]) => {
     const wanted = name.toLowerCase();
-    return pool.find((node) => (node.name ?? "").toLowerCase() === wanted)?.id;
+    return pool.find((node) => displayNameForSettings(node).toLowerCase() === wanted)?.id;
   };
   return {
     resolveClass: (name: string) => byName(name, client.listClasses()),
@@ -52,7 +55,11 @@ function makeResolvers(client: AnyClient) {
 }
 
 function toHitsFromText(nodes: ClientNode[]): Hit[] {
-  return nodes.map((node) => ({ id: node.id, name: node.name, nodeType: node.nodeType }));
+  return nodes.map((node) => ({
+    id: node.id,
+    name: displayNameForSettings(node) || "Untitled",
+    nodeType: node.nodeType,
+  }));
 }
 
 function toHitsFromQuery(rows: QueryRunResult["rows"]): Hit[] {
@@ -151,7 +158,7 @@ export function SearchBox({
           {state.hits.map((hit) => (
             <li key={hit.id}>
               <button type="button" className="nt-search-hit" onClick={() => onOpenNode(hit.id)}>
-                <span className="nt-query-item-name">{hit.name ?? hit.id}</span>
+                <span className="nt-query-item-name">{hit.name ?? "Untitled"}</span>
                 <span className="nt-query-chip">{hit.nodeType}</span>
               </button>
             </li>

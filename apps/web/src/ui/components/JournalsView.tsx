@@ -17,6 +17,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { PageView } from "../PageView.js";
 import { Icon } from "../Icon.js";
+import { rawDateKeywordOf } from "../dateDisplay.js";
 import type { AnyClient } from "./Sidebar.js";
 import "./JournalsView.css";
 
@@ -33,8 +34,8 @@ function todayIsoLocal(): string {
   return `${y}-${m}-${d}`;
 }
 
-/** Compact journal label (YYYYMMDD); falls back to the id, which sorts the same way. */
-const sortKey = (page: { name: string | null; id: string }): string => page.name ?? page.id;
+/** Compact journal label (YYYYMMDD) from the content-addressed date id. */
+const sortKey = (page: { id: string }): string => rawDateKeywordOf(page) || page.id;
 
 export function JournalsView({
   client,

@@ -26,6 +26,7 @@ import {
   type OpPayload,
   type OpType,
 } from "@notees/protocol";
+import { plainTextExcerpt, stringifyContentAst } from "@notees/domain";
 
 import { reindexNode, removeSearchIndexEntry } from "./search.js";
 import { rebuildEdges } from "./edges.js";
@@ -232,7 +233,12 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const parentId = p.parentId ?? null;
   const nodeType = p.nodeType ?? (parentId === null ? "page" : "block");
   const ts = env.timestamp;
-  const content = JSON.stringify(p.contentAst ?? []);
+  // Title-is-content constraint (SCHEMA.md): pages and classes carry
+  // text-only content. A block created straight as page/class gets its
+  // (possibly rich) content flattened; a block keeps the full token stream.
+  const content = JSON.stringify(
+    nodeType === "block" ? (p.contentAst ?? []) : stringifyContentAst(p.contentAst as never),
+  );
 
   // Seed OR-Set membership from the payload's classIds (add-wins per pair,
   // HLC-gated; concurrent creates on the same id are the designed carrier
@@ -306,13 +312,12 @@ const tagMemberUpsert = db.prepare(
          id, workspace_id, node_type, parent_id, class_ids, name, content, icon, color,
          is_active, created_at, updated_at, created_by, updated_by,
          hlc_physical, hlc_logical, actor_id
-       ) VALUES (?, ?, ?, ?, '[]', ?, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, '[]', NULL, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.objectId,
       env.workspaceId,
       nodeType,
       parentId,
-      p.name ?? null,
       content,
       ts,
       ts,
@@ -371,7 +376,10 @@ function recomputeClassIds(db: StoreDatabase, nodeId: string): void {
 function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.update";
   const p = env.payload as OpPayload<"object.update">;
-  const row = requireNode(db, p.objectId, opType) as unknown as Parameters<typeof rowWinner>[0];
+  const row = requireNode(db, p.objectId, opType) as unknown as Parameters<typeof rowWinner>[0] & {
+    node_type: string;
+    content: string;
+  };
 
   if (p.contentDeltaB64 !== undefined && p.contentAst === undefined) {
     throw new UnsupportedCarrierError(
@@ -388,13 +396,19 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
 
   const sets: string[] = [];
   const values: unknown[] = [];
+  // Promotion/demotion (block↔page, page→class, …): pages and classes carry
+  // text-only content (title-is-content), so promoting a BLOCK flattens its
+  // rich token stream to plain text in the same op; demoting a page/class
+  // leaves its (already text-only) content untouched.
+  const resultingType = p.nodeType ?? row.node_type;
   if (p.nodeType !== undefined) {
     sets.push("node_type = ?");
     values.push(p.nodeType);
-  }
-  if (p.name !== undefined) {
-    sets.push("name = ?");
-    values.push(p.name);
+    if (p.nodeType !== "block" && row.node_type === "block") {
+      const rowAst = JSON.parse(row.content) as unknown;
+      sets.push("content = ?");
+      values.push(JSON.stringify(stringifyContentAst(rowAst as never)));
+    }
   }
   if (p.icon !== undefined) {
     sets.push("icon = ?");
@@ -406,7 +420,11 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   }
   if (p.contentAst !== undefined) {
     sets.push("content = ?");
-    values.push(JSON.stringify(p.contentAst));
+    values.push(
+      JSON.stringify(
+        resultingType === "block" ? p.contentAst : stringifyContentAst(p.contentAst as never),
+      ),
+    );
   }
   sets.push(
     "updated_at = ?",
@@ -424,12 +442,10 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     throw error;
   }
 
-  // A name write changes the FTS row (title search) as much as a content
-  // write does; edges derive from content only, so they rebuild on content.
-  if (p.contentAst !== undefined || p.name !== undefined) {
-    reindexNode(db, p.objectId);
-  }
+  // Content writes reindex FTS (title search lives in the content now — a
+  // page's title IS its content) and rebuild edges (derived from content).
   if (p.contentAst !== undefined) {
+    reindexNode(db, p.objectId);
     rebuildEdges(db, p.objectId, env.timestamp);
   }
   return summary(opType, [p.objectId]);
@@ -561,21 +577,29 @@ function upsertClassNode(
   db: StoreDatabase,
   env: Envelope,
   classId: string,
-  fields: { name?: string | undefined; icon?: string | undefined; color?: string | undefined },
+  fields: { contentAst?: unknown; icon?: string | undefined; color?: string | undefined },
 ): void {
   // The class node (node_type='class') is the structural authority for the
-  // class_list read model; the registry row carries class-only config.
-  // Node fields update only when the envelope wins the row-level LWW.
+  // class_list read model; the registry row carries class-only config (its
+  // `name` column is a denormalized cache of the node's title text — the
+  // authority is node.content). Classes are nodes: their title IS their
+  // (text-only) content. Node fields update only when the envelope wins the
+  // row-level LWW.
+  const hasContent = fields.contentAst !== undefined;
+  const content = hasContent ? JSON.stringify(stringifyContentAst(fields.contentAst as never)) : null;
+  // The INSERT carries the create-time content directly (the LWW-gated
+  // UPDATE below can never beat this envelope's own HLC — equal on every
+  // clause — so routing create fields through it would silently drop them).
   db.prepare(
     `INSERT OR IGNORE INTO node (
        id, workspace_id, node_type, parent_id, class_ids, name, content,
        is_active, created_at, updated_at, created_by, updated_by,
        hlc_physical, hlc_logical, actor_id
-     ) VALUES (?, ?, 'class', NULL, '[]', ?, '[]', 1, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, 'class', NULL, '[]', NULL, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     classId,
     env.workspaceId,
-    fields.name ?? null,
+    content ?? "[]",
     env.timestamp,
     env.timestamp,
     env.actorId,
@@ -586,9 +610,9 @@ function upsertClassNode(
   );
   const sets: string[] = [];
   const values: unknown[] = [];
-  if (fields.name !== undefined) {
-    sets.push("name = ?");
-    values.push(fields.name);
+  if (content !== null) {
+    sets.push("content = ?");
+    values.push(content);
   }
   if (fields.icon !== undefined) {
     sets.push("icon = ?");
@@ -628,14 +652,16 @@ function upsertClassNode(
 function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.create";
   const p = env.payload as OpPayload<"class.create">;
+  // Registry `name` is a denormalized cache of the class node's title text.
+  const titleText = plainTextExcerpt(p.contentAst as never) ?? "";
   db.prepare(
     `INSERT INTO class (id, workspace_id, name, icon, color, description, active, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, NULL, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name, icon = excluded.icon, color = excluded.color,
        description = excluded.description, active = 1, updated_at = excluded.updated_at`,
-  ).run(p.classId, env.workspaceId, p.name, p.icon ?? null, p.color ?? null, env.timestamp, env.timestamp);
-  upsertClassNode(db, env, p.classId, { name: p.name, icon: p.icon, color: p.color });
+  ).run(p.classId, env.workspaceId, titleText, p.icon ?? null, p.color ?? null, env.timestamp, env.timestamp);
+  upsertClassNode(db, env, p.classId, { contentAst: p.contentAst, icon: p.icon, color: p.color });
   // Hierarchy self-row: the `class` query condition matches via the closure,
   // so every class needs (id, id) even before any setExtends runs.
   db.prepare(`INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)`).run(
@@ -643,7 +669,7 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
     p.classId,
   );
   // Classes are nodes: index the new class so full-text search finds it by
-  // name (the picker and global search both rely on this).
+  // title (the picker and global search both rely on this).
   reindexNode(db, p.classId);
   return summary(opType, [p.classId]);
 }
@@ -653,9 +679,9 @@ function applyClassUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const p = env.payload as OpPayload<"class.update">;
   const sets: string[] = [];
   const values: unknown[] = [];
-  if (p.name !== undefined) {
+  if (p.contentAst !== undefined) {
     sets.push("name = ?");
-    values.push(p.name);
+    values.push(plainTextExcerpt(p.contentAst as never) ?? "");
   }
   if (p.icon !== undefined) {
     sets.push("icon = ?");
@@ -673,10 +699,10 @@ function applyClassUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   sets.push("updated_at = ?");
   values.push(env.timestamp, p.classId);
   db.prepare(`UPDATE class SET ${sets.join(", ")} WHERE id = ?`).run(...values);
-  upsertClassNode(db, env, p.classId, { name: p.name, icon: p.icon, color: p.color });
-  // A rename re-renders the class unfindable under its old name — reindex
-  // whenever the indexed fields may have changed.
-  if (p.name !== undefined) reindexNode(db, p.classId);
+  upsertClassNode(db, env, p.classId, { contentAst: p.contentAst, icon: p.icon, color: p.color });
+  // A title change re-renders the class unfindable under its old text —
+  // reindex whenever the indexed fields may have changed.
+  if (p.contentAst !== undefined) reindexNode(db, p.classId);
   return summary(opType, [p.classId]);
 }
 

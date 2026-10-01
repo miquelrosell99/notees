@@ -25,6 +25,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Section } from "./Section.js";
+import { displayNameForSettings } from "./dateDisplay.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -101,7 +102,7 @@ export function AnnotationsSection({
                       onClick={() => onOpenPage?.(annotation.id)}
                     >
                       <span className="nt-annotation-quote">
-                        {annotation.name ?? annotation.id}
+                        {displayNameForSettings(annotation) || "Untitled"}
                       </span>
                       {provenance !== null && (
                         <span className="nt-annotation-page">{provenance}</span>

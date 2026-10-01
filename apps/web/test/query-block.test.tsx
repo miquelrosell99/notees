@@ -653,12 +653,12 @@ describe("query block (live query token)", () => {
         rows: Array<{ id: string; name: string | null; nodeType: string; parentId: string | null }>;
       };
       expect(result.ids).toEqual([paris]);
-      expect(result.rows[0]).toMatchObject({
-        id: paris,
-        name: "Paris",
-        nodeType: "page",
-        parentId: null,
-      });
+      // Title-is-content: the query summary's `name` column is retired (always
+      // null); the title lives in the node's own content.
+      expect(result.rows[0]).toMatchObject({ id: paris, nodeType: "page", parentId: null });
+      expect(result.rows[0]!.name).toBe("Paris");
+      const parisNode = (await core.invoke("getPage", [paris])) as { contentAst: unknown };
+      expect(parisNode.contentAst).toEqual(text("Paris"));
 
       const children = (await core.invoke("getChildren", [paris])) as Array<{ id: string }>;
       expect(children.length).toBe(2);

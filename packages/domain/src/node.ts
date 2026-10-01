@@ -10,6 +10,8 @@ export type NodeType = "page" | "block" | "class";
 export interface NodeLike {
   id: string;
   nodeType: NodeType;
+  /** @deprecated The node `name` column is being retired (title-is-content):
+   * a node's title is its content. Remaining readers are transition-only. */
   name?: string | null;
   contentAst?: ContentAst | null;
   /** System classes (day/month/year drive date display formatting). */
@@ -60,28 +62,56 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
 }
 
 /**
- * Display-name derivation (SCHEMA.md, decided 2026-09-26): a stored `name`
- * wins; otherwise blocks derive from their content excerpt; renames never
- * propagate (mentions render the target's current name). Callers fall back
- * to the node id when this returns "".
+ * Display-name derivation (SCHEMA.md, "title-is-content", 2026-10-01): a
+ * node's title IS its own text content — there is no separate name field
+ * for any node (pages, blocks AND classes); the display name is the content
+ * excerpt; renames never propagate (mentions render the target's current
+ * name). Callers fall back to a human "Untitled" label when this returns "".
  *
- * Date nodes (year/month/day system classes) carry raw YYYYMMDD-style names
- * for sort/match; display formats them per the workspace setting shape
- * (default YYYY/MM/DD, slash-separated, zero-padded segments dropped):
- * 20290000 → 2029, 20290600 → 2029/06, 20290627 → 2029/06/27.
+ * Date nodes (year/month/day system classes) carry the raw YYYYMMDD-style
+ * label as their CONTENT (and a content-addressed id); display formats it
+ * per the workspace setting shape (default YYYY/MM/DD, zero-padded segments
+ * dropped): 20290000 → 2029, 20290600 → 2029/06, 20290627 → 2029/06/27.
  */
-const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function deriveDisplayName(node: NodeLike): string {
-  const name = node.name?.trim();
-  // A stored name that IS a uuid is an untitled legacy artifact, not a title.
-  if (name && !UUID_LIKE.test(name)) {
-    const dateFormatted = formatDateNodeName(name, node.classIds);
-    return (dateFormatted ?? name).slice(0, DISPLAY_NAME_MAX);
+  const excerpt = plainTextExcerpt(node.contentAst).trim();
+  if (!excerpt) return "";
+  const dateFormatted = formatDateNodeName(excerpt, node.classIds);
+  return (dateFormatted ?? excerpt).slice(0, DISPLAY_NAME_MAX);
+}
+
+/**
+ * Flatten any token stream to text-only content (pages and classes carry
+ * text-only content — SCHEMA.md "title-is-content"). Used when a block is
+ * promoted to a page/class and by the applier's text-only constraint.
+ * Inline rich tokens (mentions, chips, links, marks) fold into their plain
+ * text; block-scale structural widgets (whiteboard, query) survive as
+ * tokens — they are displays, not prose, and a whiteboard page is a real
+ * surface (the flatten would otherwise destroy it).
+ */
+export function stringifyContentAst(ast: ContentAst | null | undefined): ContentAst {
+  if (!ast) return [];
+  const out: ContentAst = [];
+  for (const token of ast) {
+    if (token.type === "whiteboard" || token.type === "query") {
+      out.push(token);
+      continue;
+    }
   }
-  const excerpt = plainTextExcerpt(node.contentAst);
-  if (excerpt) return excerpt.slice(0, DISPLAY_NAME_MAX);
-  return "";
+  const text = plainTextExcerpt(ast).trim();
+  if (text !== "") out.unshift({ type: "text", text });
+  return out;
+}
+
+/** True when every token is plain text or a structural widget (pages/classes only). */
+export function isTextOnlyContent(ast: unknown): boolean {
+  if (!Array.isArray(ast)) return false;
+  return ast.every((token) => {
+    if (typeof token !== "object" || token === null) return false;
+    const type = (token as { type?: unknown }).type;
+    if (type === "whiteboard" || type === "query") return true;
+    return type === "text" && typeof (token as { text?: unknown }).text === "string";
+  });
 }
 
 const DATE_CLASS_IDS = new Set(["00000000-0000-0000-0001-000000000003", "00000000-0000-0000-0001-000000000004", "00000000-0000-0000-0001-000000000005"]);

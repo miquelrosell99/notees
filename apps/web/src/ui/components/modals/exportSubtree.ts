@@ -39,7 +39,9 @@ function toExportNode(client: ExportClient, id: string): ExportNode | undefined 
   return {
     id: node.id,
     nodeType: node.nodeType,
-    name: node.name,
+    // Export DTO name = the node's resolved display name (title-is-content:
+    // derived from its content, rename-free).
+    name: displayNameForSettings(node) || null,
     contentAst: node.contentAst,
     classIds: node.classIds,
     properties,

@@ -1,9 +1,8 @@
 /**
- * TitleEditor tests (jsdom): migrated v1 pages carry their title inside the
- * content AST with a null stored `name`; the header must display the derived
- * content excerpt instead of an empty title, focus+blur without typing must
- * NOT materialize the derivation as a stored name, and typing a title
- * commits it.
+ * TitleEditor tests (jsdom): title-is-content — the page's title IS its text
+ * content. The header displays the content excerpt, focus+blur without
+ * typing must NOT materialize a content write, and typing a title commits a
+ * text-only contentAst via updateObject.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -68,7 +67,7 @@ describe("TitleEditor", () => {
     );
   });
 
-  it("does not persist the derived title when focus enters and leaves untouched", async () => {
+  it("does not persist anything when focus enters and leaves untouched", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({
       nodeType: "page",
@@ -80,11 +79,13 @@ describe("TitleEditor", () => {
     fireEvent.focus(heading);
     fireEvent.blur(heading);
     expect(updateSpy).not.toHaveBeenCalled();
-    // The stored name is still null — the title keeps tracking content.
-    expect(client.getNode(pageId)!.name).toBeNull();
+    // The content is untouched — the title keeps tracking it.
+    expect(client.getNode(pageId)!.contentAst).toEqual([
+      { type: "text", text: "Derived from prose" },
+    ]);
   });
 
-  it("commits a typed title as the stored name", async () => {
+  it("commits a typed title as the page's text content", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({
       nodeType: "page",
@@ -96,10 +97,12 @@ describe("TitleEditor", () => {
     fireEvent.focus(heading);
     heading.textContent = "Authored Title";
     fireEvent.blur(heading);
-    expect(updateSpy).toHaveBeenCalledWith(pageId, { name: "Authored Title" });
+    expect(updateSpy).toHaveBeenCalledWith(pageId, {
+      contentAst: [{ type: "text", text: "Authored Title" }],
+    });
   });
 
-  it("keeps a stored name authoritative over content", async () => {
+  it("content is authoritative: the name convenience yields to explicit contentAst", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({
       nodeType: "page",
@@ -107,7 +110,7 @@ describe("TitleEditor", () => {
       contentAst: [{ type: "text", text: "unrelated prose" }],
     });
     const { container } = renderTitle(client, pageId);
-    expect(container.querySelector("h1")!.textContent).toBe("Stored Name");
+    expect(container.querySelector("h1")!.textContent).toBe("unrelated prose");
   });
 
   it("renders date pages as a static title in the user's dateFormat", async () => {

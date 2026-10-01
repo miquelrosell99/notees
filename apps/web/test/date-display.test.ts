@@ -47,9 +47,16 @@ describe("displayNameForSettings", () => {
     expect(displayNameForSettings(node)).toBe("2029/06/27");
   });
 
-  it("formats date-shaped stored names", () => {
+  it("formats date-shaped titles per the setting (title-is-content)", () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("DD-MM-YYYY"));
-    const node = { id: "some-uuid", nodeType: "page" as const, name: "20290627" };
+    // The date label lives in the node's content now; a deterministic date id
+    // marks it a date page so the user's token layout applies.
+    const node = {
+      id: DAY_ID,
+      nodeType: "page" as const,
+      name: null,
+      contentAst: [{ type: "text", text: "20290627" } as const],
+    };
     expect(displayNameForSettings(node)).toBe("27-06-2029");
   });
 
@@ -69,7 +76,7 @@ describe("displayNameFromClient", () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
     const nodes = new Map([
       [DAY_ID, { id: DAY_ID, nodeType: "page" as const, name: null, contentAst: [] }],
-      ["p1", { id: "p1", nodeType: "page" as const, name: "Plain", contentAst: [] }],
+      ["p1", { id: "p1", nodeType: "page" as const, name: null, contentAst: [{ type: "text", text: "Plain" } as const] }],
     ]);
     const client = {
       getNode: (id: string) => nodes.get(id),

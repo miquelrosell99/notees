@@ -61,6 +61,12 @@ async function seedWorld(): Promise<World> {
   const notes = await client.createObject({
     nodeType: "page",
     name: "Reading Notes",
+  });
+  // Title-is-content: the mention link lives in a child BLOCK; the page's
+  // own content is its title text.
+  await client.createObject({
+    nodeType: "block",
+    parentId: notes,
     contentAst: [{ type: "mention", targetNodeId: modernPaper, text: "Modern Paper" }],
   });
   return { client, paperClassId, oldPaper, modernPaper, notes };
@@ -118,8 +124,10 @@ describe("SearchBox", () => {
     const { client } = await seedWorld();
     render(<SearchBox client={client} onOpenNode={() => {}} cacheVersion={0} />);
 
+    // Title-is-content: the mention lives on a child BLOCK of Reading Notes,
+    // so linked: returns the linking block (its excerpt is the mention text).
     typeQuery('linked:"Modern Paper"');
-    expect(await screen.findByText("Reading Notes")).not.toBeNull();
+    await screen.findAllByRole("button", { name: /Modern Paper/ });
     expect(screen.queryByText("Cooking Notes")).toBeNull();
 
     typeQuery("prop:year:<1950");

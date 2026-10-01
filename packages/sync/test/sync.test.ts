@@ -52,8 +52,8 @@ function makeEnvelope(
 /** Base workspace: two classes, one property schema, a parent page, one child block. */
 function baseEnvelopes(deviceId: string): Envelope[] {
   return [
-    makeEnvelope(deviceId, T0 + 10, "class.create", { classId: CLASS_X, name: "Class X" }),
-    makeEnvelope(deviceId, T0 + 20, "class.create", { classId: CLASS_Y, name: "Class Y" }),
+    makeEnvelope(deviceId, T0 + 10, "class.create", { classId: CLASS_X, contentAst: [{ type: "text", text: "Class X" }] }),
+    makeEnvelope(deviceId, T0 + 20, "class.create", { classId: CLASS_Y, contentAst: [{ type: "text", text: "Class Y" }] }),
     makeEnvelope(deviceId, T0 + 30, "propertySchema.create", {
       propertySchemaId: PROP_SCHEMA,
       name: "Rating",
@@ -62,13 +62,13 @@ function baseEnvelopes(deviceId: string): Envelope[] {
     makeEnvelope(deviceId, T0 + 40, "object.create", {
       objectId: PARENT,
       nodeType: "page",
-      name: "Parent",
+      contentAst: [{ type: "text", text: "Parent" }],
     }),
     makeEnvelope(deviceId, T0 + 50, "object.create", {
       objectId: NODE,
       nodeType: "block",
       parentId: PARENT,
-      name: "Node",
+      contentAst: [{ type: "text", text: "Node" }],
     }),
   ];
 }
@@ -79,6 +79,13 @@ function baseEnvelopes(deviceId: string): Envelope[] {
  * bookkeeping), applied_envelope (the local apply log — cross-device apply
  * order legitimately differs), and FTS5 internals.
  */
+function titleOf(store: Store, id: string): string {
+  const row = store.getNode(id);
+  if (row === undefined) return "";
+  const ast = JSON.parse(row.content) as Array<{ type?: string; text?: string }>;
+  return ast.map((t) => t.text ?? "").join(" ");
+}
+
 function dumpDb(store: Store): Record<string, unknown[]> {
   const tables = (
     store.database
@@ -160,7 +167,7 @@ describe("two-device convergence", () => {
 
     // Divergent offline edits on both devices.
     a.engine.enqueue(
-      makeEnvelope(DEVICE_A, T0 + 1000, "object.update", { objectId: NODE, name: "name-from-A" }),
+      makeEnvelope(DEVICE_A, T0 + 1000, "object.update", { objectId: NODE, contentAst: [{ type: "text", text: "name-from-A" }] }),
     );
     a.engine.enqueue(
       makeEnvelope(DEVICE_A, T0 + 1010, "object.create", { objectId: NODE, classIds: [CLASS_X] }),
@@ -173,7 +180,7 @@ describe("two-device convergence", () => {
       }),
     );
     b.engine.enqueue(
-      makeEnvelope(DEVICE_B, T0 + 2000, "object.update", { objectId: NODE, name: "name-from-B" }),
+      makeEnvelope(DEVICE_B, T0 + 2000, "object.update", { objectId: NODE, contentAst: [{ type: "text", text: "name-from-B" }] }),
     );
     b.engine.enqueue(
       makeEnvelope(DEVICE_B, T0 + 2010, "object.create", { objectId: NODE, classIds: [CLASS_Y] }),
@@ -194,8 +201,8 @@ describe("two-device convergence", () => {
     expect(dumpDb(a.store)).toEqual(dumpDb(b.store));
 
     // Name LWW: B's HLC is higher, so B wins on both devices.
-    expect(a.store.getNode(NODE)!.name).toBe("name-from-B");
-    expect(b.store.getNode(NODE)!.name).toBe("name-from-B");
+    expect(titleOf(a.store, NODE)).toBe("name-from-B");
+    expect(titleOf(b.store, NODE)).toBe("name-from-B");
 
     // Class membership is an OR-Set: the union converges on both devices.
     const classIdsA = new Set(JSON.parse(a.store.getNode(NODE)!.class_ids) as string[]);
@@ -234,7 +241,7 @@ describe("retry and quarantine", () => {
       now: () => nowMs,
     });
     const create = (id: string, name: string, physical: number) =>
-      makeEnvelope(DEVICE_A, physical, "object.create", { objectId: id, nodeType: "page", name });
+      makeEnvelope(DEVICE_A, physical, "object.create", { objectId: id, nodeType: "page", contentAst: [{ type: "text", text: name }] });
 
     // Flaky transport: two failures, then the third attempt succeeds.
     const RETRY_NODE = "0192a000-0000-7000-8000-0000000000d1";
@@ -258,7 +265,7 @@ describe("retry and quarantine", () => {
     await engine.syncOnce();
     expect(engine.getOutboxCounts()).toEqual({ pending: 0, failed: 0, quarantined: 0 });
     expect(engine.getStatus()).toBe("idle");
-    expect(store.getNode(RETRY_NODE)!.name).toBe("retry-me");
+    expect(titleOf(store, RETRY_NODE)).toBe("retry-me");
 
     // Permanently failing transport: backoff exhausts → quarantined.
     failSend = true;
@@ -277,7 +284,7 @@ describe("retry and quarantine", () => {
     failSend = false;
     await engine.requeueQuarantined();
     expect(engine.getOutboxCounts()).toEqual({ pending: 0, failed: 0, quarantined: 0 });
-    expect(store.getNode(QUAR_NODE)!.name).toBe("quarantine-me");
+    expect(titleOf(store, QUAR_NODE)).toBe("quarantine-me");
   });
 });
 
@@ -299,7 +306,7 @@ describe("restoreEpoch change", () => {
 
     // Unsent local edit, then the server announces a restore.
     aEngine.enqueue(
-      makeEnvelope(DEVICE_A, T0 + 5000, "object.update", { objectId: NODE, name: "edited-locally" }),
+      makeEnvelope(DEVICE_A, T0 + 5000, "object.update", { objectId: NODE, contentAst: [{ type: "text", text: "edited-locally" }] }),
     );
     relay.bumpRestoreEpoch();
 
@@ -310,7 +317,7 @@ describe("restoreEpoch change", () => {
     expect(parkedLog).toEqual([1, 0]);
     expect(aEngine.getOutboxCounts()).toEqual({ pending: 0, failed: 0, quarantined: 0 });
     expect(aEngine.getCursorSeq()).toBe(6);
-    expect(aStore.getNode(NODE)!.name).toBe("edited-locally");
+    expect(titleOf(aStore, NODE)).toBe("edited-locally");
 
     // A fresh device on the restored server converges to identical state.
     const b = makeDevice(relay, DEVICE_B, () => nowMs);
@@ -376,7 +383,7 @@ describe("conflict detection", () => {
     });
     const localEdit = makeEnvelope(DEVICE_A, T0 + 6010, "object.update", {
       objectId: PARENT,
-      name: "local-edit",
+      contentAst: [{ type: "text", text: "local-edit" }],
     });
     a.engine.enqueue(localUnset);
     a.engine.enqueue(localEdit);
@@ -447,7 +454,7 @@ describe("conflict detection", () => {
 
   it("detectConflicts flags node_deleted in the local-delete direction", () => {
     const remote = [
-      makeEnvelope(DEVICE_B, T0 + 8200, "object.update", { objectId: NODE, name: "remote edit" }),
+      makeEnvelope(DEVICE_B, T0 + 8200, "object.update", { objectId: NODE, contentAst: [{ type: "text", text: "remote edit" }] }),
     ];
     const local = [makeEnvelope(DEVICE_A, T0 + 8210, "object.delete", { objectId: NODE })];
     const conflicts = detectConflicts(remote, local);

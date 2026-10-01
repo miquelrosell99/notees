@@ -31,7 +31,8 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         opType: "class.create",
         payload: {
           classId,
-          name,
+          // Title-is-content: the class's name is its (text-only) content.
+          contentAst: [{ type: "text", text: name }],
           icon: SYSTEM_CLASS_ICONS[name],
         },
         affectedNodeIds: [classId],
@@ -102,7 +103,8 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
       factory.make({
         workspaceId,
         opType: "object.create",
-        payload: { objectId: pageId, nodeType: "page", name },
+        // Title-is-content: the system page's name is its text content.
+        payload: { objectId: pageId, nodeType: "page", contentAst: [{ type: "text", text: name }] },
         affectedNodeIds: [pageId],
         client: "seed",
       }),

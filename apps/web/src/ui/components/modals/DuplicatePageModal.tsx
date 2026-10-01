@@ -10,6 +10,7 @@ import { Button } from "../ui/Button.js";
 import { NodeIcon } from "./NodeIcon";
 import type { ClientNode } from "@/core/workspace-client.js";
 import type { WorkerClient } from "@/core/worker-client.js";
+import { displayNameForSettings } from "../../dateDisplay.js";
 import "./DuplicatePageModal.css";
 
 export interface DuplicatePageModalProps {
@@ -204,7 +205,7 @@ export function DuplicatePageModal({
               >
                 <NodeIcon icon={classNode.icon} isPage={true} size="sm" />
                 <span className="duplicate-page-modal__class-name">
-                  {classNode.name || "Untitled"}
+                  {displayNameForSettings(classNode) || "Untitled class"}
                 </span>
               </button>
             );

@@ -16,6 +16,7 @@ import {
   propertySetPayload,
   propertyUnsetPayload,
 } from "@notees/protocol";
+import { deriveDisplayName, type NodeLike } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
 import type { NodeRow, Store } from "@notees/store";
 
@@ -60,6 +61,7 @@ const propertyDeleteQuerySchema = z
 const createBodySchema = z
   .object({
     nodeType: z.enum(["page", "block", "class"]).optional(),
+    /** Title-is-content: becomes the node's initial text content. */
     name: z.string().max(1024).optional(),
     contentAst: z.array(z.unknown()).optional(),
     classIds: z.array(z.string().uuid()).default([]),
@@ -69,7 +71,6 @@ const createBodySchema = z
 
 const updateBodySchema = z
   .object({
-    name: z.string().max(1024).optional(),
     nodeType: z.enum(["page", "block", "class"]).optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
@@ -132,7 +133,15 @@ function nodeToApi(row: NodeRow): ApiObject {
     nodeType: row.node_type,
     parentId: row.parent_id,
     classIds: JSON.parse(row.class_ids) as string[],
-    name: row.name,
+    // Title-is-content: the API name derives from the node's content (the
+    // retired name column is always null).
+    name:
+      deriveDisplayName({
+        id: row.id,
+        nodeType: row.node_type,
+        contentAst: JSON.parse(row.content) as NonNullable<NodeLike["contentAst"]>,
+        classIds: JSON.parse(row.class_ids) as string[],
+      }) || null,
     icon: row.icon,
     color: row.color,
     isActive: row.is_active === 1,
@@ -254,10 +263,16 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const objectId = uuidv7();
+    // Title-is-content: `name` becomes the node's initial text content (a
+    // single text token) when no explicit contentAst is given.
+    const initialText =
+      parsed.data.name !== undefined && parsed.data.contentAst === undefined
+        ? [{ type: "text", text: parsed.data.name }]
+        : undefined;
     const payload = {
       objectId,
       ...(parsed.data.nodeType !== undefined ? { nodeType: parsed.data.nodeType } : {}),
-      ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+      ...(initialText !== undefined ? { contentAst: initialText } : {}),
       ...(parsed.data.contentAst !== undefined ? { contentAst: parsed.data.contentAst } : {}),
       classIds: parsed.data.classIds,
       ...(parsed.data.parentId !== undefined ? { parentId: parsed.data.parentId } : {}),
@@ -555,10 +570,18 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       return {
         ids,
         rows: rows.map((row) => {
+          // Title-is-content: the row name derives from the node's content.
+          const derived =
+            deriveDisplayName({
+              id: String(row.id),
+              nodeType: row.node_type as NodeLike["nodeType"],
+              contentAst: JSON.parse((row.content as string | null) ?? "[]") as NonNullable<NodeLike["contentAst"]>,
+              classIds: JSON.parse((row.class_ids as string | null) ?? "[]") as string[],
+            }) || null;
           const summary: Record<string, unknown> = {
             id: String(row.id),
             nodeType: row.node_type,
-            name: (row.name as string | null) ?? null,
+            name: derived,
             parentId: (row.parent_id as string | null) ?? null,
             createdAt: (row.created_at as string | null) ?? null,
             updatedAt: (row.updated_at as string | null) ?? null,

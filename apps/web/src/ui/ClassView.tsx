@@ -30,7 +30,9 @@ import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
+import { BlockRow } from "./BlockRow.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 /** Preset class-color swatches (the design system's accent scale). */
 const CLASS_COLORS = ["#b42318", "#b54708", "#067647", "#175cd3", "#6941c6", "#c11574", "#475467"];
@@ -158,6 +160,7 @@ export function ClassView({
   }
 
   const parents = client.getClassParents(classId);
+  const children = client.getClassChildren(classId);
   const bindings = client.getClassBindings(classId);
   const boundSchemaIds = new Set(bindings.map((b) => b.propertySchemaId));
   const schemaCandidates = client.listPropertySchemas().filter((s) => !boundSchemaIds.has(s.id));
@@ -271,6 +274,32 @@ export function ClassView({
                 </option>
               ))}
             </select>
+          )}
+        </section>
+
+        <section className="nt-class-panel">
+          <h2 className="nt-class-panel-title">Extended by</h2>
+          {children.length === 0 ? (
+            <span className="nt-class-empty">No subclasses.</span>
+          ) : (
+            // Flat read-only blocks list of the classes extending this one
+            // (transitive), mirroring the v1 readonly blocks-list prop.
+            <SortableContext
+              items={children.map((child) => child.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="nt-block-tree nt-block-tree--readonly">
+                {children.map((child) => (
+                  <BlockRow
+                    key={child.id}
+                    tree={{ node: child, children: [] }}
+                    client={client}
+                    resolveName={(id) => displayNameFromClient(client, id)}
+                    readOnly
+                  />
+                ))}
+              </div>
+            </SortableContext>
           )}
         </section>
 
@@ -448,7 +477,7 @@ export function ClassView({
                       <button
                         type="button"
                         className="nt-class-member-remove"
-                        aria-label={`Remove ${label} from ${node.name ?? "this class"}`}
+                        aria-label={`Remove ${label} from ${displayNameForSettings(node) || "this class"}`}
                         onClick={() => void client.unassignClass(member.id, classId)}
                       >
                         ×

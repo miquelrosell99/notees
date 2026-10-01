@@ -17,6 +17,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { deriveDisplayName } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
@@ -220,14 +221,14 @@ describe("capture: @ mention", () => {
     // Text untouched after Esc; the trigger char stays as plain text.
     expect(editor.textContent).toBe("@");
 
-    // No-match Enter commits the create row: a page named by the query is
+    // No-match Enter commits the create row: a page titled by the query is
     // created and linked (the v1 create-from-query contract).
     typeWithCaret(editor, "@");
     typeInPicker("zzz");
     expect(pickerRows()).toHaveLength(1); // only "Create \"zzz\""
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
-    const created = client.listPages().filter((p) => p.name === "zzz");
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "zzz");
     expect(created).toHaveLength(1);
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast[0]).toMatchObject({
@@ -258,7 +259,7 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     await act(async () => {});
 
     // The tag PAGE was created…
-    const tagPages = client.listPages().filter((p) => p.name === "Proj");
+    const tagPages = client.listPages().filter((p) => deriveDisplayName(p) === "Proj");
     expect(tagPages).toHaveLength(1);
     // …and assigned to the edited node's Tags (OR-set add).
     expect(client.getNode(blockId)?.tagIds).toEqual([tagPages[0]!.id]);
@@ -326,7 +327,7 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     expect(pickerRows()).toHaveLength(1); // only "Create \"Nope\""
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
-    const created = client.listClasses().filter((c) => c.name === "Nope");
+    const created = client.listClasses().filter((c) => deriveDisplayName(c) === "Nope");
     expect(created).toHaveLength(1);
     expect(client.getNode(blockId)?.classIds).toEqual([classId, created[0]!.id]);
   });

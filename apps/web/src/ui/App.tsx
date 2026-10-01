@@ -1353,7 +1353,7 @@ function HubView({
                 {icon !== null && icon !== undefined && (
                   <Icon path={icon} size={1} className="nt-hub-item-icon" />
                 )}
-                <span className="nt-hub-item-label">{displayNameForSettings(node) || node.id}</span>
+                <span className="nt-hub-item-label">{displayNameForSettings(node) || "Untitled"}</span>
               </button>
             </li>
           );
