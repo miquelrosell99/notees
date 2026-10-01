@@ -247,6 +247,13 @@ class WorkspaceTransformer:
         self.deferred: list[dict[str, Any]] = []  # setExtends companions, emitted at end
         self._file_schema_emitted: set[str] = set()
         self.last_content: dict[str, str] = {}  # nodeId -> latest v1 plain text (verification)
+        # Best-effort v1 name table for mention capture: class.create carries
+        # names; node.create may in some v1 builds (v2 derives the rest from
+        # content at display time, so missing entries are safe).
+        self.v1_names: dict[str, str] = {}
+
+    def resolve_v1_name(self, node_id: str) -> str:
+        return self.v1_names.get(node_id, "")
 
     # -- pass 1 ---------------------------------------------------------------
     def collect_known_ids(self) -> None:
@@ -262,6 +269,8 @@ class WorkspaceTransformer:
                     node_id = payload.get("nodeId")
                     if isinstance(node_id, str):
                         self.known_ids.add(node_id)
+                        if isinstance(payload.get("name"), str):
+                            self.v1_names[node_id] = payload["name"]
                         if payload.get("kind") == "class":
                             self.class_kind_nodes.add(node_id)
                         if node_id not in self.first_create_seq:
@@ -277,6 +286,8 @@ class WorkspaceTransformer:
                     class_id = payload.get("classId")
                     if isinstance(class_id, str):
                         self.known_ids.add(class_id)
+                        if isinstance(payload.get("name"), str):
+                            self.v1_names[class_id] = payload["name"]
                         if class_id not in self.class_create_seq:
                             self.class_create_seq[class_id] = row["seq"]
                 elif op == "propertySchema.create":
@@ -453,7 +464,7 @@ class WorkspaceTransformer:
             out_payload["parentId"] = parent_id
         initial = p.get("initialContent")
         if isinstance(initial, list) and initial:
-            tokens = content_tokens_from_source(initial)
+            tokens = content_tokens_from_source(initial, self.resolve_v1_name)
             out_payload["contentAst"] = tokens
             self.last_content[node_id] = plain_text(tokens)
         envs = [self._envelope(row, "object.create", out_payload)]
@@ -487,7 +498,7 @@ class WorkspaceTransformer:
             self._note("skipped_by_reason", "crdt_only_no_mirror")
             return []
         raw_string = source if isinstance(source, str) else None
-        tokens = content_tokens_from_source(source)
+        tokens = content_tokens_from_source(source, self.resolve_v1_name)
         if raw_string is not None and raw_string.strip():
             try:
                 json.loads(raw_string)
@@ -994,7 +1005,7 @@ def pick_spot_ids(workspace: str, count: int) -> tuple[list[str], dict[str, str]
             source = row["payload"].get("content") if "content" in row["payload"] else row["payload"].get("crdtUpdate")
             if source is None:
                 continue
-            tokens = content_tokens_from_source(source)
+            tokens = content_tokens_from_source(source, self.resolve_v1_name)
             text = plain_text(tokens)
             key = (row["physical"], row["logical"])
             if key >= (best.get(node_id, (0, 0, ""))[0], best.get(node_id, (0, 0, ""))[1]):
