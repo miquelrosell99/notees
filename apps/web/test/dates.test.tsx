@@ -238,13 +238,16 @@ describe("dates (SCHEMA.md)", () => {
     render(<PageView client={client} pageId={pageId} />);
 
     // The unvalued range row's "Add" pill opens the picker for the START slot;
-    // the end stays open. (Day cells are queried by their text — the
-    // aria-label is locale-dependent.)
+    // the end stays open. The picker opens on TODAY's month, so the expected
+    // value is computed from the current year/month (day cells are queried by
+    // their text — the aria-label is locale-dependent).
+    const now = new Date();
+    const expectedIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-28`;
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("28"));
     await flushWrites();
     expect(valueOf(client, pageId, schemaId)).toEqual({
-      start: { nodeId: chainNodeIds("2026-09-28").day },
+      start: { nodeId: chainNodeIds(expectedIso).day },
       end: null,
     });
 

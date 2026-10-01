@@ -201,7 +201,7 @@ describe("capture: @ mention", () => {
 });
 
 describe("capture: # tag (auto-create + assign) and + class picker", () => {
-  it("# auto-creates a missing class on Enter and assigns it to the node", async () => {
+  it("# auto-creates a missing tag page on Enter and assigns it to the node", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Home" });
     const blockId = await client.createObject({
@@ -216,34 +216,36 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     typeWithCaret(editor, "#Proj");
     expect(screen.getByText("No matches")).toBeInTheDocument();
     fireEvent.keyDown(editor, { key: "Enter" });
-    // class.create + assign ride a microtask (createObject promise).
+    // page.create + assignTag ride a microtask (createObject promise).
     await act(async () => {});
 
-    // The tag class was created…
-    const classes = client.listClasses();
-    expect(classes.map((c) => c.name)).toContain("Proj");
-    // …and assigned to the edited node (OR-set add).
-    expect(client.getNode(blockId)?.classIds).toEqual([classes[0]!.id]);
+    // The tag PAGE was created…
+    const tagPages = client.listPages().filter((p) => p.name === "Proj");
+    expect(tagPages).toHaveLength(1);
+    // …and assigned to the edited node's Tags (OR-set add).
+    expect(client.getNode(blockId)?.tagIds).toEqual([tagPages[0]!.id]);
+    // No class was created — "#" is tag semantics, "+" owns classes.
+    expect(client.listClasses()).toHaveLength(0);
     // The trigger text is stripped (assignment is the gesture, not prose).
     expect(editor.textContent).toBe("");
   });
 
-  it("# on an existing class assigns without duplicating", async () => {
+  it("# on an existing page assigns the tag without duplicating", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const classId = await client.createObject({ nodeType: "class", name: "Project" });
+    const tagId = await client.createObject({ nodeType: "page", name: "Project" });
     const blockId = await client.createObject({
       nodeType: "block",
       parentId: pageId,
       contentAst: [],
-      classIds: [classId],
+      tagIds: [tagId],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "#");
     typeWithCaret(editor, "#Pro");
-    // Scope to the capture popup: the assigned block's own metadata section
+    // Scope to the capture popup: the tagged block's own metadata section
     // now also renders a "Project" pill below the block.
     const popup = container.querySelector(".nt-capture-popup") ?? document.body;
     expect(within(popup as HTMLElement).getByText("Project")).toBeInTheDocument();
@@ -258,13 +260,13 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     await act(async () => {});
 
     const node = client.getNode(blockId)!;
-    expect(node.classIds).toEqual([classId]); // still exactly one membership
+    expect(node.tagIds).toEqual([tagId]); // still exactly one membership
   });
 
-  it("# Shift+Enter inserts a class_chip token WITHOUT assignment", async () => {
+  it("# Shift+Enter inserts an inline mention link to the tag page WITHOUT assignment", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const classId = await client.createObject({ nodeType: "class", name: "Project" });
+    const tagId = await client.createObject({ nodeType: "page", name: "Project" });
     const blockId = await client.createObject({
       nodeType: "block",
       parentId: pageId,
@@ -278,15 +280,8 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     fireEvent.keyDown(editor, { key: "Enter", shiftKey: true });
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast).toEqual([{ type: "class_chip", classId }]);
-    expect(client.getNode(blockId)?.classIds).toEqual([]); // render-only
-    // The chip is prose-less: the edit-mode draft drops the trigger text.
-    expect(editor.textContent).toBe("");
-    // Read mode renders the resolved class name.
-    fireEvent.blur(editor);
-    const chip = container.querySelector(".nt-class-chip");
-    expect(chip).not.toBeNull();
-    expect(chip!.textContent).toBe("Project");
+    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: tagId, text: "Project" });
+    expect(client.getNode(blockId)?.tagIds).toEqual([]); // inline, not metadata
   });
 
   it("+ assigns an existing class and never creates", async () => {

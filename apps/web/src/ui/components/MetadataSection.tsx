@@ -1034,9 +1034,9 @@ function ClassesRow({
 
 
 /**
- * TagsRow — the "Tags:" metadata row (page-scoped): any page can be assigned
- * as a tag. Pills mirror the classes row; right-click opens the node menu
- * (remove goes through unassignTag).
+ * TagsRow — the "Tags:" metadata row (pages and blocks): any page can be
+ * assigned as a tag. Pills mirror the classes row; right-click opens the
+ * node menu (remove goes through unassignTag).
  */
 function TagsRow({
   client,
