@@ -42,8 +42,10 @@ import {
   blockCollisionDetection,
   dropLineFromDragEvent,
   executeMove,
+  executeMoveFromClient,
   moveErrorMessage,
   resolveMove,
+  resolveMoveFromClient,
   useBlockDndSensors,
   type DropLine,
 } from "./block-dnd.js";
@@ -217,7 +219,14 @@ export function PageView({
     setDropLine(null);
     setDragging(null);
     if (line === null) return;
-    const resolution = resolveMove({ activeId, line, positions });
+    let resolution = resolveMove({ activeId, line, positions });
+    let crossTree = false;
+    if (resolution.status === "noop" && positions.get(line.targetId) === undefined) {
+      // The target row lives outside the page's own tree (a linked
+      // reference / embed): resolve the drop straight from the client.
+      resolution = resolveMoveFromClient({ activeId, line, client });
+      crossTree = resolution.status === "move";
+    }
     if (resolution.status === "noop") return;
     if (resolution.status === "refused") {
       setMoveError(resolution.reason);
@@ -225,15 +234,15 @@ export function PageView({
     }
     void (async () => {
       try {
-        await executeMove({
-          activeId,
-          command: resolution.command,
-          positions,
-          moveObject: (id, parentId, afterId) =>
-            afterId === undefined
-              ? client.moveObject(id, parentId)
-              : client.moveObject(id, parentId, afterId),
-        });
+        const moveObject = (id: string, parentId: string | null, afterId?: string) =>
+          afterId === undefined
+            ? client.moveObject(id, parentId)
+            : client.moveObject(id, parentId, afterId);
+        if (crossTree) {
+          await executeMoveFromClient({ activeId, command: resolution.command, client, moveObject });
+        } else {
+          await executeMove({ activeId, command: resolution.command, positions, moveObject });
+        }
       } catch (err) {
         setMoveError(moveErrorMessage(err));
       }
