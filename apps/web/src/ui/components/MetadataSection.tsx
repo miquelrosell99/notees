@@ -918,8 +918,9 @@ function ClassesRow({
         {classIds.map((classId) => {
           const cls = client.getNode(classId);
           const label = displayNameFromClient(client, classId) ?? classId;
-          const colored =
-            cls?.color !== null && cls?.color !== undefined ? cls.color : null;
+          // effectiveColor: the class's color, else the nearest colored
+          // ancestor in its extends chain.
+          const colored = client.effectiveClassColor(classId);
           return (
             <span
               key={classId}
@@ -962,6 +963,7 @@ function ClassesRow({
         <span className="nt-class-add-anchor">
           <AddPill
             ref={addButtonRef}
+            className={classIds.length > 0 ? "pill--icon-only" : ""}
             label="Add class"
             aria-expanded={pickerOpen}
             onClick={(element) => {
@@ -1094,6 +1096,7 @@ function TagsRow({
         <span className="nt-class-add-anchor">
           <AddPill
             ref={addButtonRef}
+            className={tagIds.length > 0 ? "pill--icon-only" : ""}
             label="Add tag"
             aria-expanded={pickerOpen}
             onClick={(element) => {

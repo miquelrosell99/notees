@@ -10,10 +10,20 @@
 import type { ReactNode } from "react";
 import "./PageCard.css";
 
-export function PageCard({ children }: { children: ReactNode }) {
+/** The ONE floating content card; `accent` paints the node-color left border. */
+export function PageCard({ children, accent }: { children: ReactNode; accent?: string | null }) {
   return (
     <main className="nt-main">
-      <div className="nt-page-card">{children}</div>
+      <div
+        className={accent !== null && accent !== undefined ? "nt-page-card has-node-border" : "nt-page-card"}
+        style={
+          accent !== null && accent !== undefined
+            ? { borderLeft: "3px solid", borderLeftColor: accent }
+            : undefined
+        }
+      >
+        {children}
+      </div>
     </main>
   );
 }

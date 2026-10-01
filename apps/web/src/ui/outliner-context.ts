@@ -24,6 +24,8 @@ import type {
 import { displayNameFromClient } from "./dateDisplay.js";
 
 export interface OutlinerClient {
+  getNode(id: string): ClientNode | undefined;
+  effectiveNodeColor(node: Pick<ClientNode, "color" | "classIds">): string | null;
   createObject(partial: CreateObjectInput): Promise<string>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
   deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;

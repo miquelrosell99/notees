@@ -306,6 +306,7 @@ export function PageView({
           </div>
         )}
         <MetadataSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
+        <div className="nt-metadata-divider" />
         {whiteboardTokenIndex >= 0 ? (
           <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
         ) : (

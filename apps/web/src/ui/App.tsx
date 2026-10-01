@@ -1087,7 +1087,16 @@ export function App() {
             if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
           }}
         />
-        <PageCard>
+        <PageCard
+          accent={
+            selectedPageId !== null
+              ? (() => {
+                  const current = client.getNode(selectedPageId);
+                  return current === undefined ? null : client.effectiveNodeColor(current);
+                })()
+              : null
+          }
+        >
           {selectedPageId !== null ? (
             <NodeView client={client} nodeId={selectedPageId} onOpenNode={openPage} />
           ) : activeNav === "journal" ? (

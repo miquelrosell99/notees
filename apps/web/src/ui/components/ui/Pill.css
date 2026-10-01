@@ -185,10 +185,24 @@
   font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   background: none;
-  border: var(--border-width-default) dashed var(--color-outline);
+  border: none;
   border-radius: var(--shape-full);
-  padding: var(--spacing-1) var(--spacing-3);
+  padding: var(--spacing-1) var(--spacing-2);
   cursor: pointer;
+}
+
+/* "+" only (the group has items): hide the label… */
+.pill--add.pill--icon-only .pill__text {
+  display: none;
+}
+
+/* …and reveal the add affordance only when the group is hovered. */
+.nt-property-chips:not(:hover) .pill--add.pill--icon-only {
+  opacity: 0;
+}
+
+.pill--add:hover {
+  color: var(--color-on-surface);
 }
 
 .pill--add:hover {
