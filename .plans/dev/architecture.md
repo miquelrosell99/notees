@@ -3,17 +3,20 @@
 M1-alpha developer documentation for the greenfield rewrite. The v2 tree is a TypeScript
 pnpm monorepo (`packages/` = libraries, `apps/` = deployables) living at the repo root.
 
-**Maturity.** This document separates *implemented in M1* (code exists in the tree, verified
+**Maturity.** This document separates *implemented* (code exists in the tree, verified
 against the paths cited) from *designed for M2/M3* (specified in
 `../design/01-knowledge-model.md`, `packages/protocol/SCHEMA.md`, and the evolution plan
 at `../2026-09-24-object-graph-pim-evolution/assessment.md`, but not present in
 code). In case of disagreement between a design doc and the code, **the code wins** and the
 discrepancy is flagged in [§11](#11-code-vs-design-discrepancies).
 
-**What M1 is:** the sync/storage core plus a minimal API and client surface. What M1 is
-**not** (designed, not shipped): the interactive outliner editor, typed-link target
-resolution, the citations pipeline, E2EE, plugins, multi-user auth. Do not document or
-assume those as existing.
+**What is shipped (2026-10-01):** the sync/storage core, the interactive outliner
+editor (blocks, marks, `@`/`#`/`+` node-picker popups, slash commands), the page
+layout (header identity rows, collapsed `Properties N`, linked references),
+first-class tags, class ordering, the v1 icon picker, sidebar peek cards, and the
+CLI. What is **not** (designed, not shipped): typed-link target resolution, the
+citations pipeline, E2EE, plugins, multi-user auth. Do not document or assume
+those as existing.
 
 Sources: `../design/00-INDEX.md`, `../design/01-knowledge-model.md`,
 `packages/protocol/SCHEMA.md`, `packages/protocol/WIRE.md`, and the code cited inline.
@@ -77,7 +80,7 @@ itself is M3 and does not exist.
 
 `packages/store` is the single semantic-store implementation. Per the five storage
 categories of `01-knowledge-model.md` §3, the derived schema
-(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 1`, DDL mirrored as `SCHEMA_SQL`) holds:
+(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 7`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`) holds:
 
 | Category | Tables (M1 schema) | Notes |
 |---|---|---|
@@ -328,7 +331,7 @@ node→asset assertions in the derived store (`node_asset`).
 
 ## 9. Clients
 
-*Implemented (M1) — deliberately thin; the interactive editor is M1b/designed.*
+*Implemented — the web client is the full editor; GTK/Flutter are lockstep clients (see below).*
 
 **Web** (`apps/web`). `src/core/workspace-client.ts` is the whole data path: a `Store`
 over the **sql.js** backend (local derived state persisted to OPFS via a Web Worker since M1b slice 2), a `SyncEngine`
@@ -340,9 +343,14 @@ writes build envelopes (`newEnvelope`, deviceId `web`), apply optimistically via
 deterministic). `apps/web/src/ui/` is slice 1: a bootstrap screen (server URL + API key +
 workspace id, remembered in localStorage), a page-list sidebar, and a PageView with block
 rows and inline token rendering (`App.tsx`, `PageView.tsx`, `BlockRow.tsx`,
-`InlineTokens.tsx`). Display names come from `deriveDisplayName` (`packages/domain/src/node.ts`:
-pages use the stored `name`; blocks derive from content text, single line, truncated to
-80 chars, with an optional stored-name override — decided 2026-09-26).
+`InlineTokens.tsx`). Display names come from `deriveDisplayName` (`packages/domain/src/node.ts`) —
+**title-is-content (2026-10-01)**: the content excerpt for EVERY node type (pages,
+blocks AND classes; there is no stored `name`), date labels (`YYYYMMDD…`) formatted
+`YYYY/MM(/DD)`, truncated to 80 chars. Pages/classes carry text-only content
+(`stringifyContentAst`); the appliers flatten rich tokens on create and on
+block→page/class promotion.
+
+**GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
 **CLI** (`apps/cli`). Commander-based (`src/cli.ts`, exported `run()` for tests). Commands:
 `object get|create|update|delete|list|search`, `class list`, `backlinks <id>`,
@@ -389,9 +397,10 @@ code is narrower in these places:
    first. `backlinks(id)` and the `node_stats.backlink_count` badge stay
    DIRECT (a containment-heavy page's list can exceed its badge); `refset`
    filter inheritance (`01` §8) is still owed.
-3. ~~**FTS search misses page titles.**~~ RECONCILED 2026-09-26: the FTS row
-   carries the stored name (`name + " " + content plaintext`), so pages are
-   findable by title and `object.update` name writes reindex (`search.ts`).
+3. ~~**FTS search misses page titles.**~~ RECONCILED 2026-09-26, SUPERSEDED
+   2026-10-01 (title-is-content): the indexed text is the content plaintext —
+   the title lives in the content, so title search rides the same index
+   (`search.ts`); the name prefix is gone with the retired column.
 4. **`contentAst`, not `contentDeltaB64`, is the live carrier.** The CRDT delta field
    exists in the payload schema; the Yjs per-node `Y.Text` port does not exist yet.
 5. **`class_list` read model.** SCHEMA.md describes the class listing as a derived
