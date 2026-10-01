@@ -7,7 +7,7 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 ## Layout
 
 - `packages/protocol` — op wire spec, envelopes, fixtures (the convergence gate corpus), `SCHEMA.md` (normative model + owed-work register)
-- `packages/domain` — seeds (fixed system-class UUIDs), name derivation
+- `packages/domain` — seeds (fixed system-class UUIDs), display-name derivation (title-is-content: content excerpt for every node type, date labels formatted), content stringify (text-only invariant for pages/classes)
 - `packages/store` — derived SQLite schema + appliers; one TS implementation, three backends (better-sqlite3, sql.js)
 - `packages/sync` — SyncEngine (HLC + server seq, snapshots, compaction, WebSocket)
 - `packages/query` — QueryAST model + SQLite compiler
@@ -29,7 +29,8 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 ## Invariants (design law — see `.plans/` decision record §34)
 
 - The operation log is the only authority; semantic state only — device state is never an op.
-- Conflict semantics: LWW by HLC (scalars, property values), OR-Set add-wins (class membership), CRDT only for collaborative text/tree. No CRDT-everywhere.
+- Conflict semantics: LWW by HLC (scalars, property values, class order); OR-Set add-wins (class membership, `>=` actor tiebreak); tag membership mirrors the OR-Set with a strictly-greater add tiebreak (first-in-log-wins on exact ties — deliberate asymmetry, convergent via the single global log); CRDT only for collaborative text/tree. No CRDT-everywhere.
+- **Title-is-content** (owner decision 2026-10-01): a node's title IS its own text content — there is no `name` field on the wire (`object.*`/`class.*` payloads carry `contentAst`; strict schemas reject `name`). Pages and classes carry text-only content (inline rich tokens flatten; `whiteboard`/`query` widgets survive); block→page/class promotion stringifies in the same op. Client builders may keep a `name` convenience that becomes a single text token; the protocol stays name-free.
 - New op types are additive and require protocol fixtures exercising every client applier (TS is the reference; GTK/Flutter lockstep) before implementation counts as complete.
 - Identity is UUIDv7 everywhere; titles/paths/citekeys are attributes, never identity.
 - Sync server (PostgreSQL relay) is coordination, not the object database.
@@ -45,5 +46,5 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 
 - **SDK publish — BLOCKED on an npmjs token** (GitHub Packages rejects the `@notees/*` scope). Publish infra is ready: `pnpm release`, flow in `.plans/dev/sdk-publishing.md`.
 - **ghcr image publish — BLOCKED on a registry write token** (the host's ghcr login is read-only: push → `permission_denied: token scopes`). Compose pins `2.0.0-m1`; images exist on the host only.
-- **Client lockstep — current with TS (unpushed)**: `notees-gtk@protocol-v2` and `notees-flutter@protocol-v2` (sibling repos) carry the class-property + citations protocol; awaiting owner approval to push.
+- **Client lockstep — CURRENT (pushed)**: `notees-gtk@protocol-v2` and `notees-flutter@protocol-v2` (sibling repos) carry the full protocol (class.unassign, tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged **`v2.0.0-m1`** with CI releases published (Flutter signed APK as a GitHub Release; GTK Arch package + wheel + sdist). Any new op requires the same three-way lockstep before it counts as done.
 - Repo split (notees-sync / notees-web) — parked until the SDK is published; two services from one monorepo for now.

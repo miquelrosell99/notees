@@ -1176,3 +1176,20 @@ Supersedes §34.18 (its items fold in here with real scope). Source of truth for
 | Shortcuts cheatsheet, SupportBadge | 🟡 | About tab exists |
 
 Execution rule: same transfer discipline as §34.17 — components + CSS verbatim from the archive, rewired to the v2 client; no paraphrase. Order within a tier is owner's call; the table is the backlog.
+
+### 34.20 Shipped since the §34.19 audit (2026-10-01 batch, commits `90a6095e`..`abcc62ec`)
+
+- **@/#/+ node-picker popups** (the v1 `NodeSelector` experience: own search field, caret anchor, create-from-query, date suggestions) replacing the inline capture list; `+` assigns classes, `#` assigns tags, `@` links pages/blocks.
+- **Note layout**: class pills pinned to the content card's top-left corner; tags row under the title (pill chrome, alphabetical, effectiveColor); all property fields in a collapsed **Properties N** badge-count section; Linked references collapsed by default; Child pages renders the read-only blocks list (recursive, pages-only) and starts expanded.
+- **Sidebar peek cards**: shift+click a block bullet → independent right-sidebar card (card-within-card surfaces, breadcrumbs-as-title with right-anchored clipping + lead "…"); arrow opens in main view; last card close closes the panel.
+- **Title-is-content landed** (owner decision): the node `name` field is retired — titles ARE node content (pages/blocks/classes). Protocol payloads carry `contentAst`; pages/classes are text-only (stringify on promotion); live data migrated (`scripts/migrate-title-is-content.mts`, 1,278 nodes). See SCHEMA.md "Name/title derivation" for the full reversal record.
+- **First-class tags + class order**: `tag.unassign` + `tagIds` carrier (schema v6); `class.reorder` display ordering (schema v7); sortable class pills with "+N" overflow popup.
+- **v1 icon system**: `Icon` resolver (camelCase/kebab/JSON/emoji) + three-tab `IconPickerPopup` (All/Emojis/Icons, 7,447 sprite icons, recents); click the page icon to change it.
+- **Deletion**: reusable danger `ConfirmationModal` (never a raw uuid, never inline); post-delete navigation to parent → default view.
+- **Workspace landing URL** honors the default-view preference; **Recents** records on every open surface (sidebar refreshes live).
+- **Property table interactions**: click a label → PropertySettingsModal (rename/date precision/select options); right-click → v1 menu (Open / Empty / Remove from node).
+- **Bullet v1 tactile UI** (bolder dot, hover grow + accent, collapse ring); hover effects moved off blocks/sections (arrow-only for sections).
+- **GTK/Flutter lockstep shipped** (`protocol-v2` branches, tags `v2.0.0-m1`, CI releases published: Flutter signed APK; GTK Arch package + wheel + sdist).
+- §34.19 rows this clears/promotes: RightSidebarCards 🟡→✅ (peek cards shipped; TOC/Comments/Activity still missing); NodeSelector capture ✅; PropertyCreateModal 🟡 (settings modal shipped; create-flow parity partial); Recents/favorites live refresh ✅.
+
+GTK/Flutter remain the owed lockstep for every future op.
