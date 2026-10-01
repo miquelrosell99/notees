@@ -28,7 +28,7 @@ import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type Dr
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { proseFromAst } from "@/editor/prose.js";
 
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
@@ -68,6 +68,7 @@ export function PageView({
   pageId,
   onOpenPage,
   onOpenInSidebar,
+  onDeleted,
   embedded = false,
 }: {
   client: WorkspaceClient | WorkerClient;
@@ -76,6 +77,8 @@ export function PageView({
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Shift+click peek target: open the node as a card in the right sidebar. */
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
+  /** Post-delete navigation (host routes to the parent / default view). */
+  onDeleted?: ((node: ClientNode) => void) | undefined;
   /**
    * Embedded mode (journals feed): the title renders as a static button that
    * navigates to the full page view instead of the inline TitleEditor, and
@@ -388,6 +391,10 @@ collisionDetection={blockCollisionDetection}
           onExport={(id, name) => {
             setHeaderMenu(null);
             setExporting({ pageId: id, name });
+          }}
+          onDeleted={(node) => {
+            setHeaderMenu(null);
+            onDeleted?.(node);
           }}
         />
         {exporting !== null && (
