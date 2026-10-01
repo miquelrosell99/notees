@@ -123,6 +123,19 @@ export const classUnassignPayload = z
   .object({ objectId: uuid, classId: uuid })
   .strict();
 
+/**
+ * Class ORDER (display-only, 2026-10-01): the membership OR-Set projects
+ * class_ids sorted by id; user-defined order rides this dedicated op as an
+ * LWW-by-arrival array. The effective class_ids = ordered members first,
+ * then any unlisted members sorted by id (see recomputeClassIds).
+ */
+export const classReorderPayload = z
+  .object({
+    objectId: uuid,
+    classIds: z.array(uuid),
+  })
+  .strict();
+
 export const tagUnassignPayload = z
   .object({ objectId: uuid, tagId: uuid })
   .strict();
@@ -289,6 +302,7 @@ export const OP_PAYLOAD_SCHEMAS = {
   "class.update": classUpdatePayload,
   "class.delete": classDeletePayload,
   "class.unassign": classUnassignPayload,
+  "class.reorder": classReorderPayload,
   "tag.unassign": tagUnassignPayload,
   "class.setExtends": classSetExtendsPayload,
   "class.property.set": classPropertySetPayload,
