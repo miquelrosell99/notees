@@ -17,7 +17,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, deriveDisplayName } from "@notees/domain";
 import { newEnvelope, type Envelope } from "@notees/protocol";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
@@ -69,11 +69,11 @@ function seedEnvelope(opType: string, payload: Record<string, unknown>, affected
 function seedRelay(): MemoryRelay {
   const relay = new MemoryRelay();
   relay.ingest([
-    seedEnvelope("class.create", { classId: ASSET_CLASS, name: "asset", icon: "mdiPaperclip" }, [ASSET_CLASS]),
-    seedEnvelope("class.create", { classId: SOURCE_CLASS, name: "source", icon: "mdiBookshelf" }, [SOURCE_CLASS]),
+    seedEnvelope("class.create", { classId: ASSET_CLASS, contentAst: [{ type: "text", text: "asset" }], icon: "mdiPaperclip" }, [ASSET_CLASS]),
+    seedEnvelope("class.create", { classId: SOURCE_CLASS, contentAst: [{ type: "text", text: "source" }], icon: "mdiBookshelf" }, [SOURCE_CLASS]),
     seedEnvelope(
       "class.create",
-      { classId: HIGHLIGHT_CLASS, name: "highlight", icon: "mdiFormatHighlight" },
+      { classId: HIGHLIGHT_CLASS, contentAst: [{ type: "text", text: "highlight" }], icon: "mdiFormatHighlight" },
       [HIGHLIGHT_CLASS],
     ),
     seedEnvelope(
@@ -212,12 +212,12 @@ describe("Asset annotations (highlight class)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add annotation" }));
     await flushWrites();
 
-    // The read model: one highlight-classed annotation, named by the quote.
+    // The read model: one highlight-classed annotation, titled by the quote.
     const annotations = client.getAnnotationsForAsset(assetNodeId);
     expect(annotations).toHaveLength(1);
     const annotation = annotations[0]!;
     expect(annotation.classIds).toContain(HIGHLIGHT_CLASS);
-    expect(annotation.name).toBe("the missing chapter");
+    expect(deriveDisplayName(annotation)).toBe("the missing chapter");
 
     // Authored property rows: the asset link + the provenance text.
     const effective = client.getEffectiveProperties(annotation.id);

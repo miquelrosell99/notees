@@ -27,7 +27,12 @@ export const objectCreatePayload = z
     nodeType: z.enum(["page", "block", "class"]).optional(),
     classIds: z.array(uuid).default([]),
     tagIds: z.array(uuid).default([]),
-    name: z.string().max(1024).optional(),
+    /**
+     * The node's initial text content — a node's title IS its content
+     * (SCHEMA.md "title-is-content"): there is no name field for objects or
+     * classes. (Class labels ride class.create's contentAst; property schema
+     * names are registry metadata, not node names.)
+     */
     contentAst: z.array(z.unknown()).optional(),
     parentId: uuid.nullable().optional(),
   })
@@ -39,7 +44,6 @@ export const objectUpdatePayload = z
     /** Flipping nodeType block↔page = promotion/demotion (identity preserved);
      * setting 'class' = declare the node a class (declaration-first). */
     nodeType: z.enum(["page", "block", "class"]).optional(),
-    name: z.string().max(1024).optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
     /** Canonical wire carrier: base64 incremental CRDT delta. */
@@ -84,7 +88,10 @@ export const objectMovePayload = z
 export const classCreatePayload = z
   .object({
     classId: uuid,
-    name: z.string().min(1).max(256),
+    /** The class's title text — classes are nodes; their name IS their
+     * content (text-only, like pages). Client helpers may still accept a
+     * plain `name` string and wrap it into a single text token. */
+    contentAst: z.array(z.unknown()).optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
     description: z.string().max(4096).optional(),
@@ -94,7 +101,9 @@ export const classCreatePayload = z
 export const classUpdatePayload = z
   .object({
     classId: uuid,
-    name: z.string().min(1).max(256).optional(),
+    /** Title-text replacement (text-only content), same contract as
+     * class.create. */
+    contentAst: z.array(z.unknown()).optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
     description: z.string().max(4096).optional(),

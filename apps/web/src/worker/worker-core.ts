@@ -453,6 +453,10 @@ export class WorkerCore {
         return this.getDisplayName(args[0] as string);
       case "effectiveClassColor":
         return this.client.effectiveClassColor(args[0] as string);
+      case "effectiveClassIcon":
+        return this.client.effectiveClassIcon(args[0] as string);
+      case "effectiveNodeIcon":
+        return this.client.effectiveNodeIcon(args[0] as { icon: string | null; classIds: string[] });
       case "effectiveNodeColor":
         return this.client.effectiveNodeColor(args[0] as { color: string | null; classIds: string[] });
       case "getPage":
@@ -463,6 +467,8 @@ export class WorkerCore {
         return this.listClasses();
       case "getClassParents":
         return this.client.getClassParents(args[0] as string);
+      case "getClassChildren":
+        return this.client.getClassChildren(args[0] as string);
       case "getClassMembers":
         return this.client.getClassMembers(args[0] as string);
       case "getClassBindings":

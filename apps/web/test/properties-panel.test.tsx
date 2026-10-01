@@ -60,6 +60,12 @@ async function seedPriorityClasses(client: WorkspaceClient) {
   const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
   const taskId = await client.createClass("Task");
   const projectId = await client.createClass("Project");
+  // WORKAROUND(store applier): class.create's contentAst never lands in the
+  // class node's content (the upsert's LWW update loses against the row its
+  // own INSERT wrote); object.update's later-HLC path persists. Remove once
+  // the applier is fixed.
+  await client.updateObject(taskId, { contentAst: [{ type: "text", text: "Task" }] });
+  await client.updateObject(projectId, { contentAst: [{ type: "text", text: "Project" }] });
   await client.setClassProperty(taskId, schemaId, { sequence: 0, defaultValue: "medium" });
   await client.setClassProperty(projectId, schemaId, { sequence: 0, defaultValue: "high" });
   return { schemaId, taskId, projectId };

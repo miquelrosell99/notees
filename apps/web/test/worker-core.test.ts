@@ -10,6 +10,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
+import { deriveDisplayName } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import type { OpfsStore } from "../src/worker/opfs.js";
@@ -86,7 +87,7 @@ describe("WorkerCore OPFS persistence", () => {
     // entirely from the persisted image.
     const core2 = await createCore({ opfs, fileName: FILE, workspaceId: WS, transport: new MemoryTransport(relay) });
     expect(core2.listPages().map((p) => p.id)).toContain(pageId);
-    expect(core2.getPage(pageId)?.name).toBe("Persisted");
+    expect(deriveDisplayName(core2.getPage(pageId)!)).toBe("Persisted");
 
     const tree = core2.getBlockTree(pageId);
     expect(tree.map((t) => t.node.id)).toEqual([blockId, mentionBlockId]);
@@ -165,7 +166,7 @@ describe("WorkerCore OPFS persistence", () => {
     const pageId = await coreA.createObject({ nodeType: "page", name: "From A" });
     await coreA.syncOnce();
     await coreB.syncOnce();
-    expect(coreB.getPage(pageId)?.name).toBe("From A");
+    expect(deriveDisplayName(coreB.getPage(pageId)!)).toBe("From A");
 
     const blockId = await coreB.createObject({
       nodeType: "block",
@@ -185,7 +186,7 @@ describe("WorkerCore OPFS persistence", () => {
     await coreB.close();
 
     const coreA2 = await createCore({ opfs: a.opfs, fileName: FILE, workspaceId: WS, transport: new MemoryTransport(relay) });
-    expect(coreA2.getPage(pageId)?.name).toBe("From A");
+    expect(deriveDisplayName(coreA2.getPage(pageId)!)).toBe("From A");
     expect(coreA2.getBlockTree(pageId).map((t) => t.node.id)).toContain(blockId);
     await coreA2.close();
   });

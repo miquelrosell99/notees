@@ -34,7 +34,7 @@ describe("end-to-end (listening socket + fetch)", () => {
     const envelope = testEnvelope({
       workspaceId: server.ctx.defaultWorkspace,
       opType: "object.create",
-      payload: { objectId: crypto.randomUUID(), nodeType: "page", name: "E2E page" },
+      payload: { objectId: crypto.randomUUID(), nodeType: "page", contentAst: [{ type: "text", text: "E2E page" }] },
     });
     const batch = await fetch(`${base}/api/relay/v2/batch`, {
       method: "POST",
@@ -49,7 +49,8 @@ describe("end-to-end (listening socket + fetch)", () => {
       headers: { "x-api-key": server.apiKey },
     });
     expect(fetched.status).toBe(200);
-    const body = (await fetched.json()) as { object: { id: string; name: string; nodeType: string } };
-    expect(body.object).toMatchObject({ id: objectId, name: "E2E page", nodeType: "page" });
+    const body = (await fetched.json()) as { object: { id: string; contentAst: unknown; nodeType: string } };
+    expect(body.object).toMatchObject({ id: objectId, nodeType: "page" });
+    expect(body.object.contentAst).toEqual([{ type: "text", text: "E2E page" }]);
   });
 });

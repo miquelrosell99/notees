@@ -419,6 +419,7 @@ select:focus-visible {
 
 .nt-page-header .node-metadata-row > .section-label {
   width: auto;
+  flex: 0 0 auto;
   font: var(--font-label-medium);
   font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
@@ -591,6 +592,12 @@ select:focus-visible {
   word-break: break-word;
   cursor: text;
   border-radius: 4px;
+}
+
+/* Read-only block projections (Child pages tree, Class View "Extended by"):
+   the content reads as a navigation surface, not an editor. */
+.nt-block--readonly .nt-block-content {
+  cursor: pointer;
 }
 
 .nt-block-content:focus-within {

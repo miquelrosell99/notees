@@ -1,35 +1,44 @@
 /**
- * TitleEditor — the page header's editable title. Pages carry a stored
- * `name` (SCHEMA.md name derivation: the stored name wins), committed via
- * stored name (their title lives in content), so the header displays the
- * derived content excerpt until the user types a real title. The DOM text is
- * managed imperatively (no children rendered), so external renames
- * rehydrate the header while it is not focused and caret/typing is never
- * disturbed. An empty name shows the "Untitled" placeholder (CSS :empty).
+ * TitleEditor — the page header's editable title. Title-is-content
+ * (SCHEMA.md 2026-10-01): a page's title IS its own text content — there is
+ * no stored name field. The header edits the page node's content directly
+ * (a page's content is text-only by store invariant); committing replaces
+ * it with the single text token the user typed. The DOM text is managed
+ * imperatively (no children rendered), so external edits rehydrate the
+ * header while it is not focused and caret/typing is never disturbed. An
+ * empty title stores empty content and the UI shows the "Untitled"
+ * placeholder (CSS :empty).
  */
 
 import { useEffect, useRef } from "react";
 
-import { deriveDisplayName } from "@notees/domain";
+import type { ContentAst } from "@notees/protocol";
 
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import { displayNameForSettings, isDatePageNode } from "./dateDisplay.js";
 import { useOutliner } from "./outliner-context.js";
 
+/** The page's own title text (its content is text-only). */
+function titleTextOf(page: ClientNode): string {
+  return page.contentAst
+    .map((token) => ((token as { type?: string; text?: string }).text ?? ""))
+    .join("");
+}
+
 export function TitleEditor({ page }: { page: ClientNode }) {
   const { client } = useOutliner();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const pageRef = useRef(page);
   pageRef.current = page;
-  const draftRef = useRef(page.name ?? "");
+  const draftRef = useRef(titleTextOf(page));
   /** Last value WE wrote — guards the Enter→blur double commit. */
-  const committedRef = useRef(page.name ?? "");
+  const committedRef = useRef(titleTextOf(page));
 
-  // A date page's name IS its date: display it in the user's dateFormat and
-  // don't offer renaming (the compact stored label must stay canonical for
+  // A date page's title IS its date: display it in the user's dateFormat and
+  // don't offer renaming (the compact content label must stay canonical for
   // sorting and date lookups). Identity comes from the deterministic date
-  // id, so migrated pages with a null name still render formatted.
+  // id, so migrated pages with content-only labels still render formatted.
   if (isDatePageNode(page)) {
     return (
       <h1 className="nt-page-title" role="heading" aria-level={1}>
@@ -43,31 +52,30 @@ export function TitleEditor({ page }: { page: ClientNode }) {
     const draft = el?.textContent ?? draftRef.current;
     draftRef.current = draft;
     if (draft === committedRef.current) return;
-    // The derived excerpt is display-only: focusing and blurring without
-    // typing must not persist it as a stored name (that would freeze a
-    // title that should keep tracking the content).
-    if (pageRef.current.name == null && draft === deriveDisplayName(pageRef.current)) return;
+    // No-op guard: committing the text that is already the content (e.g. a
+    // focus/blur without typing) writes nothing.
+    if (draft === titleTextOf(pageRef.current)) return;
     committedRef.current = draft;
-    void client.updateObject(pageRef.current.id, { name: draft });
+    const contentAst: ContentAst =
+      draft === "" ? [] : [{ type: "text" as const, text: draft }];
+    void client.updateObject(pageRef.current.id, { contentAst });
   };
 
   useEffect(() => {
     const el = headingRef.current;
     if (el === null) return;
-    el.textContent = page.name ?? deriveDisplayName(page);
-    draftRef.current = page.name ?? "";
-    committedRef.current = page.name ?? "";
+    el.textContent = titleTextOf(page);
+    draftRef.current = titleTextOf(page);
+    committedRef.current = titleTextOf(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
   useEffect(() => {
     const el = headingRef.current;
     if (el === null || document.activeElement === el) return;
-    const shown = page.name ?? deriveDisplayName(page);
+    const shown = titleTextOf(page);
     if (el.textContent !== shown) el.textContent = shown;
-    committedRef.current = page.name ?? "";
-    // Wider than [page.name]: a null-named page's derived excerpt must
-    // refresh as the content is edited.
+    committedRef.current = titleTextOf(page);
   }, [page]);
 
   return (

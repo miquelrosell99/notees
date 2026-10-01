@@ -94,7 +94,8 @@ describe("dates (SCHEMA.md)", () => {
     expect(client.getNode(ids.year)?.parentId).toBeNull();
     expect(client.getNode(ids.month)?.parentId).toBe(ids.year);
     expect(client.getNode(ids.day)?.parentId).toBe(ids.month);
-    expect(client.getNode(ids.day)?.name).toBe("20260927");
+    // Title-is-content: the day node's compact label lives in its content.
+    expect(client.getNode(ids.day)?.contentAst).toEqual([{ type: "text", text: "20260927" }]);
     // The value links the day node; edges project (year backlinks below).
     expect(valueOf(client, pageId, schemaId)).toEqual({ nodeId: ids.day });
 
