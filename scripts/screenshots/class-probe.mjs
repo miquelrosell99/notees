@@ -20,4 +20,5 @@ const info = await page.evaluate(() => {
   };
 });
 console.log(JSON.stringify(info, null, 1));
+await page.screenshot({ path: "/tmp/table-check.jpg", type: "jpeg", quality: 85 });
 await browser.close();

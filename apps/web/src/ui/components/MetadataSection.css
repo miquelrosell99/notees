@@ -247,6 +247,18 @@ span.pill__text {
   flex: 0 0 140px;
 }
 
+/* Vertical divider between the label column and the value column (Notion /
+   Capacities). The label stretches to the row height so the line is
+   continuous down the table; classes/tags sit above, outside it. */
+.nt-properties-list > li > .section-label:first-child {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  padding-right: var(--spacing-3, 12px);
+  margin-right: var(--spacing-3, 12px);
+}
+
 .nt-property-default {
   opacity: 0.55;
 }
