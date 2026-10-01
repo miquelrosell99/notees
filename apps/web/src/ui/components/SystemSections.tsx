@@ -113,7 +113,7 @@ export function SystemSections({
           title="Linked references"
           icon={<Icon path="mdi-link-variant" size={0.9} />}
           badge={backlinkCount}
-          defaultCollapsed={false}
+          defaultCollapsed
           load={loadLinkedRefs}
           emptyText="No linked references."
           renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}

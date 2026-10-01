@@ -162,8 +162,17 @@ async function makeAsset(client: WorkspaceClient, originalName: string): Promise
   return id;
 }
 
+/** Expand the page's "Properties N" section (collapsed by default in the note layout). */
+function expandProperties(): void {
+  const header = screen.queryByRole("button", { name: /^Properties / });
+  if (header !== null && header.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(header);
+  }
+}
+
 /** The annotations section (header button + its containing <section>). */
 function annotationSection(): HTMLElement {
+  expandProperties();
   const header = screen.getByRole("button", { name: /^Annotations$/ });
   return header.closest("section")!;
 }
@@ -193,6 +202,7 @@ describe("Asset annotations (highlight class)", () => {
     await client.setProperty(sourceId, ATTACHMENTS, { nodeId: assetNodeId }, 0);
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     fireEvent.click(screen.getByRole("button", { name: "Annotate paper.pdf" }));
     fireEvent.change(screen.getByLabelText("Quote"), { target: { value: "the missing chapter" } });
     fireEvent.change(screen.getByLabelText("Page"), { target: { value: "12" } });
@@ -239,6 +249,7 @@ describe("Asset annotations (highlight class)", () => {
 
     const spy = vi.spyOn(client, "getAnnotationsForAsset");
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
 
     // Collapsed (not even mounted): the read never runs.
     expect(spy).not.toHaveBeenCalled();
@@ -256,6 +267,7 @@ describe("Asset annotations (highlight class)", () => {
     await client.createAnnotation({ assetId: assetNodeId, quote: "the missing chapter", page: "12" });
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     fireEvent.click(screen.getByRole("button", { name: "Annotate paper.pdf" }));
 
     const row = within(annotationSection())
@@ -276,6 +288,7 @@ describe("Asset annotations (highlight class)", () => {
 
     const onOpenPage = vi.fn();
     render(<PageView client={client} pageId={sourceId} onOpenPage={onOpenPage} />);
+    expandProperties();
     fireEvent.click(screen.getByRole("button", { name: "Annotate paper.pdf" }));
 
     fireEvent.click(within(annotationSection()).getByText("jump target quote").closest("button")!);
@@ -296,6 +309,7 @@ describe("Asset annotations (highlight class)", () => {
 
     // The annotation opens as an ordinary page; the outliner renders the note.
     const { container } = render(<PageView client={client} pageId={annotationId} />);
+    expandProperties();
     const editor = clickIntoBlock(container, 0);
     typeInto(editor, "revised note");
     fireEvent.blur(editor);
@@ -342,6 +356,7 @@ describe("Asset annotations (highlight class)", () => {
 
     // The annotation's page view marks the surviving rows "unbound".
     render(<PageView client={client} pageId={annotationId} />);
+    expandProperties();
     expect(screen.getAllByText("unbound")).toHaveLength(2);
   });
 
@@ -373,6 +388,7 @@ describe("Asset annotations (highlight class)", () => {
     await client.createAnnotation({ assetId: assetNodeA, quote: "only on A", page: "7" });
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
 
     // The un-annotated asset: empty state, the form still reachable.
     fireEvent.click(screen.getByRole("button", { name: "Annotate b.pdf" }));

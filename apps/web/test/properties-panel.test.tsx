@@ -47,6 +47,14 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
+/** Expand the page's "Properties N" section (collapsed by default in the note layout). */
+function expandProperties(): void {
+  const header = screen.queryByRole("button", { name: /^Properties / });
+  if (header !== null && header.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(header);
+  }
+}
+
 /** Seed priority-bound Task + Project classes (Task applied first by callers). */
 async function seedPriorityClasses(client: WorkspaceClient) {
   const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
@@ -64,7 +72,7 @@ describe("Properties panel (effective values)", () => {
     const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
     await client.assignClass(pageId, taskId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
-
+    expandProperties();
     const row = container.querySelector(".nt-property")!;
     expect(row.className).toContain("nt-property-default");
     expect(row.textContent).toContain("priority");
@@ -90,6 +98,7 @@ describe("Properties panel (effective values)", () => {
     const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
     await client.assignClass(pageId, taskId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
 
     fireEvent.blur(screen.getByLabelText("Property priority"), { target: { value: "urgent" } });
     await flushWrites();
@@ -119,6 +128,7 @@ describe("Properties panel (effective values)", () => {
     await client.assignClass(pageId, taskId);
     await client.assignClass(pageId, projectId);
     render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
 
     const input = screen.getByLabelText("Property priority") as HTMLInputElement;
     expect(input.value).toBe("medium");
@@ -146,6 +156,7 @@ describe("Properties panel (effective values)", () => {
     await client.assignClass(pageId, projectId);
     await client.setProperty(pageId, effortSchemaId, "authored", 0);
     const { container } = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
 
     // Both classes render as pills, each with a remove affordance.
     expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(2);

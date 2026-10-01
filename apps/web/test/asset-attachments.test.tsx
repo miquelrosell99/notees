@@ -112,7 +112,16 @@ async function createSource(client: WorkspaceClient, name: string): Promise<stri
 }
 
 /** The attachments row in the panel (the source also binds linkedAuthors). */
+/** Expand the page's "Properties N" section (collapsed by default in the note layout). */
+function expandProperties(): void {
+  const header = screen.queryByRole("button", { name: /^Properties / });
+  if (header !== null && header.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(header);
+  }
+}
+
 function attachmentsRow(): HTMLElement {
+  expandProperties();
   return screen.getByText("attachments").closest(".nt-property-object") as HTMLElement;
 }
 
@@ -164,6 +173,7 @@ describe("Asset attachments (node-typed properties)", () => {
     const sourceId = await createSource(client, "The Book");
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     const row = attachmentsRow();
     expect(row.textContent).toContain("attachments");
     // No values: no "default" hint, but the add affordance is reachable.
@@ -178,6 +188,7 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.createObject({ nodeType: "page", name: "Random notes" });
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
 
     // Only asset-class nodes are candidates; the plain page is filtered out.
@@ -192,6 +203,7 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.createObject({ nodeType: "page", name: "cover.png", classIds: [ASSET_CLASS] });
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
     fireEvent.change(screen.getByLabelText("Search attachments"), { target: { value: "cover" } });
 
@@ -205,6 +217,7 @@ describe("Asset attachments (node-typed properties)", () => {
     const calls = stubFetch();
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
     const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
     fireEvent.change(screen.getByLabelText("Upload attachments"), { target: { files: [file] } });
@@ -248,6 +261,7 @@ describe("Asset attachments (node-typed properties)", () => {
     );
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
     const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
     fireEvent.change(screen.getByLabelText("Upload attachments"), { target: { files: [file] } });
@@ -268,6 +282,7 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.setProperty(sourceId, ATTACHMENTS, { nodeId: nodeB }, 1);
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     expect(screen.getByRole("button", { name: "a.pdf" })).not.toBeNull();
     fireEvent.click(screen.getByLabelText("Remove a.pdf"));
     await flushWrites();
@@ -293,6 +308,7 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.setProperty(sourceId, ATTACHMENTS, { nodeId: assetNode }, 0);
 
     const { container } = render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     // The chip resolves through the node_asset row, so the file name (not the
     // generic node name, and never a bare UUID) is what the user shows.
     expect(screen.getByRole("button", { name: "Chapter 1 — scan.pdf" })).not.toBeNull();
@@ -321,6 +337,7 @@ describe("Asset attachments (node-typed properties)", () => {
     }) as typeof window.open);
 
     render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     fireEvent.click(screen.getByRole("button", { name: "a.pdf" }));
 
     await waitFor(() => expect(opened).toEqual(["blob:notees-test"]));
@@ -351,6 +368,7 @@ describe("Asset attachments (node-typed properties)", () => {
 
     // The panel renders both chips in idx order with their asset names.
     const { container } = render(<PageView client={client} pageId={sourceId} />);
+    expandProperties();
     const chipNames = Array.from(container.querySelectorAll("button.nt-chip-label")).map(
       (el) => el.textContent,
     );
@@ -373,6 +391,7 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.createObject({ nodeType: "page", name: "Grace Hopper" });
 
     render(<PageView client={client} pageId={teamId} />);
+    expandProperties();
     const row = screen.getByText("mentor").closest(".nt-property-object") as HTMLElement;
     expect(row.textContent).not.toContain("default");
     fireEvent.click(within(row).getByRole("button", { name: "Add" }));

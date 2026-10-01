@@ -47,6 +47,7 @@ import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
+import { resolveCssColor } from "./ui/colorPresets.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -154,10 +155,11 @@ function isAssetClass(client: AnyClient, classId: string): boolean {
 
 /**
  * Readable text on a class-color background: relative-luminance threshold
- * picks the black/white token (class colors are stored hex, see ClassView).
+ * picks the black/white token. Stored colors are 'var(--color-preset-*)'
+ * references (or legacy hex), so resolve before computing.
  */
-function contrastFor(hex: string): string {
-  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+function contrastFor(color: string): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(resolveCssColor(color).trim());
   if (match === null) return "var(--color-on-primary-container)";
   const rgb = parseInt(match[1]!, 16);
   const channel = (shift: number) => ((rgb >> shift) & 0xff) / 255;
@@ -890,7 +892,7 @@ function BooleanPropertyRow({
  * a right-click color-swatch menu (object.update color), and a "+ Add class"
  * ghost pill opening the node-selector popup (assignClass).
  */
-function ClassesRow({
+export function ClassesRow({
   client,
   nodeId,
   classIds,
@@ -1040,7 +1042,7 @@ function ClassesRow({
  * assigned as a tag. Pills mirror the classes row; right-click opens the
  * node menu (remove goes through unassignTag).
  */
-function TagsRow({
+export function TagsRow({
   client,
   nodeId,
   tagIds,
@@ -1111,19 +1113,14 @@ function TagsRow({
           client={client}
           anchorEl={addButtonRef.current}
           searchMode="pages"
+          nodes={assignedTags}
           excludeNodeId={nodeId}
           alwaysShowCreate
           searchPlaceholder="Search pages…"
           onClose={() => setPickerOpen(false)}
-          onNodeClick={(tag) => {
+          onAdd={(node) => {
             setPickerOpen(false);
-            void client.assignTag(nodeId, tag.id);
-          }}
-          onCreateNew={(name) => {
-            setPickerOpen(false);
-            void client.createObject({ nodeType: "page", name }).then((tagId) => {
-              void client.assignTag(nodeId, tagId);
-            });
+            void client.assignTag(nodeId, node.id);
           }}
         />
       )}
@@ -1258,26 +1255,13 @@ function AddPropertyRow({
   );
 }
 
-export function MetadataSection({
-  client,
-  nodeId,
-  onOpenPage,
-  hideWhenEmpty = false,
-}: {
-  client: AnyClient;
-  nodeId: string;
-  /** Page navigation for the annotations section's annotation rows. */
-  onOpenPage?: ((pageId: string) => void) | undefined;
-  /**
-   * Block-list mode: render nothing when the node carries no metadata
-   * (no classes, tags, or property values/bindings). Pages pass the default
-   * (always render); BlockRow passes true.
-   */
-  hideWhenEmpty?: boolean;
-}) {
+/**
+ * The property-rows model shared by the Metadata section (blocks) and the
+ * Properties section (pages): effective rows grouped per schema, plus the
+ * bound-but-empty grouped bindings that still render an add affordance.
+ */
+function propertyGroupsOf(client: AnyClient, nodeId: string) {
   const rows = client.getEffectiveProperties(nodeId);
-
-  const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
 
   // Node-typed / date / date_range / boolean schemas render as one grouped
   // row per schema; select schemas join them only when they declare options
@@ -1328,9 +1312,31 @@ export function MetadataSection({
     }
   }
 
-  // The node's own classes: pills with an × that unassigns (class.unassign).
-  const classIds = node?.classIds ?? [];
-  const tagIds = node?.tagIds ?? [];
+  return { rows, rendered, emptyObjectBindings };
+}
+
+type PropertyGroups = ReturnType<typeof propertyGroupsOf>;
+
+/** Visible table rows: scalars + one per grouped schema + empty bindings. */
+function propertiesCountOf(groups: PropertyGroups): number {
+  return groups.rendered.filter((entry) => entry !== null).length + groups.emptyObjectBindings.length;
+}
+
+/**
+ * PropertiesTable — the property rows and the add affordance, shared by the
+ * Metadata section (blocks) and the Properties section (pages).
+ */
+export function PropertiesTable({
+  client,
+  nodeId,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
+  const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId);
+  const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
 
 
   const groupedRow = (
@@ -1413,23 +1419,9 @@ export function MetadataSection({
     );
   };
 
-  const count = classIds.length + tagIds.length + rows.length + emptyObjectBindings.length;
-  if (hideWhenEmpty && count === 0) return null;
-
   return (
-    <NodeViewSection
-      title="Metadata"
-      icon={<Icon path="mdi-tag-multiple-outline" size={0.9} />}
-      count={count}
-      className="node-metadata-section nt-properties-panel"
-      defaultExpanded
-    >
-      <div className="node-metadata-content">
-        <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
-        {node !== undefined && (node.nodeType === "page" || node.nodeType === "block") && (
-          <TagsRow client={client} nodeId={nodeId} tagIds={node.tagIds} onOpenPage={onOpenPage} />
-        )}
-        <ul className="nt-properties-list">
+    <>
+      <ul className="nt-properties-list">
           {rendered.map((entry) => {
             if (entry === null) return null;
             if (entry.kind === "grouped") {
@@ -1510,8 +1502,90 @@ export function MetadataSection({
               [],
             ),
           )}
-        </ul>
-        <AddPropertyRow client={client} nodeId={nodeId} />
+      </ul>
+      <AddPropertyRow client={client} nodeId={nodeId} />
+    </>
+  );
+}
+
+/**
+ * PropertiesSection — the page's "Properties N" section (note layout): every
+ * property field in the table, collapsed by default. Classes and tags are
+ * identity rows in the page header, not properties — the count covers
+ * property rows only.
+ */
+export function PropertiesSection({
+  client,
+  nodeId,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
+  const count = propertiesCountOf(propertyGroupsOf(client, nodeId));
+  return (
+    <NodeViewSection
+      title={`Properties ${count}`}
+      icon={<Icon path="mdi-table-properties" size={0.9} />}
+      className="node-metadata-section nt-properties-panel"
+      defaultExpanded={false}
+    >
+      <div className="node-metadata-content">
+        <PropertiesTable client={client} nodeId={nodeId} onOpenPage={onOpenPage} />
+      </div>
+    </NodeViewSection>
+  );
+}
+
+/**
+ * MetadataSection — the block-list metadata panel (BlockRow): classes, tags
+ * and properties under one expanded "Metadata" heading; renders nothing when
+ * empty. Pages use the header identity rows + PropertiesSection instead.
+ */
+export function MetadataSection({
+  client,
+  nodeId,
+  onOpenPage,
+  hideWhenEmpty = false,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  /** Page navigation for the annotations section's annotation rows. */
+  onOpenPage?: ((pageId: string) => void) | undefined;
+  /**
+   * Block-list mode: render nothing when the node carries no metadata
+   * (no classes, tags, or property values/bindings). Pages pass the default
+   * (always render); BlockRow passes true.
+   */
+  hideWhenEmpty?: boolean;
+}) {
+  const node = client.getNode(nodeId);
+  const groups = propertyGroupsOf(client, nodeId);
+  const count =
+    (node?.classIds.length ?? 0) +
+    (node?.tagIds.length ?? 0) +
+    propertiesCountOf(groups);
+  if (hideWhenEmpty && count === 0) return null;
+
+  return (
+    <NodeViewSection
+      title="Metadata"
+      icon={<Icon path="mdi-tag-multiple-outline" size={0.9} />}
+      className="node-metadata-section nt-properties-panel"
+      defaultExpanded
+    >
+      <div className="node-metadata-content">
+        <ClassesRow
+          client={client}
+          nodeId={nodeId}
+          classIds={node?.classIds ?? []}
+          onOpenPage={onOpenPage}
+        />
+        {node !== undefined && (node.nodeType === "page" || node.nodeType === "block") && (
+          <TagsRow client={client} nodeId={nodeId} tagIds={node.tagIds} onOpenPage={onOpenPage} />
+        )}
+        <PropertiesTable client={client} nodeId={nodeId} onOpenPage={onOpenPage} />
       </div>
     </NodeViewSection>
   );

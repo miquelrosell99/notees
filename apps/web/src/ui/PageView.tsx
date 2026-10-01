@@ -49,7 +49,7 @@ import {
   useBlockDndSensors,
   type DropLine,
 } from "./block-dnd.js";
-import { MetadataSection } from "./components/MetadataSection.js";
+import { PropertiesSection, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
@@ -67,12 +67,15 @@ export function PageView({
   client,
   pageId,
   onOpenPage,
+  onOpenInSidebar,
   embedded = false,
 }: {
   client: WorkspaceClient | WorkerClient;
   pageId: string;
   /** Page navigation (child-pages rows, reference crumbs). */
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** Shift+click peek target: open the node as a card in the right sidebar. */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /**
    * Embedded mode (journals feed): the title renders as a static button that
    * navigates to the full page view instead of the inline TitleEditor, and
@@ -187,6 +190,7 @@ export function PageView({
   const outliner = useOutlinerValue(client, pageId, {
     // f(node_type) navigation for query result lists (App routes the id).
     openNode: (id) => onOpenPage?.(id),
+    openInSidebar: (id) => onOpenInSidebar?.(id),
   });
   const positions = outliner.positions;
 
@@ -280,6 +284,9 @@ export function PageView({
             />
           )}
           <header className="nt-page-header">
+          {!embedded && (
+            <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
+          )}
           <div className="page-header__title-row">
             <span
               className="page-icon-btn"
@@ -295,6 +302,16 @@ export function PageView({
                 <span className="page-icon-placeholder">◈</span>
               )}
             </span>
+            {/* Right-click anywhere on the title (not just the icon) opens the
+                page's node context menu — the browser menu is never the
+                honest surface for a node. */}
+            <span
+              className="nt-page-title-wrap"
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setHeaderMenu({ x: event.clientX, y: event.clientY });
+              }}
+            >
             {embedded ? (
               <button
                 type="button"
@@ -307,14 +324,18 @@ export function PageView({
             ) : (
               <TitleEditor page={page} />
             )}
+            </span>
           </div>
+          {!embedded && (
+            <TagsRow client={client} nodeId={pageId} tagIds={page.tagIds} onOpenPage={onOpenPage} />
+          )}
         </header>
         {moveError !== null && (
           <div role="alert" className="nt-dnd-error">
             {moveError}
           </div>
         )}
-        <MetadataSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
+        <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
         <div className="nt-metadata-divider" />
         {whiteboardTokenIndex >= 0 ? (
           <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
@@ -352,6 +373,32 @@ collisionDetection={blockCollisionDetection}
         )}
         <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
         </div>
+        <NodeContextMenu
+          state={
+            headerMenu === null
+              ? null
+              : { ...headerMenu, node: page, isPage: true }
+          }
+          client={client}
+          onClose={() => setHeaderMenu(null)}
+          onOpenNode={(id) => {
+            setHeaderMenu(null);
+            onOpenPage?.(id);
+          }}
+          onExport={(id, name) => {
+            setHeaderMenu(null);
+            setExporting({ pageId: id, name });
+          }}
+        />
+        {exporting !== null && (
+          <ExportPageModal
+            isOpen
+            client={client}
+            nodeUuid={exporting.pageId}
+            nodeName={exporting.name}
+            onClose={() => setExporting(null)}
+          />
+        )}
       </LinkEditModalHost>
     </OutlinerContext.Provider>
   );
