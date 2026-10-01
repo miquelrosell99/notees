@@ -574,6 +574,8 @@ export class WorkerCore {
         return this.client.unassignTag(args[0] as string, args[1] as string);
       case "unassignClass":
         return this.client.unassignClass(args[0] as string, args[1] as string);
+      case "reorderClasses":
+        return this.client.reorderClasses(args[0] as string, args[1] as string[]);
       case "createClass":
         return this.client.createClass(
           args[0] as string,

@@ -33,7 +33,8 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
-import { MetadataSection } from "./components/MetadataSection.js";
+import { PropertiesSection, TagsRow } from "./components/MetadataSection.js";
+import { ClassPills } from "./components/ClassPills.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
@@ -148,13 +149,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockR
             </button>
           )}
           <span
-            className={
-              isCollapsed
-                ? "nt-bullet nt-bullet-collapsed"
-                : gripIcon !== null
-                  ? "nt-bullet nt-bullet-icon"
-                  : "nt-bullet"
-            }
+            className={`nt-bullet${isCollapsed && children.length > 0 ? " nt-bullet--collapsed" : ""}`}
             title="Zoom in (Shift+click: open in sidebar)"
             onClick={(event) => {
               event.stopPropagation();
@@ -167,7 +162,14 @@ export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockR
               }
             }}
           >
-            {gripIcon !== null ? <Icon path={gripIcon} size={0.8} /> : "\u2022"}
+            {children.length > 0 && <span className="nt-bullet-ring" aria-hidden="true" />}
+            {gripIcon !== null ? (
+              <span className="nt-bullet-icon">
+                <Icon path={gripIcon} size={0.8} />
+              </span>
+            ) : (
+              <span className="nt-bullet-dot" aria-hidden="true" />
+            )}
           </span>
         </span>
         <div className="nt-block-content" onClick={enterEdit}>
@@ -205,10 +207,41 @@ export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockR
             />
           )}
         </div>
+        {/* Classes: dedicated column at the right end of the row (first pill
+            + "+N" overflow popup, drag to reorder). */}
+        {!readOnly && (
+          <div className="nt-block-classes">
+            <ClassPills
+              client={client}
+              nodeId={node.id}
+              classIds={node.classIds}
+              onOpenPage={openNode}
+              overflow
+              iconOnlyAdd
+            />
+          </div>
+        )}
       </div>
-      {/* Block-level metadata: classes / tags / properties, and only when
-          the block actually carries some (hideWhenEmpty). */}
-      <MetadataSection client={client} nodeId={node.id} onOpenPage={openNode} hideWhenEmpty />
+      {/* Tags: dedicated row below the block row, only when set (assignment
+          rides the `#` trigger). */}
+      {!readOnly && node.tagIds.length > 0 && (
+        <div className="nt-block-tags">
+          <TagsRow client={client} nodeId={node.id} tagIds={node.tagIds} onOpenPage={openNode} />
+        </div>
+      )}
+      {/* Properties: the same collapsed "Properties N" section the page view
+          uses; hidden entirely when the block carries no properties. */}
+      {!readOnly && (
+        <PropertiesSection
+          client={client}
+          nodeId={node.id}
+          onOpenPage={openNode}
+          hideWhenEmpty
+        />
+      )}
+      {/* Block-level metadata now lives around the row: classes ride the
+          right-hand column, tags the dedicated row below, properties the
+          collapsed "Properties N" section (all above). */}
       <NodeContextMenu
         state={gripMenu === null ? null : { ...gripMenu, node, isPage: false }}
         client={outlinerClient}

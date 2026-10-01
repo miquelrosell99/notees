@@ -196,17 +196,17 @@ describe("PageView system sections", () => {
       <PageView client={client} pageId={pageId} onOpenPage={onOpenPage} />,
     );
 
-    // Collapsed: the child page appears nowhere.
-    expect(screen.queryByText("Child Page")).toBeNull();
+    // Expanded by default: the child page row renders in the section
+    // immediately (the read-only blocks list).
+    expect(within(section(/Child pages/)).getByText("Child Page")).not.toBeNull();
 
     // The body block list carries blocks only (projection rule 3).
     const body = container.querySelector(".nt-block-tree")!;
     expect(body.textContent).toContain("body block");
     expect(body.textContent).not.toContain("Child Page");
 
-    // Expand: the child page renders as a read-only blocks-list row and
-    // navigates on click.
-    fireEvent.click(screen.getByRole("button", { name: /Child pages/ }));
+    // The child page renders as a read-only blocks-list row and navigates on
+    // click (the section starts expanded).
     const childSection = section(/Child pages/);
     const row = within(childSection).getByText("Child Page");
     fireEvent.click(row.closest(".nt-block-content")!);

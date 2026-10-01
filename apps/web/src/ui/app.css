@@ -396,6 +396,28 @@ select:focus-visible {
   flex-direction: column;
 }
 
+/* Classes pinned to the content card's top-left corner (the card is the
+   nearest positioned ancestor; the pills sit outside the centered column). */
+.nt-page-card {
+  position: relative;
+}
+
+.nt-page-classes-corner {
+  position: absolute;
+  top: var(--spacing-4);
+  left: var(--spacing-4);
+  z-index: 1;
+}
+
+.nt-page-classes-corner .nt-classes-row {
+  margin-left: 0;
+  min-height: 0;
+}
+
+.nt-page-classes-corner .nt-classes-row > .section-label {
+  display: none;
+}
+
 .nt-page-title {
   margin: 0;
   font: var(--font-headline-medium);
@@ -538,29 +560,100 @@ select:focus-visible {
   padding-left: 14px;
 }
 
-.nt-block:hover > .nt-block-row .nt-block-chevron,
+/* Collapse chevron: revealed on bullet/gutter hover (the hover effect lives
+   on the bullet, v1-style), and while the row has focus. */
+.nt-block-grip:hover > .nt-block-chevron,
 .nt-block:focus-within > .nt-block-row .nt-block-chevron,
 .nt-block-chevron[aria-expanded="true"] {
   opacity: 1;
 }
 
-/* Collapsed state: outline around the bullet. */
-.nt-bullet-collapsed {
-  outline: 1.5px solid var(--color-primary);
-  outline-offset: 2px;
-  border-radius: var(--shape-full, 999px);
-}
-
+/* ── Bullet (v1 port: tactile dot, bolder, ring on collapsed) ─────────────
+   The hover effect lives on the BULLET, not the block: hovering grows the
+   dot and tints it accent; a block collapsed with children wears a soft
+   primary ring (the "ripple"); hover deepens it. */
 .nt-bullet {
-  cursor: pointer;
-}
-
-.nt-bullet {
-  color: var(--color-on-surface-variant);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
-  width: 12px;
-  text-align: center;
+  cursor: pointer;
   user-select: none;
+  -webkit-user-select: none;
+  border-radius: 50%;
+  color: var(--color-on-surface-variant);
+  touch-action: manipulation;
+}
+
+.nt-bullet:active {
+  cursor: grabbing;
+}
+
+.nt-bullet-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-on-surface-variant);
+  opacity: 0.55;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    background-color var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Hover / press: grow + accent (the v1 tactile feedback). */
+.nt-bullet:hover .nt-bullet-dot,
+.nt-bullet:focus-visible .nt-bullet-dot {
+  opacity: 1;
+  background-color: var(--color-accent);
+  transform: scale(1.2);
+}
+
+.nt-bullet:active .nt-bullet-dot {
+  opacity: 1;
+}
+
+/* Soft ring behind a collapsed-with-children bullet (v1 collapse UI). */
+.nt-bullet-ring {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  opacity: 0;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-standard),
+    background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-bullet--collapsed .nt-bullet-ring {
+  opacity: 1;
+}
+
+.nt-bullet--collapsed:hover .nt-bullet-ring {
+  background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+/* Class-icon bullets mirror the dot feedback. */
+.nt-bullet-icon {
+  display: inline-flex;
+  line-height: 1;
+  opacity: 0.55;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    color var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-bullet:hover .nt-bullet-icon,
+.nt-bullet:focus-visible .nt-bullet-icon {
+  opacity: 1;
+  color: var(--color-accent);
+  transform: scale(1.2);
 }
 
 .nt-block-chevron {
@@ -1050,6 +1143,21 @@ select:focus-visible {
 
 .nt-block-grip:active {
   cursor: grabbing;
+}
+
+/* Block classes: dedicated column pinned to the right end of the row. */
+.nt-block-classes {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding-left: var(--spacing-2);
+  align-self: flex-start;
+}
+
+/* Block tags / properties: dedicated rows under the block row, aligned with
+   the content column (past the 18px bullet grip + the row gap). */
+.nt-block-tags,
+.nt-block > .node-metadata-section {
+  margin-left: 26px;
 }
 
 /* Drop indicator: a line at the drop line, or a left accent for the

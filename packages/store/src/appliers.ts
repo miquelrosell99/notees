@@ -364,13 +364,35 @@ function recomputeTagIds(db: StoreDatabase, nodeId: string): void {
   );
 }
 
-/** Recompute node.class_ids from the OR-Set's present rows (sorted JSON). */
+/** Recompute node.class_ids from the OR-Set's present rows (sorted JSON).
+ *  User order (node.class_order, written by class.reorder) wins: ordered
+ *  members first, then any unlisted members sorted by id. */
 function recomputeClassIds(db: StoreDatabase, nodeId: string): void {
   const rows = db
     .prepare("SELECT class_id FROM class_member_set WHERE node_id = ? AND present = 1 ORDER BY class_id")
     .all(nodeId) as { class_id: string }[];
-  const classIds = rows.map((r) => r.class_id);
-  db.prepare("UPDATE node SET class_ids = ? WHERE id = ?").run(JSON.stringify(classIds), nodeId);
+  const present = rows.map((r) => r.class_id);
+  const orderRow = db.prepare("SELECT class_order FROM node WHERE id = ?").get(nodeId) as
+    | { class_order: string | null }
+    | undefined;
+  let ordered: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(orderRow?.class_order ?? "[]");
+    if (Array.isArray(parsed)) {
+      ordered = parsed.filter((v): v is string => typeof v === "string");
+    }
+  } catch {
+    ordered = [];
+  }
+  const presentSet = new Set(present);
+  const effective = [
+    ...ordered.filter((id) => presentSet.has(id)),
+    ...present.filter((id) => !ordered.includes(id)),
+  ];
+  db.prepare("UPDATE node SET class_ids = ? WHERE id = ?").run(
+    JSON.stringify(effective),
+    nodeId,
+  );
 }
 
 function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
@@ -748,6 +770,24 @@ function applyClassUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
         OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
             AND excluded.actor_id > COALESCE(actor_id, ''))`,
   ).run(p.objectId, p.classId, env.hlc.physical, env.hlc.logical, env.actorId);
+  recomputeClassIds(db, p.objectId);
+  return summary(opType, [p.objectId]);
+}
+
+/**
+ * Class ORDER (class.reorder): display-only user ordering, LWW-by-arrival —
+ * the applier is deterministic per op order, so convergent replicas agree.
+ * The class_ids projection merges: ordered members first, then unlisted
+ * members sorted by id (recomputeClassIds).
+ */
+function applyClassReorder(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "class.reorder";
+  const p = env.payload as OpPayload<"class.reorder">;
+  requireNode(db, p.objectId, opType);
+  db.prepare("UPDATE node SET class_order = ? WHERE id = ?").run(
+    JSON.stringify(p.classIds),
+    p.objectId,
+  );
   recomputeClassIds(db, p.objectId);
   return summary(opType, [p.objectId]);
 }
@@ -1194,6 +1234,7 @@ const APPLIERS: Record<
   "class.update": applyClassUpdate,
   "class.delete": applyClassDelete,
   "class.unassign": applyClassUnassign,
+  "class.reorder": applyClassReorder,
   "tag.unassign": applyTagUnassign,
   "class.setExtends": applyClassSetExtends,
   "class.property.set": applyClassPropertySet,

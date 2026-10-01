@@ -48,6 +48,8 @@ export interface OutlinerClient {
    * survive.
    */
   unassignClass(id: string, classId: string): Promise<void>;
+  /** User-defined class order (class.reorder). */
+  reorderClasses(id: string, classIds: string[]): Promise<void>;
   /**
    * OR-set tag membership add — the `#` capture gesture. Tags are any page
    * and attach to pages AND blocks (owner rule). No-op when already assigned.

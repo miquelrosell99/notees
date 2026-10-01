@@ -50,6 +50,7 @@ import {
   type DropLine,
 } from "./block-dnd.js";
 import { PropertiesSection, ClassesRow, TagsRow } from "./components/MetadataSection.js";
+import { IconPickerPopup } from "./components/IconPickerPopup.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
@@ -88,6 +89,9 @@ export function PageView({
   embedded?: boolean;
 }) {
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
+  /** Icon picker popup anchor + open state (clicking the page icon). */
+  const pageIconRef = useRef<HTMLElement | null>(null);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
@@ -278,6 +282,13 @@ export function PageView({
     <OutlinerContext.Provider value={outliner}>
       <LinkEditModalHost client={client} openerRef={linkOpenerRef}>
         <div className="nt-page" ref={pageRootRef} onClick={handleExternalLinkClick}>
+          {/* Classes: pinned to the main content card's top-left corner
+              (outside the centered content column), with card padding. */}
+          {!embedded && (
+            <div className="nt-page-classes-corner">
+              <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
+            </div>
+          )}
           {findOpen && (
             <FindReplaceWidget
               blocks={findDocs}
@@ -287,13 +298,14 @@ export function PageView({
             />
           )}
           <header className="nt-page-header">
-          {!embedded && (
-            <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
-          )}
           <div className="page-header__title-row">
             <span
               className="page-icon-btn"
-              title="Page icon"
+              title="Page icon (click: change icon)"
+              ref={pageIconRef}
+              onClick={() => {
+                if (!embedded) setIconPickerOpen((open) => !open);
+              }}
               onContextMenu={(event) => {
                 event.preventDefault();
                 setHeaderMenu({ x: event.clientX, y: event.clientY });
@@ -305,6 +317,17 @@ export function PageView({
                 <span className="page-icon-placeholder">◈</span>
               )}
             </span>
+            {iconPickerOpen && (
+              <IconPickerPopup
+                value={page.icon ?? undefined}
+                anchorEl={pageIconRef.current}
+                onSelect={(iconValue) => {
+                  // "" clears (Icon treats empty as no icon).
+                  void client.updateObject(pageId, { icon: iconValue });
+                }}
+                onClose={() => setIconPickerOpen(false)}
+              />
+            )}
             {/* Right-click anywhere on the title (not just the icon) opens the
                 page's node context menu — the browser menu is never the
                 honest surface for a node. */}

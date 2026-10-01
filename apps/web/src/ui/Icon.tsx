@@ -1,8 +1,9 @@
 /**
- * Icon — renders MDI icons as inline SVGs via a shared sprite sheet.
- *
- * All 7,000+ Material Design Icons are available through a single cached
- * static asset (`/mdi-sprite.svg`) referenced with `<use>`.
+ * Icon — renders MDI icons as inline SVGs via a shared sprite sheet, or a
+ * text glyph (emoji icons) when the stored value is not an MDI name. The
+ * resolver is the v1 iconDom contract: mdi-prefixed camelCase ("mdiHeart"),
+ * "mdi-heart-outline", bare "heart-outline", JSON-wrapped {"icon": …}
+ * (legacy v1 rows), and anything else renders as text (emoji passthrough).
  */
 import React from 'react';
 import { resolveIconSize } from './iconSizes.js';
@@ -35,20 +36,33 @@ function camelToKebab(name: string): string {
   return result;
 }
 
-function resolveMdiName(path: string): string | null {
-  const normalized = path.replace(/^mdi\s+/, '').replace(/^mdi-/, '');
+type ResolvedIcon = { kind: "mdi"; name: string } | { kind: "text"; glyph: string } | null;
 
-  // Already kebab-case (e.g. "heart-outline")
-  if (!normalized.startsWith('mdi')) {
-    return normalized;
+function resolveIcon(path: string): ResolvedIcon {
+  let value = path.trim();
+  if (value === "") return null;
+
+  // JSON-encoded icon field (legacy v1 rows): {"icon":"mdiHeart", …}.
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed === "object" && parsed !== null) {
+      const inner = (parsed as Record<string, unknown>).icon;
+      if (typeof inner === "string") value = inner.trim();
+    }
+  } catch {
+    // not JSON — the common case
   }
 
-  // camelCase (e.g. "mdiCalendarToday")
-  if (normalized.match(/^mdi[A-Z]/)) {
-    return camelToKebab(normalized);
+  const stripped = value.replace(/^mdi\s+/, "").replace(/^mdi-/, "");
+  const wasMdiPrefixed = stripped !== value;
+  if (wasMdiPrefixed && /^[a-z0-9-]+$/.test(stripped)) {
+    return { kind: "mdi", name: stripped };
   }
-
-  return null;
+  if (/^mdi[A-Z]/.test(value)) {
+    return { kind: "mdi", name: camelToKebab(value) };
+  }
+  // Emoji / text glyph passthrough (v1 contract).
+  return { kind: "text", glyph: value };
 }
 
 export const Icon: React.FC<IconProps> = ({
@@ -61,11 +75,7 @@ export const Icon: React.FC<IconProps> = ({
   horizontal,
   vertical,
 }) => {
-  const name = resolveMdiName(path);
-
-  if (!name) {
-    return null;
-  }
+  const resolved = resolveIcon(path);
 
   const style: React.CSSProperties = { verticalAlign: 'middle' };
 
@@ -85,6 +95,23 @@ export const Icon: React.FC<IconProps> = ({
     style.transform = transforms.join(' ');
   }
 
+  if (resolved === null) {
+    return null;
+  }
+  if (resolved.kind === "text") {
+    return (
+      <span
+        className={className}
+        style={{ ...style, fontSize: width, lineHeight: 1 }}
+        aria-hidden={!title}
+        role={title ? 'img' : undefined}
+        aria-label={title || undefined}
+      >
+        {resolved.glyph}
+      </span>
+    );
+  }
+
   return (
     <svg
       viewBox="0 0 24 24"
@@ -98,7 +125,7 @@ export const Icon: React.FC<IconProps> = ({
       aria-label={title || undefined}
     >
       {title && <title>{title}</title>}
-      <use href={`/mdi-sprite.svg#mdi-${name}`} />
+      <use href={`/mdi-sprite.svg#mdi-${resolved.name}`} />
     </svg>
   );
 };

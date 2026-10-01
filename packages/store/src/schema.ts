@@ -21,7 +21,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS node (
         CHECK (node_type IN ('page', 'block', 'class')),
     parent_id TEXT REFERENCES node(id),
     class_ids TEXT NOT NULL DEFAULT '[]',
+    -- User-defined class ORDER (class.reorder, LWW-by-arrival); the
+    -- effective class_ids = ordered members first, then unlisted members
+    -- sorted by id (recomputeClassIds).
+    class_order TEXT NOT NULL DEFAULT '[]',
     tag_ids TEXT NOT NULL DEFAULT '[]',
     name TEXT,
     content TEXT NOT NULL DEFAULT '[]',
@@ -372,6 +376,14 @@ export function migrate(
     const nodeColumns = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
     if (!nodeColumns.some((c) => c.name === "tag_ids")) {
       db.exec("ALTER TABLE node ADD COLUMN tag_ids TEXT NOT NULL DEFAULT '[]';");
+    }
+  }
+  // v6 -> v7: class order. node.class_order backfill for pre-existing
+  // databases (CREATE TABLE never alters).
+  if (current < 7) {
+    const nodeColsV7 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    if (!nodeColsV7.some((c) => c.name === "class_order")) {
+      db.exec("ALTER TABLE node ADD COLUMN class_order TEXT NOT NULL DEFAULT '[]';");
     }
   }
   // v2 -> v3: class_property gained LWW causality columns. Databases created
