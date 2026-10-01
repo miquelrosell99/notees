@@ -275,6 +275,11 @@ export interface CreateObjectInput {
   nodeType?: "page" | "block" | "class";
   /** Omit for a workspace-root page; null is accepted explicitly. */
   parentId?: string | null;
+  /**
+   * Title-is-content: `name` is NOT a stored field — it becomes the node's
+   * initial text content (a single text token) when `contentAst` is not
+   * given. A page's title IS its content.
+   */
   name?: string;
   contentAst?: ContentAst;
   classIds?: string[];
@@ -283,7 +288,6 @@ export interface CreateObjectInput {
 
 export interface UpdateObjectInput {
   nodeType?: "page" | "block" | "class";
-  name?: string;
   contentAst?: ContentAst;
   icon?: string;
   color?: string;
@@ -715,6 +719,14 @@ export class WorkspaceClient {
     return this.store.classParentIds(classId);
   }
 
+  /** Classes extending this one (transitive), as nodes — the "Extended by" read. */
+  getClassChildren(classId: string): ClientNode[] {
+    return this.store
+      .classChildIds(classId)
+      .map((id) => this.getNode(id) ?? this.getNodeRaw(id))
+      .filter((node): node is ClientNode => node !== undefined);
+  }
+
   /** Nodes with present OR-set membership in the class, display order. */
   getClassMembers(classId: string): ClientNode[] {
     return this.store.classMembers(classId).map(mapNode);
@@ -730,9 +742,12 @@ export class WorkspaceClient {
    */
   getClassBindings(classId: string): ClassBinding[] {
     const node = this.getNode(classId);
-    if (node === undefined || node.nodeType !== "class" || node.name === null) {
+    if (node === undefined || node.nodeType !== "class") {
       return [];
     }
+    // Title-is-content: the seed-spec lookup keys on the class's derived
+    // title text (its content), not a stored name.
+    const classTitle = deriveDisplayName(node);
     const decodeDefault = (raw: string | null): string | null => {
       if (raw === null) return null;
       try {
@@ -789,7 +804,7 @@ export class WorkspaceClient {
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
     let fallbackSeq = bindings.length;
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
-      if (spec === undefined || spec.bindTo !== node.name) continue;
+      if (spec === undefined || spec.bindTo !== classTitle) continue;
       const id = SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS];
       if (bound.has(id)) continue;
       bindings.push({
@@ -1034,13 +1049,18 @@ export class WorkspaceClient {
     }
     return {
       ids: result.ids,
-      rows: result.rows.map((row) => ({
-        id: String(row.id),
-        name: (row.name as string | null) ?? null,
-        nodeType: row.node_type as QueryRunSummary["nodeType"],
-        parentId: (row.parent_id as string | null) ?? null,
-        createdAt: (row.created_at as string | null) ?? null,
-      })),
+      rows: result.rows.map((row) => {
+        const node = this.getNode(String(row.id));
+        return {
+          id: String(row.id),
+          // Title-is-content: the summary name derives from the node's
+          // content (the retired name column is always null).
+          name: node !== undefined ? deriveDisplayName(node) || null : null,
+          nodeType: row.node_type as QueryRunSummary["nodeType"],
+          parentId: (row.parent_id as string | null) ?? null,
+          createdAt: (row.created_at as string | null) ?? null,
+        };
+      }),
     };
   }
 
@@ -1094,6 +1114,38 @@ export class WorkspaceClient {
         .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
         .all(current) as Array<{ parent_class_id: string }>;
       for (const parent of parents) queue.push(parent.parent_class_id);
+    }
+    return null;
+  }
+
+  /** Class effectiveIcon: the class's own icon, else the nearest ancestor in
+   * the extends chain with an icon (same walk as effectiveClassColor). */
+  effectiveClassIcon(classId: string): string | null {
+    const seen = new Set<string>();
+    const queue = [classId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      const node = this.getNode(current) ?? this.getNodeRaw(current);
+      if (node !== undefined && node.icon !== null && node.icon !== "") {
+        return node.icon;
+      }
+      const parents = this.store.database
+        .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
+        .all(current) as Array<{ parent_class_id: string }>;
+      for (const parent of parents) queue.push(parent.parent_class_id);
+    }
+    return null;
+  }
+
+  /** Node effectiveIcon: the node's own icon, else the first assigned class's
+   * effectiveIcon (class order), mirroring effectiveNodeColor. */
+  effectiveNodeIcon(node: Pick<ClientNode, "icon" | "classIds">): string | null {
+    if (node.icon !== null && node.icon !== undefined && node.icon !== "") return node.icon;
+    for (const classId of node.classIds) {
+      const icon = this.effectiveClassIcon(classId);
+      if (icon !== null) return icon;
     }
     return null;
   }
@@ -1269,7 +1321,13 @@ export class WorkspaceClient {
     if (partial.nodeType !== undefined) payload.nodeType = partial.nodeType;
     if (partial.classIds !== undefined) payload.classIds = partial.classIds;
     if (partial.tagIds !== undefined) payload.tagIds = partial.tagIds;
-    if (partial.name !== undefined) payload.name = partial.name;
+    // Title-is-content: the protocol has no object `name`. The `name`
+    // convenience becomes the node's initial text content (a single text
+    // token), so callers can keep naming pages at creation.
+    const initialText = partial.name !== undefined && partial.contentAst === undefined
+      ? [{ type: "text", text: partial.name }]
+      : undefined;
+    if (initialText !== undefined) payload.contentAst = initialText;
     if (partial.contentAst !== undefined) payload.contentAst = partial.contentAst;
     if (partial.parentId !== undefined) payload.parentId = partial.parentId;
     engine.enqueue(this.buildEnvelope("object.create", payload, [id]));
@@ -1283,7 +1341,6 @@ export class WorkspaceClient {
     const engine = this.requireEngine();
     const payload: Record<string, unknown> = { objectId: id };
     if (fields.nodeType !== undefined) payload.nodeType = fields.nodeType;
-    if (fields.name !== undefined) payload.name = fields.name;
     if (fields.contentAst !== undefined) payload.contentAst = fields.contentAst;
     if (fields.icon !== undefined) payload.icon = fields.icon;
     if (fields.color !== undefined) payload.color = fields.color;
@@ -1407,7 +1464,11 @@ export class WorkspaceClient {
   async createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string> {
     const engine = this.requireEngine();
     const id = uuidv7();
-    const payload: Record<string, unknown> = { classId: id, name };
+    // Title-is-content: the class's name becomes its (text-only) content.
+    const payload: Record<string, unknown> = {
+      classId: id,
+      contentAst: [{ type: "text", text: name }],
+    };
     if (opts?.icon !== undefined) payload.icon = opts.icon;
     if (opts?.color !== undefined) payload.color = opts.color;
     engine.enqueue(this.buildEnvelope("class.create", payload, [id]));
