@@ -3,12 +3,20 @@
  * bullets/rows, class/tag pills). Actions: open, copy link, favorite,
  * export (pages), remove pill (class/tag on an owner), delete. Favorites
  * toggle localStorage directly and broadcast so the sidebar refreshes.
+ *
+ * Delete: blocks vanish instantly; pages and classes close the menu and ask
+ * in the reusable ConfirmationModal (danger variant) — never an inline
+ * two-step, and the message names the node by its display name (never a
+ * raw uuid). `onDeleted` lets the host navigate away (parent page, else the
+ * default view) once the delete lands.
  */
 
 import { useState } from "react";
 
 import type { ClientNode } from "@/core/workspace-client.js";
 
+import { displayNameForSettings } from "../dateDisplay.js";
+import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 
 /** The minimal client surface the menu needs (both client classes satisfy it). */
@@ -20,6 +28,14 @@ interface MenuClient {
 export type NodeMenuState =
   | { x: number; y: number; node: ClientNode; ownerId?: string; isPage: boolean }
   | null;
+
+/** Human label for a node in destructive messages: display name, never an id. */
+export function displayLabelOf(node: ClientNode): string {
+  return (
+    displayNameForSettings(node) ||
+    (node.nodeType === "page" ? "Untitled page" : node.nodeType === "class" ? "Untitled class" : "Untitled block")
+  );
+}
 
 export function readFavorites(): string[] {
   try {
@@ -49,6 +65,7 @@ export function NodeContextMenu({
   onExport,
   onChangeColor,
   onRemoveFromOwner,
+  onDeleted,
 }: {
   state: NodeMenuState;
   client: MenuClient;
@@ -59,12 +76,14 @@ export function NodeContextMenu({
   onChangeColor?: ((x: number, y: number) => void) | undefined;
   /** Overrides the "Remove from this node" action (tags use unassignTag). */
   onRemoveFromOwner?: (() => void) | undefined;
+  /** Called after a delete lands (host navigates: parent page / default view). */
+  onDeleted?: ((node: ClientNode) => void) | undefined;
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   if (state === null) return null;
   const { node, ownerId, isPage } = state;
   const favorite = readFavorites().includes(node.id);
-  const name = node.name ?? node.id;
+  const name = displayLabelOf(node);
 
   const items: ContextMenuItem[] = [
     {
@@ -122,32 +141,48 @@ export function NodeContextMenu({
     });
   }
   items.push({ id: "s2", label: "", separator: true });
-  // Blocks delete instantly; pages and classes ask first (two-step confirm).
+  // Blocks delete instantly; pages and classes ask in the reusable
+  // ConfirmationModal (danger) — the menu closes, the modal decides.
   const confirmDelete = node.nodeType !== "block";
   items.push(
-    confirmingDelete || !confirmDelete
+    confirmDelete
       ? {
-          id: "confirm-delete",
-          label: confirmDelete ? `Delete ${name}?` : "Delete",
-          icon: "mdi-delete-outline",
-          danger: true,
-          onClick: () => {
-            void client.deleteObject(node.id);
-            onClose();
-          },
-        }
-      : {
           id: "delete",
           label: "Delete",
           icon: "mdi-delete-outline",
           danger: true,
-          // Stay open so the two-step confirm ("Delete <name>?") is clickable.
-          keepOpen: true,
           onClick: () => setConfirmingDelete(true),
+        }
+      : {
+          id: "confirm-delete",
+          label: "Delete",
+          icon: "mdi-delete-outline",
+          danger: true,
+          onClick: () => {
+            void client.deleteObject(node.id).then(() => onDeleted?.(node));
+            onClose();
+          },
         },
   );
 
   return (
-    <ContextMenu items={items} position={{ x: state.x, y: state.y }} onClose={onClose} />
+    <>
+      <ContextMenu items={items} position={{ x: state.x, y: state.y }} onClose={onClose} />
+      <ConfirmationModal
+        isOpen={confirmingDelete}
+        title={`Delete ${name}?`}
+        message={`This will delete "${name}" and everything it contains.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          await client.deleteObject(node.id);
+          setConfirmingDelete(false);
+          onClose();
+          onDeleted?.(node);
+        }}
+        onCancel={() => setConfirmingDelete(false)}
+      />
+    </>
   );
 }

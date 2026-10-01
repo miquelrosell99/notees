@@ -9,7 +9,7 @@
  * re-renders on client notifications, so renames refresh the chain.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -33,6 +33,20 @@ interface Crumb {
   name: string;
 }
 
+/** Per-crumb cap: long page/block names clip to "XXXX…" inside the trail. */
+const CRUMB_NAME_MAX = 28;
+export function clipCrumbName(name: string, max: number = CRUMB_NAME_MAX): string {
+  return name.length > max ? `${name.slice(0, max - 1)}…` : name;
+}
+
+/** Human crumb label: display name, never a raw uuid; per-crumb capped. */
+function crumbNameOf(node: ClientNode): string {
+  return clipCrumbName(
+    displayNameForSettings(node) ||
+      (node.nodeType === "page" ? "Untitled page" : node.nodeType === "class" ? "Untitled class" : "Untitled block"),
+  );
+}
+
 function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {
   const chain: Crumb[] = [];
   const seen = new Set<string>([nodeId]);
@@ -44,12 +58,7 @@ function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {
     const parent = client.getNode(parentId);
     if (parent === undefined) break;
     // Never render a raw UUID: unnamed pages/blocks get a human label.
-    chain.unshift({
-      node: parent,
-      name:
-        displayNameForSettings(parent) ||
-        (parent.nodeType === "page" ? "Untitled page" : "Untitled block"),
-    });
+    chain.unshift({ node: parent, name: crumbNameOf(parent) });
     current = parent;
   }
   return chain;
@@ -64,6 +73,7 @@ export function Breadcrumbs({
   excludeLeaf = false,
   /** Append the current node itself as a highlighted trailing crumb. */
   showCurrent = false,
+  anchor = "left",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -76,8 +86,19 @@ export function Breadcrumbs({
   /** Drop the trailing crumb (the node itself) — its content renders below. */
   excludeLeaf?: boolean | undefined;
   showCurrent?: boolean | undefined;
+  /**
+   * Overflow anchor. "left" (default) packs the trail from the left and clips
+   * the right end (the deepest crumbs truncate). "right" packs from the
+   * right and clips the LEFT end — top-level parents hide behind a leading
+   * "…" button that pops up the full trail. Per-crumb names are always
+   * capped (see clipCrumbName).
+   */
+  anchor?: "left" | "right" | undefined;
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
+  const [leadPopupOpen, setLeadPopupOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+  const [leadClipped, setLeadClipped] = useState(false);
 
   const currentNode = showCurrent ? client.getNode(nodeId) : undefined;
   let items = ancestryOf(client, nodeId);
@@ -91,6 +112,24 @@ export function Breadcrumbs({
   }
   if (excludeLeaf && items.length > 0) items = items.slice(0, -1);
   const showCurrentCrumb = currentNode !== undefined;
+
+  // Right-anchored trails: detect left-side overflow so the lead "…" button
+  // appears exactly when top-level crumbs are being clipped. Measurement is
+  // layout-only (jsdom rects stay zero → the button simply never shows).
+  // Runs BEFORE any early return: the hook order must stay stable across
+  // the empty→populated store re-render (deep links render null first).
+  useEffect(() => {
+    if (anchor !== "right") return;
+    const el = navRef.current;
+    if (el === null) return;
+    const update = () => setLeadClipped(el.scrollWidth > el.clientWidth + 1);
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [anchor, items, showCurrentCrumb]);
+
   if (items.length === 0 && !showCurrentCrumb) return null;
 
   const needsCollapse = items.length > COLLAPSE_AT;
@@ -124,7 +163,61 @@ export function Breadcrumbs({
   );
 
   return (
-    <nav className="node-breadcrumbs" aria-label="Page hierarchy">
+    <nav
+      ref={navRef}
+      className={`node-breadcrumbs${anchor === "right" ? " node-breadcrumbs--anchor-right" : ""}`}
+      aria-label="Page hierarchy"
+    >
+      {anchor === "right" && leadClipped && (
+        <span className="node-breadcrumb-item node-breadcrumb-lead-clip">
+          <button
+            type="button"
+            className="node-breadcrumb-link node-breadcrumb-ellipsis"
+            aria-label="Show hidden breadcrumbs"
+            aria-expanded={leadPopupOpen}
+            onClick={() => setLeadPopupOpen((open) => !open)}
+          >
+            …
+          </button>
+          <Icon path="mdi-chevron-right" size={0.7} className="node-breadcrumb-separator" />
+          {leadPopupOpen && (
+            <>
+              <button
+                type="button"
+                className="node-breadcrumb-popup-backdrop"
+                aria-label="Close breadcrumbs popup"
+                onClick={() => setLeadPopupOpen(false)}
+              />
+              <div className="node-breadcrumb-popup-anchor">
+                <div className="node-breadcrumbs-popup">
+                  {[...items, ...(currentNode !== undefined ? [{ node: currentNode, name: crumbNameOf(currentNode) }] : [])].map(
+                    (item) => (
+                      <button
+                        key={item.node.id}
+                        type="button"
+                        className="node-breadcrumbs-popup-item"
+                        onClick={() => {
+                          setLeadPopupOpen(false);
+                          onOpenNode?.(item.node.id);
+                        }}
+                      >
+                        {item.node.icon !== null && (
+                          <Icon
+                            path={item.node.icon}
+                            size={0.8}
+                            className="node-breadcrumb-popup-icon"
+                          />
+                        )}
+                        <span className="node-breadcrumb-popup-name">{item.name}</span>
+                      </button>
+                    ),
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </span>
+      )}
       {startItems.map((item, index) =>
         crumb(
           item,
@@ -198,10 +291,7 @@ export function Breadcrumbs({
             {currentNode.icon !== null && (
               <Icon path={currentNode.icon} size={0.8} className="node-breadcrumb-icon" />
             )}
-            <span className="node-breadcrumb-name">
-              {displayNameForSettings(currentNode) ||
-                (currentNode.nodeType === "page" ? "Untitled page" : "Untitled block")}
-            </span>
+            <span className="node-breadcrumb-name">{crumbNameOf(currentNode)}</span>
           </button>
         </span>
       )}

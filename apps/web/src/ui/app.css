@@ -407,8 +407,9 @@ select:focus-visible {
   margin-bottom: var(--spacing-2);
 }
 
-/* Identity rows (classes above the title, tags below): small, label-less
-   pills flush with the title column — hierarchy cue, not a property table. */
+/* Identity rows (classes above the title, tags below): small pills flush
+   with the title column — hierarchy cue, not a property table. The classes
+   row carries no label (the pills are self-evident); Tags: keeps its cue. */
 .nt-page-header .node-metadata-row {
   min-height: var(--height-xs);
   margin-left: calc(var(--height-2xl) + var(--spacing-3));
@@ -422,6 +423,10 @@ select:focus-visible {
   font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
   margin-right: 0;
+}
+
+.nt-page-header .nt-classes-row > .section-label {
+  display: none;
 }
 
 .nt-page-header .nt-tags-row {
