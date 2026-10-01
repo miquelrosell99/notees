@@ -105,21 +105,22 @@ describe("BlockRow metadata section", () => {
     expect(input?.value).toBe("done");
   });
 
-  it("a block with only inherited defaults from no class still shows nothing", async () => {
-    // Tags are page-scoped in the client (assignTag refuses blocks), so the
-    // block-metadata condition is effectively classes-or-properties; a bare
-    // block stays clean either way.
+  it("shows the metadata section when the block has a tag", async () => {
+    // Tags are valid on blocks (owner rule): assignTag attaches any page.
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Clean" });
+    const tagId = await client.createObject({ nodeType: "page", name: "review-later" });
+    const pageId = await client.createObject({ nodeType: "page", name: "Tagged" });
     const blockId = await client.createObject({
       nodeType: "block",
       parentId: pageId,
-      contentAst: [{ type: "text", text: "no metadata at all" }],
+      contentAst: [{ type: "text", text: "tagged block" }],
     });
-    expect(() => client.assignTag(blockId, pageId)).rejects.toThrow(/scoped to pages/);
+    await client.assignTag(blockId, tagId);
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    expect(blockMetadata(container, blockId)).toBeNull();
+    const section = blockMetadata(container, blockId);
+    expect(section).not.toBeNull();
+    expect(section!.textContent).toContain("review-later");
   });
 
   it("the page-level metadata section still renders on its own", async () => {

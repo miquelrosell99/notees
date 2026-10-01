@@ -47,6 +47,13 @@ export interface OutlinerClient {
    */
   unassignClass(id: string, classId: string): Promise<void>;
   /**
+   * OR-set tag membership add — the `#` capture gesture. Tags are any page
+   * and attach to pages AND blocks (owner rule). No-op when already assigned.
+   */
+  assignTag(id: string, tagId: string): Promise<void>;
+  /** OR-set tag membership remove — the tag pill's × gesture. */
+  unassignTag(id: string, tagId: string): Promise<void>;
+  /**
    * Replace a class's full extends parent set (`class.setExtends`, m2m
    * replace semantics). The store fails loud on cycles (CycleError) — the
    * Class View surfaces that as a transient message.

@@ -1326,14 +1326,14 @@ export class WorkspaceClient {
   }
 
   /**
-   * Assign a tag (any page) to a page — page-scoped by design. The add
-   * carrier is a re-issued object.create with the single tag, the same
+   * Assign a tag (any page) to a node — pages AND blocks (owner rule:
+   * tags are node-scoped, the block metadata section renders them). The
+   * add carrier is a re-issued object.create with the single tag, the same
    * OR-Set convergence pattern as classes.
    */
   async assignTag(id: string, tagId: string): Promise<void> {
     const node = this.getNode(id) ?? this.getNodeRaw(id);
     if (!node) throw new Error(`assignTag: node ${id} not found`);
-    if (node.nodeType !== "page") throw new Error("assignTag: tags are scoped to pages");
     if (node.tagIds.includes(tagId)) return;
     await this.createObject({
       id,
