@@ -9,10 +9,17 @@
   flex-direction: column;
   gap: var(--spacing-2);
   /* Separator between the child blocks and the system sections — always
-     visible, even when the page has no blocks. */
+     visible, even when the page has no blocks. The sections' own chrome
+     borders are suppressed here so the line appears exactly once. */
   border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
   padding-top: var(--spacing-2, 8px);
   margin-top: var(--spacing-4, 16px);
+}
+
+.nt-page-sections .node-view-section {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .nt-section-list {

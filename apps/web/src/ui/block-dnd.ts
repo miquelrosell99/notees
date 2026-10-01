@@ -205,3 +205,77 @@ export function moveErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return "Block move failed";
 }
+
+// --- cross-tree resolution -------------------------------------------------------
+//
+// Rows that live OUTSIDE the page's own tree (linked references, embeds)
+// are not in the outliner positions map. resolveMoveFromClient resolves
+// those drops straight from the client: parent chains and sibling order via
+// getNode/getChildren. Same intent model, same guards.
+
+export interface ClientShape {
+  getNode(id: string): { id: string; parentId: string | null } | undefined;
+  getChildren(id: string): Array<{ id: string }>;
+}
+
+export function resolveMoveFromClient(args: {
+  activeId: string;
+  line: DropLine;
+  client: ClientShape;
+}): MoveResolution {
+  const { activeId, line, client } = args;
+  const over = client.getNode(line.targetId);
+  if (over === undefined) return { status: "noop" };
+
+  const inOwnSubtree = (startId: string | null): boolean => {
+    let current: string | null = startId;
+    const seen = new Set<string>();
+    while (typeof current === "string" && !seen.has(current)) {
+      if (current === activeId) return true;
+      seen.add(current);
+      current = client.getNode(current)?.parentId ?? null;
+    }
+    return false;
+  };
+
+  if (line.intent === "child") {
+    if (inOwnSubtree(line.targetId)) {
+      return { status: "refused", reason: "Can't drop a block into its own subtree" };
+    }
+    return { status: "move", command: { kind: "child", parentId: line.targetId } };
+  }
+
+  const parentId = over.parentId;
+  if (parentId === null) return { status: "noop" };
+  if (inOwnSubtree(parentId)) {
+    return { status: "refused", reason: "Can't drop a block into its own subtree" };
+  }
+  const siblings = client.getChildren(parentId);
+  const index = siblings.findIndex((sibling) => sibling.id === line.targetId);
+  const afterId =
+    line.intent === "below" ? line.targetId : index > 0 ? siblings[index - 1]!.id : null;
+  if (afterId === activeId) return { status: "noop" };
+  return { status: "move", command: { kind: "reorder", parentId, afterId } };
+}
+
+/** Cross-tree execute: the first-slot swap resolves siblings from the client. */
+export async function executeMoveFromClient(args: {
+  activeId: string;
+  command: MoveCommand;
+  client: ClientShape;
+  moveObject: (id: string, parentId: string | null, afterId?: string) => Promise<void>;
+}): Promise<void> {
+  const { activeId, command, client, moveObject } = args;
+  if (command.kind === "child") {
+    await moveObject(activeId, command.parentId);
+    return;
+  }
+  if (command.afterId !== null) {
+    await moveObject(activeId, command.parentId, command.afterId);
+    return;
+  }
+  const firstId = client.getChildren(command.parentId)[0]?.id;
+  if (firstId === undefined || firstId === activeId) return;
+  await moveObject(activeId, command.parentId, firstId);
+  await moveObject(firstId, command.parentId, activeId);
+}
