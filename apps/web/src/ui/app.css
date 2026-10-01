@@ -506,20 +506,13 @@ select:focus-visible {
   align-items: baseline;
   gap: 8px;
   padding: 2px 0;
+  /* Room for the hover-revealed collapse chevron, which sits in this gutter
+     (absolute, left of the bullet) so bullets stay aligned at every level. */
+  padding-left: 14px;
 }
 
-/* Chevron: separate element, left of the bullet; revealed on block hover or
-   while the block holds the edit focus (one editor per window); stays visible
-   when collapsed so the subtree can be reopened. */
-.nt-block-chevron {
-  opacity: 0;
-  transition: opacity var(--motion-duration-short, 120ms) var(--motion-easing-standard, ease);
-  width: 14px;
-  flex-shrink: 0;
-}
-
-.nt-block:hover .nt-block-chevron,
-.nt-block:focus-within .nt-block-chevron,
+.nt-block:hover > .nt-block-row .nt-block-chevron,
+.nt-block:focus-within > .nt-block-row .nt-block-chevron,
 .nt-block-chevron[aria-expanded="true"] {
   opacity: 1;
 }
@@ -544,14 +537,19 @@ select:focus-visible {
 }
 
 .nt-block-chevron {
-  width: 12px;
-  flex-shrink: 0;
+  position: absolute;
+  right: calc(100% + 1px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--color-on-surface-variant);
   text-align: center;
   user-select: none;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short, 120ms) var(--motion-easing-standard, ease);
   font: inherit;
   line-height: inherit;
 }
@@ -1041,13 +1039,15 @@ select:focus-visible {
 /* The bullet/chevron area is the drag handle (whole-row drag would fight
    text editing); a 4px activation distance keeps plain clicks untouched. */
 .nt-block-grip {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  justify-content: center;
+  width: 18px;
+  flex-shrink: 0;
   cursor: grab;
   color: var(--color-on-surface-variant);
   touch-action: none;
-  flex-shrink: 0;
 }
 
 .nt-block-grip:active {
