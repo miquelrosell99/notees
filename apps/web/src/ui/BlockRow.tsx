@@ -55,6 +55,7 @@ export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
     client: outlinerClient,
     rootId,
     openNode,
+    openInSidebar,
     focusRequest,
     acknowledgeFocus,
     collapsed,
@@ -139,10 +140,16 @@ export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
                   ? "nt-bullet nt-bullet-icon"
                   : "nt-bullet"
             }
-            title="Zoom in"
+            title="Zoom in (Shift+click: open in sidebar)"
             onClick={(event) => {
               event.stopPropagation();
-              openNode(node.id);
+              // Shift+click peeks the block in the right sidebar; a plain
+              // click zooms to the focused block view.
+              if (event.shiftKey) {
+                openInSidebar(node.id);
+              } else {
+                openNode(node.id);
+              }
             }}
           >
             {gripIcon !== null ? <Icon path={gripIcon} size={0.8} /> : "\u2022"}

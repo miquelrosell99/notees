@@ -26,7 +26,7 @@
  * and the topbar polls the worker's sync status.
  */
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
@@ -47,7 +47,7 @@ import {
 
 import { Icon } from "./Icon.js";
 import { PageView } from "./PageView.js";
-import { displayNameForSettings } from "./dateDisplay.js";
+import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 import { ClassView } from "./ClassView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
@@ -215,10 +215,12 @@ export function NodeView({
   client,
   nodeId,
   onOpenNode,
+  onOpenInSidebar,
 }: {
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
 }) {
   const node = client.getNode(nodeId);
   if (node === undefined) {
@@ -232,7 +234,68 @@ export function NodeView({
   if (node.nodeType === "block") {
     return <FocusedBlockView client={client} blockId={nodeId} onOpenNode={onOpenNode} />;
   }
-  return <PageView client={client} pageId={nodeId} onOpenPage={onOpenNode} />;
+  return (
+    <PageView client={client} pageId={nodeId} onOpenPage={onOpenNode} onOpenInSidebar={onOpenInSidebar} />
+  );
+}
+
+/**
+ * SidebarNodeCard — one independent peek card in the right sidebar
+ * (shift+click a block bullet): the node's own view (page/class/focused
+ * block) with a close button; links inside navigate the main view.
+ */
+function SidebarNodeCard({
+  client,
+  nodeId,
+  onOpenNode,
+  onClose,
+}: {
+  client: WorkspaceClient | WorkerClient;
+  nodeId: string;
+  onOpenNode: (nodeId: string) => void;
+  onClose: () => void;
+}) {
+  const node = client.getNode(nodeId);
+  const title = node === undefined ? null : displayNameFromClient(client, nodeId);
+  return (
+    <section className="nt-sidebar-card" aria-label={title ?? "Node preview"}>
+      <header className="nt-sidebar-card__header">
+        <span className="nt-sidebar-card__title">
+          {title ?? (node === undefined ? "Not found" : "Untitled")}
+        </span>
+        <span className="nt-sidebar-card__actions">
+          <button
+            type="button"
+            className="nt-sidebar-card__action"
+            aria-label={`Open ${title ?? "card"} in main view`}
+            title="Open in main view"
+            onClick={() => {
+              onOpenNode(nodeId);
+              onClose();
+            }}
+          >
+            <Icon path="mdi-arrow-right" size={0.8} />
+          </button>
+          <button
+            type="button"
+            className="nt-sidebar-card__action"
+            aria-label={`Close ${title ?? "card"}`}
+            title="Close"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </span>
+      </header>
+      <div className="nt-sidebar-card__body">
+        {node === undefined ? (
+          <div className="nt-page-missing">Page not found.</div>
+        ) : (
+          <NodeView client={client} nodeId={nodeId} onOpenNode={onOpenNode} />
+        )}
+      </div>
+    </section>
+  );
 }
 
 export function App() {
@@ -264,6 +327,19 @@ export function App() {
     return window.matchMedia("(min-width: 801px)").matches;
   });
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  /**
+   * Right-sidebar peek cards (shift+click a block bullet): most recent first.
+   * Re-clicking an open card brings it to the top; opening a card opens the
+   * panel.
+   */
+  const [sidebarCards, setSidebarCards] = useState<string[]>([]);
+  const openInSidebar = useCallback((nodeId: string) => {
+    setSidebarCards((prev) => [nodeId, ...prev.filter((id) => id !== nodeId)]);
+    setRightPanelOpen(true);
+  }, []);
+  const closeSidebarCard = useCallback((nodeId: string) => {
+    setSidebarCards((prev) => prev.filter((id) => id !== nodeId));
+  }, []);
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** Top-bar calendar popup (the popup needs the client, so it renders here). */
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -302,6 +378,36 @@ export function App() {
   function openPage(id: string): void {
     setSelectedPageId(id);
     window.history.pushState({ node: id }, "", `/${id}`);
+  }
+
+  /**
+   * Landing navigation for a workspace opened from the manager: the device's
+   * "default view" preference owns the URL and first screen — today's day
+   * page (chain ensured, page opened), the journal feed, or a hub fallback
+   * for the remaining choices (no graph surface in this slice yet).
+   */
+  function openWorkspaceLanding(): void {
+    const live = clientRef.current;
+    const view = readDeviceSetting<string | null>("defaultView", "today");
+    const toHub = (nav: NavKey, path: string) => {
+      setActiveNav(nav);
+      setSelectedPageId(null);
+      window.history.pushState({ nav }, "", path);
+    };
+    if (view === "today" && live !== null) {
+      const now = new Date();
+      const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+        now.getDate(),
+      ).padStart(2, "0")}`;
+      void live.ensureDateChain(iso).then(({ day }) => openPage(day));
+      return;
+    }
+    if (view === "journal") {
+      toHub("journal", "/journals");
+      return;
+    }
+    // "all-pages" / "graph" / legacy values: the Pages hub.
+    toHub("pages", "/pages");
   }
 
   /** Back/forward navigation drives the selection / views. */
@@ -463,12 +569,13 @@ export function App() {
       setWorkspaceName(options.label ?? "Workspace");
       // Keep meaningful URLs across connect: a hub route (/journal, /inbox, …)
       // or a node deep link survives workspace (re)connects; anything else
-      // (e.g. /workspaces after entering) resolves to the app root.
+      // (e.g. /workspaces after entering) resolves to the app root. replaceState
+      // (no new entry): the manager's landing navigation owns the history slot.
       const bootPath = window.location.pathname;
       const keepPath =
         navFromPath(bootPath) !== null ||
         /^\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bootPath);
-      window.history.pushState({ view: "app" }, "", keepPath ? bootPath : "/");
+      window.history.replaceState({ view: "app" }, "", keepPath ? bootPath : "/");
       clientRef.current = nextClient;
       setClient(nextClient);
       setOffline(options.isOffline);
@@ -972,20 +1079,22 @@ export function App() {
         activeWorkspaceId={readStored(STORAGE_KEYS.workspaceId) !== "" && enteringFromApp ? readStored(STORAGE_KEYS.workspaceId) : null}
         onEnter={(workspaceId, name) => {
           setManagerOpen(false);
+          const connectOptions = enteringFromApp
+            ? { isOffline: false, credentialType: (sessionSignedIn ? "session" : "apikey") as CredentialType, label: name }
+            : {
+                isOffline: false,
+                credentialType: (authTab === "apikey" ? "apikey" : "session") as CredentialType,
+                label: name,
+              };
           if (enteringFromApp) {
             setSelectedPageId(null);
-            void connect(serverUrl, token, workspaceId, {
-              isOffline: false,
-              credentialType: sessionSignedIn ? "session" : "apikey",
-              label: name,
-            });
-          } else {
-            void connect(serverUrl, token, workspaceId, {
-              isOffline: false,
-              credentialType: authTab === "apikey" ? "apikey" : "session",
-              label: name,
-            });
           }
+          // The device "default view" preference owns the landing: after the
+          // connect resolves, navigate to today's page / journal / hub and
+          // rewrite the URL (the manager's /workspaces path never survives).
+          void connect(serverUrl, token, workspaceId, connectOptions).then(() =>
+            openWorkspaceLanding(),
+          );
         }}
         onRenamed={(_id, name) => setWorkspaceName(name)}
         onOpenUserSettings={
@@ -1098,7 +1207,12 @@ export function App() {
           }
         >
           {selectedPageId !== null ? (
-            <NodeView client={client} nodeId={selectedPageId} onOpenNode={openPage} />
+            <NodeView
+              client={client}
+              nodeId={selectedPageId}
+              onOpenNode={openPage}
+              onOpenInSidebar={openInSidebar}
+            />
           ) : activeNav === "journal" ? (
             <JournalsView client={client} onOpenPage={openPage} />
           ) : (
@@ -1107,7 +1221,19 @@ export function App() {
         </PageCard>
         {rightPanelOpen && (
           <aside className="nt-right-card" aria-label="Right sidebar">
-            <div className="nt-right-card-placeholder" />
+            {sidebarCards.length === 0 ? (
+              <div className="nt-right-card-placeholder" />
+            ) : (
+              sidebarCards.map((cardId) => (
+                <SidebarNodeCard
+                  key={cardId}
+                  client={client}
+                  nodeId={cardId}
+                  onOpenNode={openPage}
+                  onClose={() => closeSidebarCard(cardId)}
+                />
+              ))
+            )}
           </aside>
         )}
       </div>

@@ -96,6 +96,19 @@
   --color-accent-subtle: #737373;
   --color-surface-tint: transparent;
 
+  /* ==================== Data-level preset colors ====================
+     Application data colors (node/class/tag colors, selection options):
+     stored on nodes as 'var(--color-preset-*)' references so themes can
+     remap the concrete hex without touching data. Not design tokens. */
+  --color-preset-red: #d64540;
+  --color-preset-orange: #e07b39;
+  --color-preset-yellow: #cfa70a;
+  --color-preset-green: #219653;
+  --color-preset-teal: #1f8b80;
+  --color-preset-blue: #336cf6;
+  --color-preset-purple: #7b4ef6;
+  --color-preset-pink: #d23885;
+
   /* ==================== Graph View (light defaults) ==================== */
   --graph-node-default: #737373;
   --graph-edge-color: #d4d4d4;

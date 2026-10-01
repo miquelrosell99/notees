@@ -30,7 +30,7 @@ export interface ViewportPosition {
 }
 
 export function useViewportPosition(
-  anchorRef: RefObject<HTMLElement | null>,
+  anchorRef: RefObject<{ getBoundingClientRect(): DOMRect } | null>,
   isOpen: boolean,
   options: ViewportPositionOptions,
 ): ViewportPosition | null {

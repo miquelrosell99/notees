@@ -21,17 +21,18 @@
  * marks. Edit mode stays plain-text visual by design (per-run DOM rendering
  * would break caret stability); marks render in read mode as today.
  *
- * Capture gestures (owner-refined 2026-09-26):
- * - `@`  mention/link: inline popup over nodes (pages/blocks/classes);
- *   Enter inserts `{type:"mention", targetNodeId, text, linkId}` at the
- *   caret; no match + Enter strips the trigger (plain-text fallback);
- *   Esc closes.
- * - `#`  tag: popup over classes as tag vocabulary; Enter assigns the picked
- *   (or auto-created, class.create) class to the node — OR-set class_ids add,
- *   immediate write; Shift+Enter inserts a render-only class_chip token
- *   instead (no assignment).
- * - `+`  class picker: same popup over EXISTING classes only (no auto-create);
- *   Enter assigns, Shift+Enter inserts the chip.
+ * Capture gestures (owner-refined 2026-09-26; node-picker popups 2026-10-01):
+ * - `@`  mention/link: the node picker popup (ported NodeSelector) opens
+ *   anchored at the caret with its own search field — pages and blocks only,
+ *   no classes; picking inserts `{type:"mention", targetNodeId, text, linkId}`
+ *   at the trigger; the create row links a new page named by the query; the
+ *   typed-date row links the journal chain page. Esc/click-outside keeps the
+ *   trigger char as plain text and hands focus back to the block.
+ * - `#`  tag: the same popup over pages; picking assigns the tag to the node
+ *   (first-class tag_ids OR-set add) and consumes the trigger; the create row
+ *   creates + assigns the page.
+ * - `+`  class: the same popup over classes only (no pages, no auto-create of
+ *   pages — the create row makes a class); picking assigns it (OR-set add).
  * - `/`  slash commands: the ported TriggerPopup (inline mode) over the
  *   block-type actions the content grammar executes — Text (strip the
  *   trigger), Quote (wrap the block's inline tokens in a quote token),
@@ -78,11 +79,11 @@ import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/ma
 import { withCandidateSpans } from "@/editor/capture.js";
 import type { ClientNode } from "@/core/workspace-client.js";
 
-import { CapturePopup, type CaptureCandidate } from "./CapturePopup.js";
 import { VerbPopover } from "./VerbPopover.js";
 import { useOutliner } from "./outliner-context.js";
 import { FloatingToolbar } from "./editor-popups/FloatingToolbar.js";
 import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUsage } from "./editor-popups/TriggerPopup.js";
+import { NodeSelector } from "./components/pickers/NodeSelector.js";
 import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
 
 export const SAVE_DEBOUNCE_MS = 400;
@@ -93,16 +94,25 @@ export type EditorCaret = CaretPlacement | { x: number; y: number };
 /** Which capture trigger opened the popup. */
 type CaptureKind = "mention" | "tag" | "class" | "slash";
 
+/** One selectable row of the slash popup (the TriggerPopup's contract). */
+interface SlashCandidate {
+  id: string;
+  label: string;
+}
+
 const TRIGGER_CHAR: Record<CaptureKind, string> = { mention: "@", tag: "#", class: "+", slash: "/" };
 
 interface CaptureState {
   kind: CaptureKind;
   /** Prose offset of the trigger character. */
   start: number;
-  /** Draft text between the trigger and the caret. */
+  /** Draft text between the trigger and the caret (slash inline mode only —
+   *  the node-picker popups own their search field). */
   query: string;
-  /** Selected candidate row. */
+  /** Selected candidate row (slash inline mode only). */
   index: number;
+  /** Viewport anchor captured when a node-picker popup opened (caret line). */
+  anchor?: { top: number; left: number };
 }
 
 /** Inline token types the quote token admits as children (SCHEMA.md grammar). */
@@ -322,64 +332,30 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
 
   // --- capture gestures -------------------------------------------------------
 
-  /** Filtered popup rows for the active capture (recomputed per keystroke). */
-  const captureItems = useMemo<CaptureCandidate[]>(() => {
-    if (capture === null) return [];
+  /** Filtered popup rows for the active slash capture (recomputed per keystroke). */
+  const captureItems = useMemo<SlashCandidate[]>(() => {
+    if (capture === null || capture.kind !== "slash") return [];
     const query = capture.query.trim();
     const q = query.toLowerCase();
-    if (capture.kind === "slash") {
-      // Slash commands: label match outranks description match, usage breaks
-      // ties (the ranking contract the TriggerPopup rows were designed for).
-      return SLASH_COMMANDS.map((cmd) => {
-        const labelMatch = cmd.label.toLowerCase().includes(q);
-        const descMatch = cmd.description.toLowerCase().includes(q);
-        const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
-        return { cmd, textScore, freq: slashUsage[cmd.id] || 0 };
-      })
-        .filter((s) => s.textScore > 0 || query === "")
-        .sort((a, b) => (b.textScore !== a.textScore ? b.textScore - a.textScore : b.freq - a.freq))
-        .map((s) => ({ id: s.cmd.id, label: s.cmd.label }));
-    }
-    if (capture.kind === "mention") {
-      const nodes: ClientNode[] =
-        query === ""
-          ? [...captureApi.searchNodes(""), ...captureApi.listClasses()]
-          : captureApi.searchNodes(query);
-      const seen = new Set<string>();
-      const items: CaptureCandidate[] = [];
-      for (const node of nodes) {
-        if (seen.has(node.id)) continue;
-        seen.add(node.id);
-        items.push({ id: node.id, label: captureApi.displayName(node.id) ?? node.id });
-        if (items.length >= 8) break;
-      }
-      return items;
-    }
-    if (capture.kind === "tag") {
-      // Tags are pages: any page can be assigned as a tag. Classes are not
-      // tag candidates (the "+" picker owns class assignment).
-      const nodes = captureApi.searchNodes(query).filter((n) => n.nodeType === "page");
-      const items: CaptureCandidate[] = [];
-      for (const node of nodes) {
-        items.push({ id: node.id, label: captureApi.displayName(node.id) ?? node.id });
-        if (items.length >= 8) break;
-      }
-      return items;
-    }
-    const items: CaptureCandidate[] = [];
-    for (const cls of captureApi.listClasses()) {
-      const label = captureApi.displayName(cls.id) ?? cls.id;
-      if (q !== "" && !label.toLowerCase().includes(q)) continue;
-      items.push({ id: cls.id, label });
-      if (items.length >= 8) break;
-    }
-    return items;
-  }, [capture, captureApi, slashUsage]);
+    // Slash commands: label match outranks description match, usage breaks
+    // ties (the ranking contract the TriggerPopup rows were designed for).
+    return SLASH_COMMANDS.map((cmd) => {
+      const labelMatch = cmd.label.toLowerCase().includes(q);
+      const descMatch = cmd.description.toLowerCase().includes(q);
+      const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
+      return { cmd, textScore, freq: slashUsage[cmd.id] || 0 };
+    })
+      .filter((s) => s.textScore > 0 || query === "")
+      .sort((a, b) => (b.textScore !== a.textScore ? b.textScore - a.textScore : b.freq - a.freq))
+      .map((s) => ({ id: s.cmd.id, label: s.cmd.label }));
+  }, [capture, slashUsage]);
 
   /**
    * Reconcile the capture popup with the draft + caret: close when the
    * trigger was backspaced over or the caret left the query; open when a
-   * trigger char was just typed at a word boundary.
+   * trigger char was just typed at a word boundary. Slash tracks the query
+   * inline (the block is the search field); @/#/+ open the node-picker popup
+   * with its own search input, anchored at the caret line captured here.
    */
   const updateCapture = (draft: string, caret: number | null) => {
     setCapture((current) => {
@@ -391,15 +367,29 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
           draft[current.start] === trigger &&
           caret >= current.start;
         if (!stillOpen) return null;
-        return { ...current, query: draft.slice(current.start + 1, caret) };
+        if (current.kind === "slash") {
+          return { ...current, query: draft.slice(current.start + 1, caret) };
+        }
+        // Node-picker popups: the query lives in the popup's input; keep the
+        // capture (and the placeholder char) as long as the trigger survives.
+        return current;
       }
       if (caret === null || caret === 0) return null;
       const ch = draft[caret - 1]!;
       const boundary = caret === 1 || /\s/.test(draft[caret - 2]!);
       if (!boundary) return null;
-      if (ch === "@") return { kind: "mention", start: caret - 1, query: "", index: 0 };
-      if (ch === "#") return { kind: "tag", start: caret - 1, query: "", index: 0 };
-      if (ch === "+") return { kind: "class", start: caret - 1, query: "", index: 0 };
+      if (ch === "@") {
+        const anchor = caretLineAnchor();
+        return { kind: "mention", start: caret - 1, query: "", index: 0, anchor: { top: anchor.top, left: anchor.left } };
+      }
+      if (ch === "#") {
+        const anchor = caretLineAnchor();
+        return { kind: "tag", start: caret - 1, query: "", index: 0, anchor: { top: anchor.top, left: anchor.left } };
+      }
+      if (ch === "+") {
+        const anchor = caretLineAnchor();
+        return { kind: "class", start: caret - 1, query: "", index: 0, anchor: { top: anchor.top, left: anchor.left } };
+      }
       if (ch === "/") return { kind: "slash", start: caret - 1, query: "", index: 0 };
       return null;
     });
@@ -453,8 +443,6 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   const stripTrigger = (start: number, end: number) => {
     applySplice(start, end, [], start);
   };
-
-  const chipToken = (classId: string) => ({ type: "class_chip", classId });
 
   // --- slash commands -------------------------------------------------------
 
@@ -517,100 +505,87 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   };
 
   /**
-   * Enter/Shift+Enter (or click) on a capture row. `candidate` is undefined
-   * when the query has no rows — the per-kind fallback (mention/+: plain
-   * fallback keeping the query; #: auto-create the tag page, then assign on
-   * Enter or inline mention on Shift+Enter).
+   * Enter/Shift+Enter (or click) on a slash-capture row. `candidate` is
+   * undefined when the query has no rows — plain fallback keeping the query.
+   * (The @/#/+ popups own their keyboard handling inside the node picker.)
    */
-  const commitCapture = (candidate: CaptureCandidate | undefined, shiftKey: boolean) => {
+  const commitCapture = (candidate: SlashCandidate | undefined, shiftKey: boolean) => {
     const state = capture;
     const el = spanRef.current;
-    if (state === null || el === null) return;
+    if (state === null || el === null || state.kind !== "slash") return;
     const caret = caretOffset(el);
     if (caret === null) {
       setCapture(null);
       return;
     }
-    const { start, query } = state;
-    const trimmed = query.trim();
     setCapture(null);
+    if (candidate === undefined) {
+      plainFallback(state.start);
+      return;
+    }
+    runSlashCommand(candidate.id, state.start, caret, state.query);
+    void shiftKey; // slash rows have no alternative action
+  };
+
+  // --- node-picker gestures (@ / # / +) ---------------------------------------
+
+  /**
+   * Pick (or create) in the @/#/+ popup. The trigger placeholder is consumed
+   * from the draft (whatever the caret covers after it — the popup owned the
+   * typing, so normally just the one trigger char), then the per-kind action
+   * runs: @ inserts a mention token, # assigns the tag, + assigns the class.
+   */
+  const commitNodePick = (picked: ClientNode) => {
+    const state = capture;
+    if (state === null || state.kind === "slash") return;
+    setCapture(null);
+    const el = spanRef.current;
+    if (el === null) return;
+    const caret = caretOffset(el) ?? state.start + 1;
+    const end = Math.max(caret, state.start + 1);
     if (state.kind === "mention") {
-      if (candidate === undefined) {
-        plainFallback(start);
-        return;
-      }
-      const token = {
-        type: "mention",
-        targetNodeId: candidate.id,
-        text: candidate.label,
-        linkId: uuidv7(),
-      };
-      applySplice(start, caret, [token], start + candidate.label.length);
+      const label = captureApi.displayName(picked.id) ?? "Untitled";
+      applySplice(
+        state.start,
+        end,
+        [{ type: "mention", targetNodeId: picked.id, text: label, linkId: uuidv7() }],
+        state.start + label.length,
+      );
+      el.focus();
       return;
     }
     if (state.kind === "tag") {
-      // "#" adds a TAG (any page) to the node's Tags: Enter assigns it and
-      // strips the trigger (metadata is the gesture, not prose); Shift+Enter
-      // inserts an inline mention link to the tag page instead. No match:
-      // auto-create the tag page, then the same split.
-      const assign = (tagId: string) => {
-        void client.assignTag(nodeRef.current.id, tagId).catch((error: unknown) => {
-          console.warn(`[capture] assignTag (${tagId}) failed:`, error);
-        });
-      };
-      const inline = (tagId: string, label: string) => {
-        applySplice(
-          start,
-          caret,
-          [{ type: "mention", targetNodeId: tagId, text: label, linkId: uuidv7() }],
-          start + label.length,
-        );
-      };
-      if (candidate !== undefined) {
-        if (shiftKey) inline(candidate.id, candidate.label);
-        else {
-          assign(candidate.id);
-          stripTrigger(start, caret);
-        }
-        return;
-      }
-      if (trimmed === "") return; // bare "#" — nothing to create, keep the text
-      void client
-        .createObject({ nodeType: "page", name: trimmed })
-        .then((tagId) => {
-          if (shiftKey) inline(tagId, trimmed);
-          else {
-            assign(tagId);
-            stripTrigger(start, caret);
-          }
-        })
-        .catch((error: unknown) => {
-          console.warn(`[capture] tag page create "${trimmed}" failed:`, error);
-        });
-      return;
-    }
-    // "/" commands: pick executes the block-type action; no matching row
-    // falls back to plain prose (the typed query stays as text).
-    if (state.kind === "slash") {
-      if (candidate === undefined) {
-        plainFallback(start);
-        return;
-      }
-      runSlashCommand(candidate.id, start, caret, query);
-      return;
-    }
-    // "+" picker: existing classes only, no auto-create.
-    if (candidate === undefined) {
-      plainFallback(start);
-      return;
-    }
-    if (shiftKey) {
-      applySplice(start, caret, [chipToken(candidate.id)], start);
-    } else {
-      void client.assignClass(nodeRef.current.id, candidate.id).catch((error: unknown) => {
-        console.warn(`[capture] assignClass (${candidate.id}) failed:`, error);
+      void client.assignTag(nodeRef.current.id, picked.id).catch((error: unknown) => {
+        console.warn(`[capture] assignTag (${picked.id}) failed:`, error);
       });
-      stripTrigger(start, caret);
+      stripTrigger(state.start, end);
+      el.focus();
+      return;
+    }
+    void client.assignClass(nodeRef.current.id, picked.id).catch((error: unknown) => {
+      console.warn(`[capture] assignClass (${picked.id}) failed:`, error);
+    });
+    stripTrigger(state.start, end);
+    el.focus();
+  };
+
+  /**
+   * The @/#/+ popup closed without a pick (Escape / click outside): keep the
+   * trigger char as plain text and hand focus back to the block — unless the
+   * click that closed it is focusing something else (another block, the
+   * sidebar), in which case the normal blur flow owns the caret.
+   */
+  const closeNodePicker = () => {
+    const state = capture;
+    setCapture(null);
+    const el = spanRef.current;
+    if (el === null || state === null) return;
+    const active = document.activeElement;
+    const focusInPopup =
+      active instanceof HTMLElement && active.closest("[data-editor-companion]") !== null;
+    if (focusInPopup || active === null || active === document.body) {
+      el.focus();
+      placeCaret(el, state.start + 1);
     }
   };
 
@@ -667,8 +642,10 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
-    // Capture popup keys (the editor keeps the caret; the popup is visual).
-    if (capture !== null) {
+    // Slash popup keys (the editor keeps the caret; the popup is visual).
+    // The @/#/+ node pickers own their keyboard handling inside the popup's
+    // search input — nothing to intercept here while one of those is open.
+    if (capture !== null && capture.kind === "slash") {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
         const delta = event.key === "ArrowDown" ? 1 : -1;
@@ -838,18 +815,20 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
             onClose={() => setCapture(null)}
           />
         ) : (
-          <CapturePopup
-            top={selectionAnchor().top}
-            left={selectionAnchor().left}
-            items={captureItems}
-            selectedIndex={Math.min(capture.index, Math.max(captureItems.length - 1, 0))}
-            emptyHint="No matches"
-            onPick={(id) =>
-              commitCapture(
-                captureItems.find((item) => item.id === id),
-                false,
-              )
+          <NodeSelector
+            client={client}
+            anchorRect={capture.anchor ?? null}
+            searchMode={capture.kind === "mention" ? "all" : capture.kind === "tag" ? "pages" : "classes"}
+            excludeNodeId={nodeRef.current.id}
+            searchPlaceholder={
+              capture.kind === "mention"
+                ? "Search pages and blocks…"
+                : capture.kind === "tag"
+                  ? "Search pages…"
+                  : "Search classes…"
             }
+            onClose={closeNodePicker}
+            onAdd={commitNodePick}
           />
         ))}
       {verb !== null && (
