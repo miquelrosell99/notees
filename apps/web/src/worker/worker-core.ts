@@ -451,6 +451,10 @@ export class WorkerCore {
         return this.getNodeRaw(args[0] as string);
       case "getDisplayName":
         return this.getDisplayName(args[0] as string);
+      case "effectiveClassColor":
+        return this.client.effectiveClassColor(args[0] as string);
+      case "effectiveNodeColor":
+        return this.client.effectiveNodeColor(args[0] as { color: string | null; classIds: string[] });
       case "getPage":
         return this.getPage(args[0] as string);
       case "listPages":
