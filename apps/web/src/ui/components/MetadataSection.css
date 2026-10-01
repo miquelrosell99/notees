@@ -41,36 +41,6 @@
   min-width: 0;
 }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2-5);
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
-  border-radius: var(--shape-full);
-  font: var(--font-label-medium);
-  border: var(--border-width-default) solid transparent;
-  min-width: 0;
-}
-
-.pill:hover {
-  border-color: var(--color-outline-variant);
-}
-
-.pill--default {
-  border-style: dashed;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container);
-}
-
-.pill__left-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  flex-shrink: 0;
-}
 
 .pill__text {
   user-select: none;
@@ -153,23 +123,22 @@ span.pill__text {
 
 /* --- effective-property rows ---------------------------------------------- */
 
+/* Notion-style property table: internal row separators only (top edge +
+   between rows + bottom of last row); no side borders. Classes/tags live
+   above, outside the table. */
 .nt-properties-list {
   list-style: none;
   margin: var(--spacing-2, 8px) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  /* Notion-style property table: internal row separators only (top edge +
-     between rows + bottom of last row); no side borders. Classes/tags live
-     above, outside the table. */
   border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
-
+}
 
 .nt-properties-list > li {
   border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  padding: 4px 0;
+  padding: 6px 0;
   margin: 0;
-}
 }
 
 .nt-property {
@@ -286,4 +255,80 @@ span.pill__text {
 .nt-metadata-divider {
   border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
   margin: var(--spacing-3, 12px) 0 var(--spacing-4, 16px);
+}
+
+/* "+ Add property": ghost button under the table + anchored picker popup. */
+.nt-add-property {
+  position: relative;
+  margin-top: var(--spacing-2, 8px);
+}
+
+.nt-add-property-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 70;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--spacing-2, 8px);
+  background: var(--color-surface-container-high, var(--color-surface));
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.25));
+}
+
+.nt-add-property-popup input {
+  padding: 6px 10px;
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: 12.5px;
+}
+
+.nt-add-property-popup ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.nt-add-property-popup li > button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2, 8px);
+  padding: 6px var(--spacing-2, 8px);
+  border: none;
+  border-radius: var(--shape-small, 6px);
+  background: transparent;
+  color: var(--color-on-surface);
+  font-size: 13px;
+  text-align: left;
+}
+
+.nt-add-property-popup li > button:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-add-property-type {
+  color: var(--color-on-surface-variant);
+  font-size: 11px;
+}
+
+.nt-add-property-create {
+  border: none;
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  padding: 6px var(--spacing-2, 8px);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.nt-add-property-create:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
 }

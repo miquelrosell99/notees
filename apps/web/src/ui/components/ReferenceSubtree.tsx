@@ -8,21 +8,19 @@
  *
  * BlockRow consumes OutlinerContext and useSortable, so each subtree hosts
  * its own OutlinerContext (via useOutlinerValue, same as PageView/ClassView)
- * and its own local DndContext + SortableContext (mirror of PageView's,
- * without the DragOverlay — inner drags simply show no ghost). Drop handling
- * is a no-op: reordering references is not supported in this slice.
+ * and its own SortableContext — but NO DndContext: the surrounding page
+ * view's DndContext owns every row, so blocks drag across lists (page body
+ * ↔ linked references) within one drag session.
  */
 
 import { useEffect, useState } from "react";
 
-import { DndContext } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { BlockRow } from "../BlockRow.js";
-import { blockCollisionDetection, useBlockDndSensors } from "../block-dnd.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 
@@ -56,7 +54,6 @@ export function ReferenceSubtree({
   const outliner = useOutlinerValue(client, rootId, {
     openNode: (id) => onOpenNode?.(id),
   });
-  const sensors = useBlockDndSensors();
 
   const node = client.getNode(rootId);
   if (node === undefined) return null;
@@ -64,13 +61,11 @@ export function ReferenceSubtree({
 
   return (
     <OutlinerContext.Provider value={outliner}>
-      <DndContext sensors={sensors} collisionDetection={blockCollisionDetection}>
-        <SortableContext items={[node.id]} strategy={verticalListSortingStrategy}>
-          <div className="nt-refblock-tree">
-            <BlockRow tree={tree} client={client} resolveName={(id) => displayNameFromClient(client, id)} />
-          </div>
-        </SortableContext>
-      </DndContext>
+      <SortableContext items={[node.id]} strategy={verticalListSortingStrategy}>
+        <div className="nt-refblock-tree">
+          <BlockRow tree={tree} client={client} resolveName={(id) => displayNameFromClient(client, id)} />
+        </div>
+      </SortableContext>
     </OutlinerContext.Provider>
   );
 }
