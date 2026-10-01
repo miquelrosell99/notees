@@ -156,6 +156,10 @@ export function BlockRow({ tree, client, resolveName }: BlockRowProps) {
               tokens={node.contentAst}
               resolveName={resolveName}
               onOpenNode={openNode}
+              resolveColor={(id) => {
+                const target = outlinerClient.getNode(id);
+                return target === undefined ? null : outlinerClient.effectiveNodeColor(target);
+              }}
               renderEmbed={(id) => <EmbedView nodeId={id} />}
               renderQuery={(token, index) => (
                 <QueryBlockView

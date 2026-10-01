@@ -122,11 +122,13 @@ export function NodeContextMenu({
     });
   }
   items.push({ id: "s2", label: "", separator: true });
+  // Blocks delete instantly; pages and classes ask first (two-step confirm).
+  const confirmDelete = node.nodeType !== "block";
   items.push(
-    confirmingDelete
+    confirmingDelete || !confirmDelete
       ? {
           id: "confirm-delete",
-          label: `Delete ${name}?`,
+          label: confirmDelete ? `Delete ${name}?` : "Delete",
           icon: "mdi-delete-outline",
           danger: true,
           onClick: () => {
@@ -139,6 +141,8 @@ export function NodeContextMenu({
           label: "Delete",
           icon: "mdi-delete-outline",
           danger: true,
+          // Stay open so the two-step confirm ("Delete <name>?") is clickable.
+          keepOpen: true,
           onClick: () => setConfirmingDelete(true),
         },
   );

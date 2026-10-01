@@ -41,6 +41,8 @@ export interface InlineTokensProps {
    * as dashed-underline links that open the target (read mode).
    */
   onOpenNode?: ((nodeId: string) => void) | undefined;
+  /** Effective-color resolver: tints mention underlines with the target's color. */
+  resolveColor?: ((nodeId: string) => string | null) | undefined;
 }
 
 function renderMarkedText(text: string, marks: readonly string[] | undefined): ReactNode {
@@ -86,6 +88,7 @@ function renderToken(
   renderQuery: InlineTokensProps["renderQuery"],
   renderWhiteboard: InlineTokensProps["renderWhiteboard"],
   onOpenNode: InlineTokensProps["onOpenNode"],
+  resolveColor: InlineTokensProps["resolveColor"],
 ): ReactNode {
   if (typeof token !== "object" || token === null) return null;
   const t = token as Record<string, unknown>;
@@ -117,12 +120,14 @@ function renderToken(
         targetNodeId;
       if (!name) return null;
       if (onOpenNode !== undefined && targetNodeId !== "") {
+        const linkColor = resolveColor?.(targetNodeId) ?? null;
         return (
           <button
             key={key}
             type="button"
             className="nt-link"
             title={targetNodeId}
+            style={linkColor !== null ? { borderBottomColor: linkColor } : undefined}
             onClick={(event) => {
               event.stopPropagation();
               onOpenNode(targetNodeId);
@@ -155,7 +160,7 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-quote">
-          <InlineTokens tokens={children} resolveName={resolveName} renderEmbed={renderEmbed} onOpenNode={onOpenNode} />
+          <InlineTokens tokens={children} resolveName={resolveName} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
         </span>
       );
     }
@@ -204,10 +209,10 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode, resolveColor }: InlineTokensProps) {
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode, resolveColor))}
     </>
   );
 }

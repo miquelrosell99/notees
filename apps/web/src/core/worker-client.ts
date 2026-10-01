@@ -218,6 +218,18 @@ export class WorkerClient {
     return this.cachedRead("getDisplayName", [id], null);
   }
 
+  effectiveClassColor(classId: string): string | null {
+    return this.cachedRead("effectiveClassColor", [classId], null);
+  }
+
+  effectiveNodeColor(node: { color: string | null; classIds: string[] }): string | null {
+    return this.cachedRead(
+      "effectiveNodeColor",
+      [{ color: node.color, classIds: node.classIds }],
+      null,
+    );
+  }
+
   getPage(id: string): ClientNode | undefined {
     return this.cachedRead("getPage", [id], undefined);
   }

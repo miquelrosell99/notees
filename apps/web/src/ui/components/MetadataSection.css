@@ -261,3 +261,19 @@ span.pill__text {
 .nt-property-blockcell .nt-refblock-tree {
   padding: 0;
 }
+
+/* Properties table look: aligned label column (rows are flex); class-derived
+   (not yet realized) rows render muted so provenance is visible. */
+.node-metadata-row > .section-label:first-child {
+  flex: 0 0 140px;
+}
+
+.nt-property-default {
+  opacity: 0.55;
+}
+
+/* Hairline between the metadata section and the child blocks. */
+.nt-metadata-divider {
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  margin: var(--spacing-3, 12px) 0 var(--spacing-4, 16px);
+}
