@@ -48,6 +48,10 @@ import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
 import { resolveCssColor } from "./ui/colorPresets.js";
+import { ClassPills } from "./ClassPills.js";
+import { ContextMenu } from "./ui/ContextMenu.js";
+import { Modal } from "./ui/Modal.js";
+import { Button } from "./ui/Button.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -269,7 +273,7 @@ function ObjectPropertyRow({
           : "nt-property nt-property-object node-metadata-row"
       }
     >
-      <span className="section-label nt-property-name">{label}</span>
+      <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
       {allDefault && <span className="nt-property-hint">default</span>}
       {unbound && <span className="nt-property-hint">unbound</span>}
       <span className="nt-property-chips node-metadata-pills">
@@ -466,7 +470,7 @@ function DatePropertyRow({
           : "nt-property nt-property-date node-metadata-row"
       }
     >
-      <span className="section-label nt-property-name">{label}</span>
+      <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
       {allDefault && <span className="nt-property-hint">default</span>}
       {unbound && <span className="nt-property-hint">unbound</span>}
       <span className="nt-property-chips node-metadata-pills">
@@ -629,7 +633,7 @@ function DateRangePropertyRow({
           : "nt-property nt-property-date-range node-metadata-row"
       }
     >
-      <span className="section-label nt-property-name">{label}</span>
+      <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
       {allDefault && <span className="nt-property-hint">default</span>}
       {unbound && <span className="nt-property-hint">unbound</span>}
       <span className="nt-property-chips node-metadata-pills">
@@ -785,7 +789,7 @@ function SelectPropertyRow({
               : "nt-property nt-property-select node-metadata-row"
           }
         >
-          <span className="section-label nt-property-name">{label}</span>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
           {allDefault && <span className="nt-property-hint">default</span>}
           {unbound && <span className="nt-property-hint">unbound</span>}
           <SelectionPropertyControl
@@ -805,7 +809,7 @@ function SelectPropertyRow({
       ))}
       {ordered.length === 0 && (
         <li className="nt-property nt-property-select node-metadata-row">
-          <span className="section-label nt-property-name">{label}</span>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
           <SelectionPropertyControl
             options={options}
             values={[]}
@@ -856,7 +860,7 @@ function BooleanPropertyRow({
               : "nt-property nt-property-boolean node-metadata-row"
           }
         >
-          <span className="section-label nt-property-name">{label}</span>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
           {allDefault && <span className="nt-property-hint">default</span>}
           {unbound && <span className="nt-property-hint">unbound</span>}
           <Checkbox
@@ -872,7 +876,7 @@ function BooleanPropertyRow({
       ))}
       {ordered.length === 0 && (
         <li className="nt-property nt-property-boolean node-metadata-row">
-          <span className="section-label nt-property-name">{label}</span>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
           <Checkbox
             size="sm"
             checked={false}
@@ -903,139 +907,13 @@ export function ClassesRow({
   classIds: string[];
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
-  // (nodeMenu state lives below, next to the color menu.)
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [colorMenu, setColorMenu] = useState<{ classId: string; x: number; y: number } | null>(null);
-  const [nodeMenu, setNodeMenu] = useState<{ node: ClientNode; x: number; y: number } | null>(null);
-  const addButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  const assignedClasses = classIds
-    .map((classId) => client.getNode(classId))
-    .filter((node): node is ClientNode => node !== undefined);
-
   return (
     <div className="node-metadata-row nt-classes-row">
       <div className="section-label">Classes:</div>
-      <div className="nt-property-chips node-metadata-pills">
-        {classIds.map((classId) => {
-          const cls = client.getNode(classId);
-          const label = displayNameFromClient(client, classId) ?? classId;
-          // effectiveColor: the class's color, else the nearest colored
-          // ancestor in its extends chain.
-          const colored = client.effectiveClassColor(classId);
-          return (
-            <span
-              key={classId}
-              className="pill pill--hover-reveal-right"
-              style={
-                colored !== null
-                  ? { background: colored, color: contrastFor(colored) }
-                  : undefined
-              }
-              onContextMenu={(event) => {
-                if (cls === undefined) return;
-                event.preventDefault();
-                event.stopPropagation();
-                setNodeMenu({ node: cls, x: event.clientX, y: event.clientY });
-              }}
-            >
-              {cls?.icon !== null && cls?.icon !== undefined && (
-                <span className="pill__left-icon">
-                  <Icon path={cls.icon} size={0.7} />
-                </span>
-              )}
-              <button
-                type="button"
-                className="pill__text"
-                onClick={() => onOpenPage?.(classId)}
-              >
-                {label}
-              </button>
-              <button
-                type="button"
-                className="pill__right-button"
-                aria-label={`Remove class ${label}`}
-                onClick={() => void client.unassignClass(nodeId, classId)}
-              >
-                ×
-              </button>
-            </span>
-          );
-        })}
-        <span className="nt-class-add-anchor">
-          <AddPill
-            ref={addButtonRef}
-            className={classIds.length > 0 ? "pill--icon-only" : ""}
-            label="Add class"
-            aria-expanded={pickerOpen}
-            onClick={(element) => {
-              addButtonRef.current = element;
-              setPickerOpen((open) => !open);
-            }}
-          />
-        </span>
-      </div>
-      {pickerOpen && (
-        <NodeSelector
-          client={client}
-          searchMode="classes"
-          nodes={assignedClasses}
-          anchorEl={addButtonRef.current}
-          onClose={() => setPickerOpen(false)}
-          searchPlaceholder="Search classes"
-          onAdd={(node) => {
-            void client.assignClass(nodeId, node.id);
-            setPickerOpen(false);
-          }}
-        />
-      )}
-      {colorMenu !== null && (
-        <>
-          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click */}
-          <div
-            style={{ position: "fixed", inset: 0, zIndex: "var(--z-9998)" }}
-            onClick={() => setColorMenu(null)}
-          />
-          {createPortal(
-            <div
-              style={{
-                position: "fixed",
-                left: colorMenu.x,
-                top: colorMenu.y,
-                zIndex: "var(--z-9999)",
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <ColorPickerRow
-                currentColor={client.getNode(colorMenu.classId)?.color ?? null}
-                onColorChange={(color) => {
-                  // object.update has no null color (protocol: string only) —
-                  // "No color" is a no-op until the protocol grows a clear.
-                  if (color !== null) {
-                    void client.updateObject(colorMenu.classId, { color });
-                  }
-                  setColorMenu(null);
-                }}
-              />
-            </div>,
-            document.body,
-          )}
-        </>
-      )}
-      <NodeContextMenu
-        state={nodeMenu === null ? null : { ...nodeMenu, ownerId: nodeId, isPage: true }}
-        client={client}
-        onClose={() => setNodeMenu(null)}
-        onOpenNode={(id) => onOpenPage?.(id)}
-        onChangeColor={(x, y) => {
-          if (nodeMenu !== null) setColorMenu({ classId: nodeMenu.node.id, x, y });
-        }}
-      />
+      <ClassPills client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
     </div>
   );
 }
-
 
 /**
  * TagsRow — the "Tags:" metadata row (pages and blocks): any page can be
@@ -1057,7 +935,13 @@ export function TagsRow({
   const [nodeMenu, setNodeMenu] = useState<{ node: ClientNode; x: number; y: number } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const assignedTags = tagIds
+  // Tags render alphabetically everywhere (owner rule): order by display name.
+  const assignedTags = [...tagIds]
+    .sort((a, b) =>
+      (displayNameFromClient(client, a) ?? a).localeCompare(
+        displayNameFromClient(client, b) ?? b,
+      ),
+    )
     .map((tagId) => client.getNode(tagId))
     .filter((node): node is ClientNode => node !== undefined);
 
@@ -1067,16 +951,29 @@ export function TagsRow({
       <div className="nt-property-chips node-metadata-pills">
         {assignedTags.map((tag) => {
           const label = displayNameFromClient(client, tag.id) ?? tag.id;
+          // Pill chrome like classes: grey surface by default, the tag's
+          // effectiveColor (own, else its classes') as the background when set.
+          const colored = client.effectiveNodeColor(tag);
           return (
             <span
               key={tag.id}
-              className="nt-property-pill"
+              className="pill pill--hover-reveal-right"
+              style={
+                colored !== null
+                  ? { background: colored, color: contrastFor(colored) }
+                  : undefined
+              }
               onContextMenu={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 setNodeMenu({ node: tag, x: event.clientX, y: event.clientY });
               }}
             >
+              {tag.icon !== null && (
+                <span className="pill__left-icon">
+                  <Icon path={tag.icon} size={0.7} />
+                </span>
+              )}
               <button
                 type="button"
                 className="pill__text"
@@ -1325,6 +1222,12 @@ function propertiesCountOf(groups: PropertyGroups): number {
 /**
  * PropertiesTable — the property rows and the add affordance, shared by the
  * Metadata section (blocks) and the Properties section (pages).
+ *
+ * Property interactions (v1 port): clicking a property LABEL opens the
+ * property's configuration (PropertySettingsModal); right-clicking it opens
+ * the context menu (Open property / Empty property / Remove from node).
+ * Both ride event delegation on the list — the label spans carry
+ * `data-property-schema-id`.
  */
 export function PropertiesTable({
   client,
@@ -1337,6 +1240,61 @@ export function PropertiesTable({
 }) {
   const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId);
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
+  const [settingsFor, setSettingsFor] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ schemaId: string; x: number; y: number } | null>(null);
+
+  const schemaIdFromEvent = (event: React.SyntheticEvent): string | null => {
+    const target = event.target as HTMLElement;
+    const label = target.closest<HTMLElement>("[data-property-schema-id]");
+    return label?.dataset.propertySchemaId ?? null;
+  };
+
+  const isBound = (schemaId: string): boolean => {
+    const node = client.getNode(nodeId);
+    for (const classId of node?.classIds ?? []) {
+      if (client.getClassBindings(classId).some((b) => b.propertySchemaId === schemaId)) return true;
+    }
+    return false;
+  };
+  const isReadonly = (schemaId: string): boolean =>
+    rows.some((r) => r.propertySchemaId === schemaId && r.readonly === true);
+  const emptyProperty = (schemaId: string) => {
+    for (const row of rows) {
+      if (row.propertySchemaId === schemaId && row.source === "authored") {
+        void client.setProperty(nodeId, schemaId, "", row.idx);
+      }
+    }
+  };
+  const removeFromNode = (schemaId: string) => {
+    for (const row of rows) {
+      if (row.propertySchemaId === schemaId && row.source === "authored") {
+        void client.unsetProperty(nodeId, schemaId, row.idx);
+      }
+    }
+  };
+
+  const menuItems = (schemaId: string) => {
+    const bound = isBound(schemaId);
+    const readonly = isReadonly(schemaId);
+    return [
+      { id: "open", label: "Open property", icon: "mdi-open-in-app", onClick: () => setSettingsFor(schemaId) },
+      {
+        id: "empty",
+        label: "Empty property",
+        icon: "mdi-eraser",
+        disabled: readonly,
+        onClick: () => emptyProperty(schemaId),
+      },
+      {
+        id: "remove",
+        label: "Remove from node",
+        icon: "mdi-close-circle-outline",
+        danger: true,
+        disabled: bound || readonly,
+        onClick: () => removeFromNode(schemaId),
+      },
+    ];
+  };
 
 
   const groupedRow = (
@@ -1421,7 +1379,20 @@ export function PropertiesTable({
 
   return (
     <>
-      <ul className="nt-properties-list">
+      <ul
+        className="nt-properties-list"
+        onClick={(event) => {
+          const schemaId = schemaIdFromEvent(event);
+          if (schemaId !== null) setSettingsFor(schemaId);
+        }}
+        onContextMenu={(event) => {
+          const schemaId = schemaIdFromEvent(event);
+          if (schemaId === null) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setMenu({ schemaId, x: event.clientX, y: event.clientY });
+        }}
+      >
           {rendered.map((entry) => {
             if (entry === null) return null;
             if (entry.kind === "grouped") {
@@ -1463,7 +1434,7 @@ export function PropertiesTable({
                     : "nt-property node-metadata-row"
                 }
               >
-                <span className="section-label nt-property-name">{label}</span>
+                <span className="section-label nt-property-name" data-property-schema-id={row.propertySchemaId}>{label}</span>
                 {row.source === "default" && <span className="nt-property-hint">default</span>}
                 {row.source === "authored" && row.boundBy === null && (
                   <span className="nt-property-hint">unbound</span>
@@ -1504,6 +1475,16 @@ export function PropertiesTable({
           )}
       </ul>
       <AddPropertyRow client={client} nodeId={nodeId} />
+      {menu !== null && (
+        <ContextMenu items={menuItems(menu.schemaId)} position={{ x: menu.x, y: menu.y }} onClose={() => setMenu(null)} />
+      )}
+      {settingsFor !== null && (
+        <PropertySettingsModal
+          client={client}
+          propertySchemaId={settingsFor}
+          onClose={() => setSettingsFor(null)}
+        />
+      )}
     </>
   );
 }
@@ -1518,12 +1499,16 @@ export function PropertiesSection({
   client,
   nodeId,
   onOpenPage,
+  hideWhenEmpty = false,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** Block mode: render nothing when the node carries no properties. */
+  hideWhenEmpty?: boolean | undefined;
 }) {
   const count = propertiesCountOf(propertyGroupsOf(client, nodeId));
+  if (hideWhenEmpty && count === 0) return null;
   return (
     <NodeViewSection
       title="Properties"
@@ -1540,54 +1525,141 @@ export function PropertiesSection({
 }
 
 /**
- * MetadataSection — the block-list metadata panel (BlockRow): classes, tags
- * and properties under one expanded "Metadata" heading; renders nothing when
- * empty. Pages use the header identity rows + PropertiesSection instead.
+ * PropertySettingsModal — the property's "page" for configuration (opened by
+ * clicking a property label in the table). v1 had a full PropertyView; v2's
+ * schemas are registry rows, so the configuration surface is this modal:
+ * rename, per-type behavior (date precision / qualified, select options).
+ * Type and multi are create-time contracts and display read-only.
  */
-export function MetadataSection({
+function PropertySettingsModal({
   client,
-  nodeId,
-  onOpenPage,
-  hideWhenEmpty = false,
+  propertySchemaId,
+  onClose,
 }: {
   client: AnyClient;
-  nodeId: string;
-  /** Page navigation for the annotations section's annotation rows. */
-  onOpenPage?: ((pageId: string) => void) | undefined;
-  /**
-   * Block-list mode: render nothing when the node carries no metadata
-   * (no classes, tags, or property values/bindings). Pages pass the default
-   * (always render); BlockRow passes true.
-   */
-  hideWhenEmpty?: boolean;
+  propertySchemaId: string;
+  onClose: () => void;
 }) {
-  const node = client.getNode(nodeId);
-  const groups = propertyGroupsOf(client, nodeId);
-  const count =
-    (node?.classIds.length ?? 0) +
-    (node?.tagIds.length ?? 0) +
-    propertiesCountOf(groups);
-  if (hideWhenEmpty && count === 0) return null;
+  const schema = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
+  if (schema === undefined) return null;
+
+  const patch = (fields: Parameters<AnyClient["updatePropertySchema"]>[1]) =>
+    void client.updatePropertySchema(propertySchemaId, fields);
 
   return (
-    <NodeViewSection
-      title="Metadata"
-      icon={<Icon path="mdi-tag-multiple-outline" size={0.9} />}
-      className="node-metadata-section nt-properties-panel"
-      defaultExpanded
-    >
-      <div className="node-metadata-content">
-        <ClassesRow
-          client={client}
-          nodeId={nodeId}
-          classIds={node?.classIds ?? []}
-          onOpenPage={onOpenPage}
-        />
-        {node !== undefined && (node.nodeType === "page" || node.nodeType === "block") && (
-          <TagsRow client={client} nodeId={nodeId} tagIds={node.tagIds} onOpenPage={onOpenPage} />
-        )}
-        <PropertiesTable client={client} nodeId={nodeId} onOpenPage={onOpenPage} />
+    <Modal isOpen onClose={onClose} size="sm" showCloseButton={false} className="nt-property-settings">
+      <div className="modal__header">
+        <h2 className="modal__title">Property settings</h2>
+        <button type="button" aria-label="Close modal" className="btn btn--ghost btn--sm btn--icon-only modal__close" onClick={onClose}>
+          ×
+        </button>
       </div>
-    </NodeViewSection>
+      <div className="modal__content">
+        <label className="nt-property-settings__field">
+          <span className="nt-property-settings__label">Name</span>
+          <input
+            key={schema.id}
+            type="text"
+            className="nt-property-settings__input"
+            defaultValue={schema.name}
+            aria-label="Property name"
+            onBlur={(event) => {
+              const name = event.target.value.trim();
+              if (name !== "" && name !== schema.name) patch({ name });
+            }}
+          />
+        </label>
+        <p className="nt-property-settings__meta">
+          Type: {schema.type}
+          {schema.multi ? " (multi)" : ""}
+        </p>
+        {schema.type === "date" && (
+          <>
+            <label className="nt-property-settings__field">
+              <span className="nt-property-settings__label">Precision</span>
+              <select
+                className="nt-property-settings__input"
+                aria-label="Date precision"
+                value={schema.datePrecision ?? "day"}
+                onChange={(event) =>
+                  patch({ datePrecision: event.target.value as DatePrecision })
+                }
+              >
+                <option value="day">Day</option>
+                <option value="month">Month</option>
+                <option value="year">Year</option>
+              </select>
+            </label>
+            <label className="nt-property-settings__check">
+              <input
+                type="checkbox"
+                checked={schema.dateQualified ?? false}
+                onChange={(event) => patch({ dateQualified: event.target.checked })}
+                aria-label="Date range qualifiers"
+              />
+              <span>Allow start/end qualifiers</span>
+            </label>
+          </>
+        )}
+        {schema.type === "select" && (
+          <div className="nt-property-settings__field">
+            <span className="nt-property-settings__label">Options</span>
+            <ul className="nt-property-settings__options">
+              {(schema.options ?? []).map((option) => (
+                <li key={option.id} className="nt-property-settings__option">
+                  <input
+                    key={`${option.id}:${option.label}`}
+                    type="text"
+                    className="nt-property-settings__input"
+                    defaultValue={option.label}
+                    aria-label={`Option ${option.label}`}
+                    onBlur={(event) => {
+                      const label = event.target.value.trim();
+                      if (label === "" || label === option.label) return;
+                      patch({
+                        options: (schema.options ?? []).map((o) =>
+                          o.id === option.id ? { ...o, label } : o,
+                        ),
+                      });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="pill__right-button"
+                    aria-label={`Remove option ${option.label}`}
+                    onClick={() =>
+                      patch({
+                        options: (schema.options ?? []).filter((o) => o.id !== option.id),
+                      })
+                    }
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                patch({
+                  options: [
+                    ...(schema.options ?? []),
+                    { id: crypto.randomUUID(), label: "New option" },
+                  ],
+                })
+              }
+            >
+              + Add option
+            </Button>
+          </div>
+        )}
+      </div>
+      <div className="modal__footer">
+        <Button variant="default" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+    </Modal>
   );
 }
