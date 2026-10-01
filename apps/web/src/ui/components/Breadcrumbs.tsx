@@ -79,7 +79,7 @@ export function Breadcrumbs({
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
 
-  const current = showCurrent ? client.getNode(nodeId) : undefined;
+  const currentNode = showCurrent ? client.getNode(nodeId) : undefined;
   let items = ancestryOf(client, nodeId);
   if (stopAfterId !== undefined) {
     const stopAt = items.findIndex((item) => item.node.id === stopAfterId);
@@ -90,7 +90,8 @@ export function Breadcrumbs({
     items = items.filter((item) => !drop.has(item.node.id));
   }
   if (excludeLeaf && items.length > 0) items = items.slice(0, -1);
-  if (items.length === 0) return null;
+  const showCurrentCrumb = currentNode !== undefined;
+  if (items.length === 0 && !showCurrentCrumb) return null;
 
   const needsCollapse = items.length > COLLAPSE_AT;
   const startItems = needsCollapse ? items.slice(0, VISIBLE_START) : items;
@@ -98,6 +99,11 @@ export function Breadcrumbs({
     ? items.slice(VISIBLE_START, items.length - VISIBLE_END)
     : [];
   const endItems = needsCollapse ? items.slice(items.length - VISIBLE_END) : [];
+  /** The trailing trail item needs a chevron when the current crumb follows. */
+  const lastKey = needsCollapse
+    ? (endItems[endItems.length - 1]?.node.id ?? null)
+    : (startItems[startItems.length - 1]?.node.id ?? null);
+  const withSeparator = (id: string, base: boolean) => base || (showCurrentCrumb && id === lastKey);
 
   const crumb = (item: Crumb, key: string, showSeparator: boolean) => (
     <span key={key} className="node-breadcrumb-item">
@@ -120,7 +126,11 @@ export function Breadcrumbs({
   return (
     <nav className="node-breadcrumbs" aria-label="Page hierarchy">
       {startItems.map((item, index) =>
-        crumb(item, item.node.id, needsCollapse || index < startItems.length - 1),
+        crumb(
+          item,
+          item.node.id,
+          withSeparator(item.node.id, needsCollapse || index < startItems.length - 1),
+        ),
       )}
 
       {needsCollapse && (
@@ -173,7 +183,28 @@ export function Breadcrumbs({
       )}
 
       {needsCollapse &&
-        endItems.map((item, index) => crumb(item, item.node.id, index < endItems.length - 1))}
+        endItems.map((item, index) =>
+          crumb(item, item.node.id, withSeparator(item.node.id, index < endItems.length - 1)),
+        )}
+
+      {currentNode !== undefined && (
+        <span className="node-breadcrumb-item node-breadcrumb-current">
+          <button
+            type="button"
+            className="node-breadcrumb-link"
+            aria-current="page"
+            onClick={() => onOpenNode?.(currentNode.id)}
+          >
+            {currentNode.icon !== null && (
+              <Icon path={currentNode.icon} size={0.8} className="node-breadcrumb-icon" />
+            )}
+            <span className="node-breadcrumb-name">
+              {displayNameForSettings(currentNode) ||
+                (currentNode.nodeType === "page" ? "Untitled page" : "Untitled block")}
+            </span>
+          </button>
+        </span>
+      )}
     </nav>
   );
 }

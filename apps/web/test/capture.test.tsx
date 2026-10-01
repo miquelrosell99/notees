@@ -1,9 +1,15 @@
 /**
- * Capture gesture tests: `@` mention insertion, `#` tag (auto-create +
- * assign / Shift+Enter chip), `+` class picker (assign / Shift+Enter chip),
- * the verb-on-selection typed-link popover, and candidateSpans. Editor tests
- * run PageView over the in-process WorkspaceClient + MemoryRelay (jsdom),
- * same harness as outliner-editor.test.tsx.
+ * Capture gesture tests: `@` mention insertion (node-picker popup), `#` tag
+ * assign/create, `+` class picker (assign/create), the verb-on-selection
+ * typed-link popover, and candidateSpans. Editor tests run PageView over the
+ * in-process WorkspaceClient + MemoryRelay (jsdom), same harness as
+ * outliner-editor.test.tsx.
+ *
+ * Popup contract (v1 parity): typing the trigger char opens the ported
+ * NodeSelector popup anchored at the caret with its OWN search input (focus
+ * moves there); the trigger char stays in the block as a placeholder. Enter
+ * on a result row (or the create row) commits; Escape / click-outside keeps
+ * the trigger char as plain text and hands focus back to the block.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -89,10 +95,32 @@ function selectRange(editor: HTMLElement, start: number, end: number): void {
   });
 }
 
-const popup = () => screen.queryByRole("listbox", { name: "Capture suggestions" });
+// ── Node-picker popup helpers ──────────────────────────────────────────────
+
+/** The open @/#/+ picker (portaled dialog). */
+const picker = () => screen.queryByRole("dialog", { name: "Select node" });
+
+/** The picker's own search input (focus lands here when the popup opens). */
+function searchBox(): HTMLElement {
+  const panel = picker();
+  if (panel === null) throw new Error("picker is not open");
+  return within(panel).getByRole("textbox");
+}
+
+/** Type the popup query (the block only holds the trigger placeholder). */
+function typeInPicker(text: string): void {
+  fireEvent.change(searchBox(), { target: { value: text } });
+}
+
+/** All result/create rows of the open picker. */
+function pickerRows(): HTMLElement[] {
+  const panel = picker();
+  if (panel === null) return [];
+  return Array.from(panel.querySelectorAll<HTMLElement>(".node-result-item"));
+}
 
 describe("capture: @ mention", () => {
-  it("typing @ opens the popup; Enter inserts a mention token with a fresh linkId", async () => {
+  it("typing @ opens the picker; typing in its search box filters; Enter inserts a mention token", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Home" });
     const targetId = await client.createObject({ nodeType: "page", name: "Target" });
@@ -104,28 +132,28 @@ describe("capture: @ mention", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
-    // Trigger detection is per-keystroke: the "@" input opens the popup…
+    // Trigger detection is per-keystroke: the "@" input opens the picker…
     typeWithCaret(editor, "see @");
-    expect(popup()).not.toBeNull();
-    // Both workspace pages are candidates (the block's own page included).
-    expect(screen.getByText("Target")).toBeInTheDocument();
+    expect(picker()).not.toBeNull();
+    // …and moves focus to the picker's own search box.
+    expect(searchBox()).toHaveFocus();
 
-    // …and further typing filters (by display name). "Home" also matches the
-    // page title outside the popup — scope the query to the listbox.
-    typeWithCaret(editor, "see @Tar");
-    expect(screen.getByText("Target")).toBeInTheDocument();
-    expect(within(popup()!).queryByText("Home")).toBeNull();
+    // The query types into the popup (the block keeps just the placeholder).
+    typeInPicker("Tar");
+    expect(editor.textContent).toBe("see @");
+    expect(within(picker()!).getByText("Target")).toBeInTheDocument();
+    expect(within(picker()!).queryByText("Home")).toBeNull();
 
-    fireEvent.keyDown(editor, { key: "Enter" });
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast).toHaveLength(2);
     expect(ast[0]).toEqual({ type: "text", text: "see " });
     expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, text: "Target" });
     expect(typeof (ast[1] as { linkId?: unknown }).linkId).toBe("string");
     expect((ast[1] as { linkId: string }).linkId).toMatch(UUID_RE);
-    // DOM re-synced to the new prose; popup closed.
+    // DOM re-synced to the new prose; picker closed.
     expect(editor.textContent).toBe("see Target");
-    expect(popup()).toBeNull();
+    expect(picker()).toBeNull();
   });
 
   it("creates a backlinks edge to the target (mention edge, record-don't-resolve)", async () => {
@@ -141,8 +169,8 @@ describe("capture: @ mention", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "@");
-    typeWithCaret(editor, "@Tar");
-    fireEvent.keyDown(editor, { key: "Enter" });
+    typeInPicker("Tar");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
 
     const edges = client.getBacklinks(targetId);
     expect(edges.some((edge) => edge.type === "mention" && edge.sourceId === blockId)).toBe(true);
@@ -161,19 +189,20 @@ describe("capture: @ mention", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "@");
-    // Deterministic order: Alpha < Home by name.
-    fireEvent.keyDown(editor, { key: "ArrowDown" });
-    const rows = screen.getAllByRole("option");
-    expect(rows[1]?.getAttribute("aria-selected")).toBe("true");
-    fireEvent.keyDown(editor, { key: "ArrowUp" });
-    expect(screen.getAllByRole("option")[0]?.getAttribute("aria-selected")).toBe("true");
-    fireEvent.keyDown(editor, { key: "Enter" });
+    typeInPicker("Alp");
+    // One result row (Alpha) + the create row: ArrowDown highlights create…
+    expect(pickerRows()).toHaveLength(2);
+    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
+    expect(pickerRows()[1]?.className).toContain("node-result-item--highlighted");
+    fireEvent.keyDown(searchBox(), { key: "ArrowUp" });
+    expect(pickerRows()[0]?.className).toContain("node-result-item--highlighted");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: alphaId });
   });
 
-  it("Esc closes the popup leaving the text; Enter with no match strips the trigger", async () => {
+  it("Esc closes the picker leaving the trigger char; Enter on the create row links a new page", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Home" });
     const blockId = await client.createObject({
@@ -185,18 +214,28 @@ describe("capture: @ mention", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "@");
-    expect(popup()).not.toBeNull();
-    fireEvent.keyDown(editor, { key: "Escape" });
-    expect(popup()).toBeNull();
-    // Text untouched after Esc.
+    expect(picker()).not.toBeNull();
+    fireEvent.keyDown(searchBox(), { key: "Escape" });
+    expect(picker()).toBeNull();
+    // Text untouched after Esc; the trigger char stays as plain text.
     expect(editor.textContent).toBe("@");
 
-    // No-match Enter: plain-text fallback — "@zzz" becomes "zzz".
+    // No-match Enter commits the create row: a page named by the query is
+    // created and linked (the v1 create-from-query contract).
     typeWithCaret(editor, "@");
-    typeWithCaret(editor, "@zzz");
-    fireEvent.keyDown(editor, { key: "Enter" });
+    typeInPicker("zzz");
+    expect(pickerRows()).toHaveLength(1); // only "Create \"zzz\""
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const created = client.listPages().filter((p) => p.name === "zzz");
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+      text: "zzz",
+    });
     expect(editor.textContent).toBe("zzz");
-    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "zzz" }]);
   });
 });
 
@@ -213,9 +252,8 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "#");
-    typeWithCaret(editor, "#Proj");
-    expect(screen.getByText("No matches")).toBeInTheDocument();
-    fireEvent.keyDown(editor, { key: "Enter" });
+    typeInPicker("Proj");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
     // page.create + assignTag ride a microtask (createObject promise).
     await act(async () => {});
 
@@ -244,47 +282,24 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "#");
-    typeWithCaret(editor, "#Pro");
-    // Scope to the capture popup: the tagged block's own metadata section
-    // now also renders a "Project" pill below the block.
-    const popup = container.querySelector(".nt-capture-popup") ?? document.body;
-    expect(within(popup as HTMLElement).getByText("Project")).toBeInTheDocument();
-    fireEvent.keyDown(editor, { key: "Enter" });
+    typeInPicker("Pro");
+    // Scope to the picker: the tagged block's own metadata section also
+    // renders a "Project" pill below the block.
+    expect(within(picker()!).getByText("Project")).toBeInTheDocument();
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
-    fireEvent.blur(editor); // flush + exit; then edit again and re-assign
 
-    const editor2 = clickIntoBlock(container);
-    typeWithCaret(editor2, "#");
-    typeWithCaret(editor2, "#Pro");
-    fireEvent.keyDown(editor2, { key: "Enter" });
+    // Still editing: assign + strip kept the session; re-assign is a no-op.
+    typeWithCaret(editor, "#");
+    typeInPicker("Pro");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
 
     const node = client.getNode(blockId)!;
     expect(node.tagIds).toEqual([tagId]); // still exactly one membership
   });
 
-  it("# Shift+Enter inserts an inline mention link to the tag page WITHOUT assignment", async () => {
-    const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const tagId = await client.createObject({ nodeType: "page", name: "Project" });
-    const blockId = await client.createObject({
-      nodeType: "block",
-      parentId: pageId,
-      contentAst: [],
-    });
-    const { container } = render(<PageView client={client} pageId={pageId} />);
-
-    const editor = clickIntoBlock(container);
-    typeWithCaret(editor, "#");
-    typeWithCaret(editor, "#Pro");
-    fireEvent.keyDown(editor, { key: "Enter", shiftKey: true });
-
-    const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: tagId, text: "Project" });
-    expect(client.getNode(blockId)?.tagIds).toEqual([]); // inline, not metadata
-  });
-
-  it("+ assigns an existing class and never creates", async () => {
+  it("+ assigns an existing class; no-match Enter creates the class and assigns it", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Home" });
     const classId = await client.createObject({ nodeType: "class", name: "Project" });
@@ -297,43 +312,23 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "+");
-    typeWithCaret(editor, "+Pro");
-    fireEvent.keyDown(editor, { key: "Enter" });
+    // The class picker lists the class vocabulary on an empty query.
+    expect(within(picker()!).getByText("Project")).toBeInTheDocument();
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
 
     expect(client.getNode(blockId)?.classIds).toEqual([classId]);
-    expect(client.listClasses().map((c) => c.id)).toEqual([classId]); // no new class
     expect(editor.textContent).toBe("");
 
-    // No-match + Enter on "+" strips the sigil (plain fallback) without
-    // creating anything.
-    const editor2 = clickIntoBlock(container);
-    typeWithCaret(editor2, "+");
-    typeWithCaret(editor2, "+Nope");
-    fireEvent.keyDown(editor2, { key: "Enter" });
-    expect(editor2.textContent).toBe("Nope");
-    expect(client.listClasses()).toHaveLength(1);
-  });
-
-  it("+ Shift+Enter inserts the chip without assignment", async () => {
-    const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const classId = await client.createObject({ nodeType: "class", name: "Project" });
-    const blockId = await client.createObject({
-      nodeType: "block",
-      parentId: pageId,
-      contentAst: [{ type: "text", text: "wrap " }],
-    });
-    const { container } = render(<PageView client={client} pageId={pageId} />);
-
-    const editor = clickIntoBlock(container);
-    typeWithCaret(editor, "wrap +");
-    typeWithCaret(editor, "wrap +Pro");
-    fireEvent.keyDown(editor, { key: "Enter", shiftKey: true });
-
-    const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast).toEqual([{ type: "text", text: "wrap " }, { type: "class_chip", classId }]);
-    expect(client.getNode(blockId)?.classIds).toEqual([]);
+    // No-match Enter on "+" runs the create row: class.create + assign.
+    typeWithCaret(editor, "+");
+    typeInPicker("Nope");
+    expect(pickerRows()).toHaveLength(1); // only "Create \"Nope\""
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const created = client.listClasses().filter((c) => c.name === "Nope");
+    expect(created).toHaveLength(1);
+    expect(client.getNode(blockId)?.classIds).toEqual([classId, created[0]!.id]);
   });
 });
 
@@ -470,8 +465,8 @@ describe("capture tokens survive editing", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "see @");
-    typeWithCaret(editor, "see @Tar");
-    fireEvent.keyDown(editor, { key: "Enter" });
+    typeInPicker("Tar");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
     expect(client.getNode(blockId)?.contentAst[1]).toMatchObject({
       type: "mention",
       targetNodeId: targetId,

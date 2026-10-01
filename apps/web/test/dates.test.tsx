@@ -62,6 +62,14 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
+/** Expand the page's "Properties N" section (collapsed by default in the note layout). */
+function expandProperties(): void {
+  const header = screen.queryByRole("button", { name: /^Properties / });
+  if (header !== null && header.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(header);
+  }
+}
+
 function dateNodeCount(client: WorkspaceClient): number {
   return client
     .listPages()
@@ -169,6 +177,7 @@ describe("dates (SCHEMA.md)", () => {
     const pageId = await client.createObject({ nodeType: "page", name: "Note" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
 
     // The unvalued date binding renders the add affordance; the popup opens
     // at the day grid (day precision).
@@ -214,6 +223,7 @@ describe("dates (SCHEMA.md)", () => {
     const pageId = await client.createObject({ nodeType: "page", name: "Org" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     // Year precision opens at the YEAR grid; clicking a year resolves the
@@ -236,6 +246,7 @@ describe("dates (SCHEMA.md)", () => {
     const pageId = await client.createObject({ nodeType: "page", name: "Trip" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
 
     // The unvalued range row's "Add" pill opens the picker for the START slot;
     // the end stays open. The picker opens on TODAY's month, so the expected
@@ -271,6 +282,7 @@ describe("dates (SCHEMA.md)", () => {
     await client.assignClass(pageId, classId);
     await client.setProperty(pageId, schemaId, { nodeId: aliceId }, 0);
     render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
 
     fireEvent.change(screen.getByLabelText("Alice start date"), {
       target: { value: "2026-01-01" },
