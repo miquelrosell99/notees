@@ -355,6 +355,17 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       }
       return items;
     }
+    if (capture.kind === "tag") {
+      // Tags are pages: any page can be assigned as a tag. Classes are not
+      // tag candidates (the "+" picker owns class assignment).
+      const nodes = captureApi.searchNodes(query).filter((n) => n.nodeType === "page");
+      const items: CaptureCandidate[] = [];
+      for (const node of nodes) {
+        items.push({ id: node.id, label: captureApi.displayName(node.id) ?? node.id });
+        if (items.length >= 8) break;
+      }
+      return items;
+    }
     const items: CaptureCandidate[] = [];
     for (const cls of captureApi.listClasses()) {
       const label = captureApi.displayName(cls.id) ?? cls.id;
@@ -508,8 +519,8 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   /**
    * Enter/Shift+Enter (or click) on a capture row. `candidate` is undefined
    * when the query has no rows — the per-kind fallback (mention/+: plain
-   * fallback keeping the query; #: auto-create + assign, or + chip on
-   * Shift+Enter).
+   * fallback keeping the query; #: auto-create the tag page, then assign on
+   * Enter or inline mention on Shift+Enter).
    */
   const commitCapture = (candidate: CaptureCandidate | undefined, shiftKey: boolean) => {
     const state = capture;
@@ -538,30 +549,43 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       return;
     }
     if (state.kind === "tag") {
-      const assign = (classId: string) => {
-        void client.assignClass(nodeRef.current.id, classId).catch((error: unknown) => {
-          console.warn(`[capture] assignClass (${classId}) failed:`, error);
+      // "#" adds a TAG (any page) to the node's Tags: Enter assigns it and
+      // strips the trigger (metadata is the gesture, not prose); Shift+Enter
+      // inserts an inline mention link to the tag page instead. No match:
+      // auto-create the tag page, then the same split.
+      const assign = (tagId: string) => {
+        void client.assignTag(nodeRef.current.id, tagId).catch((error: unknown) => {
+          console.warn(`[capture] assignTag (${tagId}) failed:`, error);
         });
       };
+      const inline = (tagId: string, label: string) => {
+        applySplice(
+          start,
+          caret,
+          [{ type: "mention", targetNodeId: tagId, text: label, linkId: uuidv7() }],
+          start + label.length,
+        );
+      };
       if (candidate !== undefined) {
-        if (shiftKey) {
-          applySplice(start, caret, [chipToken(candidate.id)], start);
-        } else {
+        if (shiftKey) inline(candidate.id, candidate.label);
+        else {
           assign(candidate.id);
           stripTrigger(start, caret);
         }
         return;
       }
       if (trimmed === "") return; // bare "#" — nothing to create, keep the text
-      // Auto-create the tag class, then assign (Enter) or chip (Shift+Enter).
       void client
-        .createObject({ nodeType: "class", name: trimmed })
-        .then((classId) => {
-          if (!shiftKey) assign(classId);
-          applySplice(start, caret, shiftKey ? [chipToken(classId)] : [], start);
+        .createObject({ nodeType: "page", name: trimmed })
+        .then((tagId) => {
+          if (shiftKey) inline(tagId, trimmed);
+          else {
+            assign(tagId);
+            stripTrigger(start, caret);
+          }
         })
         .catch((error: unknown) => {
-          console.warn(`[capture] class.create "${trimmed}" failed:`, error);
+          console.warn(`[capture] tag page create "${trimmed}" failed:`, error);
         });
       return;
     }
