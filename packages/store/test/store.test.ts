@@ -60,6 +60,7 @@ const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
 const NODE_PAGE = "0192a000-0000-7000-8000-000000000010";
 const NODE_BOOK = "0192a000-0000-7000-8000-000000000011";
+const NODE_BLOCK = "0192a000-0000-7000-8000-000000000020";
 const PROP_SCHEMA = "0192a000-0000-7000-8000-0000000000a1";
 const BOOK_CLASS = "00000000-0000-0000-0001-000000000025";
 
@@ -167,6 +168,14 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     return store;
   }
 
+  function baseStoreWithBlock(): Store {
+    const store = baseStore();
+    store.apply(
+      env("object.create", { objectId: NODE_BLOCK, nodeType: "block", parentId: NODE_PAGE }, 1727200000500),
+    );
+    return store;
+  }
+
   describe("schema invariants (bullet-proof CHECKs)", () => {
     it("rejects a parentless block row", () => {
       const store = makeStore();
@@ -219,7 +228,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     it("rejects a class parent (cross-row move guard, fail loud)", () => {
       const store = baseStore();
-      store.apply(env("class.create", { classId: "c0000000-0000-7000-8000-0000000000c1", name: "Tag" }, 1727200001500));
+      store.apply(env("class.create", { classId: "c0000000-0000-7000-8000-0000000000c1", contentAst: [{ type: "text", text: "Tag" }]}, 1727200001500));
       expect(() =>
         store.apply(
           env(
@@ -240,7 +249,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const book = store.getNode(NODE_BOOK);
       expect(page?.node_type).toBe("page");
       expect(book?.node_type).toBe("page");
-      expect(book?.name).toBe("The Structure of Scientific Revolutions");
+      expect(
+        JSON.parse(book?.content ?? "[]").find((t: { type?: string }) => t.type === "text")?.text,
+      ).toBe("The Structure of Scientific Revolutions");
       // classIds seed the OR-Set membership, projected into node.class_ids.
       expect(JSON.parse(book?.class_ids ?? "[]")).toEqual([BOOK_CLASS]);
     });
@@ -261,11 +272,11 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
 
     it("derives a typed_link edge with locator + candidateSpans from the mark fixture", () => {
-      const store = baseStore();
+      const store = baseStoreWithBlock();
       store.applyMany(loadFixture("typed-link-mark.json"));
       const edge = store.database
         .prepare("SELECT * FROM edge WHERE source_id = ? AND type = 'typed_link'")
-        .get(NODE_PAGE) as Record<string, unknown>;
+        .get(NODE_BLOCK) as Record<string, unknown>;
       expect(edge).toBeDefined();
       expect(edge.verb).toBe("cites");
       const metadata = JSON.parse(edge.metadata as string);
@@ -274,23 +285,23 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // The mention token in the same content derives a mention edge.
       const mention = store.database
         .prepare("SELECT * FROM edge WHERE source_id = ? AND type = 'mention'")
-        .get(NODE_PAGE) as { target_id: string } | undefined;
+        .get(NODE_BLOCK) as { target_id: string } | undefined;
       expect(mention?.target_id).toBe(NODE_BOOK);
     });
 
     it("drops the typed_link edge when the marked word is deleted", () => {
-      const store = baseStore();
+      const store = baseStoreWithBlock();
       store.applyMany(loadFixture("typed-link-mark.json"));
       store.applyMany(loadFixture("typed-link-mark-deleted.json"));
       const typedLinks = store.database
         .prepare("SELECT COUNT(*) AS n FROM edge WHERE source_id = ? AND type = 'typed_link'")
-        .get(NODE_PAGE) as { n: number };
+        .get(NODE_BLOCK) as { n: number };
       expect(typedLinks.n).toBe(0);
       const mentions = store.database
         .prepare("SELECT COUNT(*) AS n FROM edge WHERE source_id = ? AND type = 'mention'")
-        .get(NODE_PAGE) as { n: number };
+        .get(NODE_BLOCK) as { n: number };
       expect(mentions.n).toBe(0);
-      const content = JSON.parse(store.getNode(NODE_PAGE)?.content ?? "[]") as ContentAst;
+      const content = JSON.parse(store.getNode(NODE_BLOCK)?.content ?? "[]") as ContentAst;
       expect(content).toEqual([{ type: "text", text: "Kuhn cites earlier work." }]);
     });
   });
@@ -321,7 +332,11 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("content updates converge regardless of envelope order (row LWW)", () => {
       const mark = loadFixture("typed-link-mark.json")[0]!;
       const deleted = loadFixture("typed-link-mark-deleted.json")[0]!;
-      const base = [createPage(NODE_PAGE, 1727200000000), createPage(NODE_BOOK, 1727200001000)];
+      const base = [
+        createPage(NODE_PAGE, 1727200000000),
+        createPage(NODE_BOOK, 1727200001000),
+        env("object.create", { objectId: NODE_BLOCK, nodeType: "block", parentId: NODE_PAGE }, 1727200000500),
+      ];
       const storeA = makeStore();
       storeA.applyMany([...base, mark, deleted]);
       const storeB = makeStore();
@@ -336,7 +351,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("a lower-HLC object.update is dropped by LWW", () => {
       const store = baseStore();
       const result = store.apply(
-        env("object.update", { objectId: NODE_BOOK, name: "stale name" }, 1727200000900, 0),
+        env("object.update", { objectId: NODE_BOOK, contentAst: [{ type: "text", text: "stale name" }]}, 1727200000900, 0),
       );
       expect(result.ignored).toBe(true);
       expect(store.getNode(NODE_BOOK)?.name).toBeNull();
@@ -394,9 +409,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const a = "0192a000-0000-7000-8000-0000000000a1";
       const b = "0192a000-0000-7000-8000-0000000000b1";
       const c = "0192a000-0000-7000-8000-0000000000c2";
-      store.apply(env("class.create", { classId: a, name: "Source" }, 1727200001000));
-      store.apply(env("class.create", { classId: b, name: "Work" }, 1727200001100));
-      store.apply(env("class.create", { classId: c, name: "Annotation" }, 1727200001200));
+      store.apply(env("class.create", { classId: a, contentAst: [{ type: "text", text: "Source" }]}, 1727200001000));
+      store.apply(env("class.create", { classId: b, contentAst: [{ type: "text", text: "Work" }]}, 1727200001100));
+      store.apply(env("class.create", { classId: c, contentAst: [{ type: "text", text: "Annotation" }]}, 1727200001200));
       store.apply(env("class.setExtends", { classId: b, parentClassIds: [a] }, 1727200001300));
       store.apply(env("class.setExtends", { classId: c, parentClassIds: [b] }, 1727200001400));
       const closure = store.database
@@ -548,7 +563,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     }
 
     function makeClass(store: Store, id: string, name: string, physical: number): void {
-      store.apply(env("class.create", { classId: id, name }, physical));
+      store.apply(env("class.create", { classId: id, contentAst: [{ type: "text", text: name }] }, physical));
     }
 
     function bind(
@@ -1031,7 +1046,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const store = baseStore();
       const classId = "c0000000-0000-7000-8000-0000000000c1";
       const block = "0192a000-0000-7000-8000-0000000000e1";
-      store.apply(env("class.create", { classId, name: "Tag" }, 1727200001500));
+      store.apply(env("class.create", { classId, contentAst: [{ type: "text", text: "Tag" }]}, 1727200001500));
       store.apply(env("object.create", { objectId: block, parentId: NODE_PAGE }, 1727200002000));
       expect(() =>
         store.apply(env("object.move", { objectId: block, parentId: classId }, 1727200002100)),
@@ -1145,7 +1160,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const result = store.apply(
         env(
           "object.create",
-          { objectId: child, parentId: NODE_BOOK, name: "replay drift" },
+          { objectId: child, parentId: NODE_BOOK, contentAst: [{ type: "text", text: "replay drift" }] },
           1727200003000,
         ),
       );
@@ -1245,15 +1260,15 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
   describe("search (FTS)", () => {
     it("finds the block containing 'Kuhn'", () => {
-      const store = baseStore();
+      const store = baseStoreWithBlock();
       store.applyMany(loadFixture("typed-link-mark.json"));
-      expect(store.search("Kuhn")).toEqual([{ nodeId: NODE_PAGE }]);
+      expect(store.search("Kuhn")).toEqual([{ nodeId: NODE_BLOCK }]);
     });
 
     it("prefix-AND matches across terms", () => {
-      const store = baseStore();
+      const store = baseStoreWithBlock();
       store.applyMany(loadFixture("typed-link-mark.json"));
-      expect(store.search("Kuhn Scient")).toEqual([{ nodeId: NODE_PAGE }]);
+      expect(store.search("Kuhn Scient")).toEqual([{ nodeId: NODE_BLOCK }]);
       expect(store.search("Kuhn absentterm")).toEqual([]);
     });
 
@@ -1279,13 +1294,13 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
 
     it("excludes soft-deleted nodes from search results", () => {
-      const store = baseStore();
+      const store = baseStoreWithBlock();
       store.applyMany(loadFixture("typed-link-mark.json"));
-      store.apply(env("object.delete", { objectId: NODE_PAGE }, 1727200010000));
+      store.apply(env("object.delete", { objectId: NODE_BLOCK }, 1727200010000));
       expect(store.search("Kuhn")).toEqual([]);
     });
 
-    it("finds a page by its stored name even when content is unrelated", () => {
+    it("finds a page by its title text (title-is-content: one indexed text run)", () => {
       const store = baseStore();
       const quantum = "0192a000-0000-7000-8000-0000000000d1";
       store.apply(
@@ -1294,29 +1309,29 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           {
             objectId: quantum,
             nodeType: "page",
-            name: "Quantum",
-            contentAst: [{ type: "text", text: "unrelated prose" }],
+            // Title and prose fold into the page's single indexed text run.
+            contentAst: [{ type: "text", text: "Quantum" }, { type: "text", text: "unrelated prose" }],
           },
           1727200002000,
         ),
       );
-      // Name-only match: the title term is not present in the content.
+      // Title-term match.
       expect(store.search("Quantum")).toEqual([{ nodeId: quantum }]);
-      // Content-term search keeps working on the same indexed row.
+      // Content-term search hits the same indexed row.
       expect(store.search("unrelated")).toEqual([{ nodeId: quantum }]);
     });
 
     it("indexes a name-only page and reindexes on rename (name LWW)", () => {
       const store = baseStore();
       const id = "0192a000-0000-7000-8000-0000000000d1";
-      store.apply(env("object.create", { objectId: id, nodeType: "page", name: "Alpha" }, 1727200002000));
+      store.apply(env("object.create", { objectId: id, nodeType: "page", contentAst: [{ type: "text", text: "Alpha" }]}, 1727200002000));
       expect(store.search("Alpha")).toEqual([{ nodeId: id }]);
       // Name LWW update: the new name is indexed, the old one stops matching.
-      store.apply(env("object.update", { objectId: id, name: "Beta" }, 1727200003000));
+      store.apply(env("object.update", { objectId: id, contentAst: [{ type: "text", text: "Beta" }]}, 1727200003000));
       expect(store.search("Alpha")).toEqual([]);
       expect(store.search("Beta")).toEqual([{ nodeId: id }]);
       // A lower-HLC rename is dropped by LWW: the index keeps the winner.
-      store.apply(env("object.update", { objectId: id, name: "Gamma" }, 1727200002500));
+      store.apply(env("object.update", { objectId: id, contentAst: [{ type: "text", text: "Gamma" }]}, 1727200002500));
       expect(store.search("Gamma")).toEqual([]);
       expect(store.search("Beta")).toEqual([{ nodeId: id }]);
     });
@@ -1330,7 +1345,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           {
             objectId: id,
             nodeType: "page",
-            name: "Standards",
             contentAst: [{ type: "text", text: "Packaging validation per ISO 11607-1" }],
           },
           1727200002000,
@@ -1347,9 +1361,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("classes are findable by name at create and after rename", () => {
       const store = baseStore();
       const id = "c0000000-0000-7000-8000-0000000000c9";
-      store.apply(env("class.create", { classId: id, name: "Zymurgy" }, 1727200001500));
+      store.apply(env("class.create", { classId: id, contentAst: [{ type: "text", text: "Zymurgy" }]}, 1727200001500));
       expect(store.search("Zymurgy").map((hit) => hit.nodeId)).toContain(id);
-      store.apply(env("class.update", { classId: id, name: "Zymurgics" }, 1727200001600));
+      store.apply(env("class.update", { classId: id, contentAst: [{ type: "text", text: "Zymurgics" }]}, 1727200001600));
       expect(store.search("Zymurgy")).toEqual([]);
       expect(store.search("Zymurgics").map((hit) => hit.nodeId)).toContain(id);
     });
@@ -1358,8 +1372,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   describe("local op log (durable offline backlog)", () => {
     it("records local envelopes, lists unpushed, marks pushed, prunes", () => {
       const store = baseStore();
-      const a = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e1", nodeType: "page", name: "A" }, 1727200002000);
-      const b = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e2", nodeType: "page", name: "B" }, 1727200003000);
+      const a = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e1", nodeType: "page", contentAst: [{ type: "text", text: "A" }]}, 1727200002000);
+      const b = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e2", nodeType: "page", contentAst: [{ type: "text", text: "B" }]}, 1727200003000);
       store.recordLocalEnvelope(a);
       store.recordLocalEnvelope(b);
       // Idempotent: recording the same envelope twice changes nothing.
@@ -1392,10 +1406,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     /** France page with child block; Paris, Spain, Notes are separate roots. */
     function travelStore(): Store {
       const store = makeStore();
-      store.apply(env("object.create", { objectId: FRANCE, nodeType: "page", name: "France" }, 1727200001000));
-      store.apply(env("object.create", { objectId: PARIS, nodeType: "page", name: "Paris" }, 1727200001100));
-      store.apply(env("object.create", { objectId: SPAIN, nodeType: "page", name: "Spain" }, 1727200001200));
-      store.apply(env("object.create", { objectId: NOTES, nodeType: "page", name: "Notes" }, 1727200001300));
+      store.apply(env("object.create", { objectId: FRANCE, nodeType: "page", contentAst: [{ type: "text", text: "France" }]}, 1727200001000));
+      store.apply(env("object.create", { objectId: PARIS, nodeType: "page", contentAst: [{ type: "text", text: "Paris" }]}, 1727200001100));
+      store.apply(env("object.create", { objectId: SPAIN, nodeType: "page", contentAst: [{ type: "text", text: "Spain" }]}, 1727200001200));
+      store.apply(env("object.create", { objectId: NOTES, nodeType: "page", contentAst: [{ type: "text", text: "Notes" }]}, 1727200001300));
       return store;
     }
 
@@ -1672,8 +1686,8 @@ for (const adapter of adapters) {
       const store = Store.open(adapter.makeBackend());
       const page = "0192a000-0000-7000-8000-000000000501";
       const cls = "0192a000-0000-7000-8000-000000000502";
-      store.apply(env("object.create", { objectId: page, nodeType: "page", name: "P" }, 1727200001000));
-      store.apply(env("class.create", { classId: cls, name: "Genre" }, 1727200001100));
+      store.apply(env("object.create", { objectId: page, nodeType: "page", contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
+      store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }]}, 1727200001100));
       store.apply(env("object.create", { objectId: page, nodeType: "page", classIds: [cls] }, 1727200001200));
       expect(store.getNode(page)!.class_ids).toBe(JSON.stringify([cls]));
       store.apply(env("class.delete", { classId: cls }, 1727200001300));
@@ -1690,9 +1704,9 @@ for (const adapter of adapters) {
       const page = "0192a000-0000-7000-8000-000000000301";
       const tagA = "0192a000-0000-7000-8000-000000000302";
       const tagB = "0192a000-0000-7000-8000-000000000303";
-      store.apply(env("object.create", { objectId: page, nodeType: "page", name: "P" }, 1727200001000));
-      store.apply(env("object.create", { objectId: tagA, nodeType: "page", name: "tag A" }, 1727200001100));
-      store.apply(env("object.create", { objectId: tagB, nodeType: "page", name: "tag B" }, 1727200001200));
+      store.apply(env("object.create", { objectId: page, nodeType: "page", contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
+      store.apply(env("object.create", { objectId: tagA, nodeType: "page", contentAst: [{ type: "text", text: "tag A" }]}, 1727200001100));
+      store.apply(env("object.create", { objectId: tagB, nodeType: "page", contentAst: [{ type: "text", text: "tag B" }]}, 1727200001200));
       // Assign: the create carrier re-issue (same pattern as classes).
       store.apply(env("object.create", { objectId: page, nodeType: "page", tagIds: [tagA, tagB] }, 1727200002000));
       expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagA, tagB].sort()));
@@ -1722,8 +1736,8 @@ describe("restore migrates older-schema snapshots", () => {
     const source = Store.open(makeBackendForRestore());
     const page = "0192a000-0000-7000-8000-000000000401";
     const cls = "0192a000-0000-7000-8000-000000000402";
-    source.apply(env("object.create", { objectId: page, nodeType: "page", name: "P" }, 1727200001000));
-    source.apply(env("class.create", { classId: cls, name: "Genre" }, 1727200001100));
+    source.apply(env("object.create", { objectId: page, nodeType: "page", contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
+    source.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }]}, 1727200001100));
     source.apply(env("object.create", { objectId: page, nodeType: "page", classIds: [cls] }, 1727200001200));
     const bytes = source.database.serialize!();
     source.close();

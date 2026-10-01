@@ -175,7 +175,10 @@ describe("token → markdown mapping", () => {
 
 describe("frontmatter", () => {
   it("carries name, nodeType, classIds, and properties with metadata qualifiers", () => {
-    const node = page("aaaaaaaa-0000-4000-8000-000000000009", "The Left Hand", [], {
+    // Title-is-content: the page's display name IS its text content.
+    const node = page("aaaaaaaa-0000-4000-8000-000000000009", "The Left Hand", [
+      { type: "text", text: "The Left Hand" },
+    ], {
       classIds: [PERSON_CLASS_ID],
       properties: [
         { schemaId: "aaaaaaaa-1111-4111-8111-111111111111", schemaName: "status", value: "active" },
@@ -198,7 +201,10 @@ describe("frontmatter", () => {
   });
 
   it("quotes values that are unsafe YAML scalars", () => {
-    const node = page("aaaaaaaa-0000-4000-8000-000000000010", "yes: no", [], {
+    // Title-is-content: the "yes: no" display name lives in the content.
+    const node = page("aaaaaaaa-0000-4000-8000-000000000010", "yes: no", [
+      { type: "text", text: "yes: no" },
+    ], {
       properties: [{ schemaId: "s", schemaName: "tricky: key", value: "true" }],
     });
     const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
@@ -242,9 +248,10 @@ describe("children as nested bullets", () => {
 
 describe("bundle", () => {
   it("emits <uuid>.md files and a UUID↔name↔type manifest", () => {
+    // Title-is-content: each page's display name is its own text content.
     const nodes = [
-      page("cccccccc-0000-4000-8000-000000000001", "Alpha", [{ type: "text", text: "alpha body" }]),
-      page("cccccccc-0000-4000-8000-000000000002", "Beta", []),
+      page("cccccccc-0000-4000-8000-000000000001", "Alpha", [{ type: "text", text: "Alpha" }]),
+      page("cccccccc-0000-4000-8000-000000000002", "Beta", [{ type: "text", text: "Beta" }]),
     ];
     const bundle = bundleMarkdown(nodes, makeCtx());
     expect(bundle.files.map((f) => f.path)).toEqual([
@@ -262,8 +269,8 @@ describe("bundle", () => {
 
   it("concatenates the bundle with thematic breaks for --stdout", () => {
     const nodes = [
-      page("cccccccc-0000-4000-8000-000000000003", "One", []),
-      page("cccccccc-0000-4000-8000-000000000004", "Two", []),
+      page("cccccccc-0000-4000-8000-000000000003", "One", [{ type: "text", text: "One" }]),
+      page("cccccccc-0000-4000-8000-000000000004", "Two", [{ type: "text", text: "Two" }]),
     ];
     const text = concatBundleMarkdown(bundleMarkdown(nodes, makeCtx()));
     expect(text).toContain("# One");

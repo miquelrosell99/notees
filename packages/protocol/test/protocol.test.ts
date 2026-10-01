@@ -134,8 +134,8 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
     const nodePayload = node!.payload as { objectId: string };
     const taskPayload = task!.payload as { classId: string };
     expect(schema!.opType).toBe("propertySchema.create");
-    expect(task!.payload).toMatchObject({ name: "Task" });
-    expect(project!.payload).toMatchObject({ name: "Project" });
+    expect(task!.payload).toMatchObject({ contentAst: [{ type: "text", text: "Task" }] });
+    expect(project!.payload).toMatchObject({ contentAst: [{ type: "text", text: "Project" }] });
     // The node is created with Task, then Project is assigned via the OR-Set
     // add carrier (a re-issued object.create on the same id).
     expect(node!.opType).toBe("object.create");

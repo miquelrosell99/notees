@@ -99,9 +99,13 @@ describe("system seeds (v1 port)", () => {
 describe("deriveDisplayName", () => {
   const page = { id: "p1", nodeType: "page" as const };
 
-  it("stored name wins, truncated to the display budget", () => {
-    expect(deriveDisplayName({ ...page, name: "  The Republic  " })).toBe("The Republic");
-    expect(deriveDisplayName({ ...page, name: "x".repeat(200) })).toHaveLength(80);
+  it("content title is trimmed and truncated to the display budget", () => {
+    expect(
+      deriveDisplayName({ ...page, contentAst: [{ type: "text", text: "  The Republic  " }] }),
+    ).toBe("The Republic");
+    expect(
+      deriveDisplayName({ ...page, contentAst: [{ type: "text", text: "x".repeat(200) }] }),
+    ).toHaveLength(80);
   });
 
   it("falls back to the content excerpt for unnamed blocks", () => {
@@ -145,11 +149,12 @@ describe("date node display names", () => {
   const MONTH = "00000000-0000-0000-0001-000000000004";
   const DAY = "00000000-0000-0000-0001-000000000005";
 
-  it("formats raw date names per the slash-separated setting shape", () => {
+  it("formats raw date content labels per the slash-separated setting shape", () => {
     const base = { id: "n", nodeType: "page" as const };
-    expect(deriveDisplayName({ ...base, name: "20290000", classIds: [YEAR] })).toBe("2029");
-    expect(deriveDisplayName({ ...base, name: "20290600", classIds: [MONTH] })).toBe("2029/06");
-    expect(deriveDisplayName({ ...base, name: "20290627", classIds: [DAY] })).toBe("2029/06/27");
+    const text = (t: string) => ({ type: "text" as const, text: t });
+    expect(deriveDisplayName({ ...base, contentAst: [text("20290000")], classIds: [YEAR] })).toBe("2029");
+    expect(deriveDisplayName({ ...base, contentAst: [text("20290600")], classIds: [MONTH] })).toBe("2029/06");
+    expect(deriveDisplayName({ ...base, contentAst: [text("20290627")], classIds: [DAY] })).toBe("2029/06/27");
   });
 
   it("treats a uuid-stored name as unnamed (legacy untitled pages)", () => {
@@ -163,9 +168,11 @@ describe("date node display names", () => {
     ).toBe("Real title in content");
   });
 
-  it("leaves non-date nodes and malformed names untouched", () => {
+  it("leaves non-date content untouched", () => {
     const base = { id: "n", nodeType: "page" as const };
-    expect(deriveDisplayName({ ...base, name: "20290627" })).toBe("2029/06/27");
-    expect(deriveDisplayName({ ...base, name: "Not a date", classIds: [DAY] })).toBe("Not a date");
+    const text = (t: string) => ({ type: "text" as const, text: t });
+    expect(deriveDisplayName({ ...base, contentAst: [text("Not a date")], classIds: [DAY] })).toBe(
+      "Not a date",
+    );
   });
 });

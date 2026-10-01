@@ -85,7 +85,7 @@ export function pagePayload(name: string, extra: Record<string, unknown> = {}): 
   return {
     objectId: crypto.randomUUID(),
     nodeType: "page",
-    name,
+    contentAst: [{ type: "text", text: name }],
     ...extra,
   };
 }

@@ -217,6 +217,18 @@ export class Store {
     ).map((row) => row.parent_class_id);
   }
 
+  /** Classes whose extends closure contains classId (direct + indirect
+   * subclasses), deterministic order — the Class View's "Extended by" read. */
+  classChildIds(classId: string): string[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT class_id FROM class_hierarchy WHERE ancestor_id = ? AND class_id != ? ORDER BY class_id",
+        )
+        .all(classId, classId) as { class_id: string }[]
+    ).map((row) => row.class_id);
+  }
+
   /**
    * Active nodes whose OR-set class membership includes the class (present
    * rows only), in display order. The Class View's members read.
@@ -227,7 +239,7 @@ export class Store {
         `SELECT n.* FROM node n
          JOIN class_member_set m ON m.node_id = n.id
          WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1
-         ORDER BY COALESCE(n.name, n.id), n.id`,
+         ORDER BY COALESCE((SELECT name FROM class WHERE id = n.id), n.id), n.id`,
       )
       .all(classId) as NodeRow[];
   }
