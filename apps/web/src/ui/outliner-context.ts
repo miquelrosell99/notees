@@ -61,6 +61,12 @@ export interface OutlinerClient {
    * Class View surfaces that as a transient message.
    */
   setClassExtends(classId: string, parentClassIds: string[]): Promise<void>;
+  /** Create a class node (`class.create`) — the `+` picker's create row. */
+  createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
+  /** Raw store read (no projection) — the date suggestion's existence check. */
+  getNodeRaw(id: string): ClientNode | undefined;
+  /** Ensure the year/month/day journal chain; returns the three node ids. */
+  ensureDateChain(isoDate: string): Promise<{ year: string; month: string; day: string }>;
 }
 
 export interface FocusRequest {
@@ -116,6 +122,12 @@ export interface OutlinerContextValue {
   collapsed: ReadonlySet<string>;
   toggleCollapse: (blockId: string) => void;
   /**
+   * Shift+click "peek" target: opens the node as an independent card in the
+   * right sidebar instead of the main view. Defaults to a no-op where the
+   * host shell has no right sidebar.
+   */
+  openInSidebar: (nodeId: string) => void;
+  /**
    * Capture-gesture reads ([[ mention, # chip): filtered node search, the
    * class list, and name resolution for candidate rows. Provided from the
    * full client surface (in-process or worker proxy).
@@ -138,7 +150,7 @@ export interface OutlinerContextValue {
 export function useOutlinerValue(
   client: OutlinerClient & OutlinerReader,
   rootId: string,
-  options?: { openNode?: (nodeId: string) => void },
+  options?: { openNode?: (nodeId: string) => void; openInSidebar?: (nodeId: string) => void },
 ): OutlinerContextValue {
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
@@ -158,6 +170,7 @@ export function useOutlinerValue(
     client,
     rootId,
     openNode: options?.openNode ?? (() => {}),
+    openInSidebar: options?.openInSidebar ?? (() => {}),
     positions,
     focusRequest,
     requestFocus: (blockId: string, caret: CaretPlacement = "end") =>

@@ -52,7 +52,7 @@ function section(headerName: RegExp): HTMLElement {
 }
 
 describe("PageView system sections", () => {
-  it("renders linked references expanded, the rest collapsed; collapsed sections execute zero queries", async () => {
+  it("renders all reference sections collapsed; collapsed sections execute zero queries", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Zebra" });
     // One mention backlink (keeps Linked references visible) and one literal
@@ -76,17 +76,19 @@ describe("PageView system sections", () => {
 
     render(<PageView client={client} pageId={pageId} />);
 
-    // Linked references starts expanded (owner-approved default): its query
-    // runs on mount. The other two stay collapsed and execute no query.
-    const linkedHeader = screen.getByRole("button", { name: /Linked references/ });
-    expect(linkedHeader.getAttribute("aria-expanded")).toBe("true");
-    for (const name of [/Unlinked references/, /Child pages/]) {
+    // Every reference section starts collapsed (note layout: identity →
+    // properties → content → references): no query runs on mount.
+    for (const name of [/Linked references/, /Unlinked references/, /Child pages/]) {
       const header = screen.getByRole("button", { name });
       expect(header.getAttribute("aria-expanded")).toBe("false");
     }
-    expect(linkedSpy).toHaveBeenCalledTimes(1);
+    expect(linkedSpy).not.toHaveBeenCalled();
     expect(unlinkedSpy).not.toHaveBeenCalled();
     expect(childSpy).not.toHaveBeenCalled();
+
+    // Expanding runs the section's lazy query exactly once.
+    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
+    expect(linkedSpy).toHaveBeenCalledTimes(1);
   });
 
   it("hides linked and unlinked reference sections when their count is 0", async () => {
@@ -136,7 +138,9 @@ describe("PageView system sections", () => {
     const linkedSpy = vi.spyOn(client, "getLinkedReferences");
     render(<PageView client={client} pageId={targetId} />);
 
-    // Linked references is expanded on mount: one query, results listed.
+    // Linked references starts collapsed: expanding runs the query once and
+    // lists the mention source (the plain-text source never appears).
+    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
     expect(linkedSpy).toHaveBeenCalledTimes(1);
     const linked = section(/Linked references/);
     within(linked).getAllByText("Linked Source");
@@ -293,6 +297,7 @@ describe("PageView system sections", () => {
     expect(
       within(screen.getByRole("button", { name: /Linked references/ })).getByText("1"),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
     const linked = section(/Linked references/);
     const items = Array.from(linked.querySelectorAll(".nt-refblock-tree"));
     expect(items).toHaveLength(1);
@@ -322,8 +327,9 @@ describe("PageView system sections", () => {
 
     render(<PageView client={clientA} pageId={pageId} />);
 
-    // Linked references starts expanded (no click needed); the badge reads
-    // the materialized count (1 — the local source).
+    // Expand linked references (collapsed by default in the note layout); the
+    // badge reads the materialized count (1 — the local source).
+    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
     const linked = section(/Linked references/);
     within(linked).getAllByText("Local Source");
     expect(

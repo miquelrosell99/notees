@@ -5,11 +5,12 @@
  * Styled like Button, but shows a filled color instead of an icon.
  * Has a gap between the color fill and the button border.
  *
- * Supports hex colors (the built-in preset palette emits hex strings).
+ * Supports hex colors and 'var(--color-preset-*)' references (the built-in
+ * preset palette emits CSS variable references so themes can remap them).
  *
  * Usage:
  *   <ColorButton color="#ff5722" onClick={handleClick} />
- *   <ColorButton color="#c55a55" showPicker onColorChange={handleChange} />
+ *   <ColorButton color="var(--color-preset-red)" showPicker onColorChange={handleChange} />
  *   <ColorButton color={myColor} showPicker colors={myPalette} onColorChange={handleChange} />
  */
 import { forwardRef, useState, useRef, useEffect, useLayoutEffect, type ButtonHTMLAttributes, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react';

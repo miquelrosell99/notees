@@ -391,7 +391,7 @@ select:focus-visible {
 .nt-page {
   max-width: 46rem;
   margin: 0 auto;
-  padding: var(--spacing-1) var(--spacing-6) var(--spacing-10);
+  padding: var(--spacing-10) var(--spacing-6) var(--spacing-10);
   display: flex;
   flex-direction: column;
 }
@@ -404,6 +404,27 @@ select:focus-visible {
 }
 
 .nt-page-header {
+  margin-bottom: var(--spacing-2);
+}
+
+/* Identity rows (classes above the title, tags below): small, label-less
+   pills flush with the title column — hierarchy cue, not a property table. */
+.nt-page-header .node-metadata-row {
+  min-height: var(--height-xs);
+  margin-left: calc(var(--height-2xl) + var(--spacing-3));
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-page-header .node-metadata-row > .section-label {
+  width: auto;
+  font: var(--font-label-medium);
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+  margin-right: 0;
+}
+
+.nt-page-header .nt-tags-row {
   margin-bottom: var(--spacing-2);
 }
 
@@ -611,41 +632,6 @@ select:focus-visible {
 
 .nt-editor-root {
   display: inline;
-}
-
-.nt-capture-popup {
-  position: fixed;
-  transform: translateY(4px);
-  min-width: 180px;
-  max-height: 240px;
-  overflow-y: auto;
-  padding: 3px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  z-index: 50;
-}
-
-.nt-capture-item {
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.nt-capture-selected {
-  background: var(--color-surface-container-highest);
-}
-
-.nt-capture-empty {
-  padding: 3px 8px;
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
 }
 
 .nt-verb-popover {

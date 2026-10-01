@@ -56,6 +56,14 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
+/** Expand the page's "Properties N" section (collapsed by default in the note layout). */
+function expandProperties(): void {
+  const header = screen.queryByRole("button", { name: /^Properties / });
+  if (header !== null && header.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(header);
+  }
+}
+
 describe("metadata pickers (ported popups)", () => {
   it("the class picker lists classes, filters, picks, and creates", async () => {
     const client = await seedClient();
@@ -118,7 +126,7 @@ describe("metadata pickers (ported popups)", () => {
     expect(swatches.length).toBe(9); // no-color + 8 preset colors
     fireEvent.click(swatches[1]!); // red
     await flushWrites();
-    expect(client.getNode(classId)?.color).toBe("#c55a55");
+    expect(client.getNode(classId)?.color).toBe("var(--color-preset-red)");
   });
 
   it("select schemas with options render the options control writing option ids", async () => {
@@ -136,6 +144,7 @@ describe("metadata pickers (ported popups)", () => {
     const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
 
     // Unvalued: the Empty cell opens the options picker.
     const row = screen.getByText("status").closest(".nt-property-select") as HTMLElement;
@@ -167,6 +176,7 @@ describe("metadata pickers (ported popups)", () => {
     // fresh — jsdom's synthetic checkbox click only registers the first
     // toggle on a mounted controlled input.)
     const first = render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
     const firstRow = screen.getByText("archived").closest(".nt-property-boolean") as HTMLElement;
     fireEvent.click(within(firstRow).getByLabelText("Property archived"));
     await flushWrites();
@@ -178,6 +188,7 @@ describe("metadata pickers (ported popups)", () => {
     // Seeded true: the checked toggle writes false.
     await client.setProperty(pageId, schemaId, true, 0);
     render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
     const row = screen.getByText("archived").closest(".nt-property-boolean") as HTMLElement;
     const toggle = within(row).getByLabelText("Property archived") as HTMLInputElement;
     expect(toggle.checked).toBe(true);
@@ -201,6 +212,7 @@ describe("metadata pickers (ported popups)", () => {
     const teamId = await client.createObject({ nodeType: "page", name: "Crew" });
     await client.assignClass(teamId, teamClass);
     render(<PageView client={client} pageId={teamId} />);
+    expandProperties();
 
     const row = screen.getByText("mentor").closest(".nt-property-object") as HTMLElement;
     fireEvent.click(within(row).getByRole("button", { name: "Add" }));
