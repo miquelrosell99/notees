@@ -1326,6 +1326,21 @@ export function MetadataSection({
             const row = entry.row;
             const label = labelOf(row);
             const editable = toEditableText(row.value);
+            // Text properties are node-backed: the value references a carrier
+            // block — {"nodeId"} after migration, a bare uuid string in
+            // archived data. Render the block, editable, in place of the raw
+            // input when it resolves to a block.
+            const rawRef =
+              typeof row.value === "object" && row.value !== null && "nodeId" in (row.value as object)
+                ? String((row.value as { nodeId: unknown }).nodeId)
+                : typeof editable === "string" &&
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editable)
+                  ? editable
+                  : null;
+            const carrier =
+              rawRef !== null && client.getNode(rawRef)?.nodeType === "block"
+                ? client.getNode(rawRef)
+                : undefined;
             return (
               <li
                 key={`${row.propertySchemaId}:${row.idx}`}
@@ -1340,6 +1355,11 @@ export function MetadataSection({
                 {row.source === "authored" && row.boundBy === null && (
                   <span className="nt-property-hint">unbound</span>
                 )}
+                {carrier !== undefined ? (
+                  <span className="nt-property-blockcell">
+                    <ReferenceSubtree client={client} rootId={carrier.id} onOpenNode={onOpenPage} />
+                  </span>
+                ) : (
                 <input
                   key={`${row.propertySchemaId}:${row.idx}:${editable}`}
                   type="text"
@@ -1354,6 +1374,7 @@ export function MetadataSection({
                     }
                   }}
                 />
+                )}
               </li>
             );
           })}
