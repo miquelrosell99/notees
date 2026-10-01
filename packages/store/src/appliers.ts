@@ -685,6 +685,13 @@ function applyClassDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   const p = env.payload as OpPayload<"class.delete">;
   db.prepare("UPDATE class SET active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
   db.prepare("UPDATE node SET is_active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
+  // The class leaves every node's class_ids: tombstone the membership rows
+  // and recompute the affected nodes (otherwise pills render dangling ids).
+  const affected = db
+    .prepare("SELECT node_id FROM class_member_set WHERE class_id = ? AND present = 1")
+    .all(p.classId) as Array<{ node_id: string }>;
+  db.prepare("UPDATE class_member_set SET present = 0 WHERE class_id = ?").run(p.classId);
+  for (const row of affected) recomputeClassIds(db, row.node_id);
   return summary(opType, [p.classId]);
 }
 
