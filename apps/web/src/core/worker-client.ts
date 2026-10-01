@@ -222,6 +222,18 @@ export class WorkerClient {
     return this.cachedRead("effectiveClassColor", [classId], null);
   }
 
+  effectiveClassIcon(classId: string): string | null {
+    return this.cachedRead("effectiveClassIcon", [classId], null);
+  }
+
+  effectiveNodeIcon(node: { icon: string | null; classIds: string[] }): string | null {
+    return this.cachedRead(
+      "effectiveNodeIcon",
+      [{ icon: node.icon, classIds: node.classIds }],
+      null,
+    );
+  }
+
   effectiveNodeColor(node: { color: string | null; classIds: string[] }): string | null {
     return this.cachedRead(
       "effectiveNodeColor",
@@ -244,6 +256,10 @@ export class WorkerClient {
 
   getClassParents(classId: string): string[] {
     return this.cachedRead<string[]>("getClassParents", [classId], []);
+  }
+
+  getClassChildren(classId: string): import("@/core/workspace-client.js").ClientNode[] {
+    return this.cachedRead("getClassChildren", [classId], []);
   }
 
   getClassMembers(classId: string): ClientNode[] {

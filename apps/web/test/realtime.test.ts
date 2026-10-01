@@ -11,7 +11,8 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
-import { newEnvelope, type Envelope } from "@notees/protocol";
+import { deriveDisplayName } from "@notees/domain";
+import { newEnvelope, type ContentAst, type Envelope } from "@notees/protocol";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
@@ -43,14 +44,16 @@ afterEach(async () => {
   while (cores.length > 0) await cores.pop()!.close();
 });
 
-function makeEnvelope(deviceId: string, physical: number, objectId: string, name: string): Envelope {
+function makeEnvelope(deviceId: string, physical: number, objectId: string, title: string): Envelope {
   return newEnvelope({
     workspaceId: WS,
     actorId: ACTOR,
     deviceId,
     hlc: { physical, logical: 0 },
     opType: "object.create",
-    payload: { objectId, nodeType: "page", name },
+    // Title-is-content: a page's title is its text content — the raw envelope
+    // carries a text-only contentAst, never a `name` field.
+    payload: { objectId, nodeType: "page", contentAst: [{ type: "text", text: title }] },
     timestamp: new Date(physical).toISOString(),
   });
 }
@@ -90,7 +93,8 @@ describe("WorkspaceClient realtime (MemoryRelay subscribe surface)", () => {
     await clientB.createObject({ nodeType: "page", name: "Live Page", id: pageId });
     await clientB.push();
 
-    expect(clientA.getPage(pageId)?.name).toBe("Live Page");
+    expect(clientA.getPage(pageId)).toBeDefined();
+    expect(deriveDisplayName(clientA.getPage(pageId)!)).toBe("Live Page");
     // The remote apply notified A's subscribers (engine onRemoteBatch → notify).
     expect(notifications).toBeGreaterThan(before);
     expect(clientA.status().cursorSeq).toBe(1);
@@ -217,8 +221,12 @@ describe("worker wire protocol: realtime cases", () => {
 
     const listed = await send(ctx, "listPages", [], 4);
     expect(listed.error).toBeUndefined();
-    const pages = listed.result as Array<{ id: string; name: string | null }>;
-    expect(pages.map((page) => page.name)).toContain("From B");
+    const pages = listed.result as Array<{
+      id: string;
+      nodeType: "page" | "block" | "class";
+      contentAst: ContentAst | null;
+    }>;
+    expect(pages.map((page) => deriveDisplayName(page))).toContain("From B");
 
     const statusApplied = await send(ctx, "status", [], 5);
     expect(statusApplied.result).toMatchObject({ cursorSeq: 1 });

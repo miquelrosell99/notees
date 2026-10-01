@@ -8,6 +8,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
+import { deriveDisplayName } from "@notees/domain";
 import { MemoryRelay, MemoryTransport, type SyncConflict } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
@@ -93,7 +94,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     });
 
     // A's own optimistic local state already sees the writes.
-    expect(clientA.getPage(pageId)?.name).toBe("Hello Page");
+    expect(deriveDisplayName(clientA.getPage(pageId)!)).toBe("Hello Page");
     expect(clientA.getBlockTree(pageId)).toHaveLength(2);
 
     // Sync both (A pushes any stragglers; B pulls the log).
@@ -101,7 +102,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await clientB.sync();
 
     // B sees the page via getPage / listPages.
-    expect(clientB.getPage(pageId)?.name).toBe("Hello Page");
+    expect(deriveDisplayName(clientB.getPage(pageId)!)).toBe("Hello Page");
     expect(clientB.listPages().map((p) => p.id)).toContain(pageId);
 
     // B sees the block tree in child order with parsed content.
@@ -131,7 +132,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
       contentAst: [{ type: "text", text: "before" }],
     });
     await clientB.sync();
-    expect(clientB.getPage(pageId)?.name).toBe("Rename Me");
+    expect(deriveDisplayName(clientB.getPage(pageId)!)).toBe("Rename Me");
 
     // B updates the block content; A receives it.
     const blockId = clientB.getBlockTree(pageId)[0]!.node.id;
@@ -139,8 +140,9 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await clientA.sync();
     expect(clientA.getBlockTree(pageId)[0]?.node.contentAst).toEqual([{ type: "text", text: "after" }]);
 
-    // A renames the page and trashes it; B converges.
-    await clientA.updateObject(pageId, { name: "Renamed" });
+    // A renames the page (title-is-content: the rename IS a content write) and
+    // trashes it; B converges.
+    await clientA.updateObject(pageId, { contentAst: [{ type: "text", text: "Renamed" }] });
     await clientA.deleteObject(pageId);
     await clientB.sync();
     expect(clientB.getPage(pageId)).toBeUndefined();
@@ -177,7 +179,9 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     expect(clientA.getPage(pageId)).toBeUndefined();
 
     // B edits the page and pushes the edit to the relay.
-    await clientB.updateObject(pageId, { name: "Edited after delete" });
+    await clientB.updateObject(pageId, {
+      contentAst: [{ type: "text", text: "Edited after delete" }],
+    });
     await clientB.push();
 
     // A comes back online and pulls: the remote edit lands while A's delete
@@ -198,7 +202,8 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     const client = await createClient(ctx);
     await client.bootstrapWorkspace(WS);
 
-    // The FTS index covers content plaintext AND stored node names.
+    // The FTS index covers content plaintext — page titles live in their
+    // content, so a title search matches the page node's own text.
     const pageId = await client.createObject({ nodeType: "page", name: "Search Page" });
     const blockId = await client.createObject({
       nodeType: "block",
@@ -208,7 +213,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await client.sync();
     const hits = client.search("Findable");
     expect(hits.some((n) => n.id === blockId)).toBe(true);
-    // Title search: the page itself is found by its stored name.
+    // Title search: the page itself is found by its title content.
     const byName = client.search("Search Page");
     expect(byName.some((n) => n.id === pageId)).toBe(true);
     expect(byName.some((n) => n.id === blockId)).toBe(false);

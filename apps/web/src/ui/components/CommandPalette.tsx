@@ -124,19 +124,19 @@ export function CommandPalette({
       .map<PaletteItem>((page) => ({
         key: `page:${page.id}`,
         group: "Pages",
-        label: displayNameForSettings(page) || page.id,
+        label: displayNameForSettings(page) || "Untitled page",
         icon: page.icon ?? "mdi-file-document-outline",
         // The raw compact label stays a search keyword: display is formatted,
         // but users still type YYYYMMDD to find a date page.
-        keywords: `${page.name ?? ""} ${rawDateKeywordOf(page)}`.trim(),
+        keywords: `${rawDateKeywordOf(page)}`.trim(),
         run: () => onOpenNode(page.id),
       }));
     const classItems = classes.map<PaletteItem>((cls) => ({
       key: `class:${cls.id}`,
       group: "Classes",
-      label: displayNameForSettings(cls) || cls.id,
+      label: displayNameForSettings(cls) || "Untitled class",
       icon: cls.icon ?? "mdi-shape-outline",
-      keywords: `${cls.name ?? ""}`,
+      keywords: `${displayNameForSettings(cls)}`,
       run: () => onOpenNode(cls.id),
     }));
     const themeIsDark = document.documentElement.dataset.theme !== "light";

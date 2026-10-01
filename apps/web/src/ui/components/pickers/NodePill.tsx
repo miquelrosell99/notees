@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 
 import { Icon } from "../../Icon.js";
 import type { ClientNode } from "@/core/workspace-client.js";
+import { displayNameForSettings } from "../../dateDisplay.js";
 import { ColorPickerRow } from "./ColorPickerRow.js";
 import "./NodePill.css";
 
@@ -53,7 +54,9 @@ export function NodePill({
 
   const closeColorMenu = useCallback(() => setColorMenu(null), []);
 
-  const displayText = node.name ?? node.id;
+  // Title-is-content: the pill label is the node's display name (its content
+  // excerpt); the id is the last-resort fallback so a pill never renders raw.
+  const displayText = displayNameForSettings(node) || node.id;
   const title = `Page: ${displayText}\nRight-click for actions`;
 
   return (

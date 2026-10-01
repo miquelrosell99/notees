@@ -111,9 +111,12 @@ describe("worker message protocol (handleMessage)", () => {
 
     const listed = await send(ctx, "listPages", [], 3);
     expect(listed.error).toBeUndefined();
-    const pages = listed.result as Array<{ id: string; name: string | null }>;
+    const pages = listed.result as Array<{ id: string; contentAst: Array<{ type: string; text: string }> }>;
     expect(pages).toHaveLength(1);
-    expect(pages[0]).toMatchObject({ id: pageId, name: "Via Protocol" });
+    // Title-is-content: the create convenience became the page's text content;
+    // there is no stored `name` field anymore.
+    expect(pages[0]).toMatchObject({ id: pageId });
+    expect(pages[0]!.contentAst).toEqual([{ type: "text", text: "Via Protocol" }]);
 
     const page = await send(ctx, "getPage", [pageId], 4);
     expect(page.error).toBeUndefined();

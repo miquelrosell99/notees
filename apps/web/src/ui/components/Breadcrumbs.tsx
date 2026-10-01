@@ -151,8 +151,12 @@ export function Breadcrumbs({
         className="node-breadcrumb-link"
         onClick={() => onOpenNode?.(item.node.id)}
       >
-        {item.node.icon !== null && (
-          <Icon path={item.node.icon} size={0.8} className="node-breadcrumb-icon" />
+        {client.effectiveNodeIcon(item.node) !== null && (
+          <Icon
+            path={client.effectiveNodeIcon(item.node)!}
+            size={0.8}
+            className="node-breadcrumb-icon"
+          />
         )}
         <span className="node-breadcrumb-name">{item.name}</span>
       </button>
@@ -258,9 +262,9 @@ export function Breadcrumbs({
                         onOpenNode?.(item.node.id);
                       }}
                     >
-                      {item.node.icon !== null && (
+                      {client.effectiveNodeIcon(item.node) !== null && (
                         <Icon
-                          path={item.node.icon}
+                          path={client.effectiveNodeIcon(item.node)!}
                           size={0.8}
                           className="node-breadcrumb-popup-icon"
                         />
@@ -288,8 +292,12 @@ export function Breadcrumbs({
             aria-current="page"
             onClick={() => onOpenNode?.(currentNode.id)}
           >
-            {currentNode.icon !== null && (
-              <Icon path={currentNode.icon} size={0.8} className="node-breadcrumb-icon" />
+            {client.effectiveNodeIcon(currentNode) !== null && (
+              <Icon
+                path={client.effectiveNodeIcon(currentNode)!}
+                size={0.8}
+                className="node-breadcrumb-icon"
+              />
             )}
             <span className="node-breadcrumb-name">{crumbNameOf(currentNode)}</span>
           </button>

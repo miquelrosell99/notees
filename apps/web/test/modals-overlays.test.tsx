@@ -12,6 +12,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { deriveDisplayName } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { ExportPageModal } from "../src/ui/components/modals/ExportPageModal.js";
@@ -181,6 +182,11 @@ describe("DuplicatePageModal", () => {
   it("creates the page with the picked class", async () => {
     const client = await makeClient();
     const classId = await client.createClass("Company");
+    // WORKAROUND(store applier): class.create's contentAst never lands in the
+    // class node's content (the upsert's LWW update loses against the row its
+    // own INSERT just wrote), so seed the title via object.update — the
+    // later-HLC path that does persist. Remove once the applier is fixed.
+    await client.updateObject(classId, { contentAst: [{ type: "text", text: "Company" }] });
 
     const onSuccess = vi.fn();
     render(
@@ -200,10 +206,11 @@ describe("DuplicatePageModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await vi.waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    const created = onSuccess.mock.calls[0]![0] as { id: string; name: string | null; classIds: string[] };
-    expect(created.name).toBe("Apple");
+    const created = onSuccess.mock.calls[0]![0] as { id: string; contentAst: unknown; classIds: string[] };
+    // Title-is-content: the duplicate's title is its content.
+    expect(created.contentAst).toEqual([{ type: "text", text: "Apple" }]);
     expect(created.classIds).toContain(classId);
-    expect(client.getNode(created.id)?.name).toBe("Apple");
+    expect(deriveDisplayName(client.getNode(created.id)!)).toBe("Apple");
   });
 });
 
@@ -222,7 +229,8 @@ describe("CreatePageWithUuidModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^open$/i }));
 
     await vi.waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    expect(client.getNode(fixed)?.name).toBe("Fixed id page");
+    // Title-is-content: the page's title is its text content.
+    expect(client.getNode(fixed)?.contentAst).toEqual([{ type: "text", text: "Fixed id page" }]);
   });
 
   it("refuses a UUID that already exists", async () => {
