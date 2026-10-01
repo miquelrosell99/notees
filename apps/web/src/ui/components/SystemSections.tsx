@@ -97,15 +97,44 @@ export function SystemSections({
   const loadUnlinkedRefs = useCallback(() => client.getUnlinkedReferences(pageId), [client, pageId]);
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
 
-  // Empty reference sections hide entirely (owner rule): linked refs read
-  // the materialized backlink count, unlinked refs run its (memoized) count
-  // query — the section header must know emptiness without an expand, and
-  // windowed feeds (the journal) mount too few pages for that to matter.
+  // Empty sections hide entirely (owner rule): linked refs read the
+  // materialized backlink count, unlinked refs its (memoized) count query,
+  // child pages the child count — the headers must know emptiness without
+  // an expand, and windowed feeds (the journal) mount too few pages for
+  // that to matter.
   const backlinkCount = client.getBacklinkCount(pageId);
   const unlinkedCount = client.getUnlinkedReferenceCount(pageId);
+  const childPageCount = client.getChildPageCount(pageId);
 
   return (
     <div className="nt-page-sections">
+      {childPageCount > 0 && (
+        <Section
+          key={`child-${pageId}`}
+          client={client}
+          title="Child pages"
+          icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
+          badge={childPageCount}
+          load={loadChildPages}
+          emptyText="No child pages."
+          renderResults={(pages) => (
+            <ul className="nt-section-list">
+              {pages.map((child) => (
+                <li key={child.id}>
+                  <button
+                    type="button"
+                    className="nt-section-item"
+                    onClick={() => onOpenPage?.(child.id)}
+                  >
+                    <RowIcon node={child} />
+                    <span className="nt-section-row-name">{displayNameForSettings(child) || child.id}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        />
+      )}
       {backlinkCount > 0 && (
         <Section
           key={`linked-${pageId}`}
@@ -119,31 +148,6 @@ export function SystemSections({
           renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
         />
       )}
-      <Section
-        key={`child-${pageId}`}
-        client={client}
-        title="Child pages"
-        icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
-        badge={client.getChildPageCount(pageId)}
-        load={loadChildPages}
-        emptyText="No child pages."
-        renderResults={(pages) => (
-          <ul className="nt-section-list">
-            {pages.map((child) => (
-              <li key={child.id}>
-                <button
-                  type="button"
-                  className="nt-section-item"
-                  onClick={() => onOpenPage?.(child.id)}
-                >
-                  <RowIcon node={child} />
-                  <span className="nt-section-row-name">{displayNameForSettings(child) || child.id}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      />
       {unlinkedCount > 0 && (
         <Section
           key={`unlinked-${pageId}`}

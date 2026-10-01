@@ -1526,8 +1526,9 @@ export function PropertiesSection({
   const count = propertiesCountOf(propertyGroupsOf(client, nodeId));
   return (
     <NodeViewSection
-      title={`Properties ${count}`}
-      icon={<Icon path="mdi-table-properties" size={0.9} />}
+      title="Properties"
+      icon={<Icon path="mdi-format-list-bulleted-square" size={0.9} />}
+      count={count}
       className="node-metadata-section nt-properties-panel"
       defaultExpanded={false}
     >

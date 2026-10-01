@@ -81,7 +81,12 @@
 
 .node-view-section__count {
   font: var(--font-label-medium);
+  font-size: 11px;
+  line-height: 1;
   color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-medium);
+  padding: 3px 8px;
   flex-shrink: 0;
 }
 

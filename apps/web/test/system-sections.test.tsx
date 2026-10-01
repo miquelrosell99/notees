@@ -77,11 +77,13 @@ describe("PageView system sections", () => {
     render(<PageView client={client} pageId={pageId} />);
 
     // Every reference section starts collapsed (note layout: identity →
-    // properties → content → references): no query runs on mount.
-    for (const name of [/Linked references/, /Unlinked references/, /Child pages/]) {
+    // properties → content → references): no query runs on mount. The
+    // fixture page has no child pages, so that section hides entirely.
+    for (const name of [/Linked references/, /Unlinked references/]) {
       const header = screen.getByRole("button", { name });
       expect(header.getAttribute("aria-expanded")).toBe("false");
     }
+    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
     expect(linkedSpy).not.toHaveBeenCalled();
     expect(unlinkedSpy).not.toHaveBeenCalled();
     expect(childSpy).not.toHaveBeenCalled();
@@ -109,14 +111,14 @@ describe("PageView system sections", () => {
     expect(screen.getByRole("button", { name: /Unlinked references/ })).toBeInTheDocument();
   });
 
-  it("hides both reference sections on a page nobody mentions", async () => {
+  it("hides every system section on a page nobody mentions and without children", async () => {
     const client = await seedClient();
     const lonelyId = await client.createObject({ nodeType: "page", name: "Xylophone QV" });
 
     render(<PageView client={client} pageId={lonelyId} />);
     expect(screen.queryByRole("button", { name: /Linked references/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Unlinked references/ })).toBeNull();
-    expect(screen.getByRole("button", { name: /Child pages/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
   });
 
   it("expands linked/unlinked references: mentions link, literal text does not", async () => {

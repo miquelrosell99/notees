@@ -30,7 +30,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
-import { WorkspaceClient, type SyncStatusSnapshot } from "@/core/workspace-client.js";
+import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import {
   createWorkspace,
@@ -47,7 +47,7 @@ import {
 
 import { Icon } from "./Icon.js";
 import { PageView } from "./PageView.js";
-import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
+import { displayNameForSettings } from "./dateDisplay.js";
 import { ClassView } from "./ClassView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
@@ -216,11 +216,13 @@ export function NodeView({
   nodeId,
   onOpenNode,
   onOpenInSidebar,
+  onDeleted,
 }: {
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
+  onDeleted?: ((node: ClientNode) => void) | undefined;
 }) {
   const node = client.getNode(nodeId);
   if (node === undefined) {
@@ -235,14 +237,22 @@ export function NodeView({
     return <FocusedBlockView client={client} blockId={nodeId} onOpenNode={onOpenNode} />;
   }
   return (
-    <PageView client={client} pageId={nodeId} onOpenPage={onOpenNode} onOpenInSidebar={onOpenInSidebar} />
+    <PageView
+      client={client}
+      pageId={nodeId}
+      onOpenPage={onOpenNode}
+      onOpenInSidebar={onOpenInSidebar}
+      onDeleted={onDeleted}
+    />
   );
 }
 
 /**
  * SidebarNodeCard — one independent peek card in the right sidebar
  * (shift+click a block bullet): the node's own view (page/class/focused
- * block) with a close button; links inside navigate the main view.
+ * block) with a close button; links inside navigate the main view. The
+ * header title IS the breadcrumb trail (right-anchored): for blocks it ends
+ * at the containing page, for pages/classes at the node itself.
  */
 function SidebarNodeCard({
   client,
@@ -256,18 +266,23 @@ function SidebarNodeCard({
   onClose: () => void;
 }) {
   const node = client.getNode(nodeId);
-  const title = node === undefined ? null : displayNameFromClient(client, nodeId);
   return (
-    <section className="nt-sidebar-card" aria-label={title ?? "Node preview"}>
+    <section className="nt-sidebar-card" aria-label="Node preview">
       <header className="nt-sidebar-card__header">
-        <span className="nt-sidebar-card__title">
-          {title ?? (node === undefined ? "Not found" : "Untitled")}
-        </span>
+        {node !== undefined && (
+          <Breadcrumbs
+            client={client}
+            nodeId={nodeId}
+            onOpenNode={onOpenNode}
+            showCurrent={node.nodeType !== "block"}
+            anchor="right"
+          />
+        )}
         <span className="nt-sidebar-card__actions">
           <button
             type="button"
             className="nt-sidebar-card__action"
-            aria-label={`Open ${title ?? "card"} in main view`}
+            aria-label="Open in main view"
             title="Open in main view"
             onClick={() => {
               onOpenNode(nodeId);
@@ -279,7 +294,7 @@ function SidebarNodeCard({
           <button
             type="button"
             className="nt-sidebar-card__action"
-            aria-label={`Close ${title ?? "card"}`}
+            aria-label="Close card"
             title="Close"
             onClick={onClose}
           >
@@ -291,7 +306,7 @@ function SidebarNodeCard({
         {node === undefined ? (
           <div className="nt-page-missing">Page not found.</div>
         ) : (
-          <NodeView client={client} nodeId={nodeId} onOpenNode={onOpenNode} />
+          <NodeView client={client} nodeId={nodeId} onOpenNode={onOpenNode} onDeleted={() => onClose()} />
         )}
       </div>
     </section>
@@ -330,16 +345,31 @@ export function App() {
   /**
    * Right-sidebar peek cards (shift+click a block bullet): most recent first.
    * Re-clicking an open card brings it to the top; opening a card opens the
-   * panel.
+   * panel. Closing the last card closes the panel with it.
    */
   const [sidebarCards, setSidebarCards] = useState<string[]>([]);
   const openInSidebar = useCallback((nodeId: string) => {
     setSidebarCards((prev) => [nodeId, ...prev.filter((id) => id !== nodeId)]);
     setRightPanelOpen(true);
   }, []);
-  const closeSidebarCard = useCallback((nodeId: string) => {
-    setSidebarCards((prev) => prev.filter((id) => id !== nodeId));
-  }, []);
+  function closeSidebarCard(nodeId: string): void {
+    const next = sidebarCards.filter((id) => id !== nodeId);
+    setSidebarCards(next);
+    if (next.length === 0) setRightPanelOpen(false);
+  }
+  /**
+   * Post-delete navigation: a deleted page/class lands on its parent page
+   * when one exists, otherwise on the workspace default view (today's page /
+   * journal / pages hub). Blocks vanish in place — no navigation.
+   */
+  function handleNodeDeleted(node: ClientNode): void {
+    if (node.nodeType === "block") return;
+    if (node.parentId !== null) {
+      openPage(node.parentId);
+      return;
+    }
+    openWorkspaceLanding();
+  }
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** Top-bar calendar popup (the popup needs the client, so it renders here). */
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -1212,6 +1242,7 @@ export function App() {
               nodeId={selectedPageId}
               onOpenNode={openPage}
               onOpenInSidebar={openInSidebar}
+              onDeleted={handleNodeDeleted}
             />
           ) : activeNav === "journal" ? (
             <JournalsView client={client} onOpenPage={openPage} />

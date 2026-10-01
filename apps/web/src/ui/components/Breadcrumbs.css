@@ -141,3 +141,27 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ─── Right-anchored trails (sidebar card headers) ─────────────────────── */
+
+/* Pack the trail toward the RIGHT end; overflow spills invisibly on the
+   LEFT (top-level parents). The lead "…" is absolutely pinned at the visible
+   left edge over a solid chip (the host passes its surface via
+   --breadcrumb-clip-bg), and pops up the full trail. */
+.node-breadcrumbs--anchor-right {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.node-breadcrumbs--anchor-right .node-breadcrumb-lead-clip {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  background: var(--breadcrumb-clip-bg, var(--color-surface));
+  border-radius: var(--shape-small);
+  padding-right: var(--spacing-1);
+}
