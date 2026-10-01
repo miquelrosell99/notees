@@ -9,8 +9,8 @@ await page.addInitScript(([url, t, ws]) => {
   localStorage.setItem("notees.sessionToken", t);
   localStorage.setItem("notees.workspaceId", ws);
 }, ["http://127.0.0.1:8377", token, "3b30e070-039b-47bc-ad0d-2440a2f173c5"]);
-await page.goto("http://127.0.0.1:8378/000f60e3-00c3-4948-a626-f687223ec757", { waitUntil: "commit", timeout: 60_000 });
-await page.waitForTimeout(11000);
+await page.goto(`http://127.0.0.1:8378/${process.env.PROBE_PAGE_ID}`, { waitUntil: "commit", timeout: 60_000 });
+await page.waitForTimeout(20000);
 const info = await page.evaluate(() => {
   const classesRow = document.querySelector(".nt-classes-row");
   return {

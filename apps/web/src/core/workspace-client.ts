@@ -948,10 +948,12 @@ export class WorkspaceClient {
    */
   getBlockTree(pageId: string, depth?: number | null): BlockTreeNode[] {
     const cap = depth ?? DEFAULT_TREE_DEPTH;
-    // Node-backed property values (text-property carrier blocks) live as
-    // children of the owner but render inside the property cell — exclude
-    // them here or they appear twice (child list + property cell).
+    // Node-backed property values live as children of the owner but render
+    // inside the property cell — exclude them here or they appear twice.
+    // Two shapes: node-typed references ({"nodeId"}) and text properties,
+    // whose scalar value IS the carrier block's uuid (archived data shape).
     const propertyRefIds = new Set<string>();
+    const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     for (const row of this.store.database
       .prepare("SELECT value FROM property_value WHERE node_id = ?")
       .all(pageId) as { value: string }[]) {
@@ -964,6 +966,8 @@ export class WorkspaceClient {
           typeof (parsed as { nodeId: unknown }).nodeId === "string"
         ) {
           propertyRefIds.add((parsed as { nodeId: string }).nodeId);
+        } else if (typeof parsed === "string" && UUID_LIKE.test(parsed)) {
+          propertyRefIds.add(parsed);
         }
       } catch {
         // Scalar value — not a node reference.

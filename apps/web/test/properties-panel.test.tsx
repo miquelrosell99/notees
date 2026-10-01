@@ -188,4 +188,17 @@ describe("carrier blocks vs the child block list", () => {
     // The block still exists and resolves (the property cell renders it).
     expect(client.getNode(carrier)?.contentAst).toEqual([{ type: "text", text: "Carrier text" }]);
   });
+
+  it("text properties whose scalar value IS a carrier block uuid are excluded too", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "notas", type: "text" });
+    const owner = await client.createObject({ nodeType: "page", name: "Owner" });
+    const carrier = await client.createObject({
+      nodeType: "block",
+      parentId: owner,
+      contentAst: [{ type: "text", text: "Scalar carrier" }],
+    });
+    await client.setProperty(owner, schemaId, carrier, 0);
+    expect(client.getBlockTree(owner).map((entry) => entry.node.id)).not.toContain(carrier);
+  });
 });
