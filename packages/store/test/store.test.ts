@@ -1667,6 +1667,23 @@ describe("cross-backend snapshot restore", () => {
 });
 
 for (const adapter of adapters) {
+  describe(`class delete on ${adapter.name} strips membership`, () => {
+    it("class.delete removes the class from every node's class_ids", () => {
+      const store = Store.open(adapter.makeBackend());
+      const page = "0192a000-0000-7000-8000-000000000501";
+      const cls = "0192a000-0000-7000-8000-000000000502";
+      store.apply(env("object.create", { objectId: page, nodeType: "page", name: "P" }, 1727200001000));
+      store.apply(env("class.create", { classId: cls, name: "Genre" }, 1727200001100));
+      store.apply(env("object.create", { objectId: page, nodeType: "page", classIds: [cls] }, 1727200001200));
+      expect(store.getNode(page)!.class_ids).toBe(JSON.stringify([cls]));
+      store.apply(env("class.delete", { classId: cls }, 1727200001300));
+      expect(store.getNode(page)!.class_ids).toBe("[]");
+      store.close();
+    });
+  });
+}
+
+for (const adapter of adapters) {
   describe(`tags on ${adapter.name} (page-scoped page assignments)`, () => {
     it("assign via create carrier, unassign tombstones, re-add wins; tag_ids derived", () => {
       const store = Store.open(adapter.makeBackend());

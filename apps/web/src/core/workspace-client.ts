@@ -1075,6 +1075,43 @@ export class WorkspaceClient {
       .map(mapNode);
   }
 
+  /**
+   * Class effectiveColor: the class's own color, else the nearest ancestor
+   * in the extends chain with a color (walked via class_extends edges).
+   */
+  effectiveClassColor(classId: string): string | null {
+    const seen = new Set<string>();
+    const queue = [classId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      const node = this.getNode(current) ?? this.getNodeRaw(current);
+      if (node !== undefined && node.color !== null && node.color !== "") {
+        return node.color;
+      }
+      const parents = this.store.database
+        .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
+        .all(current) as Array<{ parent_class_id: string }>;
+      for (const parent of parents) queue.push(parent.parent_class_id);
+    }
+    return null;
+  }
+
+  /**
+   * Node effectiveColor: the node's own color, else the first assigned
+   * class's effectiveColor (class order). Drives link underlines and the
+   * node-view accent border.
+   */
+  effectiveNodeColor(node: Pick<ClientNode, "color" | "classIds">): string | null {
+    if (node.color !== null && node.color !== undefined && node.color !== "") return node.color;
+    for (const classId of node.classIds) {
+      const color = this.effectiveClassColor(classId);
+      if (color !== null) return color;
+    }
+    return null;
+  }
+
   /** Edges pointing at the node (mentions, typed links, property refs). */
   getBacklinks(id: string): ClientEdge[] {
     const rows = this.store.backlinks(id) as Array<Record<string, unknown>>;
