@@ -370,6 +370,10 @@ export class WorkerClient {
     await this.call("unassignClass", [id, classId]);
   }
 
+  async reorderClasses(id: string, classIds: string[]): Promise<void> {
+    await this.call("reorderClasses", [id, classIds]);
+  }
+
   async assignTag(id: string, tagId: string): Promise<void> {
     await this.call("assignTag", [id, tagId]);
   }

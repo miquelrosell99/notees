@@ -8,7 +8,7 @@
  * live here (moved out of App).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
@@ -48,6 +48,26 @@ function readStoredJson(key: string): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * Record a page open in the device-local Recents list (the sidebar section).
+ * Every open surface funnels through App.openPage, which calls this; the
+ * write broadcasts `notees:recents` so the sidebar refreshes live (same
+ * pattern as the favorites broadcast from the node context menu).
+ */
+export function recordRecent(id: string): void {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEYS.recents) || "[]");
+    const previous = Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === "string")
+      : [];
+    const next = [id, ...previous.filter((entry) => entry !== id)].slice(0, 12);
+    localStorage.setItem(STORAGE_KEYS.recents, JSON.stringify(next));
+  } catch {
+    // Storage unavailable; the list just won't persist.
+  }
+  window.dispatchEvent(new Event("notees:recents"));
 }
 
 export function Sidebar({
@@ -95,6 +115,22 @@ export function Sidebar({
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [accountMenu, setAccountMenu] = useState(false);
 
+  // Refresh the device-local lists when any surface writes them: the node
+  // context menu broadcasts notees:favorites; recordRecent broadcasts
+  // notees:recents. (Without this the sections stayed stale until reload.)
+  useEffect(() => {
+    const refresh = () => {
+      setFavorites(readStoredJson(STORAGE_KEYS.favorites));
+      setRecents(readStoredJson(STORAGE_KEYS.recents));
+    };
+    window.addEventListener("notees:favorites", refresh);
+    window.addEventListener("notees:recents", refresh);
+    return () => {
+      window.removeEventListener("notees:favorites", refresh);
+      window.removeEventListener("notees:recents", refresh);
+    };
+  }, []);
+
   const fullName =
     user !== null ? [user.name, user.surnames].filter((part) => part !== null && part !== "").join(" ").trim() : "";
   const displayLine =
@@ -116,16 +152,9 @@ export function Sidebar({
   const [showInbox] = useDeviceSetting("sidebarShowInbox", true);
 
   const openRow = (id: string): void => {
+    // Recents recording lives in App.openPage (the single navigation funnel —
+    // breadcrumbs, links and sidebar rows alike); see recordRecent.
     onOpenPage(id);
-    setRecents((previous) => {
-      const next = [id, ...previous.filter((entry) => entry !== id)].slice(0, 12);
-      try {
-        localStorage.setItem(STORAGE_KEYS.recents, JSON.stringify(next));
-      } catch {
-        // Storage unavailable; the list just won't persist.
-      }
-      return next;
-    });
   };
 
   const toggleFavorite = (id: string): void => {
