@@ -40,7 +40,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 /** The classed-nodes modes, in switcher order (table is the section default). */
 const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table"];
 
-/** The first bound single-select property with options — the kanban grouping. */
+/** The first bound select property with options — the kanban grouping (single or multi). */
 function kanbanBindingFor(
   client: WorkspaceClient | WorkerClient,
   bindings: Array<{ propertySchemaId: string }>,
@@ -52,8 +52,7 @@ function kanbanBindingFor(
       schema !== undefined &&
       schema.type === "select" &&
       schema.options !== null &&
-      schema.options.length > 0 &&
-      !schema.multi
+      schema.options.length > 0
     );
   });
   return binding?.propertySchemaId;

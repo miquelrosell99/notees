@@ -43,7 +43,7 @@ add `dev`/`build`/`start` (`apps/server`: `start` = `node dist/server.js`).
 
 ## 3. The fixture gate — blocking, at full width
 
-The single most important process rule (`../2026-09-24-object-graph-pim-evolution/assessment.md`
+The single most important process rule (`../implementation-plan.md`
 fixture-gate lineage; `00-INDEX.md` amendment (b)):
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
