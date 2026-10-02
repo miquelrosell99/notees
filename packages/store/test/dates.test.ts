@@ -81,7 +81,7 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
   function makeStore(): Store {
     const store = Store.open(makeBackend());
     store.applyMany([
-      env("object.create", { objectId: NODE_PAGE, nodeType: "page" }, 1727200000000),
+      env("object.create", { objectId: NODE_PAGE }, 1727200000000),
       env("propertySchema.create", { propertySchemaId: PUBLISHED, name: "published", type: "date" }, 1727200000100),
       env("propertySchema.create", { propertySchemaId: SPAN, name: "span", type: "date_range" }, 1727200000200),
     ]);

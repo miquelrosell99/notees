@@ -3,9 +3,11 @@
  *
  * Port of v1 `app/core/derived/schema.py` + `frontend/src/core/db/schema.ts`
  * (client schema v22), adapted to the v2 model (SCHEMA.md):
- *  - `node.node_type` replaces v1 `kind` and takes a CHECK-enforced
- *    {page, block, class} enumeration with the two placement CHECKs from
- *    SCHEMA.md ("bullet-proof schema") — illegal states are unrepresentable;
+ *  - the Revision-11 render-state model: `node.is_class` (identity marker,
+ *    classes are always roots) + `node.present_as_main` (render bit for
+ *    parented non-class nodes) replace the retired node_type enumeration;
+ *    the single placement CHECK (`is_class = 0 OR parent_id IS NULL`) keeps
+ *    illegal states unrepresentable;
  *  - FTS5 replaces v1 FTS4 (same node_id -> docid map pattern); the stock
  *    sql.js WASM build lacks FTS5, so sql.js-backed stores build the same
  *    index with FTS4 (`schemaSql("fts4")`, selected by the backend's
@@ -21,7 +23,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -41,8 +43,15 @@ export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS node (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
-    node_type TEXT NOT NULL DEFAULT 'block'
-        CHECK (node_type IN ('page', 'block', 'class')),
+    -- Revision-11 render-state model (replaces the node_type enumeration):
+    -- is_class is the ONLY identity marker — classes are always roots;
+    -- present_as_main is the render bit read by the third cascade branch
+    -- for parented non-class nodes: 1 = the parent's main-children zone +
+    -- document chrome when zoomed, 0 = inline body + block chrome. The bit
+    -- is unread for parentless nodes (document chrome by the second branch)
+    -- and for classes (ClassView by the first branch).
+    is_class INTEGER NOT NULL DEFAULT 0,
+    present_as_main INTEGER NOT NULL DEFAULT 0,
     parent_id TEXT REFERENCES node(id),
     class_ids TEXT NOT NULL DEFAULT '[]',
     -- User-defined class ORDER (class.reorder, LWW-by-arrival); the
@@ -63,8 +72,9 @@ CREATE TABLE IF NOT EXISTS node (
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
-    CHECK (node_type <> 'block' OR parent_id IS NOT NULL),
-    CHECK (node_type <> 'class' OR parent_id IS NULL)
+    -- Classes are always roots; every other node may sit anywhere in the
+    -- tree, parentless nodes included (they render with document chrome).
+    CHECK (is_class = 0 OR parent_id IS NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_node_workspace ON node (workspace_id);
@@ -136,7 +146,7 @@ CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor
     ON class_hierarchy (ancestor_id);
 
 -- Class registry rows (name/icon/color/description), keyed by the class
--- node id. The node row (node_type='class') is the structural authority;
+-- node id. The node row (is_class = 1) is the structural authority;
 -- this table carries class-only configuration (description).
 CREATE TABLE IF NOT EXISTS class (
     id TEXT PRIMARY KEY,
@@ -384,6 +394,62 @@ export function migrate(
     const nodeColsV7 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
     if (!nodeColsV7.some((c) => c.name === "class_order")) {
       db.exec("ALTER TABLE node ADD COLUMN class_order TEXT NOT NULL DEFAULT '[]';");
+    }
+  }
+  // v7 -> v8: the render-state model replaces node_type with the two
+  // booleans. Table rebuild (works on old SQLite builds — no DROP COLUMN):
+  // node_v8 carries is_class / present_as_main, the rows map
+  // page -> (0, 1), block -> (0, 0), class -> (1, 0), and the two node
+  // indexes are recreated on the rebuilt table. The old "block needs a
+  // parent" CHECK disappears with the column: parentless non-class nodes
+  // are legal now (document chrome by the second cascade branch).
+  if (current < 8) {
+    const nodeColsV8 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    if (nodeColsV8.some((c) => c.name === "node_type")) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE node_v8 (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            is_class INTEGER NOT NULL DEFAULT 0,
+            present_as_main INTEGER NOT NULL DEFAULT 0,
+            parent_id TEXT REFERENCES node_v8(id),
+            class_ids TEXT NOT NULL DEFAULT '[]',
+            class_order TEXT NOT NULL DEFAULT '[]',
+            tag_ids TEXT NOT NULL DEFAULT '[]',
+            name TEXT,
+            content TEXT NOT NULL DEFAULT '[]',
+            icon TEXT,
+            color TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            created_by TEXT,
+            updated_by TEXT,
+            hlc_physical INTEGER NOT NULL DEFAULT 0,
+            hlc_logical INTEGER NOT NULL DEFAULT 0,
+            actor_id TEXT,
+            CHECK (is_class = 0 OR parent_id IS NULL)
+        );
+        INSERT INTO node_v8 (
+            id, workspace_id, is_class, present_as_main, parent_id,
+            class_ids, class_order, tag_ids, name, content, icon, color,
+            is_active, created_at, updated_at, created_by, updated_by,
+            hlc_physical, hlc_logical, actor_id
+        )
+        SELECT id, workspace_id,
+            CASE WHEN node_type = 'class' THEN 1 ELSE 0 END,
+            CASE WHEN node_type = 'page' THEN 1 ELSE 0 END,
+            parent_id, class_ids, class_order, tag_ids, name, content, icon, color,
+            is_active, created_at, updated_at, created_by, updated_by,
+            hlc_physical, hlc_logical, actor_id
+        FROM node;
+        DROP TABLE node;
+        ALTER TABLE node_v8 RENAME TO node;
+        CREATE INDEX IF NOT EXISTS idx_node_workspace ON node (workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_node_parent ON node (parent_id);
+        PRAGMA foreign_keys = ON;
+      `);
     }
   }
   // v2 -> v3: class_property gained LWW causality columns. Databases created
