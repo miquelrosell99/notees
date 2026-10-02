@@ -47,7 +47,7 @@ The socket is an acceleration path only: a dropped socket is indistinguishable f
 
 - Error envelope (all endpoints): `{"error": {"code": string, "message": string, "status": int}}` — stable machine codes (`unauthenticated`, `forbidden`, `validation_failed`, `not_found`, `rate_limited`, `conflict`, `idempotency_replay`).
 - Limits: batch ≤ 1000 envelopes / 1 MB per payload; catch-up page ≤ 10000; global fallback 10 000 req/min per IP; per-endpoint buckets documented at implementation.
-- `PROTOCOL_VERSION = 2` (envelope schema) and `WS_PROTOCOL_VERSION = 2` (framing) are versioned independently. Additive changes (optional fields, new op types) do not bump either; breaking changes bump both repos + fixtures together. Envelopes without `protocolVersion` are rejected; receivers fail loud on a newer version.
+- `PROTOCOL_VERSION = 3` (envelope schema; v3 accepts only 3 — Revision 11's render-state model) and `WS_PROTOCOL_VERSION = 2` (framing) are versioned independently. Additive changes (optional fields, new op types) do not bump either; breaking changes bump both repos + fixtures together. Envelopes without `protocolVersion` are rejected; receivers fail loud on a newer version. **No backward compatibility:** retired payload keys (e.g. v2's `nodeType`) are rejected outright, and previously stored v2 rows are rewritten in place once by the one-time migration script (`scripts/migrate-node-type.mts`, planned) — not replayed, not bridged.
 
 ## 4. Trust model (carried from v1, unchanged)
 

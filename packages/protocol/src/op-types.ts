@@ -18,13 +18,21 @@ const uuid = z.string().uuid();
 export const objectCreatePayload = z
   .object({
     objectId: uuid,
-    /** Structural role (Revision 10, bullet-proof schema): exactly one of
-     * page | block | class — the database enforces placement invariants with
-     * CHECK (a block can never be parentless; a class is always tree-external).
-     * Optional in the payload — the applier defaults it by context
-     * (workspace root → page, child → block). Placement itself lives only in
-     * the tree (parent_id). Domain typing (whiteboard, meeting, …) is class_ids. */
-    nodeType: z.enum(["page", "block", "class"]).optional(),
+    /**
+     * Render bit (Revision 11): read only when the node has a parent —
+     * true = render in the parent's main-children zone with document
+     * chrome; false = inline body with block chrome. Unread/unused for
+     * parentless nodes (those render with document chrome by the second
+     * cascade branch). Optional in the payload — the applier defaults it
+     * by context: true when parentless, false otherwise. Content is
+     * flattened to text-only when is_class or present_as_main. Class
+     * declaration remains the class.create op. Placement itself lives
+     * only in the tree (parentId). Domain typing (whiteboard, meeting,
+     * …) is classIds. The retired nodeType key (Revision 10 and earlier)
+     * is rejected outright by this strict schema; old stored logs are
+     * rewritten to the new model by the one-time migration script
+     * (scripts/migrate-node-type.mts, planned). */
+    presentAsMain: z.boolean().optional(),
     classIds: z.array(uuid).default([]),
     tagIds: z.array(uuid).default([]),
     /**
@@ -49,9 +57,14 @@ export const objectCreatePayload = z
 export const objectUpdatePayload = z
   .object({
     objectId: uuid,
-    /** Flipping nodeType block↔page = promotion/demotion (identity preserved);
-     * setting 'class' = declare the node a class (declaration-first). */
-    nodeType: z.enum(["page", "block", "class"]).optional(),
+    /** Render-bit toggle (Revision 11): promotion/demotion flips are
+     * presentAsMain true/false (identity preserved; promotion stringifies
+     * the content when the bit flips false → true). Class declaration
+     * remains the class.create op. The retired nodeType key (Revision 10
+     * and earlier) is rejected outright by this strict schema; old stored
+     * logs are rewritten to the new model by the one-time migration
+     * script (scripts/migrate-node-type.mts, planned). */
+    presentAsMain: z.boolean().optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
     /** Canonical wire carrier: base64 incremental CRDT delta. */

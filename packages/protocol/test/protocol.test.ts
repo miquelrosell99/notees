@@ -60,7 +60,7 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   for (const fixture of fixtures) {
     describe(fixture.name, () => {
       for (const [i, raw] of fixture.envelopes.entries()) {
-        it(`envelope ${i} matches the v2 envelope schema`, () => {
+        it(`envelope ${i} matches the v3 envelope schema`, () => {
           const parsed = envelopeSchema.safeParse(raw);
           expect(parsed.success, JSON.stringify(parsed.error?.issues, null, 2)).toBe(true);
         });
@@ -213,7 +213,7 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   });
 });
 
-describe("envelope v2", () => {
+describe("envelope v3", () => {
   it("rejects a missing protocolVersion", () => {
     const raw = {
       id: "0192a000-0000-7000-8000-0000000000ff",
@@ -227,6 +227,38 @@ describe("envelope v2", () => {
       payload: {},
     };
     expect(envelopeSchema.safeParse(raw).success).toBe(false);
+  });
+
+  it("rejects the retired protocolVersion 2", () => {
+    const raw = {
+      id: "0192a000-0000-7000-8000-0000000000ff",
+      protocolVersion: 2,
+      workspaceId: "0192a000-0000-7000-8000-000000000001",
+      actorId: "0192a000-0000-7000-8000-000000000002",
+      deviceId: "dev",
+      hlc: { physical: 1, logical: 0 },
+      affectedNodeIds: [],
+      opType: "object.create",
+      timestamp: "2026-09-24T12:00:00.000Z",
+      payload: {},
+    };
+    expect(envelopeSchema.safeParse(raw).success).toBe(false);
+  });
+
+  it("rejects the retired nodeType key on object.create and object.update (no wire compat)", () => {
+    // Revision 11 retires nodeType outright; old stored logs are rewritten
+    // by the one-time migration script — payloads carrying it must fail.
+    const createParsed = payloadSchemaFor("object.create")!.safeParse({
+      objectId: "0192a000-0000-7000-8000-000000000010",
+      nodeType: "page",
+      parentId: null,
+    });
+    expect(createParsed.success).toBe(false);
+    const updateParsed = payloadSchemaFor("object.update")!.safeParse({
+      objectId: "0192a000-0000-7000-8000-000000000010",
+      nodeType: "page",
+    });
+    expect(updateParsed.success).toBe(false);
   });
 
   it("accepts the M3 encryption slot without interpreting it", () => {
