@@ -486,6 +486,16 @@ export async function fetchAssetBlob(serverUrl: string, apiKey: string, assetId:
   return response.blob();
 }
 
+/** Blob → data URL (image thumbnails/covers); null on read failure. */
+export function readBlobAsDataUrl(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+}
+
 function mapNode(row: NodeRow): ClientNode {
   // Each column parses independently: a missing/legacy column must never
   // wipe the other (cross-version snapshots can predate a column).
@@ -871,6 +881,23 @@ export class WorkspaceClient {
       )
       .get(id) as Record<string, unknown> | undefined;
     return byAsset !== undefined ? mapped(byAsset) : undefined;
+  }
+
+  /**
+   * An image asset's bytes as a data URL (card covers / thumbnails). Null
+   * for non-image assets and when the REST surface is unconfigured —
+   * callers render the no-image card in that case.
+   */
+  async getAssetDataUrl(assetNodeId: string): Promise<string | null> {
+    const info = this.getAssetInfo(assetNodeId);
+    if (info === undefined || !info.mimeType.startsWith("image/")) return null;
+    if (this.restServerUrl === null || this.restApiKey === null) return null;
+    try {
+      const blob = await fetchAssetBlob(this.restServerUrl, this.restApiKey, info.assetId);
+      return await readBlobAsDataUrl(blob);
+    } catch {
+      return null;
+    }
   }
 
   /**

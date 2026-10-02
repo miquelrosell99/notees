@@ -1329,17 +1329,13 @@ function taskTableColumns(client: AnyClient): TableColumn[] {
   ];
 }
 
-/** A single-select schema with options — usable as the kanban grouping. */
+/** A select schema with options — usable as the kanban grouping (single or multi). */
 function usableGroupingSchema(
   schemas: Array<{ id: string; type: string; multi: boolean; options: Array<{ id: string; label: string }> | null }>,
   id: string,
 ) {
   const schema = schemas.find((s) => s.id === id);
-  return schema !== undefined &&
-    schema.type === "select" &&
-    schema.options !== null &&
-    schema.options.length > 0 &&
-    !schema.multi
+  return schema !== undefined && schema.type === "select" && schema.options !== null && schema.options.length > 0
     ? schema
     : undefined;
 }

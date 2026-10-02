@@ -6,7 +6,7 @@ pnpm monorepo (`packages/` = libraries, `apps/` = deployables) living at the rep
 **Maturity.** This document separates *implemented* (code exists in the tree, verified
 against the paths cited) from *designed for M2/M3* (specified in
 `../design/01-knowledge-model.md`, `packages/protocol/SCHEMA.md`, and the evolution plan
-at `../2026-09-24-object-graph-pim-evolution/assessment.md`, but not present in
+at `../implementation-plan.md`, but not present in
 code). In case of disagreement between a design doc and the code, **the code wins** and the
 discrepancy is flagged in [§11](#11-code-vs-design-discrepancies).
 

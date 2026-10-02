@@ -971,47 +971,10 @@ select:focus-visible {
   cursor: default;
 }
 
-.nt-query-list {
-  list-style: none;
-  margin: 4px 0 0;
-  padding: 0;
-}
 
-.nt-query-item {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  width: 100%;
-  border: none;
-  background: none;
-  padding: 2px 4px;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 13px;
-  color: var(--color-on-surface-variant);
-}
 
-.nt-query-item:hover {
-  background: var(--color-surface-container-highest);
-}
 
-.nt-query-item-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-.nt-query-chip {
-  flex-shrink: 0;
-  background: var(--color-surface-container-highest);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 10px;
-  padding: 0 8px;
-  font-size: 0.78em;
-  line-height: 1.5;
-  color: var(--color-on-surface-variant);
-}
 
 .nt-query-more,
 .nt-query-empty {
@@ -1082,10 +1045,6 @@ select:focus-visible {
 
 /* View toggle: the active mode reads pressed (same chrome, darker border). */
 
-.nt-query-viewtoggle {
-  display: inline-flex;
-  gap: 2px;
-}
 
 .nt-query-action[aria-pressed="true"] {
   background: var(--color-surface-container-highest);
@@ -1119,15 +1078,7 @@ select:focus-visible {
   vertical-align: baseline;
 }
 
-.nt-query-table .nt-query-item {
-  padding: 0;
-  border-radius: 0;
-}
 
-.nt-query-table .nt-query-item:hover {
-  background: none;
-  text-decoration: underline;
-}
 
 .nt-query-num {
   text-align: right;

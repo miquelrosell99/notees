@@ -52,6 +52,8 @@ import {
 import { parseQueryAst, type Aggregation, type AggregationMeasure, type Child, type QueryAst, type Scope } from "@notees/query";
 
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
+import { NodeCollection, ViewSwitcher } from "./views/index.js";
+import type { NodeCollectionItem, TableColumn } from "./views/index.js";
 
 import type {
   ClientNode,
@@ -65,6 +67,26 @@ import type { OutlinerClient, OutlinerReader } from "./outliner-context.js";
 
 /** Result list cap: the token is deliberate inline content, but stays cheap. */
 export const QUERY_RESULT_CAP = 200;
+
+/** The query result's table columns (aligned with the view registry's table). */
+const QUERY_TABLE_COLUMNS: TableColumn[] = [
+  { id: "name", kind: "name", label: "Name", sortable: true },
+  { id: "nodeType", kind: "nodeType", label: "Type", sortable: true },
+  { id: "created", kind: "created", label: "Created", sortable: true },
+];
+
+/** Query run rows → the collection input shape (unresolvable rows drop out). */
+function queryResultItems(
+  client: QueryBlockClient,
+  rows: QueryRunSummary[],
+): NodeCollectionItem[] {
+  const items: NodeCollectionItem[] = [];
+  for (const row of rows.slice(0, QUERY_RESULT_CAP)) {
+    const node = client.getNode(row.id);
+    if (node !== undefined) items.push({ node });
+  }
+  return items;
+}
 
 type QueryBlockClient = OutlinerClient & OutlinerReader;
 
@@ -503,26 +525,11 @@ export function QueryBlockView({
         <span className="nt-query-title">Query</span>
         {resultCount !== null && <span className="nt-query-badge">{resultCount}</span>}
         <span className="nt-query-actions">
-          <span className="nt-query-viewtoggle" role="group" aria-label="Result view">
-            <button
-              type="button"
-              className="nt-query-action"
-              aria-label="List view"
-              aria-pressed={viewMode === "list"}
-              onClick={() => void applyViewMode("list")}
-            >
-              List
-            </button>
-            <button
-              type="button"
-              className="nt-query-action"
-              aria-label="Table view"
-              aria-pressed={viewMode === "table"}
-              onClick={() => void applyViewMode("table")}
-            >
-              Table
-            </button>
-          </span>
+          <ViewSwitcher
+            modes={["outline", "table"]}
+            value={viewMode === "table" ? "table" : "outline"}
+            onChange={(mode) => void applyViewMode(mode === "table" ? "table" : "list")}
+          />
           <button
             type="button"
             className="nt-query-action"
@@ -576,54 +583,21 @@ export function QueryBlockView({
             ))}
           </tbody>
         </table>
-      ) : viewMode === "table" ? (
-        <table className="nt-query-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th className="nt-query-num">Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.rows.slice(0, QUERY_RESULT_CAP).map((row) => (
-              <tr key={row.id}>
-                <td>
-                  <button
-                    type="button"
-                    className="nt-query-item"
-                    onClick={() => openResult(row)}
-                  >
-                    <span className="nt-query-item-name">
-                      {displayNameFromClient(client, row.id) ?? row.name ?? row.id}
-                    </span>
-                  </button>
-                </td>
-                <td>
-                  <span className="nt-query-chip">{row.nodeType}</span>
-                </td>
-                <td className="nt-query-num">
-                  {row.createdAt !== null ? row.createdAt.slice(0, 10) : ""}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       ) : (
         <>
-          <ul className="nt-query-list" aria-label="Query results">
-            {result.rows.slice(0, QUERY_RESULT_CAP).map((row) => (
-              <li key={row.id}>
-                <button type="button" className="nt-query-item" onClick={() => openResult(row)}>
-                  <span className="nt-query-item-name">
-                    {displayNameFromClient(client, row.id) ?? row.name ?? row.id}
-                  </span>
-                  <span className="nt-query-chip">{row.nodeType}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {result.kind === "query" && result.ids.length > QUERY_RESULT_CAP && (
+          <NodeCollection
+            viewMode={viewMode === "table" ? "table" : "outline"}
+            // The seam type is structural; the runtime object is the full
+            // client (both classes satisfy it).
+            client={client as unknown as import("./views/index.js").AnyClient}
+            items={queryResultItems(client, result.rows)}
+            tableColumns={QUERY_TABLE_COLUMNS}
+            onNodeClick={(id) => {
+              const row = result.rows.find((entry) => entry.id === id);
+              if (row !== undefined) openResult(row);
+            }}
+          />
+          {result.kind === "query" && viewMode !== "table" && result.ids.length > QUERY_RESULT_CAP && (
             <div className="nt-query-more">{result.ids.length - QUERY_RESULT_CAP} more</div>
           )}
         </>

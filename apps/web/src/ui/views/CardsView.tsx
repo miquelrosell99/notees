@@ -10,15 +10,18 @@
  *   cardProperties row (resolved per node through propertiesOf).
  */
 
+import { useEffect, useState } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
+import { SelectionButton } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
-import type { NodeCollectionItem, NodeCollectionProps } from "./types.js";
+import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
+import type { CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import "./CardsView.css";
 
 function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client.js").BlockTreeNode {
@@ -69,8 +72,35 @@ function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeC
   );
 }
 
+/** The cover image (resolved asynchronously; null = text-only card). */
+function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: NodeCollectionProps; layout: CardLayout }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const assetId = cardImageAssetId(item.node, props.propertiesOf?.(item.node.id));
+  useEffect(() => {
+    let cancelled = false;
+    setUrl(null);
+    if (assetId === null) return;
+    void assetImageUrl(props.client, assetId).then((resolved) => {
+      if (!cancelled) setUrl(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetId, props.client]);
+  if (url === null) return null;
+  return <img className="node-card__cover" src={url} alt="" />;
+}
+
 /** One flat node card — also the kanban board's card body. */
-export function NodeCard({ item, props }: { item: NodeCollectionItem; props: NodeCollectionProps }) {
+export function NodeCard({
+  item,
+  props,
+  coverLayout = "no-cover",
+}: {
+  item: NodeCollectionItem;
+  props: NodeCollectionProps;
+  coverLayout?: CardLayout;
+}) {
   const { client, onNodeClick, onNodeShiftClick, cardProperties, propertiesOf } = props;
   const icon = nodeIcon(item.node, classIconMap(client.listClasses()));
   const label = displayNameForSettings(item.node) || "Untitled";
@@ -79,43 +109,74 @@ export function NodeCard({ item, props }: { item: NodeCollectionItem; props: Nod
     .map((schemaId) => properties.find((p) => p.propertySchemaId === schemaId))
     .filter((prop) => prop !== undefined && propertyDisplayText(client, prop) !== "");
   return (
-    <article className="node-card" data-node-id={item.node.id}>
-      <button
-        type="button"
-        className="node-card__head"
-        title={label}
-        onClick={(event) => {
-          if (event.shiftKey) onNodeShiftClick?.(item.node.id);
-          else onNodeClick?.(item.node.id);
-        }}
-      >
-        {icon !== null && <Icon path={icon} size={1} className="node-card__icon" />}
-        <span className="node-card__label">{label}</span>
-        {item.node.nodeType !== "page" && <span className="node-card__type">{item.node.nodeType}</span>}
-      </button>
-      {cardRows.length > 0 && (
-        <dl className="node-card__properties">
-          {cardRows.map((prop) => (
-            <div className="node-card__property" key={prop!.propertySchemaId}>
-              <dt>{prop!.schema?.name ?? "Property"}</dt>
-              <dd>{propertyDisplayText(client, prop)}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
+    <article className={`node-card node-card--${coverLayout}`} data-node-id={item.node.id}>
+      <CardCover item={item} props={props} layout={coverLayout} />
+      <div className="node-card__content">
+        <button
+          type="button"
+          className="node-card__head"
+          title={label}
+          onClick={(event) => {
+            if (event.shiftKey) onNodeShiftClick?.(item.node.id);
+            else onNodeClick?.(item.node.id);
+          }}
+        >
+          {icon !== null && <Icon path={icon} size={1} className="node-card__icon" />}
+          <span className="node-card__label">{label}</span>
+          {item.node.nodeType !== "page" && <span className="node-card__type">{item.node.nodeType}</span>}
+        </button>
+        {cardRows.length > 0 && (
+          <dl className="node-card__properties">
+            {cardRows.map((prop) => (
+              <div className="node-card__property" key={prop!.propertySchemaId}>
+                <dt>{prop!.schema?.name ?? "Property"}</dt>
+                <dd>{propertyDisplayText(client, prop)}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
     </article>
+  );
+}
+
+const COVER_LAYOUT_OPTIONS: Array<{ value: CardLayout; icon: string; label: string }> = [
+  { value: "no-cover", icon: "mdi-card-outline", label: "No cover" },
+  { value: "cover-left", icon: "mdi-dock-left", label: "Cover left" },
+  { value: "cover-right", icon: "mdi-dock-right", label: "Cover right" },
+  { value: "cover-top", icon: "mdi-dock-top", label: "Cover top" },
+];
+
+/** The cover-layout picker (the four v1 layouts), session state. */
+export function CoverLayoutToggle({ value, onChange }: { value: CardLayout; onChange: (layout: CardLayout) => void }) {
+  return (
+    <SelectionButton
+      options={COVER_LAYOUT_OPTIONS}
+      value={value}
+      onChange={(val) => onChange(val as CardLayout)}
+      size="sm"
+      maxVisibleOptions={4}
+      aria-label="Card layout"
+      className="cover-layout-toggle"
+    />
   );
 }
 
 export function CardsView(props: NodeCollectionProps) {
   const { items, tree = undefined } = props;
+  const [coverLayout, setCoverLayout] = useState<CardLayout>("no-cover");
   if (items.length === 0) return null;
   if (tree === true || hasChildren(items)) return <TreeCards items={items} props={props} />;
   return (
-    <div className="cards-grid">
-      {items.map((item) => (
-        <NodeCard key={item.node.id} item={item} props={props} />
-      ))}
+    <div>
+      <div className="cards-toolbar">
+        <CoverLayoutToggle value={coverLayout} onChange={setCoverLayout} />
+      </div>
+      <div className="cards-grid">
+        {items.map((item) => (
+          <NodeCard key={item.node.id} item={item} props={props} coverLayout={coverLayout} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -125,5 +186,5 @@ registerView({
   label: "Cards",
   icon: "mdi-view-grid-outline",
   component: CardsView,
-  capabilities: { sorting: true, cardLayout: false },
+  capabilities: { sorting: true, cardLayout: true },
 });

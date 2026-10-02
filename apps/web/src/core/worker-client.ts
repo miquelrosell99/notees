@@ -32,7 +32,7 @@ import type {
   UpdateObjectInput,
   UpdatePropertySchemaInput,
 } from "./workspace-client.js";
-import { createAnnotation, fetchAssetBlob, postAssetUpload } from "./workspace-client.js";
+import { createAnnotation, fetchAssetBlob, postAssetUpload, readBlobAsDataUrl } from "./workspace-client.js";
 import type {
   WorkerInitMessage,
   WorkerRequestMessage,
@@ -496,6 +496,18 @@ export class WorkerClient {
     const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, assetId);
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
+  }
+
+  /** An image asset's bytes as a data URL (card covers / thumbnails). */
+  async getAssetDataUrl(assetNodeId: string): Promise<string | null> {
+    const info = this.getAssetInfo(assetNodeId);
+    if (info === undefined || !info.mimeType.startsWith("image/")) return null;
+    try {
+      const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, info.assetId);
+      return await readBlobAsDataUrl(blob);
+    } catch {
+      return null;
+    }
   }
 
   /** No-op when the worker already booted this workspace (init bootstraps it). */

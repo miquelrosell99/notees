@@ -124,3 +124,166 @@
 .nt-table-more:hover {
   background-color: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
 }
+
+/* Toolbar (column selector + sort configurator panels). */
+
+.nt-table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-1, 4px);
+  margin-bottom: var(--spacing-1, 4px);
+}
+
+.nt-table-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+  min-width: var(--layout-size-3xl, 180px);
+  max-height: var(--layout-size-xl, 320px);
+  overflow-y: auto;
+}
+
+.nt-table-panel__title {
+  font-size: var(--font-size-2xs, 0.7rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-on-surface-variant, currentColor);
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px) 0;
+}
+
+.nt-table-panel__hint {
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-on-surface-variant, currentColor);
+  padding: 0 var(--spacing-2, 8px);
+}
+
+.nt-table-panel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  border-radius: var(--shape-small, 6px);
+}
+
+.nt-table-panel__row:hover {
+  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+}
+
+.nt-table-panel__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-sm, 0.85rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-table-panel__action {
+  border: none;
+  background: none;
+  padding: 0 var(--spacing-1, 4px);
+  border-radius: var(--shape-small, 6px);
+  color: var(--color-on-surface-variant, currentColor);
+  font-size: var(--font-size-sm, 0.85rem);
+  cursor: pointer;
+}
+
+.nt-table-panel__action:hover:not(:disabled) {
+  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+  color: var(--color-on-surface, currentColor);
+}
+
+.nt-table-panel__action:disabled {
+  opacity: var(--opacity-40, 0.4);
+  cursor: default;
+}
+
+.nt-table-panel__add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
+  padding-top: var(--spacing-1, 4px);
+}
+
+.nt-table-panel__add-item {
+  border: none;
+  background: none;
+  text-align: left;
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  border-radius: var(--shape-small, 6px);
+  color: var(--color-on-surface-variant, currentColor);
+  font-size: var(--font-size-sm, 0.85rem);
+  cursor: pointer;
+}
+
+.nt-table-panel__add-item:hover {
+  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+  color: var(--color-on-surface, currentColor);
+}
+
+.nt-table-panel__reset {
+  border: none;
+  background: none;
+  padding: var(--spacing-1, 4px);
+  border-radius: var(--shape-small, 6px);
+  color: var(--color-on-surface-variant, currentColor);
+  font-size: var(--font-size-sm, 0.85rem);
+  cursor: pointer;
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
+}
+
+.nt-table-panel__reset:hover {
+  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+  color: var(--color-on-surface, currentColor);
+}
+
+.nt-table-panel__check {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  border-radius: var(--shape-small, 6px);
+  font-size: var(--font-size-sm, 0.85rem);
+  cursor: pointer;
+}
+
+.nt-table-panel__check:hover {
+  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+}
+
+/* Inline cell editing + selection. */
+
+.nt-table-input {
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface, transparent);
+  border: var(--border-width-default, 1px) solid var(--color-primary, currentColor);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--spacing-micro, 2px) var(--spacing-1, 4px);
+  width: 100%;
+  min-width: 80px;
+}
+
+.nt-table-date {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-table-date:hover {
+  color: var(--color-primary, currentColor);
+}
+
+.nt-table-select-col {
+  width: var(--icon-size-lg, 24px);
+}
+
+.nt-table-row--selected {
+  background: var(--color-primary-container, rgba(0, 0, 0, 0.06));
+}

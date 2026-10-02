@@ -37,12 +37,15 @@ export interface SortSpec {
  */
 export interface TableColumn {
   id: string;
-  kind: "name" | "classes" | "created" | "property";
+  kind: "name" | "classes" | "created" | "nodeType" | "property";
   label: string;
   /** Required when kind === "property". */
   propertySchemaId?: string;
   sortable?: boolean;
 }
+
+/** Card cover placement (the four v1 layouts). */
+export type CardLayout = "no-cover" | "cover-top" | "cover-left" | "cover-right";
 
 export interface NodeCollectionItem {
   node: ClientNode;
@@ -124,6 +127,12 @@ export interface NodeCollectionProps {
   propertiesOf?: ((nodeId: string) => EffectiveProperty[]) | undefined;
   /** Boolean + select cells edit inline through client.setProperty. */
   tableEditable?: boolean | undefined;
+  /**
+   * Table: row checkboxes with a tri-state header box (default true). The
+   * selection is session state; bulk actions over the selection are a
+   * separate feature.
+   */
+  selectable?: boolean | undefined;
   /** Optional initial sort (session state; the view owns cycling after). */
   defaultSort?: SortSpec | undefined;
   /** Cards: property schemas shown on flat node cards, in order. */
