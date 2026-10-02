@@ -38,11 +38,23 @@ function makeCtx(overrides: Partial<ExportContext> = {}): ExportContext {
 }
 
 function page(id: string, name: string, contentAst: ContentAst = [], extra: Partial<ExportNode> = {}): ExportNode {
-  return { id, nodeType: "page", name, contentAst, classIds: [], properties: [], ...extra };
+  // A parentless non-class node: document chrome (presentAsMain unread).
+  return { id, isClass: 0, presentAsMain: 1, parentId: null, name, contentAst, classIds: [], properties: [], ...extra };
 }
 
 function block(id: string, contentAst: ContentAst, extra: Partial<ExportNode> = {}): ExportNode {
-  return { id, nodeType: "block", name: null, contentAst, classIds: [], properties: [], ...extra };
+  // A parented node with the render bit unset: inline body, block chrome.
+  return {
+    id,
+    isClass: 0,
+    presentAsMain: 0,
+    parentId: "ffffffff-0000-4000-8000-000000000000",
+    name: null,
+    contentAst,
+    classIds: [],
+    properties: [],
+    ...extra,
+  };
 }
 
 describe("token → markdown mapping", () => {
@@ -174,7 +186,7 @@ describe("token → markdown mapping", () => {
 });
 
 describe("frontmatter", () => {
-  it("carries name, nodeType, classIds, and properties with metadata qualifiers", () => {
+  it("carries name, isClass, presentAsMain, classIds, and properties with metadata qualifiers", () => {
     // Title-is-content: the page's display name IS its text content.
     const node = page("aaaaaaaa-0000-4000-8000-000000000009", "The Left Hand", [
       { type: "text", text: "The Left Hand" },
@@ -190,7 +202,8 @@ describe("frontmatter", () => {
     });
     const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
     expect(fm).toContain("name: The Left Hand");
-    expect(fm).toContain("nodeType: page");
+    expect(fm).toContain("isClass: false");
+    expect(fm).toContain("presentAsMain: true");
     expect(fm).toContain(`  - ${PERSON_CLASS_ID}`);
     expect(fm).toContain('  status: active');
     expect(fm).toContain("  year: 1962 (since 1962)");
@@ -210,6 +223,29 @@ describe("frontmatter", () => {
     const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
     expect(fm).toContain('name: "yes: no"');
     expect(fm).toContain('"tricky: key": "true"');
+  });
+});
+
+describe("heading rule (document-chrome predicate)", () => {
+  it("heads every node except parented non-class nodes with the render bit unset", () => {
+    const titled = (id: string, title: string, extra: Partial<ExportNode> = {}): ExportNode =>
+      page(id, title, [{ type: "text", text: title }], extra);
+    // Parentless node: heading (second cascade branch; the bit is unread).
+    expect(nodeToMarkdown(titled("dddddddd-0000-4000-8000-000000000001", "Root"), makeCtx())).toContain("# Root");
+    // Parented node presenting as main: heading (main-children zone).
+    const mainChild = titled("dddddddd-0000-4000-8000-000000000002", "Main child", {
+      parentId: "ffffffff-0000-4000-8000-000000000000",
+      presentAsMain: 1,
+    });
+    expect(nodeToMarkdown(mainChild, makeCtx())).toContain("# Main child");
+    // Class node: heading (ClassView files stay labeled).
+    const cls = titled("dddddddd-0000-4000-8000-000000000003", "Person", { isClass: 1 });
+    expect(nodeToMarkdown(cls, makeCtx())).toContain("# Person");
+    // Inline block: NO heading — bullets carry the content.
+    const inline = block("dddddddd-0000-4000-8000-000000000004", [{ type: "text", text: "inline body" }]);
+    const md = nodeToMarkdown(inline, makeCtx());
+    expect(md).not.toContain("# ");
+    expect(md).toContain("inline body");
   });
 });
 
@@ -262,8 +298,8 @@ describe("bundle", () => {
     expect(bundle.manifest.format).toBe("notees-markdown");
     expect(bundle.manifest.version).toBe(1);
     expect(bundle.manifest.nodes).toEqual([
-      { id: "cccccccc-0000-4000-8000-000000000001", name: "Alpha", nodeType: "page" },
-      { id: "cccccccc-0000-4000-8000-000000000002", name: "Beta", nodeType: "page" },
+      { id: "cccccccc-0000-4000-8000-000000000001", name: "Alpha", isClass: false, presentAsMain: true },
+      { id: "cccccccc-0000-4000-8000-000000000002", name: "Beta", isClass: false, presentAsMain: true },
     ]);
   });
 

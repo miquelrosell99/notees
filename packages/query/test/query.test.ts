@@ -6,11 +6,11 @@
  *
  * The fixture world (built from envelopes through the real appliers):
  *
- *   France (page, class Place) ─┬─ Paris (page, class City extends Place)
- *                               │   └─ parisBlock "Capital of France"
- *                               ├─ frBlock "The capital city" → mentions Paris
- *                               └─ outBlock "Traveller notes" → mentions Lone
- *   Lone Page (page) ── loneBlock "An orphan note about cooking"
+ *   France (document, class Place) ─┬─ Paris (main child, class City extends Place)
+ *                                   │   └─ parisBlock "Capital of France"
+ *                                   ├─ frBlock "The capital city" → mentions Paris
+ *                                   └─ outBlock "Traveller notes" → mentions Lone
+ *   Lone Page (document) ── loneBlock "An orphan note about cooking"
  *
  *   Property schema "priority": Place binds default "medium", City "high";
  *   Lone Page has an authored value "low".
@@ -105,30 +105,28 @@ function worldEnvelopes(): Envelope[] {
     }, t(3)),
     env("class.property.set", { classId: PLACE, propertySchemaId: PRIORITY, defaultValue: "medium" }, t(4)),
     env("class.property.set", { classId: CITY, propertySchemaId: PRIORITY, defaultValue: "high" }, t(5)),
-    env("object.create", { objectId: FRANCE, nodeType: "page", contentAst: text("France"), classIds: [PLACE] }, t(6)),
-    env("object.create", { objectId: PARIS, nodeType: "page", contentAst: text("Paris"), parentId: FRANCE, classIds: [CITY] }, t(7)),
-    env("object.create", { objectId: LONE, nodeType: "page", contentAst: text("Lone Page") }, t(8)),
+    env("object.create", { objectId: FRANCE, contentAst: text("France"), classIds: [PLACE] }, t(6)),
+    // Paris rides in France's main-children zone: the create carries the
+    // render bit (a plain parented create would land in the inline body).
+    env("object.create", { objectId: PARIS, parentId: FRANCE, presentAsMain: true, contentAst: text("Paris"), classIds: [CITY] }, t(7)),
+    env("object.create", { objectId: LONE, contentAst: text("Lone Page") }, t(8)),
     env("object.create", {
       objectId: FR_BLOCK,
-      nodeType: "block",
       parentId: FRANCE,
       contentAst: [...text("The capital city"), ...mention(PARIS, "Paris")],
     }, t(9)),
     env("object.create", {
       objectId: PARIS_BLOCK,
-      nodeType: "block",
       parentId: PARIS,
       contentAst: text("Capital of France"),
     }, t(10)),
     env("object.create", {
       objectId: LONE_BLOCK,
-      nodeType: "block",
       parentId: LONE,
       contentAst: text("An orphan note about cooking"),
     }, t(11)),
     env("object.create", {
       objectId: OUT_BLOCK,
-      nodeType: "block",
       parentId: FRANCE,
       contentAst: [...text("Traveller notes"), ...mention(LONE, "Lone Page")],
     }, t(12)),
@@ -262,9 +260,9 @@ describe("compile: SQL shape", () => {
     expect(params).toEqual([]);
   });
 
-  it("pages scope filters node_type", () => {
+  it("pages scope filters to the document-chrome predicate", () => {
     const { sql } = compile(allIn(pages));
-    expect(sql).toContain("n.node_type = 'page'");
+    expect(sql).toContain("n.is_class = 0 AND (n.parent_id IS NULL OR n.present_as_main = 1)");
     expect(sql).not.toContain("distance");
   });
 
@@ -294,18 +292,20 @@ describe("compile: SQL shape", () => {
     expect(params).toEqual([PLACE]);
   });
 
-  it("nodeType and created-window conditions are parameterized", () => {
+  it("isClass/presentAsMain and created-window conditions are parameterized", () => {
     const { sql, params } = compile(
       ast(entire, [
-        { type: "nodeType", nodeType: "block" },
+        { type: "isClass", isClass: false },
+        { type: "presentAsMain", presentAsMain: true },
         { type: "createdAfter", timestamp: "2026-09-24T12:00:00.000Z" },
         { type: "createdBefore", timestamp: "2026-09-25T12:00:00.000Z" },
       ]),
     );
-    expect(sql).toContain("n.node_type = ?");
+    expect(sql).toContain("n.is_class = ?");
+    expect(sql).toContain("n.present_as_main = ?");
     expect(sql).toContain("n.created_at >= ?");
     expect(sql).toContain("n.created_at <= ?");
-    expect(params).toEqual(["block", "2026-09-24T12:00:00.000Z", "2026-09-25T12:00:00.000Z"]);
+    expect(params).toEqual([0, 1, "2026-09-24T12:00:00.000Z", "2026-09-25T12:00:00.000Z"]);
   });
 
   it("content contains LIKEs the derived plaintext; fts MATCHes it", () => {
@@ -389,8 +389,10 @@ describe("compile: SQL shape", () => {
     // name column is always null).
     expect(sql).toContain("ASC, n.created_at IS NULL, n.created_at DESC, n.id ASC");
     expect(sql).toContain("json_each(n.content)");
-    const nodeType = compile(ast(pages, [], [{ field: "nodeType", dir: "desc" }]));
-    expect(nodeType.sql).toContain("ORDER BY n.node_type DESC, n.id ASC");
+    const byClass = compile(ast(pages, [], [{ field: "isClass", dir: "desc" }]));
+    expect(byClass.sql).toContain("ORDER BY n.is_class DESC, n.id ASC");
+    const byMain = compile(ast(pages, [], [{ field: "presentAsMain", dir: "asc" }]));
+    expect(byMain.sql).toContain("ORDER BY n.present_as_main ASC, n.id ASC");
   });
 
   it("user values never reach the SQL string (parameterization)", () => {
@@ -418,8 +420,8 @@ describe("compile: SQL shape", () => {
 
 // --- aggregation: schema validation (adapter-independent) ---------------------------
 
-const countByType: Aggregation = {
-  dimensions: [{ kind: "nodeType" }],
+const countByClassBit: Aggregation = {
+  dimensions: [{ kind: "isClass" }],
   measures: [{ function: "count" }],
 };
 
@@ -430,7 +432,7 @@ describe("aggregation schema", () => {
     const parsed = parseQueryAst({
       ...base,
       aggregation: {
-        dimensions: [{ kind: "nodeType" }, { kind: "class", id: PLACE }, { kind: "property", id: PRIORITY }],
+        dimensions: [{ kind: "isClass" }, { kind: "presentAsMain" }, { kind: "class", id: PLACE }, { kind: "property", id: PRIORITY }],
         measures: [
           { function: "count" },
           { function: "countDistinct", kind: "node" },
@@ -438,7 +440,7 @@ describe("aggregation schema", () => {
         ],
       },
     });
-    expect(parsed.aggregation?.dimensions).toHaveLength(3);
+    expect(parsed.aggregation?.dimensions).toHaveLength(4);
     expect(parsed.aggregation?.measures).toHaveLength(3);
   });
 
@@ -466,11 +468,11 @@ describe("aggregation schema", () => {
   });
 
   it("aggregation: filtered CTE + GROUP BY + deterministic aliases", () => {
-    const { sql, params } = compile({ ...allIn(pages), aggregation: countByType });
+    const { sql, params } = compile({ ...allIn(pages), aggregation: countByClassBit });
     expect(sql).toContain("WITH filtered AS (");
-    expect(sql).toContain("SELECT n.id, n.node_type, n.class_ids");
-    expect(sql).toContain("GROUP BY \"nodeType\"");
-    expect(sql).toContain('AS "nodeType"');
+    expect(sql).toContain("SELECT n.id, n.is_class, n.present_as_main, n.class_ids");
+    expect(sql).toContain('GROUP BY "isClass"');
+    expect(sql).toContain('AS "isClass"');
     expect(sql).toContain('AS "count"');
     expect(sql).not.toContain("ORDER BY n.id"); // sort is ignored under aggregation
     expect(params).toEqual([]);
@@ -510,7 +512,7 @@ describe("aggregation schema", () => {
   it("aggregation: scope/condition params precede dimension/measure params", () => {
     const { params } = compile({
       ...ast(entire, [{ type: "class", classId: PLACE }]),
-      aggregation: countByType,
+      aggregation: countByClassBit,
     });
     expect(params).toEqual([PLACE]);
   });
@@ -519,17 +521,17 @@ describe("aggregation schema", () => {
     const compiled = compileAggregate({
       ...allIn(pages),
       aggregation: {
-        dimensions: [{ kind: "nodeType" }],
+        dimensions: [{ kind: "isClass" }],
         measures: [{ function: "count" }, { function: "count" }],
       },
     });
-    expect(compiled.columns).toEqual(["nodeType", "count", "count#2"]);
+    expect(compiled.columns).toEqual(["isClass", "count", "count#2"]);
     expect(compiled.sql).toContain('AS "count#2"');
   });
 
   it("runQuery rejects aggregation ASTs; compileAggregate requires one", () => {
     const store = { database: undefined } as unknown as Parameters<typeof runQuery>[0];
-    expect(() => runQuery(store, { ...allIn(pages), aggregation: countByType })).toThrow(
+    expect(() => runQuery(store, { ...allIn(pages), aggregation: countByClassBit })).toThrow(
       /runAggregate/,
     );
     expect(() => compileAggregate(allIn(pages))).toThrow(/requires an AST with an aggregation/);
@@ -803,7 +805,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     it("scope form restricts the universe and carries distance", () => {
       const { ids, rows } = runQuery(
         worldStore(),
-        ast({ type: "linkedTo", nodeId: FRANCE }, [{ type: "nodeType", nodeType: "block" }]),
+        ast({ type: "linkedTo", nodeId: FRANCE }, [{ type: "presentAsMain", presentAsMain: false }]),
       );
       expect(ids).toEqual([OUT_BLOCK]);
       expect(rows[0]!.distance).toBe(1);
@@ -816,7 +818,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
         worldStore(),
         ast(entire, [
           { type: "content", op: "contains", value: "capital" },
-          { type: "nodeType", nodeType: "block" },
+          { type: "presentAsMain", presentAsMain: false },
         ]),
       );
       expect(ids.sort()).toEqual([FR_BLOCK, PARIS_BLOCK].sort());
@@ -831,14 +833,16 @@ describe.each(adapters)("$name", ({ makeStore }) => {
           logic: "or",
           children: [
             { type: "class", classId: PLACE },
-            { type: "nodeType", nodeType: "block" },
+            { type: "presentAsMain", presentAsMain: false },
           ],
         },
       };
       const { ids } = runQuery(worldStore(), orAst);
-      // class(Place) = France + Paris; blocks = frBlock, parisBlock, loneBlock, outBlock.
+      // class(Place) = France + Paris; presentAsMain:false = the four inline
+      // blocks AND the two class nodes (their stored bit is 0 — inert, but
+      // the raw bit condition reads the column).
       expect(ids.sort()).toEqual(
-        [FRANCE, PARIS, FR_BLOCK, PARIS_BLOCK, LONE_BLOCK, OUT_BLOCK].sort(),
+        [FRANCE, PARIS, FR_BLOCK, PARIS_BLOCK, LONE_BLOCK, OUT_BLOCK, PLACE, CITY].sort(),
       );
     });
 
@@ -849,12 +853,13 @@ describe.each(adapters)("$name", ({ makeStore }) => {
           store,
           ast(pages, [{ type: "not", child: { type: "content", op: "contains", value: "france" } }]),
         ).ids,
-      ).toEqual([PARIS, LONE]); // Only the France page's title carries "france".
+      ).toEqual([PARIS, LONE]); // Only the France document's title carries "france".
       expect(
         runQuery(
           store,
           ast(entire, [
-            { type: "nodeType", nodeType: "block" },
+            { type: "presentAsMain", presentAsMain: false },
+            { type: "isClass", isClass: false },
             {
               type: "not",
               child: {
@@ -927,14 +932,27 @@ describe.each(adapters)("$name", ({ makeStore }) => {
   });
 
   describe("aggregation execution (runAggregate)", () => {
-    it("groups by nodeType with count over the workspace", () => {
-      const result = runAggregate(worldStore(), { ...allIn(entire), aggregation: countByType });
-      expect(result.columns).toEqual(["nodeType", "count"]);
-      // 7 world nodes + 2 class nodes: pages 3, blocks 4, classes 2.
+    it("groups by the class identity bit with count over the workspace", () => {
+      const result = runAggregate(worldStore(), { ...allIn(entire), aggregation: countByClassBit });
+      expect(result.columns).toEqual(["isClass", "count"]);
+      // 7 world nodes + 2 class nodes: 9 non-class, 2 classes.
       expect(result.rows).toEqual([
-        ["block", 4],
-        ["class", 2],
-        ["page", 3],
+        [0, 7],
+        [1, 2],
+      ]);
+    });
+
+    it("groups by the render bit: documents vs inline blocks", () => {
+      const result = runAggregate(worldStore(), {
+        ...allIn(entire),
+        aggregation: { dimensions: [{ kind: "presentAsMain" }], measures: [{ function: "count" }] },
+      });
+      expect(result.columns).toEqual(["presentAsMain", "count"]);
+      // Main-presenting: France, Paris (main child), Lone. Inline: the four
+      // blocks. Classes carry the bit as 0 (inert — ClassView by cascade).
+      expect(result.rows).toEqual([
+        [0, 6],
+        [1, 3],
       ]);
     });
 
@@ -942,15 +960,14 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       const result = runAggregate(worldStore(), {
         ...allIn(entire),
         aggregation: {
-          dimensions: [{ kind: "nodeType" }],
+          dimensions: [{ kind: "isClass" }],
           measures: [{ function: "count" }, { function: "countDistinct", kind: "node" }],
         },
       });
-      expect(result.columns).toEqual(["nodeType", "count", "countDistinct"]);
+      expect(result.columns).toEqual(["isClass", "count", "countDistinct"]);
       expect(result.rows).toEqual([
-        ["block", 4, 4],
-        ["class", 2, 2],
-        ["page", 3, 3],
+        [0, 7, 7],
+        [1, 2, 2],
       ]);
     });
 
@@ -998,23 +1015,28 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
 
     it("composes with scopes and conditions", () => {
-      const byTypeInFrance = runAggregate(worldStore(), {
+      const byBitInFrance = runAggregate(worldStore(), {
         ...allIn({ type: "subtree", pageId: FRANCE }),
-        aggregation: countByType,
+        aggregation: {
+          dimensions: [{ kind: "presentAsMain" }],
+          measures: [{ function: "count" }],
+        },
       });
-      expect(byTypeInFrance.rows).toEqual([
-        ["block", 3],
-        ["page", 2],
+      // France's subtree: France + Paris render as documents (bit 1 — France
+      // parentless, Paris a main child), the three blocks are inline (bit 0).
+      expect(byBitInFrance.rows).toEqual([
+        [0, 3],
+        [1, 2],
       ]);
 
       const capitalBlocks = runAggregate(worldStore(), {
         ...ast(entire, [{ type: "content", op: "contains", value: "capital" }]),
-        aggregation: countByType,
+        aggregation: countByClassBit,
       });
-      expect(capitalBlocks.rows).toEqual([["block", 2]]);
+      expect(capitalBlocks.rows).toEqual([[0, 2]]);
 
-      const pagesOnly = runAggregate(worldStore(), { ...allIn(pages), aggregation: countByType });
-      expect(pagesOnly.rows).toEqual([["page", 3]]);
+      const pagesOnly = runAggregate(worldStore(), { ...allIn(pages), aggregation: countByClassBit });
+      expect(pagesOnly.rows).toEqual([[0, 3]]);
     });
 
     it("live updates: the aggregate reflects later applies", () => {
@@ -1022,20 +1044,24 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       store.apply(
         env("object.create", {
           objectId: "0192a000-0000-7000-8000-000000000105",
-          nodeType: "page",
           contentAst: [{ type: "text", text: "Rome" }],
           classIds: [CITY],
         }, T0 + 30 * STEP),
       );
-      const result = runAggregate(store, { ...allIn(pages), aggregation: countByType });
-      expect(result.rows).toEqual([["page", 4]]);
+      const result = runAggregate(store, { ...allIn(pages), aggregation: countByClassBit });
+      expect(result.rows).toEqual([[0, 4]]);
     });
   });
 
   describe("execute helpers", () => {
     it("countQuery matches runQuery length", () => {
       const store = worldStore();
-      const astBlocks = ast(entire, [{ type: "nodeType", nodeType: "block" }]);
+      // Inline blocks: the bit is unset — classes carry it as 0 too (inert),
+      // so "not class" is needed to count blocks exactly.
+      const astBlocks = ast(entire, [
+        { type: "presentAsMain", presentAsMain: false },
+        { type: "isClass", isClass: false },
+      ]);
       expect(countQuery(store, astBlocks)).toBe(4);
       expect(runQuery(store, astBlocks).ids).toHaveLength(4);
     });

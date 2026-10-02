@@ -36,7 +36,7 @@ function makeEnvelope(deviceId: string, physical: number, name: string): Envelop
     deviceId,
     hlc: { physical, logical: 0 },
     opType: "object.create",
-    payload: { objectId: `${deviceId}-${physical}`, nodeType: "page", name },
+    payload: { objectId: `${deviceId}-${physical}`, contentAst: [{ type: "text", text: name }] },
     timestamp: new Date(physical).toISOString(),
   });
 }

@@ -3,7 +3,6 @@
  * §34.12) plus the workspace-level UUID↔name↔type manifest.
  */
 
-import type { NodeType } from "@notees/domain";
 import { deriveDisplayName } from "@notees/domain";
 
 import type { ExportContext, ExportNode } from "./markdown.js";
@@ -18,10 +17,12 @@ export interface ExportFile {
 export interface ExportManifestEntry {
   id: string;
   name: string;
-  nodeType: NodeType;
+  /** Revision-11 render-state booleans (class identity + render bit). */
+  isClass: boolean;
+  presentAsMain: boolean;
 }
 
-/** Workspace-level UUID↔name↔type map for the exported subset. */
+/** Workspace-level UUID↔name↔render-state map for the exported subset. */
 export interface ExportManifest {
   format: "notees-markdown";
   version: 1;
@@ -53,7 +54,12 @@ export function bundleMarkdown(
     generatedAt: new Date().toISOString(),
     nodes: nodes.map((node) => {
       const name = deriveDisplayName(node);
-      return { id: node.id, name: name.length > 0 ? name : node.id, nodeType: node.nodeType };
+      return {
+        id: node.id,
+        name: name.length > 0 ? name : node.id,
+        isClass: node.isClass === 1,
+        presentAsMain: node.presentAsMain === 1,
+      };
     }),
   };
   return { files, manifest };
@@ -61,8 +67,8 @@ export function bundleMarkdown(
 
 /**
  * Concatenate a bundle into one Markdown document (CLI `--stdout`): each file
- * in order, separated by a thematic break. Page/class files carry their own
- * `# <title>` heading, so every section stays labeled.
+ * in order, separated by a thematic break. Non-inline-block files carry
+ * their own `# <title>` heading, so every section stays labeled.
  */
 export function concatBundleMarkdown(bundle: ExportBundle): string {
   return bundle.files.map((file) => file.content.trimEnd()).join("\n\n---\n\n") + "\n";

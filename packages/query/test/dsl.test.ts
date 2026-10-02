@@ -64,10 +64,11 @@ describe("parseQueryLanguage: fields", () => {
     expect(only(parse("class:book"))).toEqual({ type: "class", classId: CLASS_BOOK });
   });
 
-  it("type:page|block|class emits a nodeType condition (case-insensitive value)", () => {
-    expect(only(parse("type:page"))).toEqual({ type: "nodeType", nodeType: "page" });
-    expect(only(parse("type:BLOCK"))).toEqual({ type: "nodeType", nodeType: "block" });
-    expect(only(parse("type:class"))).toEqual({ type: "nodeType", nodeType: "class" });
+  it("isClass:true|false and presentAsMain:true|false emit boolean conditions (case-insensitive field)", () => {
+    expect(only(parse("isClass:true"))).toEqual({ type: "isClass", isClass: true });
+    expect(only(parse("isclass:false"))).toEqual({ type: "isClass", isClass: false });
+    expect(only(parse("presentAsMain:true"))).toEqual({ type: "presentAsMain", presentAsMain: true });
+    expect(only(parse("presentasmain:FALSE"))).toEqual({ type: "presentAsMain", presentAsMain: false });
   });
 
   it("text:term and bare words emit content-contains conditions", () => {
@@ -239,14 +240,18 @@ describe("parseQueryLanguage: composition", () => {
     });
   });
 
-  it("!= negates class, type and linked conditions", () => {
+  it("!= negates class, boolean and linked conditions", () => {
     expect(only(parse("class!=paper"))).toEqual({
       type: "not",
       child: { type: "class", classId: CLASS_PAPER },
     });
-    expect(only(parse("type!=page"))).toEqual({
+    expect(only(parse("isClass!=true"))).toEqual({
       type: "not",
-      child: { type: "nodeType", nodeType: "page" },
+      child: { type: "isClass", isClass: true },
+    });
+    expect(only(parse("presentAsMain!=false"))).toEqual({
+      type: "not",
+      child: { type: "presentAsMain", presentAsMain: false },
     });
     expect(only(parse("linked!=Paris"))).toEqual({
       type: "not",
@@ -281,7 +286,7 @@ describe("parseQueryLanguage: errors (fail loud)", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(QueryLanguageError);
       expect((error as QueryLanguageError).message).toBe(
-        "unknown field 'wobble' (known fields: class, type, prop, text, linked, year, title)",
+        "unknown field 'wobble' (known fields: class, isclass, presentasmain, prop, text, linked, year, title)",
       );
     }
   });
@@ -304,7 +309,8 @@ describe("parseQueryLanguage: errors (fail loud)", () => {
   it("rejects unsupported operators per field", () => {
     expect(() => parse("class:paper>3")).toThrow(/unexpected '>'/);
     expect(() => parse("text!=foo")).toThrow(/not supported for text/);
-    expect(() => parse("type:galaxy")).toThrow(/unknown node type 'galaxy'/);
+    expect(() => parse("isClass:galaxy")).toThrow(/unknown isClass value 'galaxy'.*expected true or false/);
+    expect(() => parse("presentAsMain:1")).toThrow(/unknown presentAsMain value '1'/);
   });
 
   it("rejects a comparison operator without a value", () => {

@@ -41,7 +41,8 @@ Conditions (M1 subset, cleanly extensible by versioned addition):
 | Condition | Semantics |
 |---|---|
 | `class {classId}` | Members of the class **or any class extending it** (`class_hierarchy`, which includes the self-row). |
-| `nodeType {nodeType}` | `node.node_type = page \| block \| class`. |
+| `isClass {isClass}` | `node.is_class = 0/1` — the class identity bit (Revision 11). |
+| `presentAsMain {presentAsMain}` | `node.present_as_main = 0/1` — the render bit for parented non-class nodes (main-children zone vs inline body). Class rows carry the bit as 0 (inert — ClassView by cascade); compose with `isClass:false` for "inline blocks" exactly. |
 | `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext in v2; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. |
 | `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`. |
 | `linkedTo {nodeId}` | `backlinksWithRollup` membership: a direct edge to the node, **or** an edge sourced strictly inside its subtree and targeting outside it (containment roll-up). |
@@ -80,7 +81,8 @@ the same AST pipeline so CLI/API/UI share one language:
 
 ```
 class:Name            class membership (by NAME; "!=" negates)
-type:page|block|class nodeType ("!=" negates)
+isClass:true|false    class identity bit (Revision 11; "!=" negates)
+presentAsMain:t|f     render bit for parented nodes (main zone vs inline body)
 text:term             content contains (substring; bare words do the same)
 linked:Name           backlinksWithRollup to the named node ("!=" negates)
 prop:name<op>val      property condition (no value → exists)
@@ -120,8 +122,11 @@ Scope (the only source of a `distance` column; `SELECT n.*` otherwise):
 ```
 
 The `linkedTo` **condition** uses the same CTE with a single-column
-projection (`n.id IN (SELECT id FROM (...))`). `pages` is a plain
-`node_type = 'page'` filter; `entire_workspace` adds nothing.
+projection (`n.id IN (SELECT id FROM (...))`). `pages` filters to the
+document-chrome predicate — `n.is_class = 0 AND (n.parent_id IS NULL OR
+n.present_as_main = 1)`: workspace documents plus every parent's
+main-children zone, classes and inline blocks out; `entire_workspace` adds
+nothing.
 
 Everything is parameterized with positional `?` — user values never reach
 the SQL string (verified by tests, including an injection attempt).
@@ -138,7 +143,8 @@ BY the filtered-node set, measures aggregate over it:
 ```ts
 dimensions: Array<{ kind: "class", id }        // hierarchy-aware membership (1/0)
                       | { kind: "property", id } // effective/authored value at idx 0
-                      | { kind: "nodeType" }>
+                      | { kind: "isClass" }      // the class identity bit
+                      | { kind: "presentAsMain" }> // the render bit
 measures:   Array<{ function: "count" | "countDistinct", kind?: "node" }
                       | { function: "sum" | "avg" | "min" | "max", kind: "property", id }>
 ```
@@ -148,19 +154,20 @@ query groups it (zero dimensions = one grand-total row, no GROUP BY):
 
 ```sql
 WITH filtered AS (
-  SELECT n.id, n.node_type, n.class_ids FROM node n WHERE n.is_active = 1 AND (...)
+  SELECT n.id, n.is_class, n.present_as_main, n.class_ids
+  FROM node n WHERE n.is_active = 1 AND (...)
 )
-SELECT f.node_type AS "nodeType", COUNT(*) AS "count"
+SELECT f.is_class AS "isClass", COUNT(*) AS "count"
 FROM filtered f
-GROUP BY "nodeType"
-ORDER BY "nodeType" ASC
+GROUP BY "isClass"
+ORDER BY "isClass" ASC
 ```
 
 - Columns are deterministic: dimensions in declared order, then measures;
-  labels `nodeType` / `class:<id>` / `property:<id>` / `count` /
-  `countDistinct` / `<fn>:<id>` (collisions suffixed `#2`, …). GROUP BY /
-  ORDER BY reference the output aliases (SQLite resolves result-column
-  names) so parameterized expressions appear exactly once.
+  labels `isClass` / `presentAsMain` / `class:<id>` / `property:<id>` /
+  `count` / `countDistinct` / `<fn>:<id>` (collisions suffixed `#2`, …).
+  GROUP BY / ORDER BY reference the output aliases (SQLite resolves
+  result-column names) so parameterized expressions appear exactly once.
 - Property dimensions/measures read the effective value at idx 0 through the
   same read model as the property conditions (authored UNION winning-binding
   default; three schema-id params per property reference).
