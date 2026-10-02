@@ -16,7 +16,7 @@ const api = async (path) => {
 };
 
 // Expected hit: reuse the known migrated page (search API proves it indexes).
-const searchApi = await api("/api/v1/search?q=20180900&limit=3");
+const searchApi = await api("/api/search?q=20180900&limit=3");
 const hit = searchApi.results?.[0] ?? searchApi[0];
 const term = "20180900";
 console.log("api search hit:", JSON.stringify(hit).slice(0, 120));

@@ -27,14 +27,14 @@ function api(method: string, url: string, options: { payload?: unknown; headers?
 describe("objects API", () => {
   it("create → get round-trip", async () => {
     server = await makeTestServer();
-    const created = await api("POST", "/api/v1/objects", {
+    const created = await api("POST", "/api/objects", {
       payload: { nodeType: "page", name: "Round Trip", contentAst: [{ type: "text", text: "hello body" }] },
     });
     expect(created.statusCode).toBe(201);
     const { id } = created.json();
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
 
-    const fetched = await api("GET", `/api/v1/objects/${id}`);
+    const fetched = await api("GET", `/api/objects/${id}`);
     expect(fetched.statusCode).toBe(200);
     const object = fetched.json().object;
     expect(object).toMatchObject({ id, nodeType: "page", isActive: true });
@@ -48,44 +48,44 @@ describe("objects API", () => {
 
   it("PATCH updates fields (LWW: the later write wins)", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: "Before" } })).json();
-    const patched = await api("PATCH", `/api/v1/objects/${id}`, { payload: { contentAst: [{ type: "text", text: "After" }] } });
+    const { id } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Before" } })).json();
+    const patched = await api("PATCH", `/api/objects/${id}`, { payload: { contentAst: [{ type: "text", text: "After" }] } });
     expect(patched.statusCode).toBe(200);
     expect(patched.json().object.contentAst).toEqual([{ type: "text", text: "After" }]);
 
-    await api("PATCH", `/api/v1/objects/${id}`, { payload: { contentAst: [{ type: "text", text: "Second" }] } });
-    const fetched = await api("GET", `/api/v1/objects/${id}`);
+    await api("PATCH", `/api/objects/${id}`, { payload: { contentAst: [{ type: "text", text: "Second" }] } });
+    const fetched = await api("GET", `/api/objects/${id}`);
     expect(fetched.json().object.contentAst).toEqual([{ type: "text", text: "Second" }]);
   });
 
   it("PATCH on a missing object is a 404 envelope", async () => {
     server = await makeTestServer();
-    const res = await api("PATCH", `/api/v1/objects/${crypto.randomUUID()}`, { payload: { contentAst: [{ type: "text", text: "ghost" }] } });
+    const res = await api("PATCH", `/api/objects/${crypto.randomUUID()}`, { payload: { contentAst: [{ type: "text", text: "ghost" }] } });
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toMatchObject({ code: "not_found", status: 404 });
   });
 
   it("soft delete keeps the object retrievable; permanent delete removes it", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: "Doomed" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Doomed" } })).json();
 
-    const soft = await api("DELETE", `/api/v1/objects/${id}`);
+    const soft = await api("DELETE", `/api/objects/${id}`);
     expect(soft.statusCode).toBe(200);
     expect(soft.json()).toMatchObject({ id, deleted: true, permanent: false });
 
-    const fetched = await api("GET", `/api/v1/objects/${id}`);
+    const fetched = await api("GET", `/api/objects/${id}`);
     expect(fetched.statusCode).toBe(200);
     expect(fetched.json().object.isActive).toBe(false);
 
-    const noConfirm = await api("DELETE", `/api/v1/objects/${id}?permanent=true`);
+    const noConfirm = await api("DELETE", `/api/objects/${id}?permanent=true`);
     expect(noConfirm.statusCode).toBe(400);
     expect(noConfirm.json().error.code).toBe("validation_failed");
 
-    const confirmed = await api("DELETE", `/api/v1/objects/${id}?permanent=true&confirm=${id}`);
+    const confirmed = await api("DELETE", `/api/objects/${id}?permanent=true&confirm=${id}`);
     expect(confirmed.statusCode).toBe(200);
     expect(confirmed.json().permanent).toBe(true);
 
-    const gone = await api("GET", `/api/v1/objects/${id}`);
+    const gone = await api("GET", `/api/objects/${id}`);
     expect(gone.statusCode).toBe(404);
   });
 
@@ -93,27 +93,27 @@ describe("objects API", () => {
     server = await makeTestServer();
     const ids: string[] = [];
     for (let i = 0; i < 5; i += 1) {
-      const { id } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: `p${i}` } })).json();
+      const { id } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: `p${i}` } })).json();
       ids.push(id);
     }
-    const block = (await api("POST", "/api/v1/objects", { payload: { nodeType: "block", name: "b1", parentId: ids[0] } })).json();
+    const block = (await api("POST", "/api/objects", { payload: { nodeType: "block", name: "b1", parentId: ids[0] } })).json();
     expect(block.id).toBeTruthy();
 
-    const page1 = (await api("GET", "/api/v1/objects?nodeType=page&limit=2")).json();
+    const page1 = (await api("GET", "/api/objects?nodeType=page&limit=2")).json();
     expect(page1.objects).toHaveLength(2);
     expect(page1.nextCursor).not.toBeNull();
-    const page2 = (await api("GET", `/api/v1/objects?nodeType=page&limit=2&cursor=${page1.nextCursor}`)).json();
+    const page2 = (await api("GET", `/api/objects?nodeType=page&limit=2&cursor=${page1.nextCursor}`)).json();
     expect(page2.objects).toHaveLength(2);
     expect(new Set([...page1.objects.map((o: { id: string }) => o.id), ...page2.objects.map((o: { id: string }) => o.id)]).size).toBe(4);
 
-    const blocks = (await api("GET", "/api/v1/objects?nodeType=block")).json();
+    const blocks = (await api("GET", "/api/objects?nodeType=block")).json();
     expect(blocks.objects.map((o: { id: string }) => o.id)).toContain(block.id);
   });
 
   it("search finds inserted content", async () => {
     server = await makeTestServer();
     const { id } = (
-      await api("POST", "/api/v1/objects", {
+      await api("POST", "/api/objects", {
         payload: {
           nodeType: "page",
           name: "Searchable",
@@ -121,19 +121,19 @@ describe("objects API", () => {
         },
       })
     ).json();
-    const res = await api("GET", "/api/v1/search?q=quixotic");
+    const res = await api("GET", "/api/search?q=quixotic");
     expect(res.statusCode).toBe(200);
     expect(res.json().results.map((r: { id: string }) => r.id)).toContain(id);
   });
 
   it("backlinks reflect an emitted mention", async () => {
     server = await makeTestServer();
-    const { id: target } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: "Target" } })).json();
-    const { id: source } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: "Source" } })).json();
+    const { id: target } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Target" } })).json();
+    const { id: source } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Source" } })).json();
     // Title-is-content: pages carry text-only content, so the mention token
     // rides in a block child of the source page.
     const { id: block } = (
-      await api("POST", "/api/v1/objects", {
+      await api("POST", "/api/objects", {
         payload: {
           nodeType: "block",
           parentId: source,
@@ -142,7 +142,7 @@ describe("objects API", () => {
       })
     ).json();
 
-    const res = await api("GET", `/api/v1/objects/${target}/backlinks`);
+    const res = await api("GET", `/api/objects/${target}/backlinks`);
     expect(res.statusCode).toBe(200);
     const backlinks = res.json().backlinks;
     expect(backlinks).toHaveLength(1);
@@ -151,7 +151,7 @@ describe("objects API", () => {
 
   it("classes listing includes the seeded system classes", async () => {
     server = await makeTestServer();
-    const res = await api("GET", "/api/v1/classes");
+    const res = await api("GET", "/api/classes");
     expect(res.statusCode).toBe(200);
     const classes = res.json().classes as { id: string; icon: string | null; memberCount: number }[];
     const byId = new Map(classes.map((c) => [c.id, c]));
@@ -161,7 +161,7 @@ describe("objects API", () => {
     const task = byId.get(SYSTEM_CLASS_UUIDS.task)!;
     expect(task.icon).toBe("mdiCheckboxMarkedCircleOutline");
 
-    const detail = await api("GET", `/api/v1/classes/${SYSTEM_CLASS_UUIDS.task}`);
+    const detail = await api("GET", `/api/classes/${SYSTEM_CLASS_UUIDS.task}`);
     expect(detail.statusCode).toBe(200);
     expect(detail.json().members).toEqual([]);
   });
@@ -169,26 +169,26 @@ describe("objects API", () => {
   it("create with a class assignment shows up in class members", async () => {
     server = await makeTestServer();
     const { id } = (
-      await api("POST", "/api/v1/objects", {
+      await api("POST", "/api/objects", {
         payload: { nodeType: "page", name: "Task page", classIds: [SYSTEM_CLASS_UUIDS.task] },
       })
     ).json();
-    const detail = (await api("GET", `/api/v1/classes/${SYSTEM_CLASS_UUIDS.task}`)).json();
+    const detail = (await api("GET", `/api/classes/${SYSTEM_CLASS_UUIDS.task}`)).json();
     expect(detail.members.map((m: { id: string }) => m.id)).toContain(id);
-    const objects = (await api("GET", `/api/v1/objects?class=${SYSTEM_CLASS_UUIDS.task}`)).json();
+    const objects = (await api("GET", `/api/objects?class=${SYSTEM_CLASS_UUIDS.task}`)).json();
     expect(objects.objects.map((o: { id: string }) => o.id)).toContain(id);
   });
 
   it("requires the API key on the object surface", async () => {
     server = await makeTestServer();
-    const res = await server.app.inject({ method: "GET", url: "/api/v1/objects/anything" });
+    const res = await server.app.inject({ method: "GET", url: "/api/objects/anything" });
     expect(res.statusCode).toBe(401);
     expect(res.json().error.code).toBe("unauthenticated");
   });
 
   it("property values endpoint returns stored values", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/v1/objects", { payload: { nodeType: "page", name: "Prop" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Prop" } })).json();
     const isbnSchema = SYSTEM_PROPERTY_UUIDS.isbn;
     const env = newEnvelope({
       workspaceId: server.ctx.defaultWorkspace,
@@ -204,7 +204,7 @@ describe("objects API", () => {
       headers: { "content-type": "application/json", ...server.authHeaders },
       payload: { envelopes: [env] },
     });
-    const res = await api("GET", `/api/v1/properties/${isbnSchema}/values`);
+    const res = await api("GET", `/api/properties/${isbnSchema}/values`);
     expect(res.statusCode).toBe(200);
     // The values endpoint still selects the (retired) node.name column, so
     // objectName is null post-title-is-content; the stored value is the point.

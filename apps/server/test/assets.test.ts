@@ -43,7 +43,7 @@ async function upload(bytes: Buffer, filename?: string, fields?: Record<string, 
   const { payload, contentType } = multipartBody(bytes, filename, fields);
   return server!.app.inject({
     method: "POST",
-    url: "/api/v1/assets",
+    url: "/api/assets",
     headers: { "content-type": contentType, ...server!.authHeaders },
     payload,
   });
@@ -75,7 +75,7 @@ describe("assets API", () => {
 
     const down = await server.app.inject({
       method: "GET",
-      url: `/api/v1/assets/${info.assetId}`,
+      url: `/api/assets/${info.assetId}`,
       headers: server.authHeaders,
     });
     expect(down.statusCode).toBe(200);
@@ -88,7 +88,7 @@ describe("assets API", () => {
     const { assetId } = (await upload(PNG)).json();
     const res = await server.app.inject({
       method: "GET",
-      url: `/api/v1/assets/${assetId}`,
+      url: `/api/assets/${assetId}`,
       headers: { ...server.authHeaders, range: "bytes=0-3" },
     });
     expect(res.statusCode).toBe(206);
@@ -98,7 +98,7 @@ describe("assets API", () => {
 
     const tail = await server.app.inject({
       method: "GET",
-      url: `/api/v1/assets/${assetId}`,
+      url: `/api/assets/${assetId}`,
       headers: { ...server.authHeaders, range: "bytes=4-" },
     });
     expect(tail.statusCode).toBe(206);
@@ -118,7 +118,7 @@ describe("assets API", () => {
     const info = (
       await server.app.inject({
         method: "GET",
-        url: `/api/v1/assets/${first.json().assetId}/info`,
+        url: `/api/assets/${first.json().assetId}/info`,
         headers: server.authHeaders,
       })
     ).json();
@@ -145,7 +145,7 @@ describe("assets API", () => {
     const object = (
       await server.app.inject({
         method: "POST",
-        url: "/api/v1/objects",
+        url: "/api/objects",
         headers: { "content-type": "application/json", ...server.authHeaders },
         payload: { nodeType: "page", name: "Attachment host" },
       })
@@ -168,18 +168,18 @@ describe("assets API", () => {
     const { hash } = (await upload(PNG)).json();
     const byHash = await server.app.inject({
       method: "GET",
-      url: `/api/v1/assets/${hash}`,
+      url: `/api/assets/${hash}`,
       headers: server.authHeaders,
     });
     expect(byHash.statusCode).toBe(200);
     expect(Buffer.from(byHash.rawPayload).equals(PNG)).toBe(true);
 
-    const unauthenticated = await server.app.inject({ method: "GET", url: `/api/v1/assets/${hash}` });
+    const unauthenticated = await server.app.inject({ method: "GET", url: `/api/assets/${hash}` });
     expect(unauthenticated.statusCode).toBe(401);
 
     const missing = await server.app.inject({
       method: "GET",
-      url: `/api/v1/assets/${crypto.randomUUID()}`,
+      url: `/api/assets/${crypto.randomUUID()}`,
       headers: server.authHeaders,
     });
     expect(missing.statusCode).toBe(404);

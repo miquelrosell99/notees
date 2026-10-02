@@ -47,7 +47,7 @@ describe("App boot", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.endsWith("/api/v1/server-info")) {
+        if (url.endsWith("/api/server-info")) {
           return Response.json({ setupRequired: true, version: "test", name: "notees-server" });
         }
         throw new Error(`unexpected fetch: ${url}`);
@@ -67,7 +67,7 @@ describe("App boot", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.endsWith("/api/v1/server-info")) {
+        if (url.endsWith("/api/server-info")) {
           return Response.json({ setupRequired: false, version: "test", name: "notees-server" });
         }
         throw new Error(`unexpected fetch: ${url}`);
@@ -118,14 +118,14 @@ describe("session resume", () => {
     window.history.pushState({}, "", "/workspaces");
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.endsWith("/api/v1/workspaces")) {
+      if (url.endsWith("/api/workspaces")) {
         return Response.json({
           workspaces: [
             { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
           ],
         });
       }
-      if (url.endsWith("/api/v1/auth/me")) {
+      if (url.endsWith("/api/auth/me")) {
         return Response.json(ME);
       }
       throw new Error(`unexpected fetch: ${url}`);
@@ -153,10 +153,10 @@ describe("session resume", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.endsWith("/api/v1/workspaces")) {
+        if (url.endsWith("/api/workspaces")) {
           return Response.json({ workspaces: [] });
         }
-        if (url.endsWith("/api/v1/auth/me")) {
+        if (url.endsWith("/api/auth/me")) {
           return Response.json(ME);
         }
         throw new Error(`unexpected fetch: ${url}`);
@@ -176,7 +176,7 @@ describe("session resume", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.endsWith("/api/v1/workspaces")) {
+        if (url.endsWith("/api/workspaces")) {
           return Response.json({
             workspaces: [
               { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
@@ -184,10 +184,10 @@ describe("session resume", () => {
             ],
           });
         }
-        if (url.endsWith("/api/v1/auth/me")) {
+        if (url.endsWith("/api/auth/me")) {
           return Response.json(ME);
         }
-        if (url.endsWith(`/api/v1/nodes/${nodeId}/location`)) {
+        if (url.endsWith(`/api/nodes/${nodeId}/location`)) {
           return Response.json({ workspaceId: "ws2" });
         }
         // Relay catch-up for the located workspace: unreachable, so connect
@@ -210,17 +210,17 @@ describe("session resume", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.endsWith("/api/v1/workspaces")) {
+        if (url.endsWith("/api/workspaces")) {
           return Response.json({
             workspaces: [
               { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
             ],
           });
         }
-        if (url.endsWith("/api/v1/auth/me")) {
+        if (url.endsWith("/api/auth/me")) {
           return Response.json(ME);
         }
-        if (url.endsWith("/api/v1/nodes/11111111-2222-4333-8444-555555555555/location")) {
+        if (url.endsWith("/api/nodes/11111111-2222-4333-8444-555555555555/location")) {
           return new Response("not found", { status: 404 });
         }
         return new Response("unreachable", { status: 502 });
@@ -239,7 +239,7 @@ describe("session resume", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.endsWith("/api/v1/workspaces") || url.endsWith("/api/v1/auth/me")) {
+        if (url.endsWith("/api/workspaces") || url.endsWith("/api/auth/me")) {
           return new Response("unauthorized", { status: 401 });
         }
         throw new Error(`unexpected fetch: ${url}`);

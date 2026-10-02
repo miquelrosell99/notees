@@ -2,9 +2,9 @@
  * Asset attachment UX tests (Zotero-style source containers): the properties
  * panel renders node-typed (`object`) properties as chips + a picker filtered
  * by the schema's targetClassFilter; asset-targeted rows add an "upload file"
- * action (POST /api/v1/assets → asset node + asset.attach + property.set);
+ * action (POST /api/assets → asset node + asset.attach + property.set);
  * chips resolve the asset's original name via the derived node_asset rows and
- * download through GET /api/v1/assets/:id (workspace API key header, blob URL
+ * download through GET /api/assets/:id (workspace API key header, blob URL
  * so the key never lands in a URL). jsdom over the in-process WorkspaceClient
  * with a stubbed fetch.
  *
@@ -130,7 +130,7 @@ function stubFetch(body: Record<string, unknown> = uploadBody()) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const mock = vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url: String(url), init: init ?? {} });
-    if (String(url) === `${SERVER}/api/v1/assets`) {
+    if (String(url) === `${SERVER}/api/assets`) {
       return new Response(JSON.stringify(body), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -227,7 +227,7 @@ describe("Asset attachments (node-typed properties)", () => {
 
     // The upload hit the server with the workspace API key, multipart body.
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe(`${SERVER}/api/v1/assets`);
+    expect(calls[0]!.url).toBe(`${SERVER}/api/assets`);
     expect(calls[0]!.init.method).toBe("POST");
     const headers = calls[0]!.init.headers as Record<string, string>;
     expect(headers["X-API-Key"]).toBe(API_KEY);
@@ -342,7 +342,7 @@ describe("Asset attachments (node-typed properties)", () => {
     fireEvent.click(screen.getByRole("button", { name: "a.pdf" }));
 
     await waitFor(() => expect(opened).toEqual(["blob:notees-test"]));
-    const download = calls.find((c) => c.url === `${SERVER}/api/v1/assets/${ASSET_ID_A}`);
+    const download = calls.find((c) => c.url === `${SERVER}/api/assets/${ASSET_ID_A}`);
     expect(download).toBeDefined();
     expect((download!.init.headers as Record<string, string>)["X-API-Key"]).toBe(API_KEY);
   });

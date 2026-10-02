@@ -481,7 +481,7 @@ export class WorkerClient {
   // --- assets (REST upload/download on the main thread; the link op runs in
   // the worker, which owns the store) ----------------------------------------
 
-  /** Upload file bytes to the server's CAS asset store (POST /api/v1/assets). */
+  /** Upload file bytes to the server's CAS asset store (POST /api/assets). */
   async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
     return postAssetUpload(this.serverUrl, this.apiKey, this.workspaceId, file, filename);
   }

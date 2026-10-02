@@ -4,7 +4,7 @@ const page = await (await browser.newContext({ viewport: { width: 1500, height: 
 const logs = [];
 page.on("console", (m) => { if (m.type() === "error") logs.push(m.text().slice(0, 300)); });
 page.on("pageerror", (e) => logs.push("PAGEERROR: " + String(e).slice(0, 400)));
-const login = await fetch("http://127.0.0.1:8377/api/v1/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "miquelroselltarrago@gmail.com", password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }) });
+const login = await fetch("http://127.0.0.1:8377/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "miquelroselltarrago@gmail.com", password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }) });
 const { token } = await login.json();
 await page.addInitScript(([url, t, ws]) => {
   localStorage.setItem("notees.serverUrl", url);
