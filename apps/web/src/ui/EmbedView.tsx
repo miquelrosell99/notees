@@ -21,6 +21,7 @@ import type { BlockTreeNode } from "@/core/workspace-client.js";
 
 import { displayNameFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
+import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { useOutliner } from "./outliner-context.js";
 
 /** Backstop for embed chains: nesting deeper than this renders a placeholder. */
@@ -67,7 +68,12 @@ function EmbedBlock({
   return (
     <div className="nt-embed-block">
       <div className="nt-embed-block-content">
-        <InlineTokens tokens={tree.node.contentAst} resolveName={resolveName} renderEmbed={renderEmbed} />
+        <InlineTokens
+          tokens={tree.node.contentAst}
+          resolveName={resolveName}
+          renderEmbed={renderEmbed}
+          onMentionMenu={(info) => openNodeLinkMenu({ blockId: tree.node.id, ...info })}
+        />
       </div>
       {tree.children.length > 0 && (
         <div className="nt-embed-block-children">
@@ -112,7 +118,12 @@ export function EmbedView({ nodeId }: { nodeId: string }) {
         <div className="nt-embed-header">{name}</div>
         {node.contentAst.length > 0 && (
           <div className="nt-embed-content">
-            <InlineTokens tokens={node.contentAst} resolveName={resolveName} renderEmbed={renderEmbed} />
+            <InlineTokens
+              tokens={node.contentAst}
+              resolveName={resolveName}
+              renderEmbed={renderEmbed}
+              onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
+            />
           </div>
         )}
         {childrenTree.length > 0 && (
