@@ -86,7 +86,7 @@ function openRowMenu(container: HTMLElement, rowLabel: string): HTMLElement {
 describe("sidebar row context menus", () => {
   it("favorites row: menu offers open/sidebar/copy/unfavorite/delete", async () => {
     const client = await seedClient();
-    await client.createObject({ nodeType: "page", name: "Alpha" });
+    await client.createObject({ presentAsMain: true, name: "Alpha" });
     localStorage.setItem("notees.favorites", JSON.stringify([client.listPages()[0]!.id]));
     const { container } = renderSidebar(client);
 
@@ -106,7 +106,7 @@ describe("sidebar row context menus", () => {
 
   it("recents row: menu offers Remove from recents (and Add to Favorites when not starred)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Beta" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Beta" });
     recordRecent(pageId);
     const { container } = renderSidebar(client);
 
@@ -127,7 +127,7 @@ describe("sidebar row context menus", () => {
 
   it("Remove from Favorites unstars the row live", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Gamma" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Gamma" });
     localStorage.setItem("notees.favorites", JSON.stringify([pageId]));
     const { container } = renderSidebar(client);
     expect(screen.getByRole("button", { name: "Gamma" })).not.toBeNull();
@@ -140,7 +140,7 @@ describe("sidebar row context menus", () => {
 
   it("Remove from recents drops the row from the Recents section", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Delta" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Delta" });
     recordRecent(pageId);
     const { container } = renderSidebar(client);
     expect(screen.getByRole("button", { name: "Delta" })).not.toBeNull();
@@ -153,7 +153,7 @@ describe("sidebar row context menus", () => {
 
   it("Delete asks for confirmation, then deletes the node", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Epsilon" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Epsilon" });
     recordRecent(pageId);
     localStorage.setItem("notees.favorites", JSON.stringify([pageId]));
     const { container } = renderSidebar(client);
@@ -172,7 +172,7 @@ describe("sidebar row context menus", () => {
 
   it("Open in sidebar calls the host callback", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Zeta" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Zeta" });
     localStorage.setItem("notees.favorites", JSON.stringify([pageId]));
     const onOpenInSidebar = vi.fn();
     const { container } = renderSidebar(client, { onOpenInSidebar });

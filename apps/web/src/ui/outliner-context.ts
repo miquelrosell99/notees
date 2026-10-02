@@ -112,7 +112,7 @@ export interface OutlinerContextValue {
   client: OutlinerClient & OutlinerReader;
   /** The view root id (PageView: the page) — anchors the query builder's "this page" scope. */
   rootId: string;
-  /** f(node_type) navigation: a class id opens the Class View, anything else the Page View. */
+  /** Render-cascade navigation: a class id opens the Class View, anything else the Page View. */
   openNode: (nodeId: string) => void;
   /** Sibling/parent facts for the current tree (keyboard gestures). */
   positions: OutlinePositionMap;
@@ -149,7 +149,7 @@ export interface OutlinerContextValue {
  * PageView (block tree) and ClassView (page chrome + panels). The block-tree
  * facts (positions, focus hand-off, collapse) are inert for ClassView, which
  * renders no editable rows but reuses chrome (TitleEditor) that consumes the
- * context. `options.openNode` wires f(node_type) navigation for projections
+ * context. `options.openNode` wires render-cascade navigation for projections
  * that navigate (query result lists); it defaults to a no-op.
  */
 export function useOutlinerValue(

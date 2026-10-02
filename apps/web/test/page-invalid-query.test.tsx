@@ -34,9 +34,8 @@ describe("page with invalid query block", () => {
       });
       clients.push(client);
       await client.bootstrapWorkspace(WS);
-      const host = await client.createObject({ nodeType: "page", name: "Host" });
+      const host = await client.createObject({ presentAsMain: true, name: "Host" });
       await client.createObject({
-        nodeType: "block",
         parentId: host,
         contentAst: [
           {

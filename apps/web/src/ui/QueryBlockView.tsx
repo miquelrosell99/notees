@@ -4,8 +4,10 @@
  * view toggle + settings gear + Export), and the result in one of two shapes:
  *
  *  - list mode (default): the references-section idiom (display name +
- *    nodeType chip), capped (RESULT_CAP + an "N more" line);
- *  - table mode: a simple table (Name / Type / Created) of the result set;
+ *    render-state chip — Page/Block/Class from the isClass/presentAsMain
+ *    booleans), capped (RESULT_CAP + an "N more" line);
+ *  - table mode: a simple table (Name / Class / Main / Created) of the
+ *    result set;
  *  - an AST carrying an `aggregation` always renders the aggregate grid
  *    (dimension columns + measure columns, numeric alignment) — measures
  *    need columns a list cannot carry. The badge shows the result count
@@ -22,13 +24,13 @@
  * Aggregated ASTs run through the client's runAggregateAst bridge (grouped
  * grid); plain ASTs through runQueryAst.
  *
- * Editing: the gear opens a minimal builder popover (scope / class / nodeType
- * / text-contains — the supported AST conditions — plus a minimal
- * aggregation section: one group-by dimension and one measure) that rewrites
- * the token's `queryAst`. Multi-dimension / multi-measure aggregations stay
- * AST-by-hand; the builder reads back the FIRST dimension/measure and
- * rewrites the aggregation from its own fields (documented M1 builder
- * behavior, same as unsupported conditions).
+ * Editing: the gear opens a minimal builder popover (scope / class /
+ * isClass / presentAsMain / text-contains — the supported AST conditions —
+ * plus a minimal aggregation section: one group-by dimension and one
+ * measure) that rewrites the token's `queryAst`. Multi-dimension /
+ * multi-measure aggregations stay AST-by-hand; the builder reads back the
+ * FIRST dimension/measure and rewrites the aggregation from its own fields
+ * (documented M1 builder behavior, same as unsupported conditions).
  *
  * Export (the export-on-query feature): the Export button runs
  * @notees/export's bundleMarkdown over the CURRENT result set — full nodes
@@ -49,6 +51,7 @@ import {
   type ExportContext,
   type ExportNode,
 } from "@notees/export";
+import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 import { parseQueryAst, type Aggregation, type AggregationMeasure, type Child, type QueryAst, type Scope } from "@notees/query";
 
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
@@ -71,7 +74,8 @@ export const QUERY_RESULT_CAP = 200;
 /** The query result's table columns (aligned with the view registry's table). */
 const QUERY_TABLE_COLUMNS: TableColumn[] = [
   { id: "name", kind: "name", label: "Name", sortable: true },
-  { id: "nodeType", kind: "nodeType", label: "Type", sortable: true },
+  { id: "isClass", kind: "isClass", label: "Class", sortable: true },
+  { id: "presentAsMain", kind: "presentAsMain", label: "Main", sortable: true },
   { id: "created", kind: "created", label: "Created", sortable: true },
 ];
 
@@ -113,15 +117,17 @@ export function parseQueryViewMode(view: unknown): QueryViewMode {
 // --- builder state <-> AST -----------------------------------------------------
 
 export interface QueryBuilderState {
-  /** Scope select value; "page" = the view root's subtree (only offered for pages). */
+  /** Scope select value; "page" = the view root's subtree (only offered for document-chrome roots). */
   scope: "workspace" | "pages" | "page";
   /** Class filter (class condition); null/"" = any. */
   classId: string | null;
-  /** nodeType filter; "" = any. */
-  nodeType: "" | "page" | "block" | "class";
+  /** isClass filter (Revision-11 boolean condition); "" = any. */
+  isClass: "" | "true" | "false";
+  /** presentAsMain filter (Revision-11 boolean condition); "" = any. */
+  presentAsMain: "" | "true" | "false";
   /** content contains filter (trimmed on write); "" = none. */
   contains: string;
-  /** Aggregation group-by; "" / absent = none. "nodeType" | `class:<id>` | `property:<id>`. */
+  /** Aggregation group-by; "" / absent = none. "isClass" | "presentAsMain" | `class:<id>` | `property:<id>`. */
   groupBy?: string;
   /** Aggregation measure. "count" (default) | "countDistinct" | `<fn>:<propertyId>`. */
   measure?: string;
@@ -130,7 +136,8 @@ export interface QueryBuilderState {
 const DEFAULT_BUILDER_STATE: QueryBuilderState = {
   scope: "workspace",
   classId: null,
-  nodeType: "",
+  isClass: "",
+  presentAsMain: "",
   contains: "",
   groupBy: "",
   measure: "count",
@@ -170,7 +177,8 @@ export function extractBuilderState(ast: QueryAst | null): QueryBuilderState {
   if (ast.root.logic !== "and") return state;
   for (const child of ast.root.children) {
     if (child.type === "class") state.classId = child.classId;
-    else if (child.type === "nodeType") state.nodeType = child.nodeType;
+    else if (child.type === "isClass") state.isClass = child.isClass ? "true" : "false";
+    else if (child.type === "presentAsMain") state.presentAsMain = child.presentAsMain ? "true" : "false";
     else if (child.type === "content" && child.op === "contains") state.contains = child.value;
   }
   const aggregation = ast.aggregation;
@@ -179,9 +187,11 @@ export function extractBuilderState(ast: QueryAst | null): QueryBuilderState {
     state.groupBy =
       dimension === undefined
         ? ""
-        : dimension.kind === "nodeType"
-          ? "nodeType"
-          : `${dimension.kind}:${dimension.id}`;
+        : dimension.kind === "isClass"
+          ? "isClass"
+          : dimension.kind === "presentAsMain"
+            ? "presentAsMain"
+            : `${dimension.kind}:${dimension.id}`;
     const measure = aggregation.measures[0];
     if (measure === undefined) {
       state.measure = "count";
@@ -211,8 +221,10 @@ export function composeAggregation(state: QueryBuilderState): Aggregation | unde
   const measureSpec = state.measure ?? "count";
   if (groupBy === "" && measureSpec === "count") return undefined;
   const dimensions: Aggregation["dimensions"] = [];
-  if (groupBy === "nodeType") {
-    dimensions.push({ kind: "nodeType" });
+  if (groupBy === "isClass") {
+    dimensions.push({ kind: "isClass" });
+  } else if (groupBy === "presentAsMain") {
+    dimensions.push({ kind: "presentAsMain" });
   } else if (groupBy.startsWith("class:")) {
     dimensions.push({ kind: "class", id: groupBy.slice("class:".length) });
   } else if (groupBy.startsWith("property:")) {
@@ -247,7 +259,10 @@ export function composeQueryAst(
   if (state.classId !== null && state.classId !== "") {
     children.push({ type: "class", classId: state.classId });
   }
-  if (state.nodeType !== "") children.push({ type: "nodeType", nodeType: state.nodeType });
+  if (state.isClass !== "") children.push({ type: "isClass", isClass: state.isClass === "true" });
+  if (state.presentAsMain !== "") {
+    children.push({ type: "presentAsMain", presentAsMain: state.presentAsMain === "true" });
+  }
   const contains = state.contains.trim();
   if (contains !== "") children.push({ type: "content", op: "contains", value: contains });
   const aggregation = composeAggregation(state);
@@ -274,7 +289,9 @@ function toExportNode(client: QueryExportClient, id: string): ExportNode | undef
   if (node === undefined) return undefined;
   return {
     id: node.id,
-    nodeType: node.nodeType,
+    isClass: node.isClass ? 1 : 0,
+    presentAsMain: node.presentAsMain ? 1 : 0,
+    parentId: node.parentId,
     name: node.name,
     contentAst: node.contentAst,
     classIds: node.classIds,
@@ -303,7 +320,7 @@ export function buildQueryExportMarkdown(client: QueryExportClient, ids: readonl
     childrenOf: (id) =>
       client
         .getChildren(id)
-        .filter((child) => child.nodeType === "block")
+        .filter((child) => rendersAsInlineBlock(child))
         .map((child) => toExportNode(client, child.id))
         .filter((node): node is ExportNode => node !== undefined),
   };
@@ -334,17 +351,19 @@ type QueryRunState =
   | { kind: "aggregate"; dimensionCount: number } & QueryAggregateResult;
 
 /**
- * Aggregate column labels: the compiler's names are deterministic (`nodeType`,
- * `class:<id>`, `property:<id>`, `count`, `countDistinct`, `<fn>:<id>`) but
- * bare ids are unreadable — resolve class/property names from the client's
- * class facts, falling back to a short id prefix. Unknown shapes stay raw.
+ * Aggregate column labels: the compiler's names are deterministic (`isClass`,
+ * `presentAsMain`, `class:<id>`, `property:<id>`, `count`, `countDistinct`,
+ * `<fn>:<id>`) but bare ids are unreadable — resolve class/property names
+ * from the client's class facts, falling back to a short id prefix. Unknown
+ * shapes stay raw.
  */
 export function aggregateColumnLabel(
   column: string,
   classNames: ReadonlyMap<string, string>,
   propertyNames: ReadonlyMap<string, string>,
 ): string {
-  if (column === "nodeType") return "Type";
+  if (column === "isClass") return "Class";
+  if (column === "presentAsMain") return "Present as main";
   if (column === "count") return "Count";
   if (column === "countDistinct") return "Count distinct";
   const match = /^(class|property|sum|avg|min|max):(.+)$/.exec(column);
@@ -376,9 +395,9 @@ export interface QueryBlockViewProps {
   queryAst: unknown;
   /** The token's persisted view record (`{ mode: "list" | "table" }`; loose). */
   view?: unknown;
-  /** The view root id — the "this page" scope anchor when it is a page. */
+  /** The view root id — the "this page" scope anchor when it has document chrome. */
   rootId: string;
-  /** f(node_type) navigation (pages/classes direct, blocks → containing page). */
+  /** Render-cascade navigation (App routes the id). */
   onOpenNode?: ((nodeId: string) => void) | undefined;
 }
 
@@ -437,7 +456,7 @@ export function QueryBlockView({
   }, [client, astKey, version]);
 
   const rootNode = client.getNode(rootId);
-  const rootIsPage = rootNode?.nodeType === "page";
+  const rootIsPage = rootNode !== undefined && rendersWithDocumentChrome(rootNode);
   const classes = client.listClasses();
 
   // Bound properties across all classes (deduped by schema id) — the group-by
@@ -492,20 +511,23 @@ export function QueryBlockView({
     await client.updateObject(ownerId, { contentAst: next });
   };
 
-  /** f(node_type) navigation: pages/classes open directly; blocks resolve to their containing page. */
+  /**
+   * Render-cascade navigation: document-chrome nodes (pages, classes) open
+   * directly; an inline block resolves to its containing main node.
+   */
   const openResult = (row: QueryRunSummary) => {
     if (onOpenNode === undefined) return;
-    if (row.nodeType !== "block") {
+    if (!rendersAsInlineBlock(row)) {
       onOpenNode(row.id);
       return;
     }
     const seen = new Set<string>([row.id]);
     let current = client.getNode(row.parentId ?? "");
-    while (current !== undefined && current.nodeType !== "page" && !seen.has(current.id)) {
+    while (current !== undefined && !rendersWithDocumentChrome(current) && !seen.has(current.id)) {
       seen.add(current.id);
       current = current.parentId !== null ? client.getNode(current.parentId) : undefined;
     }
-    onOpenNode(current !== undefined && current.nodeType === "page" ? current.id : row.id);
+    onOpenNode(current !== undefined && rendersWithDocumentChrome(current) ? current.id : row.id);
   };
 
   const handleExport = () => {
@@ -637,20 +659,35 @@ export function QueryBlockView({
             </select>
           </label>
           <label className="nt-query-field">
-            <span>Type</span>
+            <span>Class bit</span>
             <select
-              value={builderState.nodeType}
+              value={builderState.isClass}
               onChange={(event) =>
                 setBuilderState((s) => ({
                   ...s,
-                  nodeType: event.target.value as QueryBuilderState["nodeType"],
+                  isClass: event.target.value as QueryBuilderState["isClass"],
                 }))
               }
             >
-              <option value="">Any type</option>
-              <option value="page">Page</option>
-              <option value="block">Block</option>
-              <option value="class">Class</option>
+              <option value="">Any</option>
+              <option value="true">Class</option>
+              <option value="false">Not a class</option>
+            </select>
+          </label>
+          <label className="nt-query-field">
+            <span>Render bit</span>
+            <select
+              value={builderState.presentAsMain}
+              onChange={(event) =>
+                setBuilderState((s) => ({
+                  ...s,
+                  presentAsMain: event.target.value as QueryBuilderState["presentAsMain"],
+                }))
+              }
+            >
+              <option value="">Any</option>
+              <option value="true">Main children</option>
+              <option value="false">Inline body</option>
             </select>
           </label>
           <label className="nt-query-field">
@@ -669,7 +706,8 @@ export function QueryBlockView({
               }
             >
               <option value="">None</option>
-              <option value="nodeType">Type</option>
+              <option value="isClass">Class bit</option>
+              <option value="presentAsMain">Render bit</option>
               {classes.map((cls) => (
                 <option key={cls.id} value={`class:${cls.id}`}>
                   Class: {displayNameForSettings(cls) || cls.id}

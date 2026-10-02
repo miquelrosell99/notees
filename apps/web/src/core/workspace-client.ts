@@ -21,6 +21,7 @@ import {
   dateNodeLabel,
   deriveDisplayName,
   parseIsoDate,
+  rendersWithDocumentChrome,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
@@ -84,7 +85,12 @@ const IDLE_SNAPSHOT: SyncStatusSnapshot = {
 export interface ClientNode {
   id: string;
   workspaceId: string;
-  nodeType: "page" | "block" | "class";
+  /** Class identity bit — the ONLY identity marker (classes are always roots). */
+  isClass: boolean;
+  /** Render bit for parented non-class nodes: true = the parent's
+   * main-children zone + document chrome when zoomed; false = the inline
+   * body + block chrome. Unread for parentless nodes and classes. */
+  presentAsMain: boolean;
   parentId: string | null;
   classIds: string[];
   tagIds: string[];
@@ -122,7 +128,9 @@ export class InvalidQueryAstError extends Error {
 export interface QueryRunSummary {
   id: string;
   name: string | null;
-  nodeType: "page" | "block" | "class";
+  /** Revision-11 render-state booleans (the server's /query summary shape). */
+  isClass: boolean;
+  presentAsMain: boolean;
   parentId: string | null;
   /** node.created_at (ISO-8601) — the table view's Created column. */
   createdAt: string | null;
@@ -272,7 +280,14 @@ export interface ReferenceEntry {
 export interface CreateObjectInput {
   /** Defaults to a fresh UUIDv7. */
   id?: string;
-  nodeType?: "page" | "block" | "class";
+  /**
+   * Render bit (Revision 11): true = the parent's main-children zone +
+   * document chrome when zoomed; false/absent = the inline body (a parented
+   * child defaults to inline; a parentless node defaults to main — the
+   * applier decides when the field is omitted). Classes are declared by
+   * class.create, never by this bit.
+   */
+  presentAsMain?: boolean;
   /** Omit for a workspace-root page; null is accepted explicitly. */
   parentId?: string | null;
   /**
@@ -294,7 +309,11 @@ export interface CreateObjectInput {
 }
 
 export interface UpdateObjectInput {
-  nodeType?: "page" | "block" | "class";
+  /**
+   * Render-bit toggle (Revision 11): promotion/demotion — flipping false →
+   * true stringifies the content server-side (the bit never un-flattens).
+   */
+  presentAsMain?: boolean;
   contentAst?: ContentAst;
   icon?: string;
   color?: string;
@@ -370,7 +389,7 @@ export async function createAnnotation(
   const page = input.page?.trim() ?? "";
   const note = input.note?.trim() ?? "";
   const id = await writes.createObject({
-    nodeType: "page",
+    presentAsMain: true,
     name: quote.slice(0, ANNOTATION_NAME_MAX),
     classIds: [SYSTEM_CLASS_UUIDS.highlight],
   });
@@ -386,7 +405,6 @@ export async function createAnnotation(
   );
   if (note !== "") {
     await writes.createObject({
-      nodeType: "block",
       parentId: id,
       contentAst: [{ type: "text", text: note }],
     });
@@ -518,7 +536,8 @@ function mapNode(row: NodeRow): ClientNode {
   return {
     id: row.id,
     workspaceId: row.workspace_id,
-    nodeType: row.node_type,
+    isClass: row.is_class === 1,
+    presentAsMain: row.present_as_main === 1,
     parentId: row.parent_id,
     classIds,
     tagIds,
@@ -702,17 +721,22 @@ export class WorkspaceClient {
     return deriveDisplayName(node) || null;
   }
 
+  /**
+   * A document-chrome node (Revision 11): non-class and parentless or
+   * present-as-main — the Page View's read; anything else (a class, an
+   * inline block) is not a page here.
+   */
   getPage(id: string): ClientNode | undefined {
     const node = this.getNode(id);
-    return node !== undefined && node.nodeType === "page" ? node : undefined;
+    return node !== undefined && rendersWithDocumentChrome(node) ? node : undefined;
   }
 
-  /** All active pages in the workspace, deterministic order. */
+  /** All document-chrome nodes (parentless or main children), deterministic order. */
   listPages(): ClientNode[] {
     const rows = this.store.database
       .prepare(
         `SELECT * FROM node
-         WHERE workspace_id = ? AND node_type = 'page' AND is_active = 1
+         WHERE workspace_id = ? AND is_class = 0 AND (parent_id IS NULL OR present_as_main = 1) AND is_active = 1
          ORDER BY COALESCE(name, id), id`,
       )
       .all(this.workspaceId) as NodeRow[];
@@ -724,7 +748,7 @@ export class WorkspaceClient {
     const rows = this.store.database
       .prepare(
         `SELECT * FROM node
-         WHERE workspace_id = ? AND node_type = 'class' AND is_active = 1
+         WHERE workspace_id = ? AND is_class = 1 AND is_active = 1
          ORDER BY COALESCE(name, id), id`,
       )
       .all(this.workspaceId) as NodeRow[];
@@ -759,7 +783,7 @@ export class WorkspaceClient {
    */
   getClassBindings(classId: string): ClassBinding[] {
     const node = this.getNode(classId);
-    if (node === undefined || node.nodeType !== "class") {
+    if (node === undefined || !node.isClass) {
       return [];
     }
     // Title-is-content: the seed-spec lookup keys on the class's derived
@@ -984,9 +1008,11 @@ export class WorkspaceClient {
   }
 
   /**
-   * Children of a page in child-order, recursive to `depth` levels
-   * (bodies only: child pages render in their own section per SCHEMA.md
-   * projection rule 3, so the tree is filtered to node_type = 'block').
+   * Children of a node in child-order, recursive to `depth` levels (the
+   * inline body only: main children render in their own section — the Pages
+   * zone — so the tree is filtered to is_class = 0 AND present_as_main = 0,
+   * the inline-block predicate; class children (spec I4) ride here as
+   * ordinary body blocks).
    */
   /**
    * Block-subtree rooted at `id`, capped at `depth` levels (cycle protection).
@@ -1028,7 +1054,8 @@ export class WorkspaceClient {
         .children(id)
         .filter(
           (row) =>
-            row.node_type === "block" &&
+            row.is_class === 0 &&
+            row.present_as_main === 0 &&
             row.is_active === 1 &&
             !propertyRefIds.has(row.id),
         )
@@ -1055,9 +1082,9 @@ export class WorkspaceClient {
    * "invalid query" placeholder) and execute it against the local store. The
    * Store satisfies the query package's structural QueryStore interface, so
    * no mapping layer is needed. Rows come back as node summaries (id, name,
-   * nodeType, parentId, createdAt) — enough for the result list, the simple
-   * table, and the containing-page walk. ASTs carrying an aggregation run
-   * through runAggregateAst instead.
+   * isClass/presentAsMain, parentId, createdAt) — enough for the result
+   * list, the simple table, and the containing-node walk. ASTs carrying an
+   * aggregation run through runAggregateAst instead.
    */
   runQueryAst(rawAst: unknown): QueryRunResult {
     let ast: QueryAst;
@@ -1090,7 +1117,8 @@ export class WorkspaceClient {
           // Title-is-content: the summary name derives from the node's
           // content (the retired name column is always null).
           name: node !== undefined ? deriveDisplayName(node) || null : null,
-          nodeType: row.node_type as QueryRunSummary["nodeType"],
+          isClass: row.is_class === 1,
+          presentAsMain: row.present_as_main === 1,
           parentId: (row.parent_id as string | null) ?? null,
           createdAt: (row.created_at as string | null) ?? null,
         };
@@ -1247,10 +1275,10 @@ export class WorkspaceClient {
   }
 
   /**
-   * Unlinked references (pages only — blocks never get this section):
-   * literal-text FTS matches of the page's display name across the workspace,
-   * excluding the page itself and every node that already links to it (the
-   * linked-references set).
+   * Unlinked references (document-chrome nodes only — inline blocks never
+   * get this section): literal-text FTS matches of the node's display name
+   * across the workspace, excluding the node itself and every node that
+   * already links to it (the linked-references set).
    */
   getUnlinkedReferences(id: string): ReferenceEntry[] {
     const entries: ReferenceEntry[] = [];
@@ -1272,10 +1300,10 @@ export class WorkspaceClient {
     return this.unlinkedReferenceIds(id).length;
   }
 
-  /** Source ids matching the page's name, minus itself and linked sources. */
+  /** Source ids matching the node's name, minus itself and linked sources. */
   private unlinkedReferenceIds(id: string): string[] {
     const node = this.getNode(id);
-    if (!node || node.nodeType !== "page") return [];
+    if (!node || !rendersWithDocumentChrome(node)) return [];
     const name = deriveDisplayName(node);
     if (!name) return [];
     const linkedSources = new Set(this.getBacklinks(id).map((edge) => edge.sourceId));
@@ -1287,11 +1315,15 @@ export class WorkspaceClient {
     return ids;
   }
 
-  /** Direct page-typed children (SCHEMA.md projection rule 3: never body blocks). */
+  /**
+   * Direct main children (Revision 11: is_class = 0 AND present_as_main = 1
+   * — the parent's main-children zone, the Pages section's rows; inline
+   * body blocks and classes never appear here).
+   */
   getChildPages(id: string): ClientNode[] {
     return this.store
       .children(id)
-      .filter((row) => row.node_type === "page" && row.is_active === 1)
+      .filter((row) => row.is_class === 0 && row.present_as_main === 1 && row.is_active === 1)
       .map(mapNode);
   }
 
@@ -1303,22 +1335,31 @@ export class WorkspaceClient {
     return row?.n ?? 0;
   }
 
-  /** Direct child-page count (cheap child-order read) — the child-pages badge. */
+  /** Direct main-child count (cheap child-order read) — the child-pages badge. */
   getChildPageCount(id: string): number {
     const row = this.store.database
       .prepare(
         `SELECT COUNT(*) AS n FROM node_child_order o
          JOIN node n ON n.id = o.child_id
-         WHERE o.parent_id = ? AND n.node_type = 'page' AND n.is_active = 1`,
+         WHERE o.parent_id = ? AND n.is_class = 0 AND n.present_as_main = 1 AND n.is_active = 1`,
       )
       .get(id) as { n: number } | undefined;
     return row?.n ?? 0;
   }
 
-  /** Breadcrumb row for a reference: the source plus its containing page. */
+  /**
+   * Breadcrumb row for a reference: the source plus its containing main
+   * node — the nearest ancestor matching the document-chrome predicate
+   * (non-class, parentless or present-as-main; the source itself when it
+   * already matches).
+   */
   private referenceEntry(source: ClientNode): ReferenceEntry {
     let current = source;
-    for (let guard = 0; current.nodeType !== "page" && current.parentId !== null && guard < 64; guard += 1) {
+    for (
+      let guard = 0;
+      !rendersWithDocumentChrome(current) && current.parentId !== null && guard < 64;
+      guard += 1
+    ) {
       const parent = this.getNode(current.parentId);
       if (!parent) break;
       current = parent;
@@ -1352,7 +1393,7 @@ export class WorkspaceClient {
     const engine = this.requireEngine();
     const id = partial.id ?? uuidv7();
     const payload: Record<string, unknown> = { objectId: id };
-    if (partial.nodeType !== undefined) payload.nodeType = partial.nodeType;
+    if (partial.presentAsMain !== undefined) payload.presentAsMain = partial.presentAsMain;
     if (partial.classIds !== undefined) payload.classIds = partial.classIds;
     if (partial.tagIds !== undefined) payload.tagIds = partial.tagIds;
     // Title-is-content: the protocol has no object `name`. The `name`
@@ -1376,7 +1417,7 @@ export class WorkspaceClient {
   async updateObject(id: string, fields: UpdateObjectInput): Promise<void> {
     const engine = this.requireEngine();
     const payload: Record<string, unknown> = { objectId: id };
-    if (fields.nodeType !== undefined) payload.nodeType = fields.nodeType;
+    if (fields.presentAsMain !== undefined) payload.presentAsMain = fields.presentAsMain;
     if (fields.contentAst !== undefined) payload.contentAst = fields.contentAst;
     if (fields.icon !== undefined) payload.icon = fields.icon;
     if (fields.color !== undefined) payload.color = fields.color;
@@ -1401,10 +1442,12 @@ export class WorkspaceClient {
 
   /**
    * Reparent a node (outliner indent/outdent gesture) — issues `object.move`.
-   * `parentId` null means workspace root (pages only; blocks fail loud in the
-   * store's placement CHECK). Pass `afterId` to land the node immediately
-   * after that sibling in the parent's child order (Enter placement); omit it
-   * to append at the end (Tab indent). Applied locally, push kicked off.
+   * `parentId` null means workspace root — legal for any non-class node (a
+   * parentless node simply renders with document chrome; only a class under
+   * a parent violates the store's placement CHECK). Pass `afterId` to land
+   * the node immediately after that sibling in the parent's child order
+   * (Enter placement); omit it to append at the end (Tab indent). Applied
+   * locally, push kicked off.
    */
   async moveObject(
     id: string,
@@ -1437,7 +1480,6 @@ export class WorkspaceClient {
     if (node.classIds.includes(classId)) return;
     await this.createObject({
       id,
-      nodeType: node.nodeType,
       parentId: node.parentId,
       contentAst: node.contentAst,
       classIds: [classId],
@@ -1489,7 +1531,6 @@ export class WorkspaceClient {
     if (node.tagIds.includes(tagId)) return;
     await this.createObject({
       id,
-      nodeType: node.nodeType,
       parentId: node.parentId,
       contentAst: node.contentAst,
       tagIds: [tagId],
@@ -1686,7 +1727,7 @@ export class WorkspaceClient {
     if (this.getNodeRaw(ids.year) === undefined) {
       await this.createObject({
         id: ids.year,
-        nodeType: "page",
+        presentAsMain: true,
         parentId: null,
         name: dateNodeLabel(parts, "year"),
         classIds: [SYSTEM_CLASS_UUIDS.year],
@@ -1695,7 +1736,7 @@ export class WorkspaceClient {
     if (this.getNodeRaw(ids.month) === undefined) {
       await this.createObject({
         id: ids.month,
-        nodeType: "page",
+        presentAsMain: true,
         parentId: ids.year,
         name: dateNodeLabel(parts, "month"),
         classIds: [SYSTEM_CLASS_UUIDS.month],
@@ -1704,7 +1745,7 @@ export class WorkspaceClient {
     if (this.getNodeRaw(ids.day) === undefined) {
       await this.createObject({
         id: ids.day,
-        nodeType: "page",
+        presentAsMain: true,
         parentId: ids.month,
         name: dateNodeLabel(parts, "day"),
         classIds: [SYSTEM_CLASS_UUIDS.day],
