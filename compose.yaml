@@ -4,7 +4,7 @@
 
 services:
   notees-sync:
-    image: ghcr.io/miquelrosell99/notees-sync:${NOTEES_SYNC_TAG:-2.0.0-m1}
+    image: ghcr.io/miquelrosell99/notees-sync:${NOTEES_SYNC_TAG:-latest}
     container_name: notees-sync
     ports:
       - "${NOTEES_SYNC_PORT:-8377}:8377"
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
 
   notees-web:
-    image: ghcr.io/miquelrosell99/notees-web:${NOTEES_WEB_TAG:-2.0.0-m1}
+    image: ghcr.io/miquelrosell99/notees-web:${NOTEES_WEB_TAG:-latest}
     container_name: notees-web
     ports:
       - "${NOTEES_WEB_PORT:-8378}:80"
