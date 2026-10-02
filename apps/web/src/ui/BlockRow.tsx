@@ -36,6 +36,7 @@ import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
 import { PropertiesSection, TagsRow } from "./components/MetadataSection.js";
 import { ClassPills } from "./components/ClassPills.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
+import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
 import { QueryBlockView } from "./QueryBlockView.js";
@@ -180,6 +181,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockR
               tokens={node.contentAst}
               resolveName={resolveName}
               onOpenNode={openNode}
+              onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
               resolveColor={(id) => {
                 const target = outlinerClient.getNode(id);
                 return target === undefined ? null : outlinerClient.effectiveNodeColor(target);

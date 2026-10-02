@@ -43,6 +43,20 @@ export interface InlineTokensProps {
   onOpenNode?: ((nodeId: string) => void) | undefined;
   /** Effective-color resolver: tints mention underlines with the target's color. */
   resolveColor?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Right-click menu for mention tokens (the node-link context menu):
+   * receives the token identity + pointer position; the caller supplies the
+   * owning node's id (see openNodeLinkMenu). Works in every view mode.
+   */
+  onMentionMenu?:
+    | ((info: {
+        targetNodeId: string;
+        tokenIndex: number;
+        displayText?: string | undefined;
+        x: number;
+        y: number;
+      }) => void)
+    | undefined;
 }
 
 function renderMarkedText(text: string, marks: readonly string[] | undefined): ReactNode {
@@ -89,6 +103,7 @@ function renderToken(
   renderWhiteboard: InlineTokensProps["renderWhiteboard"],
   onOpenNode: InlineTokensProps["onOpenNode"],
   resolveColor: InlineTokensProps["resolveColor"],
+  onMentionMenu: InlineTokensProps["onMentionMenu"],
 ): ReactNode {
   if (typeof token !== "object" || token === null) return null;
   const t = token as Record<string, unknown>;
@@ -113,12 +128,28 @@ function renderToken(
     }
     case "mention": {
       const targetNodeId = typeof t.targetNodeId === "string" ? t.targetNodeId : "";
+      const displayText = typeof t.displayText === "string" ? t.displayText : undefined;
       const name =
-        (typeof t.displayText === "string" ? t.displayText : undefined) ??
+        displayText ??
         (targetNodeId ? (resolveName?.(targetNodeId) ?? undefined) : undefined) ??
         (typeof t.text === "string" ? t.text : undefined) ??
         targetNodeId;
       if (!name) return null;
+      const mentionMenuProps =
+        onMentionMenu === undefined
+          ? undefined
+          : {
+              onContextMenu: (event: { preventDefault(): void; clientX: number; clientY: number }) => {
+                event.preventDefault();
+                onMentionMenu({
+                  targetNodeId,
+                  tokenIndex: key,
+                  displayText,
+                  x: event.clientX,
+                  y: event.clientY,
+                });
+              },
+            };
       if (onOpenNode !== undefined && targetNodeId !== "") {
         const linkColor = resolveColor?.(targetNodeId) ?? null;
         return (
@@ -132,13 +163,14 @@ function renderToken(
               event.stopPropagation();
               onOpenNode(targetNodeId);
             }}
+            {...mentionMenuProps}
           >
             {name}
           </button>
         );
       }
       return (
-        <span key={key} className="nt-chip nt-mention" title={targetNodeId || undefined}>
+        <span key={key} className="nt-chip nt-mention" title={targetNodeId || undefined} {...mentionMenuProps}>
           {name}
         </span>
       );
@@ -209,10 +241,10 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode, resolveColor }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode, resolveColor))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode, resolveColor, onMentionMenu))}
     </>
   );
 }
