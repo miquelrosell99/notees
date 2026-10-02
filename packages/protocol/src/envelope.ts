@@ -1,21 +1,28 @@
 /**
- * Operation envelope v2 — the wire format of the Notees protocol.
+ * Operation envelope v3 — the wire format of the Notees protocol.
  *
  * Clean-break properties vs v1 (assessment §34.4):
  *  - camelCase everywhere, on the wire and in payloads;
- *  - `protocolVersion: 2` is mandatory (a missing version is rejected);
+ *  - `protocolVersion: 3` is mandatory (a missing version is rejected, and
+ *    only 3 is accepted — Revision 11, 2026-10-02);
  *  - first-class `deviceId` and optional `client` provenance claims;
  *  - `payload` is a plaintext object OR the encryption slot `{"$e": {iv, ct}}`
- *    (reserved for M3 E2EE; v2 defines the slot so E2EE never breaks the protocol);
+ *    (reserved for M3 E2EE; defined since envelope v2 so E2EE never breaks
+ *    the protocol);
  *  - `seq` is deliberately absent: server-assigned ordering never travels inside
  *    the envelope (it rides on catch-up frames / WS ops frames instead).
+ *
+ * v3 (Revision 11): the node model moves from `node_type ∈ {page, block, class}`
+ * to two booleans (`is_class`, `present_as_main`); the retired `nodeType`
+ * payload key is rejected outright (no wire compat — stored v2-era logs are
+ * rewritten in place by the one-time migration script, planned).
  */
 
 import { z } from "zod";
 import { uuidv7 } from "uuidv7";
 import { hlcSchema } from "./hlc.js";
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** Provenance claim: which client produced an operation. */
 export const clientClaimSchema = z
