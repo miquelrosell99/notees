@@ -24,7 +24,7 @@ The model is implemented; the product around it is a slice. We say exactly which
 
 **Works today**
 
-- Object model — pages, blocks, classes over one node table, with `node_type`, tree placement, class membership, and content tokens (the full SCHEMA.md grammar)
+- Object model — pages, blocks, classes over one node table, with `is_class`/`present_as_main` (identity + render-state bits), tree placement, class membership, and content tokens (the full SCHEMA.md grammar)
 - Local-first sync engine — outbox push, seq-cursor catch-up, snapshot shortcut, optimistic local apply
 - Fastify server — relay (batch/catch-up/snapshot/compact/stats + WebSocket), object API, CAS asset storage
 - CLI — object CRUD, search, backlinks, class list, asset add/get, sync status, doctor
@@ -47,7 +47,7 @@ pnpm --filter @notees/server dev &        # 1. start the server (port 8377)
 export NOTEES_SERVER=http://localhost:8377
 export NOTEES_API_KEY=$(cat data/api_key.txt)   # generated on first boot, logged once
 pnpm --filter @notees/cli dev -- doctor   # 2. verify reachability + auth
-pnpm --filter @notees/cli dev -- object create --nodeType page --name "Hello Notees"   # 3. a page exists
+pnpm --filter @notees/cli dev -- object create --name "Hello Notees"   # 3. a page exists
 ```
 
 The full walkthrough — server env, a real CLI session, the web app, the object API — is in [docs/usage.md](docs/usage.md).
