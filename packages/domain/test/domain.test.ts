@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveDisplayName,
-  isBlock,
-  isClass,
-  isPage,
+  isClassNode,
   plainTextExcerpt,
+  rendersAsInlineBlock,
+  rendersWithDocumentChrome,
   SEEDED_SYSTEM_CLASSES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
@@ -97,7 +97,8 @@ describe("system seeds (v1 port)", () => {
 });
 
 describe("deriveDisplayName", () => {
-  const page = { id: "p1", nodeType: "page" as const };
+  // A parentless non-class node: document chrome, title-is-content.
+  const page = { id: "p1", isClass: false, presentAsMain: true, parentId: null };
 
   it("content title is trimmed and truncated to the display budget", () => {
     expect(
@@ -114,9 +115,9 @@ describe("deriveDisplayName", () => {
       { type: "typed_link", verb: "cites", text: "cites" },
       { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000011", text: "Structure" },
     ];
-    expect(deriveDisplayName({ id: "b1", nodeType: "block", contentAst: ast })).toBe(
-      "Kuhn argues that paradigms cites Structure",
-    );
+    expect(
+      deriveDisplayName({ id: "b1", isClass: false, presentAsMain: false, parentId: "p1", contentAst: ast }),
+    ).toBe("Kuhn argues that paradigms cites Structure");
   });
 
   it("prefers mention displayText, recurses quotes, skips structural tokens", () => {
@@ -130,17 +131,40 @@ describe("deriveDisplayName", () => {
   });
 
   it("returns empty string when there is nothing to derive (caller falls back to id)", () => {
-    expect(deriveDisplayName({ id: "b2", nodeType: "block", contentAst: [] })).toBe("");
+    expect(
+      deriveDisplayName({ id: "b2", isClass: false, presentAsMain: false, parentId: "p1", contentAst: [] }),
+    ).toBe("");
     expect(deriveDisplayName({ ...page })).toBe("");
   });
 });
 
-describe("node type predicates", () => {
-  it("distinguishes page / block / class", () => {
-    expect(isPage({ nodeType: "page" })).toBe(true);
-    expect(isBlock({ nodeType: "block" })).toBe(true);
-    expect(isClass({ nodeType: "class" })).toBe(true);
-    expect(isPage({ nodeType: "class" })).toBe(false);
+describe("render-state cascade predicates (Revision 11)", () => {
+  it("isClassNode reads the identity bit (store 0/1 rows included)", () => {
+    expect(isClassNode({ isClass: true })).toBe(true);
+    expect(isClassNode({ isClass: 1 })).toBe(true);
+    expect(isClassNode({ isClass: false })).toBe(false);
+    expect(isClassNode({})).toBe(false);
+  });
+
+  it("rendersWithDocumentChrome: classes never; parentless always; parented by the bit", () => {
+    expect(rendersWithDocumentChrome({ isClass: true, parentId: null })).toBe(false);
+    expect(rendersWithDocumentChrome({ isClass: true, parentId: "p" })).toBe(false);
+    // Parentless: document chrome regardless of the bit (second branch).
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: null })).toBe(true);
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: null, presentAsMain: false })).toBe(true);
+    // Parented: the bit decides (third branch).
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: "p", presentAsMain: true })).toBe(true);
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: "p", presentAsMain: false })).toBe(false);
+  });
+
+  it("rendersAsInlineBlock: only parented non-class nodes with the bit unset", () => {
+    expect(rendersAsInlineBlock({ isClass: false, parentId: "p", presentAsMain: false })).toBe(true);
+    expect(rendersAsInlineBlock({ isClass: false, parentId: "p" })).toBe(true);
+    expect(rendersAsInlineBlock({ isClass: false, parentId: "p", presentAsMain: true })).toBe(false);
+    // Parentless nodes are documents, never inline blocks.
+    expect(rendersAsInlineBlock({ isClass: false, parentId: null })).toBe(false);
+    // Classes render ClassView — never inline blocks.
+    expect(rendersAsInlineBlock({ isClass: true, parentId: "p" })).toBe(false);
   });
 });
 
@@ -150,7 +174,7 @@ describe("date node display names", () => {
   const DAY = "00000000-0000-0000-0001-000000000005";
 
   it("formats raw date content labels per the slash-separated setting shape", () => {
-    const base = { id: "n", nodeType: "page" as const };
+    const base = { id: "n", isClass: false, presentAsMain: true, parentId: null };
     const text = (t: string) => ({ type: "text" as const, text: t });
     expect(deriveDisplayName({ ...base, contentAst: [text("20290000")], classIds: [YEAR] })).toBe("2029");
     expect(deriveDisplayName({ ...base, contentAst: [text("20290600")], classIds: [MONTH] })).toBe("2029/06");
@@ -158,7 +182,7 @@ describe("date node display names", () => {
   });
 
   it("treats a uuid-stored name as unnamed (legacy untitled pages)", () => {
-    const base = { id: "n", nodeType: "page" as const };
+    const base = { id: "n", isClass: false, presentAsMain: true, parentId: null };
     expect(
       deriveDisplayName({
         ...base,
@@ -169,7 +193,7 @@ describe("date node display names", () => {
   });
 
   it("leaves non-date content untouched", () => {
-    const base = { id: "n", nodeType: "page" as const };
+    const base = { id: "n", isClass: false, presentAsMain: true, parentId: null };
     const text = (t: string) => ({ type: "text" as const, text: t });
     expect(deriveDisplayName({ ...base, contentAst: [text("Not a date")], classIds: [DAY] })).toBe(
       "Not a date",

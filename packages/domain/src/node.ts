@@ -1,15 +1,27 @@
 /**
- * Node model helpers — structural role (node_type), name derivation,
- * plaintext excerpts. Domain-pure: no IO, no storage.
+ * Node model helpers — the Revision-11 render-state model (is_class /
+ * present_as_main), name derivation, plaintext excerpts. Domain-pure: no
+ * IO, no storage.
+ *
+ * Render cascade (SCHEMA.md): is_class → ClassView; parentless → document
+ * chrome (the bit unread); otherwise the bit decides — present_as_main = the
+ * parent's main-children zone + document chrome when zoomed, unset = the
+ * inline body + block chrome.
  */
 
 import type { ContentAst, ContentToken } from "@notees/protocol";
 
-export type NodeType = "page" | "block" | "class";
-
 export interface NodeLike {
   id: string;
-  nodeType: NodeType;
+  /** Class identity bit — the ONLY identity marker (classes are always
+   * roots). Accepts the store row shape (0/1) too. */
+  isClass?: boolean | number;
+  /** Render bit for parented non-class nodes: true = the parent's
+   * main-children zone; false/absent = the inline body. Unread for
+   * parentless nodes and classes. */
+  presentAsMain?: boolean | number;
+  /** Tree placement; null/absent = workspace root. */
+  parentId?: string | null;
   /** @deprecated The node `name` column is being retired (title-is-content):
    * a node's title is its content. Remaining readers are transition-only. */
   name?: string | null;
@@ -133,14 +145,30 @@ export function formatDateNodeName(name: string, classIds?: readonly string[]): 
   return `${year}/${month}/${day}`;
 }
 
-export function isPage(node: Pick<NodeLike, "nodeType">): boolean {
-  return node.nodeType === "page";
+/** Class identity bit (Revision 11): true for class nodes — the only
+ * identity marker; placement alone never makes a node a class. */
+export function isClassNode(node: Pick<NodeLike, "isClass">): boolean {
+  return !!node.isClass;
 }
 
-export function isClass(node: Pick<NodeLike, "nodeType">): boolean {
-  return node.nodeType === "class";
+/**
+ * Document-chrome predicate: ClassView rows excluded (first cascade branch),
+ * parentless non-class rows render as documents regardless of the bit
+ * (second branch), and a parented row renders with document chrome exactly
+ * when present_as_main is set (third branch).
+ */
+export function rendersWithDocumentChrome(
+  node: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain">,
+): boolean {
+  return !node.isClass && (node.parentId == null || !!node.presentAsMain);
 }
 
-export function isBlock(node: Pick<NodeLike, "nodeType">): boolean {
-  return node.nodeType === "block";
+/**
+ * Inline-block predicate: a parented non-class node with the render bit
+ * unset — the inline body + block chrome branch of the cascade.
+ */
+export function rendersAsInlineBlock(
+  node: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain">,
+): boolean {
+  return !node.isClass && node.parentId != null && !node.presentAsMain;
 }
