@@ -24,13 +24,12 @@ import type { StoreBackend } from "../src/db.js";
 import { newEnvelope, type ContentAst, type Envelope } from "@notees/protocol";
 
 import {
-  CheckConstraintError,
   CycleError,
+  migrate,
   MoveGuardError,
   NotFoundError,
   Store,
   UnsupportedCarrierError,
-  type StoreBackend,
 } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
@@ -83,8 +82,9 @@ function env(
   });
 }
 
+/** Parentless create: defaults to present_as_main = 1 (document chrome). */
 function createPage(id: string, physical: number): Envelope {
-  return env("object.create", { objectId: id, nodeType: "page" }, physical);
+  return env("object.create", { objectId: id }, physical);
 }
 
 /**
@@ -171,84 +171,108 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   function baseStoreWithBlock(): Store {
     const store = baseStore();
     store.apply(
-      env("object.create", { objectId: NODE_BLOCK, nodeType: "block", parentId: NODE_PAGE }, 1727200000500),
+      env("object.create", { objectId: NODE_BLOCK, parentId: NODE_PAGE }, 1727200000500),
     );
     return store;
   }
 
   describe("schema invariants (bullet-proof CHECKs)", () => {
-    it("rejects a parentless block row", () => {
+    it("accepts a parentless non-class row with the bit either way", () => {
       const store = makeStore();
+      // Parentless nodes are LEGAL under the render-state model (document
+      // chrome by the second cascade branch); the placement CHECK only
+      // pins classes to roots.
       expect(() =>
         store.database
-          .prepare("INSERT INTO node (id, workspace_id, node_type, parent_id) VALUES ('a', 'ws', 'block', NULL)")
+          .prepare("INSERT INTO node (id, workspace_id, present_as_main) VALUES ('a', 'ws', 1)")
           .run(),
-      ).toThrow(/CHECK constraint failed/);
+      ).not.toThrow();
+      expect(() =>
+        store.database
+          .prepare("INSERT INTO node (id, workspace_id, present_as_main) VALUES ('a2', 'ws', 0)")
+          .run(),
+      ).not.toThrow();
     });
 
     it("rejects a class row with a parent", () => {
       const store = makeStore();
       store.database
-        .prepare("INSERT INTO node (id, workspace_id, node_type, parent_id) VALUES ('p', 'ws', 'page', NULL)")
+        .prepare("INSERT INTO node (id, workspace_id, present_as_main) VALUES ('p', 'ws', 1)")
         .run();
       expect(() =>
         store.database
-          .prepare("INSERT INTO node (id, workspace_id, node_type, parent_id) VALUES ('c', 'ws', 'class', 'p')")
+          .prepare("INSERT INTO node (id, workspace_id, is_class, parent_id) VALUES ('c', 'ws', 1, 'p')")
           .run(),
       ).toThrow(/CHECK constraint failed/);
     });
 
-    it("accepts a parentless page", () => {
+    it("accepts a non-class child under a class row (classes are containers, spec I4)", () => {
       const store = makeStore();
+      store.database
+        .prepare("INSERT INTO node (id, workspace_id, is_class) VALUES ('cls', 'ws', 1)")
+        .run();
       expect(() =>
         store.database
-          .prepare("INSERT INTO node (id, workspace_id, node_type, parent_id) VALUES ('p2', 'ws', 'page', NULL)")
+          .prepare("INSERT INTO node (id, workspace_id, parent_id) VALUES ('child', 'ws', 'cls')")
           .run(),
       ).not.toThrow();
     });
 
-    it("surfaces CHECK violations from the applier as typed errors", () => {
+    it("applier surfaces the class-with-parent guard as a friendly typed error", () => {
       const store = baseStore();
-      // Declare a class while giving it a parent: payload nodeType wins, and
-      // the CHECK (class => parentless) must fail loud, not silently clamp.
-      const fresh = "0192a000-0000-7000-8000-0000000000c9";
+      store.apply(
+        env("class.create", { classId: "c0000000-0000-7000-8000-0000000000c1", contentAst: [{ type: "text", text: "Tag" }]}, 1727200001500),
+      );
+      // The DB CHECK (is_class = 0 OR parent_id IS NULL) would fire on the
+      // UPDATE; the applier surfaces it friendly, like the old class-parent
+      // guard did — classes are always roots.
       expect(() =>
         store.apply(
-          env("object.create", { objectId: fresh, nodeType: "class", parentId: NODE_PAGE }, 1727200001000),
-        ),
-      ).toThrow(CheckConstraintError);
-    });
-
-    it("rejects demoting a parentless page to a block", () => {
-      const store = baseStore();
-      expect(() =>
-        store.apply(env("object.update", { objectId: NODE_PAGE, nodeType: "block" }, 1727200002000)),
-      ).toThrow(CheckConstraintError);
-    });
-
-    it("rejects a class parent (cross-row move guard, fail loud)", () => {
-      const store = baseStore();
-      store.apply(env("class.create", { classId: "c0000000-0000-7000-8000-0000000000c1", contentAst: [{ type: "text", text: "Tag" }]}, 1727200001500));
-      expect(() =>
-        store.apply(
-          env(
-            "object.create",
-            { objectId: "b0000000-0000-7000-8000-0000000000b1", parentId: "c0000000-0000-7000-8000-0000000000c1" },
-            1727200002000,
-          ),
+          env("object.move", { objectId: "c0000000-0000-7000-8000-0000000000c1", parentId: NODE_PAGE }, 1727200002000),
         ),
       ).toThrow(MoveGuardError);
+    });
+
+    it("rejects moving a class under another class (class-under-class)", () => {
+      const store = makeStore();
+      store.apply(env("class.create", { classId: "c0000000-0000-7000-8000-0000000000c1", contentAst: [{ type: "text", text: "Work" }]}, 1727200001000));
+      store.apply(env("class.create", { classId: "c0000000-0000-7000-8000-0000000000c2", contentAst: [{ type: "text", text: "Source" }]}, 1727200001100));
+      expect(() =>
+        store.apply(
+          env("object.move", { objectId: "c0000000-0000-7000-8000-0000000000c1", parentId: "c0000000-0000-7000-8000-0000000000c2" }, 1727200001200),
+        ),
+      ).toThrow(MoveGuardError);
+    });
+
+    it("allows a non-class child under a class via the applier (containers)", () => {
+      const store = baseStore();
+      store.apply(env("class.create", { classId: "c0000000-0000-7000-8000-0000000000c1", contentAst: [{ type: "text", text: "Tag" }]}, 1727200001500));
+      store.apply(
+        env(
+          "object.create",
+          { objectId: "b0000000-0000-7000-8000-0000000000b1", parentId: "c0000000-0000-7000-8000-0000000000c1" },
+          1727200002000,
+        ),
+      );
+      const child = store.getNode("b0000000-0000-7000-8000-0000000000b1");
+      expect(child?.parent_id).toBe("c0000000-0000-7000-8000-0000000000c1");
+      expect(child?.is_class).toBe(0);
+      // A plain parented create starts inline (block chrome).
+      expect(child?.present_as_main).toBe(0);
+      expect(store.children("c0000000-0000-7000-8000-0000000000c1").map((n) => n.id)).toEqual([
+        "b0000000-0000-7000-8000-0000000000b1",
+      ]);
     });
   });
 
   describe("fixture replay (canonical protocol fixtures)", () => {
-    it("lands object.create fixtures as pages", () => {
+    it("lands object.create fixtures as document-chrome nodes", () => {
       const store = makeStore();
       store.applyMany(allFixtureEnvelopes());
       const page = store.getNode(NODE_PAGE);
       const book = store.getNode(NODE_BOOK);
-      expect(page?.node_type).toBe("page");
-      expect(book?.node_type).toBe("page");
+      expect(page).toMatchObject({ is_class: 0, present_as_main: 1 });
+      expect(book).toMatchObject({ is_class: 0, present_as_main: 1 });
       expect(
         JSON.parse(book?.content ?? "[]").find((t: { type?: string }) => t.type === "text")?.text,
       ).toBe("The Structure of Scientific Revolutions");
@@ -335,7 +359,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const base = [
         createPage(NODE_PAGE, 1727200000000),
         createPage(NODE_BOOK, 1727200001000),
-        env("object.create", { objectId: NODE_BLOCK, nodeType: "block", parentId: NODE_PAGE }, 1727200000500),
+        env("object.create", { objectId: NODE_BLOCK, parentId: NODE_PAGE }, 1727200000500),
       ];
       const storeA = makeStore();
       storeA.applyMany([...base, mark, deleted]);
@@ -697,7 +721,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       bind(store, CLASS_Y, IMPACT, "xl", 1727200011500);
       const node = "0192a000-0000-7000-8000-0000000003c1";
       store.apply(
-        env("object.create", { objectId: node, nodeType: "page", classIds: [CLASS_X, CLASS_Y] }, 1727200011600),
+        env("object.create", { objectId: node, classIds: [CLASS_X, CLASS_Y] }, 1727200011600),
       );
 
       const effective = store.getEffectiveProperties(node);
@@ -719,13 +743,13 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
       // Node 1: X assigned first, Y later.
       const node1 = "0192a000-0000-7000-8000-0000000003c1";
-      store.apply(env("object.create", { objectId: node1, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
-      store.apply(env("object.create", { objectId: node1, nodeType: "page", classIds: [CLASS_Y] }, 1727200012000));
+      store.apply(env("object.create", { objectId: node1, classIds: [CLASS_X] }, 1727200011300));
+      store.apply(env("object.create", { objectId: node1, classIds: [CLASS_Y] }, 1727200012000));
 
       // Node 2: Y assigned first, X later.
       const node2 = "0192a000-0000-7000-8000-0000000003c2";
-      store.apply(env("object.create", { objectId: node2, nodeType: "page", classIds: [CLASS_Y] }, 1727200011400));
-      store.apply(env("object.create", { objectId: node2, nodeType: "page", classIds: [CLASS_X] }, 1727200012100));
+      store.apply(env("object.create", { objectId: node2, classIds: [CLASS_Y] }, 1727200011400));
+      store.apply(env("object.create", { objectId: node2, classIds: [CLASS_X] }, 1727200012100));
 
       expect(store.getEffectiveProperties(node1)).toEqual([
         expect.objectContaining({ value: "x", boundBy: CLASS_X }),
@@ -744,7 +768,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       bind(store, CLASS_X, EFFORT, "x", 1727200011400);
       // Both classes seeded by ONE object.create: identical membership HLCs.
       const node = "0192a000-0000-7000-8000-0000000003c1";
-      store.apply(env("object.create", { objectId: node, nodeType: "page", classIds: [CLASS_Y, CLASS_X] }, 1727200011500));
+      store.apply(env("object.create", { objectId: node, classIds: [CLASS_Y, CLASS_X] }, 1727200011500));
 
       expect(store.getEffectiveProperties(node)).toEqual([
         expect.objectContaining({ value: "x", boundBy: CLASS_X }),
@@ -758,10 +782,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       bind(store, CLASS_X, EFFORT, "xs", 1727200011200);
 
       const authoredNode = "0192a000-0000-7000-8000-0000000003c1";
-      store.apply(env("object.create", { objectId: authoredNode, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+      store.apply(env("object.create", { objectId: authoredNode, classIds: [CLASS_X] }, 1727200011300));
       store.apply(env("property.set", { objectId: authoredNode, propertySchemaId: EFFORT, value: "authored" }, 1727200011400));
       const derivedNode = "0192a000-0000-7000-8000-0000000003c2";
-      store.apply(env("object.create", { objectId: derivedNode, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+      store.apply(env("object.create", { objectId: derivedNode, classIds: [CLASS_X] }, 1727200011300));
 
       // The unassign op tombstones the OR-Set membership pair.
       for (const node of [authoredNode, derivedNode]) {
@@ -823,7 +847,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       makeClass(store, CLASS_X, "X", 1727200011100);
       bind(store, CLASS_X, EFFORT, "xs", 1727200011200);
       const node = "0192a000-0000-7000-8000-0000000003c1";
-      store.apply(env("object.create", { objectId: node, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+      store.apply(env("object.create", { objectId: node, classIds: [CLASS_X] }, 1727200011300));
       const row = () =>
         store.database
           .prepare("SELECT present, hlc_physical FROM class_member_set WHERE node_id = ? AND class_id = ?")
@@ -855,12 +879,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // Order 1: remove first (tombstones the pair), then the re-issued create
       // at the SAME (hlc, actor): the add's >= comparator wins.
       const node1 = "0192a000-0000-7000-8000-0000000003c1";
-      store.apply(env("object.create", { objectId: node1, nodeType: "page" }, 1727200011300));
+      store.apply(env("object.create", { objectId: node1 }, 1727200011300));
       store.apply(env("class.unassign", { objectId: node1, classId: CLASS_X }, 1727200011400));
       store.apply(env("object.create", { objectId: node1, classIds: [CLASS_X] }, 1727200011400));
       // Order 2: the add lands first, then the equal-HLC remove is dropped.
       const node2 = "0192a000-0000-7000-8000-0000000003c2";
-      store.apply(env("object.create", { objectId: node2, nodeType: "page" }, 1727200011300));
+      store.apply(env("object.create", { objectId: node2 }, 1727200011300));
       store.apply(env("object.create", { objectId: node2, classIds: [CLASS_X] }, 1727200011400));
       store.apply(env("class.unassign", { objectId: node2, classId: CLASS_X }, 1727200011400));
       for (const node of [node1, node2]) {
@@ -883,7 +907,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       makeClass(store, CLASS_X, "X", 1727200011100);
       bind(store, CLASS_X, EFFORT, "xs", 1727200011200);
       const node = "0192a000-0000-7000-8000-0000000003c1";
-      store.apply(env("object.create", { objectId: node, nodeType: "page", classIds: [CLASS_X] }, 1727200011300));
+      store.apply(env("object.create", { objectId: node, classIds: [CLASS_X] }, 1727200011300));
       expect(store.getEffectiveProperties(node)).toHaveLength(1);
 
       store.apply(env("class.property.unset", { classId: CLASS_X, propertySchemaId: EFFORT }, 1727200011400));
@@ -903,7 +927,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(0);
       // The store is usable again after a reset.
       store.applyMany(loadFixture("envelope-minimal.json"));
-      expect(store.getNode(NODE_PAGE)?.node_type).toBe("page");
+      expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
     });
 
     it("wipe + replay from stored envelopes reproduces an identical database", () => {
@@ -1028,32 +1052,33 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.children(NODE_PAGE).map((n) => n.id)).toEqual([x, y]);
     });
 
-    it("root move of a block throws the placement CHECK as a typed error", () => {
+    it("root move of a parented inline node is legal, drops its child_order row and leaves the bit untouched", () => {
       const store = baseStore();
       const block = "0192a000-0000-7000-8000-0000000000e1";
       store.apply(env("object.create", { objectId: block, parentId: NODE_PAGE }, 1727200002000));
-      expect(() =>
-        store.apply(env("object.move", { objectId: block, parentId: null }, 1727200002100)),
-      ).toThrow(CheckConstraintError);
-      // The throw rolls back: still parented, one child_order row.
-      expect(store.getNode(block)?.parent_id).toBe(NODE_PAGE);
+      store.apply(env("object.move", { objectId: block, parentId: null }, 1727200002100));
+      expect(store.getNode(block)?.parent_id).toBeNull();
+      // Moves never write the render bit: still 0 — and unread anyway,
+      // because parentless nodes render with document chrome.
+      expect(store.getNode(block)?.present_as_main).toBe(0);
       expect(
         (
           store.database
             .prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE child_id = ?")
             .get(block) as { n: number }
         ).n,
-      ).toBe(1);
+      ).toBe(0);
     });
 
-    it("root move of a page is legal and drops its child_order row", () => {
+    it("root move of a main child is legal and drops its child_order row", () => {
       const store = baseStore();
       const sub = "0192a000-0000-7000-8000-0000000000e1";
       store.apply(
-        env("object.create", { objectId: sub, nodeType: "page", parentId: NODE_PAGE }, 1727200002000),
+        env("object.create", { objectId: sub, parentId: NODE_PAGE, presentAsMain: true }, 1727200002000),
       );
       store.apply(env("object.move", { objectId: sub, parentId: null }, 1727200002100));
       expect(store.getNode(sub)?.parent_id).toBeNull();
+      expect(store.getNode(sub)?.present_as_main).toBe(1);
       expect(
         (
           store.database
@@ -1063,15 +1088,15 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(0);
     });
 
-    it("rejects a class parent with the cross-row move guard", () => {
+    it("allows moving a non-class node under a class (classes are containers, spec I4)", () => {
       const store = baseStore();
       const classId = "c0000000-0000-7000-8000-0000000000c1";
       const block = "0192a000-0000-7000-8000-0000000000e1";
       store.apply(env("class.create", { classId, contentAst: [{ type: "text", text: "Tag" }]}, 1727200001500));
       store.apply(env("object.create", { objectId: block, parentId: NODE_PAGE }, 1727200002000));
-      expect(() =>
-        store.apply(env("object.move", { objectId: block, parentId: classId }, 1727200002100)),
-      ).toThrow(MoveGuardError);
+      store.apply(env("object.move", { objectId: block, parentId: classId }, 1727200002100));
+      expect(store.getNode(block)?.parent_id).toBe(classId);
+      expect(store.children(classId).map((n) => n.id)).toEqual([block]);
     });
 
     it("rejects moving a node under its own descendant (cycle guard)", () => {
@@ -1222,19 +1247,81 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(1);
     });
 
-    it("promotes a block to a page and demotes it back in place", () => {
+    it("promotes an inline child to the main-children zone and demotes it back (the presentAsMain toggle)", () => {
       const store = makeStore();
       const parent = "0192a000-0000-7000-8000-0000000000f0";
       store.apply(createPage(parent, 1727200000000));
       const child = "0192a000-0000-7000-8000-0000000000f1";
-      // No payload nodeType: the applier defaults a child to 'block'.
-      store.apply(env("object.create", { objectId: child, parentId: parent }, 1727200001000));
-      expect(store.getNode(child)?.node_type).toBe("block");
-      store.apply(env("object.update", { objectId: child, nodeType: "page" }, 1727200002000));
-      expect(store.getNode(child)?.node_type).toBe("page");
-      // Demotion back to block is legal because the node has a parent.
-      store.apply(env("object.update", { objectId: child, nodeType: "block" }, 1727200003000));
-      expect(store.getNode(child)?.node_type).toBe("block");
+      // No payload presentAsMain: a parented create defaults to the inline
+      // body (bit 0) and keeps rich content.
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: child,
+            parentId: parent,
+            contentAst: [
+              { type: "text", text: "rich " },
+              { type: "mention", targetNodeId: NODE_BOOK, text: "book" },
+            ],
+          },
+          1727200001000,
+        ),
+      );
+      expect(store.getNode(child)).toMatchObject({ is_class: 0, present_as_main: 0 });
+      expect(JSON.parse(store.getNode(child)?.content ?? "[]")).toHaveLength(2);
+
+      // Promotion (0 → 1) flattens the rich token stream in the same op.
+      store.apply(env("object.update", { objectId: child, presentAsMain: true }, 1727200002000));
+      expect(store.getNode(child)?.present_as_main).toBe(1);
+      expect(JSON.parse(store.getNode(child)?.content ?? "[]")).toEqual([
+        { type: "text", text: "rich book" },
+      ]);
+
+      // Demotion (1 → 0) is legal because the node has a parent — and does
+      // NOT un-flatten the content.
+      store.apply(env("object.update", { objectId: child, presentAsMain: false }, 1727200003000));
+      expect(store.getNode(child)?.present_as_main).toBe(0);
+      expect(JSON.parse(store.getNode(child)?.content ?? "[]")).toEqual([
+        { type: "text", text: "rich book" },
+      ]);
+    });
+
+    it("a main child created with presentAsMain:true starts flattened", () => {
+      const store = makeStore();
+      const parent = "0192a000-0000-7000-8000-0000000000f0";
+      store.apply(createPage(parent, 1727200000000));
+      const child = "0192a000-0000-7000-8000-0000000000f1";
+      store.apply(
+        env(
+          "object.create",
+          {
+            objectId: child,
+            parentId: parent,
+            presentAsMain: true,
+            contentAst: [
+              { type: "text", text: "title " },
+              { type: "mention", targetNodeId: NODE_BOOK, text: "book" },
+            ],
+          },
+          1727200001000,
+        ),
+      );
+      expect(store.getNode(child)?.present_as_main).toBe(1);
+      expect(JSON.parse(store.getNode(child)?.content ?? "[]")).toEqual([
+        { type: "text", text: "title book" },
+      ]);
+    });
+
+    it("demoting a parentless node clears the bit without un-flattening (bit unread there)", () => {
+      const store = baseStore();
+      // NODE_PAGE is parentless with present_as_main = 1 and flattened text
+      // content; flipping the bit off is legal — the placement CHECK only
+      // pins classes to roots — and the parentless row still renders with
+      // document chrome by the second cascade branch.
+      store.apply(env("object.update", { objectId: NODE_PAGE, presentAsMain: false }, 1727200002000));
+      expect(store.getNode(NODE_PAGE)?.present_as_main).toBe(0);
+      expect(store.getNode(NODE_PAGE)?.parent_id).toBeNull();
     });
 
     it("contentDeltaB64 without a contentAst mirror fails loud", () => {
@@ -1329,7 +1416,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           "object.create",
           {
             objectId: quantum,
-            nodeType: "page",
             // Title and prose fold into the page's single indexed text run.
             contentAst: [{ type: "text", text: "Quantum" }, { type: "text", text: "unrelated prose" }],
           },
@@ -1345,7 +1431,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("indexes a name-only page and reindexes on rename (name LWW)", () => {
       const store = baseStore();
       const id = "0192a000-0000-7000-8000-0000000000d1";
-      store.apply(env("object.create", { objectId: id, nodeType: "page", contentAst: [{ type: "text", text: "Alpha" }]}, 1727200002000));
+      store.apply(env("object.create", { objectId: id, contentAst: [{ type: "text", text: "Alpha" }]}, 1727200002000));
       expect(store.search("Alpha")).toEqual([{ nodeId: id }]);
       // Name LWW update: the new name is indexed, the old one stops matching.
       store.apply(env("object.update", { objectId: id, contentAst: [{ type: "text", text: "Beta" }]}, 1727200003000));
@@ -1365,7 +1451,6 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           "object.create",
           {
             objectId: id,
-            nodeType: "page",
             contentAst: [{ type: "text", text: "Packaging validation per ISO 11607-1" }],
           },
           1727200002000,
@@ -1393,8 +1478,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   describe("local op log (durable offline backlog)", () => {
     it("records local envelopes, lists unpushed, marks pushed, prunes", () => {
       const store = baseStore();
-      const a = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e1", nodeType: "page", contentAst: [{ type: "text", text: "A" }]}, 1727200002000);
-      const b = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e2", nodeType: "page", contentAst: [{ type: "text", text: "B" }]}, 1727200003000);
+      const a = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e1", contentAst: [{ type: "text", text: "A" }]}, 1727200002000);
+      const b = env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e2", contentAst: [{ type: "text", text: "B" }]}, 1727200003000);
       store.recordLocalEnvelope(a);
       store.recordLocalEnvelope(b);
       // Idempotent: recording the same envelope twice changes nothing.
@@ -1427,10 +1512,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     /** France page with child block; Paris, Spain, Notes are separate roots. */
     function travelStore(): Store {
       const store = makeStore();
-      store.apply(env("object.create", { objectId: FRANCE, nodeType: "page", contentAst: [{ type: "text", text: "France" }]}, 1727200001000));
-      store.apply(env("object.create", { objectId: PARIS, nodeType: "page", contentAst: [{ type: "text", text: "Paris" }]}, 1727200001100));
-      store.apply(env("object.create", { objectId: SPAIN, nodeType: "page", contentAst: [{ type: "text", text: "Spain" }]}, 1727200001200));
-      store.apply(env("object.create", { objectId: NOTES, nodeType: "page", contentAst: [{ type: "text", text: "Notes" }]}, 1727200001300));
+      store.apply(env("object.create", { objectId: FRANCE, contentAst: [{ type: "text", text: "France" }]}, 1727200001000));
+      store.apply(env("object.create", { objectId: PARIS, contentAst: [{ type: "text", text: "Paris" }]}, 1727200001100));
+      store.apply(env("object.create", { objectId: SPAIN, contentAst: [{ type: "text", text: "Spain" }]}, 1727200001200));
+      store.apply(env("object.create", { objectId: NOTES, contentAst: [{ type: "text", text: "Notes" }]}, 1727200001300));
       return store;
     }
 
@@ -1571,7 +1656,7 @@ describe("sql.js snapshot round-trip", () => {
     expect(dumpDb(restored, { withAppliedLog: true })).toEqual(
       dumpDb(source, { withAppliedLog: true }),
     );
-    expect(restored.getNode(NODE_PAGE)?.node_type).toBe("page");
+    expect(restored.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
 
     restored.close();
     source.close();
@@ -1589,7 +1674,7 @@ describe("cross-backend snapshot restore", () => {
       createPage(MIGRATED_PAGE, 1727200000000),
       env(
         "object.update",
-        { objectId: MIGRATED_PAGE, nodeType: "page", contentAst: [{ type: "text", text: "20180900 daily note" }] },
+        { objectId: MIGRATED_PAGE, contentAst: [{ type: "text", text: "20180900 daily note" }] },
         1727200001000,
       ),
     ]);
@@ -1601,9 +1686,11 @@ describe("cross-backend snapshot restore", () => {
     expect(server.search("20180900").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
     const counts = (store: Store) => ({
       nodes: (store.database.prepare("SELECT COUNT(*) AS n FROM node").get() as { n: number }).n,
-      pages: (
+      documents: (
         store.database
-          .prepare("SELECT COUNT(*) AS n FROM node WHERE node_type='page' AND is_active=1")
+          .prepare(
+            "SELECT COUNT(*) AS n FROM node WHERE is_class = 0 AND (parent_id IS NULL OR present_as_main = 1) AND is_active=1",
+          )
           .get() as { n: number }
       ).n,
       childOrder: (store.database.prepare("SELECT COUNT(*) AS n FROM node_child_order").get() as { n: number })
@@ -1631,13 +1718,13 @@ describe("cross-backend snapshot restore", () => {
     client.apply(
       env(
         "object.update",
-        { objectId: MIGRATED_PAGE, nodeType: "page", contentAst: [{ type: "text", text: "clasificaciones taxonomy" }] },
+        { objectId: MIGRATED_PAGE, contentAst: [{ type: "text", text: "clasificaciones taxonomy" }] },
         1727200002000,
       ),
     );
     expect(client.search("clasificaciones").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
     // Node data itself is untouched by the rebuild.
-    expect(client.getNode(MIGRATED_PAGE)?.node_type).toBe("page");
+    expect(client.getNode(MIGRATED_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
     // The docid index must exist: without it, common-prefix MATCH queries
     // degrade to a full docid-map scan per matched row (query-of-death).
     const indexes = client.database
@@ -1659,7 +1746,7 @@ describe("cross-backend snapshot restore", () => {
       createPage(MIGRATED_PAGE, 1727200000000),
       env(
         "object.update",
-        { objectId: MIGRATED_PAGE, nodeType: "page", contentAst: [{ type: "text", text: "20180900 daily note" }] },
+        { objectId: MIGRATED_PAGE, contentAst: [{ type: "text", text: "20180900 daily note" }] },
         1727200001000,
       ),
     ]);
@@ -1686,7 +1773,7 @@ describe("cross-backend snapshot restore", () => {
       createPage(MIGRATED_PAGE, 1727200000000),
       env(
         "object.update",
-        { objectId: MIGRATED_PAGE, nodeType: "page", contentAst: [{ type: "text", text: "sqlite cross-backend" }] },
+        { objectId: MIGRATED_PAGE, contentAst: [{ type: "text", text: "sqlite cross-backend" }] },
         1727200001000,
       ),
     ]);
@@ -1707,9 +1794,9 @@ for (const adapter of adapters) {
       const store = Store.open(adapter.makeBackend());
       const page = "0192a000-0000-7000-8000-000000000501";
       const cls = "0192a000-0000-7000-8000-000000000502";
-      store.apply(env("object.create", { objectId: page, nodeType: "page", contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
+      store.apply(env("object.create", { objectId: page, contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
       store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }]}, 1727200001100));
-      store.apply(env("object.create", { objectId: page, nodeType: "page", classIds: [cls] }, 1727200001200));
+      store.apply(env("object.create", { objectId: page, classIds: [cls] }, 1727200001200));
       expect(store.getNode(page)!.class_ids).toBe(JSON.stringify([cls]));
       store.apply(env("class.delete", { classId: cls }, 1727200001300));
       expect(store.getNode(page)!.class_ids).toBe("[]");
@@ -1725,20 +1812,20 @@ for (const adapter of adapters) {
       const page = "0192a000-0000-7000-8000-000000000301";
       const tagA = "0192a000-0000-7000-8000-000000000302";
       const tagB = "0192a000-0000-7000-8000-000000000303";
-      store.apply(env("object.create", { objectId: page, nodeType: "page", contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
-      store.apply(env("object.create", { objectId: tagA, nodeType: "page", contentAst: [{ type: "text", text: "tag A" }]}, 1727200001100));
-      store.apply(env("object.create", { objectId: tagB, nodeType: "page", contentAst: [{ type: "text", text: "tag B" }]}, 1727200001200));
+      store.apply(env("object.create", { objectId: page, contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
+      store.apply(env("object.create", { objectId: tagA, contentAst: [{ type: "text", text: "tag A" }]}, 1727200001100));
+      store.apply(env("object.create", { objectId: tagB, contentAst: [{ type: "text", text: "tag B" }]}, 1727200001200));
       // Assign: the create carrier re-issue (same pattern as classes).
-      store.apply(env("object.create", { objectId: page, nodeType: "page", tagIds: [tagA, tagB] }, 1727200002000));
+      store.apply(env("object.create", { objectId: page, tagIds: [tagA, tagB] }, 1727200002000));
       expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagA, tagB].sort()));
       // Unassign tombstones the pair.
       store.apply(env("tag.unassign", { objectId: page, tagId: tagA }, 1727200003000));
       expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagB]));
       // A stale re-add (lower HLC than the remove) loses.
-      store.apply(env("object.create", { objectId: page, nodeType: "page", tagIds: [tagA] }, 1727200002500));
+      store.apply(env("object.create", { objectId: page, tagIds: [tagA] }, 1727200002500));
       expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagB]));
       // A newer re-add wins.
-      store.apply(env("object.create", { objectId: page, nodeType: "page", tagIds: [tagA] }, 1727200004000));
+      store.apply(env("object.create", { objectId: page, tagIds: [tagA] }, 1727200004000));
       expect(store.getNode(page)!.tag_ids).toBe(JSON.stringify([tagA, tagB].sort()));
       store.close();
     });
@@ -1757,9 +1844,9 @@ describe("restore migrates older-schema snapshots", () => {
     const source = Store.open(makeBackendForRestore());
     const page = "0192a000-0000-7000-8000-000000000401";
     const cls = "0192a000-0000-7000-8000-000000000402";
-    source.apply(env("object.create", { objectId: page, nodeType: "page", contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
+    source.apply(env("object.create", { objectId: page, contentAst: [{ type: "text", text: "P" }]}, 1727200001000));
     source.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }]}, 1727200001100));
-    source.apply(env("object.create", { objectId: page, nodeType: "page", classIds: [cls] }, 1727200001200));
+    source.apply(env("object.create", { objectId: page, classIds: [cls] }, 1727200001200));
     const bytes = source.database.serialize!();
     source.close();
 
@@ -1777,5 +1864,102 @@ describe("restore migrates older-schema snapshots", () => {
     const columns = restored.database.prepare("PRAGMA table_info(node)").all() as { name: string }[];
     expect(columns.some((c) => c.name === "tag_ids")).toBe(true);
     restored.close();
+  });
+});
+
+
+// --- v7 -> v8 migration: node_type -> (is_class, present_as_main) -------------
+
+/**
+ * The v7 node DDL (SCHEMA_VERSION 7): the retired node_type enumeration with
+ * the two old placement CHECKs. Used to build a v7-shaped database in place
+ * and drive migrate()'s table-rebuild step directly.
+ */
+const NODE_DDL_V7 = `
+CREATE TABLE node (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    node_type TEXT NOT NULL DEFAULT 'block'
+        CHECK (node_type IN ('page', 'block', 'class')),
+    parent_id TEXT REFERENCES node(id),
+    class_ids TEXT NOT NULL DEFAULT '[]',
+    class_order TEXT NOT NULL DEFAULT '[]',
+    tag_ids TEXT NOT NULL DEFAULT '[]',
+    name TEXT,
+    content TEXT NOT NULL DEFAULT '[]',
+    icon TEXT,
+    color TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT,
+    updated_at TEXT,
+    created_by TEXT,
+    updated_by TEXT,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0,
+    actor_id TEXT,
+    CHECK (node_type <> 'block' OR parent_id IS NOT NULL),
+    CHECK (node_type <> 'class' OR parent_id IS NULL)
+);
+CREATE INDEX idx_node_workspace ON node (workspace_id);
+CREATE INDEX idx_node_parent ON node (parent_id);
+`;
+
+describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/present_as_main)", ({ makeBackend }) => {
+  it("rebuilds the node table mapping page/block/class, recreates indexes and stamps v8", () => {
+    const store = Store.open(makeBackend());
+    const db = store.database;
+    // Rebuild a v7-shaped node table holding one row of each old kind.
+    db.exec("DROP TABLE node;");
+    db.exec(NODE_DDL_V7);
+    db.exec(
+      `INSERT INTO node (id, workspace_id, node_type, parent_id, class_ids, tag_ids, content) VALUES
+         ('pg', 'ws', 'page', NULL, '["c1"]', '["t1"]', '[{"type":"text","text":"Page"}]'),
+         ('bl', 'ws', 'block', 'pg', '[]', '[]', '[]'),
+         ('cl', 'ws', 'class', NULL, '[]', '[]', '[{"type":"text","text":"Class"}]');`,
+    );
+    db.pragma("user_version = 7");
+
+    migrate(db, "fts5");
+
+    expect(db.pragma("user_version", { simple: true })).toBe(8);
+    const columns = (db.prepare("PRAGMA table_info(node)").all() as { name: string }[]).map((c) => c.name);
+    expect(columns).not.toContain("node_type");
+    expect(columns).toContain("is_class");
+    expect(columns).toContain("present_as_main");
+    // The boolean mapping: page -> (0, 1), block -> (0, 0), class -> (1, 0).
+    const rows = db.prepare("SELECT id, is_class, present_as_main, parent_id FROM node ORDER BY id").all() as
+      Array<{ id: string; is_class: number; present_as_main: number; parent_id: string | null }>;
+    expect(rows).toEqual([
+      { id: "bl", is_class: 0, present_as_main: 0, parent_id: "pg" },
+      { id: "cl", is_class: 1, present_as_main: 0, parent_id: null },
+      { id: "pg", is_class: 0, present_as_main: 1, parent_id: null },
+    ]);
+    // Non-enum columns ride through the rebuild untouched.
+    const page = db.prepare("SELECT class_ids, tag_ids, content FROM node WHERE id = 'pg'").get() as
+      { class_ids: string; tag_ids: string; content: string };
+    expect(JSON.parse(page.class_ids)).toEqual(["c1"]);
+    expect(JSON.parse(page.tag_ids)).toEqual(["t1"]);
+    expect(JSON.parse(page.content)).toEqual([{ type: "text", text: "Page" }]);
+    // Both node indexes are recreated on the rebuilt table.
+    const indexes = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_node%'").all() as
+        { name: string }[]
+    ).map((r) => r.name);
+    expect(indexes).toContain("idx_node_workspace");
+    expect(indexes).toContain("idx_node_parent");
+    // The new placement CHECK pins classes to roots on the migrated table.
+    expect(() =>
+      db.prepare("INSERT INTO node (id, workspace_id, is_class, parent_id) VALUES ('x', 'ws', 1, 'pg')").run(),
+    ).toThrow(/CHECK constraint failed/);
+    store.close();
+  });
+
+  it("is idempotent on an already-v8 database", () => {
+    const store = Store.open(makeBackend());
+    store.apply(createPage(NODE_PAGE, 1727200000000));
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(8);
+    expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
+    store.close();
   });
 });

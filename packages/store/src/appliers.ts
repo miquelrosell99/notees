@@ -2,7 +2,8 @@
  * Envelope appliers: derive semantic state from the M1 op registry
  * (`@notees/protocol` op-types.ts). Semantics ported from v1
  * `app/core/derived/{node,edge,property,class,class_hierarchy,child_order,asset}.py`,
- * adapted to v2: node_type instead of kind, no relation.* ops (associations
+ * adapted to v2: the Revision-11 render-state model (is_class /
+ * present_as_main) instead of kind/node_type, no relation.* ops (associations
  * are typed-link marks and node-typed property values projecting into the
  * edge index), OR-Set class membership, m2m class extends (replace
  * semantics).
@@ -257,13 +258,17 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.create";
   const p = env.payload as OpPayload<"object.create">;
   const parentId = p.parentId ?? null;
-  const nodeType = p.nodeType ?? (parentId === null ? "page" : "block");
+  // Render bit (Revision 11): the payload may carry presentAsMain; the
+  // applier defaults it by context — a parentless node presents as main
+  // (document chrome by the second cascade branch), a parented one starts
+  // inline (block chrome; the "hide from body" gloss is the 0→1 toggle).
+  const presentAsMain = p.presentAsMain === undefined ? (parentId === null ? 1 : 0) : p.presentAsMain ? 1 : 0;
   const ts = env.timestamp;
-  // Title-is-content constraint (SCHEMA.md): pages and classes carry
-  // text-only content. A block created straight as page/class gets its
-  // (possibly rich) content flattened; a block keeps the full token stream.
+  // Content flatten invariant (SCHEMA.md): document-chrome nodes (is_class
+  // or present_as_main) carry text-only content; an inline block keeps the
+  // full rich token stream.
   const content = JSON.stringify(
-    nodeType === "block" ? (p.contentAst ?? []) : stringifyContentAst(p.contentAst as never),
+    presentAsMain === 1 ? stringifyContentAst(p.contentAst as never) : (p.contentAst ?? []),
   );
 
   // Seed OR-Set membership from the payload's classIds (add-wins per pair,
@@ -323,26 +328,22 @@ const tagMemberUpsert = db.prepare(
     if (!parent) {
       throw new NotFoundError(`${opType}: parent ${parentId} does not exist`, opType);
     }
-    // Cross-row tree guard (SCHEMA.md): a class may never be a parent.
-    if (parent.node_type === "class") {
-      throw new MoveGuardError(
-        `${opType}: node ${parentId} is a class; classes are tree-external and cannot have children`,
-        opType,
-      );
-    }
+    // Classes are containers (spec I4): a class parent is legal for
+    // non-class children — which is all object.create can make (is_class
+    // stays 0; class declaration remains the class.create op).
   }
 
   try {
     db.prepare(
       `INSERT INTO node (
-         id, workspace_id, node_type, parent_id, class_ids, name, content, icon, color,
+         id, workspace_id, is_class, present_as_main, parent_id, class_ids, name, content, icon, color,
          is_active, created_at, updated_at, created_by, updated_by,
          hlc_physical, hlc_logical, actor_id
-       ) VALUES (?, ?, ?, ?, '[]', NULL, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, 0, ?, ?, '[]', NULL, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.objectId,
       env.workspaceId,
-      nodeType,
+      presentAsMain,
       parentId,
       content,
       ts,
@@ -429,7 +430,8 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.update";
   const p = env.payload as OpPayload<"object.update">;
   const row = requireNode(db, p.objectId, opType) as unknown as Parameters<typeof rowWinner>[0] & {
-    node_type: string;
+    is_class: number;
+    present_as_main: number;
     content: string;
   };
 
@@ -448,15 +450,19 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
 
   const sets: string[] = [];
   const values: unknown[] = [];
-  // Promotion/demotion (block↔page, page→class, …): pages and classes carry
-  // text-only content (title-is-content), so promoting a BLOCK flattens its
-  // rich token stream to plain text in the same op; demoting a page/class
-  // leaves its (already text-only) content untouched.
-  const resultingType = p.nodeType ?? row.node_type;
-  if (p.nodeType !== undefined) {
-    sets.push("node_type = ?");
-    values.push(p.nodeType);
-    if (p.nodeType !== "block" && row.node_type === "block") {
+  // Promotion/demotion (Revision 11) is the presentAsMain toggle: the bit
+  // joins the row-level LWW set; a 0 -> 1 flip (promotion) stringifies the
+  // rich token stream to text-only in the same op (content flatten
+  // invariant), while a 1 -> 0 demotion leaves the (already flattened)
+  // content untouched — demotion never un-flattens. On a class row the bit
+  // is inert (classes render ClassView regardless); applying it harmlessly
+  // keeps the op uniform.
+  let resultingPresentAsMain = row.present_as_main !== 0;
+  if (p.presentAsMain !== undefined) {
+    resultingPresentAsMain = p.presentAsMain;
+    sets.push("present_as_main = ?");
+    values.push(p.presentAsMain ? 1 : 0);
+    if (p.presentAsMain && row.present_as_main === 0) {
       const rowAst = JSON.parse(row.content) as unknown;
       sets.push("content = ?");
       values.push(JSON.stringify(stringifyContentAst(rowAst as never)));
@@ -471,11 +477,12 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     values.push(p.color);
   }
   if (p.contentAst !== undefined) {
+    // Document-chrome content (class nodes and main-presenting nodes) is
+    // text-only; inline blocks keep the rich tokens they were sent.
+    const flatten = row.is_class === 1 || resultingPresentAsMain;
     sets.push("content = ?");
     values.push(
-      JSON.stringify(
-        resultingType === "block" ? p.contentAst : stringifyContentAst(p.contentAst as never),
-      ),
+      JSON.stringify(flatten ? stringifyContentAst(p.contentAst as never) : p.contentAst),
     );
   }
   sets.push(
@@ -557,11 +564,13 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
  * parent write and vice versa.)
  *
  * Placement guards fail loud, mirroring object.create: the parent must exist,
- * a class may never parent (cross-row move guard), and a node may never move
- * under itself or its own descendant (parent_id cycle). A block to workspace
- * root (parentId null) is rejected by the node's placement CHECK, surfacing
- * as a CheckConstraintError from the UPDATE below; null is legal only for
- * pages.
+ * a node may never move under itself or its own descendant (parent_id cycle),
+ * and a CLASS node may never move under any parent (classes are always roots
+ * — spec I4 makes class nodes containers of non-class children, but the
+ * class-under-class / class-with-parent shape stays illegal; the DB CHECK
+ * would fire anyway, so the guard surfaces it friendly). Moves never write
+ * the render bit: a parentless non-class node renders with document chrome
+ * by the second cascade branch regardless of present_as_main.
  */
 function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.move";
@@ -574,18 +583,18 @@ function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
     if (!parent) {
       throw new NotFoundError(`${opType}: parent ${p.parentId} does not exist`, opType);
     }
-    if (parent.node_type === "class") {
-      throw new MoveGuardError(
-        `${opType}: node ${p.parentId} is a class; classes are tree-external and cannot have children`,
-        opType,
-      );
-    }
     if (subtreeIds(db, p.objectId).includes(p.parentId)) {
       throw new MoveGuardError(
         `${opType}: cannot move node ${p.objectId} under ${p.parentId}, which is in its own subtree`,
         opType,
       );
     }
+  }
+  if (p.parentId !== null && (row as { is_class?: number }).is_class === 1) {
+    throw new MoveGuardError(
+      `${opType}: node ${p.objectId} is a class; classes are always roots and cannot have a parent`,
+      opType,
+    );
   }
 
   if (compareLww(winnerFromEnvelope(env), rowWinner(row as never)) <= 0) {
@@ -635,7 +644,7 @@ function upsertClassNode(
   classId: string,
   fields: { contentAst?: unknown; icon?: string | undefined; color?: string | undefined },
 ): void {
-  // The class node (node_type='class') is the structural authority for the
+  // The class node (is_class = 1) is the structural authority for the
   // class_list read model; the registry row carries class-only config (its
   // `name` column is a denormalized cache of the node's title text — the
   // authority is node.content). Classes are nodes: their title IS their
@@ -648,10 +657,10 @@ function upsertClassNode(
   // clause — so routing create fields through it would silently drop them).
   db.prepare(
     `INSERT OR IGNORE INTO node (
-       id, workspace_id, node_type, parent_id, class_ids, name, content,
+       id, workspace_id, is_class, present_as_main, parent_id, class_ids, name, content,
        is_active, created_at, updated_at, created_by, updated_by,
        hlc_physical, hlc_logical, actor_id
-     ) VALUES (?, ?, 'class', NULL, '[]', NULL, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, 1, 0, NULL, '[]', NULL, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     classId,
     env.workspaceId,

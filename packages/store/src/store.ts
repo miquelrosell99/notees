@@ -34,7 +34,12 @@ import { migrate, schemaSql } from "./schema.js";
 export interface NodeRow {
   id: string;
   workspace_id: string;
-  node_type: "page" | "block" | "class";
+  /** Class identity bit (Revision 11): 1 = class node (always a root). */
+  is_class: number;
+  /** Render bit for parented non-class nodes: 1 = the parent's
+   * main-children zone + document chrome when zoomed; 0 = inline body +
+   * block chrome. Unread for parentless nodes and classes. */
+  present_as_main: number;
   parent_id: string | null;
   class_ids: string;
   tag_ids: string;
