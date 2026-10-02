@@ -212,6 +212,12 @@ export interface ClientPropertySchema {
 }
 
 export interface CreatePropertySchemaInput {
+  /**
+   * Defaults to a fresh UUIDv7. Pass the reserved system id to author a
+   * designed schema idempotently (the task family — §34.28 #2); the
+   * propertySchema.create op has always accepted a caller-chosen id.
+   */
+  id?: string;
   name: string;
   type: string;
   multi?: boolean;
@@ -1556,9 +1562,14 @@ export class WorkspaceClient {
    * is needed for a class that never extends anything.
    * Returns the new class id. Applied locally, push kicked off.
    */
-  async createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string> {
+  async createClass(
+    name: string,
+    opts?: { icon?: string; color?: string; id?: string },
+  ): Promise<string> {
     const engine = this.requireEngine();
-    const id = uuidv7();
+    // Caller-chosen id (the object.create pattern): system authoring
+    // (ensureTaskFamily) creates the task class at its reserved seed id.
+    const id = opts?.id ?? uuidv7();
     // Title-is-content: the class's name becomes its (text-only) content.
     const payload: Record<string, unknown> = {
       classId: id,
@@ -1633,7 +1644,7 @@ export class WorkspaceClient {
    */
   async createPropertySchema(input: CreatePropertySchemaInput): Promise<string> {
     const engine = this.requireEngine();
-    const id = uuidv7();
+    const id = input.id ?? uuidv7();
     const payload: Record<string, unknown> = {
       propertySchemaId: id,
       name: input.name,

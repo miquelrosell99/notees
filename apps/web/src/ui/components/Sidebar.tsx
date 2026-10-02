@@ -27,10 +27,11 @@ import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-export type NavKey = "journal" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets";
+export type NavKey = "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets";
 
 export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = [
   { key: "journal", label: "Journal", icon: "mdi-calendar-clock" },
+  { key: "calendar", label: "Calendar", icon: "mdi-calendar-today" },
   { key: "inbox", label: "Inbox", icon: "mdi-tray-arrow-down" },
   { key: "pages", label: "Pages", icon: "mdi-book-open-page-variant" },
   { key: "classes", label: "Classes", icon: "mdi-shape-outline" },
@@ -177,6 +178,7 @@ export function Sidebar({
   // Workspace-settings sidebar visibility toggles (device-local).
   const [showJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox] = useDeviceSetting("sidebarShowInbox", true);
+  const [showCalendar] = useDeviceSetting("sidebarShowCalendar", true);
 
   const openRow = (id: string): void => {
     // Recents recording lives in App.openPage (the single navigation funnel —
@@ -296,6 +298,7 @@ export function Sidebar({
             credential={credential}
             activeWorkspaceId={workspaceId}
             activeName={workspaceName}
+            client={client}
             onSwitch={onSwitchWorkspace}
             onManageWorkspaces={onManageWorkspaces}
             onRenamed={onRenameWorkspace}
@@ -316,7 +319,9 @@ export function Sidebar({
           "Navigation",
           NAV_ENTRIES.filter(
             (entry) =>
-              (entry.key !== "journal" || showJournals) && (entry.key !== "inbox" || showInbox),
+              (entry.key !== "journal" || showJournals) &&
+              (entry.key !== "inbox" || showInbox) &&
+              (entry.key !== "calendar" || showCalendar),
           ).map((entry) => (
             <li key={entry.key} className="nt-side-row">
               <button

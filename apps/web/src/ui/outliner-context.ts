@@ -66,7 +66,7 @@ export interface OutlinerClient {
    */
   setClassExtends(classId: string, parentClassIds: string[]): Promise<void>;
   /** Create a class node (`class.create`) — the `+` picker's create row. */
-  createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
+  createClass(name: string, opts?: { icon?: string; color?: string; id?: string }): Promise<string>;
   /** Raw store read (no projection) — the date suggestion's existence check. */
   getNodeRaw(id: string): ClientNode | undefined;
   /** Ensure the year/month/day journal chain; returns the three node ids. */

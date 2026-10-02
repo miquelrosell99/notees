@@ -2,37 +2,33 @@
  * WorkspaceSettingsModal Component
  *
  * Modal for workspace-level settings: rename (PATCH /workspaces/:id,
- * owner-only), date format, sidebar visibility, data retention, sources,
- * and a shortcuts reference. Recovered from the archived graph settings
- * modal; where the archive wrote workspace settings through a server
- * settings endpoint that no longer exists, controls are device-local
- * (localStorage `notees.settings.*`) or honestly inert with a
- * "not available in this build" note.
+ * owner-only), date format, sidebar visibility, calendar quick-create chip
+ * classes (per-workspace device-local), data retention, sources, and a
+ * shortcuts reference. Recovered from the archived graph settings modal;
+ * where the archive wrote workspace settings through a server settings
+ * endpoint that no longer exists, controls are device-local (localStorage
+ * `notees.settings.*`) or honestly inert with a "not available in this
+ * build" note.
  */
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import type { AnyClient } from "../Sidebar.js";
+import { displayNameFromClient } from "../../dateDisplay.js";
 import { Modal } from "../ui/Modal.js";
 import { BooleanToggle } from "../ui/BooleanToggle.js";
+import { Button } from "../ui/Button.js";
 import { Dropdown } from "../ui/Dropdown.js";
 import { Tabs } from "../ui/Tabs.js";
 import { TextField } from "../ui/TextField.js";
 import { renameWorkspace } from "./workspaceApi.js";
 import { useDeviceSetting } from "./deviceSettings.js";
+import { dateChipCandidates } from "../calendarViewUtils.js";
+import {
+  resolveQuickCreateChipClasses,
+  useQuickCreateClassesSetting,
+} from "../calendarQuickCreateSettings.js";
 
 import "./settingsModal.css";
-
-export interface WorkspaceSettingsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  serverUrl: string;
-  credential: string;
-  workspaceId: string;
-  workspaceName: string;
-  /** Membership role from the workspace list ("owner" may rename). */
-  workspaceRole: string;
-  /** Called after a successful rename so the shell can update its label. */
-  onRenamed?: ((name: string) => void) | undefined;
-}
 
 type DateFormat =
   | "YYYY/MM/DD"
@@ -83,6 +79,26 @@ const SHORTCUT_GROUPS: { title: string; shortcuts: { description: string; keys: 
   },
 ];
 
+export interface WorkspaceSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  serverUrl: string;
+  credential: string;
+  workspaceId: string;
+  workspaceName: string;
+  /** Membership role from the workspace list ("owner" may rename). */
+  workspaceRole: string;
+  /** Called after a successful rename so the shell can update its label. */
+  onRenamed?: ((name: string) => void) | undefined;
+  /**
+   * The active workspace's client — powers the Calendar quick-create
+   * section's eligible-class enumeration. Only sections whose workspaceId
+   * matches the client's are configurable; without a client (or for another
+   * workspace's settings) the section renders an honest note instead.
+   */
+  client?: AnyClient | undefined;
+}
+
 export function WorkspaceSettingsModal({
   isOpen,
   onClose,
@@ -92,11 +108,13 @@ export function WorkspaceSettingsModal({
   workspaceName,
   workspaceRole,
   onRenamed,
+  client,
 }: WorkspaceSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<"general" | "shortcuts">("general");
   const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
   const [showJournals, setShowJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox, setShowInbox] = useDeviceSetting("sidebarShowInbox", true);
+  const [showCalendar, setShowCalendar] = useDeviceSetting("sidebarShowCalendar", true);
 
   // Rename: edited in a local draft, persisted on blur/Enter when valid.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
@@ -104,6 +122,38 @@ export function WorkspaceSettingsModal({
   const [renameSuccess, setRenameSuccess] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const canRename = workspaceRole === "owner";
+
+  // --- Calendar quick-create (per-workspace device-local chip list) --------
+  // The enumeration follows the live store (bindings can be authored while
+  // the modal is open); the setting read/write rides deviceSettings.
+  const clientMatches = client !== undefined && client.getWorkspaceId() === workspaceId;
+  const [, setClassesVersion] = useState(0);
+  useEffect(() => {
+    if (client === undefined) return;
+    return client.subscribe(() => setClassesVersion((v) => v + 1));
+  }, [client]);
+  const [storedChips, setStoredChips] = useQuickCreateClassesSetting(
+    clientMatches ? workspaceId : null,
+  );
+  const eligibleChips = useMemo(() => {
+    if (client === undefined) return [];
+    const classes = client
+      .listClasses()
+      .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
+    return dateChipCandidates(classes, (classId) => client.getClassBindings(classId));
+    // classesVersion keeps the enumeration fresh across store notifications.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, storedChips, setClassesVersion]);
+  const effectiveChipIds = resolveQuickCreateChipClasses(
+    storedChips,
+    eligibleChips.map((chip) => chip.classId),
+  );
+  const toggleChip = (classId: string, checked: boolean) => {
+    const next = checked
+      ? [...effectiveChipIds, classId]
+      : effectiveChipIds.filter((id) => id !== classId);
+    setStoredChips(next);
+  };
 
   if (!isOpen) return null;
 
@@ -265,6 +315,59 @@ export function WorkspaceSettingsModal({
                   labelPosition="left"
                 />
               </div>
+
+              <div className="settings-item">
+                <BooleanToggle
+                  label="Calendar"
+                  description="Show the Calendar button in the sidebar"
+                  checked={showCalendar}
+                  onChange={(e) => setShowCalendar(e.target.checked)}
+                  labelPosition="left"
+                />
+              </div>
+
+              <h3 className="settings-section__title settings-section__title--spaced">
+                Calendar Quick-Create
+              </h3>
+
+              {clientMatches ? (
+                <>
+                  <p className="settings-item__description">
+                    Classes offered as quick-create chips on the Calendar day view. By default
+                    every class with a date property appears — today that means the Task class.
+                    Uncheck to narrow the list for this workspace.
+                  </p>
+                  {eligibleChips.length === 0 ? (
+                    <p className="settings-item__description">
+                      No classes with a date property yet. The Task class appears here once the
+                      workspace has one — open the Calendar or Tasks view once to author it.
+                    </p>
+                  ) : (
+                    eligibleChips.map((chip) => (
+                      <div className="settings-item" key={chip.classId}>
+                        <BooleanToggle
+                          label={chip.label}
+                          {...(chip.propertyName !== null ? { description: chip.propertyName } : {})}
+                          checked={effectiveChipIds.includes(chip.classId)}
+                          onChange={(e) => toggleChip(chip.classId, e.target.checked)}
+                          labelPosition="left"
+                        />
+                      </div>
+                    ))
+                  )}
+                  {storedChips !== null && (
+                    <div className="settings-item">
+                      <Button variant="ghost" size="sm" onClick={() => setStoredChips(null)}>
+                        Reset to defaults
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="settings-item__description">
+                  Open this workspace to configure its calendar quick-create chips.
+                </p>
+              )}
 
               <h3 className="settings-section__title settings-section__title--spaced">
                 Data Retention
