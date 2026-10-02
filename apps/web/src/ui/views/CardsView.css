@@ -1,0 +1,118 @@
+/* CardsView — the card grid and the card chrome (token-only). */
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--spacing-3, 12px);
+}
+
+.node-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+  min-width: 0;
+  padding: var(--spacing-3, 12px);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-surface-container-low, transparent);
+}
+
+.node-card__title {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-on-surface);
+  font-size: var(--font-size-md, 0.95rem);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.node-card__title:hover {
+  color: var(--color-primary, currentColor);
+}
+
+.node-card__untitled {
+  color: var(--color-on-surface-variant, currentColor);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.node-card__body {
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
+  padding-top: var(--spacing-2, 8px);
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.node-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-on-surface);
+  font-size: var(--font-size-md, 0.95rem);
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-card__head:hover .node-card__label {
+  color: var(--color-primary, currentColor);
+}
+
+.node-card__icon {
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant, currentColor);
+  display: inline-flex;
+}
+
+.node-card__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-card__type {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-on-surface-variant, currentColor);
+}
+
+.node-card__properties {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+  margin: 0;
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.node-card__property {
+  display: flex;
+  gap: var(--spacing-2, 8px);
+  min-width: 0;
+}
+
+.node-card__property dt {
+  flex: 0 0 40%;
+  color: var(--color-on-surface-variant, currentColor);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-card__property dd {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
