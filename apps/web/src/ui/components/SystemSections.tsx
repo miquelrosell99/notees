@@ -9,17 +9,15 @@
 
 import { useCallback } from "react";
 
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
 
-import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
-import { BlockRow } from "../BlockRow.js";
 import { Breadcrumbs } from "./Breadcrumbs.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { Section } from "../Section.js";
+import { NodeCollection, groupByContainingPage } from "../views/index.js";
+import type { NodeCollectionItem } from "../views/index.js";
 import "./SystemSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -28,7 +26,7 @@ type AnyClient = WorkspaceClient | WorkerClient;
 const PAGE_TREE_DEPTH_CAP = 64;
 
 /** A page node plus its child PAGES (blocks filtered out), recursive. */
-function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_DEPTH_CAP): BlockTreeNode {
+function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_DEPTH_CAP): NodeCollectionItem {
   return {
     node,
     children:
@@ -41,36 +39,12 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
   };
 }
 
-/** Read-only blocks-list rows (no surrounding DndContext: non-draggable). */
-function PageSubtreeList({ roots, client }: { roots: BlockTreeNode[]; client: AnyClient }) {
-  return (
-    <SortableContext items={roots.map((tree) => tree.node.id)} strategy={verticalListSortingStrategy}>
-      <div className="nt-block-tree nt-block-tree--readonly">
-        {roots.map((tree) => (
-          <BlockRow
-            key={tree.node.id}
-            tree={tree}
-            client={client}
-            resolveName={(id) => displayNameFromClient(client, id)}
-            readOnly
-          />
-        ))}
-      </div>
-    </SortableContext>
-  );
-}
-
-/** A small page icon for a section row (the node's own icon when set). */
-function RowIcon({ node }: { node: ClientNode }) {
-  if (node.icon === null) return null;
-  return <Icon path={node.icon} size={0.9} className="nt-section-row-icon" />;
-}
-
 /**
- * Logseq-style references: entries grouped under their containing page;
- * each row renders the referencing block's content (the block/editor view),
- * and clicking it opens the source — the block itself in focused view when
- * the edge is direct, otherwise the containing page.
+ * Logseq-style references: entries grouped by their containing page (the
+ * shared groupBy capability — collapsible group headers, click to open the
+ * page); each row renders the referencing block's content (the block/editor
+ * view), and clicking it opens the source — the block itself in focused view
+ * when the edge is direct, otherwise the containing page.
  */
 function ReferenceList({
   entries,
@@ -81,45 +55,34 @@ function ReferenceList({
   client: AnyClient;
   onOpenPage?: ((nodeId: string) => void) | undefined;
 }) {
-  const groups = new Map<string, { pageName: string; items: ReferenceEntry[] }>();
-  for (const entry of entries) {
-    // containingPageName comes from the pure client (fixed slash format);
-    // date pages reformat per the user's dateFormat at the display layer.
-    const pageName = displayNameFromClient(client, entry.containingPageId) ?? entry.containingPageName;
-    const group = groups.get(entry.containingPageId);
-    if (group !== undefined) group.items.push(entry);
-    else groups.set(entry.containingPageId, { pageName, items: [entry] });
-  }
+  const items: NodeCollectionItem[] = entries.map((entry) => ({
+    node: entry.source,
+    meta: { containingPageId: entry.containingPageId },
+  }));
+  const groups = groupByContainingPage(client, items, onOpenPage);
   return (
-    <div className="nt-refgroups">
-      {[...groups.entries()].map(([pageId, group]) => (
-        <section key={pageId} className="nt-refgroup">
-          <button
-            type="button"
-            className="nt-refgroup-page"
-            onClick={() => onOpenPage?.(pageId)}
-          >
-            <Icon path="mdi-file-document-outline" size={0.9} className="nt-section-row-icon" />
-            <span className="nt-refgroup-name">{group.pageName}</span>
-            <span className="nt-refgroup-count">{group.items.length}</span>
-          </button>
-          <ul className="nt-refgroup-blocks">
-            {group.items.map((entry) => (
-              <li key={entry.source.id}>
-                <Breadcrumbs
-                  client={client}
-                  nodeId={entry.source.id}
-                  onOpenNode={onOpenPage}
-                  stopAfterId={entry.containingPageId}
-                  excludeIds={[entry.containingPageId]}
-                />
-                <ReferenceSubtree client={client} rootId={entry.source.id} onOpenNode={onOpenPage} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
+    <NodeCollection
+      viewMode="outline"
+      client={client}
+      items={items}
+      groups={groups}
+      renderItem={(item) => {
+        const containingPageId =
+          typeof item.meta?.containingPageId === "string" ? item.meta.containingPageId : undefined;
+        return (
+          <>
+            <Breadcrumbs
+              client={client}
+              nodeId={item.node.id}
+              onOpenNode={onOpenPage}
+              stopAfterId={containingPageId}
+              excludeIds={containingPageId !== undefined ? [containingPageId] : undefined}
+            />
+            <ReferenceSubtree client={client} rootId={item.node.id} onOpenNode={onOpenPage} />
+          </>
+        );
+      }}
+    />
   );
 }
 
@@ -158,11 +121,16 @@ export function SystemSections({
           load={loadChildPages}
           emptyText="No child pages."
           renderResults={(pages) => (
-            // The blocks list in read-only mode, filtered to pages, recursing
-            // through the child-page tree (v1's readonly blocks-list prop).
-            <PageSubtreeList
-              roots={pages.map((child) => pageTreeOf(client, child))}
+            // The reusable outline view over the read-only child-page tree
+            // (rows open the page via the row click, per the outline view's
+            // read-only tree path).
+            <NodeCollection
+              viewMode="outline"
               client={client}
+              items={pages.map((child) => pageTreeOf(client, child))}
+              tree
+              readOnly
+              onNodeClick={(id) => onOpenPage?.(id)}
             />
           )}
         />

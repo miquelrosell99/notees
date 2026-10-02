@@ -36,7 +36,6 @@ import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
-import { BlockRow } from "./BlockRow.js";
 import {
   DropLineContext,
   blockCollisionDetection,
@@ -57,12 +56,22 @@ import { Icon } from "./Icon.js";
 import { TitleEditor } from "./TitleEditor.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
+import { NodeCollection, ViewToolbar } from "./views/index.js";
+import type { NodeCollectionItem, ViewMode } from "./views/index.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
 import {
   LinkEditModalHost,
   type LinkEditModalOpener,
 } from "./editor-popups/LinkEditModal.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
+
+/** The child-blocks triad, in switcher order. */
+const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
+
+/** BlockTreeNode → the collection input shape (recursive). */
+function toCollectionItem(entry: BlockTreeNode): NodeCollectionItem {
+  return { node: entry.node, children: entry.children.map(toCollectionItem) };
+}
 
 export function PageView({
   client,
@@ -88,6 +97,11 @@ export function PageView({
    */
   embedded?: boolean;
 }) {
+  /**
+   * Child-blocks view mode (the outline/prose/cards triad): session-local
+   * display state, reset on reload — never an op, never persisted.
+   */
+  const [blocksMode, setBlocksMode] = useState<ViewMode>("outline");
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   /** Icon picker popup anchor + open state (clicking the page icon). */
   const pageIconRef = useRef<HTMLElement | null>(null);
@@ -161,6 +175,7 @@ export function PageView({
     if (tokenIndex < 0) return;
     event.preventDefault();
     linkOpenerRef.current?.({
+      kind: "external",
       blockId,
       tokenIndex,
       insertAt: null,
@@ -184,6 +199,8 @@ export function PageView({
   const headerIcon =
     page !== undefined ? nodeIcon(page, classIconMap(client.listClasses())) : null;
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
+  /** The same tree in the view system's input shape (session view state). */
+  const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);
 
   // Fullscreen whiteboard (SCHEMA.md: a whiteboard page is node_type='page'
   // with a `whiteboard` content token): the spatial canvas renders IN PLACE
@@ -367,6 +384,13 @@ export function PageView({
           <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
         ) : (
           <>
+            <div className="nt-blocks-bar">
+              <ViewToolbar
+                modes={BLOCKS_VIEW_MODES}
+                value={blocksMode}
+                onChange={setBlocksMode}
+              />
+            </div>
             <EmbedBoundary rootId={pageId}>
           <DndContext
             sensors={sensors}
@@ -378,11 +402,15 @@ collisionDetection={blockCollisionDetection}
           >
             <DropLineContext.Provider value={dropLine}>
               <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
-                <div className="nt-block-tree">
-                  {tree.map((child) => (
-                    <BlockRow key={child.node.id} tree={child} client={client} resolveName={(id) => displayNameFromClient(client, id)} />
-                  ))}
-                </div>
+                <NodeCollection
+                  viewMode={blocksMode}
+                  client={client}
+                  items={blockItems}
+                  tree
+                  editable
+                  onNodeClick={(id) => onOpenPage?.(id)}
+                  onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
+                />
               </SortableContext>
             </DropLineContext.Provider>
             <DragOverlay dropAnimation={null}>
