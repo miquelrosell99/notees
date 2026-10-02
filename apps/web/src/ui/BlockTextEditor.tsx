@@ -21,13 +21,25 @@
  * marks. Edit mode stays plain-text visual by design (per-run DOM rendering
  * would break caret stability); marks render in read mode as today.
  *
- * Capture gestures (owner-refined 2026-09-26; node-picker popups 2026-10-01):
+ * Capture gestures (owner-refined 2026-09-26; node-picker popups 2026-10-01;
+ * @-over-selection + link context menu 2026-10-01):
  * - `@`  mention/link: the node picker popup (ported NodeSelector) opens
  *   anchored at the caret with its own search field — pages and blocks only,
  *   no classes; picking inserts `{type:"mention", targetNodeId, text, linkId}`
  *   at the trigger; the create row links a new page named by the query; the
  *   typed-date row links the journal chain page. Esc/click-outside keeps the
  *   trigger char as plain text and hands focus back to the block.
+ * - `@` over a selection: the browser default (delete the selection, insert
+ *   the sigil) is intercepted at a word boundary; the picker opens with the
+ *   selected text as its search query, and the pick splices the mention over
+ *   the never-deleted range. Ctrl/Cmd+Enter on a row picks WITH the query as
+ *   a custom label (`displayText`). Esc restores the original selection.
+ * - Node-link context menu: right-clicking a mention (hit-tested via
+ *   caretRangeFromPoint → prose offset → token span) opens the
+ *   NodeLinkContextMenu: Open / Open in sidebar navigate; Edit link… opens
+ *   the page-level LinkEditModal (retarget + optional custom label);
+ *   Remove link replaces the mention with its visible text (the custom
+ *   label when set); Delete link drops the token wholesale.
  * - `#`  tag: the same popup over pages; picking assigns the tag to the node
  *   (first-class tag_ids OR-set add) and consumes the trigger; the create row
  *   creates + assigns the page.
@@ -47,33 +59,87 @@
  * unflushed typing is preserved), splice tokens through spliceTokens, then
  * write the result directly with client.updateObject and re-sync the DOM.
  *
- * Keyboard contract (docs/ux.md "The outliner"):
- * - Enter        → prevent default, save, create an empty sibling AFTER this
- *                  block (create-then-move: the create appends at the END of
- *                  the parent's order, object.move with afterId=this lands it
- *                  right after this block), move the caret there.
+ * Keyboard contract (docs/ux.md "The outliner"; v1-level semantics):
+ * - Enter mid-text → split at the caret: head stays, tail moves to a new
+ *                  sibling right after.
+ * - Enter at start → new empty block BEFORE this one (object.create with
+ *                  beforeId — the W1 wire extension).
+ * - Enter at end/empty → sibling after; a block WITH CHILDREN takes the new
+ *                  block as its FIRST child instead (beforeId against the
+ *                  current first child).
  * - Shift+Enter  → allow the contentEditable newline; the flush stores it as
  *                  `hard_break` tokens (the only break token in the grammar).
- * - Backspace at an empty block → delete the block (soft delete) and hand the
- *                  caret to the previous sibling (or the parent).
+ * - Backspace at start of text → merge into the previous block (previous
+ *                  sibling, or the parent when an only child) past the v1
+ *                  guard (same-parent childless / only-child-into-parent);
+ *                  otherwise a no-op.
+ * - Backspace on an empty block with children → promote the children into
+ *                  the block's place, then delete it; empty without children
+ *                  → delete the block and hand the caret to the previous
+ *                  sibling (or the parent).
+ * - Delete at end → merge a childless next sibling into this block.
  * - Tab          → indent under the previous sibling (object.move, appended as
  *                  its last child).
  * - Shift+Tab    → outdent to the grandparent, placed right after the current
- *                  parent (object.move with afterId=parent).
+ *                  parent. The `treeEditMode` device setting (Settings →
+ *                  Editor, default "logical") additionally drags subsequent
+ *                  siblings under the outdented block; "direct" moves only it.
+ * - Node links render as ATOMIC PILLS (contenteditable=false spans, the
+ *   read-mode dashed-underline look): arrows select the pill the caret
+ *   reaches; Backspace/Delete with the pill selected — or with the caret
+ *   adjacent — deletes the whole link; first click selects, second click
+ *   places the caret, double-click opens; Enter opens the target.
  * - Ctrl/Cmd+B/I/Shift+X → toggle bold/italic/strike on the selection.
  * - Cmd/Ctrl+K   → open the typed-link verb popover over the selection.
+ * - Ctrl/Cmd+C   → with no selection: copy this block's node link
+ *                  (`<origin>/<uuid>`) + toast; with a selection the
+ *                  browser's default text copy runs.
+ * - Ctrl/Cmd+V   → clipboard holding a node link (`<origin>/<uuid>` or a
+ *                  bare uuid) splices a mention token at the caret,
+ *                  replacing the selection like the default paste; any
+ *                  other text keeps the default plain-text paste.
+ * - `@` over a selection → open the node picker with the selected text as
+ *                  the query; the pick replaces the selection with the link
+ *                  (Ctrl/Cmd+Enter keeps the text as the label); Esc restores
+ *                  the selection.
+ * - Right-click a node link → Open / Open in sidebar / Edit link… /
+ *                  Remove link (keeps the text) / Delete link.
  * - `**` over a selection → toggle bold (markdown shortcut; the asterisks
  *                  are swallowed, they are not stored).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 
 import type { ContentAst, Mark } from "@notees/protocol";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { uuidv7 } from "uuidv7";
 
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
-import { proseFromAst } from "@/editor/prose.js";
+import {
+  caretOffset,
+  placeCaret,
+  proseOffsetFromPoint,
+  selectRange,
+  selectionOffsets,
+} from "@/editor/selection.js";
+import {
+  atomFromKey,
+  atomKey,
+  buildEditableDom,
+  editableAtoms,
+  editableDomSignature,
+  type EditableAtom,
+} from "@/editor/editable-dom.js";
+import { proseFromAst, proseSpans } from "@/editor/prose.js";
 import { applyTextEdit, spliceTokens } from "@/editor/edit-apply.js";
 import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import { withCandidateSpans } from "@/editor/capture.js";
@@ -81,9 +147,14 @@ import type { ClientNode } from "@/core/workspace-client.js";
 
 import { VerbPopover } from "./VerbPopover.js";
 import { useOutliner } from "./outliner-context.js";
+import { nodeLinkUrl, parseNodeLink } from "./nodeLink.js";
+import { copyToClipboard } from "./components/modals/clipboard.js";
+import { readDeviceSetting } from "./components/modals/deviceSettings.js";
+import { notificationStore } from "./components/ui/notificationStore.js";
 import { FloatingToolbar } from "./editor-popups/FloatingToolbar.js";
 import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUsage } from "./editor-popups/TriggerPopup.js";
-import { NodeSelector } from "./components/pickers/NodeSelector.js";
+import { NodeSelector, type NodePickContext } from "./components/pickers/NodeSelector.js";
+import { NodeLinkContextMenu } from "./components/NodeLinkContextMenu.js";
 import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
 
 export const SAVE_DEBOUNCE_MS = 400;
@@ -102,17 +173,51 @@ interface SlashCandidate {
 
 const TRIGGER_CHAR: Record<CaptureKind, string> = { mention: "@", tag: "#", class: "+", slash: "/" };
 
+/** displayText schema bound (content-mark.ts mentionTokenSchema). */
+const MENTION_LABEL_MAX = 512;
+
 interface CaptureState {
   kind: CaptureKind;
   /** Prose offset of the trigger character. */
   start: number;
-  /** Draft text between the trigger and the caret (slash inline mode only —
-   *  the node-picker popups own their search field). */
+  /**
+   * Draft text between the trigger and the caret (slash inline mode) — or,
+   * for a mention popup opened over a selection, the selected text, which
+   * pre-fills the picker's search field and becomes the custom label on a
+   * Ctrl/Cmd+Enter pick.
+   */
   query: string;
   /** Selected candidate row (slash inline mode only). */
   index: number;
+  /**
+   * Mention popup opened by typing `@` over a selection: no trigger char
+   * exists in the draft; the pick (or cancel) operates on the prose range
+   * [start, replaceEnd) instead.
+   */
+  replaceEnd?: number;
   /** Viewport anchor captured when a node-picker popup opened (caret line). */
   anchor?: { top: number; left: number };
+}
+
+/** A mention token as stored in the content stream (content-mark.ts). */
+interface MentionToken {
+  type: "mention";
+  targetNodeId: string;
+  text: string;
+  displayText?: string;
+  linkId?: string;
+}
+
+/** State of the node-link right-click menu (hit-tested to a mention token). */
+interface LinkMenuState {
+  x: number;
+  y: number;
+  /** Index of the mention token inside contentAst (validated again on action). */
+  tokenIndex: number;
+  /** Prose range the token covers in the current draft. */
+  start: number;
+  end: number;
+  targetNodeId: string;
 }
 
 /** Inline token types the quote token admits as children (SCHEMA.md grammar). */
@@ -130,66 +235,6 @@ interface BlockTextEditorProps {
   node: ClientNode;
   caret: EditorCaret;
   onExitEdit: () => void;
-}
-
-/**
- * Prose offset of a DOM position inside the editor. The editor DOM is a
- * flat run of text nodes (no React children, no per-run elements), so the
- * offset is the summed text lengths of the preceding siblings plus the
- * in-node offset. Null when the position is not inside the editor.
- */
-function domOffsetToProse(el: HTMLElement, node: Node, offset: number): number | null {
-  if (node === el) return offset;
-  if (node.parentNode !== el) return null;
-  let total = 0;
-  for (let n = el.firstChild; n !== null && n !== node; n = n.nextSibling) {
-    total += n.textContent?.length ?? 0;
-  }
-  return total + offset;
-}
-
-/** Current selection as prose offsets within the editor; null when collapsed/foreign. */
-function selectionOffsets(el: HTMLElement): { start: number; end: number } | null {
-  const selection = window.getSelection();
-  if (selection === null || selection.rangeCount === 0) return null;
-  const range = selection.getRangeAt(0);
-  if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return null;
-  const start = domOffsetToProse(el, range.startContainer, range.startOffset);
-  const end = domOffsetToProse(el, range.endContainer, range.endOffset);
-  if (start === null || end === null) return null;
-  return start <= end ? { start, end } : { start: end, end: start };
-}
-
-/** Collapsed-caret prose offset within the editor (null when the selection is a range/foreign). */
-function caretOffset(el: HTMLElement): number | null {
-  const selection = window.getSelection();
-  if (selection === null || selection.rangeCount === 0) return null;
-  const range = selection.getRangeAt(0);
-  if (!range.collapsed) return null;
-  if (!el.contains(range.startContainer)) return null;
-  return domOffsetToProse(el, range.startContainer, range.startOffset);
-}
-
-/** Collapse the caret to a prose offset (focusWithCaret clamps to child-node counts; this must not). */
-function placeCaret(el: HTMLElement, offset: number): void {
-  el.focus();
-  try {
-    const selection = window.getSelection();
-    if (selection === null) return;
-    const range = document.createRange();
-    const node = el.firstChild;
-    if (node !== null && typeof node.textContent === "string") {
-      range.setStart(node, Math.max(0, Math.min(offset, node.textContent.length)));
-    } else {
-      range.selectNodeContents(el);
-    }
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.dispatchEvent(new Event("selectionchange"));
-  } catch {
-    // jsdom / edge layouts: focus() alone is enough.
-  }
 }
 
 /** Viewport anchor for the toolbar/popups (jsdom rects are zero — harmless). */
@@ -224,7 +269,8 @@ function caretLineAnchor(): { top: number; left: number; caretTop: number } {
 }
 
 export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProps) {
-  const { client, positions, requestFocus, capture: captureApi } = useOutliner();
+  const { client, positions, requestFocus, capture: captureApi, openNode, openInSidebar } =
+    useOutliner();
   const rootRef = useRef<HTMLSpanElement>(null);
   const spanRef = useRef<HTMLSpanElement>(null);
   const nodeRef = useRef(node);
@@ -239,6 +285,14 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   const [verb, setVerb] = useState<{ start: number; end: number; top: number; left: number } | null>(
     null,
   );
+  /** Right-click menu over a mention token (null = closed). */
+  const [linkMenu, setLinkMenu] = useState<LinkMenuState | null>(null);
+  /**
+   * The atomic pill selected by click/arrow (data-atom-key from the build,
+   * validated against the current atom list before every use — a stale key
+   * means the draft drifted and the selection is dropped).
+   */
+  const [selectedAtomKey, setSelectedAtomKey] = useState<string | null>(null);
   /** Slash-command usage counts for this session (ranking ties in the popup). */
   const [slashUsage] = useState(readSlashCommandUsage);
   /** Opens the page-level LinkEditModal (slash "Add URL" flow). */
@@ -263,6 +317,89 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     if (JSON.stringify(next) === JSON.stringify(current)) return;
     void client.updateObject(nodeRef.current.id, { contentAst: next });
   }, [client]);
+
+  // --- atomic pills (node links render as single units) -----------------------
+
+  /** The pill selected by click/arrow, validated against the freshest draft. */
+  const currentAtom = (): EditableAtom | null => {
+    if (selectedAtomKey === null) return null;
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current);
+    return atomFromKey(editableAtoms(base), selectedAtomKey);
+  };
+
+  /** Delete a pill's token wholesale (Backspace/Delete, selected or adjacent). */
+  const deleteAtom = (atom: EditableAtom) => {
+    setSelectedAtomKey(null);
+    applySplice(atom.start, atom.end, [], atom.start);
+  };
+
+  /**
+   * Backspace-at-start (v1 semantics): merge this block's content into the
+   * previous block — the previous SIBLING, or the parent when this block is
+   * an only child — but only past the v1 guard (same-parent childless, or an
+   * only-child into its parent). Otherwise the key is a no-op. The source's
+   * unflushed draft rides along (applyTextEdit); the caret lands at the
+   * merge point in the target block.
+   */
+  const mergeIntoPrevious = (blockId: string) => {
+    const node = client.getNode(blockId);
+    if (node === undefined) return;
+    const position = positions.get(blockId);
+    const parent = node.parentId !== null ? client.getNode(node.parentId) : undefined;
+    const targetId =
+      position?.previousSiblingId ??
+      (parent !== undefined && parent.nodeType === "block" ? parent.id : null);
+    if (targetId === null || targetId === undefined) return;
+    const target = client.getNode(targetId);
+    if (target === undefined) return;
+    const sameParentChildless =
+      node.parentId === target.parentId && client.getChildren(blockId).length === 0;
+    const onlyChildIntoParent =
+      node.parentId === targetId && client.getChildren(targetId).length === 1;
+    if (!sameParentChildless && !onlyChildIntoParent) return;
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    dirtyRef.current = false;
+    const sourceText = applyTextEdit(node.contentAst, draftRef.current);
+    const caretAt = proseFromAst(target.contentAst).length;
+    // Splice at the target's end so adjacent text runs coalesce.
+    const merged = withCandidateSpans(
+      spliceTokens(target.contentAst, caretAt, caretAt, sourceText),
+    );
+    void client.updateObject(targetId, { contentAst: merged }).then(() => {
+      // The only-child case can still leave children on the source — they
+      // follow it under the merge target.
+      const orphans = client.getChildren(blockId);
+      let after: string | undefined;
+      orphans.forEach((orphan) => {
+        void client.moveObject(orphan.id, targetId, after);
+        after = orphan.id;
+      });
+      void client.deleteObject(blockId).then(() => requestFocus(targetId, caretAt));
+    });
+  };
+
+  /**
+   * Delete-at-end (v1 semantics): merge the NEXT SIBLING's content into this
+   * block when the guard allows (same parent — by construction — and the
+   * next block is childless). The caret stays at the merge point.
+   */
+  const mergeNextInto = (blockId: string) => {
+    const node = client.getNode(blockId);
+    if (node === undefined || node.parentId === null) return;
+    const siblings = client.getChildren(node.parentId);
+    const index = siblings.findIndex((sibling) => sibling.id === blockId);
+    const next = index >= 0 ? siblings[index + 1] : undefined;
+    if (next === undefined) return;
+    if (client.getChildren(next.id).length > 0) return;
+    const base = applyTextEdit(node.contentAst, draftRef.current);
+    const caretAt = proseFromAst(base).length;
+    const merged = withCandidateSpans(spliceTokens(base, caretAt, caretAt, next.contentAst));
+    commitAst(merged, caretAt);
+    void client.deleteObject(next.id);
+  };
 
   // Selection → active-marks state (the FloatingToolbar decides its own
   // visibility/position from the same selectionchange stream). Listened on
@@ -306,13 +443,14 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     return () => document.removeEventListener("selectionchange", syncSelectionUi);
   }, [syncSelectionUi]);
 
-  // Mount: hydrate the DOM from the draft and land the caret. No children are
-  // rendered (textContent is managed imperatively), so React raises no
-  // contentEditable warnings and updates never reset the caret mid-typing.
+  // Mount: hydrate the DOM (text runs + atomic pill elements) and land the
+  // caret. No React children are rendered (the DOM is managed imperatively),
+  // so React raises no contentEditable warnings and updates never reset the
+  // caret mid-typing.
   useEffect(() => {
     const el = spanRef.current;
     if (el === null) return;
-    el.textContent = draftRef.current;
+    buildEditableDom(el, nodeRef.current.contentAst);
     if (typeof caret === "object") focusAtPoint(el, caret.x, caret.y);
     else focusWithCaret(el, caret);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -322,13 +460,26 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   useEffect(() => () => flush(), [flush]);
 
   // External edits (remote sync) rehydrate the DOM only while we are not
-  // actively editing it.
+  // actively editing it. The signature covers prose AND pill structure, so a
+  // same-prose token change (a link inserted elsewhere) still rebuilds.
   useEffect(() => {
     const el = spanRef.current;
     if (el === null || document.activeElement === el || dirtyRef.current) return;
-    const prose = proseFromAst(node.contentAst);
-    if (el.textContent !== prose) el.textContent = prose;
+    const domSignature = `${el.textContent ?? ""}#${el.querySelectorAll("[data-atom-key]").length}`;
+    if (domSignature !== editableDomSignature(node.contentAst)) {
+      buildEditableDom(el, node.contentAst);
+    }
   }, [node.contentAst]);
+
+  // Pill selection chrome: pills are DOM-built, so the selected class is
+  // applied imperatively (re-applied after every rebuild replaces elements).
+  useEffect(() => {
+    const el = spanRef.current;
+    if (el === null) return;
+    for (const pill of Array.from(el.querySelectorAll<HTMLElement>("[data-atom-key]"))) {
+      pill.classList.toggle("nt-atom--selected", pill.dataset.atomKey === selectedAtomKey);
+    }
+  }, [selectedAtomKey, node.contentAst]);
 
   // --- capture gestures -------------------------------------------------------
 
@@ -409,9 +560,10 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       timerRef.current = null;
     }
     const prose = proseFromAst(next);
-    el.textContent = prose;
+    buildEditableDom(el, next);
     draftRef.current = prose;
     dirtyRef.current = false;
+    setSelectedAtomKey(null);
     placeCaret(el, caretAfter);
     void client.updateObject(nodeRef.current.id, { contentAst: next });
   };
@@ -493,6 +645,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       // trigger offset; a typed URL-looking query pre-fills the URL field.
       const looksLikeUrl = /^https?:\/\//i.test(query.trim());
       openLinkEditor({
+        kind: "external",
         blockId: nodeRef.current.id,
         tokenIndex: null,
         insertAt: start,
@@ -532,18 +685,44 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   /**
    * Pick (or create) in the @/#/+ popup. The trigger placeholder is consumed
    * from the draft (whatever the caret covers after it — the popup owned the
-   * typing, so normally just the one trigger char), then the per-kind action
-   * runs: @ inserts a mention token, # assigns the tag, + assigns the class.
+   * typing, so normally just the one trigger char); a popup opened over a
+   * selection instead consumes the stashed range [start, replaceEnd) — the
+   * selected text was never deleted. Then the per-kind action runs: @ inserts
+   * a mention token, # assigns the tag, + assigns the class. A mention picked
+   * with Ctrl/Cmd+Enter (context.withLabel) keeps the search query as a
+   * custom label (displayText) instead of resolving the target's name.
    */
-  const commitNodePick = (picked: ClientNode) => {
+  const commitNodePick = (picked: ClientNode, context?: NodePickContext) => {
     const state = capture;
     if (state === null || state.kind === "slash") return;
     setCapture(null);
     const el = spanRef.current;
     if (el === null) return;
     const caret = caretOffset(el) ?? state.start + 1;
-    const end = Math.max(caret, state.start + 1);
+    const end = state.replaceEnd ?? Math.max(caret, state.start + 1);
     if (state.kind === "mention") {
+      const customLabel =
+        context !== undefined && context.withLabel
+          ? context.query.slice(0, MENTION_LABEL_MAX)
+          : null;
+      if (customLabel !== null && customLabel !== "") {
+        applySplice(
+          state.start,
+          end,
+          [
+            {
+              type: "mention",
+              targetNodeId: picked.id,
+              text: customLabel,
+              displayText: customLabel,
+              linkId: uuidv7(),
+            },
+          ],
+          state.start + customLabel.length,
+        );
+        el.focus();
+        return;
+      }
       const label = captureApi.displayName(picked.id) ?? "Untitled";
       applySplice(
         state.start,
@@ -573,7 +752,9 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
    * The @/#/+ popup closed without a pick (Escape / click outside): keep the
    * trigger char as plain text and hand focus back to the block — unless the
    * click that closed it is focusing something else (another block, the
-   * sidebar), in which case the normal blur flow owns the caret.
+   * sidebar), in which case the normal blur flow owns the caret. A popup
+   * opened over a selection restores that selection instead (nothing was ever
+   * deleted).
    */
   const closeNodePicker = () => {
     const state = capture;
@@ -584,8 +765,12 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     const focusInPopup =
       active instanceof HTMLElement && active.closest("[data-editor-companion]") !== null;
     if (focusInPopup || active === null || active === document.body) {
-      el.focus();
-      placeCaret(el, state.start + 1);
+      if (state.replaceEnd !== undefined) {
+        selectRange(el, state.start, state.replaceEnd);
+      } else {
+        el.focus();
+        placeCaret(el, state.start + 1);
+      }
     }
   };
 
@@ -626,6 +811,148 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     }
   };
 
+  // --- node-link context menu (right-click a mention) -------------------------
+
+  /**
+   * Pill mouse gestures (v1 parity): the FIRST click selects the pill — the
+   * mousedown only blocks caret placement (the click handler owns selection,
+   * so the click of the same gesture can't read as a "second click"); a
+   * click on the already-selected pill clears the flash and lets the
+   * browser place the caret before/after by half; double-click opens.
+   */
+  const handleMouseDown = (event: MouseEvent<HTMLSpanElement>) => {
+    const el = spanRef.current;
+    if (el === null) return;
+    const pill = (event.target as HTMLElement).closest?.("[data-atom-key]");
+    if (pill === null || pill === undefined || !el.contains(pill)) {
+      setSelectedAtomKey(null);
+      return;
+    }
+    const key = (pill as HTMLElement).dataset.atomKey;
+    if (key !== selectedAtomKey) {
+      // Unselected (or different) pill: no native caret placement; a stale
+      // selection on another pill is cleared here, the click re-selects.
+      if (selectedAtomKey !== null) setSelectedAtomKey(null);
+      event.preventDefault();
+      el.focus();
+    }
+    // Pressing the already-selected pill: default runs — the browser places
+    // the caret adjacent (before/after by half), the click clears the flash.
+  };
+
+  const handleClick = (event: MouseEvent<HTMLSpanElement>) => {
+    const el = spanRef.current;
+    if (el === null) return;
+    const pill = (event.target as HTMLElement).closest?.("[data-atom-key]");
+    if (pill === null || pill === undefined || !el.contains(pill)) return;
+    const key = (pill as HTMLElement).dataset.atomKey;
+    if (key === undefined) return;
+    if (key === selectedAtomKey) {
+      // Second click on the selected pill: caret was placed natively.
+      setSelectedAtomKey(null);
+    } else {
+      // First click: the pill becomes the only focus hint.
+      setSelectedAtomKey(key);
+    }
+  };
+
+  const handleDoubleClick = (event: MouseEvent<HTMLSpanElement>) => {
+    const el = spanRef.current;
+    if (el === null) return;
+    const pill = (event.target as HTMLElement).closest?.("[data-atom-key]");
+    if (pill === null || pill === undefined || !el.contains(pill)) return;
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current);
+    const atom = atomFromKey(editableAtoms(base), (pill as HTMLElement).dataset.atomKey);
+    if (atom === null) return;
+    event.preventDefault();
+    setSelectedAtomKey(null);
+    openNode(atom.targetNodeId);
+  };
+
+  /**
+   * Right-click hit test: the pill element under the pointer is exact;
+   * otherwise map the point to a prose offset, then to the mention token
+   * covering it. Plain text falls through to the browser menu.
+   */
+  const handleContextMenu = (event: MouseEvent<HTMLSpanElement>) => {
+    const el = spanRef.current;
+    if (el === null || linkMenu !== null) return;
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current);
+    const atoms = editableAtoms(base);
+    const pill = (event.target as HTMLElement).closest?.("[data-atom-key]");
+    let atom: EditableAtom | null = null;
+    if (pill !== null && pill !== undefined && el.contains(pill)) {
+      atom = atomFromKey(atoms, (pill as HTMLElement).dataset.atomKey);
+    } else {
+      const offset = proseOffsetFromPoint(el, event.clientX, event.clientY);
+      if (offset === null) return;
+      const span = proseSpans(base).find((s) => s.start <= offset && offset < s.end);
+      if (span === undefined) return;
+      atom = atoms.find((a) => a.tokenIndex === span.tokenIndex) ?? null;
+    }
+    if (atom === null) return;
+    event.preventDefault();
+    setLinkMenu({
+      x: event.clientX,
+      y: event.clientY,
+      tokenIndex: atom.tokenIndex,
+      start: atom.start,
+      end: atom.end,
+      targetNodeId: atom.targetNodeId,
+    });
+  };
+
+  /**
+   * The mention the menu was opened on, re-validated against the freshest
+   * state (the menu survives the debounced flush, which rewrites the same
+   * prose but could in principle rebase the stream).
+   */
+  const currentLinkMenuMention = (): { menu: LinkMenuState; token: MentionToken } | null => {
+    const menu = linkMenu;
+    if (menu === null) return null;
+    const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current);
+    const token = base[menu.tokenIndex];
+    if (
+      typeof token !== "object" ||
+      token === null ||
+      (token as { type?: unknown }).type !== "mention"
+    ) {
+      return null;
+    }
+    return { menu, token: token as unknown as MentionToken };
+  };
+
+  /** "Remove link": replace the mention with its visible text (custom label if set). */
+  const removeLink = () => {
+    const hit = currentLinkMenuMention();
+    if (hit === null) return;
+    const kept = hit.token.displayText ?? hit.token.text;
+    applySplice(hit.menu.start, hit.menu.end, [{ type: "text", text: kept }], hit.menu.start + kept.length);
+  };
+
+  /** "Delete link": drop the mention token wholesale. */
+  const deleteLink = () => {
+    const hit = currentLinkMenuMention();
+    if (hit === null) return;
+    applySplice(hit.menu.start, hit.menu.end, [], hit.menu.start);
+  };
+
+  /** "Edit link…": the page-level LinkEditModal retargets the mention / sets a label. */
+  const editLink = () => {
+    const hit = currentLinkMenuMention();
+    if (hit === null) return;
+    flush(); // push unflushed typing so the modal writes over the current AST
+    setLinkMenu(null);
+    openLinkEditor({
+      kind: "node",
+      blockId: nodeRef.current.id,
+      tokenIndex: hit.menu.tokenIndex,
+      insertAt: null,
+      initialNodeId: hit.token.targetNodeId,
+      initialLabel: hit.token.displayText ?? "",
+    });
+  };
+
   // --- DOM events ---------------------------------------------------------------
 
   const handleInput = () => {
@@ -633,12 +960,58 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     if (el === null) return;
     draftRef.current = el.textContent ?? "";
     dirtyRef.current = true;
+    setSelectedAtomKey(null);
     updateCapture(draftRef.current, caretOffset(el));
     if (timerRef.current !== null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       flush();
     }, SAVE_DEBOUNCE_MS);
+  };
+
+  /**
+   * Ctrl/Cmd+C with no selection: the clipboard gets this block's node link
+   * (`<origin>/<uuid>`) and a toast confirms it. A range selection falls
+   * through to the browser's default text copy.
+   */
+  const copyNodeLink = () => {
+    const name = captureApi.displayName(nodeRef.current.id) ?? "Untitled";
+    copyToClipboard(nodeLinkUrl(nodeRef.current.id)).then(
+      () => notificationStore.success("Node link copied", name),
+      () => notificationStore.error("Couldn't copy", "Clipboard access was denied."),
+    );
+  };
+
+  /**
+   * Paste: a clipboard holding a node link (`<origin>/<uuid>` or a bare
+   * uuid) that resolves in the local graph becomes a mention token spliced
+   * at the caret/selection instead of the raw text. Anything else keeps
+   * the contentEditable default (plain text through the normal draft
+   * flow); an unresolvable id pastes as raw text too. (Paste events carry
+   * no modifier state, so even Ctrl/Cmd+Shift+V takes this path — a bare
+   * uuid as plain text is never the useful outcome.)
+   */
+  const handlePaste = (event: ClipboardEvent<HTMLSpanElement>) => {
+    if (event.clipboardData === null) return;
+    const targetId = parseNodeLink(event.clipboardData.getData("text/plain"));
+    if (targetId === null) return;
+    const name = captureApi.displayName(targetId);
+    if (name === null) return; // unknown node: default paste of the raw text
+    const el = spanRef.current;
+    if (el === null) return;
+    event.preventDefault();
+    const range = selectionOffsets(el) ?? {
+      start: draftRef.current.length,
+      end: draftRef.current.length,
+    };
+    applySplice(
+      range.start,
+      range.end,
+      [{ type: "mention", targetNodeId: targetId, text: name, linkId: uuidv7() }],
+      range.start + name.length,
+    );
+    notificationStore.success("Node link pasted", name);
+    el.focus();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
@@ -667,6 +1040,77 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       }
     }
     const mod = event.metaKey || event.ctrlKey;
+    // Atomic pill gestures — a selected pill (or a caret adjacent to one)
+    // owns Backspace/Delete/arrows before any other branch (v1 parity: the
+    // pill is one logical unit). The caret never sits inside a pill, so
+    // "adjacent" means: Backspace with the caret at a pill's end, Delete at
+    // a pill's start, arrows onto either boundary.
+    if (!event.nativeEvent.isComposing) {
+      const selected = currentAtom();
+      if (selected !== null) {
+        const key = event.key;
+        if (key === "Backspace" || key === "Delete") {
+          event.preventDefault();
+          deleteAtom(selected);
+          return;
+        }
+        if (key === "Enter" && !event.shiftKey && !mod) {
+          event.preventDefault();
+          setSelectedAtomKey(null);
+          openNode(selected.targetNodeId);
+          return;
+        }
+        if (key === "ArrowRight") {
+          event.preventDefault();
+          setSelectedAtomKey(null);
+          const el = spanRef.current;
+          if (el !== null) placeCaret(el, selected.end);
+          return;
+        }
+        if (key === "ArrowLeft") {
+          event.preventDefault();
+          setSelectedAtomKey(null);
+          const el = spanRef.current;
+          if (el !== null) placeCaret(el, selected.start);
+          return;
+        }
+        if (key === "Escape") {
+          setSelectedAtomKey(null);
+          return;
+        }
+        // Any other key clears the visual selection; editing continues at
+        // the caret (arrows included — a word-jump must not keep the flash).
+        if (key.startsWith("Arrow") || !mod) setSelectedAtomKey(null);
+      } else if (!mod) {
+        const el = spanRef.current;
+        const caret = el === null ? null : caretOffset(el);
+        if (el !== null && caret !== null) {
+          const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current);
+          const atoms = editableAtoms(base);
+          if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+            const hit =
+              event.key === "ArrowRight"
+                ? atoms.find((a) => a.start === caret)
+                : atoms.find((a) => a.end === caret);
+            if (hit !== undefined) {
+              event.preventDefault();
+              setSelectedAtomKey(atomKey(hit));
+              return;
+            }
+          } else if (event.key === "Backspace" || event.key === "Delete") {
+            const hit =
+              event.key === "Backspace"
+                ? atoms.find((a) => a.end === caret)
+                : atoms.find((a) => a.start === caret);
+            if (hit !== undefined) {
+              event.preventDefault();
+              deleteAtom(hit);
+              return;
+            }
+          }
+        }
+      }
+    }
     if (mod && !event.altKey) {
       const key = event.key.toLowerCase();
       if (key === "b" || key === "i" || (key === "x" && event.shiftKey)) {
@@ -677,6 +1121,47 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       if (key === "k") {
         event.preventDefault();
         openVerb();
+        return;
+      }
+      if (key === "c" && !event.shiftKey) {
+        const el = spanRef.current;
+        const range = el === null ? null : selectionOffsets(el);
+        if (range === null || range.start === range.end) {
+          event.preventDefault();
+          copyNodeLink();
+          return;
+        }
+      }
+    }
+    // `@` over a selection: the browser default would delete the selected
+    // text and insert the sigil — instead the node picker opens with the
+    // selected text as its search query, and the pick replaces the selection
+    // with the mention (Ctrl/Cmd+Enter keeps the text as a custom label).
+    // Same word-boundary rule as the collapsed-caret trigger; without it the
+    // default runs unchanged.
+    if (event.key === "@" && !mod && !event.altKey) {
+      const el = spanRef.current;
+      const range = el === null ? null : selectionOffsets(el);
+      if (range !== null && range.start !== range.end) {
+        const draft = draftRef.current;
+        const boundary = range.start === 0 || /\s/.test(draft[range.start - 1]!);
+        if (boundary) {
+          event.preventDefault();
+          const selectedText = draft
+            .slice(range.start, range.end)
+            .replace(/\s+/g, " ")
+            .trim();
+          const anchor = caretLineAnchor();
+          setSelectedAtomKey(null);
+          setCapture({
+            kind: "mention",
+            start: range.start,
+            query: selectedText,
+            index: 0,
+            replaceEnd: range.end,
+            anchor: { top: anchor.top, left: anchor.left },
+          });
+        }
         return;
       }
     }
@@ -703,27 +1188,108 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       if (event.shiftKey) return; // the newline is allowed; flush stores hard_break
       event.preventDefault();
       flush();
+      const el = spanRef.current;
+      const caret = el === null ? null : caretOffset(el);
+      const draft = draftRef.current;
       const parentId = nodeRef.current.parentId;
       const currentId = nodeRef.current.id;
-      // Placement is create-then-move: the create appends at the END of the
-      // parent's order, so object.move with afterId=current lands the new
-      // sibling right after this block.
+      const base = applyTextEdit(nodeRef.current.contentAst, draft);
+      if (caret !== null && caret > 0 && caret < draft.length) {
+        // MID-TEXT: split at the caret. The head stays in this block; the
+        // tail moves to a new sibling right after (v1 splitBlock). The head
+        // write supersedes the debounced flush — clear it so the unmount
+        // flush can't overwrite the split.
+        if (timerRef.current !== null) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        dirtyRef.current = false;
+        const head = spliceTokens(base, caret, draft.length, []);
+        const tail = spliceTokens(base, 0, caret, []);
+        void client.updateObject(currentId, { contentAst: withCandidateSpans(head) });
+        void client
+          .createObject({
+            nodeType: "block",
+            parentId,
+            contentAst: withCandidateSpans(tail),
+            ...(parentId !== null ? { afterId: currentId } : {}),
+          })
+          .then((id) => requestFocus(id, "start"));
+        return;
+      }
+      if (caret === 0 && draft.length > 0) {
+        // START: a new empty block BEFORE this one (W1 beforeId — the
+        // placement afterId-only ordering could never express).
+        void client
+          .createObject({
+            nodeType: "block",
+            parentId,
+            contentAst: [],
+            ...(parentId !== null ? { beforeId: currentId } : {}),
+          })
+          .then((id) => requestFocus(id, "start"));
+        return;
+      }
+      // END / EMPTY: a sibling after this block — but a block WITH CHILDREN
+      // takes the new block as its FIRST child instead (v1/Roam).
+      const children = client.getChildren(currentId);
+      if (children.length > 0) {
+        void client
+          .createObject({
+            nodeType: "block",
+            parentId: currentId,
+            contentAst: [],
+            beforeId: children[0]!.id,
+          })
+          .then((id) => requestFocus(id, "start"));
+        return;
+      }
       void client
-        .createObject({ nodeType: "block", parentId, contentAst: [] })
-        .then((id) =>
-          parentId === null
-            ? Promise.resolve(id)
-            : client.moveObject(id, parentId, currentId).then(() => id),
-        )
+        .createObject({
+          nodeType: "block",
+          parentId,
+          contentAst: [],
+          ...(parentId !== null ? { afterId: currentId } : {}),
+        })
         .then((id) => requestFocus(id, "start"));
       return;
     }
     if (event.key === "Backspace") {
       const el = spanRef.current;
-      if ((el?.textContent ?? "") !== "") return; // ordinary in-text deletion
-      event.preventDefault();
-      flush(); // clears the block when the draft was just emptied
+      const text = el?.textContent ?? "";
+      const caret = el === null ? null : caretOffset(el);
       const id = nodeRef.current.id;
+      if (text !== "") {
+        if (caret === 0) {
+          // START OF TEXT (v1): merge this block into the previous one when
+          // the guard allows (same-parent childless, or an only-child into
+          // its parent); otherwise the key does nothing.
+          event.preventDefault();
+          mergeIntoPrevious(id);
+        }
+        return; // ordinary in-text deletion
+      }
+      event.preventDefault();
+      const children = client.getChildren(id);
+      if (children.length > 0) {
+        // EMPTY WITH CHILDREN (owner decision): promote the children into
+        // the block's place, then delete the block.
+        const parentId = nodeRef.current.parentId;
+        if (parentId === null) return; // page-level edge
+        children.forEach((child, index) => {
+          void client.moveObject(
+            child.id,
+            parentId,
+            index === 0 ? id : children[index - 1]!.id,
+          );
+        });
+        const position = positions.get(id);
+        const caretTarget = position?.previousSiblingId ?? parentId;
+        void client.deleteObject(id);
+        requestFocus(caretTarget, "end");
+        return;
+      }
+      flush(); // clears the block when the draft was just emptied
       const position = positions.get(id);
       const caretTarget = position?.previousSiblingId ?? position?.parentId;
       if (caretTarget !== undefined && caretTarget !== null) {
@@ -732,21 +1298,57 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       void client.deleteObject(id);
       return;
     }
+    if (event.key === "Delete") {
+      const el = spanRef.current;
+      const caret = el === null ? null : caretOffset(el);
+      if (caret === null || caret !== draftRef.current.length) return; // mid-text: browser default
+      event.preventDefault();
+      mergeNextInto(nodeRef.current.id);
+      return;
+    }
     if (event.key === "Tab") {
       event.preventDefault();
       const id = nodeRef.current.id;
       const position = positions.get(id);
-      // Indent: under the previous sibling (append as its last child).
+      if (!event.shiftKey) {
+        // Indent: under the previous sibling (append as its last child).
+        const target = position?.previousSiblingId;
+        if (target === undefined || target === null) return; // page-level edge
+        void client.moveObject(id, target).catch((error: unknown) => {
+          console.warn(`[outliner] indent (${id} → ${target}) failed:`, error);
+        });
+        return;
+      }
       // Outdent: to the grandparent, placed right after the current parent.
-      const target = event.shiftKey ? position?.grandParentId : position?.previousSiblingId;
-      if (target === undefined || target === null) return; // page-level edge
-      const afterId = event.shiftKey ? (position?.parentId ?? undefined) : undefined;
-      void client.moveObject(id, target, afterId).catch((error: unknown) => {
-        console.warn(
-          `[outliner] ${event.shiftKey ? "outdent" : "indent"} (${id} → ${target}) failed:`,
-          error,
-        );
-      });
+      // treeEditMode device setting: "logical" (default) additionally moves
+      // the block's subsequent siblings under it (v1 category grouping);
+      // "direct" moves only the block.
+      const parentId = position?.parentId;
+      const grandParentId = position?.grandParentId;
+      if (parentId === undefined || parentId === null) return; // page-level edge
+      if (grandParentId === undefined || grandParentId === null) return;
+      const mode = readDeviceSetting<"direct" | "logical">("treeEditMode", "logical");
+      if (mode === "direct") {
+        void client.moveObject(id, grandParentId, parentId).catch((error: unknown) => {
+          console.warn(`[outliner] outdent (${id} → ${grandParentId}) failed:`, error);
+        });
+        return;
+      }
+      const siblings = client.getChildren(parentId);
+      const index = siblings.findIndex((sibling) => sibling.id === id);
+      const followers = siblings.slice(index + 1);
+      void client
+        .moveObject(id, grandParentId, parentId)
+        .then(() => {
+          let after: string | undefined;
+          followers.forEach((follower) => {
+            void client.moveObject(follower.id, id, after);
+            after = follower.id;
+          });
+        })
+        .catch((error: unknown) => {
+          console.warn(`[outliner] logical outdent (${id} → ${grandParentId}) failed:`, error);
+        });
     }
   };
 
@@ -765,6 +1367,11 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         spellCheck={false}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        onMouseDown={handleMouseDown}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
         onBlur={(event) => {
           flush();
           // Focus moved into a surface that belongs to the edit session
@@ -783,6 +1390,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
           }
           setCapture(null);
           setVerb(null);
+          setSelectedAtomKey(null);
           onExitEdit();
         }}
       />
@@ -820,6 +1428,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
             anchorRect={capture.anchor ?? null}
             searchMode={capture.kind === "mention" ? "all" : capture.kind === "tag" ? "pages" : "classes"}
             excludeNodeId={nodeRef.current.id}
+            initialSearchQuery={capture.kind === "mention" ? capture.query : ""}
             searchPlaceholder={
               capture.kind === "mention"
                 ? "Search pages and blocks…"
@@ -831,6 +1440,24 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
             onAdd={commitNodePick}
           />
         ))}
+      {linkMenu !== null && (
+        <NodeLinkContextMenu
+          state={linkMenu}
+          client={client}
+          onClose={() => setLinkMenu(null)}
+          onOpen={(id) => {
+            setLinkMenu(null);
+            openNode(id);
+          }}
+          onOpenInSidebar={(id) => {
+            setLinkMenu(null);
+            openInSidebar(id);
+          }}
+          onEdit={editLink}
+          onRemove={removeLink}
+          onDelete={deleteLink}
+        />
+      )}
       {verb !== null && (
         <VerbPopover
           top={verb.top}

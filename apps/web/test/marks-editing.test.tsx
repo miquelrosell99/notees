@@ -59,13 +59,36 @@ function clickIntoBlock(container: HTMLElement): HTMLElement {
   return editor;
 }
 
-/** Set a prose-offset selection inside the editor and fire selectionchange. */
+/**
+ * Set a prose-offset selection inside the editor and fire selectionchange.
+ * The editable DOM holds one text node per token (and atomic pill
+ * elements), so prose offsets must be walked, not applied to firstChild.
+ */
 function selectRange(editor: HTMLElement, start: number, end: number): void {
-  const node = editor.firstChild;
-  if (node === null) throw new Error("editor has no text node");
+  const locate = (offset: number): { node: Node; offset: number } => {
+    let acc = 0;
+    for (const child of Array.from(editor.childNodes)) {
+      const len = child.textContent?.length ?? 0;
+      if (acc + len >= offset) {
+        const inner = Math.max(0, offset - acc);
+        if (child.nodeType === Node.TEXT_NODE) return { node: child, offset: inner };
+        const text = child.firstChild;
+        if (text !== null) return { node: text, offset: Math.min(inner, (text.textContent ?? "").length) };
+        return { node: editor, offset: 0 };
+      }
+      acc += len;
+    }
+    const last = editor.lastChild;
+    if (last !== null && last.nodeType === Node.TEXT_NODE) {
+      return { node: last, offset: (last.textContent ?? "").length };
+    }
+    return { node: editor, offset: 0 };
+  };
   const range = document.createRange();
-  range.setStart(node, start);
-  range.setEnd(node, end);
+  const s = locate(start);
+  const e = locate(end);
+  range.setStart(s.node, s.offset);
+  range.setEnd(e.node, e.offset);
   const selection = window.getSelection();
   if (selection === null) throw new Error("no selection");
   selection.removeAllRanges();
