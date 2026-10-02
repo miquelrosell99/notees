@@ -52,10 +52,13 @@ import { ClassView } from "./ClassView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
-import { dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { dayNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { CollectionHub } from "./components/CollectionHub.js";
+import type { TableColumn, ViewMode } from "./views/index.js";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
 import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
+import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { JournalsView } from "./components/JournalsView.js";
 import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { TopBar } from "./components/TopBar.js";
@@ -181,6 +184,7 @@ const NAV_PATHS: Record<string, NavKey> = {
   classes: "classes",
   whiteboards: "whiteboards",
   tasks: "tasks",
+  assets: "assets",
 };
 
 export function navFromPath(pathname: string): NavKey | null {
@@ -1192,6 +1196,7 @@ export function App() {
         />
       )}
       <div className="nt-body">
+        <NodeLinkMenuHost client={client} openNode={openPage} openInSidebar={openInSidebar}>
         <Sidebar
           client={client}
           workspaceName={workspaceName}
@@ -1227,6 +1232,7 @@ export function App() {
           onRenameWorkspace={(id, name) => {
             if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
           }}
+          onOpenInSidebar={openInSidebar}
         />
         <PageCard
           accent={
@@ -1249,7 +1255,7 @@ export function App() {
           ) : activeNav === "journal" ? (
             <JournalsView client={client} onOpenPage={openPage} />
           ) : (
-            <HubView client={client} nav={activeNav} onOpenNode={openPage} />
+            <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           )}
         </PageCard>
         {rightPanelOpen && (
@@ -1269,6 +1275,7 @@ export function App() {
             )}
           </aside>
         )}
+        </NodeLinkMenuHost>
       </div>
       <CommandPalette
         client={client}
@@ -1298,15 +1305,83 @@ export function App() {
   );
 }
 
-/** Nav hub: the main-view list behind each NAVIGATION entry. */
-function HubView({
+/** Task property columns, in display order (schemas may not exist yet —
+ *  the task family is authored on demand, so missing schemas drop out). */
+const TASK_PROPERTY_COLUMNS: Array<{ id: string; fallback: string }> = [
+  { id: SYSTEM_PROPERTY_UUIDS.taskStatus, fallback: "Status" },
+  { id: SYSTEM_PROPERTY_UUIDS.taskPriority, fallback: "Priority" },
+  { id: SYSTEM_PROPERTY_UUIDS.taskScheduled, fallback: "Scheduled" },
+  { id: SYSTEM_PROPERTY_UUIDS.taskDeadline, fallback: "Deadline" },
+];
+
+function taskTableColumns(client: AnyClient): TableColumn[] {
+  const schemas = client.listPropertySchemas();
+  return [
+    { id: "name", kind: "name", label: "Name", sortable: true },
+    ...TASK_PROPERTY_COLUMNS.filter((col) => schemas.some((s) => s.id === col.id)).map((col) => ({
+      id: col.id,
+      kind: "property" as const,
+      label: schemas.find((s) => s.id === col.id)?.name ?? col.fallback,
+      propertySchemaId: col.id,
+      sortable: true,
+    })),
+    { id: "created", kind: "created", label: "Created", sortable: true },
+  ];
+}
+
+/** A single-select schema with options — usable as the kanban grouping. */
+function usableGroupingSchema(
+  schemas: Array<{ id: string; type: string; multi: boolean; options: Array<{ id: string; label: string }> | null }>,
+  id: string,
+) {
+  const schema = schemas.find((s) => s.id === id);
+  return schema !== undefined &&
+    schema.type === "select" &&
+    schema.options !== null &&
+    schema.options.length > 0 &&
+    !schema.multi
+    ? schema
+    : undefined;
+}
+
+/**
+ * The tasks-hub kanban grouping: the task status schema when it exists with
+ * options (fixed seed id), else any select property at least one task
+ * actually carries (migrated workspaces may hold the status schema under
+ * another id). Undefined → the hub offers no kanban mode.
+ */
+function taskKanbanProperty(client: AnyClient, members: ClientNode[]): string | undefined {
+  const schemas = client.listPropertySchemas();
+  const status = usableGroupingSchema(schemas, SYSTEM_PROPERTY_UUIDS.taskStatus);
+  if (status !== undefined) return status.id;
+  for (const member of members) {
+    for (const prop of client.getEffectiveProperties(member.id)) {
+      if (usableGroupingSchema(schemas, prop.propertySchemaId) !== undefined) {
+        return prop.propertySchemaId;
+      }
+    }
+  }
+  return undefined;
+}
+
+const HUB_ASSET_COLUMNS: TableColumn[] = [
+  { id: "name", kind: "name", label: "Name", sortable: true },
+  { id: "classes", kind: "classes", label: "Classes", sortable: false },
+  { id: "created", kind: "created", label: "Created", sortable: true },
+];
+
+/** Nav hub: the main-view collection behind each NAVIGATION entry.
+ *  Exported for the hub view-mode tests. */
+export function HubView({
   client,
   nav,
   onOpenNode,
+  onOpenInSidebar,
 }: {
   client: AnyClient;
   nav: NavKey;
   onOpenNode: (nodeId: string) => void;
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
@@ -1323,45 +1398,76 @@ function HubView({
   const taskPages = pages.filter((page) => page.classIds.includes(SYSTEM_CLASS_UUIDS.task));
   const sectionIds = new Set([...journalPages, ...whiteboardPages, ...taskPages].map((p) => p.id));
   const entry = NAV_ENTRIES.find((e) => e.key === nav);
+
+  if (nav === "tasks") {
+    // Any node classed task — pages AND blocks (owner rule), table default.
+    const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.task);
+    // The kanban board groups by the status property; offered only when a
+    // usable select schema exists (task family is authored on demand).
+    const kanbanProperty = taskKanbanProperty(client, members);
+    const modes: ViewMode[] =
+      kanbanProperty !== undefined
+        ? ["outline", "cards", "kanban", "table"]
+        : ["outline", "cards", "table"];
+    return (
+      <CollectionHub
+        client={client}
+        icon={entry?.icon ?? "mdi-format-list-checks"}
+        title={entry?.label ?? "Tasks"}
+        items={members.map((node) => ({ node }))}
+        modes={modes}
+        defaultMode="table"
+        tableColumns={taskTableColumns(client)}
+        cardProperties={TASK_PROPERTY_COLUMNS.map((col) => col.id)}
+        tableEditable
+        kanbanProperty={kanbanProperty}
+        emptyTitle="No tasks yet"
+        onOpenNode={onOpenNode}
+        onOpenInSidebar={onOpenInSidebar}
+      />
+    );
+  }
+
+  if (nav === "assets") {
+    // Any node classed asset, cards by default (owner rule).
+    const members = client
+      .getClassMembers(assetClassId)
+      .map((node) => ({ node }));
+    return (
+      <CollectionHub
+        client={client}
+        icon={entry?.icon ?? "mdi-folder-multiple-image"}
+        title={entry?.label ?? "Assets"}
+        items={members}
+        modes={["cards", "table"]}
+        defaultMode="cards"
+        tableColumns={HUB_ASSET_COLUMNS}
+        emptyTitle="No assets yet"
+        onOpenNode={onOpenNode}
+        onOpenInSidebar={onOpenInSidebar}
+      />
+    );
+  }
+
   const items =
-    nav === "journal"
-      ? journalPages
-      : nav === "classes"
-        ? classes
-        : nav === "whiteboards"
-          ? whiteboardPages
-          : nav === "tasks"
-            ? taskPages
-            : nav === "inbox"
-              ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
-              : pages.filter((page) => !sectionIds.has(page.id));
-  const byClass = new Map(classes.map((cls) => [cls.id, cls]));
+    nav === "classes"
+      ? classes
+      : nav === "whiteboards"
+        ? whiteboardPages
+        : nav === "inbox"
+          ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
+          : pages.filter((page) => !sectionIds.has(page.id));
   return (
-    <div className="nt-hub">
-      <header className="nt-hub-header">
-        {entry !== undefined && <Icon path={entry.icon} size={1.2} className="nt-hub-icon" />}
-        <h1 className="nt-hub-title">{entry?.label ?? "Pages"}</h1>
-        <span className="nt-hub-count">{items.length}</span>
-      </header>
-      <ul className="nt-hub-list">
-        {items.map((node) => {
-          const icon =
-            nav === "classes"
-              ? (node.icon ?? null)
-              : (node.icon ?? node.classIds.map((c) => byClass.get(c)?.icon).find((i) => i) ?? null);
-          return (
-            <li key={node.id}>
-              <button type="button" className="nt-hub-item" onClick={() => onOpenNode(node.id)}>
-                {icon !== null && icon !== undefined && (
-                  <Icon path={icon} size={1} className="nt-hub-item-icon" />
-                )}
-                <span className="nt-hub-item-label">{displayNameForSettings(node) || "Untitled"}</span>
-              </button>
-            </li>
-          );
-        })}
-        {items.length === 0 && <li className="nt-hub-empty">Nothing here yet.</li>}
-      </ul>
-    </div>
+    <CollectionHub
+      client={client}
+      icon={entry?.icon ?? "mdi-book-open-page-variant"}
+      title={entry?.label ?? "Pages"}
+      items={items.map((node) => ({ node }))}
+      modes={["outline"]}
+      defaultMode="outline"
+      emptyTitle="Nothing here yet."
+      onOpenNode={onOpenNode}
+      onOpenInSidebar={onOpenInSidebar}
+    />
   );
 }

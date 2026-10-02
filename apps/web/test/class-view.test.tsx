@@ -157,7 +157,7 @@ describe("Class View", () => {
     expect(onOpenNode).toHaveBeenCalledWith(pageId);
   });
 
-  it("removes a member via the row's × (class.unassign)", async () => {
+  it("removes a member via the row's × (class.unassign) in outline mode", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "agent");
     const pageId = await client.createObject({ nodeType: "page", name: "Ada Lovelace" });
@@ -167,7 +167,14 @@ describe("Class View", () => {
     fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
     await flushWrites();
 
+    // Table is the section default (owner rule): the member renders as a
+    // table row, and the unassign action lives in the outline mode.
+    expect(screen.getByRole("table")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Ada Lovelace" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    await flushWrites();
+
     // The × is labeled "Remove <member> from <class>"; the class-name suffix
     // rides the retired node.name field in ClassView (source bug), so match
     // the stable prefix only.

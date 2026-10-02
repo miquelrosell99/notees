@@ -28,11 +28,36 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
+import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
 import { BlockRow } from "./BlockRow.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
+import { NodeCollection, ViewToolbar } from "./views/index.js";
+import type { NodeCollectionItem, TableColumn, ViewMode } from "./views/index.js";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+
+/** The classed-nodes modes, in switcher order (table is the section default). */
+const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table"];
+
+/** The first bound single-select property with options — the kanban grouping. */
+function kanbanBindingFor(
+  client: WorkspaceClient | WorkerClient,
+  bindings: Array<{ propertySchemaId: string }>,
+): string | undefined {
+  const schemas = client.listPropertySchemas();
+  const binding = bindings.find((b) => {
+    const schema = schemas.find((s) => s.id === b.propertySchemaId);
+    return (
+      schema !== undefined &&
+      schema.type === "select" &&
+      schema.options !== null &&
+      schema.options.length > 0 &&
+      !schema.multi
+    );
+  });
+  return binding?.propertySchemaId;
+}
 
 /** Preset class-color swatches (the design system's accent scale). */
 const CLASS_COLORS = ["#b42318", "#b54708", "#067647", "#175cd3", "#6941c6", "#c11574", "#475467"];
@@ -153,6 +178,8 @@ export function ClassView({
     const timer = setTimeout(() => setExtendsError(null), 4000);
     return () => clearTimeout(timer);
   }, [extendsError]);
+  /** Classed-nodes view mode: session-local, table by default (owner rule). */
+  const [membersMode, setMembersMode] = useState<ViewMode>("table");
 
   const node = client.getNode(classId);
   if (node === undefined || node.nodeType !== "class") {
@@ -451,7 +478,11 @@ export function ClassView({
             <span className="nt-class-empty">No description.</span>
           ) : (
             <div className="nt-class-description-body">
-              <InlineTokens tokens={node.contentAst} resolveName={(id) => displayNameFromClient(client, id)} />
+              <InlineTokens
+                tokens={node.contentAst}
+                resolveName={(id) => displayNameFromClient(client, id)}
+                onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
+              />
             </div>
           )}
         </section>
@@ -462,31 +493,58 @@ export function ClassView({
             title="Classed nodes"
             load={() => client.getClassMembers(classId)}
             emptyText="No classed nodes."
-            renderResults={(members) => (
-              <ul className="nt-section-list">
-                {members.map((member) => {
-                  const label = displayNameForSettings(member) ?? member.id;
-                  return (
-                    <li key={member.id} className="nt-class-member">
-                      <button type="button" className="nt-section-item" onClick={() => openMember(member)}>
-                        <span className="nt-bullet" aria-hidden="true">
-                          •
-                        </span>
-                        <span>{label}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="nt-class-member-remove"
-                        aria-label={`Remove ${label} from ${displayNameForSettings(node) || "this class"}`}
-                        onClick={() => void client.unassignClass(member.id, classId)}
-                      >
-                        ×
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            renderResults={(members) => {
+              const memberItems: NodeCollectionItem[] = members.map((member) => ({ node: member }));
+              const memberColumns: TableColumn[] = [
+                { id: "name", kind: "name", label: "Name", sortable: true },
+                ...bindings.map((binding) => ({
+                  id: binding.propertySchemaId,
+                  kind: "property" as const,
+                  label: binding.name,
+                  propertySchemaId: binding.propertySchemaId,
+                  sortable: true,
+                })),
+                { id: "created", kind: "created", label: "Created", sortable: true },
+              ];
+              const unassignAction = (item: NodeCollectionItem) => (
+                <button
+                  type="button"
+                  className="nt-class-member-remove"
+                  aria-label={`Remove ${displayNameForSettings(item.node) || item.node.id} from ${displayNameForSettings(node) || "this class"}`}
+                  onClick={() => void client.unassignClass(item.node.id, classId)}
+                >
+                  ×
+                </button>
+              );
+              const kanbanProperty = kanbanBindingFor(client, bindings);
+              const modes: ViewMode[] =
+                kanbanProperty !== undefined
+                  ? ["outline", "cards", "kanban", "table"]
+                  : MEMBERS_VIEW_MODES;
+              return (
+                <>
+                  <ViewToolbar
+                    modes={modes}
+                    value={membersMode}
+                    onChange={setMembersMode}
+                  />
+                  <NodeCollection
+                    viewMode={membersMode}
+                    client={client}
+                    items={memberItems}
+                    tableColumns={memberColumns}
+                    propertiesOf={(id) => client.getEffectiveProperties(id)}
+                    tableEditable
+                    kanbanProperty={kanbanProperty}
+                    onNodeClick={(id) => {
+                      const member = client.getNode(id);
+                      if (member !== undefined) openMember(member);
+                    }}
+                    trailingAction={unassignAction}
+                  />
+                </>
+              );
+            }}
           />
         </div>
       </div>
