@@ -334,7 +334,7 @@ describe("link edit modal (external_link tokens)", () => {
     ]);
   });
 
-  it("Cancel closes without touching the token; the mode toggle keeps node/block as visible stubs", async () => {
+  it("Cancel closes without touching the token; the mode toggle switches to a live node picker", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ nodeType: "page", name: "Links" });
     const blockId = await client.createObject({
@@ -347,10 +347,11 @@ describe("link edit modal (external_link tokens)", () => {
     fireEvent.click(container.querySelector("a.nt-external-link")!);
     const dialog = screen.getByRole("dialog", { name: "Edit Link" });
 
-    // The Page/Block modes render the archived toggle; their pickers are
-    // honestly stubbed in this slice.
+    // The Page/Block modes render the archived toggle; the target section
+    // hosts the real node picker (an external link has no node destination).
     fireEvent.click(within(dialog).getByRole("radio", { name: "Page" }));
-    expect(within(dialog).getByText(/inserted with @ mentions/)).toBeInTheDocument();
+    expect(within(dialog).getByText("No target selected")).toBeInTheDocument();
+    expect(within(dialog).getByPlaceholderText("Search pages…")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("radio", { name: "URL" }));
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));

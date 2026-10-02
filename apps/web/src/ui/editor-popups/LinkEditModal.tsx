@@ -1,13 +1,14 @@
 /**
  * LinkEditModal — modal for editing inline link pills.
  *
- * Ported from the archived editor chrome. The archived modal edited three
- * link kinds (node / block / URL) through a shared NodeSelector; this app
- * slice wires external_link tokens, so URL mode is fully functional and the
- * node/block modes keep their toggle rows as visibly-honest stubs (a hint
- * instead of the missing node picker — @ mentions are this editor's
- * node-link surface). Enter inside the modal saves (capture phase, so it
- * beats button activation); Esc/backdrop close.
+ * Ported from the archived editor chrome, which edited three link kinds
+ * (node / block / URL) through a shared NodeSelector. Both node-ish kinds
+ * are wired here: the target section hosts the NodeSelector picker (Page =
+ * pages, Block = blocks) and the Display Label field sets an optional
+ * per-link `displayText` override (empty = resolve the target's name). URL
+ * mode authors external_link tokens. Enter inside the modal saves (capture
+ * phase, so it beats button activation) — except inside the embedded node
+ * picker, which owns Enter/Escape for its rows; Esc/backdrop close.
  *
  * The modal shell keeps the archived DOM (`.modal-backdrop` > card >
  * `.modal` > `.modal__header` / `.modal__content` / `.modal__footer`); the
@@ -15,8 +16,9 @@
  * LinkEditModal.css.
  *
  * LinkEditModalHost (below) renders the modal at the page level and exposes
- * an opener through context: the slash-command flow (BlockTextEditor) and
- * read-mode clicks on external-link chips (PageView) both land here.
+ * an opener through context: the slash-command flow (BlockTextEditor),
+ * read-mode clicks on external-link chips (PageView), and the block
+ * editor's node-link context menu all land here.
  */
 
 import {
@@ -31,12 +33,16 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { uuidv7 } from "uuidv7";
 
 import { spliceTokens } from "@/editor/edit-apply.js";
+import { withCandidateSpans } from "@/editor/capture.js";
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
+import { displayNameFromClient } from "../dateDisplay.js";
+import { NodeSelector } from "../components/pickers/NodeSelector.js";
 import "./LinkEditModal.css";
 
 export type LinkMode = "node" | "block" | "url";
@@ -46,6 +52,11 @@ export interface LinkEditResult {
   mode: LinkMode;
   /** URL string (url mode only). */
   url?: string;
+  /**
+   * Node/block modes: the newly picked target id — null when the user did
+   * not pick (a label-only edit of the current link).
+   */
+  nodeId?: string | null;
   /** Custom label (null to clear). */
   label: string | null;
 }
@@ -59,8 +70,14 @@ const LINK_MODE_OPTIONS = [
 interface LinkEditModalProps {
   /** Whether the modal is open. */
   isOpen: boolean;
+  /** Workspace client driving the embedded node picker. */
+  client: WorkspaceClient | WorkerClient;
   /** Current URL (for URL pills). */
-  currentUrl?: string;
+  currentUrl?: string | undefined;
+  /** Current link target (node/block modes) — pre-fills the destination line. */
+  currentNodeId?: string | null | undefined;
+  /** Node id the picker must not offer (the block being edited). */
+  excludeNodeId?: string | undefined;
   /** Current custom label (from the AST token's text). */
   currentLabel?: string | null;
   /** Modal title — defaults to "Edit Link". */
@@ -129,7 +146,10 @@ function ModeSelectionButton({
 
 export function LinkEditModal({
   isOpen,
+  client,
   currentUrl,
+  currentNodeId,
+  excludeNodeId,
   currentLabel,
   title = "Edit Link",
   initialMode = "url",
@@ -139,6 +159,8 @@ export function LinkEditModal({
   const [linkMode, setLinkMode] = useState<LinkMode>(initialMode);
   const [url, setUrl] = useState(currentUrl ?? "");
   const [label, setLabel] = useState(currentLabel ?? "");
+  /** Newly picked destination (node/block modes); null = keep the current target. */
+  const [pickedNode, setPickedNode] = useState<ClientNode | null>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -146,6 +168,7 @@ export function LinkEditModal({
       setLinkMode(initialMode);
       setUrl(currentUrl ?? "");
       setLabel(currentLabel ?? "");
+      setPickedNode(null);
     }
   }, [isOpen, currentLabel, currentUrl, initialMode]);
 
@@ -164,9 +187,9 @@ export function LinkEditModal({
         label: trimmedLabel || null,
       });
     } else {
-      onSave({ mode: linkMode, label: trimmedLabel || null });
+      onSave({ mode: linkMode, nodeId: pickedNode?.id ?? null, label: trimmedLabel || null });
     }
-  }, [linkMode, url, label, onSave]);
+  }, [linkMode, url, label, pickedNode, onSave]);
 
   // Escape closes from anywhere while the modal is open (the archived modal
   // delegated this to the global overlay stack).
@@ -193,6 +216,8 @@ export function LinkEditModal({
 
       const target = e.target as HTMLElement;
       if (!target.closest(".link-edit-modal")) return;
+      // The embedded node picker owns Enter (pick row) and Escape (close).
+      if (target.closest(".node-selector")) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -269,9 +294,26 @@ export function LinkEditModal({
                   autoComplete="off"
                 />
               ) : (
-                <div className="link-edit-modal__unavailable">
-                  Page and block link targets are inserted with @ mentions in this editor.
-                </div>
+                <>
+                  <div className="link-edit-modal__target" aria-live="polite">
+                    {pickedNode !== null
+                      ? displayNameFromClient(client, pickedNode.id) ?? pickedNode.id
+                      : currentNodeId !== null && currentNodeId !== undefined
+                        ? (displayNameFromClient(client, currentNodeId) ?? currentNodeId)
+                        : "No target selected"}
+                  </div>
+                  <NodeSelector
+                    client={client}
+                    trigger="inline"
+                    searchMode={linkMode === "block" ? "all" : "pages"}
+                    canAdd={(node) => linkMode !== "block" || node.nodeType === "block"}
+                    excludeNodeId={excludeNodeId}
+                    searchPlaceholder={
+                      linkMode === "block" ? "Search blocks…" : "Search pages…"
+                    }
+                    onAdd={(node) => setPickedNode(node)}
+                  />
+                </>
               )}
             </div>
 
@@ -307,18 +349,37 @@ export default LinkEditModal;
 
 // ─── Host + opener context ──────────────────────────────────────────
 
-/** A request to edit (or insert) an external_link token on a block. */
-export interface ExternalLinkTarget {
-  blockId: string;
-  /** Index of the external_link token inside contentAst (edit flow). */
-  tokenIndex: number | null;
-  /** Prose offset for inserting a new token (slash flow). */
-  insertAt: number | null;
-  initialUrl: string;
-  initialLabel: string;
-}
+/**
+ * A request to edit (or insert) a link token on a block.
+ *
+ * - `external` — an external_link token (URL mode).
+ * - `node`     — a mention token: retarget it and/or set an optional custom
+ *   label (`displayText`). `tokenIndex` identifies the token; `insertAt` is
+ *   reserved for future insert flows.
+ */
+export type LinkEditTarget =
+  | {
+      kind: "external";
+      blockId: string;
+      /** Index of the external_link token inside contentAst (edit flow). */
+      tokenIndex: number | null;
+      /** Prose offset for inserting a new token (slash flow). */
+      insertAt: number | null;
+      initialUrl: string;
+      initialLabel: string;
+    }
+  | {
+      kind: "node";
+      blockId: string;
+      /** Index of the mention token inside contentAst. */
+      tokenIndex: number;
+      insertAt: null;
+      /** Current target — pre-fills the destination line. */
+      initialNodeId: string;
+      initialLabel: string;
+    };
 
-export type LinkEditModalOpener = (target: ExternalLinkTarget) => void;
+export type LinkEditModalOpener = (target: LinkEditTarget) => void;
 
 const LinkEditModalContext = createContext<LinkEditModalOpener>(() => {});
 
@@ -330,7 +391,7 @@ export function useLinkEditModalOpener(): LinkEditModalOpener {
 /** Write (or insert) the external_link token a modal save produced. */
 function writeExternalLink(
   client: WorkspaceClient | WorkerClient,
-  target: ExternalLinkTarget,
+  target: LinkEditTarget & { kind: "external" },
   url: string,
   label: string | null,
 ): void {
@@ -347,6 +408,55 @@ function writeExternalLink(
   if (next !== null) void client.updateObject(target.blockId, { contentAst: next });
 }
 
+/**
+ * Rewrite the mention token a modal save produced. A picked node retargets
+ * the link (fresh `linkId` — the analytics join key follows the destination);
+ * a null nodeId keeps the target and applies the label change only. A set
+ * label becomes `displayText` (and the captured surface text); a cleared
+ * label resolves the target's current display name instead.
+ */
+function writeNodeLink(
+  client: WorkspaceClient | WorkerClient,
+  target: LinkEditTarget & { kind: "node" },
+  nodeId: string | null,
+  label: string | null,
+): void {
+  const node = client.getNode(target.blockId);
+  if (node === undefined) return;
+  const existing = node.contentAst[target.tokenIndex];
+  if (
+    typeof existing !== "object" ||
+    existing === null ||
+    (existing as { type?: unknown }).type !== "mention"
+  ) {
+    return;
+  }
+  const current = existing as {
+    targetNodeId: string;
+    text: string;
+    displayText?: string;
+    linkId?: string;
+  };
+  const targetNodeId = nodeId ?? current.targetNodeId;
+  const text =
+    label !== null && label !== ""
+      ? label
+      : (displayNameFromClient(client, targetNodeId) ?? current.text);
+  const token: Record<string, unknown> = { type: "mention", targetNodeId, text };
+  if (label !== null && label !== "") token.displayText = label;
+  if (nodeId === null) {
+    if (current.linkId !== undefined) token.linkId = current.linkId;
+  } else {
+    token.linkId = uuidv7();
+  }
+  if (JSON.stringify(token) !== JSON.stringify({ ...current, displayText: current.displayText })) {
+    const next = withCandidateSpans(
+      node.contentAst.map((t, i) => (i === target.tokenIndex ? token : t)),
+    ) as typeof node.contentAst;
+    void client.updateObject(target.blockId, { contentAst: next });
+  }
+}
+
 /** Renders the modal at the page level; children open it via context. */
 export function LinkEditModalHost({
   client,
@@ -361,7 +471,7 @@ export function LinkEditModalHost({
    */
   openerRef?: RefObject<LinkEditModalOpener | null>;
 }) {
-  const [target, setTarget] = useState<ExternalLinkTarget | null>(null);
+  const [target, setTarget] = useState<LinkEditTarget | null>(null);
 
   const open = useCallback<LinkEditModalOpener>((t) => setTarget(t), []);
   useEffect(() => {
@@ -371,9 +481,14 @@ export function LinkEditModalHost({
 
   const handleSave = useCallback(
     (result: LinkEditResult) => {
-      // An empty URL is an honest no-op (no token written).
-      if (target !== null && result.url !== undefined && result.url.trim() !== "") {
-        writeExternalLink(client, target, result.url.trim(), result.label);
+      if (target === null) return;
+      if (target.kind === "external") {
+        // An empty URL is an honest no-op (no token written).
+        if (result.url !== undefined && result.url.trim() !== "") {
+          writeExternalLink(client, target, result.url.trim(), result.label);
+        }
+      } else {
+        writeNodeLink(client, target, result.nodeId ?? null, result.label);
       }
       setTarget(null);
     },
@@ -386,8 +501,18 @@ export function LinkEditModalHost({
       {target !== null && (
         <LinkEditModal
           isOpen
-          currentUrl={target.initialUrl}
+          client={client}
+          currentUrl={target.kind === "external" ? target.initialUrl : undefined}
+          currentNodeId={target.kind === "node" ? target.initialNodeId : null}
+          excludeNodeId={target.blockId}
           currentLabel={target.initialLabel}
+          initialMode={
+            target.kind === "external"
+              ? "url"
+              : client.getNode(target.initialNodeId)?.nodeType === "block"
+                ? "block"
+                : "node"
+          }
           onSave={handleSave}
           onClose={close}
         />

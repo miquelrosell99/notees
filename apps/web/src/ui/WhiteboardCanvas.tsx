@@ -60,6 +60,7 @@ import type {
 
 import { displayNameFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
+import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { SAVE_DEBOUNCE_MS } from "./BlockTextEditor.js";
 import {
   layoutFromContentAst,
@@ -666,7 +667,11 @@ export function WhiteboardCanvas({
                   {editingCardId === card.id ? (
                     <CardTextEditor node={card} client={client} onExit={() => setEditingCardId(null)} />
                   ) : (
-                    <InlineTokens tokens={card.contentAst} resolveName={resolveName} />
+                    <InlineTokens
+                      tokens={card.contentAst}
+                      resolveName={resolveName}
+                      onMentionMenu={(info) => openNodeLinkMenu({ blockId: card.id, ...info })}
+                    />
                   )}
                 </div>
               </div>

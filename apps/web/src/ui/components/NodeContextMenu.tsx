@@ -16,6 +16,9 @@ import { useState } from "react";
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
+import { nodeLinkUrl } from "../nodeLink.js";
+import { copyToClipboard } from "./modals/clipboard.js";
+import { notificationStore } from "./ui/notificationStore.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 
@@ -97,8 +100,10 @@ export function NodeContextMenu({
       label: "Copy link",
       icon: "mdi-link-variant",
       onClick: () => {
-        const url = `${window.location.origin}/${node.id}`;
-        void navigator.clipboard?.writeText(url).catch(() => undefined);
+        copyToClipboard(nodeLinkUrl(node.id)).then(
+          () => notificationStore.success("Node link copied", name),
+          () => notificationStore.error("Couldn't copy", "Clipboard access was denied."),
+        );
       },
     },
   ];
