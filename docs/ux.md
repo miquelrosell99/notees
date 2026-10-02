@@ -21,17 +21,17 @@ M1 alpha honesty, up front — every feature below is labeled:
 | Sources as containers (files via `attachments`, notes as child blocks) | **Today** (picker + upload in the properties panel) |
 | Class-property defaults (derived read model, first-applied-wins) | **Today** (bindings editor + effective-properties API) |
 
-## Views follow node_type
+## Views follow the render state
 
-View resolution is a pure function of one column — `node_type ∈ {page, block, class}` decides what you see. There is no per-node view setting that could drift from what the node is ([philosophy.md](philosophy.md) on why that matters).
+View resolution is a pure function of two booleans and one edge — `is_class` (identity) × `parent_id` (placement) × `present_as_main` (render bit) decides what you see. There is no per-node view setting that could drift from what the node is ([philosophy.md](philosophy.md) on why that matters).
 
-- **`page` → Page View.** Header (icon, name), then the body block list, then system sections. A page's *content is its bullet tree* — there is no separate document body.
-- **`block` → Focused Block View.** A block zoomed to center stage: its content, its children, its backlinks, its properties. The outliner's "zoom into a bullet" from Logseq, generalized to any node.
-- **`class` → Class View.** Page chrome plus configuration: the property-bindings editor, the `extends`/inheritance section, the classed-nodes section (the members — the Meetings pattern: content *about* instances lives in topic pages; the class page shows config + members), a template slot, and a description shelf documenting the config itself.
+- **`page` → Page View.** A node presents as a page when it has no parent or when its render bit is set: header (icon, title), then the body block list, then system sections. A page's *content is its bullet tree* — there is no separate document body.
+- **`block` → inline body, zoomable to Focused Block View.** A parented node with the render bit unset renders inline in its parent's body with block chrome; zoomed to center stage it is its content, its children, its backlinks, its properties — the outliner's "zoom into a bullet" from Logseq, generalized to any node.
+- **`class` → Class View.** A node marked as a class (always a root) gets page chrome plus configuration: the property-bindings editor, the `extends`/inheritance section, the classed-nodes section (the members — the Meetings pattern: content *about* instances lives in topic pages; the class page shows config + members), a template slot, and a description shelf documenting the config itself.
 
-Two placement rules complete the picture. **Nested pages keep `node_type='page'`** — a child page opens in Page View and renders in its parent's dedicated **Child pages** section, never inline in the parent's body. And class nodes are tree-external by construction: a class can never be a parent or a child, enforced by schema and by a fail-loud move-guard.
+Two placement rules complete the picture. **Nested pages have the render bit set** — a child page opens in Page View and renders in its parent's dedicated **Child pages** (main-children) zone, never inline in the parent's body. And class nodes are always roots by construction — `is_class` implies no parent, enforced by a schema CHECK and a fail-loud move-guard. Classes may themselves have non-class children; the one tree rule left is that a class can never be a child.
 
-**Today:** the web app renders Page View (interactive) and Class View (view resolution is `f(node_type)`); a block is reached by zooming its page, and the class catalog is inspectable via `notees class list` and `GET /api/classes` ([usage.md](usage.md)). Focused Block View as a standalone chrome remains designed.
+**Today:** the web app renders Page View (interactive) and Class View (view resolution is the `is_class`/`parent_id`/`present_as_main` cascade); a block is reached by zooming its page, and the class catalog is inspectable via `notees class list` and `GET /api/classes` ([usage.md](usage.md)). Focused Block View as a standalone chrome remains designed.
 
 ## The outliner
 
@@ -101,7 +101,7 @@ A whiteboard is a node classed `whiteboard`; the `whiteboard` content token carr
 - **Dragging a card is a layout update** — debounced and coalesced into ordinary content ops. No per-mousemove op spam, no new sync primitive.
 - **One node, three views.** The same children render spatially (the whiteboard), as an outline (the outliner), or focused (Focused Block View) — because they are the same nodes.
 
-A whiteboard can live fullscreen (`node_type='page'`) or embedded as a child block of any block. Its cards index into search and the graph naturally — no separate "whiteboard content" that search can't see.
+A whiteboard can live fullscreen (a parentless node) or embedded as an inline child of any block. Its cards index into search and the graph naturally — no separate "whiteboard content" that search can't see.
 
 **Today:** the `whiteboard` class is seeded in the catalog, the token is part of the normative grammar, and the web renderer shows a labeled placeholder where a whiteboard will render. The spatial canvas is designed.
 
@@ -111,11 +111,11 @@ A bullet's prominence is soft state — one op flips it, and identity is preserv
 
 - **Block → page:** a bullet that outgrew its parent becomes a page in place. Same node, same id, every link intact; recents, search ranking, and the link dropdown pick it up automatically because they rank pages first — no re-filing, no copy.
 - **Page → block:** demote a page back into the flow of another note; same in-place flip.
-- **Declare a class:** set `node_type='class'` on a node. It leaves the content tree (tree-external by schema), gains the Class View and configuration; undeclaring returns it to an ordinary note with inert config. Declaration-first: create classes, configure them, use them later or never.
+- **Declare a class:** create the node with the class identity (`notees object create --isClass` — a `class.create` op under the hood). The node becomes a root, leaves the content tree, and gains the Class View and configuration. Declaration-first: create classes, configure them, use them later or never.
 
-The canonical story: a `meeting`-classed bullet in a daily note sits quietly for months. When it starts to matter, promote it — flip `node_type` to `page`, optionally nest it under the company page. Same node, same id, all links intact.
+The canonical story: a `meeting`-classed bullet in a daily note sits quietly for months. When it starts to matter, promote it — set its render bit (`--presentAsMain`), optionally nest it under the company page. Same node, same id, all links intact.
 
-**Today:** the flip is real and works from the CLI and object API (`notees object update <id> --nodeType page` — verified in [usage.md](usage.md#a-real-session)). The in-editor gesture, recents/dropdown re-ranking, and the class-declaration flow are designed.
+**Today:** the flip is real and works from the CLI and object API (`notees object update <id> --presentAsMain` — see [usage.md](usage.md#a-real-session)). The in-editor gesture, recents/dropdown re-ranking, and the class-declaration flow are designed.
 
 ---
 
