@@ -284,6 +284,13 @@ export interface CreateObjectInput {
   contentAst?: ContentAst;
   classIds?: string[];
   tagIds?: string[];
+  /**
+   * Initial sibling placement in the parent's fractional child order
+   * (object.create / object.move payload): place next to that current
+   * sibling; omit both to append at the end.
+   */
+  afterId?: string;
+  beforeId?: string;
 }
 
 export interface UpdateObjectInput {
@@ -1330,6 +1337,8 @@ export class WorkspaceClient {
     if (initialText !== undefined) payload.contentAst = initialText;
     if (partial.contentAst !== undefined) payload.contentAst = partial.contentAst;
     if (partial.parentId !== undefined) payload.parentId = partial.parentId;
+    if (partial.afterId !== undefined) payload.afterId = partial.afterId;
+    if (partial.beforeId !== undefined) payload.beforeId = partial.beforeId;
     engine.enqueue(this.buildEnvelope("object.create", payload, [id]));
     this.notify();
     this.kickPush();
@@ -1370,10 +1379,16 @@ export class WorkspaceClient {
    * after that sibling in the parent's child order (Enter placement); omit it
    * to append at the end (Tab indent). Applied locally, push kicked off.
    */
-  async moveObject(id: string, parentId: string | null, afterId?: string): Promise<void> {
+  async moveObject(
+    id: string,
+    parentId: string | null,
+    afterId?: string,
+    beforeId?: string,
+  ): Promise<void> {
     const engine = this.requireEngine();
     const payload: Record<string, unknown> = { objectId: id, parentId };
     if (afterId !== undefined) payload.afterId = afterId;
+    if (beforeId !== undefined) payload.beforeId = beforeId;
     engine.enqueue(this.buildEnvelope("object.move", payload, [id]));
     this.notify();
     this.kickPush();
