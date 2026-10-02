@@ -99,19 +99,16 @@ async function seedClient(): Promise<WorkspaceClient> {
 
 /** Page with three root blocks "one"/"two"/"three", in creation order. */
 async function seedThreeBlocks(client: WorkspaceClient): Promise<{ pageId: string; ids: [string, string, string] }> {
-  const pageId = await client.createObject({ nodeType: "page", name: "DnD" });
+  const pageId = await client.createObject({ presentAsMain: true, name: "DnD" });
   const one = await client.createObject({
-    nodeType: "block",
     parentId: pageId,
     contentAst: [{ type: "text", text: "one" }],
   });
   const two = await client.createObject({
-    nodeType: "block",
     parentId: pageId,
     contentAst: [{ type: "text", text: "two" }],
   });
   const three = await client.createObject({
-    nodeType: "block",
     parentId: pageId,
     contentAst: [{ type: "text", text: "three" }],
   });
@@ -247,14 +244,12 @@ describe("block drag-and-drop", () => {
 
   it("refuses a drop into the block's own subtree: banner, no move issued", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Cycle" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Cycle" });
     const parent = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
     });
     const child = await client.createObject({
-      nodeType: "block",
       parentId: parent,
       contentAst: [{ type: "text", text: "child" }],
     });

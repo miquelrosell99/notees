@@ -81,14 +81,12 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     expect(clientB.listPages()).toEqual([]);
 
     // A creates a page, a plain block, and a block mentioning the page.
-    const pageId = await clientA.createObject({ nodeType: "page", name: "Hello Page" });
+    const pageId = await clientA.createObject({ presentAsMain: true, name: "Hello Page" });
     const blockId = await clientA.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "World", marks: ["bold"] }],
     });
     const mentionBlockId = await clientA.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Hello Page" }],
     });
@@ -125,9 +123,8 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await clientA.bootstrapWorkspace(WS);
     await clientB.bootstrapWorkspace(WS);
 
-    const pageId = await clientA.createObject({ nodeType: "page", name: "Rename Me" });
+    const pageId = await clientA.createObject({ presentAsMain: true, name: "Rename Me" });
     await clientA.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "before" }],
     });
@@ -166,7 +163,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await clientB.bootstrapWorkspace(WS);
 
     // B creates a page and delivers it to A.
-    const pageId = await clientB.createObject({ nodeType: "page", name: "Conflict Page" });
+    const pageId = await clientB.createObject({ presentAsMain: true, name: "Conflict Page" });
     await clientB.push();
     await clientA.pull();
     expect(clientA.getPage(pageId)).toBeDefined();
@@ -204,9 +201,8 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
 
     // The FTS index covers content plaintext — page titles live in their
     // content, so a title search matches the page node's own text.
-    const pageId = await client.createObject({ nodeType: "page", name: "Search Page" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Search Page" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "Findable needle" }],
     });

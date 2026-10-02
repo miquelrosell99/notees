@@ -73,7 +73,7 @@ function proseToDom(
   for (let n = el.firstChild; n !== null; n = n.nextSibling) {
     const len = n.textContent?.length ?? 0;
     if (acc + len >= offset || n.nextSibling === null) {
-      if (n.nodeType === Node.TEXT_NODE) {
+      if (n instanceof Text) {
         return { node: n, offset: Math.max(0, Math.min(offset - acc, len)) };
       }
       // Pill element: at/inside its start → before it; otherwise after it.

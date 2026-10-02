@@ -123,10 +123,9 @@ function pickerRows(): HTMLElement[] {
 describe("capture: @ mention", () => {
   it("typing @ opens the picker; typing in its search box filters; Enter inserts a mention token", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const targetId = await client.createObject({ nodeType: "page", name: "Target" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "see " }],
     });
@@ -159,10 +158,9 @@ describe("capture: @ mention", () => {
 
   it("creates a backlinks edge to the target (mention edge, record-don't-resolve)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const targetId = await client.createObject({ nodeType: "page", name: "Target" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
     });
@@ -179,10 +177,9 @@ describe("capture: @ mention", () => {
 
   it("ArrowDown/ArrowUp move the selection before Enter picks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const alphaId = await client.createObject({ nodeType: "page", name: "Alpha" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const alphaId = await client.createObject({ presentAsMain: true, name: "Alpha" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
     });
@@ -205,9 +202,8 @@ describe("capture: @ mention", () => {
 
   it("Esc closes the picker leaving the trigger char; Enter on the create row links a new page", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
     });
@@ -243,9 +239,8 @@ describe("capture: @ mention", () => {
 describe("capture: # tag (auto-create + assign) and + class picker", () => {
   it("# auto-creates a missing tag page on Enter and assigns it to the node", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
     });
@@ -271,10 +266,9 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 
   it("# on an existing page assigns the tag without duplicating", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const tagId = await client.createObject({ nodeType: "page", name: "Project" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const tagId = await client.createObject({ presentAsMain: true, name: "Project" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [],
       tagIds: [tagId],
@@ -302,10 +296,9 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 
   it("+ assigns an existing class; no-match Enter creates the class and assigns it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const classId = await client.createObject({ nodeType: "class", name: "Project" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const classId = await client.createClass("Project");
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [],
     });
@@ -336,9 +329,8 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 describe("capture: verb-on-selection typed link", () => {
   it("Cmd+K opens the popover; commit wraps the selection in a typed_link with verb + locator", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
     });
@@ -372,9 +364,8 @@ describe("capture: verb-on-selection typed link", () => {
 
   it("the floating toolbar verb button opens the same popover; Esc cancels without changes", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
     });
@@ -455,10 +446,9 @@ describe("candidateSpans (record-don't-resolve)", () => {
 describe("capture tokens survive editing", () => {
   it("a mention inserted via @ survives a subsequent text edit", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const targetId = await client.createObject({ nodeType: "page", name: "Target" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "see " }],
     });

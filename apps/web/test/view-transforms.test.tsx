@@ -43,24 +43,20 @@ async function seedClient(): Promise<WorkspaceClient> {
 
 /** Page with a childless root block and a root block holding a two-level subtree. */
 async function seedTreePage(client: WorkspaceClient): Promise<string> {
-  const pageId = await client.createObject({ nodeType: "page", name: "Transforms" });
+  const pageId = await client.createObject({ presentAsMain: true, name: "Transforms" });
   await client.createObject({
-    nodeType: "block",
     parentId: pageId,
     contentAst: [{ type: "text", text: "leaf root" }],
   });
   const parent = await client.createObject({
-    nodeType: "block",
     parentId: pageId,
     contentAst: [{ type: "text", text: "parent" }],
   });
   const child = await client.createObject({
-    nodeType: "block",
     parentId: parent,
     contentAst: [{ type: "text", text: "nested child" }],
   });
   await client.createObject({
-    nodeType: "block",
     parentId: child,
     contentAst: [{ type: "text", text: "grandchild" }],
   });

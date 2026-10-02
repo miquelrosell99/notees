@@ -114,9 +114,8 @@ const childIds = (client: WorkspaceClient, parentId: string) =>
 describe("outliner keys", () => {
   it("Enter mid-text splits the block; the tail lands in a new sibling right after", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Split" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Split" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
     });
@@ -134,14 +133,12 @@ describe("outliner keys", () => {
 
   it("Enter at the start creates a new empty block BEFORE this one", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Before" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Before" });
     const aId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "A" }],
     });
     const bId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "B" }],
     });
@@ -161,9 +158,8 @@ describe("outliner keys", () => {
 
   it("Enter before the FIRST child uses the before-first placement", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "First" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "First" });
     const aId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "A" }],
     });
@@ -181,14 +177,12 @@ describe("outliner keys", () => {
 
   it("Enter at the end of a block with children creates a new FIRST CHILD", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Child" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Child" });
     const parentBlock = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
     });
     const kid = await client.createObject({
-      nodeType: "block",
       parentId: parentBlock,
       contentAst: [{ type: "text", text: "kid" }],
     });
@@ -206,14 +200,12 @@ describe("outliner keys", () => {
 
   it("Backspace at the start of text merges into the previous sibling (guard passes)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Merge" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Merge" });
     const aId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "first" }],
     });
     const bId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "second" }],
     });
@@ -229,15 +221,13 @@ describe("outliner keys", () => {
 
   it("Backspace at the start is a no-op when the guard fails (previous has children)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Guard" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Guard" });
     const aId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "A" }],
     });
-    await client.createObject({ nodeType: "block", parentId: aId, contentAst: [{ type: "text", text: "child" }] });
+    await client.createObject({ parentId: aId, contentAst: [{ type: "text", text: "child" }] });
     const bId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "B" }],
     });
@@ -253,14 +243,13 @@ describe("outliner keys", () => {
 
   it("Backspace on an empty block with children promotes them, then deletes", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Promote" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Promote" });
     const holder = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [],
     });
-    const k1 = await client.createObject({ nodeType: "block", parentId: holder, contentAst: [{ type: "text", text: "k1" }] });
-    const k2 = await client.createObject({ nodeType: "block", parentId: holder, contentAst: [{ type: "text", text: "k2" }] });
+    const k1 = await client.createObject({ parentId: holder, contentAst: [{ type: "text", text: "k1" }] });
+    const k2 = await client.createObject({ parentId: holder, contentAst: [{ type: "text", text: "k2" }] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container, 0);
     keyDown(editor, "Backspace");
@@ -272,14 +261,12 @@ describe("outliner keys", () => {
 
   it("Delete at the end merges a childless next sibling into this block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "DelMerge" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "DelMerge" });
     const aId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "one" }],
     });
     const bId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "two" }],
     });
@@ -295,11 +282,11 @@ describe("outliner keys", () => {
 
   it("Shift+Tab (logical, default) outdents and drags subsequent siblings under the block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Logical" });
-    const cat = await client.createObject({ nodeType: "block", parentId: pageId, contentAst: [{ type: "text", text: "cat" }] });
-    const a = await client.createObject({ nodeType: "block", parentId: cat, contentAst: [{ type: "text", text: "a" }] });
-    const b = await client.createObject({ nodeType: "block", parentId: cat, contentAst: [{ type: "text", text: "b" }] });
-    const c = await client.createObject({ nodeType: "block", parentId: cat, contentAst: [{ type: "text", text: "c" }] });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Logical" });
+    const cat = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "cat" }] });
+    const a = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "a" }] });
+    const b = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "b" }] });
+    const c = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "c" }] });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container, 1); // block "a"
@@ -314,10 +301,10 @@ describe("outliner keys", () => {
   it("Shift+Tab (direct) moves only the block", async () => {
     const client = await seedClient();
     writeDeviceSetting("treeEditMode", "direct");
-    const pageId = await client.createObject({ nodeType: "page", name: "Direct" });
-    const cat = await client.createObject({ nodeType: "block", parentId: pageId, contentAst: [{ type: "text", text: "cat" }] });
-    const a = await client.createObject({ nodeType: "block", parentId: cat, contentAst: [{ type: "text", text: "a" }] });
-    const b = await client.createObject({ nodeType: "block", parentId: cat, contentAst: [{ type: "text", text: "b" }] });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Direct" });
+    const cat = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "cat" }] });
+    const a = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "a" }] });
+    const b = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "b" }] });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container, 1); // block "a"

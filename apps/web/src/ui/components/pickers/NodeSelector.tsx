@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { chainNodeIds } from "@notees/domain";
+import { chainNodeIds, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { ClientNode, CreateObjectInput } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
@@ -258,7 +258,7 @@ export function NodeSelector({
       return client.createClass(name);
     }
     return client.createObject({
-      nodeType: "page",
+      presentAsMain: true,
       name,
       ...(classFilters !== undefined && classFilters.length > 0
         ? { classIds: classFilters }
@@ -350,7 +350,7 @@ export function NodeSelector({
     }
     const hits = q === "" ? [] : client.search(searchQuery.trim());
     const filtered = hits.filter((node) => {
-      if (searchMode === "pages" && node.nodeType !== "page") return false;
+      if (searchMode === "pages" && !rendersWithDocumentChrome(node)) return false;
       if (classFilters !== undefined && classFilters.length > 0) {
         if (!node.classIds.some((id) => classFilters.includes(id))) return false;
       }
@@ -478,7 +478,7 @@ export function NodeSelector({
     isOpen: isNavActive,
   });
 
-  // Build parent page path (e.g. "Root / Parent /") for a page node.
+  // Build parent page path (e.g. "Root / Parent /") for a document-chrome node.
   const buildParentPath = (node: ClientNode): string => {
     if (node.parentId === null) return "";
     const segments: string[] = [];
@@ -486,7 +486,7 @@ export function NodeSelector({
     let guard = 0;
     while (currentId !== null && guard < 64) {
       const parent: ClientNode | undefined = client.getNode(currentId);
-      if (!parent || parent.nodeType !== "page") break;
+      if (!parent || !rendersWithDocumentChrome(parent)) break;
       segments.unshift(displayNameForSettings(parent) || "Untitled");
       currentId = parent.parentId;
       guard += 1;
@@ -542,7 +542,7 @@ export function NodeSelector({
           <NodeResultItem
             key={node.id}
             node={node}
-            parentPath={node.nodeType === "page" ? buildParentPath(node) : ""}
+            parentPath={rendersWithDocumentChrome(node) ? buildParentPath(node) : ""}
             displayClasses={getDisplayClasses(node)}
             isHighlighted={globalIndex === selectedIndex}
             isSelected={assignedIds.has(node.id)}

@@ -144,14 +144,14 @@ async function flushWrites(): Promise<void> {
 }
 
 async function createSource(client: WorkspaceClient, name: string): Promise<string> {
-  const id = await client.createObject({ nodeType: "page", name });
+  const id = await client.createObject({ presentAsMain: true, name });
   await client.assignClass(id, SOURCE_CLASS);
   return id;
 }
 
 /** An asset node carrying node_asset metadata: the chip label + annotate affordance. */
 async function makeAsset(client: WorkspaceClient, originalName: string): Promise<string> {
-  const id = await client.createObject({ nodeType: "page", name: `${originalName} node`, classIds: [ASSET_CLASS] });
+  const id = await client.createObject({ presentAsMain: true, name: `${originalName} node`, classIds: [ASSET_CLASS] });
   await client.attachAsset(id, {
     assetId: originalName === "a.pdf" ? ASSET_ID_A : ASSET_ID_B,
     hash: originalName === "a.pdf" ? HASH_A : HASH_B,

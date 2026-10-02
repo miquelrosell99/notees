@@ -67,15 +67,13 @@ const OK_STATUS: SyncStatusSnapshot = {
 describe("ExportPageModal", () => {
   it("previews the subtree markdown from the local export engine", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Trip" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
     await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "Book flights" }],
     });
-    const childId = await client.createObject({ nodeType: "page", name: "Packing", parentId: pageId });
+    const childId = await client.createObject({ presentAsMain: true, name: "Packing", parentId: pageId });
     await client.createObject({
-      nodeType: "block",
       parentId: childId,
       contentAst: [{ type: "text", text: "Sunscreen" }],
     });
@@ -102,10 +100,9 @@ describe("ExportPageModal", () => {
 
   it("honors the Include child pages toggle", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Trip" });
-    const childId = await client.createObject({ nodeType: "page", name: "Packing", parentId: pageId });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const childId = await client.createObject({ presentAsMain: true, name: "Packing", parentId: pageId });
     await client.createObject({
-      nodeType: "block",
       parentId: childId,
       contentAst: [{ type: "text", text: "Sunscreen" }],
     });
@@ -133,7 +130,7 @@ describe("ExportPageModal", () => {
 
   it("downloads the markdown file on Download", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Trip" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
 
     const createObjectUrl = vi.fn(() => "blob:mock");
     const revokeObjectUrl = vi.fn();
@@ -160,7 +157,7 @@ describe("ExportPageModal", () => {
 
   it("states honestly that service-dependent formats are unavailable", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Trip" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
 
     render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
 
@@ -236,7 +233,7 @@ describe("CreatePageWithUuidModal", () => {
   it("refuses a UUID that already exists", async () => {
     const client = await makeClient();
     const fixed = "550e8400-e29b-41d4-a716-446655440000";
-    await client.createObject({ id: fixed, nodeType: "page", name: "Taken" });
+    await client.createObject({ id: fixed, presentAsMain: true, name: "Taken" });
 
     render(<CreatePageWithUuidModal isOpen={true} onClose={() => {}} client={client} onSuccess={() => {}} />);
 
@@ -253,7 +250,7 @@ describe("CreatePageWithUuidModal", () => {
 describe("QuickAddModal", () => {
   it("captures blocks into the Inbox page", async () => {
     const client = await makeClient();
-    const inboxId = await client.createObject({ nodeType: "page", name: "Inbox" });
+    const inboxId = await client.createObject({ presentAsMain: true, name: "Inbox" });
 
     render(<QuickAddModal isOpen={true} onClose={() => {}} client={client} />);
 

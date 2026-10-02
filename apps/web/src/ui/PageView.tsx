@@ -40,6 +40,7 @@ import {
   DropLineContext,
   blockCollisionDetection,
   dropLineFromDragEvent,
+  dropZoneOf,
   executeMove,
   executeMoveFromClient,
   moveErrorMessage,
@@ -202,9 +203,10 @@ export function PageView({
   /** The same tree in the view system's input shape (session view state). */
   const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);
 
-  // Fullscreen whiteboard (SCHEMA.md: a whiteboard page is node_type='page'
-  // with a `whiteboard` content token): the spatial canvas renders IN PLACE
-  // OF the outline tree — the children are the cards.
+  // Fullscreen whiteboard (SCHEMA.md: a whiteboard page carries a
+  // `whiteboard` content token — the whiteboard CLASS, not any node kind,
+  // says so): the spatial canvas renders IN PLACE OF the outline tree — the
+  // children are the cards.
   const whiteboardTokenIndex = page?.contentAst.findIndex(
     (token) =>
       typeof token === "object" && token !== null &&
@@ -212,7 +214,7 @@ export function PageView({
   ) ?? -1;
 
   const outliner = useOutlinerValue(client, pageId, {
-    // f(node_type) navigation for query result lists (App routes the id).
+    // Render-cascade navigation for query result lists (App routes the id).
     openNode: (id) => onOpenPage?.(id),
     openInSidebar: (id) => onOpenInSidebar?.(id),
   });
@@ -251,7 +253,8 @@ export function PageView({
     let crossTree = false;
     if (resolution.status === "noop" && positions.get(line.targetId) === undefined) {
       // The target row lives outside the page's own tree (a linked
-      // reference / embed): resolve the drop straight from the client.
+      // reference / embed / a main-children section row): resolve the drop
+      // straight from the client.
       resolution = resolveMoveFromClient({ activeId, line, client });
       crossTree = resolution.status === "move";
     }
@@ -271,6 +274,15 @@ export function PageView({
         } else {
           await executeMove({ activeId, command: resolution.command, positions, moveObject });
         }
+        // Zone-aware render bit: a drop anchored on a main-children row
+        // promotes the dragged node into the Pages zone; a body-anchored
+        // drop demotes it into the inline body. Only the flip issues an
+        // update (matching the zone the node already has is a pure move).
+        const zone = dropZoneOf(line, (id) => client.getNode(id));
+        const dragged = client.getNode(activeId);
+        if (dragged !== undefined && dragged.presentAsMain !== (zone === "main")) {
+          await client.updateObject(activeId, { presentAsMain: zone === "main" });
+        }
       } catch (err) {
         setMoveError(moveErrorMessage(err));
       }
@@ -288,7 +300,6 @@ export function PageView({
 
   const addFirstBlock = async () => {
     const id = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [],
     });
@@ -381,7 +392,10 @@ export function PageView({
         <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
         <div className="nt-metadata-divider" />
         {whiteboardTokenIndex >= 0 ? (
-          <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
+          <>
+            <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
+            <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+          </>
         ) : (
           <>
             <div className="nt-blocks-bar">
@@ -392,31 +406,36 @@ export function PageView({
               />
             </div>
             <EmbedBoundary rootId={pageId}>
-          <DndContext
-            sensors={sensors}
-collisionDetection={blockCollisionDetection}
-            onDragStart={handleDragStart}
-            onDragMove={handleDragMove}
-            onDragEnd={handleDragEnd}
-            onDragCancel={handleDragCancel}
-          >
-            <DropLineContext.Provider value={dropLine}>
-              <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
-                <NodeCollection
-                  viewMode={blocksMode}
-                  client={client}
-                  items={blockItems}
-                  tree
-                  editable
-                  onNodeClick={(id) => onOpenPage?.(id)}
-                  onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
-                />
-              </SortableContext>
-            </DropLineContext.Provider>
-            <DragOverlay dropAnimation={null}>
-              {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
-            </DragOverlay>
-          </DndContext>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={blockCollisionDetection}
+                onDragStart={handleDragStart}
+                onDragMove={handleDragMove}
+                onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
+              >
+                <DropLineContext.Provider value={dropLine}>
+                  <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+                    <NodeCollection
+                      viewMode={blocksMode}
+                      client={client}
+                      items={blockItems}
+                      tree
+                      editable
+                      onNodeClick={(id) => onOpenPage?.(id)}
+                      onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
+                    />
+                  </SortableContext>
+                  {/* The system sections join the same drag context: the Child
+                      pages section's read-only rows are droppable (zone-aware —
+                      a drop anchored on a main child promotes into the Pages
+                      zone, see handleDragEnd). */}
+                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+                </DropLineContext.Provider>
+                <DragOverlay dropAnimation={null}>
+                  {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
+                </DragOverlay>
+              </DndContext>
             </EmbedBoundary>
             {tree.length === 0 && (
               <button type="button" className="nt-add-block" onClick={() => void addFirstBlock()}>
@@ -425,7 +444,6 @@ collisionDetection={blockCollisionDetection}
             )}
           </>
         )}
-        <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
         </div>
         <NodeContextMenu
           state={

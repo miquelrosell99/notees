@@ -25,7 +25,7 @@ type AnyClient = WorkspaceClient | WorkerClient;
 /** Cycle-protection depth cap for the recursive page tree. */
 const PAGE_TREE_DEPTH_CAP = 64;
 
-/** A page node plus its child PAGES (blocks filtered out), recursive. */
+/** A main node plus its main CHILDREN (inline body blocks filtered out), recursive. */
 function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_DEPTH_CAP): NodeCollectionItem {
   return {
     node,
@@ -34,7 +34,7 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
         ? []
         : client
             .getChildren(node.id)
-            .filter((child) => child.nodeType === "page")
+            .filter((child) => !child.isClass && child.presentAsMain)
             .map((child) => pageTreeOf(client, child, remaining - 1)),
   };
 }

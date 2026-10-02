@@ -1,5 +1,6 @@
 /**
- * Class View tests: view resolution f(node_type), class chrome (name/icon/
+ * Class View tests: render-cascade view resolution (class → Class View,
+ * document chrome → Page View), class chrome (name/icon/
  * color), extends editing (class.setExtends m2m), read-only property bindings
  * (seed-derived), the description shelf, and the lazy classed-nodes section.
  * jsdom environment over the in-process WorkspaceClient + MemoryRelay.
@@ -63,7 +64,7 @@ describe("Class View", () => {
   it("resolves views by node type: class → Class View, page → Page View", async () => {
     const client = await seedClient();
     const classId = await client.createClass("source");
-    const pageId = await client.createObject({ nodeType: "page", name: "A Page" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "A Page" });
 
     const classRender = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     // Class chrome, not the block tree.
@@ -144,7 +145,7 @@ describe("Class View", () => {
   it("lists a classed node after expand and navigates to its page", async () => {
     const client = await seedClient();
     const classId = await client.createClass("agent");
-    const pageId = await client.createObject({ nodeType: "page", name: "Ada Lovelace" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
     const onOpenNode = vi.fn();
     render(<ClassView client={client} classId={classId} onOpenPage={onOpenNode} />);
@@ -160,7 +161,7 @@ describe("Class View", () => {
   it("removes a member via the row's × (class.unassign) in outline mode", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "agent");
-    const pageId = await client.createObject({ nodeType: "page", name: "Ada Lovelace" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
     render(<ClassView client={client} classId={classId} />);
 
@@ -232,5 +233,38 @@ describe("Class View", () => {
       });
     });
     expect(shelf.textContent).toContain("People and organizations.");
+  });
+
+  it("renders the class's children sections: inline body (Blocks) + main children (Child pages)", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Container Class");
+    // Classes are containers (spec I4): an inline body child and a
+    // present-as-main child, both non-class.
+    await client.createObject({
+      parentId: classId,
+      contentAst: [{ type: "text", text: "class body block" }],
+    });
+    await client.createObject({ presentAsMain: true, parentId: classId, name: "Class Main Child" });
+
+    const { container } = render(<ClassView client={client} classId={classId} />);
+
+    // Both sections exist and stay collapsed (lazy per the section contract).
+    const blocksHeader = screen.getByRole("button", { name: /^Blocks/ });
+    const childPagesHeader = screen.getByRole("button", { name: /^Child pages/ });
+    expect(blocksHeader.getAttribute("aria-expanded")).toBe("false");
+    expect(childPagesHeader.getAttribute("aria-expanded")).toBe("false");
+    // Nothing queried yet: no block rows anywhere.
+    expect(container.querySelector(".nt-block")).toBeNull();
+
+    // Expand Blocks: the inline body child renders as a read-only row.
+    fireEvent.click(blocksHeader);
+    expect(screen.getByText("class body block")).not.toBeNull();
+    expect(screen.queryByText("Class Main Child")).toBeNull();
+
+    // Expand Child pages: the main child renders there, not in the body.
+    fireEvent.click(childPagesHeader);
+    expect(screen.getByText("Class Main Child")).not.toBeNull();
+    const blocksSection = blocksHeader.closest("section")!;
+    expect(blocksSection.textContent).not.toContain("Class Main Child");
   });
 });

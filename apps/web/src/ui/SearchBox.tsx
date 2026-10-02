@@ -3,10 +3,10 @@
  *
  * Two paths, one input:
  *  - plain text → client.search (FTS), as before;
- *  - query-language syntax (class:, prop:, type:, text:, linked:, "phrases",
- *    AND/OR/NOT — see looksLikeQueryLanguage) → parsed with name resolvers
- *    over the local store (classes / property schemas / node names) and run
- *    through the live-query bridge (client.runQueryAst).
+ *  - query-language syntax (class:, prop:, isClass:/presentAsMain:, text:,
+ *    linked:, "phrases", AND/OR/NOT — see looksLikeQueryLanguage) → parsed
+ *    with name resolvers over the local store (classes / property schemas /
+ *    node names) and run through the live-query bridge (client.runQueryAst).
  *
  * DSL parse/resolution errors surface inline (fail loud — never silently
  * degraded to a text search). A "?" toggle shows the grammar cheatsheet.
@@ -18,6 +18,7 @@ import { looksLikeQueryLanguage, parseQueryLanguage } from "@notees/query";
 
 import type { ClientNode, QueryRunResult, WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "./dateDisplay.js";
+import { renderStateLabel } from "./renderStateLabel.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -25,7 +26,10 @@ type AnyClient = WorkspaceClient | WorkerClient;
 interface Hit {
   id: string;
   name: string | null;
-  nodeType: string;
+  /** Revision-11 render-state booleans — the chip derives Page/Block/Class. */
+  isClass: boolean;
+  presentAsMain: boolean;
+  parentId: string | null;
 }
 
 type SearchState =
@@ -58,12 +62,20 @@ function toHitsFromText(nodes: ClientNode[]): Hit[] {
   return nodes.map((node) => ({
     id: node.id,
     name: displayNameForSettings(node) || "Untitled",
-    nodeType: node.nodeType,
+    isClass: node.isClass,
+    presentAsMain: node.presentAsMain,
+    parentId: node.parentId,
   }));
 }
 
 function toHitsFromQuery(rows: QueryRunResult["rows"]): Hit[] {
-  return rows.map((row) => ({ id: row.id, name: row.name, nodeType: row.nodeType }));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    isClass: row.isClass,
+    presentAsMain: row.presentAsMain,
+    parentId: row.parentId,
+  }));
 }
 
 export function SearchBox({
@@ -140,7 +152,8 @@ export function SearchBox({
       </div>
       {showSyntax && (
         <div className="nt-search-help">
-          <code>class:Name</code> · <code>type:page|block|class</code> · <code>prop:name:op value</code> (
+          <code>class:Name</code> · <code>isClass:true|false</code> · <code>presentAsMain:true|false</code> ·{" "}
+          <code>prop:name:op value</code> (
           <code>:=</code> <code>!=</code> <code>:&gt;</code> <code>:&gt;=</code> <code>:&lt;</code> <code>:&lt;=</code>;
           bare <code>:</code> contains; no value = exists) · <code>year:&gt;2010</code> (bare schema) ·{" "}
           <code>text:term</code> · <code>&quot;quoted phrase&quot;</code> · <code>linked:Name</code> ·{" "}
@@ -159,7 +172,7 @@ export function SearchBox({
             <li key={hit.id}>
               <button type="button" className="nt-search-hit" onClick={() => onOpenNode(hit.id)}>
                 <span className="nt-query-item-name">{hit.name ?? "Untitled"}</span>
-                <span className="nt-query-chip">{hit.nodeType}</span>
+                <span className="nt-query-chip">{renderStateLabel(hit)}</span>
               </button>
             </li>
           ))}

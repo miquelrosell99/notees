@@ -110,9 +110,8 @@ describe("parseNodeLink", () => {
 describe("block editor node-link clipboard", () => {
   it("Ctrl+C with no selection copies the block's node link + toasts", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
     });
@@ -135,9 +134,8 @@ describe("block editor node-link clipboard", () => {
 
   it("Cmd+C (metaKey) is treated the same", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hi" }],
     });
@@ -155,9 +153,8 @@ describe("block editor node-link clipboard", () => {
 
   it("Ctrl+C with a text selection falls through to the browser copy", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
     await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
     });
@@ -175,9 +172,8 @@ describe("block editor node-link clipboard", () => {
 
   it("Ctrl+Shift+C is not intercepted", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
     await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
     });
@@ -195,10 +191,9 @@ describe("block editor node-link clipboard", () => {
 
   it("pasting a node link splices a mention token at the caret + toasts", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
-    const targetId = await client.createObject({ nodeType: "page", name: "Target Page" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target Page" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "see " }],
     });
@@ -225,10 +220,9 @@ describe("block editor node-link clipboard", () => {
 
   it("pasting a bare uuid links it too", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
-    const targetId = await client.createObject({ nodeType: "page", name: "Bare Target" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Bare Target" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [],
     });
@@ -248,10 +242,9 @@ describe("block editor node-link clipboard", () => {
 
   it("pasting a node link over a selection replaces it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
-    const targetId = await client.createObject({ nodeType: "page", name: "Target" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "see here" }],
     });
@@ -278,9 +271,8 @@ describe("block editor node-link clipboard", () => {
 
   it("plain-text paste keeps the default (no interception, no toast)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
     });
@@ -300,9 +292,8 @@ describe("block editor node-link clipboard", () => {
 
   it("a node link whose id is unknown locally keeps the default paste", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "P" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
     });
@@ -324,7 +315,7 @@ describe("block editor node-link clipboard", () => {
 describe("title node-link clipboard", () => {
   it("Ctrl+C with no selection copies the page's node link + toasts", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Title Page" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Title Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const title = container.querySelector<HTMLElement>(".nt-title-editable");
@@ -343,7 +334,7 @@ describe("title node-link clipboard", () => {
 
   it("Ctrl+C with a text selection falls through to the browser copy", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Title Page" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Title Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const title = container.querySelector<HTMLElement>(".nt-title-editable")!;
@@ -358,8 +349,8 @@ describe("title node-link clipboard", () => {
 
   it("pasting a node link inserts the display name as plain text + toasts", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Title Page" });
-    const targetId = await client.createObject({ nodeType: "page", name: "Target Page" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Title Page" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const title = container.querySelector<HTMLElement>(".nt-title-editable")!;
@@ -381,7 +372,7 @@ describe("title node-link clipboard", () => {
 
   it("plain-text paste in the title keeps the default", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Title Page" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Title Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const title = container.querySelector<HTMLElement>(".nt-title-editable")!;
