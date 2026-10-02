@@ -71,9 +71,15 @@ export interface ContextMenuProps {
   alignRight?: boolean | undefined;
   /** Additional class applied to the menu root (alongside context-menu). */
   className?: string | undefined;
+  /**
+   * Marks the menu as an edit-session companion (data-editor-companion): the
+   * contentEditable blur handler treats focus into the menu as staying inside
+   * the editing session, so opening the menu never tears the editor down.
+   */
+  companion?: boolean | undefined;
 }
 
-export function ContextMenu({ items, position, anchorEl, onClose, title, activeItem, containerRef, inline = false, alignRight = false, className = '' }: ContextMenuProps) {
+export function ContextMenu({ items, position, anchorEl, onClose, title, activeItem, containerRef, inline = false, alignRight = false, className = '', companion = false }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -277,6 +283,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       // Hidden until positioned (visibility is flipped to visible imperatively
       // after the first layout pass).
       style={{ visibility: 'hidden' }}
+      {...(companion ? { "data-editor-companion": "true" } : {})}
       role="menu"
       elevation="high"
       radius="floating"

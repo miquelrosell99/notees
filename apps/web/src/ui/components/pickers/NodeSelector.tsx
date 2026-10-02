@@ -49,6 +49,20 @@ type AnyClient = NodeSelectorClient;
 export type NodeSearchMode = "pages" | "classes" | "all";
 type TriggerMode = "pill-row" | "inline";
 
+/**
+ * How a node was picked — reported alongside the node on every `onAdd` call.
+ * Plain picks carry `withLabel: false`.
+ */
+export interface NodePickContext {
+  /**
+   * Picked via Ctrl/Cmd+Enter or Ctrl/Cmd+click: the caller may treat the
+   * query as a custom label (the editor's "insert link with label" path).
+   */
+  withLabel: boolean;
+  /** The picker's current search query (trimmed). */
+  query: string;
+}
+
 /** Viewport edge clearance for the anchored picker. */
 const PICKER_EDGE_PADDING = 8;
 /** Default number of results shown before "Show more results". */
@@ -79,8 +93,8 @@ interface NodeSelectorProps {
   onRemove?: ((node: ClientNode) => void) | undefined;
   /** Callback when changing a node's color via the pill's right-click menu. */
   onColorChange?: ((node: ClientNode, color: string | null) => void) | undefined;
-  /** Callback when adding a node from the picker. */
-  onAdd?: ((node: ClientNode) => void) | undefined;
+  /** Callback when adding a node from the picker (receives the pick context). */
+  onAdd?: ((node: ClientNode, context: NodePickContext) => void) | undefined;
   /** Callback when the value changes (value-based API). */
   onChange?: ((value: string | string[] | null) => void) | undefined;
   /** Callback when creating a new node (overrides the built-in create). */
@@ -92,7 +106,7 @@ interface NodeSelectorProps {
   /** Function to determine if a node can be added (filters search results). */
   canAdd?: (node: ClientNode) => boolean;
   /** Node id to exclude from search results (e.g. the current node). */
-  excludeNodeId?: string;
+  excludeNodeId?: string | undefined;
   /** Whether pills are read-only (hides remove button and color menu). */
   readOnly?: boolean;
   /** Initial search query to pre-fill when the picker opens. */
@@ -210,13 +224,14 @@ export function NodeSelector({
     return ids;
   }, [nodes, valueIds]);
 
-  const handleAdd = (node: ClientNode): void => {
+  const handleAdd = (node: ClientNode, withLabel = false): void => {
     if (assignedIds.has(node.id)) return;
     if (onChange) {
       const newValue = Array.isArray(value) ? [...value, node.id] : node.id;
       onChange(newValue);
     } else {
-      onAdd?.(node);
+      const query = searchQuery.trim();
+      onAdd?.(node, { withLabel: withLabel && query.length > 0, query });
     }
     if (trigger === "pill-row") {
       setIsPickerOpen(false);
@@ -439,14 +454,14 @@ export function NodeSelector({
   const totalItems =
     visibleResults.length + dateOffset + (showCreateOption ? 1 : 0) + (showMoreOption ? 1 : 0);
 
-  const handleSelectByIndex = (index: number) => {
+  const handleSelectByIndex = (index: number, modifiers: { ctrlKey: boolean; metaKey: boolean }) => {
     if (dateSuggestion && index === 0) {
       dateSuggestion.onSelect();
       return;
     }
     const adjusted = index - dateOffset;
     if (adjusted < visibleResults.length) {
-      handleAdd(visibleResults[adjusted]!);
+      handleAdd(visibleResults[adjusted]!, modifiers.ctrlKey || modifiers.metaKey);
     } else if (showCreateOption && adjusted === visibleResults.length) {
       handleCreateNew();
     } else if (showMoreOption && adjusted === showMoreIndex - dateOffset) {
@@ -532,6 +547,7 @@ export function NodeSelector({
             isHighlighted={globalIndex === selectedIndex}
             isSelected={assignedIds.has(node.id)}
             onClick={() => handleAdd(node)}
+            onCtrlClick={() => handleAdd(node, true)}
             onMouseEnter={() => setSelectedIndex(globalIndex)}
           />
         );

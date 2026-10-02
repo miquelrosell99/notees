@@ -30,6 +30,9 @@ export type { ToastNotification } from './NotificationToast.js';
 
 export { NotificationToaster } from './NotificationToaster.js';
 
+export { notificationStore, useNotificationList, useNotifications } from './notificationStore.js';
+export type { Notification, NotificationType } from './notificationStore.js';
+
 export { BackendUnavailableOverlay } from './BackendUnavailableOverlay.js';
 export type { BackendUnavailableOverlayProps } from './BackendUnavailableOverlay.js';
 
