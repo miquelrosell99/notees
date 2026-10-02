@@ -19,7 +19,8 @@
  *   Fields (word followed by an operator):
  *     class:Name        class membership (resolved by NAME, hierarchy-aware
  *                       at compile time);      "!=" negates
- *     type:page|block|class                     nodeType; "!=" negates
+ *     isClass:true|false     class identity bit (Revision 11); "!=" negates
+ *     presentAsMain:true|false render bit for parented nodes; "!=" negates
  *     text:term         content contains (value required)
  *     linked:Name       backlinksWithRollup to the named node; "!=" negates
  *     prop:name<op>val  property condition on the schema called `name`;
@@ -41,10 +42,11 @@
  * unresolvable names are hard errors, never silent text search.
  *
  * The parser emits only the supported AST — property conditions (all eight
- * ops), class, nodeType, content contains, linkedTo — no new condition kinds.
+ * ops), class, isClass, presentAsMain, content contains, linkedTo — no new
+ * condition kinds.
  */
 
-import type { Child, Condition, Group, NodeTypeValue, QueryAst, Scope } from "./ast.js";
+import type { Child, Condition, Group, QueryAst, Scope } from "./ast.js";
 
 /** Raised when a query string cannot be tokenized, parsed or resolved. */
 export class QueryLanguageError extends Error {
@@ -77,7 +79,7 @@ export interface ParseQueryLanguageOptions {
 }
 
 /** Reserved field names; a bare word matching none of these must resolve as a property schema. */
-const RESERVED_FIELDS = ["class", "type", "prop", "text", "linked"] as const;
+const RESERVED_FIELDS = ["class", "isclass", "presentasmain", "prop", "text", "linked"] as const;
 
 // --- tokenizer ---------------------------------------------------------------
 
@@ -367,8 +369,13 @@ class Parser {
           type: "class",
           classId: this.resolveClass(String(this.readValue("a class name", "token"))),
         }));
-      case "type":
-        return this.negatable(op, () => ({ type: "nodeType", nodeType: this.readNodeType() }));
+      case "isclass":
+        return this.negatable(op, () => ({ type: "isClass", isClass: this.readBoolean("isClass") }));
+      case "presentasmain":
+        return this.negatable(op, () => ({
+          type: "presentAsMain",
+          presentAsMain: this.readBoolean("presentAsMain"),
+        }));
       case "text":
         this.requireContainsOp(op, "text");
         return contentContains(String(this.readValue("a text term")));
@@ -391,7 +398,7 @@ class Parser {
     }
   }
 
-  /** class/type/linked support ":" and "=" (positive) and "!=" (wrapped in NOT). */
+  /** class/isClass/presentAsMain/linked support ":" and "=" (positive) and "!=" (wrapped in NOT). */
   private negatable(op: Op, build: () => Condition): Child {
     if (op === ":" || op === "=") return build();
     if (op === "!=") return { type: "not", child: build() };
@@ -404,10 +411,11 @@ class Parser {
     }
   }
 
-  private readNodeType(): NodeTypeValue {
-    const raw = String(this.readValue("page, block or class", "token")).toLowerCase();
-    if (raw === "page" || raw === "block" || raw === "class") return raw;
-    throw this.error(`unknown node type '${raw}' (expected page, block or class)`);
+  private readBoolean(field: string): boolean {
+    const raw = String(this.readValue("true or false", "token")).toLowerCase();
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    throw this.error(`unknown ${field} value '${raw}' (expected true or false)`);
   }
 
   private buildPropertyCondition(schemaName: string, op: Op): Child {
