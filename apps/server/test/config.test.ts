@@ -100,7 +100,7 @@ describe("boot smoke", () => {
     server = await makeTestServer();
     const health = await server.app.inject({ method: "GET", url: "/healthz" });
     expect(health.statusCode).toBe(200);
-    const version = await server.app.inject({ method: "GET", url: "/api/v1/version" });
+    const version = await server.app.inject({ method: "GET", url: "/api/version" });
     expect(version.json()).toMatchObject({ name: "notees-server", protocolVersion: 2, wsProtocolVersion: 2 });
   });
 

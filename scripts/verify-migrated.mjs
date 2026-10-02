@@ -15,7 +15,7 @@
 //      - page discovery: walk up from block search hits to the nearest page
 //        ancestor with a non-empty derived name (guaranteed to directly
 //        contain a block, so the tree renders rows),
-//      - search prep: a term that resolves to that page via /api/v1/search
+//      - search prep: a term that resolves to that page via /api/search
 //        (fallback chain: derived name -> content word -> "clasificaciones",
 //        the migration spot-check word from report.json).
 //   1. Browser: localStorage prefill (App.tsx STORAGE_KEYS), goto :8378,
@@ -175,13 +175,13 @@ console.log("discovering a real migrated page (block-bearing, derived name)…")
 const DISCOVERY_TERMS = ["de", "que", "el", "ISO", "clasificaciones"];
 let discovered = null;
 outer: for (const term of DISCOVERY_TERMS) {
-  const hits = (await apiGet(`/api/v1/search?q=${encodeURIComponent(term)}&limit=25`)).results ?? [];
+  const hits = (await apiGet(`/api/search?q=${encodeURIComponent(term)}&limit=25`)).results ?? [];
   for (const hit of hits) {
     if (hit.nodeType !== "block") continue;
     // Walk up to the nearest page ancestor.
     let cursor = hit;
     for (let depth = 0; depth < 8 && cursor.parentId; depth += 1) {
-      const parent = (await apiGet(`/api/v1/objects/${cursor.parentId}`)).object;
+      const parent = (await apiGet(`/api/objects/${cursor.parentId}`)).object;
       if (parent.nodeType === "page") {
         const derived = deriveName(parent);
         if (derived) {
@@ -195,7 +195,7 @@ outer: for (const term of DISCOVERY_TERMS) {
   }
 }
 if (process.env.DISCOVERED_PAGE_ID) {
-  const full = (await apiGet(`/api/v1/objects/${process.env.DISCOVERED_PAGE_ID}`)).object;
+  const full = (await apiGet(`/api/objects/${process.env.DISCOVERED_PAGE_ID}`)).object;
   discovered = { id: full.id, derived: deriveName(full) || full.id, via: "env override" };
 }
 if (discovered === null) throw new Error("page discovery: no block-bearing page with a derived name found");
@@ -224,7 +224,7 @@ const termCandidates = [
 let searchTerm = null;
 for (const term of [...new Set(termCandidates)]) {
   if (!term) continue;
-  const hits = (await apiGet(`/api/v1/search?q=${encodeURIComponent(term)}&nodeType=page&limit=100`)).results ?? [];
+  const hits = (await apiGet(`/api/search?q=${encodeURIComponent(term)}&nodeType=page&limit=100`)).results ?? [];
   if (hits.some((h) => h.id === discovered.id)) {
     searchTerm = term;
     break;
@@ -427,7 +427,7 @@ try {
   // Nameless pages render their id in the hit row (SearchBox: name ?? id).
   const expectedRow = page.locator(".nt-search-hit", { hasText: expectedHit.id }).first();
   const expectedVisible = await expectedRow.isVisible().catch(() => false);
-  const apiHitCount = (await apiGet(`/api/v1/search?q=${encodeURIComponent(searchTerm)}&limit=25`)).results.length;
+  const apiHitCount = (await apiGet(`/api/search?q=${encodeURIComponent(searchTerm)}&limit=25`)).results.length;
   check(
     "search: prepared term returns the discovered page's row",
     hitCount >= 1 && expectedVisible,

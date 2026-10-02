@@ -1,7 +1,7 @@
 /**
  * End-to-end over a real listening socket: boot on an ephemeral port,
  * CLI-style fetch handshake (API key), batch an object.create through
- * /api/relay/v2, read it back through /api/v1/objects/:id.
+ * /api/relay/v2, read it back through /api/objects/:id.
  */
 
 import type { AddressInfo } from "node:net";
@@ -45,7 +45,7 @@ describe("end-to-end (listening socket + fetch)", () => {
     expect(((await batch.json()) as { savedCount: number }).savedCount).toBe(1);
 
     const objectId = (envelope.payload as { objectId: string }).objectId;
-    const fetched = await fetch(`${base}/api/v1/objects/${objectId}`, {
+    const fetched = await fetch(`${base}/api/objects/${objectId}`, {
       headers: { "x-api-key": server.apiKey },
     });
     expect(fetched.status).toBe(200);

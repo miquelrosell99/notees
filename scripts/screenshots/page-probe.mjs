@@ -4,7 +4,7 @@ if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin log
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
 const page = await ctx.newPage();
-const login = await fetch("http://127.0.0.1:8377/api/v1/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: ADMIN_EMAIL, password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }) });
+const login = await fetch("http://127.0.0.1:8377/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: ADMIN_EMAIL, password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }) });
 const { token } = await login.json();
 await page.addInitScript(([url, t]) => {
   localStorage.setItem("notees.serverUrl", url);

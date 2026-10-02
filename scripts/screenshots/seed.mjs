@@ -48,12 +48,12 @@ async function api(pathname, { method = "GET", body } = {}) {
 
 /** POST /objects → id. Blocks carry parentId + a content token stream. */
 async function createObject(payload) {
-  const { id } = await api("/api/v1/objects", { method: "POST", body: payload });
+  const { id } = await api("/api/objects", { method: "POST", body: payload });
   return id;
 }
 
 async function setProperty(objectId, propertySchemaId, value, idx = 0, metadata) {
-  await api(`/api/v1/objects/${objectId}/properties`, {
+  await api(`/api/objects/${objectId}/properties`, {
     method: "POST",
     body: { propertySchemaId, value, idx, ...(metadata !== undefined ? { metadata } : {}) },
   });
@@ -148,7 +148,7 @@ form.append("file", new Blob([minimalPdf([
   "- anomalies accumulate; crisis precedes revolution",
   "- reading group notes, 2026-09-24",
 ])]), pdfName);
-const uploadRes = await fetch(`${BASE}/api/v1/assets`, {
+const uploadRes = await fetch(`${BASE}/api/assets`, {
   method: "POST",
   headers: { "x-api-key": API_KEY },
   body: form,
@@ -257,7 +257,7 @@ for (const card of wbCards) {
   });
   cards[id] = { x: card.x, y: card.y, w: card.w, h: card.h };
 }
-await api(`/api/v1/objects/${whiteboardId}`, {
+await api(`/api/objects/${whiteboardId}`, {
   method: "PATCH",
   body: {
     contentAst: [

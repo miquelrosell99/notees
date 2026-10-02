@@ -28,7 +28,7 @@ afterEach(async () => {
 async function setupAdmin(email = "admin@example.com", password = "admin-password-1") {
   const response = await server!.app.inject({
     method: "POST",
-    url: "/api/v1/setup",
+    url: "/api/setup",
     payload: { email, password },
   });
   return response;
@@ -37,7 +37,7 @@ async function setupAdmin(email = "admin@example.com", password = "admin-passwor
 describe("setup gate", () => {
   it("server-info reports setupRequired on a fresh server and false after setup", async () => {
     server = await makeTestServer();
-    const before = await server.app.inject({ method: "GET", url: "/api/v1/server-info" });
+    const before = await server.app.inject({ method: "GET", url: "/api/server-info" });
     expect(before.statusCode).toBe(200);
     expect(before.json().setupRequired).toBe(true);
 
@@ -46,7 +46,7 @@ describe("setup gate", () => {
     expect(setup.json().token).toMatch(/^nt_/);
     expect(setup.json().user.isAdmin).toBe(true);
 
-    const after = await server.app.inject({ method: "GET", url: "/api/v1/server-info" });
+    const after = await server.app.inject({ method: "GET", url: "/api/server-info" });
     expect(after.json().setupRequired).toBe(false);
   });
 
@@ -55,7 +55,7 @@ describe("setup gate", () => {
     expect((await setupAdmin()).statusCode).toBe(201);
     const again = await server.app.inject({
       method: "POST",
-      url: "/api/v1/setup",
+      url: "/api/setup",
       payload: { email: "other@example.com", password: "admin-password-2" },
     });
     expect(again.statusCode).toBe(409);
@@ -67,7 +67,7 @@ describe("setup gate", () => {
     const token = setup.json().token as string;
     const list = await server.app.inject({
       method: "GET",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${token}` },
     });
     expect(list.statusCode).toBe(200);
@@ -82,7 +82,7 @@ describe("login and sessions", () => {
     await setupAdmin();
     const login = await server.app.inject({
       method: "POST",
-      url: "/api/v1/auth/login",
+      url: "/api/auth/login",
       payload: { email: "admin@example.com", password: "admin-password-1" },
     });
     expect(login.statusCode).toBe(200);
@@ -90,7 +90,7 @@ describe("login and sessions", () => {
 
     const me = await server.app.inject({
       method: "GET",
-      url: "/api/v1/auth/me",
+      url: "/api/auth/me",
       headers: { authorization: `Bearer ${token}` },
     });
     expect(me.statusCode).toBe(200);
@@ -102,13 +102,13 @@ describe("login and sessions", () => {
     await setupAdmin();
     const wrongPw = await server.app.inject({
       method: "POST",
-      url: "/api/v1/auth/login",
+      url: "/api/auth/login",
       payload: { email: "admin@example.com", password: "wrong-password" },
     });
     expect(wrongPw.statusCode).toBe(401);
     const unknown = await server.app.inject({
       method: "POST",
-      url: "/api/v1/auth/login",
+      url: "/api/auth/login",
       payload: { email: "nobody@example.com", password: "admin-password-1" },
     });
     expect(unknown.statusCode).toBe(401);
@@ -120,13 +120,13 @@ describe("login and sessions", () => {
     const token = setup.json().token as string;
     const out = await server.app.inject({
       method: "POST",
-      url: "/api/v1/auth/logout",
+      url: "/api/auth/logout",
       headers: { authorization: `Bearer ${token}` },
     });
     expect(out.statusCode).toBe(200);
     const me = await server.app.inject({
       method: "GET",
-      url: "/api/v1/auth/me",
+      url: "/api/auth/me",
       headers: { authorization: `Bearer ${token}` },
     });
     expect(me.statusCode).toBe(401);
@@ -137,7 +137,7 @@ describe("login and sessions", () => {
     await setupAdmin();
     const me = await server.app.inject({
       method: "GET",
-      url: "/api/v1/auth/me",
+      url: "/api/auth/me",
       headers: server.authHeaders,
     });
     expect(me.statusCode).toBe(401);
@@ -247,7 +247,7 @@ describe("workspace rename", () => {
 
     const created = await server.app.inject({
       method: "POST",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${owner}` },
       payload: { name: "Old name" },
     });
@@ -258,7 +258,7 @@ describe("workspace rename", () => {
     // Non-owner member: forbidden.
     const byMember = await server.app.inject({
       method: "PATCH",
-      url: `/api/v1/workspaces/${workspaceId}`,
+      url: `/api/workspaces/${workspaceId}`,
       headers: { authorization: `Bearer ${member}` },
       payload: { name: "Hijacked" },
     });
@@ -272,7 +272,7 @@ describe("workspace rename", () => {
     const stranger = server.ctx.auth.createSession(strangerUser.id).token;
     const byStranger = await server.app.inject({
       method: "PATCH",
-      url: `/api/v1/workspaces/${workspaceId}`,
+      url: `/api/workspaces/${workspaceId}`,
       headers: { authorization: `Bearer ${stranger}` },
       payload: { name: "Hijacked" },
     });
@@ -281,7 +281,7 @@ describe("workspace rename", () => {
     // Owner: renamed, and the list reflects it.
     const renamed = await server.app.inject({
       method: "PATCH",
-      url: `/api/v1/workspaces/${workspaceId}`,
+      url: `/api/workspaces/${workspaceId}`,
       headers: { authorization: `Bearer ${owner}` },
       payload: { name: "New name" },
     });
@@ -290,7 +290,7 @@ describe("workspace rename", () => {
 
     const list = await server.app.inject({
       method: "GET",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${owner}` },
     });
     const entry = list
@@ -301,7 +301,7 @@ describe("workspace rename", () => {
     // Empty names are rejected outright.
     const empty = await server.app.inject({
       method: "PATCH",
-      url: `/api/v1/workspaces/${workspaceId}`,
+      url: `/api/workspaces/${workspaceId}`,
       headers: { authorization: `Bearer ${owner}` },
       payload: { name: "   " },
     });
@@ -315,7 +315,7 @@ describe("workspace delete and export", () => {
     const owner = (await setupAdmin("owner@example.com")).json().token as string;
     const created = await server.app.inject({
       method: "POST",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${owner}` },
       payload: { name: "Doomed" },
     });
@@ -331,7 +331,7 @@ describe("workspace delete and export", () => {
     // Non-owner member: forbidden.
     const byMember = await server.app.inject({
       method: "DELETE",
-      url: `/api/v1/workspaces/${workspaceId}`,
+      url: `/api/workspaces/${workspaceId}`,
       headers: { authorization: `Bearer ${member}` },
     });
     expect(byMember.statusCode).toBe(403);
@@ -339,7 +339,7 @@ describe("workspace delete and export", () => {
     // Owner deletes.
     const deleted = await server.app.inject({
       method: "DELETE",
-      url: `/api/v1/workspaces/${workspaceId}`,
+      url: `/api/workspaces/${workspaceId}`,
       headers: { authorization: `Bearer ${owner}` },
     });
     expect(deleted.statusCode).toBe(200);
@@ -348,7 +348,7 @@ describe("workspace delete and export", () => {
     // Gone from the owner's list; memberships went with it.
     const list = await server.app.inject({
       method: "GET",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${owner}` },
     });
     expect(list.json().workspaces.map((w: { id: string }) => w.id)).not.toContain(workspaceId);
@@ -356,13 +356,13 @@ describe("workspace delete and export", () => {
     // A second delete no longer finds it (also for the ex-member).
     const again = await server.app.inject({
       method: "DELETE",
-      url: `/api/v1/workspaces/${workspaceId}`,
+      url: `/api/workspaces/${workspaceId}`,
       headers: { authorization: `Bearer ${owner}` },
     });
     expect(again.statusCode).toBe(404);
     const byExMember = await server.app.inject({
       method: "DELETE",
-      url: `/api/v1/workspaces/${workspaceId}`,
+      url: `/api/workspaces/${workspaceId}`,
       headers: { authorization: `Bearer ${member}` },
     });
     expect(byExMember.statusCode).toBe(404);
@@ -373,7 +373,7 @@ describe("workspace delete and export", () => {
     const owner = (await setupAdmin("owner@example.com")).json().token as string;
     const created = await server.app.inject({
       method: "POST",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${owner}` },
       payload: { name: "Export Me" },
     });
@@ -402,7 +402,7 @@ describe("workspace delete and export", () => {
 
     const exported = await server.app.inject({
       method: "GET",
-      url: `/api/v1/workspaces/${workspaceId}/export`,
+      url: `/api/workspaces/${workspaceId}/export`,
       headers: { authorization: `Bearer ${owner}` },
     });
     expect(exported.statusCode).toBe(200);
@@ -419,7 +419,7 @@ describe("workspace delete and export", () => {
     const stranger = server.ctx.auth.createSession(strangerUser.id).token;
     const byStranger = await server.app.inject({
       method: "GET",
-      url: `/api/v1/workspaces/${workspaceId}/export`,
+      url: `/api/workspaces/${workspaceId}/export`,
       headers: { authorization: `Bearer ${stranger}` },
     });
     expect(byStranger.statusCode).toBe(404);
@@ -430,14 +430,14 @@ describe("workspace delete and export", () => {
     const owner = (await setupAdmin("owner@example.com")).json().token as string;
     const first = await server.app.inject({
       method: "POST",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${owner}` },
       payload: { name: "First" },
     });
     const firstId = first.json().id as string;
     const second = await server.app.inject({
       method: "POST",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${owner}` },
       payload: { name: "Second" },
     });
@@ -456,7 +456,7 @@ describe("workspace delete and export", () => {
 
     const located = await server.app.inject({
       method: "GET",
-      url: `/api/v1/nodes/${pageId}/location`,
+      url: `/api/nodes/${pageId}/location`,
       headers: { authorization: `Bearer ${owner}` },
     });
     expect(located.statusCode).toBe(200);
@@ -465,7 +465,7 @@ describe("workspace delete and export", () => {
     // Unknown node: 404. Stranger asking about a node they cannot reach: 404.
     const unknown = await server.app.inject({
       method: "GET",
-      url: `/api/v1/nodes/${crypto.randomUUID()}/location`,
+      url: `/api/nodes/${crypto.randomUUID()}/location`,
       headers: { authorization: `Bearer ${owner}` },
     });
     expect(unknown.statusCode).toBe(404);
@@ -477,7 +477,7 @@ describe("workspace delete and export", () => {
     const stranger = server.ctx.auth.createSession(strangerUser.id).token;
     const byStranger = await server.app.inject({
       method: "GET",
-      url: `/api/v1/nodes/${pageId}/location`,
+      url: `/api/nodes/${pageId}/location`,
       headers: { authorization: `Bearer ${stranger}` },
     });
     expect(byStranger.statusCode).toBe(404);
@@ -490,7 +490,7 @@ describe("api keys", () => {
     const session = (await setupAdmin()).json().token as string;
     const created = await server.app.inject({
       method: "POST",
-      url: "/api/v1/api-keys",
+      url: "/api/api-keys",
       headers: { authorization: `Bearer ${session}` },
       payload: { name: "laptop CLI" },
     });
@@ -501,7 +501,7 @@ describe("api keys", () => {
 
     const workspaces = await server.app.inject({
       method: "GET",
-      url: "/api/v1/workspaces",
+      url: "/api/workspaces",
       headers: { authorization: `Bearer ${key}` },
     });
     expect(workspaces.statusCode).toBe(200);
@@ -514,14 +514,14 @@ describe("api keys", () => {
     const key = (
       await server.app.inject({
         method: "POST",
-        url: "/api/v1/api-keys",
+        url: "/api/api-keys",
         headers: { authorization: `Bearer ${session}` },
         payload: { name: "k" },
       })
     ).json().token as string;
     const denied = await server.app.inject({
       method: "POST",
-      url: "/api/v1/api-keys",
+      url: "/api/api-keys",
       headers: { authorization: `Bearer ${key}` },
       payload: { name: "nested" },
     });
@@ -533,7 +533,7 @@ describe("api keys", () => {
     const session = (await setupAdmin()).json().token as string;
     const created = await server.app.inject({
       method: "POST",
-      url: "/api/v1/api-keys",
+      url: "/api/api-keys",
       headers: { authorization: `Bearer ${session}` },
       payload: { name: "temp" },
     });
@@ -542,13 +542,13 @@ describe("api keys", () => {
 
     const revoked = await server.app.inject({
       method: "DELETE",
-      url: `/api/v1/api-keys/${id}`,
+      url: `/api/api-keys/${id}`,
       headers: { authorization: `Bearer ${session}` },
     });
     expect(revoked.statusCode).toBe(200);
     const me = await server.app.inject({
       method: "GET",
-      url: "/api/v1/auth/me",
+      url: "/api/auth/me",
       headers: { authorization: `Bearer ${key}` },
     });
     expect(me.statusCode).toBe(401);
@@ -560,7 +560,7 @@ describe("api keys", () => {
     const key = (
       await server.app.inject({
         method: "POST",
-        url: "/api/v1/api-keys",
+        url: "/api/api-keys",
         headers: { authorization: `Bearer ${session}` },
         payload: { name: "sync" },
       })
@@ -583,16 +583,16 @@ describe("per-account lockout", () => {
     const bad = { email: "admin@example.com", password: "wrong-password" };
     // Failures 1–4 answer 401; the 5th crosses the threshold and answers 429.
     for (let i = 0; i < 4; i += 1) {
-      const response = await server.app.inject({ method: "POST", url: "/api/v1/auth/login", payload: bad });
+      const response = await server.app.inject({ method: "POST", url: "/api/auth/login", payload: bad });
       expect(response.statusCode).toBe(401);
     }
-    const fifth = await server.app.inject({ method: "POST", url: "/api/v1/auth/login", payload: bad });
+    const fifth = await server.app.inject({ method: "POST", url: "/api/auth/login", payload: bad });
     expect(fifth.statusCode).toBe(429);
     expect(fifth.json().error.code).toBe("account_locked");
     // The next attempt with the CORRECT password is refused while locked.
     const locked = await server.app.inject({
       method: "POST",
-      url: "/api/v1/auth/login",
+      url: "/api/auth/login",
       payload: { email: "admin@example.com", password: "admin-password-1" },
     });
     expect(locked.statusCode).toBe(429);
@@ -605,13 +605,13 @@ describe("per-account lockout", () => {
     for (let i = 0; i < 3; i += 1) {
       await server.app.inject({
         method: "POST",
-        url: "/api/v1/auth/login",
+        url: "/api/auth/login",
         payload: { email: "admin@example.com", password: "wrong-password" },
       });
     }
     const good = await server.app.inject({
       method: "POST",
-      url: "/api/v1/auth/login",
+      url: "/api/auth/login",
       payload: { email: "admin@example.com", password: "admin-password-1" },
     });
     expect(good.statusCode).toBe(200);
@@ -619,14 +619,14 @@ describe("per-account lockout", () => {
     for (let i = 0; i < 4; i += 1) {
       const response = await server.app.inject({
         method: "POST",
-        url: "/api/v1/auth/login",
+        url: "/api/auth/login",
         payload: { email: "admin@example.com", password: "wrong-password" },
       });
       expect(response.statusCode).toBe(401);
     }
     const stillOpen = await server.app.inject({
       method: "POST",
-      url: "/api/v1/auth/login",
+      url: "/api/auth/login",
       payload: { email: "admin@example.com", password: "admin-password-1" },
     });
     expect(stillOpen.statusCode).toBe(200);
@@ -652,7 +652,7 @@ describe("password-derived encryption keys", () => {
     });
     const login = await server.app.inject({
       method: "POST",
-      url: "/api/v1/auth/login",
+      url: "/api/auth/login",
       payload: { email: "legacy@example.com", password: "legacy-password-1" },
     });
     expect(login.statusCode).toBe(200);

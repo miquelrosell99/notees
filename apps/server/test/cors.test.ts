@@ -21,7 +21,7 @@ describe("CORS (NOTEES_CORS_ORIGIN)", () => {
     server = await makeTestServer();
     const res = await server.app.inject({
       method: "GET",
-      url: "/api/v1/version",
+      url: "/api/version",
       headers: { origin: "http://localhost:8080" },
     });
     expect(res.statusCode).toBe(200);
@@ -32,7 +32,7 @@ describe("CORS (NOTEES_CORS_ORIGIN)", () => {
     server = await makeTestServer({ corsOrigins: ["http://localhost:8080"] });
     const res = await server.app.inject({
       method: "GET",
-      url: "/api/v1/version",
+      url: "/api/version",
       headers: { origin: "http://localhost:8080" },
     });
     expect(res.statusCode).toBe(200);
@@ -43,7 +43,7 @@ describe("CORS (NOTEES_CORS_ORIGIN)", () => {
     server = await makeTestServer({ corsOrigins: ["http://localhost:8080"] });
     const res = await server.app.inject({
       method: "GET",
-      url: "/api/v1/version",
+      url: "/api/version",
       headers: { origin: "http://evil.example.com" },
     });
     expect(res.statusCode).toBe(200);
@@ -54,7 +54,7 @@ describe("CORS (NOTEES_CORS_ORIGIN)", () => {
     server = await makeTestServer({ corsOrigins: ["*"] });
     const res = await server.app.inject({
       method: "GET",
-      url: "/api/v1/version",
+      url: "/api/version",
       headers: { origin: "http://anything.example" },
     });
     expect(res.headers["access-control-allow-origin"]).toBe("*");
@@ -64,7 +64,7 @@ describe("CORS (NOTEES_CORS_ORIGIN)", () => {
     server = await makeTestServer({ corsOrigins: ["http://localhost:8080"] });
     const res = await server.app.inject({
       method: "OPTIONS",
-      url: "/api/v1/objects",
+      url: "/api/objects",
       headers: {
         origin: "http://localhost:8080",
         "access-control-request-method": "GET",
