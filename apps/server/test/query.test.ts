@@ -1,5 +1,5 @@
 /**
- * POST /api/v1/query tests: the QueryAST execution endpoint — plain runs
+ * POST /api/query tests: the QueryAST execution endpoint — plain runs
  * (ids + node summaries), property comparison operators, aggregated ASTs
  * (grouped grid), fail-loud 422s for invalid ASTs / unsupported compilations,
  * and the GET /property-schemas listing the DSL's name resolution needs.
@@ -41,7 +41,7 @@ function ast(children: Child[]): QueryAst {
 
 async function createPaper(name: string, year?: number): Promise<string> {
   const { id } = (
-    await api("POST", "/api/v1/objects", {
+    await api("POST", "/api/objects", {
       payload: {
         nodeType: "page",
         // Title-is-content: the paper's own content IS its title.
@@ -52,7 +52,7 @@ async function createPaper(name: string, year?: number): Promise<string> {
   ).json();
   if (year !== undefined) {
     const yearSchema = await ensureYearSchema();
-    await api("POST", `/api/v1/objects/${id}/properties`, {
+    await api("POST", `/api/objects/${id}/properties`, {
       payload: { propertySchemaId: yearSchema, value: year, idx: 0 },
     });
   }
@@ -65,7 +65,7 @@ const yearSchemaByServer = new WeakMap<TestServer, string>();
 async function ensureYearSchema(): Promise<string> {
   const cached = yearSchemaByServer.get(server!);
   if (cached !== undefined) return cached;
-  const res = await api("POST", "/api/v1/property-schemas", {
+  const res = await api("POST", "/api/property-schemas", {
     payload: { propertySchemaId: crypto.randomUUID(), name: "year", type: "number" },
   });
   expect(res.statusCode).toBe(201);
@@ -74,14 +74,14 @@ async function ensureYearSchema(): Promise<string> {
   return id;
 }
 
-describe("POST /api/v1/query", () => {
+describe("POST /api/query", () => {
   it("runs a plain AST: ids plus node summaries (class + property comparison)", async () => {
     server = await makeTestServer();
     const old = await createPaper("query-old-paper", 1901);
     const modern = await createPaper("query-modern-paper", 2015);
     await createPaper("query-unclassed");
 
-    const res = await api("POST", "/api/v1/query", {
+    const res = await api("POST", "/api/query", {
       payload: {
         ast: ast([
           { type: "class", classId: SYSTEM_CLASS_UUIDS.paper },
@@ -106,7 +106,7 @@ describe("POST /api/v1/query", () => {
     server = await makeTestServer();
     await createPaper("query-1901", 1901);
     const recent = await createPaper("query-2015", 2015);
-    const res = await api("POST", "/api/v1/query", {
+    const res = await api("POST", "/api/query", {
       payload: {
         ast: ast([
           { type: "class", classId: SYSTEM_CLASS_UUIDS.paper },
@@ -122,7 +122,7 @@ describe("POST /api/v1/query", () => {
     await createPaper("query-agg-a", 1901);
     await createPaper("query-agg-b", 1901);
     await createPaper("query-agg-c", 2015);
-    const res = await api("POST", "/api/v1/query", {
+    const res = await api("POST", "/api/query", {
       payload: {
         ast: {
           ...ast([{ type: "class", classId: SYSTEM_CLASS_UUIDS.paper }]),
@@ -140,26 +140,26 @@ describe("POST /api/v1/query", () => {
 
   it("422s loudly on invalid ASTs, unknown conditions and bad bodies", async () => {
     server = await makeTestServer();
-    const invalid = await api("POST", "/api/v1/query", {
+    const invalid = await api("POST", "/api/query", {
       payload: { ast: { version: 2, scope: { type: "pages" }, root: { type: "group", logic: "and", children: [] } } },
     });
     expect(invalid.statusCode).toBe(422);
     expect(invalid.json().error.message).toContain("invalid query AST");
 
-    const unknownCondition = await api("POST", "/api/v1/query", {
+    const unknownCondition = await api("POST", "/api/query", {
       payload: {
         ast: ast([{ type: "weather", sunny: true }] as unknown as Child[]),
       },
     });
     expect(unknownCondition.statusCode).toBe(422);
 
-    const badBody = await api("POST", "/api/v1/query", { payload: { notAst: 1 } });
+    const badBody = await api("POST", "/api/query", { payload: { notAst: 1 } });
     expect(badBody.statusCode).toBe(422);
   });
 
   it("422s loudly on unexecutable ASTs (fts with no searchable terms)", async () => {
     server = await makeTestServer();
-    const res = await api("POST", "/api/v1/query", {
+    const res = await api("POST", "/api/query", {
       payload: { ast: ast([{ type: "content", op: "fts", value: "!!!" }]) },
     });
     expect(res.statusCode).toBe(422);
@@ -170,7 +170,7 @@ describe("POST /api/v1/query", () => {
     server = await makeTestServer();
     const res = await server.app.inject({
       method: "POST",
-      url: "/api/v1/query",
+      url: "/api/query",
       headers: { "content-type": "application/json" },
       payload: { ast: ast([]) },
     });
@@ -178,11 +178,11 @@ describe("POST /api/v1/query", () => {
   });
 });
 
-describe("GET /api/v1/property-schemas", () => {
+describe("GET /api/property-schemas", () => {
   it("lists active property schemas by name (the DSL resolver read)", async () => {
     server = await makeTestServer();
     const year = await ensureYearSchema();
-    const res = await api("GET", "/api/v1/property-schemas");
+    const res = await api("GET", "/api/property-schemas");
     expect(res.statusCode).toBe(200);
     const schemas = res.json().propertySchemas as { id: string; name: string; type: string; multi: boolean }[];
     const byName = new Map(schemas.map((schema) => [schema.name, schema]));

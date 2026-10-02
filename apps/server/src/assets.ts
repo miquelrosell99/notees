@@ -1,13 +1,13 @@
 /**
  * Content-addressed asset storage (v1 app/features/assets port):
- *  - POST   /api/v1/assets         multipart upload; magic-byte sniffing
+ *  - POST   /api/assets         multipart upload; magic-byte sniffing
  *                                  (jpeg/png/webp/pdf/epub/audio); size caps
  *                                  (50MB media / 100MB documents, v1 caps);
  *                                  sha256; bytes at
  *                                  <dataDir>/workspaces/<ws>/assets/<hash[:4]>/<hash>;
  *                                  emits asset.attach when an objectId is given.
- *  - GET    /api/v1/assets/:id     auth; Range requests supported (206).
- *  - GET    /api/v1/assets/:id/info
+ *  - GET    /api/assets/:id     auth; Range requests supported (206).
+ *  - GET    /api/assets/:id/info
  *
  * The id in the API is an asset uuid; bytes are content-addressed by hash,
  * so identical uploads dedupe to one file with multiple refs (v1 asset_ref).

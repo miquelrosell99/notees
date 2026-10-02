@@ -319,7 +319,7 @@ export interface AssetInfo {
   uploadedAt: string | null;
 }
 
-/** POST /api/v1/assets response shape (the fields the client consumes). */
+/** POST /api/assets response shape (the fields the client consumes). */
 export interface AssetUploadResult {
   assetId: string;
   hash: string;
@@ -401,7 +401,7 @@ export interface WorkspaceClientOptions {
   deviceId?: string;
   client?: string;
   /**
-   * Server REST access (POST /api/v1/assets upload + download). createHttp
+   * Server REST access (POST /api/assets upload + download). createHttp
    * passes these through; tests inject them beside a MemoryTransport so
    * uploadAsset/downloadAsset can run against a mocked fetch.
    */
@@ -428,7 +428,7 @@ function parseContentAst(raw: string | null | undefined): ContentAst {
 }
 
 /**
- * POST /api/v1/assets (multipart, CAS upload). The web client's upload path:
+ * POST /api/assets (multipart, CAS upload). The web client's upload path:
  * the server sniffs magic bytes, stores the bytes content-addressed, records
  * the asset metadata and returns the new asset id + original name. Auth is
  * the workspace API key header, same as the relay transport.
@@ -444,7 +444,7 @@ export async function postAssetUpload(
 ): Promise<AssetUploadResult> {
   const form = new FormData();
   form.append("file", file, filename);
-  const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/v1/assets`, {
+  const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/assets`, {
     method: "POST",
     headers: { "X-API-Key": apiKey, "X-Workspace-Id": workspaceId },
     body: form,
@@ -471,13 +471,13 @@ export async function postAssetUpload(
 }
 
 /**
- * GET /api/v1/assets/:id (auth; Range-capable). Fetched with the API key
+ * GET /api/assets/:id (auth; Range-capable). Fetched with the API key
  * header (a bare window.open cannot set headers), then opened as a blob URL
  * so the chip click lands in a new tab without leaking the key into a URL.
  */
 export async function fetchAssetBlob(serverUrl: string, apiKey: string, assetId: string): Promise<Blob> {
   const response = await fetch(
-    `${serverUrl.replace(/\/$/, "")}/api/v1/assets/${encodeURIComponent(assetId)}`,
+    `${serverUrl.replace(/\/$/, "")}/api/assets/${encodeURIComponent(assetId)}`,
     { headers: { "X-API-Key": apiKey } },
   );
   if (!response.ok) {
@@ -1780,7 +1780,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * Upload file bytes to the server's CAS asset store (POST /api/v1/assets).
+   * Upload file bytes to the server's CAS asset store (POST /api/assets).
    * Returns the server-issued asset metadata; the caller links it into the
    * graph (asset node + property.set) — this method does NOT touch the store.
    */
@@ -1817,7 +1817,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * Download an asset's bytes (GET /api/v1/assets/:id, workspace key) and open
+   * Download an asset's bytes (GET /api/assets/:id, workspace key) and open
    * them in a new tab as a blob URL — the key stays out of any URL.
    */
   async downloadAsset(assetId: string): Promise<void> {

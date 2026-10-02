@@ -1,5 +1,5 @@
 /**
- * Object API (single-user M1 surface, /api/v1): nodes, classes, properties,
+ * Object API (single-user M1 surface, /api): nodes, classes, properties,
  * search, backlinks. Every write IS an envelope through the same pipeline as
  * /batch (the server stamps id/HLC/timestamp/actor from the API key) — one
  * write path, per the milestone's hard invariant.
