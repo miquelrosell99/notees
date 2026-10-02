@@ -307,12 +307,9 @@ describe("marks editing in the editor", () => {
     const editor = clickIntoBlock(container);
     selectRange(editor, 0, 5);
 
-    // The toolbar appears after the archived 150 ms show debounce.
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 200));
-    });
-    // Bold is not active yet.
-    const toolbar = screen.getByRole("toolbar", { name: "Text formatting" });
+    // The toolbar appears after the archived 150 ms show debounce — poll for
+    // it instead of sleeping a fixed margin (flaky under suite load).
+    const toolbar = await screen.findByRole("toolbar", { name: "Text formatting" }, { timeout: 3000 });
     const bold = toolbar.querySelector<HTMLButtonElement>('button[title="Bold (Ctrl+B)"]')!;
     expect(bold.getAttribute("aria-pressed")).toBe("false");
 
