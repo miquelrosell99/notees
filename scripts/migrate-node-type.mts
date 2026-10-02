@@ -4,8 +4,8 @@
  *
  * The stored relay log is rewritten IN PLACE (the stack must be stopped; the
  * owner is the sole user). No backward compatibility anywhere: payload
- * schemas reject the retired `nodeType` key outright, so every stored v2
- * envelope must be rewritten before the new server can replay the log:
+ * schemas reject retired keys outright, so every stored v2 envelope must be
+ * rewritten before the new server can replay the log:
  *
  *  - object.create / object.update carrying `nodeType`:
  *      "page"  → presentAsMain: true (the node renders with document chrome;
@@ -15,9 +15,15 @@
  *                contentAst?, icon?, color?} — parentId/afterId/beforeId/
  *                classIds/tagIds/presentAsMain are dropped; id/HLC/timestamps/
  *                affectedNodeIds are kept.
- *    Payloads without `nodeType` stay byte-identical: the new applier defaults
- *    (parentless → present_as_main 1, parented → 0) reproduce the old derived
- *    state exactly.
+ *  - object.create / object.update carrying a legacy `name` (pre-
+ *    title-is-content history that never rode a re-validation), and
+ *    class.create / class.update carrying one (pre-title-is-content class
+ *    declarations below the snapshot horizon do):
+ *    title-is-content semantics (the migrate-title-is-content reference): the
+ *    name becomes a single text content token [{type:"text",text:name}] only
+ *    when the payload has no content carrier (contentAst/contentDeltaB64);
+ *    with a carrier present the name is dropped (non-authoritative). The key
+ *    is always removed — the strict schemas reject it.
  *  - `nodeType` inside embedded query-token ASTs (contentAst query widgets):
  *      condition {type:"nodeType",nodeType:"page"|"block"} →
  *                {type:"presentAsMain",presentAsMain:true|false}
@@ -31,10 +37,17 @@
  *    from the migrated log; restore_epoch bumped per workspace so every
  *    client wipes and full re-syncs.
  *
+ * The dry-run is READ-ONLY and never aborts: it reports the full per-
+ * workspace distribution (nodeType values, legacy name keys, any other key
+ * outside the current strict payload schemas, query-token occurrences) plus
+ * a scan-notes list of everything it could not map. --apply fails loud on any
+ * unmapped remainder (defense in depth: every rewritten envelope is also
+ * re-validated against the strict v3 schemas before the write).
+ *
  * Idempotent: a schema_meta row marks a completed run; a second invocation
  * without --force reports "already migrated" and exits 0.
  *
- * Usage (from the repo root, stack stopped):
+ * Usage (from the repo root, stack stopped for --apply):
  *   pnpm --filter @notees/server exec tsx ../../scripts/migrate-node-type.mts \
  *     --db ../../config/notees/sync/relay.db --dry-run     # occurrence report
  *   pnpm --filter @notees/server exec tsx ../../scripts/migrate-node-type.mts \
@@ -95,10 +108,30 @@ function parseArgs(argv: string[]): {
   };
 }
 
+// --- strict-schema key introspection ------------------------------------------------
+
+/** Unwrap z.ZodEffects layers (refine/Transform) down to the wrapped type. */
+function unwrapSchema(schema: unknown): unknown {
+  let current = schema as { _def?: { typeName?: string; schema?: unknown } } | undefined;
+  while (current !== undefined && current !== null && current._def?.typeName === "ZodEffects") {
+    current = current._def.schema as typeof current;
+  }
+  return current;
+}
+
+/** The shape's key list for a strict zod object schema (null when not an object). */
+function strictShapeKeys(schema: unknown): string[] | null {
+  const unwrapped = unwrapSchema(schema) as { _def?: { typeName?: string }; shape?: Record<string, unknown> } | undefined;
+  if (unwrapped !== undefined && unwrapped !== null && unwrapped._def?.typeName === "ZodObject" && unwrapped.shape) {
+    return Object.keys(unwrapped.shape);
+  }
+  return null;
+}
+
 // --- payload rewriting -------------------------------------------------------------
 
 type TokenStats = { conditions: number; sorts: number; aggregations: number; unmapped: number };
-type RowCategory = "page" | "block" | "class" | "tokens-only";
+type RowCategory = "page" | "block" | "class" | "name" | "tokens-only";
 
 interface StoredRow {
   seq: number;
@@ -122,6 +155,17 @@ interface RowPlan {
   opType: string;
   payload: Record<string, unknown>;
   category: RowCategory;
+}
+
+interface RowResult {
+  plan: RowPlan | null;
+  /** The retired nodeType key's value when the payload carried one. */
+  nodeTypeKey: string | null;
+  /** The payload carried a legacy name key (object.create/update). */
+  nameKey: boolean;
+  /** Keys outside the op's strict schema shape, excluding the handled retired keys. */
+  otherForeignKeys: string[];
+  tokens: TokenStats;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -236,17 +280,10 @@ function validateRewritten(row: StoredRow, payload: Record<string, unknown>, opT
   }
 }
 
-interface RowResult {
-  plan: RowPlan | null;
-  /** The retired key's value when the payload carried one at the top level. */
-  nodeTypeKey: string | null;
-  tokens: TokenStats;
-}
-
 /**
  * Build the rewrite plan for one stored v2 row (plan null = payload stays
- * byte-identical). Throws on structural surprises (unparseable payload,
- * non-string or unknown nodeType): the migration must never guess.
+ * byte-identical). Anything unmapped throws; the caller decides whether that
+ * aborts (--apply) or becomes a scan note (dry-run reports, never aborts).
  */
 function planRow(row: StoredRow): RowResult {
   let payload: unknown;
@@ -259,36 +296,86 @@ function planRow(row: StoredRow): RowResult {
     throw new Error(`envelope seq ${row.seq}: payload is not an object`);
   }
 
+  const isObjectOp = row.op_type === "object.create" || row.op_type === "object.update";
+  const isClassOp = row.op_type === "class.create" || row.op_type === "class.update";
+  const nodeTypeValue = isObjectOp && "nodeType" in payload ? payload.nodeType : undefined;
+
+  // Foreign-key audit against the op's CURRENT strict schema (the stored
+  // payload passed the old schemas; the new ones reject retired keys). Only
+  // the object ops carry migration-handled retired keys: nodeType and name
+  // always (the rewrite retires them), plus icon/color on a class-valued
+  // conversion (class.create consumes them); the class ops carry name (folded
+  // into contentAst the same title-is-content way). On any other op a foreign
+  // key is reported/throws as-is.
+  const shapeKeys = strictShapeKeys(payloadSchemaFor(row.op_type));
+  if (shapeKeys === null) {
+    throw new Error(`envelope seq ${row.seq}: no strict shape for opType ${row.op_type}`);
+  }
+  const allowed = new Set(shapeKeys);
+  const retiredExemptions = new Set<string>();
+  if (isObjectOp) {
+    retiredExemptions.add("nodeType");
+    retiredExemptions.add("name");
+    if (nodeTypeValue === "class") {
+      retiredExemptions.add("icon");
+      retiredExemptions.add("color");
+    }
+  } else if (isClassOp) {
+    retiredExemptions.add("name");
+  }
+  const otherForeignKeys = Object.keys(payload).filter(
+    (key) => !allowed.has(key) && !retiredExemptions.has(key),
+  );
+  if (otherForeignKeys.length > 0) {
+    throw new Error(
+      `envelope seq ${row.seq}: keys outside the strict ${row.op_type} schema and not handled by the migration: ${otherForeignKeys.join(", ")}`,
+    );
+  }
+
   let nodeTypeKey: string | null = null;
+  let nameKey = false;
   let opType = row.op_type;
   let next: Record<string, unknown> = payload;
   let category: RowCategory | null = null;
 
-  if (
-    (opType === "object.create" || opType === "object.update") &&
-    "nodeType" in payload
-  ) {
-    const value = payload.nodeType;
-    if (typeof value !== "string") {
-      throw new Error(`envelope seq ${row.seq}: nodeType is not a string (${JSON.stringify(value)})`);
+  if ((isObjectOp || isClassOp) && "name" in payload) {
+    // Title-is-content (the migrate-title-is-content reference): a legacy
+    // name becomes the node's text content only when no content carrier
+    // rides along; otherwise it is non-authoritative and dropped. The key
+    // itself is always removed — the strict schemas reject it. Covers the
+    // object ops AND class.create/class.update (pre-title-is-content class
+    // declarations below the snapshot horizon carry it too).
+    nameKey = true;
+    const name = typeof payload.name === "string" ? payload.name : "";
+    if (name.trim() !== "" && payload.contentAst === undefined && payload.contentDeltaB64 === undefined) {
+      next = { ...next, contentAst: [{ type: "text", text: name }] };
     }
-    nodeTypeKey = value;
-    if (value === "class") {
+    next = { ...next };
+    delete next.name;
+    category = "name";
+  }
+
+  if (isObjectOp && nodeTypeValue !== undefined) {
+    if (typeof nodeTypeValue !== "string") {
+      throw new Error(`envelope seq ${row.seq}: nodeType is not a string (${JSON.stringify(nodeTypeValue)})`);
+    }
+    nodeTypeKey = nodeTypeValue;
+    if (nodeTypeValue === "class") {
       // Class declaration stays the class.create op: rebuild the payload from
       // the fields class.create carries; everything else is dropped.
       const converted: Record<string, unknown> = { classId: payload.objectId };
       for (const key of ["contentAst", "icon", "color"] as const) {
-        if (payload[key] !== undefined) converted[key] = payload[key];
+        if (next[key] !== undefined) converted[key] = next[key];
       }
       next = converted;
       opType = "class.create";
       category = "class";
-    } else if (value === "page" || value === "block") {
-      next = { ...payload, presentAsMain: value === "page" };
+    } else if (nodeTypeValue === "page" || nodeTypeValue === "block") {
+      next = { ...next, presentAsMain: nodeTypeValue === "page" };
       delete next.nodeType;
-      category = value;
+      category = nodeTypeValue;
     } else {
-      throw new Error(`envelope seq ${row.seq}: unknown nodeType value "${value}"`);
+      throw new Error(`envelope seq ${row.seq}: unknown nodeType value "${String(nodeTypeValue)}"`);
     }
   }
 
@@ -304,11 +391,13 @@ function planRow(row: StoredRow): RowResult {
     );
   }
 
-  if (category === null) return { plan: null, nodeTypeKey, tokens };
+  if (category === null) return { plan: null, nodeTypeKey, nameKey, otherForeignKeys, tokens };
   validateRewritten(row, next, opType);
   return {
     plan: { seq: row.seq, workspaceId: row.workspace_id, opType, payload: next, category },
     nodeTypeKey,
+    nameKey,
+    otherForeignKeys,
     tokens,
   };
 }
@@ -322,22 +411,31 @@ function main(): void {
     throw new Error(`relay DB not found: ${options.dbPath}`);
   }
 
-  const db: Db = new Database(options.dbPath);
+  // The dry-run is strictly read-only (it may run while the stack is up).
+  const db: Db = new Database(options.dbPath, { readonly: !options.apply });
   try {
     db.pragma("busy_timeout = 5000");
 
     // Idempotency marker (a completed run refuses to re-run without --force).
-    db.exec("CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
-    const marker = db
-      .prepare("SELECT value FROM schema_meta WHERE key = ?")
-      .get(MARKER_KEY) as { value: string } | undefined;
+    // The marker table is only created by --apply; the dry run never writes.
+    if (options.apply) {
+      db.exec("CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    }
+    const markerTable = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_meta'")
+      .get();
+    const marker = markerTable
+      ? (db.prepare("SELECT value FROM schema_meta WHERE key = ?").get(MARKER_KEY) as { value: string } | undefined)
+      : undefined;
     if (marker !== undefined && !options.force) {
       console.log(`already migrated (${marker.value})`);
       console.log("nothing to do — re-run with --force to execute anyway (a fresh backup is written first).");
       return;
     }
 
-    // Scan + plan.
+    // Scan + plan. In apply mode planning is strict: anything unmapped throws
+    // BEFORE the backup/write. In dry-run mode problems are collected as scan
+    // notes and the full distribution still prints (exit 0).
     const rows = db.prepare("SELECT * FROM envelope ORDER BY seq ASC").all() as unknown as StoredRow[];
     const workspaces = new Map<
       string,
@@ -346,11 +444,16 @@ function main(): void {
         v2: number;
         nodeTypeDistribution: Record<string, number>;
         absentNodeType: number;
+        nameKeys: number;
+        classNameKeys: number;
+        foreignRows: number;
         tokens: TokenStats;
       }
     >();
+    const foreignKeyHistogram: Record<string, number> = {};
+    const scanNotes: string[] = [];
     const plans: RowPlan[] = [];
-    const categories: Record<RowCategory, number> = { page: 0, block: 0, class: 0, "tokens-only": 0 };
+    const categories: Record<RowCategory, number> = { page: 0, block: 0, class: 0, name: 0, "tokens-only": 0 };
     let v2Count = 0;
     for (const row of rows) {
       let ws = workspaces.get(row.workspace_id);
@@ -360,6 +463,9 @@ function main(): void {
           v2: 0,
           nodeTypeDistribution: {},
           absentNodeType: 0,
+          nameKeys: 0,
+          classNameKeys: 0,
+          foreignRows: 0,
           tokens: { conditions: 0, sorts: 0, aggregations: 0, unmapped: 0 },
         };
         workspaces.set(row.workspace_id, ws);
@@ -369,10 +475,28 @@ function main(): void {
       ws.v2 += 1;
       v2Count += 1;
 
-      const result = planRow(row);
+      let result: RowResult;
+      try {
+        result = planRow(row);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (options.apply) throw error;
+        scanNotes.push(message);
+        continue;
+      }
       ws.tokens.conditions += result.tokens.conditions;
       ws.tokens.sorts += result.tokens.sorts;
       ws.tokens.aggregations += result.tokens.aggregations;
+      if (result.otherForeignKeys.length > 0) {
+        ws.foreignRows += 1;
+        for (const key of result.otherForeignKeys) {
+          foreignKeyHistogram[key] = (foreignKeyHistogram[key] ?? 0) + 1;
+        }
+      }
+      if (result.nameKey) {
+        if (row.op_type === "class.create" || row.op_type === "class.update") ws.classNameKeys += 1;
+        else ws.nameKeys += 1;
+      }
       if (row.op_type === "object.create" || row.op_type === "object.update") {
         if (result.nodeTypeKey !== null) {
           ws.nodeTypeDistribution[result.nodeTypeKey] =
@@ -408,7 +532,8 @@ function main(): void {
 
     // Report.
     console.log(`relay DB: ${options.dbPath}`);
-    console.log(`mode: ${options.apply ? "APPLY" : "DRY-RUN"}${options.force ? " (forced)" : ""}`);
+    console.log(`mode: ${options.apply ? "APPLY" : "DRY-RUN (read-only)"}${options.force ? " (forced)" : ""}`);
+    console.log(`workspaces: ${workspaces.size} (${rows.length} envelope rows, ${v2Count} at protocol_version 2)`);
     for (const [workspaceId, ws] of workspaces) {
       console.log(`workspace ${workspaceId}:`);
       console.log(`  envelopes: total=${ws.total} v2=${ws.v2}`);
@@ -416,21 +541,38 @@ function main(): void {
         .map(([value, count]) => `${value}=${count}`)
         .join(" ");
       console.log(`  object.create/update nodeType key distribution: ${distribution || "none"}`);
-      console.log(`  object.create/update without the key (applier defaults reproduce state): ${ws.absentNodeType}`);
+      console.log(`  object.create/update legacy name keys: ${ws.nameKeys}`);
+      console.log(`  class.create/update legacy name keys: ${ws.classNameKeys}`);
+      console.log(
+        `  payloads with other keys outside the strict schema: ${ws.foreignRows}`,
+      );
+      console.log(`  object.create/update without the retired key (applier defaults reproduce state): ${ws.absentNodeType}`);
       console.log(
         `  query-token nodeType occurrences: conditions=${ws.tokens.conditions} sorts=${ws.tokens.sorts} aggregations=${ws.tokens.aggregations}`,
       );
     }
+    if (Object.keys(foreignKeyHistogram).length > 0) {
+      console.log(
+        `foreign-key histogram (outside strict schemas, unhandled): ${Object.entries(foreignKeyHistogram)
+          .map(([key, count]) => `${key}=${count}`)
+          .join(" ")}`,
+      );
+    }
     console.log(
-      `payload rewrites: page→presentAsMain:true=${categories.page} block→presentAsMain:false=${categories.block} class→class.create=${categories.class} query-tokens-only=${categories["tokens-only"]}`,
+      `payload rewrites: page→presentAsMain:true=${categories.page} block→presentAsMain:false=${categories.block} class→class.create=${categories.class} legacy-name=${categories.name} query-tokens-only=${categories["tokens-only"]}`,
     );
     console.log(`protocol_version 2→3 rows: ${v2Count}`);
     console.log(`snapshots to drop: ${snapshotRows.length} row(s) + blob file(s)`);
     console.log(`derived DB files to remove: ${derivedFiles.length} under ${options.derivedDir}`);
     console.log(`restore_epoch bump: ${epochWorkspaces.length} workspace(s)`);
+    if (scanNotes.length > 0) {
+      console.log(`scan notes (${scanNotes.length} row(s) need attention before --apply):`);
+      for (const note of scanNotes.slice(0, 50)) console.log(`  ${note}`);
+      if (scanNotes.length > 50) console.log(`  … and ${scanNotes.length - 50} more`);
+    }
 
     if (!options.apply) {
-      console.log(`dry-run only — no writes. Re-run with --apply to execute (a timestamped backup is written first).`);
+      console.log("dry-run only — no writes. Re-run with --apply to execute (a timestamped backup is written first).");
       return;
     }
 
