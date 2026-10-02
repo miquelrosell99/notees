@@ -111,7 +111,7 @@ export async function buildServer(
 
   // Public probes (auth-free, for doctor and load balancers).
   app.get("/healthz", async () => ({ ok: true }));
-  app.get("/api/v1/version", async () => ({
+  app.get("/api/version", async () => ({
     name: "notees-server",
     version: SERVER_VERSION,
     protocolVersion: 2,
@@ -132,7 +132,7 @@ export async function buildServer(
     async (api) => {
       registerAuthRoutes(api, ctx);
     },
-    { prefix: "/api/v1" },
+    { prefix: "/api" },
   );
 
   // The object/assets machine API: any authenticated principal (operator API
@@ -148,7 +148,7 @@ export async function buildServer(
       registerObjectRoutes(api, ctx);
       registerAssetRoutes(api, ctx);
     },
-    { prefix: "/api/v1" },
+    { prefix: "/api" },
   );
 
   app.addHook("onClose", async () => {

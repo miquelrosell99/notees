@@ -844,7 +844,7 @@ def seed_workspace(workspace: str) -> None:
     # v2 seeds a workspace on first object-route touch (ensureSeeded). The
     # seeded system class nodes must exist before migrated class.setExtends /
     # property ops apply.
-    http_json("GET", "/api/v1/objects?nodeType=page&limit=1", workspace)
+    http_json("GET", "/api/objects?nodeType=page&limit=1", workspace)
 
 
 def push_workspace(workspace: str) -> dict[str, Any]:
@@ -954,7 +954,7 @@ def verify_workspace(workspace: str, expected_envelopes: int,
     }
     for node_id in spot_ids:
         try:
-            obj = http_json("GET", f"/api/v1/objects/{node_id}", workspace)["object"]
+            obj = http_json("GET", f"/api/objects/{node_id}", workspace)["object"]
             got = plain_text(obj.get("contentAst") or [])
             want = expected_content.get(node_id, "")
             verification["spot_checks"].append({
@@ -970,7 +970,7 @@ def verify_workspace(workspace: str, expected_envelopes: int,
     pages = 0
     cursor = ""
     while True:
-        result = http_json("GET", f"/api/v1/objects?nodeType=page&limit=500&cursor={cursor}", workspace)
+        result = http_json("GET", f"/api/objects?nodeType=page&limit=500&cursor={cursor}", workspace)
         batch = result.get("objects", [])
         pages += len(batch)
         cursor = result.get("nextCursor") or ""

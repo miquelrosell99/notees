@@ -78,7 +78,7 @@ function stubFetch(routes: Record<string, () => unknown>) {
 describe("WorkspaceSettingsModal", () => {
   it("renames the workspace via PATCH /workspaces/:id", async () => {
     const calls = stubFetch({
-      "/api/v1/workspaces/ws1": () => ({ id: "ws1", name: "Orchard" }),
+      "/api/workspaces/ws1": () => ({ id: "ws1", name: "Orchard" }),
     });
     const onRenamed = vi.fn();
     render(
@@ -100,7 +100,7 @@ describe("WorkspaceSettingsModal", () => {
 
     await waitFor(() => expect(onRenamed).toHaveBeenCalledWith("Orchard"));
     const patch = calls.find((c) => c.method === "PATCH");
-    expect(patch?.url).toBe("https://notees.example.com/api/v1/workspaces/ws1");
+    expect(patch?.url).toBe("https://notees.example.com/api/workspaces/ws1");
     expect(JSON.parse(patch!.body!)).toEqual({ name: "Orchard" });
     expect(await screen.findByText("Workspace renamed.")).toBeInTheDocument();
   });
@@ -230,15 +230,15 @@ describe("UserSettingsModal", () => {
         const url = String(input);
         const method = init?.method ?? "GET";
         calls.push({ url, method });
-        if (url.endsWith("/api/v1/api-keys") && method === "GET") {
+        if (url.endsWith("/api/api-keys") && method === "GET") {
           return Response.json({ apiKeys: keys.map(envelope) });
         }
-        if (url.endsWith("/api/v1/api-keys") && method === "POST") {
+        if (url.endsWith("/api/api-keys") && method === "POST") {
           const created: Key = { id: "k2", name: "desktop CLI", revokedAt: null };
           keys = [...keys, created];
           return Response.json({ apiKey: envelope(created), token: "nk_full_secret" });
         }
-        if (url.endsWith("/api/v1/api-keys/k1") && method === "DELETE") {
+        if (url.endsWith("/api/api-keys/k1") && method === "DELETE") {
           keys = keys.filter((k) => k.id !== "k1");
           return Response.json({ ok: true });
         }
@@ -268,7 +268,7 @@ describe("UserSettingsModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
     expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
     expect(
-      calls.some((c) => c.method === "POST" && c.url.endsWith("/api/v1/api-keys")),
+      calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys")),
     ).toBe(true);
 
     // Revoke the first key: inline confirmation, then DELETE.
@@ -276,7 +276,7 @@ describe("UserSettingsModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
     await waitFor(() => expect(screen.queryByText("laptop CLI")).not.toBeInTheDocument());
     expect(
-      calls.some((c) => c.method === "DELETE" && c.url.endsWith("/api/v1/api-keys/k1")),
+      calls.some((c) => c.method === "DELETE" && c.url.endsWith("/api/api-keys/k1")),
     ).toBe(true);
   });
 
@@ -395,7 +395,7 @@ describe("entry points", () => {
 
   it("workspace rows expose a settings gear that opens the workspace modal", async () => {
     stubFetch({
-      "/api/v1/workspaces": () => ({ workspaces: [WS] }),
+      "/api/workspaces": () => ({ workspaces: [WS] }),
     });
     render(
       <WorkspaceSwitcher
@@ -420,10 +420,10 @@ describe("entry points", () => {
         const url = String(input);
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: (init?.body as string) ?? null });
-        if (url.endsWith("/api/v1/workspaces") && method === "GET") {
+        if (url.endsWith("/api/workspaces") && method === "GET") {
           return Response.json({ workspaces: [WS] });
         }
-        if (url.endsWith("/api/v1/workspaces") && method === "POST") {
+        if (url.endsWith("/api/workspaces") && method === "POST") {
           return Response.json({ id: "ws9" });
         }
         return new Response("unexpected", { status: 500 });
@@ -447,7 +447,7 @@ describe("entry points", () => {
     fireEvent.click(screen.getByRole("button", { name: /create workspace “orchard”/i }));
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith("ws9", "Orchard"));
     const post = calls.find((c) => c.method === "POST");
-    expect(post?.url).toBe("https://notees.example.com/api/v1/workspaces");
+    expect(post?.url).toBe("https://notees.example.com/api/workspaces");
     expect(JSON.parse(post!.body!)).toEqual({ name: "Orchard" });
     // The popup closed after the create+switch.
     expect(screen.queryByRole("listbox")).toBeNull();
@@ -455,7 +455,7 @@ describe("entry points", () => {
 
   it("footer opens Manage workspaces instead of signing out", async () => {
     stubFetch({
-      "/api/v1/workspaces": () => ({ workspaces: [WS] }),
+      "/api/workspaces": () => ({ workspaces: [WS] }),
     });
     const onManageWorkspaces = vi.fn();
     render(
@@ -479,7 +479,7 @@ describe("entry points", () => {
 describe("ManageWorkspacesModal", () => {
   it("lists workspaces with an active badge and switches on row click", async () => {
     stubFetch({
-      "/api/v1/workspaces": () => ({ workspaces: [WS, WS2] }),
+      "/api/workspaces": () => ({ workspaces: [WS, WS2] }),
     });
     const onSwitch = vi.fn();
     render(
@@ -500,8 +500,8 @@ describe("ManageWorkspacesModal", () => {
 
   it("renames a workspace via the card actions menu → PATCH /workspaces/:id", async () => {
     const calls = stubFetch({
-      "/api/v1/workspaces": () => ({ workspaces: [WS, WS2] }),
-      "/api/v1/workspaces/ws1": () => ({ id: "ws1", name: "Orchard" }),
+      "/api/workspaces": () => ({ workspaces: [WS, WS2] }),
+      "/api/workspaces/ws1": () => ({ id: "ws1", name: "Orchard" }),
     });
     const onRenamed = vi.fn();
     render(
@@ -520,14 +520,14 @@ describe("ManageWorkspacesModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rename Workspace" }));
     await waitFor(() => expect(onRenamed).toHaveBeenCalledWith("ws1", "Orchard"));
     const patch = calls.find((c) => c.method === "PATCH");
-    expect(patch?.url).toBe("https://notees.example.com/api/v1/workspaces/ws1");
+    expect(patch?.url).toBe("https://notees.example.com/api/workspaces/ws1");
     expect(JSON.parse(patch!.body!)).toEqual({ name: "Orchard" });
     expect(await screen.findByText("Orchard")).toBeInTheDocument();
   });
 
   it("disables rename and delete for non-owner workspaces", async () => {
     stubFetch({
-      "/api/v1/workspaces": () => ({ workspaces: [WS2] }),
+      "/api/workspaces": () => ({ workspaces: [WS2] }),
     });
     render(
       <WorkspacesView
@@ -553,10 +553,10 @@ describe("ManageWorkspacesModal", () => {
         const url = String(input);
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: (init?.body as string) ?? null });
-        if (url.endsWith("/api/v1/workspaces") && method === "GET") {
+        if (url.endsWith("/api/workspaces") && method === "GET") {
           return Response.json({ workspaces: deleted ? [WS2] : [WS, WS2] });
         }
-        if (url.endsWith("/api/v1/workspaces/ws1") && method === "DELETE") {
+        if (url.endsWith("/api/workspaces/ws1") && method === "DELETE") {
           deleted = true;
           return Response.json({ ok: true });
         }
@@ -577,13 +577,13 @@ describe("ManageWorkspacesModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /delete workspace/i }));
     await waitFor(() => expect(screen.queryByText("Garden")).toBeNull());
     const del = calls.find((c) => c.method === "DELETE");
-    expect(del?.url).toBe("https://notees.example.com/api/v1/workspaces/ws1");
+    expect(del?.url).toBe("https://notees.example.com/api/workspaces/ws1");
     expect(screen.getByText("Backyard")).toBeInTheDocument();
   });
 
   it("omits actions with no backend (share, duplicate, import)", async () => {
     stubFetch({
-      "/api/v1/workspaces": () => ({ workspaces: [WS] }),
+      "/api/workspaces": () => ({ workspaces: [WS] }),
     });
     render(
       <WorkspacesView
@@ -609,10 +609,10 @@ describe("ManageWorkspacesModal", () => {
         const url = String(input);
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: (init?.body as string) ?? null });
-        if (url.endsWith("/api/v1/workspaces") && method === "GET") {
+        if (url.endsWith("/api/workspaces") && method === "GET") {
           return Response.json({ workspaces: [WS] });
         }
-        if (url.endsWith("/api/v1/workspaces") && method === "POST") {
+        if (url.endsWith("/api/workspaces") && method === "POST") {
           return Response.json({ id: "ws9" });
         }
         return new Response("unexpected", { status: 500 });
@@ -633,13 +633,13 @@ describe("ManageWorkspacesModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith("ws9", "New plots"));
     const post = calls.find((c) => c.method === "POST");
-    expect(post?.url).toBe("https://notees.example.com/api/v1/workspaces");
+    expect(post?.url).toBe("https://notees.example.com/api/workspaces");
     expect(JSON.parse(post!.body!)).toEqual({ name: "New plots" });
   });
 
   it("omits actions with no backend (share, duplicate, import)", async () => {
     stubFetch({
-      "/api/v1/workspaces": () => ({ workspaces: [WS] }),
+      "/api/workspaces": () => ({ workspaces: [WS] }),
     });
     render(
       <WorkspacesView
