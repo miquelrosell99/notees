@@ -39,7 +39,7 @@ Node, browser WASM worker, CLI) so semantics cannot drift between them.
 *Implemented (M1).*
 
 - **Envelope format** — `packages/protocol/src/envelope.ts`. camelCase JSON, strict zod
-  schema, mandatory `protocolVersion: 2` (absent → rejected), fields: `id` (UUIDv7),
+  schema, mandatory `protocolVersion: 3` (absent → rejected), fields: `id` (UUIDv7),
   `workspaceId`, `actorId`, `deviceId`, optional `client` provenance claim
   (`web`, `cli`, `agent:<id>`), `hlc`, `affectedNodeIds`, `opType`, `timestamp`, `payload`.
   `seq` is deliberately **absent** from envelopes: server-assigned ordering rides on
@@ -80,7 +80,7 @@ itself is M3 and does not exist.
 
 `packages/store` is the single semantic-store implementation. Per the five storage
 categories of `01-knowledge-model.md` §3, the derived schema
-(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 7`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`) holds:
+(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 8`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the render-state model: `is_class` + `present_as_main` replace `node_type`, node table rebuilt in place) holds:
 
 | Category | Tables (M1 schema) | Notes |
 |---|---|---|
@@ -110,34 +110,46 @@ applicable (e.g. a create whose parent has not arrived) is *skipped* and retried
 boot — it never poisons the whole replay. A per-workspace promise queue serializes the
 ingest+apply pair across concurrent requests.
 
-## 4. The three axes and the bullet-proof schema
+## 4. The axes and the bullet-proof schema
 
-*Implemented (M1) — this is the Revision 10 final model, not the older soft-`kind` design.*
+*Implemented (M1) — this is the Revision 11 render-state model: `is_class` ×
+`present_as_main` replace Revision 10's `node_type` enumeration (and, before it, the
+soft-`kind` design).*
 
-Structural role, tree placement, and domain typing are **one enumeration plus two
-placement CHECKs**, so illegal states are unrepresentable rather than guarded
+Identity, tree placement, render state, and domain typing are **two booleans plus one
+placement CHECK**, so illegal states are unrepresentable rather than guarded
 (`packages/store/src/schema.ts`, normative in `SCHEMA.md` "Node structure"):
 
 ```
-node_type TEXT NOT NULL DEFAULT 'block' CHECK (node_type IN ('page', 'block', 'class')),
+is_class INTEGER NOT NULL DEFAULT 0,
+present_as_main INTEGER NOT NULL DEFAULT 0,
 ...
-CHECK (node_type <> 'block' OR parent_id IS NOT NULL),   -- a block can never be parentless
-CHECK (node_type <> 'class' OR parent_id IS NULL),       -- a class is always tree-external
+-- Classes are always roots; every other node may sit anywhere in the
+-- tree, parentless nodes included (they render with document chrome).
+CHECK (is_class = 0 OR parent_id IS NULL)
 ```
 
-- **The three axes:** `node_type` (structural role: page | block | class) × `parent_id`
+- **The axes:** `is_class` (identity — classes are always roots) × `parent_id`
   (placement — placement lives *only* in the tree; a cross-page move updates nothing but
-  the parent edge plus order) × `class_ids` (domain typing — whiteboard, meeting, …).
-- **Applier defaults by context:** the payload's `nodeType` is optional; the applier
-  defaults workspace-root creates to `page`, child creates to `block`.
-- **The one cross-row rule** (a class may not be a *parent*) cannot be a CHECK; it is an
-  applier move-guard that throws `MoveGuardError` (fail-loud)
-  (`packages/store/src/appliers.ts:180`).
-- **Promotion/demotion** = `object.update` flipping `node_type` block↔page in place,
-  identity preserved; **declaring a class** = set `node_type='class'` (declaration-first).
-- **View resolution = f(node_type):** `class` → Class View, `page` → Page View, `block` →
-  Focused Block View (SCHEMA.md). The M1 web UI implements a read-oriented Page View only
-  (§9); Class View / Focused Block View chrome is designed, not shipped.
+  the parent edge plus order) × `present_as_main` (render bit for parented non-class
+  nodes: the parent's main-children zone + document chrome when 1, the inline body +
+  block chrome when 0; unread for parentless nodes and classes) × `class_ids` (domain
+  typing — whiteboard, meeting, …). "Page" and "block" are the user-facing names of the
+  render states, not stored kinds.
+- **Applier defaults by context:** the payload's `presentAsMain` is optional; the applier
+  defaults it to true when the node is parentless, false when parented.
+- **Class parenting:** classes may have non-class children (classes are containers); the
+  one tree rule left — a class can never be a *child* — is the CHECK above, plus an
+  applier move-guard that fails loud (`MoveGuardError`) when an op tries to parent a
+  class (`packages/store/src/appliers.ts:594`).
+- **Promotion/demotion** = `object.update` toggling `presentAsMain` in place, identity
+  preserved (promotion stringifies the content); **declaring a class** = `class.create`
+  (declaration-first).
+- **View resolution = the render cascade:** `is_class` → Class View; parentless →
+  document chrome (Page View; the bit is unread); otherwise `present_as_main` decides
+  main-children zone vs inline body (SCHEMA.md). The M1 web UI implements a
+  read-oriented Page View only (§9); Class View / Focused Block View chrome is designed,
+  not shipped.
 
 ## 5. Content grammar and the edge index
 

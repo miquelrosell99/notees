@@ -41,7 +41,7 @@ Sanity probes (no auth needed for the first two):
 
 ```bash
 curl -s localhost:8377/healthz                       # {"ok":true}
-curl -s localhost:8377/api/version                # {"name":"notees-server","version":"2.0.0-m1","protocolVersion":2,...}
+curl -s localhost:8377/api/version                # {"name":"notees-server","version":"2.0.0-m1","protocolVersion":3,...}
 ```
 
 A fresh workspace seeds itself: a starter class catalog (`person`, `organization`, the `source` tree with its `book`/`paper`/`article`/`document`/`movie`/`thesis` children, `task`, `whiteboard`, `collection`, `query`, `template`, `note`, the `day`/`month`/`year` journals, …), plus `scratchpad` and `inbox` pages.
@@ -66,7 +66,7 @@ Every command accepts `--json` (stable machine-readable output — the human out
 
 ```bash
 notees shell
-# > const p = await create({ nodeType: "page", name: "Reading list" })
+# > const p = await create({ name: "Reading list" })
 # > await search("Kuhn")
 # > await effective(p.id)        # authored + derived class defaults
 # > await exportMd([p.id])       # markdown bundle (alias of helpers.export)
@@ -86,14 +86,14 @@ $ notees doctor
 ok  server configured: http://localhost:8477
 ok  api key configured: present
 ok  api key shape: nk_ + 32 chars
-ok  server reachable: notees-server 2.0.0-m1 (protocol v2)
+ok  server reachable: notees-server 2.0.0-m1 (protocol v3)
 ok  authentication: API key accepted
 ```
 
 **1. Create a page.** Non-JSON output prints just the new id, so it scripts cleanly:
 
 ```console
-$ notees object create --nodeType page --name "Paris trip"
+$ notees object create --name "Paris trip"
 01a0dd78-cd48-73d5-87d6-8f650e8d7487
 ```
 
@@ -102,7 +102,7 @@ $ notees object create --nodeType page --name "Paris trip"
 ```console
 $ echo '{"contentAst":[{"type":"text","text":"Visited the Louvre with "},
         {"type":"mention","targetNodeId":"01a0dd78-cd48-73d5-87d6-8f650e8d7487","text":"Paris trip"}]}' \
-    | notees object create --nodeType block --parent 01a0dd78-cd48-73d5-87d6-8f650e8d7487 --stdin
+    | notees object create --parent 01a0dd78-cd48-73d5-87d6-8f650e8d7487 --stdin
 01a0dd78-ce72-769e-a424-e4d372a3ff62
 ```
 
@@ -110,7 +110,8 @@ $ echo '{"contentAst":[{"type":"text","text":"Visited the Louvre with "},
 
 ```console
 $ notees search "Louvre"
-{ "results": [ { "id": "01a0dd78-ce72-…", "nodeType": "block", "name": null,
+{ "results": [ { "id": "01a0dd78-ce72-…", "name": "Visited the Louvre with Paris trip",
+                 "isClass": false, "presentAsMain": false,
                  "parentId": "01a0dd78-cd48-…", "updatedAt": "2026-09-26T11:27:57.042Z" } ] }
 ```
 
@@ -162,7 +163,7 @@ server http://localhost:8477: 54 envelopes (restoreEpoch 0)
 local cursor: seq 0 — 54 behind
 ```
 
-Useful supporting commands: `notees object list --nodeType page --q <text> --limit 20 --cursor <id>`, `notees object get <id>`, `notees object update <id> --name … --nodeType page|block --icon … --color …` (this is also promotion/demotion — flipping `node_type` in place, identity and links intact; see [ux.md](ux.md#promotion-and-demotion)).
+Useful supporting commands: `notees object list --presentAsMain --q <text> --limit 20 --cursor <id>`, `notees object get <id>`, `notees object update <id> --name … --presentAsMain|--no-presentAsMain --icon … --color …` (this is also promotion/demotion — flipping the render bit in place, identity and links intact; see [ux.md](ux.md#promotion-and-demotion)).
 
 ## The web app
 
@@ -184,13 +185,13 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call.
 
 | Endpoint | What it does |
 |---|---|
-| `GET /api/objects?nodeType=&class=&q=&limit=&cursor=` | List objects (paginated, filterable) |
-| `POST /api/objects` | Create an object; body `{"nodeType": "page", "name": …, "parentId": …, "classIds": [...], "contentAst": [...]}` — returns the full object |
+| `GET /api/objects?isClass=&presentAsMain=&class=&q=&limit=&cursor=` | List objects (paginated, filterable; `presentAsMain` selects the document-chrome rows — "pages" — its negation the inline body) |
+| `POST /api/objects` | Create an object; body `{"name": …, "parentId": …, "presentAsMain": …, "classIds": [...], "contentAst": [...]}` (`isClass: true` declares a class — a root) — returns the full object |
 | `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` |
-| `PATCH /api/objects/:id` | Update `name`, `nodeType`, `contentAst`, `icon`, `color` |
+| `PATCH /api/objects/:id` | Update `name`, `presentAsMain`, `contentAst`, `icon`, `color` |
 | `DELETE /api/objects/:id` | Trash (subtree); `?permanent=true&confirm=<id>` hard-deletes |
 | `GET /api/objects/:id/backlinks` | Edges pointing at the node (mentions, typed links, property refs) |
-| `GET /api/search?q=&nodeType=` | Full-text search over active nodes |
+| `GET /api/search?q=&isClass=&presentAsMain=` | Full-text search over active nodes |
 | `GET /api/classes` · `GET /api/classes/:id` | Class catalog and detail (bindings, members) |
 | `GET /api/properties/:id/values` | Values asserted for a property schema |
 | `POST /api/assets` (multipart) · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed), download, metadata |
@@ -201,7 +202,7 @@ One curl, end to end:
 ```bash
 curl -s -X POST localhost:8377/api/objects \
   -H "X-API-Key: $NOTEES_API_KEY" -H 'Content-Type: application/json' \
-  -d '{"nodeType":"block","parentId":"01a0dd78-cd48-73d5-87d6-8f650e8d7487",
+  -d '{"parentId":"01a0dd78-cd48-73d5-87d6-8f650e8d7487",
        "contentAst":[{"type":"text","text":"Back via curl"}]}'
 ```
 
