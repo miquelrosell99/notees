@@ -1,7 +1,8 @@
 /**
  * QueryAST v1 — the canonical, serializable query model for Notees v2
  * (port of v1 `app/domain/entities/query_ast.py` concepts, adapted to the v2
- * derived schema: node_type replaces kind, edge replaces node_link as the
+ * derived schema: the Revision-11 booleans (`is_class`, `present_as_main`)
+ * replace node_type/kind, edge replaces node_link as the
  * reference index, class_hierarchy carries the transitive extends closure).
  *
  * Lives in @notees/protocol because it is wire-adjacent: the content
@@ -44,8 +45,6 @@ export const scopeSchema = z.discriminatedUnion("type", [
 
 // --- conditions ------------------------------------------------------------------
 
-export type NodeTypeValue = "page" | "block" | "class";
-
 /**
  * eq/neq/contains/exists are the v1 subset; gt/gte/lt/lte are the v1
  * GREATER_THAN / LESS_THAN family. Comparison runs over the effective/authored
@@ -57,7 +56,8 @@ export type ContentOp = "contains" | "fts";
 
 export type Condition =
   | { type: "class"; classId: string }
-  | { type: "nodeType"; nodeType: NodeTypeValue }
+  | { type: "isClass"; isClass: boolean }
+  | { type: "presentAsMain"; presentAsMain: boolean }
   | { type: "content"; op: ContentOp; value: string }
   | {
       type: "property";
@@ -82,10 +82,11 @@ export type Condition =
 export const conditionSchema = z.discriminatedUnion("type", [
   /** Hierarchy-aware: members of the class OR of any class extending it. */
   z.object({ type: z.literal("class"), classId: uuid }).strict(),
-  z.object({
-    type: z.literal("nodeType"),
-    nodeType: z.enum(["page", "block", "class"]),
-  }).strict(),
+  /** Class identity bit: match class nodes (true) or non-class nodes (false). */
+  z.object({ type: z.literal("isClass"), isClass: z.boolean() }).strict(),
+  /** Render bit (parented nodes): match the parent's main-children zone
+   * (true) or the inline body (false). */
+  z.object({ type: z.literal("presentAsMain"), presentAsMain: z.boolean() }).strict(),
   /**
    * contains: LIKE substring over the derived search plaintext (the same text
    * the FTS index holds: name + content tokens, case-insensitive for ASCII).
@@ -140,13 +141,13 @@ export const childSchema: z.ZodType<Child> = z.lazy(() =>
 
 // --- sort ---------------------------------------------------------------------------
 
-export type SortField = "name" | "createdAt" | "nodeType";
+export type SortField = "name" | "createdAt" | "isClass" | "presentAsMain";
 export type SortDir = "asc" | "desc";
 export type SortSpec = { field: SortField; dir: SortDir };
 
 export const sortSpecSchema = z
   .object({
-    field: z.enum(["name", "createdAt", "nodeType"]),
+    field: z.enum(["name", "createdAt", "isClass", "presentAsMain"]),
     dir: z.enum(["asc", "desc"]),
   })
   .strict();
@@ -156,15 +157,18 @@ export const sortSpecSchema = z
 export type AggregationDimension =
   | { kind: "class"; id: string }
   | { kind: "property"; id: string }
-  | { kind: "nodeType" };
+  | { kind: "isClass" }
+  | { kind: "presentAsMain" };
 
 export const aggregationDimensionSchema = z.discriminatedUnion("kind", [
   /** Group by membership in the class (hierarchy-aware, like the class condition). */
   z.object({ kind: z.literal("class"), id: uuid }).strict(),
   /** Group by the effective/authored value at idx 0 of the bound property. */
   z.object({ kind: z.literal("property"), id: uuid }).strict(),
-  /** Group by node.node_type. */
-  z.object({ kind: z.literal("nodeType") }).strict(),
+  /** Group by node.is_class (label: "Is class"). */
+  z.object({ kind: z.literal("isClass") }).strict(),
+  /** Group by node.present_as_main (label: "Presents as main"). */
+  z.object({ kind: z.literal("presentAsMain") }).strict(),
 ]);
 
 export type AggregationMeasure =
