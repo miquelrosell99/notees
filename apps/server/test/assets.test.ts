@@ -147,7 +147,7 @@ describe("assets API", () => {
         method: "POST",
         url: "/api/objects",
         headers: { "content-type": "application/json", ...server.authHeaders },
-        payload: { nodeType: "page", name: "Attachment host" },
+        payload: { presentAsMain: true, name: "Attachment host" },
       })
     ).json();
     const up = await upload(PNG, "attached.png", { objectId: object.id });

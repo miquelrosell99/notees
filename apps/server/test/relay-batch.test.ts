@@ -122,7 +122,18 @@ describe("ingest validation (WIRE error shapes)", () => {
     server = await makeTestServer();
     const env = testEnvelope({
       opType: "object.create",
-      payload: { objectId: crypto.randomUUID(), nodeType: "planet" },
+      payload: { objectId: crypto.randomUUID(), presentAsMain: "planet" },
+    });
+    const res = await ingest(server, [env]);
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe("validation_failed");
+  });
+
+  it("rejects the retired nodeType payload key outright (envelope v3, no backward compatibility)", async () => {
+    server = await makeTestServer();
+    const env = testEnvelope({
+      opType: "object.create",
+      payload: { objectId: crypto.randomUUID(), nodeType: "page" },
     });
     const res = await ingest(server, [env]);
     expect(res.statusCode).toBe(422);

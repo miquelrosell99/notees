@@ -114,7 +114,7 @@ export async function buildServer(
   app.get("/api/version", async () => ({
     name: "notees-server",
     version: SERVER_VERSION,
-    protocolVersion: 2,
+    protocolVersion: 3,
     wsProtocolVersion: 2,
   }));
 

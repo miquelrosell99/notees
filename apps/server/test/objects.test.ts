@@ -28,7 +28,7 @@ describe("objects API", () => {
   it("create → get round-trip", async () => {
     server = await makeTestServer();
     const created = await api("POST", "/api/objects", {
-      payload: { nodeType: "page", name: "Round Trip", contentAst: [{ type: "text", text: "hello body" }] },
+      payload: { presentAsMain: true, name: "Round Trip", contentAst: [{ type: "text", text: "hello body" }] },
     });
     expect(created.statusCode).toBe(201);
     const { id } = created.json();
@@ -37,7 +37,7 @@ describe("objects API", () => {
     const fetched = await api("GET", `/api/objects/${id}`);
     expect(fetched.statusCode).toBe(200);
     const object = fetched.json().object;
-    expect(object).toMatchObject({ id, nodeType: "page", isActive: true });
+    expect(object).toMatchObject({ id, isClass: false, presentAsMain: true, isActive: true });
     // Title-is-content: `name` is no longer stored (the convenience field is
     // dropped when an explicit contentAst rides along); the API name is the
     // title derived from the content.
@@ -48,7 +48,7 @@ describe("objects API", () => {
 
   it("PATCH updates fields (LWW: the later write wins)", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Before" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Before" } })).json();
     const patched = await api("PATCH", `/api/objects/${id}`, { payload: { contentAst: [{ type: "text", text: "After" }] } });
     expect(patched.statusCode).toBe(200);
     expect(patched.json().object.contentAst).toEqual([{ type: "text", text: "After" }]);
@@ -67,7 +67,7 @@ describe("objects API", () => {
 
   it("soft delete keeps the object retrievable; permanent delete removes it", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Doomed" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Doomed" } })).json();
 
     const soft = await api("DELETE", `/api/objects/${id}`);
     expect(soft.statusCode).toBe(200);
@@ -89,25 +89,31 @@ describe("objects API", () => {
     expect(gone.statusCode).toBe(404);
   });
 
-  it("objects list supports nodeType filter and cursor pagination", async () => {
+  it("objects list supports isClass/presentAsMain filters and cursor pagination", async () => {
     server = await makeTestServer();
     const ids: string[] = [];
     for (let i = 0; i < 5; i += 1) {
-      const { id } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: `p${i}` } })).json();
+      const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: `p${i}` } })).json();
       ids.push(id);
     }
-    const block = (await api("POST", "/api/objects", { payload: { nodeType: "block", name: "b1", parentId: ids[0] } })).json();
+    const block = (await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "b1", parentId: ids[0] } })).json();
     expect(block.id).toBeTruthy();
 
-    const page1 = (await api("GET", "/api/objects?nodeType=page&limit=2")).json();
+    // The pages-ish listing is the document-chrome predicate (non-class
+    // roots + main children); parented rows with the bit unset stay out.
+    const page1 = (await api("GET", "/api/objects?presentAsMain=true&limit=2")).json();
     expect(page1.objects).toHaveLength(2);
     expect(page1.nextCursor).not.toBeNull();
-    const page2 = (await api("GET", `/api/objects?nodeType=page&limit=2&cursor=${page1.nextCursor}`)).json();
+    const page2 = (await api("GET", `/api/objects?presentAsMain=true&limit=2&cursor=${page1.nextCursor}`)).json();
     expect(page2.objects).toHaveLength(2);
     expect(new Set([...page1.objects.map((o: { id: string }) => o.id), ...page2.objects.map((o: { id: string }) => o.id)]).size).toBe(4);
 
-    const blocks = (await api("GET", "/api/objects?nodeType=block")).json();
+    const blocks = (await api("GET", "/api/objects?presentAsMain=false")).json();
     expect(blocks.objects.map((o: { id: string }) => o.id)).toContain(block.id);
+    expect(blocks.objects.every((o: { isClass: boolean; presentAsMain: boolean }) => o.isClass === false && o.presentAsMain === false)).toBe(true);
+
+    const nonClasses = (await api("GET", "/api/objects?isClass=false")).json();
+    expect(nonClasses.objects.map((o: { id: string }) => o.id)).toContain(block.id);
   });
 
   it("search finds inserted content", async () => {
@@ -115,7 +121,7 @@ describe("objects API", () => {
     const { id } = (
       await api("POST", "/api/objects", {
         payload: {
-          nodeType: "page",
+          presentAsMain: true,
           name: "Searchable",
           contentAst: [{ type: "text", text: "quixotic expedition notes" }],
         },
@@ -128,14 +134,14 @@ describe("objects API", () => {
 
   it("backlinks reflect an emitted mention", async () => {
     server = await makeTestServer();
-    const { id: target } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Target" } })).json();
-    const { id: source } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Source" } })).json();
+    const { id: target } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Target" } })).json();
+    const { id: source } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Source" } })).json();
     // Title-is-content: pages carry text-only content, so the mention token
     // rides in a block child of the source page.
     const { id: block } = (
       await api("POST", "/api/objects", {
         payload: {
-          nodeType: "block",
+          presentAsMain: false,
           parentId: source,
           contentAst: [{ type: "mention", targetNodeId: target, text: "Target" }],
         },
@@ -170,13 +176,47 @@ describe("objects API", () => {
     server = await makeTestServer();
     const { id } = (
       await api("POST", "/api/objects", {
-        payload: { nodeType: "page", name: "Task page", classIds: [SYSTEM_CLASS_UUIDS.task] },
+        payload: { presentAsMain: true, name: "Task page", classIds: [SYSTEM_CLASS_UUIDS.task] },
       })
     ).json();
     const detail = (await api("GET", `/api/classes/${SYSTEM_CLASS_UUIDS.task}`)).json();
     expect(detail.members.map((m: { id: string }) => m.id)).toContain(id);
     const objects = (await api("GET", `/api/objects?class=${SYSTEM_CLASS_UUIDS.task}`)).json();
     expect(objects.objects.map((o: { id: string }) => o.id)).toContain(id);
+  });
+
+  it("create with isClass declares a class node (the class.create envelope)", async () => {
+    server = await makeTestServer();
+    const created = await api("POST", "/api/objects", { payload: { isClass: true, name: "Genre" } });
+    expect(created.statusCode).toBe(201);
+    const { id, object } = created.json();
+    expect(object).toMatchObject({ id, isClass: true, presentAsMain: false, isActive: true });
+    expect(object.name).toBe("Genre");
+
+    // Classes are always roots: placement/render fields cannot accompany isClass.
+    const withParent = await api("POST", "/api/objects", {
+      payload: { isClass: true, name: "Nope", parentId: id },
+    });
+    expect(withParent.statusCode).toBe(422);
+    const withClassIds = await api("POST", "/api/objects", {
+      payload: { isClass: true, name: "Nope", classIds: [SYSTEM_CLASS_UUIDS.task] },
+    });
+    expect(withClassIds.statusCode).toBe(422);
+  });
+
+  it("PATCH presentAsMain toggles the render bit (promotion/demotion)", async () => {
+    server = await makeTestServer();
+    const { id: parent } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Host" } })).json();
+    const { id: child } = (
+      await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "Child", parentId: parent } })
+    ).json();
+    expect((await api("GET", `/api/objects/${child}`)).json().object).toMatchObject({
+      isClass: false,
+      presentAsMain: false,
+    });
+    const patched = await api("PATCH", `/api/objects/${child}`, { payload: { presentAsMain: true } });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json().object.presentAsMain).toBe(true);
   });
 
   it("requires the API key on the object surface", async () => {
@@ -188,7 +228,7 @@ describe("objects API", () => {
 
   it("property values endpoint returns stored values", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { nodeType: "page", name: "Prop" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Prop" } })).json();
     const isbnSchema = SYSTEM_PROPERTY_UUIDS.isbn;
     const env = newEnvelope({
       workspaceId: server.ctx.defaultWorkspace,
