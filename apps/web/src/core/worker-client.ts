@@ -355,9 +355,14 @@ export class WorkerClient {
     await this.call("deleteObject", [id, opts]);
   }
 
-  /** Reparent a node (outliner indent/outdent; `afterId` = sibling placement). */
-  async moveObject(id: string, parentId: string | null, afterId?: string): Promise<void> {
-    await this.call("moveObject", [id, parentId, afterId]);
+  /** Reparent a node (outliner indent/outdent; `afterId`/`beforeId` = sibling placement). */
+  async moveObject(
+    id: string,
+    parentId: string | null,
+    afterId?: string,
+    beforeId?: string,
+  ): Promise<void> {
+    await this.call("moveObject", [id, parentId, afterId, beforeId]);
   }
 
   /** OR-set class membership add (the `#` / `+` set gesture). */

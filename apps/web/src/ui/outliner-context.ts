@@ -30,11 +30,12 @@ export interface OutlinerClient {
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
   deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;
   /**
-   * Reparent seam for indent/outdent (`object.move`). `afterId` lands the
-   * node immediately after that sibling (Enter placement); omit it to append
-   * at the end (Tab indent).
+   * Reparent seam for indent/outdent/Enter placement (`object.move`).
+   * `afterId` lands the node immediately after that sibling; `beforeId`
+   * immediately before (W1 — the Enter-at-start / first-child placement);
+   * omit both to append at the end (Tab indent).
    */
-  moveObject(id: string, parentId: string | null, afterId?: string): Promise<void>;
+  moveObject(id: string, parentId: string | null, afterId?: string, beforeId?: string): Promise<void>;
   /**
    * OR-set class membership add — the `#` / `+` "set" gesture. No-op when
    * the class is already assigned; otherwise appends to the node's class_ids

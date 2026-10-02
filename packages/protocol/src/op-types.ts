@@ -35,6 +35,14 @@ export const objectCreatePayload = z
      */
     contentAst: z.array(z.unknown()).optional(),
     parentId: uuid.nullable().optional(),
+    /**
+     * Initial sibling placement (fractional child order — see object.move):
+     * `afterId`/`beforeId` anchor the node next to that current sibling;
+     * omit both to append at the end. At most one is meaningful; when both
+     * are present `afterId` wins (the TS reference never sends both).
+     */
+    afterId: uuid.optional(),
+    beforeId: uuid.optional(),
   })
   .strict();
 
@@ -70,16 +78,23 @@ export const objectDeletePayload = z
  * pages — the store's placement CHECKs reject a parentless block, and the
  * applier's cross-row move guard rejects any class parenting (fail loud).
  * `afterId` places the node immediately after that sibling in the parent's
- * child order (Enter placement); omit it to append at the end. Parent and
- * position are LWW by envelope HLC, like the other node fields. Ordering is
- * a minimal deterministic fractional allocator (sibling midpoint / append) —
- * TreeCrdt remains designed (docs/ux.md "The outliner").
+ * child order (Enter placement); `beforeId` places it immediately before
+ * (the v1-level Enter-at-start / first-child placement that afterId-only
+ * fractional ordering cannot express — midpoints never drop below the
+ * current minimum). Omit both to append at the end. At most one anchor is
+ * meaningful; when both are present `afterId` wins. An anchor that is not a
+ * current sibling falls back to append (defensive, mirrors afterId). Parent
+ * and position are LWW by envelope HLC, like the other node fields. Ordering
+ * is a minimal deterministic fractional allocator (sibling midpoint /
+ * midpoint-below-first / append) — TreeCrdt remains designed (docs/ux.md
+ * "The outliner").
  */
 export const objectMovePayload = z
   .object({
     objectId: uuid,
     parentId: uuid.nullable(),
     afterId: uuid.optional(),
+    beforeId: uuid.optional(),
   })
   .strict();
 
