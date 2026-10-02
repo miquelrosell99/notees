@@ -118,7 +118,7 @@ export function UserSettingsModal({
   // Editor / general preferences — device-local.
   const [treeEditMode, setTreeEditMode] = useDeviceSetting<"direct" | "logical">(
     "treeEditMode",
-    "direct",
+    "logical",
   );
   const [linkedRefsCollapseLevel, setLinkedRefsCollapseLevel] = useDeviceSetting(
     "linkedRefsCollapseLevel",
