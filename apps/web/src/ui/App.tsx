@@ -61,6 +61,8 @@ import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { JournalsView } from "./components/JournalsView.js";
+import { CalendarView } from "./components/CalendarView.js";
+import { ensureTaskFamily } from "./components/taskFamily.js";
 import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
@@ -180,6 +182,7 @@ function sameHostServerUrl(): string {
 const NAV_PATHS: Record<string, NavKey> = {
   journal: "journal",
   journals: "journal",
+  calendar: "calendar",
   inbox: "inbox",
   pages: "pages",
   classes: "classes",
@@ -1274,6 +1277,8 @@ export function App() {
             />
           ) : activeNav === "journal" ? (
             <JournalsView client={client} onOpenPage={openPage} />
+          ) : activeNav === "calendar" ? (
+            <CalendarView client={client} onOpenPage={openPage} />
           ) : (
             <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           )}
@@ -1401,6 +1406,12 @@ export function HubView({
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  // §34.28 #2 — author the six task property schemas + bindings on first
+  // tasks-hub open (idempotent no-op once present); before this, a fresh
+  // workspace silently dropped the Scheduled/Deadline columns.
+  useEffect(() => {
+    if (nav === "tasks") void ensureTaskFamily(client);
+  }, [client, nav]);
   const classes = client.listClasses();
   const assetClassId = classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
   const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));

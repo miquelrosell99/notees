@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { createWorkspace, listWorkspaces, type WorkspaceEntry } from "@/core/auth-api.js";
 
+import type { AnyClient } from "./Sidebar.js";
 import { Icon } from "../Icon.js";
 import { Separator } from "./ui/Separator.js";
 import { WorkspaceSettingsModal } from "./modals/WorkspaceSettingsModal.js";
@@ -24,6 +25,7 @@ export function WorkspaceSwitcher({
   onSwitch,
   onManageWorkspaces,
   onRenamed,
+  client,
 }: {
   serverUrl: string;
   credential: string;
@@ -39,6 +41,8 @@ export function WorkspaceSwitcher({
   onSignOut?: (() => void) | undefined;
   /** Called after a workspace rename so the shell can update its label. */
   onRenamed?: ((workspaceId: string, name: string) => void) | undefined;
+  /** The active workspace's client — threaded into the settings modal. */
+  client?: AnyClient | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -205,6 +209,7 @@ export function WorkspaceSwitcher({
           workspaceId={settingsWorkspace.id}
           workspaceName={settingsWorkspace.name ?? "Workspace"}
           workspaceRole={settingsWorkspace.role}
+          client={client}
           onRenamed={(name) => {
             setWorkspaces((prev) =>
               prev?.map((w) => (w.id === settingsWorkspace.id ? { ...w, name } : w)) ?? null,

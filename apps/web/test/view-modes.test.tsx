@@ -11,12 +11,14 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { HubView } from "../src/ui/App.js";
 import { PageView } from "../src/ui/PageView.js";
 import { ClassView } from "../src/ui/ClassView.js";
+import { CollectionHub } from "../src/ui/components/CollectionHub.js";
+import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
 import { getViewDefinition, getViewModeOptions } from "../src/ui/views/index.js";
 import { applyKanbanDrop } from "../src/ui/views/KanbanView.js";
 
@@ -50,6 +52,25 @@ async function seedClient(): Promise<WorkspaceClient> {
 /** Flush the microtasks a fireEvent-triggered async write runs on. */
 async function flushWrites(): Promise<void> {
   await act(async () => {});
+}
+
+/**
+ * The tasks hub authors the task family on open (§34.28 #2), so its kanban
+ * board groups by the fixed-id taskStatus schema — tests ensure the family
+ * up front for a deterministic first render (and no in-flight writes at
+ * teardown), reading the fresh option ids back from the authored schema.
+ */
+async function ensureTaskStatus(
+  client: WorkspaceClient,
+): Promise<{ schemaId: string; optionId: (label: string) => string }> {
+  await ensureTaskFamily(client);
+  const status = client
+    .listPropertySchemas()
+    .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
+  return {
+    schemaId: status.id,
+    optionId: (label) => status.options!.find((option) => option.label === label)!.id,
+  };
 }
 
 /** WORKAROUND(store applier): class.create's contentAst never lands in the
@@ -168,6 +189,9 @@ describe("classed-nodes table", () => {
 describe("tasks hub", () => {
   it("lists pages AND blocks classed task, table by default, switchable", async () => {
     const client = await seedClient();
+    // The hub authors the task family on open (§34.28 #2) — ensure up front
+    // so no write is in flight when the test teardown closes the client.
+    await ensureTaskFamily(client);
     const taskPage = await client.createObject({ presentAsMain: true, name: "Write report" });
     await client.assignClass(taskPage, SYSTEM_CLASS_UUIDS.task);
     const host = await client.createObject({ presentAsMain: true, name: "Host" });
@@ -195,6 +219,7 @@ describe("tasks hub", () => {
 
   it("sorts by name ascending and descending via header clicks", async () => {
     const client = await seedClient();
+    await ensureTaskFamily(client);
     await client.assignClass(
       await client.createObject({ presentAsMain: true, name: "Zulu" }),
       SYSTEM_CLASS_UUIDS.task,
@@ -249,35 +274,36 @@ describe("kanban board (property-dimension groupBy)", () => {
 
   it("groups cards into option columns plus a None column, and the drop writes the property", async () => {
     const client = await seedClient();
-    const schemaId = await seedStatusSchema(client);
+    // The board's dimension is the authored task status schema (fixed seed
+    // id — the hub's kanban preference), not a workspace-local one.
+    const { schemaId, optionId } = await ensureTaskStatus(client);
     const inBacklog = await seedTask(client, "Task Backlog");
     const inDone = await seedTask(client, "Task Done");
     const unscheduled = await seedTask(client, "Task Unset");
-    await client.setProperty(inBacklog, schemaId, OPTION_A, 0);
-    await client.setProperty(inDone, schemaId, OPTION_C, 0);
+    await client.setProperty(inBacklog, schemaId, optionId("Backlog"), 0);
+    await client.setProperty(inDone, schemaId, optionId("Done"), 0);
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    // The board is offered once a usable select property exists.
     fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
 
-    // Three option columns + None, counts in the headers.
-    for (const label of ["Backlog", "Doing", "Done", "None"]) {
-      expect(screen.getByText(label)).not.toBeNull();
+    // Status option columns + None, counts in the headers.
+    const titles = () =>
+      [...document.querySelectorAll(".kanban-column__title")].map((el) => el.textContent);
+    for (const label of ["Backlog", "Pending", "Doing", "Reviewing", "Done", "Cancelled", "None"]) {
+      expect(titles()).toContain(label);
     }
-    expect(within(column(OPTION_A)).getByText("Task Backlog")).not.toBeNull();
-    expect(within(column(OPTION_C)).getByText("Task Done")).not.toBeNull();
+    expect(within(column(optionId("Backlog"))).getByText("Task Backlog")).not.toBeNull();
+    expect(within(column(optionId("Done"))).getByText("Task Done")).not.toBeNull();
     expect(within(column("__none__")).getByText("Task Unset")).not.toBeNull();
     // Empty columns still render as drop targets.
-    expect(within(column("00000000-0000-0000-0005-000000000002")).getByText("0")).not.toBeNull();
+    expect(within(column(optionId("Doing"))).getByText("0")).not.toBeNull();
 
     // The drop write (what the drag handler calls): move the unset task into
     // the Doing column; the client notification re-renders the board.
-    await applyKanbanDrop(client, unscheduled, schemaId, "00000000-0000-0000-0005-000000000002", undefined);
+    await applyKanbanDrop(client, unscheduled, schemaId, optionId("Doing"), undefined);
     await flushWrites();
-    expect(
-      within(column("00000000-0000-0000-0005-000000000002")).getByText("Task Unset"),
-    ).not.toBeNull();
+    expect(within(column(optionId("Doing"))).getByText("Task Unset")).not.toBeNull();
     expect(within(column("__none__")).queryByText("Task Unset")).toBeNull();
 
     // Drop on None clears the value again.
@@ -286,16 +312,23 @@ describe("kanban board (property-dimension groupBy)", () => {
     expect(within(column("__none__")).getByText("Task Unset")).not.toBeNull();
   });
 
-  it("kanban is not offered without a usable select property", async () => {
+  it("kanban rides the authored task family; hubs without a grouping select offer no kanban", async () => {
     const client = await seedClient();
     await seedTask(client, "Lonely Task");
+    // §34.28 #2: the hub authors the task family on open, so the status
+    // schema (a usable select) always exists and kanban is always offered.
+    await ensureTaskFamily(client);
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    expect(screen.queryByRole("radio", { name: "Kanban" })).toBeNull();
+    expect(screen.getByRole("radio", { name: "Kanban" })).not.toBeNull();
     // The other modes are unaffected.
     for (const label of ["Outline", "Cards", "Table"]) {
       expect(screen.getByRole("radio", { name: label })).not.toBeNull();
     }
+
+    // A hub whose members carry no usable select property never offers it.
+    const assets = render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
+    expect(within(assets.container).queryByRole("radio", { name: "Kanban" })).toBeNull();
   });
 
   it("classed nodes offer kanban when a bound select property has options", async () => {
@@ -611,8 +644,24 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
     const other = await client.createObject({ presentAsMain: true, name: "Other" });
     await client.assignClass(other, SYSTEM_CLASS_UUIDS.task);
 
-    render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
+    // The tasks hub groups by the authored single-select status (§34.28 #2),
+    // so the multi-select dimension is exercised through an explicit board.
+    const items = [both, other]
+      .map((id) => client.getNode(id)!)
+      .map((node) => ({ node }));
+    render(
+      <CollectionHub
+        client={client}
+        icon="mdi-format-list-checks"
+        title="Tasks"
+        items={items}
+        modes={["kanban"]}
+        defaultMode="kanban"
+        kanbanProperty={statusId}
+        emptyTitle="No tasks"
+        onOpenNode={() => {}}
+      />,
+    );
 
     const col = (id: string) => document.querySelector(`.kanban-column[data-column-id="${id}"]`) as HTMLElement;
     expect(within(col("00000000-0000-0000-0005-000000000021")).getByText("Both")).not.toBeNull();
@@ -627,14 +676,10 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
 
   it("columns collapse and expand via their header chevron", async () => {
     const client = await seedClient();
-    const statusId = await client.createPropertySchema({
-      name: "Status",
-      type: "select",
-      options: [{ id: "00000000-0000-0000-0005-000000000031", label: "Backlog" }],
-    });
+    const { schemaId, optionId } = await ensureTaskStatus(client);
     const task = await client.createObject({ presentAsMain: true, name: "Solo" });
     await client.assignClass(task, SYSTEM_CLASS_UUIDS.task);
-    await client.setProperty(task, statusId, "00000000-0000-0000-0005-000000000031", 0);
+    await client.setProperty(task, schemaId, optionId("Backlog"), 0);
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));

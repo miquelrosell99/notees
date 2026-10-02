@@ -24,6 +24,8 @@ export interface UseCalendarModeResult extends CalendarModeState {
   goPrev: () => void;
   goNext: () => void;
   goToday: () => void;
+  /** Jump the visible period (the days zoom follows the month). */
+  goTo: (year: number, month: number) => void;
 }
 
 export function useCalendarMode(options: {
@@ -82,5 +84,9 @@ export function useCalendarMode(options: {
     }));
   };
 
-  return { ...state, setMode, goPrev, goNext, goToday };
+  const goTo = (year: number, month: number): void => {
+    setState((prev) => ({ ...prev, currentYear: year, currentMonth: month }));
+  };
+
+  return { ...state, setMode, goPrev, goNext, goToday, goTo };
 }

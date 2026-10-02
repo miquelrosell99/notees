@@ -179,6 +179,20 @@ Slice 1 is deliberately read-mostly. What works today:
 
 What is not there yet: editing in the browser (the outliner is M1 editor scope, landing with the interactive editor), backlinks/system sections UI, classes UI beyond the API. The data path underneath — local store, outbox, catch-up — is the same engine the editor will use.
 
+## The Calendar
+
+The sidebar's **Calendar** entry (hide it from Workspace Settings → Sidebar Visibility) opens a day view for one date — today by default:
+
+- **Day header** — the weekday, a Today marker when you're on today, the full date in your date-format setting, the ISO week number, and ‹ / › buttons to step one day either side (Today jumps back).
+- **Quick create** — one chip per class that has a date property (e.g. a Meeting class with a When property). Clicking a chip creates an object of that class with that date set to the selected day and opens it. By default every eligible class appears — on a fresh workspace that is the system Task class (its Scheduled property is set to the selected day). To narrow the list, use **Workspace Settings → Calendar Quick-Create** (the workspace switcher's gear): uncheck the classes you don't want. The choice is stored per workspace on this device; "Reset to defaults" returns to the automatic list.
+- **Daily note** — the selected day's page embedded inline (edit it where it renders). No page yet? The "+ Daily Note" button creates it in place.
+- **Tasks** — open tasks scheduled for the day, with overdue ones grouped above in muted red. The checkbox closes a task (and reopens it) exactly like the Tasks hub; "New" creates a task scheduled for the selected day. A task appears here when its **Scheduled** property points at this day; Done and Cancelled tasks never list.
+- **Dated** — everything else that references this day through a date property (a meeting held that day, a range ending on it).
+- **Created** — objects created on the selected day, newest first.
+- **Month grid** (right column) — the selected month with today highlighted, days that have a note dotted, and prev/next arrows; click any day to select it. The Days/Months/Years switch zooms the grid, and its Today button returns to today.
+
+Filter tabs (All / Daily note / Tasks / Dated / Created) narrow the left column to one section.
+
 ## Object API quick reference
 
 Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call. Bodies are camelCase JSON; `contentAst` follows the [SCHEMA.md grammar](../packages/protocol/SCHEMA.md).
