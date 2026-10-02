@@ -31,7 +31,6 @@ export type {
   Condition,
   ContentOp,
   Group,
-  NodeTypeValue,
   Not,
   PropertyOp,
   QueryAst,

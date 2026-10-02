@@ -3,7 +3,8 @@
  * serialization for export", §34.12 Tier 2 conventions).
  *
  * The op log is the truth; this is a lossy, human-facing projection:
- * UUID filenames, YAML frontmatter (name/classes/properties), `[[mentions]]`,
+ * UUID filenames, YAML frontmatter (name/isClass/presentAsMain/classes/
+ * properties), `[[mentions]]`,
  * `#class-chips`, `![[uuid]]` embeds, fenced ```query / ```json whiteboard
  * blocks, and a workspace UUID↔name↔type manifest (bundle.ts).
  *
@@ -39,7 +40,6 @@
  */
 
 import type { ContentAst, ContentToken, InlineToken } from "@notees/protocol";
-import type { NodeType } from "@notees/domain";
 import { deriveDisplayName } from "@notees/domain";
 
 /** A property value as projected by the object API (SCHEMA.md property rows). */
@@ -51,10 +51,20 @@ export interface ExportPropertyValue {
   metadata?: Record<string, unknown> | undefined;
 }
 
-/** The node shape the exporter needs — satisfied by the object-API full object. */
+/**
+ * The node shape the exporter needs — satisfied by the object-API full
+ * object. Revision-11 render-state model: the two booleans replace the
+ * retired node_type enumeration (store row shape, 0/1).
+ */
 export interface ExportNode {
   id: string;
-  nodeType: NodeType;
+  /** Class identity bit: 1 = class node (always a root). */
+  isClass: 0 | 1;
+  /** Render bit for parented non-class nodes: 1 = main-children zone +
+   * document chrome; 0 = inline body + block chrome. */
+  presentAsMain: 0 | 1;
+  /** Tree placement; null = workspace root. */
+  parentId: string | null;
   name: string | null;
   contentAst: ContentAst;
   classIds: string[];
@@ -121,7 +131,8 @@ function renderFrontmatter(node: ExportNode, ctx: ExportContext): string {
   const lines: string[] = ["---"];
   const title = deriveDisplayName(node);
   if (title.length > 0) lines.push(`name: ${yamlScalar(title)}`);
-  lines.push(`nodeType: ${node.nodeType}`);
+  lines.push(`isClass: ${node.isClass === 1 ? "true" : "false"}`);
+  lines.push(`presentAsMain: ${node.presentAsMain === 1 ? "true" : "false"}`);
   if (node.classIds.length > 0) {
     lines.push("classIds:");
     for (const classId of node.classIds) lines.push(`  - ${yamlScalar(classId)}`);
@@ -282,14 +293,16 @@ function renderChildBullets(
 
 /**
  * Render one node to a standalone Markdown file: YAML frontmatter (name,
- * nodeType, classIds, properties), a `# <title>` heading for page/class files,
+ * isClass/presentAsMain, classIds, properties), a `# <title>` heading for
+ * every node except inline blocks (document-chrome predicate: a file gets a
+ * heading unless it is a parented non-class node with the render bit unset),
  * the rendered content, and — when a children resolver is injected — direct
  * children as nested bullets.
  */
 export function nodeToMarkdown(node: ExportNode, ctx: ExportContext): string {
   const parts: string[] = [renderFrontmatter(node, ctx)];
   const title = deriveDisplayName(node);
-  if (node.nodeType !== "block") {
+  if (!(node.isClass === 0 && node.parentId != null && node.presentAsMain === 0)) {
     parts.push(`# ${title.length > 0 ? title : node.id}`);
   }
   const body = renderContent(node.contentAst, ctx);

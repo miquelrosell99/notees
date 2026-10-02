@@ -3,8 +3,9 @@
  *
  * Port of the v1 `frontend/src/core/query/compileToSqlite.ts` CONCEPTS,
  * adapted to the v2 store (packages/store):
- *  - `node.node_type` replaces v1 `kind`; `is_active = 1` excludes deleted
- *    nodes on every query (the store's read helpers do the same);
+ *  - the Revision-11 booleans (`node.is_class`, `node.present_as_main`)
+ *    replace node_type; `is_active = 1` excludes deleted nodes on every
+ *    query (the store's read helpers do the same);
  *  - the v2 reference index is `edge` (never authored) — the linkedTo
  *    condition/scope mirror `Store.backlinksWithRollup` (direct +
  *    containment roll-up, distance in subtree levels);
@@ -93,7 +94,8 @@ const SORT_COLUMNS: Record<SortSpec["field"], { column: string; nullable: boolea
     nullable: true,
   },
   createdAt: { column: "n.created_at", nullable: true },
-  nodeType: { column: "n.node_type", nullable: false },
+  isClass: { column: "n.is_class", nullable: false },
+  presentAsMain: { column: "n.present_as_main", nullable: false },
 };
 
 /**
@@ -104,7 +106,9 @@ const SORT_COLUMNS: Record<SortSpec["field"], { column: string; nullable: boolea
  */
 function aggregationColumns(aggregation: Aggregation): string[] {
   const names = aggregation.dimensions.map((dimension) =>
-    dimension.kind === "nodeType" ? "nodeType" : `${dimension.kind}:${dimension.id}`,
+    dimension.kind === "class" || dimension.kind === "property"
+      ? `${dimension.kind}:${dimension.id}`
+      : dimension.kind,
   );
   names.push(
     ...aggregation.measures.map((measure) => {
@@ -170,10 +174,11 @@ class Compiler {
    * (scope joins + conditions) becomes a `filtered` CTE; the outer query
    * groups it by the dimensions and aggregates the measures. Zero dimensions
    * = one grand-total row (no GROUP BY). Column order is deterministic:
-   * dimensions in declared order, then measures; labels are `nodeType`,
-   * `class:<id>`, `property:<id>`, `count`, `countDistinct`, `<fn>:<id>`
-   * (collisions suffixed `#2`, `#3`, …). `sort` does not apply to aggregates
-   * — the grid is ordered by its dimension expressions.
+   * dimensions in declared order, then measures; labels are `isClass` /
+   * `presentAsMain` / `class:<id>` / `property:<id>` / `count` /
+   * `countDistinct` / `<fn>:<id>` (collisions suffixed `#2`, `#3`, …).
+   * `sort` does not apply to aggregates — the grid is ordered by its
+   * dimension expressions.
    */
   compileAggregate(ast: QueryAst): CompiledAggregate {
     if (ast.aggregation === undefined) {
@@ -200,7 +205,7 @@ class Compiler {
     );
     let sql =
       "WITH filtered AS (\n" +
-      "SELECT n.id, n.node_type, n.class_ids\n" +
+      "SELECT n.id, n.is_class, n.present_as_main, n.class_ids\n" +
       `FROM ${from}\n` +
       `WHERE ${where.join(" AND ")}\n` +
       ")\n" +
@@ -216,8 +221,10 @@ class Compiler {
 
   private dimensionSql(dimension: AggregationDimension): string {
     switch (dimension.kind) {
-      case "nodeType":
-        return "f.node_type";
+      case "isClass":
+        return "f.is_class";
+      case "presentAsMain":
+        return "f.present_as_main";
       case "class": {
         // Same membership probe as the class condition: class_hierarchy
         // carries the extends closure (self-row included). The key is the
@@ -319,7 +326,10 @@ class Compiler {
 
     const where: string[] = ["n.is_active = 1"];
     if (ast.scope.type === "pages") {
-      where.push("n.node_type = 'page'");
+      // Document-chrome predicate (Revision 11): non-class nodes that are
+      // parentless (workspace documents) or present as main (a parent's
+      // main-children zone). Inline blocks and classes are out.
+      where.push("n.is_class = 0 AND (n.parent_id IS NULL OR n.present_as_main = 1)");
     }
     const group = this.groupSql(ast.root);
     if (group !== undefined) {
@@ -404,8 +414,10 @@ class Compiler {
           ")"
         );
       }
-      case "nodeType":
-        return `n.node_type = ${this.push(condition.nodeType)}`;
+      case "isClass":
+        return `n.is_class = ${this.push(condition.isClass ? 1 : 0)}`;
+      case "presentAsMain":
+        return `n.present_as_main = ${this.push(condition.presentAsMain ? 1 : 0)}`;
       case "content":
         return this.contentSql(condition);
       case "property":
