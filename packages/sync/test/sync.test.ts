@@ -61,12 +61,10 @@ function baseEnvelopes(deviceId: string): Envelope[] {
     }),
     makeEnvelope(deviceId, T0 + 40, "object.create", {
       objectId: PARENT,
-      nodeType: "page",
       contentAst: [{ type: "text", text: "Parent" }],
     }),
     makeEnvelope(deviceId, T0 + 50, "object.create", {
       objectId: NODE,
-      nodeType: "block",
       parentId: PARENT,
       contentAst: [{ type: "text", text: "Node" }],
     }),
@@ -241,7 +239,7 @@ describe("retry and quarantine", () => {
       now: () => nowMs,
     });
     const create = (id: string, name: string, physical: number) =>
-      makeEnvelope(DEVICE_A, physical, "object.create", { objectId: id, nodeType: "page", contentAst: [{ type: "text", text: name }] });
+      makeEnvelope(DEVICE_A, physical, "object.create", { objectId: id, contentAst: [{ type: "text", text: name }] });
 
     // Flaky transport: two failures, then the third attempt succeeds.
     const RETRY_NODE = "0192a000-0000-7000-8000-0000000000d1";
