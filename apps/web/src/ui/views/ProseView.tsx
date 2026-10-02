@@ -3,7 +3,9 @@
  * BlockRow tree with the `nt-prose` display transform (app.css): bullets
  * hidden, nesting indents flattened to full-width rows, paragraph spacing.
  * Structure and editing are untouched — a view transform only (SCHEMA.md:
- * display state, never content).
+ * display state, never content). Collapse state is ignored here, not
+ * cleared: `ignoreCollapse` renders every subtree and mounts no chevron,
+ * leaving the session collapse set untouched for the outline view.
  */
 
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -32,6 +34,7 @@ export function ProseView(props: NodeCollectionProps) {
             client={client}
             resolveName={resolveName}
             readOnly={readOnly}
+            ignoreCollapse
           />
         ))}
       </div>

@@ -9,7 +9,10 @@
  *
  * A collapsed block (session-local display state from OutlinerContext) hides
  * its entire subtree — the children container is not rendered. The chevron
- * toggles collapse without entering edit mode (stopPropagation).
+ * toggles collapse without entering edit mode (stopPropagation). In prose
+ * view (`ignoreCollapse`) collapse state is ignored instead: every subtree
+ * renders and no chevron mounts — the session set is left untouched, so
+ * switching back to outline restores the hidden subtrees.
  *
  * Drag-and-drop: each row is sortable within its sibling group (dnd-kit,
  * vertical strategy) via the bullet/chevron grip handle. Drops resolve to
@@ -55,9 +58,15 @@ interface BlockRowProps {
    * Used by the Child pages tree and the Class View's "Extended by" list.
    */
   readOnly?: boolean | undefined;
+  /**
+   * Prose-view transform: collapse state is ignored — collapsed ids still
+   * render their full subtree and no chevron mounts (nothing left to expand
+   * or collapse). Threaded down the recursion by the view that sets it.
+   */
+  ignoreCollapse?: boolean | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCollapse = false }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const {
@@ -73,7 +82,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockR
   const dropLine = useContext(DropLineContext);
   const [editing, setEditing] = useState(false);
   const [caret, setCaret] = useState<EditorCaret>("end");
-  const isCollapsed = collapsed.has(node.id);
+  const isCollapsed = !ignoreCollapse && collapsed.has(node.id);
   // Sortable within this row's sibling group; the bullet/chevron area is the
   // drag handle (whole-row drag would fight text editing). A small activation
   // distance keeps plain clicks untouched.
@@ -134,7 +143,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockR
             setGripMenu({ x: event.clientX, y: event.clientY });
           }}
         >
-          {children.length > 0 && (
+          {children.length > 0 && !ignoreCollapse && (
             <button
               type="button"
               className="nt-block-chevron"
@@ -260,6 +269,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false }: BlockR
                 client={client}
                 resolveName={resolveName}
                 readOnly={readOnly}
+                ignoreCollapse={ignoreCollapse}
               />
             ))}
           </div>
