@@ -39,7 +39,7 @@ dedupes by envelope id.
 See the module docstring in `migrate.py` for the verified v1 payload shapes
 (sampled per op type before writing the transformer). Notable behaviors:
 
-- Envelopes keep id/HLC/timestamp/actorId; `protocolVersion: 2`,
+- Envelopes keep id/HLC/timestamp/actorId; `protocolVersion: 3`,
   `deviceId: "migrated-v1"`, `client: "migrate-v1"`.
 - Non-uuid v1 actor ids (migration backfills) are remapped to the uuid
   embedded in them.

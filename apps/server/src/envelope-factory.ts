@@ -1,8 +1,9 @@
 /**
  * Server-side envelope stamping. The object/assets API writes are envelopes
- * like any other (one write path): the server stamps id (uuidv7), protocol
- * version 2, HLC (device clock seeded from the relay log max), timestamp,
- * and the actor derived from the authenticated API key.
+ * like any other (one write path): the server stamps id (uuidv7), the
+ * protocol version (envelope v3 — @notees/protocol), HLC (device clock
+ * seeded from the relay log max), timestamp, and the actor derived from the
+ * authenticated API key.
  */
 
 import { Clock, newEnvelope, type Envelope } from "@notees/protocol";

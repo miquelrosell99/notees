@@ -101,7 +101,7 @@ describe("boot smoke", () => {
     const health = await server.app.inject({ method: "GET", url: "/healthz" });
     expect(health.statusCode).toBe(200);
     const version = await server.app.inject({ method: "GET", url: "/api/version" });
-    expect(version.json()).toMatchObject({ name: "notees-server", protocolVersion: 2, wsProtocolVersion: 2 });
+    expect(version.json()).toMatchObject({ name: "notees-server", protocolVersion: 3, wsProtocolVersion: 2 });
   });
 
   it("unknown routes get the error envelope, not an HTML page", async () => {
