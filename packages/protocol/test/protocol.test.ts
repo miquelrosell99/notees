@@ -40,7 +40,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the ten required fixtures", () => {
+  it("has exactly the eleven required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-extends-cycle.json",
@@ -49,6 +49,7 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
       "class-unassign.json",
       "envelope-minimal.json",
       "object-create.json",
+      "object-move-before.json",
       "object-move.json",
       "property-set-lww.json",
       "typed-link-mark-deleted.json",

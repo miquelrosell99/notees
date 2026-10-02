@@ -954,6 +954,27 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(1);
     });
 
+    it("beforeId places the node before the anchor, including before the first child", () => {
+      const PB = "0192a000-0000-7000-8000-000000000140";
+      const BA = "0192a000-0000-7000-8000-000000000141";
+      const BB = "0192a000-0000-7000-8000-000000000142";
+      const BC = "0192a000-0000-7000-8000-000000000143";
+      const BD = "0192a000-0000-7000-8000-000000000144";
+      const store = makeStore();
+      store.applyMany(loadFixture("object-move-before.json"));
+      expect(store.children(PB).map((n) => n.id)).toEqual([BB, BC, BD, BA]);
+      // Exactly one child_order row per node — no dual-parent residue.
+      for (const child of [BA, BB, BC, BD]) {
+        expect(
+          (
+            store.database
+              .prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE child_id = ?")
+              .get(child) as { n: number }
+          ).n,
+        ).toBe(1);
+      }
+    });
+
     it("afterId places the node immediately after that sibling (sibling midpoint)", () => {
       const store = baseStore();
       const x = "0192a000-0000-7000-8000-0000000000e1";
