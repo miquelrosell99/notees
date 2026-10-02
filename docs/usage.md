@@ -41,7 +41,7 @@ Sanity probes (no auth needed for the first two):
 
 ```bash
 curl -s localhost:8377/healthz                       # {"ok":true}
-curl -s localhost:8377/api/v1/version                # {"name":"notees-server","version":"2.0.0-m1","protocolVersion":2,...}
+curl -s localhost:8377/api/version                # {"name":"notees-server","version":"2.0.0-m1","protocolVersion":2,...}
 ```
 
 A fresh workspace seeds itself: a starter class catalog (`person`, `organization`, the `source` tree with its `book`/`paper`/`article`/`document`/`movie`/`thesis` children, `task`, `whiteboard`, `collection`, `query`, `template`, `note`, the `day`/`month`/`year` journals, …), plus `scratchpad` and `inbox` pages.
@@ -184,22 +184,22 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call.
 
 | Endpoint | What it does |
 |---|---|
-| `GET /api/v1/objects?nodeType=&class=&q=&limit=&cursor=` | List objects (paginated, filterable) |
-| `POST /api/v1/objects` | Create an object; body `{"nodeType": "page", "name": …, "parentId": …, "classIds": [...], "contentAst": [...]}` — returns the full object |
-| `GET /api/v1/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` |
-| `PATCH /api/v1/objects/:id` | Update `name`, `nodeType`, `contentAst`, `icon`, `color` |
-| `DELETE /api/v1/objects/:id` | Trash (subtree); `?permanent=true&confirm=<id>` hard-deletes |
-| `GET /api/v1/objects/:id/backlinks` | Edges pointing at the node (mentions, typed links, property refs) |
-| `GET /api/v1/search?q=&nodeType=` | Full-text search over active nodes |
-| `GET /api/v1/classes` · `GET /api/v1/classes/:id` | Class catalog and detail (bindings, members) |
-| `GET /api/v1/properties/:id/values` | Values asserted for a property schema |
-| `POST /api/v1/assets` (multipart) · `GET /api/v1/assets/:id` · `GET /api/v1/assets/:id/info` | Upload (sniffed), download, metadata |
-| `GET /healthz` · `GET /api/v1/version` | Liveness and version/protocol probes |
+| `GET /api/objects?nodeType=&class=&q=&limit=&cursor=` | List objects (paginated, filterable) |
+| `POST /api/objects` | Create an object; body `{"nodeType": "page", "name": …, "parentId": …, "classIds": [...], "contentAst": [...]}` — returns the full object |
+| `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` |
+| `PATCH /api/objects/:id` | Update `name`, `nodeType`, `contentAst`, `icon`, `color` |
+| `DELETE /api/objects/:id` | Trash (subtree); `?permanent=true&confirm=<id>` hard-deletes |
+| `GET /api/objects/:id/backlinks` | Edges pointing at the node (mentions, typed links, property refs) |
+| `GET /api/search?q=&nodeType=` | Full-text search over active nodes |
+| `GET /api/classes` · `GET /api/classes/:id` | Class catalog and detail (bindings, members) |
+| `GET /api/properties/:id/values` | Values asserted for a property schema |
+| `POST /api/assets` (multipart) · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed), download, metadata |
+| `GET /healthz` · `GET /api/version` | Liveness and version/protocol probes |
 
 One curl, end to end:
 
 ```bash
-curl -s -X POST localhost:8377/api/v1/objects \
+curl -s -X POST localhost:8377/api/objects \
   -H "X-API-Key: $NOTEES_API_KEY" -H 'Content-Type: application/json' \
   -d '{"nodeType":"block","parentId":"01a0dd78-cd48-73d5-87d6-8f650e8d7487",
        "contentAst":[{"type":"text","text":"Back via curl"}]}'

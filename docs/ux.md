@@ -31,7 +31,7 @@ View resolution is a pure function of one column — `node_type ∈ {page, block
 
 Two placement rules complete the picture. **Nested pages keep `node_type='page'`** — a child page opens in Page View and renders in its parent's dedicated **Child pages** section, never inline in the parent's body. And class nodes are tree-external by construction: a class can never be a parent or a child, enforced by schema and by a fail-loud move-guard.
 
-**Today:** the web app renders Page View (interactive) and Class View (view resolution is `f(node_type)`); a block is reached by zooming its page, and the class catalog is inspectable via `notees class list` and `GET /api/v1/classes` ([usage.md](usage.md)). Focused Block View as a standalone chrome remains designed.
+**Today:** the web app renders Page View (interactive) and Class View (view resolution is `f(node_type)`); a block is reached by zooming its page, and the class catalog is inspectable via `notees class list` and `GET /api/classes` ([usage.md](usage.md)). Focused Block View as a standalone chrome remains designed.
 
 ## The outliner
 
