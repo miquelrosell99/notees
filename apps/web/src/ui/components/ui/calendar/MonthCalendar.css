@@ -1,0 +1,81 @@
+/* MonthCalendar — the Calendar view's right-column month panel. Tokens from
+   variables.css; day cells come from the shared calendar-grid.css. */
+
+.month-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: var(--color-surface-container);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+}
+
+.month-calendar__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.month-calendar__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--button-icon-only-sm);
+  height: var(--button-icon-only-sm);
+  aspect-ratio: 1;
+  background: none;
+  border: none;
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.month-calendar__nav:hover {
+  background: var(--color-hover-overlay);
+}
+
+.month-calendar__title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+}
+
+.month-calendar__zoom {
+  flex-shrink: 0;
+}
+
+.month-calendar__today.btn {
+  flex-shrink: 0;
+}
+
+.month-calendar__grid {
+  display: grid;
+  gap: var(--spacing-micro);
+}
+
+.month-calendar__grid--months {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.month-calendar__grid--years {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.month-calendar__pick.btn {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-1);
+}
+
+.month-calendar__pick.btn.current {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  font-weight: 600;
+}

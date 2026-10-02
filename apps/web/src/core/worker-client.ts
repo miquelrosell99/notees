@@ -388,7 +388,10 @@ export class WorkerClient {
   }
 
   /** Create a class (class.create); returns the new class id. */
-  async createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string> {
+  async createClass(
+    name: string,
+    opts?: { icon?: string; color?: string; id?: string },
+  ): Promise<string> {
     return (await this.call("createClass", [name, opts])) as string;
   }
 

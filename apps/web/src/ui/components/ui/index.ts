@@ -120,3 +120,6 @@ export type { SearchFieldProps } from './SearchField.js';
 
 export { FloatingButtonArray, ToolbarDivider } from './FloatingButtonArray.js';
 export type { FloatingButtonArrayProps, ToolbarDividerProps } from './FloatingButtonArray.js';
+
+export { MonthCalendar } from './calendar/MonthCalendar.js';
+export type { MonthCalendarProps } from './calendar/MonthCalendar.js';
