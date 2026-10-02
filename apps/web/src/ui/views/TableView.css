@@ -1,0 +1,126 @@
+/* TableView — the collection table (token-only). */
+
+.nt-table-wrap {
+  overflow-x: auto;
+}
+
+.nt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm, 0.85rem);
+}
+
+.nt-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--color-on-surface-variant, currentColor);
+  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  white-space: nowrap;
+}
+
+.nt-table td {
+  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  vertical-align: middle;
+}
+
+.nt-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.nt-table-sort:disabled {
+  cursor: default;
+}
+
+.nt-table-sort:not(:disabled):hover {
+  color: var(--color-on-surface, currentColor);
+}
+
+.nt-table-sort--active {
+  color: var(--color-primary, currentColor);
+}
+
+.nt-table-name-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  max-width: 100%;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-on-surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-table-name-btn:hover .nt-table-name-label {
+  color: var(--color-primary, currentColor);
+}
+
+.nt-table-name-icon {
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant, currentColor);
+  display: inline-flex;
+}
+
+.nt-table-name-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-table-created {
+  color: var(--color-on-surface-variant, currentColor);
+  white-space: nowrap;
+}
+
+.nt-table-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1, 4px);
+}
+
+.nt-table-chip {
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-on-surface-variant, currentColor);
+  border: var(--border-width-default, 1px) solid currentColor;
+  border-radius: var(--radius-full, 999px);
+  padding: 0 var(--spacing-2, 8px);
+  white-space: nowrap;
+}
+
+.nt-table-select {
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface-container-low, transparent);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
+  border-radius: var(--radius-sm, 6px);
+  padding: var(--spacing-micro, 2px) var(--spacing-1, 4px);
+  max-width: 100%;
+}
+
+.nt-table-more {
+  margin-top: var(--spacing-2, 8px);
+  border: none;
+  background: none;
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--color-primary, currentColor);
+  font: inherit;
+  cursor: pointer;
+}
+
+.nt-table-more:hover {
+  background-color: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+}

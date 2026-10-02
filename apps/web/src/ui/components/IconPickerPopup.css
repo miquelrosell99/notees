@@ -163,50 +163,6 @@
   font-size: var(--font-size-button);
 }
 
-/*  Color panel  */
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1-5) var(--spacing-2);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
-  flex-shrink: 0;
-}
-
-  width: var(--icon-size-md);
-  height: var(--icon-size-md);
-  border-radius: var(--shape-small);
-  border: var(--border-width-thick) solid transparent;
-  cursor: pointer;
-  transition: transform var(--motion-duration-instant) var(--motion-easing-standard), border-color var(--motion-duration-instant) var(--motion-easing-standard);
-  padding: 0;
-  flex-shrink: 0;
-}
-
-  transform: scale(1.2);
-}
-
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-focus-ring-primary-container);
-}
-
-/* No-color swatch: dashed border with a diagonal line */
-  background: var(--color-surface-container);
-  border: var(--border-width-medium) dashed var(--color-outline-variant);
-  position: relative;
-  overflow: hidden;
-}
-
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: calc(var(--spacing-micro) * -1);
-  right: calc(var(--spacing-micro) * -1);
-  height: 1.5px;
-  background: var(--color-outline);
-  transform: rotate(-45deg);
-  transform-origin: center;
-}
-
 /*  Scrollbar  */
 .ep-content::-webkit-scrollbar {
   width: 5px;
