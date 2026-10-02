@@ -299,14 +299,20 @@ client hook surface; no WS *client* ships in M1.
   `POST /compact` (single-checkpoint snapshot+prune), `GET /stats`, WS
   `/ws/:workspaceId`. Auth: `X-API-Key` header (or `Authorization: Bearer`), socket via
   `?token=` or header; constant-time compare (`src/identity.ts`).
-- **Object/assets API** — prefix `/api/v1` with an API-key preHandler
+- **Object/assets API** — prefix `/api` with an API-key preHandler
   (`src/routes-objects.ts`, `src/assets.ts`): node CRUD (`GET/POST/PATCH/DELETE
-  /objects[/:id]`), `GET /objects/:id/backlinks`, `GET /search`, `GET /classes[/:id]`,
+  /objects[/:id]`, plus `POST/DELETE /objects/:id/properties[...]`),
+  `GET /objects/:id/backlinks`, `GET /objects/:id/effective-properties`,
+  `GET /search`, **`POST /query` (arbitrary QueryAST execution)**,
+  `GET/POST /property-schemas`, `GET /classes[/:id]`,
   `GET /properties/:id/values`; asset upload/download/info with magic-byte sniffing
   (jpeg/png/webp/pdf/epub/audio), size caps (50MB media / 100MB documents), and Range
-  requests. Workspace selection via `X-Workspace-Id` header, else a deterministic default
+  requests. Auth/account routes (`src/routes-auth.ts`, same `/api` prefix): setup,
+  login/logout/me, workspaces CRUD + export, API-key management
+  (`GET/POST/DELETE /api-keys`), `GET /nodes/:id/location`, `GET /server-info`.
+  Workspace selection via `X-Workspace-Id` header, else a deterministic default
   workspace derived from the API key (`identity.ts`).
-- Public, auth-free probes: `GET /healthz`, `GET /api/v1/version`.
+- Public, auth-free probes: `GET /healthz`, `GET /api/version`.
 
 **The one-write-path invariant.** Every write — a relay `/batch`, a WS batch frame, an
 object API mutation, an asset upload with `objectId` — becomes an envelope and flows
@@ -425,6 +431,29 @@ code is narrower in these places:
    TreeCrdt, fractional reorder, verb-mark capture UX) is the M1b/M2 program
    (assessment §34.10); the shipped web UI is a read-oriented slice-1 shell over the
    workspace client.
+8. **Property write path is schema-blind** (2026-10-02). The `property.set`
+   applier never consults `property_schema` — no type/shape/cardinality/
+   `targetClassFilter`/`datePrecision`/target-existence validation; all value
+   conventions are UI-enforced only. Detail: implementation-plan §34.32 PG6.
+9. **Multi-value properties are positional idx slots, not elements** (2026-10-02).
+   LWW per (node, schema, idx) + per-slot tombstones; `unset` leaves permanent
+   gaps (no reindex, readers don't assume density); the designed element-identity
+   / OR-Set semantics (SCHEMA.md owed item "m2m tombstones") are not reached.
+   Detail: §34.32 PG5.
+10. **Broken-target property values** (2026-10-02). No referential rule: values
+    referencing a deleted node survive, and the source's next `rebuildEdges`
+    re-derives the edge (no target-existence check) — backlinks to nonexistent
+    nodes resurrect. Detail: §34.32 PB1.
+11. **Text-carrier convention is client-side only** (2026-10-02). Unset orphans
+    the carrier back into the body (spec says trash, SCHEMA.md:134); `text` values
+    coexist in three shapes (`{"nodeId": …}` / plain string / bare uuid) depending
+    on which editor wrote them. Detail: §34.32 PB2.
+12. **Spec↔wire arrears** (2026-10-02). `class_property.active` is specced
+    (SCHEMA.md:122) but absent from wire+DDL; `scope` semantics are undefined in
+    any design doc; `propertySchema.update` converges by relay apply-order, not
+    per-field HLC (SCHEMA.md:19 follow-up). Detail: §34.32 PC3/PC4/PC5.
 
-None of these touch sync authority; the operation log, appliers, and convergence
-machinery implement the designed model as specced.
+Items 8–12 were surfaced by the 2026-10-02 property-layer audit; like items 1–7
+they are code-narrower-than-design (or design-lagging-code), none touches sync
+authority — the operation log, appliers, and convergence machinery implement the
+designed model as specced.

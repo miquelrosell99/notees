@@ -49,7 +49,7 @@ All authoring happens in blocks: prose, facts-as-blocks, discourse moves, inline
 | "Nodes have parents (tree); classes have `extends` (DAG with inheritance)" | **Valid semantics — derived-layer semantics.** Closure + effective membership are applier projections; behavior preserved verbatim from v1. |
 | "Split saves columns (extends vs parent_id)" | **Column economics — weakest of all.** `extends` isn't a column in greenfield (it's property values); NULL columns cost ~0 bytes in SQLite; v1 paid real complexity to save storage never consumed. |
 
-**Settled design:** classes are nodes, tree-external (`parent_id` always NULL; `node.move` rejects class parenting, fail-loud; content projections exclude classes by default). Structure as data: `extends` = m2m node-typed property on class nodes (multiple inheritance from the start); `has-property` bindings = registry rows; `has-template` = node-typed property to an ordinary template node (proposed; owner not yet explicit). Binding resolution: own binding → shortest extends-path → earliest HLC. Cycles fail-loud. System classes protected by validation on seeded UUIDs; class deletion never cascades; `node_alias` survives for true synonyms only.
+**Settled design:** classes are nodes, tree-external (`parent_id` always NULL; `node.move` rejects class parenting, fail-loud; content projections exclude classes by default). Structure as data: `extends` = m2m node-typed property on class nodes (multiple inheritance from the start); `has-property` bindings = registry rows; `has-template` = node-typed property to an ordinary template node — brief at `../implementation-plan.md` §34.25 (2026-10-02): class-side, `multi`, apply-time clone, no wire change; owner decisions D1-D4 pending. Binding resolution: own binding → shortest extends-path → earliest HLC. Cycles fail-loud. System classes protected by validation on seeded UUIDs; class deletion never cascades; `node_alias` survives for true synonyms only.
 
 **The alias anecdote closed the case:** v1 needed a manual alias to aggregate a class and its topic page — a workaround for the split that the unified model dissolves into a default view.
 
@@ -91,7 +91,7 @@ v1's expired prohibitions: the `kind` CHECK; set-only classes; content-less clas
 **Deferred / open questions (explicitly undecided — do not spec):**
 - **Typed-link target resolution** — how a verb mark resolves its target mention(s) is a semantic design question depending on real usage consistency; the "nearest mention" heuristic was rejected as oversimple. Design with usage data (M2), without protocol breakage.
 - **Class-down propagation for filtering** — should a node's classes flow down the tree like links do? Flagged, unanswered.
-- **`has-template` placement** — node-typed property proposal not yet explicitly confirmed.
+- **`has-template` placement** — node-typed property proposal; elaborated into the `../implementation-plan.md` §34.25 design brief (2026-10-02: class-side, `multi`, templates-as-nodes, client-side clone, no wire change). Owner confirmation of D1-D4 there is pending; until then register only.
 
 **Untested assumption to watch:** typed-link capture friction; outliner long-form feel; S2 corpus results.
 
