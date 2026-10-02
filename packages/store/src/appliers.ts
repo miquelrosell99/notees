@@ -192,18 +192,25 @@ export function midpointBetween(lo: string, hi: string): string {
 }
 
 /**
- * Fractional position for `childId` under `parentId`, placed immediately
- * after the sibling `afterId` (object.move payload). Minimal deterministic
- * allocator (TreeCrdt remains designed, docs/ux.md "The outliner"):
- * sibling-midpoint between afterId's position and the next sibling's,
- * append-at-end when afterId is the last sibling, and a defensive plain
- * append when afterId is not a current sibling.
+ * Fractional position for `childId` under `parentId`. Minimal deterministic
+ * allocator (TreeCrdt remains designed, docs/ux.md "The outliner"), by anchor:
+ * - `afterId`: sibling-midpoint between afterId's position and the next
+ *   sibling's, append-at-end when afterId is the last sibling;
+ * - `beforeId`: sibling-midpoint between the previous sibling's position and
+ *   beforeId's — or, when beforeId is the first child, one slot below it
+ *   (midpoint against the empty string: the only way to place BEFORE the
+ *   current first sibling, which the afterId-only algebra cannot express);
+ * - no usable anchor (absent, or not a current sibling): defensive plain
+ *   append.
+ * When both anchors are present `afterId` wins (the TS reference never sends
+ * both).
  */
 function allocateChildPosition(
   db: StoreDatabase,
   parentId: string,
   childId: string,
   afterId: string | undefined,
+  beforeId?: string | undefined,
 ): string {
   if (afterId !== undefined) {
     const after = db
@@ -222,6 +229,25 @@ function allocateChildPosition(
       return next !== undefined
         ? midpointBetween(after.position, next.position)
         : nextChildPosition(db, parentId);
+    }
+  }
+  if (beforeId !== undefined) {
+    const before = db
+      .prepare(
+        "SELECT position FROM node_child_order WHERE parent_id = ? AND child_id = ?",
+      )
+      .get(parentId, beforeId) as { position: string } | undefined;
+    if (before !== undefined) {
+      const prev = db
+        .prepare(
+          `SELECT position FROM node_child_order
+           WHERE parent_id = ? AND child_id != ? AND position < ?
+           ORDER BY position DESC LIMIT 1`,
+        )
+        .get(parentId, childId, before.position) as { position: string } | undefined;
+      return prev !== undefined
+        ? midpointBetween(prev.position, before.position)
+        : midpointBetween("", before.position);
     }
   }
   return nextChildPosition(db, parentId);
@@ -344,7 +370,11 @@ const tagMemberUpsert = db.prepare(
   if (parentId !== null) {
     db.prepare(
       "INSERT OR REPLACE INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)",
-    ).run(parentId, p.objectId, nextChildPosition(db, parentId));
+    ).run(
+      parentId,
+      p.objectId,
+      allocateChildPosition(db, parentId, p.objectId, p.afterId, p.beforeId),
+    );
   }
 
   reindexNode(db, p.objectId);
@@ -583,7 +613,11 @@ function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
   if (p.parentId !== null) {
     db.prepare(
       "INSERT OR REPLACE INTO node_child_order (parent_id, child_id, position) VALUES (?, ?, ?)",
-    ).run(p.parentId, p.objectId, allocateChildPosition(db, p.parentId, p.objectId, p.afterId));
+    ).run(
+      p.parentId,
+      p.objectId,
+      allocateChildPosition(db, p.parentId, p.objectId, p.afterId, p.beforeId),
+    );
   }
 
   // Old ancestors lose the subtree, new ancestors gain it (child/descendant

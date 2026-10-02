@@ -377,8 +377,8 @@ export class WorkerCore {
     return this.client.deleteObject(id, opts);
   }
 
-  moveObject(id: string, parentId: string | null, afterId?: string): Promise<void> {
-    return this.client.moveObject(id, parentId, afterId);
+  moveObject(id: string, parentId: string | null, afterId?: string, beforeId?: string): Promise<void> {
+    return this.client.moveObject(id, parentId, afterId, beforeId);
   }
 
   /** Record an uploaded asset on a node (asset.attach op; optimistic local apply). */
@@ -563,6 +563,7 @@ export class WorkerCore {
           args[0] as string,
           args[1] as string | null,
           args[2] as string | undefined,
+          args[3] as string | undefined,
         );
       case "attachAsset":
         return this.attachAsset(args[0] as string, args[1] as AssetUploadResult);
