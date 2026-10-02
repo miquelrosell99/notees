@@ -35,6 +35,8 @@ import {
 import { createPortal } from "react-dom";
 import { uuidv7 } from "uuidv7";
 
+import { rendersAsInlineBlock } from "@notees/domain";
+
 import { spliceTokens } from "@/editor/edit-apply.js";
 import { withCandidateSpans } from "@/editor/capture.js";
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -306,7 +308,7 @@ export function LinkEditModal({
                     client={client}
                     trigger="inline"
                     searchMode={linkMode === "block" ? "all" : "pages"}
-                    canAdd={(node) => linkMode !== "block" || node.nodeType === "block"}
+                    canAdd={(node) => linkMode !== "block" || rendersAsInlineBlock(node)}
                     excludeNodeId={excludeNodeId}
                     searchPlaceholder={
                       linkMode === "block" ? "Search blocks…" : "Search pages…"
@@ -509,9 +511,12 @@ export function LinkEditModalHost({
           initialMode={
             target.kind === "external"
               ? "url"
-              : client.getNode(target.initialNodeId)?.nodeType === "block"
-                ? "block"
-                : "node"
+              : (() => {
+                  const targetNode = client.getNode(target.initialNodeId);
+                  return targetNode !== undefined && rendersAsInlineBlock(targetNode)
+                    ? "block"
+                    : "node";
+                })()
           }
           onSave={handleSave}
           onClose={close}

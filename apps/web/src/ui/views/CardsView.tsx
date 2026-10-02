@@ -13,10 +13,13 @@
 import { useEffect, useState } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
+import { rendersWithDocumentChrome } from "@notees/domain";
+
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
+import { renderStateLabel } from "../renderStateLabel.js";
 import { SelectionButton } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
@@ -123,7 +126,9 @@ export function NodeCard({
         >
           {icon !== null && <Icon path={icon} size={1} className="node-card__icon" />}
           <span className="node-card__label">{label}</span>
-          {item.node.nodeType !== "page" && <span className="node-card__type">{item.node.nodeType}</span>}
+          {!rendersWithDocumentChrome(item.node) && (
+            <span className="node-card__type">{renderStateLabel(item.node)}</span>
+          )}
         </button>
         {cardRows.length > 0 && (
           <dl className="node-card__properties">

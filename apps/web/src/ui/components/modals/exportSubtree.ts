@@ -16,6 +16,7 @@ import {
   type ExportNode,
   type ExportPropertyValue,
 } from "@notees/export";
+import { rendersAsInlineBlock } from "@notees/domain";
 
 import { displayNameForSettings, displayNameFromClient } from "../../dateDisplay.js";
 
@@ -38,7 +39,9 @@ function toExportNode(client: ExportClient, id: string): ExportNode | undefined 
     }));
   return {
     id: node.id,
-    nodeType: node.nodeType,
+    isClass: node.isClass ? 1 : 0,
+    presentAsMain: node.presentAsMain ? 1 : 0,
+    parentId: node.parentId,
     // Export DTO name = the node's resolved display name (title-is-content:
     // derived from its content, rename-free).
     name: displayNameForSettings(node) || null,
@@ -48,11 +51,11 @@ function toExportNode(client: ExportClient, id: string): ExportNode | undefined 
   };
 }
 
-/** Block-typed children only — the nested-bullet read (child pages are files). */
+/** Inline-body children only — the nested-bullet read (child pages are files). */
 function blockChildrenOf(client: ExportClient, id: string): ExportNode[] {
   const nodes: ExportNode[] = [];
   for (const child of client.getChildren(id)) {
-    if (child.nodeType !== "block") continue;
+    if (!rendersAsInlineBlock(child)) continue;
     const mapped = toExportNode(client, child.id);
     if (mapped !== undefined) nodes.push(mapped);
   }
@@ -93,8 +96,10 @@ export function exportSubtreeMarkdown(
     if (node === undefined) return;
     ordered.push(node);
     if (!includeChildPages) return;
+    // Child pages = the main-children zone (present-as-main children of any
+    // node type); inline body blocks stay inside their node's file.
     for (const child of client.getChildren(id)) {
-      if (child.nodeType === "page") collect(child.id);
+      if (!child.isClass && child.presentAsMain) collect(child.id);
     }
   };
   collect(rootId);

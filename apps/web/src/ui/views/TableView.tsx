@@ -69,8 +69,11 @@ function columnSortValue(
   if (column.kind === "created") {
     return row.item.node.createdAt ?? "";
   }
-  if (column.kind === "nodeType") {
-    return row.item.node.nodeType;
+  if (column.kind === "isClass") {
+    return row.item.node.isClass ? 1 : 0;
+  }
+  if (column.kind === "presentAsMain") {
+    return row.item.node.presentAsMain ? 1 : 0;
   }
   if (column.kind === "classes") {
     return null; // not sortable
@@ -543,10 +546,17 @@ export function TableView(props: NodeCollectionProps) {
         </td>
       );
     }
-    if (column.kind === "nodeType") {
+    if (column.kind === "isClass") {
       return (
         <td key={column.id} className="nt-table-node-type">
-          {node.nodeType}
+          {node.isClass ? "Yes" : "—"}
+        </td>
+      );
+    }
+    if (column.kind === "presentAsMain") {
+      return (
+        <td key={column.id} className="nt-table-node-type">
+          {node.presentAsMain ? "Yes" : "—"}
         </td>
       );
     }
@@ -573,7 +583,7 @@ export function TableView(props: NodeCollectionProps) {
             <div className="nt-table-panel">
               <div className="nt-table-panel__title">Columns</div>
               {columns
-                .filter((c) => c.kind === "classes" || c.kind === "created" || c.kind === "nodeType")
+                .filter((c) => c.kind === "classes" || c.kind === "created" || c.kind === "isClass" || c.kind === "presentAsMain")
                 .map((column) => (
                   <label className="nt-table-panel__check" key={column.id}>
                     <Checkbox size="sm" checked={!hiddenColumns.has(column.id)} onChange={() => toggleHidden(column.id)} />

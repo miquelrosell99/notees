@@ -53,20 +53,18 @@ function text(value: string): ContentAst {
 describe("embeds", () => {
   it("renders the target page's name and its block subtree", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ nodeType: "page", name: "Host" });
-    const target = await client.createObject({ nodeType: "page", name: "Target Page" });
-    await client.createObject({ nodeType: "block", parentId: target, contentAst: text("child one") });
+    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const target = await client.createObject({ presentAsMain: true, name: "Target Page" });
+    await client.createObject({ parentId: target, contentAst: text("child one") });
     const childTwo = await client.createObject({
-      nodeType: "block",
       parentId: target,
       contentAst: text("child two"),
     });
     await client.createObject({
-      nodeType: "block",
       parentId: childTwo,
       contentAst: text("grandchild"),
     });
-    await client.createObject({ nodeType: "block", parentId: pageA, contentAst: embed(target) });
+    await client.createObject({ parentId: pageA, contentAst: embed(target) });
 
     const { container } = render(<PageView client={client} pageId={pageA} />);
 
@@ -87,14 +85,13 @@ describe("embeds", () => {
 
   it("re-renders when the target's content changes (notify flow)", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ nodeType: "page", name: "Host" });
-    const holder = await client.createObject({ nodeType: "page", name: "Holder" });
+    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const holder = await client.createObject({ presentAsMain: true, name: "Holder" });
     const target = await client.createObject({
-      nodeType: "block",
       parentId: holder,
       contentAst: text("before"),
     });
-    await client.createObject({ nodeType: "block", parentId: pageA, contentAst: embed(target) });
+    await client.createObject({ parentId: pageA, contentAst: embed(target) });
 
     const { container } = render(<PageView client={client} pageId={pageA} />);
     // The header also derives the block's name from this content, so assert
@@ -112,19 +109,17 @@ describe("embeds", () => {
 
   it("renders nested embeds inside an embedded subtree", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ nodeType: "page", name: "Host" });
-    const holder = await client.createObject({ nodeType: "page", name: "Holder" });
+    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const holder = await client.createObject({ presentAsMain: true, name: "Holder" });
     const deep = await client.createObject({
-      nodeType: "block",
       parentId: holder,
       contentAst: text("deep body"),
     });
     const middle = await client.createObject({
-      nodeType: "block",
       parentId: holder,
       contentAst: embed(deep),
     });
-    await client.createObject({ nodeType: "block", parentId: pageA, contentAst: embed(middle) });
+    await client.createObject({ parentId: pageA, contentAst: embed(middle) });
 
     const { container } = render(<PageView client={client} pageId={pageA} />);
 
@@ -138,11 +133,11 @@ describe("embeds", () => {
 
   it("renders a recursive placeholder for a cycle instead of hanging", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ nodeType: "page", name: "Host" });
-    const holder = await client.createObject({ nodeType: "page", name: "Holder" });
+    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const holder = await client.createObject({ presentAsMain: true, name: "Holder" });
     // a1 embeds b1, b1 embeds a1 — the renderer must stop at the re-entry.
-    const a1 = await client.createObject({ nodeType: "block", parentId: pageA, contentAst: [] });
-    const b1 = await client.createObject({ nodeType: "block", parentId: holder, contentAst: embed(a1) });
+    const a1 = await client.createObject({ parentId: pageA, contentAst: [] });
+    const b1 = await client.createObject({ parentId: holder, contentAst: embed(a1) });
     await client.updateObject(a1, { contentAst: embed(b1) });
 
     const { container } = render(<PageView client={client} pageId={pageA} />);
@@ -155,18 +150,17 @@ describe("embeds", () => {
 
   it("stops at the depth cap for long chains", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ nodeType: "page", name: "Host" });
-    const holder = await client.createObject({ nodeType: "page", name: "Holder" });
+    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const holder = await client.createObject({ presentAsMain: true, name: "Holder" });
     // b1 → b2 → … → b7, a 7-deep chain; the cap is 5 rendered embed frames.
     let next = await client.createObject({
-      nodeType: "block",
       parentId: holder,
       contentAst: text("bottom"),
     });
     for (let i = 6; i >= 1; i -= 1) {
-      next = await client.createObject({ nodeType: "block", parentId: holder, contentAst: embed(next) });
+      next = await client.createObject({ parentId: holder, contentAst: embed(next) });
     }
-    await client.createObject({ nodeType: "block", parentId: pageA, contentAst: embed(next) });
+    await client.createObject({ parentId: pageA, contentAst: embed(next) });
 
     const { container } = render(<PageView client={client} pageId={pageA} />);
 
@@ -177,9 +171,9 @@ describe("embeds", () => {
 
   it("renders a broken-embed placeholder with the raw id when the target is missing", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ nodeType: "page", name: "Host" });
+    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
     const missing = "0192a000-0000-7000-8000-0000000000ff";
-    await client.createObject({ nodeType: "block", parentId: pageA, contentAst: embed(missing) });
+    await client.createObject({ parentId: pageA, contentAst: embed(missing) });
 
     render(<PageView client={client} pageId={pageA} />);
 

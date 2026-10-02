@@ -1,24 +1,28 @@
 /**
  * NodeContextMenu — right-click menu for node surfaces (page headers, block
  * bullets/rows, class/tag pills). Actions: open, copy link, favorite,
- * export (pages), remove pill (class/tag on an owner), delete. Favorites
- * toggle localStorage directly and broadcast so the sidebar refreshes.
+ * move between the body and the Pages zone (parented nodes), export
+ * (document-chrome nodes), remove pill (class/tag on an owner), delete.
+ * Favorites toggle localStorage directly and broadcast so the sidebar
+ * refreshes.
  *
- * Delete: blocks vanish instantly; pages and classes close the menu and ask
- * in the reusable ConfirmationModal (danger variant) — never an inline
- * two-step, and the message names the node by its display name (never a
- * raw uuid). `onDeleted` lets the host navigate away (parent page, else the
+ * Delete: inline blocks vanish instantly; pages and classes close the menu
+ * and ask in the reusable ConfirmationModal (danger variant) — never an
+ * inline two-step, and the message names the node by its display name (never
+ * a raw uuid). `onDeleted` lets the host navigate away (parent page, else the
  * default view) once the delete lands.
  */
 
 import { useState } from "react";
 
+import { rendersAsInlineBlock } from "@notees/domain";
+
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
 import { nodeLinkUrl } from "../nodeLink.js";
-import { copyToClipboard } from "./modals/clipboard.js";
-import { notificationStore } from "./ui/notificationStore.js";
+import { untitledLabelOf } from "../renderStateLabel.js";
+import { copyToClipboard } from "./modals/clipboard.js";import { notificationStore } from "./ui/notificationStore.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 
@@ -26,18 +30,28 @@ import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 interface MenuClient {
   unassignClass(id: string, classId: string): Promise<void>;
   deleteObject(id: string, opts?: { permanent?: boolean }): Promise<void>;
+  /** The render-bit toggle behind "Move to Pages" / "Move to content". */
+  updateObject(id: string, fields: { presentAsMain?: boolean }): Promise<void>;
 }
 
 export type NodeMenuState =
-  | { x: number; y: number; node: ClientNode; ownerId?: string; isPage: boolean }
+  | {
+      x: number;
+      y: number;
+      node: ClientNode;
+      ownerId?: string;
+      isPage: boolean;
+      /**
+       * Button anchor (three-dot menus): when present the menu opens
+       * right-aligned to this element instead of at the x/y point.
+       */
+      anchorEl?: HTMLElement | null;
+    }
   | null;
 
 /** Human label for a node in destructive messages: display name, never an id. */
 export function displayLabelOf(node: ClientNode): string {
-  return (
-    displayNameForSettings(node) ||
-    (node.nodeType === "page" ? "Untitled page" : node.nodeType === "class" ? "Untitled class" : "Untitled block")
-  );
+  return displayNameForSettings(node) || untitledLabelOf(node);
 }
 
 export function readFavorites(): string[] {
@@ -107,15 +121,37 @@ export function NodeContextMenu({
       },
     },
   ];
-  // Favorites surface pages/classes in the sidebar; a bare block has no
-  // sidebar presence, so the toggle is hidden for node_type === 'block'.
-  if (node.nodeType !== "block") {
+  // Favorites surface pages/classes in the sidebar; an inline block has no
+  // sidebar presence, so the toggle is hidden for the inline-body branch.
+  if (!rendersAsInlineBlock(node)) {
     items.push({
       id: "favorite",
       label: favorite ? "Remove from favorites" : "Add to favorites",
       icon: favorite ? "mdi-star" : "mdi-star-outline",
       onClick: () => toggleFavorite(node.id),
     });
+  }
+  // Zone flip (Revision 11): a parented node shows the one toggle that
+  // changes its render zone — inline body → the Pages zone (promotion
+  // stringifies content server-side), main child → the inline body.
+  // Classes are always parentless by the placement CHECK, so this only ever
+  // targets non-class nodes. One undoable object.update gesture.
+  if (node.parentId !== null) {
+    items.push(
+      node.presentAsMain
+        ? {
+            id: "move-to-content",
+            label: "Move to content",
+            icon: "mdi-format-indent-decrease",
+            onClick: () => void client.updateObject(node.id, { presentAsMain: false }),
+          }
+        : {
+            id: "move-to-pages",
+            label: "Move to Pages",
+            icon: "mdi-file-tree-outline",
+            onClick: () => void client.updateObject(node.id, { presentAsMain: true }),
+          },
+    );
   }
   if (isPage && onExport !== undefined) {
     items.push({
@@ -146,9 +182,9 @@ export function NodeContextMenu({
     });
   }
   items.push({ id: "s2", label: "", separator: true });
-  // Blocks delete instantly; pages and classes ask in the reusable
+  // Inline blocks delete instantly; pages and classes ask in the reusable
   // ConfirmationModal (danger) — the menu closes, the modal decides.
-  const confirmDelete = node.nodeType !== "block";
+  const confirmDelete = !rendersAsInlineBlock(node);
   items.push(
     confirmDelete
       ? {
@@ -172,7 +208,13 @@ export function NodeContextMenu({
 
   return (
     <>
-      <ContextMenu items={items} position={{ x: state.x, y: state.y }} onClose={onClose} />
+      <ContextMenu
+        items={items}
+        position={{ x: state.x, y: state.y }}
+        anchorEl={state.anchorEl ?? undefined}
+        alignRight={state.anchorEl != null}
+        onClose={onClose}
+      />
       <ConfirmationModal
         isOpen={confirmingDelete}
         title={`Delete ${name}?`}

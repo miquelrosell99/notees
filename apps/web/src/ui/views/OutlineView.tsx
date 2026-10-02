@@ -19,10 +19,13 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
+import { rendersWithDocumentChrome } from "@notees/domain";
+
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
+import { renderStateLabel } from "../renderStateLabel.js";
 import { registerView } from "./registry.js";
 import type { NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import "./OutlineView.css";
@@ -30,11 +33,11 @@ import "./OutlineView.css";
 /** Depth cap for safety on deep recursive trees. */
 const TREE_DEPTH_CAP = 64;
 
-/** Filter a tree to page-typed nodes (the pagesOnly flag), recursion-limited. */
+/** Filter a tree to main children (the pagesOnly flag), recursion-limited. */
 function filterPages(items: NodeCollectionItem[], remaining = TREE_DEPTH_CAP): NodeCollectionItem[] {
   if (remaining <= 0) return [];
   return items
-    .filter((item) => item.node.nodeType === "page")
+    .filter((item) => !item.node.isClass && item.node.presentAsMain)
     .map((item) => ({ ...item, children: filterPages(item.children ?? [], remaining - 1) }));
 }
 
@@ -98,8 +101,8 @@ export function OutlineRow({
         </span>
         {icon !== null && <Icon path={icon} size={0.9} className="outline-row__icon" />}
         <span className="outline-row__label">{label}</span>
-        {item.node.nodeType !== "page" && (
-          <span className="outline-row__type">{item.node.nodeType}</span>
+        {!rendersWithDocumentChrome(item.node) && (
+          <span className="outline-row__type">{renderStateLabel(item.node)}</span>
         )}
       </button>
       {trailingAction?.(item)}

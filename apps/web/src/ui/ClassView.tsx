@@ -1,7 +1,7 @@
 /**
- * ClassView — the class projection (SCHEMA.md view resolution f(node_type):
- * `class` → Class View): page chrome (editable name via TitleEditor, minimal
- * icon text input + preset color swatches) PLUS the class panels:
+ * ClassView — the class projection (SCHEMA.md render cascade, first branch):
+ * page chrome (editable name via TitleEditor, minimal icon text input +
+ * preset color swatches) PLUS the class panels:
  *
  * - Extends: the m2m parent classes as chips (link to their Class Views,
  *   removable) plus an add-parent picker over the workspace's classes.
@@ -14,16 +14,21 @@
  *   their values), remove writes class.property.unset, and an add-binding
  *   picker binds existing property schemas (class.property.set).
  * - Description shelf: the class node's own content, read-only for M1.
- * - Classed nodes: lazy per the section contract — no member query until the
- *   section first expands. Members link to their page (blocks resolve to
- *   their containing page); each row's × unassigns the member from THIS
- *   class (class.unassign).
+ * - Classes are containers (spec I4): two lazy node sections render the
+ *   class's children — Blocks (the inline body, the standard block tree) and
+ *   Child pages (the main-children zone, getChildPages) — plus Classed nodes:
+ *   lazy per the section contract. Self-tagged children get no special
+ *   partition (spec §10 — ordinary body blocks). Members link to their page
+ *   (inline blocks resolve to the containing main node); each row's ×
+ *   unassigns the member from THIS class (class.unassign).
  */
 
 import { useEffect, useState } from "react";
 
+import { rendersWithDocumentChrome } from "@notees/domain";
+
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 import { Icon } from "./Icon.js";
@@ -36,6 +41,11 @@ import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
 import { NodeCollection, ViewToolbar } from "./views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "./views/index.js";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+
+/** BlockTreeNode → the collection input shape (recursive). */
+function toCollectionItem(entry: BlockTreeNode): NodeCollectionItem {
+  return { node: entry.node, children: entry.children.map(toCollectionItem) };
+}
 
 /** The classed-nodes modes, in switcher order (table is the section default). */
 const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table"];
@@ -163,11 +173,11 @@ export function ClassView({
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
   const outliner = useOutlinerValue(client, classId, {
-    // f(node_type) navigation for query result lists: a class opens the Class
-    // View, anything else the Page View.
+    // Render-cascade navigation for query result lists: a class opens the
+    // Class View, anything else the Page View.
     openNode: (id) => {
       const target = client.getNode(id);
-      if (target !== undefined && target.nodeType === "class") onOpenClass?.(id);
+      if (target !== undefined && target.isClass) onOpenClass?.(id);
       else onOpenPage?.(id);
     },
   });
@@ -181,7 +191,7 @@ export function ClassView({
   const [membersMode, setMembersMode] = useState<ViewMode>("table");
 
   const node = client.getNode(classId);
-  if (node === undefined || node.nodeType !== "class") {
+  if (node === undefined || !node.isClass) {
     return <div className="nt-page-missing">Class not found.</div>;
   }
 
@@ -203,19 +213,23 @@ export function ClassView({
     }
   };
 
-  /** A member opens its page; a block member resolves to its containing page. */
+  /**
+   * A member opens directly when it renders with document chrome; an inline
+   * block member resolves to its containing main node (nearest ancestor
+   * matching the document-chrome predicate).
+   */
   const openMember = (member: ClientNode) => {
-    if (member.nodeType === "page") {
+    if (rendersWithDocumentChrome(member)) {
       onOpenPage?.(member.id);
       return;
     }
     const seen = new Set<string>([member.id]);
     let current = client.getNode(member.parentId ?? "");
-    while (current !== undefined && current.nodeType !== "page" && !seen.has(current.id)) {
+    while (current !== undefined && !rendersWithDocumentChrome(current) && !seen.has(current.id)) {
       seen.add(current.id);
       current = current.parentId !== null ? client.getNode(current.parentId) : undefined;
     }
-    onOpenPage?.(current !== undefined && current.nodeType === "page" ? current.id : member.id);
+    onOpenPage?.(current !== undefined && rendersWithDocumentChrome(current) ? current.id : member.id);
   };
 
   return (
@@ -487,6 +501,47 @@ export function ClassView({
         </section>
 
         <div className="nt-page-sections">
+          <Section
+            client={client}
+            title="Blocks"
+            load={() => client.getBlockTree(classId)}
+            emptyText="No blocks."
+            renderResults={(tree) => (
+              // The class's inline body (classes are containers, spec I4):
+              // the standard block tree, read-only rows — clicking a row
+              // opens the node (inline blocks resolve to their containing
+              // main node).
+              <NodeCollection
+                viewMode="outline"
+                client={client}
+                items={tree.map(toCollectionItem)}
+                tree
+                readOnly
+                onNodeClick={(id) => {
+                  const child = client.getNode(id);
+                  if (child !== undefined) openMember(child);
+                }}
+              />
+            )}
+          />
+          <Section
+            client={client}
+            title="Child pages"
+            load={() => client.getChildPages(classId)}
+            emptyText="No child pages."
+            renderResults={(pages) => (
+              // The class's main-children zone (present-as-main children of
+              // any node type — "Pages" stays the user-facing render-state
+              // vocabulary). Rows open the node directly.
+              <NodeCollection
+                viewMode="outline"
+                client={client}
+                items={pages.map((child) => ({ node: child }))}
+                readOnly
+                onNodeClick={(id) => onOpenPage?.(id)}
+              />
+            )}
+          />
           <Section
             client={client}
             title="Classed nodes"
