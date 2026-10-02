@@ -65,14 +65,12 @@ describe("WorkerCore OPFS persistence", () => {
     const core = await createCore({ opfs, fileName: FILE, workspaceId: WS, transport: new MemoryTransport(relay) });
     expect(core.listPages()).toEqual([]);
 
-    const pageId = await core.createObject({ nodeType: "page", name: "Persisted" });
+    const pageId = await core.createObject({ presentAsMain: true, name: "Persisted" });
     const blockId = await core.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "World", marks: ["bold"] }],
     });
     const mentionBlockId = await core.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Persisted" }],
     });
@@ -129,9 +127,9 @@ describe("WorkerCore OPFS persistence", () => {
       // Boot pulls nothing and must not write.
       expect(saves).toBe(0);
 
-      await core.createObject({ nodeType: "page", name: "A" });
-      await core.createObject({ nodeType: "page", name: "B" });
-      await core.createObject({ nodeType: "page", name: "C" });
+      await core.createObject({ presentAsMain: true, name: "A" });
+      await core.createObject({ presentAsMain: true, name: "B" });
+      await core.createObject({ presentAsMain: true, name: "C" });
       expect(saves).toBe(0); // debounced: nothing written yet
       // Settle the fire-and-forget push acknowledgements (microtasks only;
       // the 500 ms debounce timer must not fire).
@@ -145,7 +143,7 @@ describe("WorkerCore OPFS persistence", () => {
       await core.flush();
       expect(saves).toBe(1); // clean: no pending dirty state
 
-      await core.createObject({ nodeType: "page", name: "D" });
+      await core.createObject({ presentAsMain: true, name: "D" });
       await vi.advanceTimersByTimeAsync(0);
       await core.flush();
       expect(saves).toBe(2); // a later mutation persists on demand
@@ -163,13 +161,12 @@ describe("WorkerCore OPFS persistence", () => {
     const coreA = await createCore({ opfs: a.opfs, fileName: FILE, workspaceId: WS, transport: new MemoryTransport(relay) });
     const coreB = await createCore({ opfs: b.opfs, fileName: FILE, workspaceId: WS, transport: new MemoryTransport(relay) });
 
-    const pageId = await coreA.createObject({ nodeType: "page", name: "From A" });
+    const pageId = await coreA.createObject({ presentAsMain: true, name: "From A" });
     await coreA.syncOnce();
     await coreB.syncOnce();
     expect(deriveDisplayName(coreB.getPage(pageId)!)).toBe("From A");
 
     const blockId = await coreB.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "from B" }],
     });

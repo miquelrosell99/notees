@@ -95,10 +95,9 @@ function setProseCaret(editor: HTMLElement, proseOffset: number): void {
 /** Seed a block "see Target again" holding a mention of the Target page. */
 async function seeded() {
   const client = await seedClient();
-  const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-  const targetId = await client.createObject({ nodeType: "page", name: "Target" });
+  const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+  const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
   const blockId = await client.createObject({
-    nodeType: "block",
     parentId: pageId,
     contentAst: [
       { type: "text", text: "see " },
@@ -273,11 +272,10 @@ describe("editor atoms", () => {
 
   it("arrows walk through consecutive pills in both directions", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const t1 = await client.createObject({ nodeType: "page", name: "One" });
-    const t2 = await client.createObject({ nodeType: "page", name: "Two" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const t1 = await client.createObject({ presentAsMain: true, name: "One" });
+    const t2 = await client.createObject({ presentAsMain: true, name: "Two" });
     await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [
         { type: "mention", targetNodeId: t1, text: "One", linkId: "0192a000-0000-7000-8000-0000000000b1" },

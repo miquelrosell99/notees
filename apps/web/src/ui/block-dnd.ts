@@ -18,6 +18,13 @@
  *   dragged block's previous sibling, which anchors "above" — so ArrowUp/Down
  *   read as outliner up/down moves.
  *
+ * Zones (Revision 11): the page renders two child zones — the inline body
+ * (present_as_main = 0) and the main-children section (present_as_main = 1,
+ * the Pages zone). A drop's zone follows its anchor row (dropZoneOf); the
+ * executor flips the dragged node's present_as_main bit to match the zone
+ * (promotion 0→1 stringifies content server-side; demotion never
+ * un-flattens).
+ *
  * Guards (client-side, before issuing; the store's MoveGuardError remains the
  * defense-in-depth backstop surfaced as a transient banner):
  *
@@ -122,6 +129,22 @@ export function dropLineFromDragEvent(
 export type MoveCommand =
   | { kind: "reorder"; parentId: string; afterId: string | null }
   | { kind: "child"; parentId: string };
+
+/**
+ * The render zone a drop line lands in (Revision 11): a REORDER line anchored
+ * on a present-as-main row targets the parent's main-children zone (the drop
+ * promotes the dragged node); anything else — body-row anchors, CHILD intents
+ * (the dragged node becomes an inline child of the anchor) — is the inline
+ * body (the drop demotes when the dragged node was a main child).
+ */
+export function dropZoneOf(
+  line: DropLine,
+  getNode: (id: string) => { isClass: boolean; presentAsMain: boolean } | undefined,
+): "main" | "body" {
+  if (line.intent === "child") return "body";
+  const target = getNode(line.targetId);
+  return target !== undefined && !target.isClass && target.presentAsMain ? "main" : "body";
+}
 
 export type MoveResolution =
   | { status: "move"; command: MoveCommand }

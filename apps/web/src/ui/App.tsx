@@ -52,7 +52,8 @@ import { ClassView } from "./ClassView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
-import { dayNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { NodeMenuButton } from "./components/NodeMenuButton.js";
+import { dayNodeId, rendersAsInlineBlock, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { CollectionHub } from "./components/CollectionHub.js";
 import type { TableColumn, ViewMode } from "./views/index.js";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
@@ -212,8 +213,11 @@ function initialNav(): NavKey {
 }
 
 /**
- * View resolution = f(node_type) (SCHEMA.md): a class node renders the Class
- * View, everything else the Page View. Exported for the view-routing tests.
+ * View resolution = the Revision-11 render cascade (SCHEMA.md): a class node
+ * renders the Class View; a parented non-class node with the render bit unset
+ * renders the focused block view (inline body + block chrome); everything
+ * else — parentless or present-as-main — renders the Page View (document
+ * chrome). Exported for the view-routing tests.
  */
 export function NodeView({
   client,
@@ -221,26 +225,29 @@ export function NodeView({
   onOpenNode,
   onOpenInSidebar,
   onDeleted,
+  cornerMenu = false,
 }: {
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   onDeleted?: ((node: ClientNode) => void) | undefined;
+  /**
+   * Main-card mode: also render the "…" node menu pinned to the content
+   * card's top-right corner. Only the main view card opts in; sidebar peek
+   * cards keep their own header actions and skip it.
+   */
+  cornerMenu?: boolean | undefined;
 }) {
   const node = client.getNode(nodeId);
   if (node === undefined) {
     return <div className="nt-page-missing">Page not found.</div>;
   }
-  if (node.nodeType === "class") {
-    return (
-      <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
-    );
-  }
-  if (node.nodeType === "block") {
-    return <FocusedBlockView client={client} blockId={nodeId} onOpenNode={onOpenNode} />;
-  }
-  return (
+  const view = node.isClass ? (
+    <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
+  ) : rendersAsInlineBlock(node) ? (
+    <FocusedBlockView client={client} blockId={nodeId} onOpenNode={onOpenNode} />
+  ) : (
     <PageView
       client={client}
       pageId={nodeId}
@@ -249,14 +256,26 @@ export function NodeView({
       onDeleted={onDeleted}
     />
   );
+  if (!cornerMenu) return view;
+  return (
+    <div className="nt-node-view">
+      {view}
+      <NodeMenuButton
+        client={client}
+        node={node}
+        onOpenNode={(id) => onOpenNode?.(id)}
+        onDeleted={onDeleted}
+      />
+    </div>
+  );
 }
 
 /**
  * SidebarNodeCard — one independent peek card in the right sidebar
  * (shift+click a block bullet): the node's own view (page/class/focused
  * block) with a close button; links inside navigate the main view. The
- * header title IS the breadcrumb trail (right-anchored): for blocks it ends
- * at the containing page, for pages/classes at the node itself.
+ * header title IS the breadcrumb trail (right-anchored): for inline blocks
+ * it ends at the containing main node, for pages/classes at the node itself.
  */
 function SidebarNodeCard({
   client,
@@ -278,7 +297,7 @@ function SidebarNodeCard({
             client={client}
             nodeId={nodeId}
             onOpenNode={onOpenNode}
-            showCurrent={node.nodeType !== "block"}
+            showCurrent={!rendersAsInlineBlock(node)}
             anchor="right"
           />
         )}
@@ -364,10 +383,10 @@ export function App() {
   /**
    * Post-delete navigation: a deleted page/class lands on its parent page
    * when one exists, otherwise on the workspace default view (today's page /
-   * journal / pages hub). Blocks vanish in place — no navigation.
+   * journal / pages hub). Inline blocks vanish in place — no navigation.
    */
   function handleNodeDeleted(node: ClientNode): void {
-    if (node.nodeType === "block") return;
+    if (rendersAsInlineBlock(node)) return;
     if (node.parentId !== null) {
       openPage(node.parentId);
       return;
@@ -897,7 +916,7 @@ export function App() {
 
   async function handleNewPage() {
     if (client === null) return;
-    const id = await client.createObject({ nodeType: "page", name: "Untitled" });
+    const id = await client.createObject({ presentAsMain: true, name: "Untitled" });
     setSelectedPageId(id);
   }
 
@@ -1251,6 +1270,7 @@ export function App() {
               onOpenNode={openPage}
               onOpenInSidebar={openInSidebar}
               onDeleted={handleNodeDeleted}
+              cornerMenu
             />
           ) : activeNav === "journal" ? (
             <JournalsView client={client} onOpenPage={openPage} />

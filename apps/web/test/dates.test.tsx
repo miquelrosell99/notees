@@ -85,7 +85,7 @@ describe("dates (SCHEMA.md)", () => {
   it("setDateProperty creates the chain once; a second set (same or nearby date) adds nothing", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "date" });
-    const pageId = await client.createObject({ nodeType: "page", name: "Note" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Note" });
 
     await client.setDateProperty(pageId, schemaId, "2026-09-27");
     const ids = chainNodeIds("2026-09-27");
@@ -116,7 +116,7 @@ describe("dates (SCHEMA.md)", () => {
       type: "date",
       datePrecision: "year",
     });
-    const pageId = await client.createObject({ nodeType: "page", name: "Org" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Org" });
 
     await client.setDateProperty(pageId, schemaId, "2026-09-27");
     const ids = chainNodeIds("2026-09-27");
@@ -129,7 +129,7 @@ describe("dates (SCHEMA.md)", () => {
   it("date_range persists { start, end } refs; either end open keeps an open range", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "span", type: "date_range" });
-    const pageId = await client.createObject({ nodeType: "page", name: "Trip" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
 
     // Open start.
     await client.setDateRangeProperty(pageId, schemaId, null, "2026-10-05");
@@ -156,7 +156,7 @@ describe("dates (SCHEMA.md)", () => {
   it("a year node's backlinks list the dated node (edge projection)", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "date" });
-    const pageId = await client.createObject({ nodeType: "page", name: "Note" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Note" });
     await client.setDateProperty(pageId, schemaId, "2026-09-27");
     const ids = chainNodeIds("2026-09-27");
 
@@ -175,7 +175,7 @@ describe("dates (SCHEMA.md)", () => {
     const schemaId = await client.createPropertySchema({ name: "published", type: "date" });
     const classId = await client.createClass("Dated");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ nodeType: "page", name: "Note" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Note" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -221,7 +221,7 @@ describe("dates (SCHEMA.md)", () => {
     });
     const classId = await client.createClass("Org");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ nodeType: "page", name: "Org" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Org" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -244,7 +244,7 @@ describe("dates (SCHEMA.md)", () => {
     const schemaId = await client.createPropertySchema({ name: "span", type: "date_range" });
     const classId = await client.createClass("Trip");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ nodeType: "page", name: "Trip" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -278,8 +278,8 @@ describe("dates (SCHEMA.md)", () => {
     });
     const classId = await client.createClass("Team");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ nodeType: "page", name: "Team" });
-    const aliceId = await client.createObject({ nodeType: "page", name: "Alice" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Team" });
+    const aliceId = await client.createObject({ presentAsMain: true, name: "Alice" });
     await client.assignClass(pageId, classId);
     await client.setProperty(pageId, schemaId, { nodeId: aliceId }, 0);
     render(<PageView client={client} pageId={pageId} />);

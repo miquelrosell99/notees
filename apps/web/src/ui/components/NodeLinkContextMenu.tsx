@@ -25,6 +25,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { LinkEditModalHost, useLinkEditModalOpener } from "../editor-popups/LinkEditModal.js";
+import { renderStateLabel } from "../renderStateLabel.js";
 
 export interface NodeLinkMenuState {
   x: number;
@@ -226,11 +227,7 @@ export function NodeLinkContextMenu({
 }: NodeLinkContextMenuProps) {
   const target = client.getNode(state.targetNodeId);
   const openLabel =
-    target?.nodeType === "block"
-      ? "Open block"
-      : target?.nodeType === "class"
-        ? "Open class"
-        : "Open page";
+    target !== undefined ? `Open ${renderStateLabel(target).toLowerCase()}` : "Open";
   return (
     <ContextMenu
       companion

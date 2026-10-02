@@ -80,7 +80,7 @@ describe("metadata pickers (ported popups)", () => {
     const client = await seedClient();
     const fictionId = await createTitledClass(client, "Fiction");
     const poetryId = await createTitledClass(client, "Poetry");
-    const pageId = await client.createObject({ nodeType: "page", name: "Book" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Book" });
     await client.assignClass(pageId, poetryId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -124,7 +124,7 @@ describe("metadata pickers (ported popups)", () => {
   it("right-clicking a class pill opens the node menu; Change color leads to the swatches", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Genre");
-    const pageId = await client.createObject({ nodeType: "page", name: "Book" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Book" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
 
@@ -152,7 +152,7 @@ describe("metadata pickers (ported popups)", () => {
     });
     const classId = await client.createClass("Task");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -180,7 +180,7 @@ describe("metadata pickers (ported popups)", () => {
     const schemaId = await client.createPropertySchema({ name: "archived", type: "boolean" });
     const classId = await client.createClass("Record");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ nodeType: "page", name: "File" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "File" });
     await client.assignClass(pageId, classId);
 
     // Unvalued: the unchecked toggle writes true. (Each assertion renders
@@ -212,7 +212,7 @@ describe("metadata pickers (ported popups)", () => {
 
   it("the object picker offers a create row; the created page carries the target class", async () => {
     const client = await seedClient();
-    const personClass = await client.createObject({ nodeType: "class", name: "person" });
+    const personClass = await client.createClass("person");
     const mentorSchema = await client.createPropertySchema({
       name: "mentor",
       type: "object",
@@ -220,7 +220,7 @@ describe("metadata pickers (ported popups)", () => {
     });
     const teamClass = await client.createClass("Team");
     await client.setClassProperty(teamClass, mentorSchema, { sequence: 0 });
-    const teamId = await client.createObject({ nodeType: "page", name: "Crew" });
+    const teamId = await client.createObject({ presentAsMain: true, name: "Crew" });
     await client.assignClass(teamId, teamClass);
     render(<PageView client={client} pageId={teamId} />);
     expandProperties();

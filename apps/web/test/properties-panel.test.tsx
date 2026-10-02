@@ -75,7 +75,7 @@ describe("Properties panel (effective values)", () => {
   it("shows a derived default dimmed with a 'default' hint", async () => {
     const client = await seedClient();
     const { schemaId, taskId } = await seedPriorityClasses(client);
-    const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
     await client.assignClass(pageId, taskId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -93,7 +93,7 @@ describe("Properties panel (effective values)", () => {
 
   it("still renders the section when the node has no effective properties (always-visible metadata)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Plain" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(container.querySelector(".nt-properties-panel")).not.toBeNull();
   });
@@ -101,7 +101,7 @@ describe("Properties panel (effective values)", () => {
   it("editing a default writes an authored value that shadows it", async () => {
     const client = await seedClient();
     const { schemaId, taskId } = await seedPriorityClasses(client);
-    const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
     await client.assignClass(pageId, taskId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -129,7 +129,7 @@ describe("Properties panel (effective values)", () => {
   it("multi-class conflict shows the first-applied class's value", async () => {
     const client = await seedClient();
     const { taskId, projectId } = await seedPriorityClasses(client);
-    const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
     // Task is assigned first: its 'medium' beats Project's 'high'.
     await client.assignClass(pageId, taskId);
     await client.assignClass(pageId, projectId);
@@ -141,7 +141,7 @@ describe("Properties panel (effective values)", () => {
     expect(input.closest(".nt-property")!.textContent).toContain("default");
 
     // On a page where Project was applied first, Project's default wins.
-    const otherId = await client.createObject({ nodeType: "page", name: "Other" });
+    const otherId = await client.createObject({ presentAsMain: true, name: "Other" });
     await client.assignClass(otherId, projectId);
     await client.assignClass(otherId, taskId);
     expect(client.getEffectiveProperties(otherId)).toEqual([
@@ -157,7 +157,7 @@ describe("Properties panel (effective values)", () => {
     const effortSchemaId = await client.createPropertySchema({ name: "effort", type: "text" });
     await client.setClassProperty(taskId, effortSchemaId, { sequence: 1, defaultValue: "xs" });
 
-    const pageId = await client.createObject({ nodeType: "page", name: "Ship it" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
     await client.assignClass(pageId, taskId);
     await client.assignClass(pageId, projectId);
     await client.setProperty(pageId, effortSchemaId, "authored", 0);
@@ -193,9 +193,8 @@ describe("carrier blocks vs the child block list", () => {
   it("getBlockTree excludes blocks referenced as property values (no duplicate)", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notes", type: "object" });
-    const owner = await client.createObject({ nodeType: "page", name: "Owner" });
+    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
     const carrier = await client.createObject({
-      nodeType: "block",
       parentId: owner,
       contentAst: [{ type: "text", text: "Carrier text" }],
     });
@@ -209,9 +208,8 @@ describe("carrier blocks vs the child block list", () => {
   it("text properties whose scalar value IS a carrier block uuid are excluded too", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notas", type: "text" });
-    const owner = await client.createObject({ nodeType: "page", name: "Owner" });
+    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
     const carrier = await client.createObject({
-      nodeType: "block",
       parentId: owner,
       contentAst: [{ type: "text", text: "Scalar carrier" }],
     });

@@ -50,9 +50,8 @@ function blockMetadata(container: HTMLElement, blockId: string): HTMLElement | n
 describe("BlockRow metadata section", () => {
   it("shows no metadata section on a plain block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Plain" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
     const plainId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "nothing to see" }],
     });
@@ -63,15 +62,13 @@ describe("BlockRow metadata section", () => {
 
   it("shows the metadata section when the block has a class", async () => {
     const client = await seedClient();
-    const classId = await client.createObject({ nodeType: "class", name: "Highlight" });
-    const pageId = await client.createObject({ nodeType: "page", name: "Blocks" });
+    const classId = await client.createClass("Highlight");
+    const pageId = await client.createObject({ presentAsMain: true, name: "Blocks" });
     const classedId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "carry me" }],
     });
     const plainId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "plain sibling" }],
     });
@@ -89,9 +86,8 @@ describe("BlockRow metadata section", () => {
   it("shows the metadata section when the block has an authored property", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "status", type: "text" });
-    const pageId = await client.createObject({ nodeType: "page", name: "Props" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Props" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "propped" }],
     });
@@ -114,10 +110,9 @@ describe("BlockRow metadata section", () => {
   it("shows the metadata section when the block has a tag", async () => {
     // Tags are valid on blocks (owner rule): assignTag attaches any page.
     const client = await seedClient();
-    const tagId = await client.createObject({ nodeType: "page", name: "review-later" });
-    const pageId = await client.createObject({ nodeType: "page", name: "Tagged" });
+    const tagId = await client.createObject({ presentAsMain: true, name: "review-later" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Tagged" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "tagged block" }],
     });
@@ -132,9 +127,8 @@ describe("BlockRow metadata section", () => {
 
   it("the page-level metadata section still renders on its own", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Solo" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Solo" });
     await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "block without metadata" }],
     });

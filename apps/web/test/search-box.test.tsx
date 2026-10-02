@@ -53,19 +53,18 @@ async function seedWorld(): Promise<World> {
   const client = await seedClient();
   const paperClassId = await client.createClass("paper");
   const year = await client.createPropertySchema({ name: "year", type: "number" });
-  const oldPaper = await client.createObject({ nodeType: "page", name: "Old Paper", classIds: [paperClassId] });
+  const oldPaper = await client.createObject({ presentAsMain: true, name: "Old Paper", classIds: [paperClassId] });
   await client.setProperty(oldPaper, year, 1901);
-  const modernPaper = await client.createObject({ nodeType: "page", name: "Modern Paper", classIds: [paperClassId] });
+  const modernPaper = await client.createObject({ presentAsMain: true, name: "Modern Paper", classIds: [paperClassId] });
   await client.setProperty(modernPaper, year, 2015);
-  await client.createObject({ nodeType: "page", name: "Cooking Notes" });
+  await client.createObject({ presentAsMain: true, name: "Cooking Notes" });
   const notes = await client.createObject({
-    nodeType: "page",
+    presentAsMain: true,
     name: "Reading Notes",
   });
   // Title-is-content: the mention link lives in a child BLOCK; the page's
   // own content is its title text.
   await client.createObject({
-    nodeType: "block",
     parentId: notes,
     contentAst: [{ type: "mention", targetNodeId: modernPaper, text: "Modern Paper" }],
   });
@@ -116,8 +115,8 @@ describe("SearchBox", () => {
     typeQuery("class:paper AND year:>2010");
     expect(await screen.findByText("Modern Paper")).not.toBeNull();
     expect(screen.queryByText("Old Paper")).toBeNull();
-    // Each hit carries its nodeType chip.
-    expect(screen.getByText("page")).not.toBeNull();
+    // Each hit carries its render-state chip.
+    expect(screen.getByText("Page")).not.toBeNull();
   });
 
   it("resolves linked: node names and prop: schema names", async () => {

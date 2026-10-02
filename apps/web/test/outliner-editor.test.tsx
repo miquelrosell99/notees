@@ -71,7 +71,8 @@ function node(id: string, children: BlockTreeNode[] = []): BlockTreeNode {
     node: {
       id,
       workspaceId: WS,
-      nodeType: "block",
+      isClass: false,
+      presentAsMain: false,
       parentId: null,
       classIds: [],
       tagIds: [],
@@ -139,9 +140,8 @@ describe("prose projection helpers", () => {
 describe("outliner editor", () => {
   it("typing saves the block via the 400 ms debounce flush", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Edit Me" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Edit Me" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
     });
@@ -170,9 +170,8 @@ describe("outliner editor", () => {
 
   it("flushes a dirty draft on blur (no fake timers)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Blur Flush" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Blur Flush" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "draft" }],
     });
@@ -188,9 +187,8 @@ describe("outliner editor", () => {
 
   it("shift+Enter newlines save as hard_break tokens", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Breaks" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Breaks" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "old" }],
     });
@@ -215,9 +213,8 @@ describe("outliner editor", () => {
 
   it("Enter creates an empty sibling block and moves the caret to it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Split" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Split" });
     const firstId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "first" }],
     });
@@ -250,14 +247,12 @@ describe("outliner editor", () => {
 
   it("Enter lands the new sibling immediately AFTER the current block, not at the end", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Placement" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Placement" });
     const firstId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "first" }],
     });
     const secondId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "second" }],
     });
@@ -285,13 +280,12 @@ describe("outliner editor", () => {
 
   it("Backspace on an empty block deletes it and focuses the previous block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Delete" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Delete" });
     const firstId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "first" }],
     });
-    const secondId = await client.createObject({ nodeType: "block", parentId: pageId, contentAst: [] });
+    const secondId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(client.getBlockTree(pageId)).toHaveLength(2);
 
@@ -315,14 +309,12 @@ describe("outliner editor", () => {
 
   it("Tab indents under the previous sibling (object.move)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Indent" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Indent" });
     const firstId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "one" }],
     });
     const secondId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "two" }],
     });
@@ -343,14 +335,12 @@ describe("outliner editor", () => {
 
   it("Shift+Tab outdents to the grandparent, placed right after the parent", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Outdent" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Outdent" });
     const parentId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
     });
     const childId = await client.createObject({
-      nodeType: "block",
       parentId,
       contentAst: [{ type: "text", text: "child" }],
     });
@@ -371,9 +361,8 @@ describe("outliner editor", () => {
 
   it("typing on a marks block preserves the run's marks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Marks" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Marks" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello", marks: ["bold"] }],
     });
@@ -391,10 +380,9 @@ describe("outliner editor", () => {
 
   it("touching a mention-bearing block without changing its text does not flatten it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Rich" });
-    const targetId = await client.createObject({ nodeType: "page", name: "Target" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Rich" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
@@ -415,7 +403,7 @@ describe("outliner editor", () => {
 
   it("editing the page title commits the content on Enter and on blur", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Old Name" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Old Name" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const title = container.querySelector<HTMLElement>(".nt-page-title");
@@ -436,7 +424,7 @@ describe("outliner editor", () => {
 
   it("an empty page offers an add-block affordance that creates the first block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Blank" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Blank" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(client.getBlockTree(pageId)).toHaveLength(0);
 

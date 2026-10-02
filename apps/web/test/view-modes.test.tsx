@@ -62,19 +62,16 @@ async function createTitledClass(client: WorkspaceClient, title: string): Promis
 
 /** Page with two root blocks, the first holding a nested child. */
 async function seedTreePage(client: WorkspaceClient): Promise<string> {
-  const pageId = await client.createObject({ nodeType: "page", name: "Modes" });
+  const pageId = await client.createObject({ presentAsMain: true, name: "Modes" });
   await client.createObject({
-    nodeType: "block",
     parentId: pageId,
     contentAst: [{ type: "text", text: "root one" }],
   });
   const parent = await client.createObject({
-    nodeType: "block",
     parentId: pageId,
     contentAst: [{ type: "text", text: "root two" }],
   });
   await client.createObject({
-    nodeType: "block",
     parentId: parent,
     contentAst: [{ type: "text", text: "nested under two" }],
   });
@@ -149,7 +146,7 @@ describe("classed-nodes table", () => {
   it("defaults to table with a column per bound property", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "source");
-    const member = await client.createObject({ nodeType: "page", name: "A book" });
+    const member = await client.createObject({ presentAsMain: true, name: "A book" });
     await client.assignClass(member, classId);
     render(<ClassView client={client} classId={classId} />);
 
@@ -171,11 +168,10 @@ describe("classed-nodes table", () => {
 describe("tasks hub", () => {
   it("lists pages AND blocks classed task, table by default, switchable", async () => {
     const client = await seedClient();
-    const taskPage = await client.createObject({ nodeType: "page", name: "Write report" });
+    const taskPage = await client.createObject({ presentAsMain: true, name: "Write report" });
     await client.assignClass(taskPage, SYSTEM_CLASS_UUIDS.task);
-    const host = await client.createObject({ nodeType: "page", name: "Host" });
+    const host = await client.createObject({ presentAsMain: true, name: "Host" });
     const taskBlock = await client.createObject({
-      nodeType: "block",
       parentId: host,
       contentAst: [{ type: "text", text: "Call the office" }],
     });
@@ -200,11 +196,11 @@ describe("tasks hub", () => {
   it("sorts by name ascending and descending via header clicks", async () => {
     const client = await seedClient();
     await client.assignClass(
-      await client.createObject({ nodeType: "page", name: "Zulu" }),
+      await client.createObject({ presentAsMain: true, name: "Zulu" }),
       SYSTEM_CLASS_UUIDS.task,
     );
     await client.assignClass(
-      await client.createObject({ nodeType: "page", name: "Alpha" }),
+      await client.createObject({ presentAsMain: true, name: "Alpha" }),
       SYSTEM_CLASS_UUIDS.task,
     );
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
@@ -240,7 +236,7 @@ describe("kanban board (property-dimension groupBy)", () => {
   }
 
   async function seedTask(client: WorkspaceClient, title: string): Promise<string> {
-    const id = await client.createObject({ nodeType: "page", name: title });
+    const id = await client.createObject({ presentAsMain: true, name: title });
     await client.assignClass(id, SYSTEM_CLASS_UUIDS.task);
     return id;
   }
@@ -325,9 +321,8 @@ describe("kanban board (property-dimension groupBy)", () => {
 describe("assets hub", () => {
   it("defaults to cards and switches to table", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ nodeType: "page", name: "Attachments" });
+    const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
     const asset = await client.createObject({
-      nodeType: "block",
       parentId: host,
       contentAst: [{ type: "text", text: "scanned-receipt.pdf" }],
     });
@@ -348,11 +343,10 @@ describe("assets hub", () => {
 describe("groupBy: references grouped by containing page", () => {
   /** Target page with one mention from each of two source pages. */
   async function seedReferencedPage(client: WorkspaceClient): Promise<string> {
-    const targetId = await client.createObject({ nodeType: "page", name: "Zebra" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
     for (const name of ["Source One", "Source Two"]) {
-      const sourceId = await client.createObject({ nodeType: "page", name });
+      const sourceId = await client.createObject({ presentAsMain: true, name });
       await client.createObject({
-        nodeType: "block",
         parentId: sourceId,
         contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
       });
@@ -409,11 +403,10 @@ describe("groupBy: references grouped by containing page", () => {
 
   it("groups two references from the same page under one header with count 2", async () => {
     const client = await seedClient();
-    const targetId = await client.createObject({ nodeType: "page", name: "Zebra" });
-    const sourceId = await client.createObject({ nodeType: "page", name: "Double Source" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
+    const sourceId = await client.createObject({ presentAsMain: true, name: "Double Source" });
     for (const text of ["first", "second"]) {
       await client.createObject({
-        nodeType: "block",
         parentId: sourceId,
         contentAst: [
           { type: "text", text: `${text} ` },
@@ -469,9 +462,9 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     ] as const) {
       await client.setClassProperty(classId, schema, { sequence });
     }
-    const alpha = await client.createObject({ nodeType: "page", name: "Alpha" });
-    const beta = await client.createObject({ nodeType: "page", name: "Beta" });
-    const gamma = await client.createObject({ nodeType: "page", name: "Gamma" });
+    const alpha = await client.createObject({ presentAsMain: true, name: "Alpha" });
+    const beta = await client.createObject({ presentAsMain: true, name: "Beta" });
+    const gamma = await client.createObject({ presentAsMain: true, name: "Gamma" });
     for (const id of [alpha, beta, gamma]) await client.assignClass(id, classId);
     await client.setProperty(alpha, statusId, OPT_BACKLOG, 0);
     await client.setProperty(beta, statusId, OPT_DOING, 0);
@@ -569,7 +562,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   it("node cells pick a target through the anchored NodeSelector", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
-    const paris = await client.createObject({ nodeType: "page", name: "Paris" });
+    const paris = await client.createObject({ presentAsMain: true, name: "Paris" });
     render(<ClassView client={client} classId={seeded.classId} />);
     await expandClassedNodes();
 
@@ -612,10 +605,10 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
         { id: "00000000-0000-0000-0005-000000000022", label: "Doing" },
       ],
     });
-    const both = await client.createObject({ nodeType: "page", name: "Both" });
+    const both = await client.createObject({ presentAsMain: true, name: "Both" });
     await client.assignClass(both, SYSTEM_CLASS_UUIDS.task);
     await client.setProperty(both, statusId, ["00000000-0000-0000-0005-000000000021"], 0);
-    const other = await client.createObject({ nodeType: "page", name: "Other" });
+    const other = await client.createObject({ presentAsMain: true, name: "Other" });
     await client.assignClass(other, SYSTEM_CLASS_UUIDS.task);
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
@@ -639,7 +632,7 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
       type: "select",
       options: [{ id: "00000000-0000-0000-0005-000000000031", label: "Backlog" }],
     });
-    const task = await client.createObject({ nodeType: "page", name: "Solo" });
+    const task = await client.createObject({ presentAsMain: true, name: "Solo" });
     await client.assignClass(task, SYSTEM_CLASS_UUIDS.task);
     await client.setProperty(task, statusId, "00000000-0000-0000-0005-000000000031", 0);
 
@@ -658,9 +651,8 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
 describe("card covers and asset thumbnails", () => {
   it("image assets render a thumbnail; the layout toggle switches placements", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ nodeType: "page", name: "Attachments" });
+    const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
     const asset = await client.createObject({
-      nodeType: "block",
       parentId: host,
       contentAst: [{ type: "text", text: "photo.png" }],
     });

@@ -12,6 +12,7 @@ import { ContextMenu } from "./ui/ContextMenu.js";
 import { notificationStore } from "./ui/notificationStore.js";
 import { copyToClipboard } from "./modals/clipboard.js";
 import { nodeLinkUrl } from "../nodeLink.js";
+import { renderStateLabel } from "../renderStateLabel.js";
 
 export interface SidebarItemMenuState {
   x: number;
@@ -48,8 +49,7 @@ export function SidebarItemMenu({
   onRequestDelete,
 }: SidebarItemMenuProps) {
   const { node } = state;
-  const openLabel =
-    node.nodeType === "block" ? "Open block" : node.nodeType === "class" ? "Open class" : "Open page";
+  const openLabel = `Open ${renderStateLabel(node).toLowerCase()}`;
 
   return (
       <ContextMenu

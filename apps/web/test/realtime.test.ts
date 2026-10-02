@@ -53,7 +53,7 @@ function makeEnvelope(deviceId: string, physical: number, objectId: string, titl
     opType: "object.create",
     // Title-is-content: a page's title is its text content — the raw envelope
     // carries a text-only contentAst, never a `name` field.
-    payload: { objectId, nodeType: "page", contentAst: [{ type: "text", text: title }] },
+    payload: { objectId, presentAsMain: true, contentAst: [{ type: "text", text: title }] },
     timestamp: new Date(physical).toISOString(),
   });
 }
@@ -90,7 +90,7 @@ describe("WorkspaceClient realtime (MemoryRelay subscribe surface)", () => {
     // B commits; the relay's ops frame applies on A without an explicit sync.
     const pageId = "0192a000-0000-7000-8000-0000000000b1";
     const before = notifications;
-    await clientB.createObject({ nodeType: "page", name: "Live Page", id: pageId });
+    await clientB.createObject({ presentAsMain: true, name: "Live Page", id: pageId });
     await clientB.push();
 
     expect(clientA.getPage(pageId)).toBeDefined();
@@ -125,7 +125,7 @@ describe("WorkspaceClient realtime (MemoryRelay subscribe surface)", () => {
 
     // Local-first: the write applies immediately; the push fails and stays pending.
     gate.offline = true;
-    await client.createObject({ nodeType: "page", name: "Pending Page" });
+    await client.createObject({ presentAsMain: true, name: "Pending Page" });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     const snapshot = client.status();
@@ -223,7 +223,8 @@ describe("worker wire protocol: realtime cases", () => {
     expect(listed.error).toBeUndefined();
     const pages = listed.result as Array<{
       id: string;
-      nodeType: "page" | "block" | "class";
+      isClass: boolean;
+      presentAsMain: boolean;
       contentAst: ContentAst | null;
     }>;
     expect(pages.map((page) => deriveDisplayName(page))).toContain("From B");

@@ -45,15 +45,14 @@ describe("PageView rendering", () => {
   it("renders text marks, mention, typed link, quote, and hard break", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      nodeType: "page",
+      presentAsMain: true,
       name: "Render Me",
     });
     const targetPageId = await client.createObject({
-      nodeType: "page",
+      presentAsMain: true,
       name: "Mention Target",
     });
     await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [
         { type: "text", text: "plain " },
@@ -67,12 +66,10 @@ describe("PageView rendering", () => {
       ],
     });
     const nestedParent = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
     });
     await client.createObject({
-      nodeType: "block",
       parentId: nestedParent,
       contentAst: [{ type: "text", text: "nested child" }],
     });
@@ -122,9 +119,8 @@ describe("PageView rendering", () => {
 
   it("renders placeholder boxes for block-scale tokens", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Placeholders" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Placeholders" });
     await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [
         { type: "asset_ref", assetId: "0192a000-0000-7000-8000-0000000000a1" },

@@ -15,6 +15,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
+import { untitledLabelOf } from "../renderStateLabel.js";
 import { Icon } from "../Icon.js";
 import "./Breadcrumbs.css";
 
@@ -41,10 +42,7 @@ export function clipCrumbName(name: string, max: number = CRUMB_NAME_MAX): strin
 
 /** Human crumb label: display name, never a raw uuid; per-crumb capped. */
 function crumbNameOf(node: ClientNode): string {
-  return clipCrumbName(
-    displayNameForSettings(node) ||
-      (node.nodeType === "page" ? "Untitled page" : node.nodeType === "class" ? "Untitled class" : "Untitled block"),
-  );
+  return clipCrumbName(displayNameForSettings(node) || untitledLabelOf(node));
 }
 
 function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {

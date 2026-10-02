@@ -43,7 +43,7 @@ describe("formatDateName", () => {
 describe("displayNameForSettings", () => {
   it("formats from the date id even with a null name (migrated pages)", () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
-    const node = { id: DAY_ID, nodeType: "page" as const, name: null, contentAst: [{ type: "text", text: "20290627" } as const] };
+    const node = { id: DAY_ID, isClass: false as const, presentAsMain: true as const, name: null, contentAst: [{ type: "text", text: "20290627" } as const] };
     expect(displayNameForSettings(node)).toBe("2029/06/27");
   });
 
@@ -53,7 +53,7 @@ describe("displayNameForSettings", () => {
     // marks it a date page so the user's token layout applies.
     const node = {
       id: DAY_ID,
-      nodeType: "page" as const,
+      isClass: false as const, presentAsMain: true as const,
       name: null,
       contentAst: [{ type: "text", text: "20290627" } as const],
     };
@@ -63,7 +63,7 @@ describe("displayNameForSettings", () => {
   it("defers to the derived name for everything else", () => {
     const node = {
       id: "some-uuid",
-      nodeType: "page" as const,
+      isClass: false as const, presentAsMain: true as const,
       name: null,
       contentAst: [{ type: "text", text: "Derived from content" } as const],
     };
@@ -75,8 +75,8 @@ describe("displayNameFromClient", () => {
   it("formats date nodes and defers otherwise", () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
     const nodes = new Map([
-      [DAY_ID, { id: DAY_ID, nodeType: "page" as const, name: null, contentAst: [] }],
-      ["p1", { id: "p1", nodeType: "page" as const, name: null, contentAst: [{ type: "text", text: "Plain" } as const] }],
+      [DAY_ID, { id: DAY_ID, isClass: false as const, presentAsMain: true as const, name: null, contentAst: [] }],
+      ["p1", { id: "p1", isClass: false as const, presentAsMain: true as const, name: null, contentAst: [{ type: "text", text: "Plain" } as const] }],
     ]);
     const client = {
       getNode: (id: string) => nodes.get(id),
