@@ -105,11 +105,13 @@ describe("query block (live query token)", () => {
 
     expect(await screen.findByText("Paris")).not.toBeNull();
     expect(screen.getByText("London")).not.toBeNull();
-    // Two member pages → badge 2; each row carries its nodeType chip.
+    // Two member pages → badge 2; one outline row per member (page rows
+    // carry no type chip — only non-page nodes do, covered below).
     expect(badge(container)).toBe("2");
-    const items = container.querySelectorAll(".nt-query-item");
+    const items = container.querySelectorAll(".outline-row__main");
     expect(items.length).toBe(2);
-    expect(items[0]?.querySelector(".nt-query-chip")?.textContent).toBe("page");
+    const labels = [...items].map((el) => el.querySelector(".outline-row__label")?.textContent).sort();
+    expect(labels).toEqual(["London", "Paris"]);
   });
 
   it("re-renders live: a matching node appears after a client-side create (notify)", async () => {
@@ -189,7 +191,7 @@ describe("query block (live query token)", () => {
 
     // Subtree: the host page + its two body blocks + the query block itself —
     // nothing from other pages.
-    const items = Array.from(container.querySelectorAll(".nt-query-item")).map(
+    const items = Array.from(container.querySelectorAll(".outline-row__main")).map(
       (el) => el.textContent ?? "",
     );
     expect(items.length).toBe(4);
@@ -213,9 +215,9 @@ describe("query block (live query token)", () => {
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("The capital city");
     // Only the block carries the text; the chip shows its nodeType.
-    let items = container.querySelectorAll(".nt-query-item");
+    let items = container.querySelectorAll(".outline-row__main");
     expect(items.length).toBe(1);
-    expect(items[0]?.querySelector(".nt-query-chip")?.textContent).toBe("block");
+    expect(items[0]?.querySelector(".outline-row__type")?.textContent).toBe("block");
 
     // Add a nodeType=page condition via the content update path: the block
     // drops out and the list goes empty.
@@ -230,7 +232,7 @@ describe("query block (live query token)", () => {
       });
     });
     expect(await screen.findByText("No results.")).not.toBeNull();
-    items = container.querySelectorAll(".nt-query-item");
+    items = container.querySelectorAll(".outline-row__main");
     expect(items.length).toBe(0);
   });
 
@@ -269,7 +271,7 @@ describe("query block (live query token)", () => {
     );
     // Re-render reflects the new filter: only the body block matches now.
     await screen.findByText("The capital city");
-    expect(container.querySelectorAll(".nt-query-item").length).toBe(1);
+    expect(container.querySelectorAll(".outline-row__main").length).toBe(1);
     expect(screen.queryByText("Paris")).toBeNull();
   });
 
@@ -300,7 +302,7 @@ describe("query block (live query token)", () => {
     );
     expect(token.queryAst.scope).toEqual({ type: "subtree", pageId: host });
     // Re-render: only the host subtree remains (host page + the query block).
-    const items = Array.from(container.querySelectorAll(".nt-query-item"));
+    const items = Array.from(container.querySelectorAll(".outline-row__main"));
     expect(items.length).toBe(2);
     expect(items.some((el) => el.textContent?.includes("Paris"))).toBe(false);
   });
@@ -329,7 +331,7 @@ describe("query block (live query token)", () => {
     );
     expect(cells).toEqual(["block", "2", "class", "1", "page", "3"]);
     expect(badge(container)).toBe("3");
-    expect(container.querySelector(".nt-query-list")).toBeNull();
+    expect(container.querySelector(".outline-flat")).toBeNull();
   });
 
   it("table mode renders a Name/Type/Created table and the toggle persists in the token view", async () => {
@@ -344,20 +346,22 @@ describe("query block (live query token)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("Paris");
-    expect(container.querySelector(".nt-query-table")).toBeNull();
-    expect(screen.getByLabelText("List view").getAttribute("aria-pressed")).toBe("true");
+    const queryBox = () => container.querySelector(".nt-query") as HTMLElement;
+    expect(container.querySelector(".nt-table")).toBeNull();
+    expect(within(queryBox()).getByRole("radio", { name: "Outline" }).getAttribute("aria-checked")).toBe("true");
 
-    fireEvent.click(screen.getByLabelText("Table view"));
+    fireEvent.click(within(queryBox()).getByRole("radio", { name: "Table" }));
 
     const headers = await screen.findAllByRole("columnheader");
-    expect(headers.map((th) => th.textContent)).toEqual(["Name", "Type", "Created"]);
-    const rows = container.querySelectorAll(".nt-query-table tbody tr");
+    // Leading selection checkbox column, then Name / Type / Created.
+    expect(headers.map((th) => th.textContent)).toEqual(["", "Name", "Type", "Created"]);
+    const rows = container.querySelectorAll(".nt-table tbody tr");
     expect(rows.length).toBe(2);
-    const names = Array.from(rows).map((row) => row.querySelector(".nt-query-item-name")?.textContent);
+    const names = Array.from(rows).map((row) => row.querySelector(".nt-table-name-label")?.textContent);
     expect(names.sort()).toEqual(["London", "Paris"]);
-    const created = rows[0]!.querySelector(".nt-query-num")?.textContent ?? "";
-    expect(created).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(screen.getByLabelText("Table view").getAttribute("aria-pressed")).toBe("true");
+    const created = rows[0]!.querySelector(".nt-table-created")?.textContent ?? "";
+    expect(created).toMatch(/\d{4}/);
+    expect(within(queryBox()).getByRole("radio", { name: "Table" }).getAttribute("aria-checked")).toBe("true");
 
     // The mode persisted in the token's view record via the update path.
     let token = client.getNode(block)!.contentAst[0] as unknown as {
@@ -368,9 +372,9 @@ describe("query block (live query token)", () => {
     expect(token.view).toEqual({ mode: "table" });
 
     // Toggling back restores the list and rewrites the token.
-    fireEvent.click(screen.getByLabelText("List view"));
-    await screen.findByRole("list", { name: "Query results" });
-    expect(container.querySelector(".nt-query-table")).toBeNull();
+    fireEvent.click(within(queryBox()).getByRole("radio", { name: "Outline" }));
+    expect(await screen.findByText("London")).not.toBeNull();
+    expect(container.querySelector(".nt-table")).toBeNull();
     token = client.getNode(block)!.contentAst[0] as unknown as typeof token;
     expect(token.view).toEqual({ mode: "list" });
   });
@@ -468,7 +472,7 @@ describe("query block (live query token)", () => {
     const { container } = render(<PageView client={client} pageId={host} />);
     expect(await screen.findByText("invalid query")).not.toBeNull();
     // No result list rendered for the invalid token.
-    expect(container.querySelector(".nt-query-list")).toBeNull();
+    expect(container.querySelector(".outline-flat")).toBeNull();
 
     // The bridge fails loud with the typed error (unit-level contract).
     expect(() => client.runQueryAst({ nope: true })).toThrow(InvalidQueryAstError);
@@ -490,7 +494,7 @@ describe("query block (live query token)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("City 0");
-    expect(container.querySelectorAll(".nt-query-item").length).toBe(QUERY_RESULT_CAP);
+    expect(container.querySelectorAll(".outline-row__main").length).toBe(QUERY_RESULT_CAP);
     expect(badge(container)).toBe(String(total));
     expect(screen.getByText("5 more")).not.toBeNull();
   });

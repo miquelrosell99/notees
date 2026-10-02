@@ -1,12 +1,16 @@
 /**
  * KanbanView — the board mode. Columns are seeded from the options of the
- * container's `kanbanProperty` (a single-select property schema — the
- * property-dimension groupBy) plus a trailing "None" column for items whose
- * value is empty or not among the options. Cards reuse the flat NodeCard;
- * dragging a card onto a column writes the property (drop on "None" clears
- * it) through client.setProperty/unsetProperty, so the board mutates data
- * exactly like the table's select cell. Column order = schema option order;
- * card order within a column = the input order.
+ * container's `kanbanProperty` (a select property schema — the property-
+ * dimension groupBy; multi-select schemas make the board multi-membership:
+ * a card rides every column whose option it carries) plus a trailing "None"
+ * column for items with no (or no valid) value.
+ *
+ * Dragging a card onto a column writes the property through
+ * client.setProperty/unsetProperty (drop on "None" clears) — single-select
+ * sets, multi-select merges. Columns collapse via their header chevron
+ * (session state); cards reorder within a column by dragging (session
+ * order — persisting card order needs an order property, recorded in the
+ * plan). Cards reuse the flat NodeCard, cover layouts included.
  */
 
 import { useState } from "react";
@@ -14,29 +18,51 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  useDraggable,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 import { EmptyState } from "../components/ui/index.js";
+import { Icon } from "../Icon.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { registerView } from "./registry.js";
-import { NodeCard } from "./CardsView.js";
-import type { AnyClient, NodeCollectionItem, NodeCollectionProps } from "./types.js";
+import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
+import type { AnyClient, CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import "./KanbanView.css";
 
 /** The bucket for items with no (or an unknown) option value. */
 const NONE_COLUMN_ID = "__none__";
 
+/** The card's current option values for the board property ([] when unset). */
+function currentValues(
+  props: NodeCollectionProps,
+  schemaId: string,
+  nodeId: string,
+): { values: string[]; idx: number | undefined } {
+  const prop = props.propertiesOf?.(nodeId)?.find((p) => p.propertySchemaId === schemaId);
+  const raw = prop?.value;
+  const values = Array.isArray(raw)
+    ? raw.filter((entry): entry is string => typeof entry === "string")
+    : typeof raw === "string"
+      ? [raw]
+      : [];
+  return { values, idx: prop?.idx };
+}
+
 /**
- * The drop write: land a card on a column. `targetOptionId` null = the None
- * column (clear the value). Extracted for direct testing (dnd-kit drags are
- * not worth simulating in jsdom).
+ * The drop write: land a card on a column. Single-select: set the option
+ * (null = the None column clears). Multi-select: merge the option in (null
+ * = clear all values). Extracted for direct testing.
  */
 export async function applyKanbanDrop(
   client: AnyClient,
@@ -44,27 +70,44 @@ export async function applyKanbanDrop(
   propertySchemaId: string,
   targetOptionId: string | null,
   idx: number | undefined,
+  multi = false,
 ): Promise<void> {
   if (targetOptionId === null) {
     if (idx !== undefined) await client.unsetProperty(nodeId, propertySchemaId, idx);
     return;
   }
+  if (multi) {
+    const { values } = currentValuesOf(client, nodeId, propertySchemaId);
+    if (values.includes(targetOptionId)) return;
+    await client.setProperty(nodeId, propertySchemaId, [...values, targetOptionId], idx ?? 0);
+    return;
+  }
   await client.setProperty(nodeId, propertySchemaId, targetOptionId, idx ?? 0);
 }
 
-/** The card's current option value for the board property (null when unset). */
-function currentValue(
-  props: NodeCollectionProps,
-  schemaId: string,
-  nodeId: string,
-): { value: string | null; idx: number | undefined } {
-  const prop = props.propertiesOf?.(nodeId)?.find((p) => p.propertySchemaId === schemaId);
-  const value = typeof prop?.value === "string" ? prop.value : null;
-  return { value, idx: prop?.idx };
+/** Read-side helper for the multi merge (tests stub the client surface). */
+function currentValuesOf(client: AnyClient, nodeId: string, schemaId: string): { values: string[] } {
+  const prop = client.getEffectiveProperties(nodeId).find((p) => p.propertySchemaId === schemaId);
+  const raw = prop?.value;
+  return {
+    values: Array.isArray(raw)
+      ? raw.filter((entry): entry is string => typeof entry === "string")
+      : typeof raw === "string"
+        ? [raw]
+        : [],
+  };
 }
 
-function DraggableCard({ item, props }: { item: NodeCollectionItem; props: NodeCollectionProps }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+function DraggableCard({
+  item,
+  props,
+  coverLayout,
+}: {
+  item: NodeCollectionItem;
+  props: NodeCollectionProps;
+  coverLayout: CardLayout;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
     id: item.node.id,
   });
   return (
@@ -75,7 +118,7 @@ function DraggableCard({ item, props }: { item: NodeCollectionItem; props: NodeC
       {...attributes}
       {...listeners}
     >
-      <NodeCard item={item} props={props} />
+      <NodeCard item={item} props={props} coverLayout={coverLayout} />
     </div>
   );
 }
@@ -86,26 +129,49 @@ function KanbanColumn({
   count,
   items,
   props,
+  collapsed,
+  onToggleCollapse,
+  coverLayout,
 }: {
   columnId: string;
   label: string;
   count: number;
   items: NodeCollectionItem[];
   props: NodeCollectionProps;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  coverLayout: CardLayout;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnId });
   return (
     <section className={`kanban-column${isOver ? " kanban-column--over" : ""}`} data-column-id={columnId}>
       <header className="kanban-column__header">
+        <button
+          type="button"
+          className="kanban-column__toggle"
+          aria-label={`${collapsed ? "Expand" : "Collapse"} column ${label}`}
+          aria-expanded={!collapsed}
+          onClick={onToggleCollapse}
+        >
+          <Icon
+            path={collapsed ? "mdi-chevron-right" : "mdi-chevron-down"}
+            size={0.8}
+            className="kanban-column__chevron"
+          />
+        </button>
         <span className="kanban-column__title">{label}</span>
         <span className="kanban-column__count">{count}</span>
       </header>
-      <div className="kanban-column__body" ref={setNodeRef}>
-        {items.map((item) => (
-          <DraggableCard key={item.node.id} item={item} props={props} />
-        ))}
-        {items.length === 0 && <div className="kanban-column__empty" aria-hidden="true" />}
-      </div>
+      {!collapsed && (
+        <div className="kanban-column__body" ref={setNodeRef}>
+          <SortableContext items={items.map((item) => item.node.id)} strategy={verticalListSortingStrategy}>
+            {items.map((item) => (
+              <DraggableCard key={item.node.id} item={item} props={props} coverLayout={coverLayout} />
+            ))}
+          </SortableContext>
+          {items.length === 0 && <div className="kanban-column__empty" aria-hidden="true" />}
+        </div>
+      )}
     </section>
   );
 }
@@ -114,6 +180,10 @@ export function KanbanView(props: NodeCollectionProps) {
   const { client, items, kanbanProperty } = props;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const [dragging, setDragging] = useState<NodeCollectionItem | null>(null);
+  const [collapsedColumns, setCollapsedColumns] = useState<ReadonlySet<string>>(new Set());
+  /** Within-column order overrides (session — see the persistence note). */
+  const [columnOrder, setColumnOrder] = useState<ReadonlyMap<string, readonly string[]>>(new Map());
+  const [coverLayout, setCoverLayout] = useState<CardLayout>("no-cover");
 
   const schema =
     kanbanProperty !== undefined
@@ -122,28 +192,60 @@ export function KanbanView(props: NodeCollectionProps) {
 
   if (items.length === 0) return null;
 
-  if (schema === undefined || schema.options === null || schema.options.length === 0 || schema.multi) {
+  if (schema === undefined || schema.options === null || schema.options.length === 0) {
     return (
       <EmptyState
-        title="Kanban needs a single-select property"
+        title="Kanban needs a select property"
         description="Add a select property with options to group the board by."
       />
     );
   }
+  const multi = schema.multi === true;
+  const validOptionIds = new Set(schema.options.map((option) => option.id));
 
   const buckets = new Map<string, NodeCollectionItem[]>();
-  for (const item of items) {
-    const { value } = currentValue(props, schema.id, item.node.id);
-    const key =
-      value !== null && schema.options.some((option) => option.id === value) ? value : NONE_COLUMN_ID;
+  const bucketOf = new Map<string, string>();
+  const register = (key: string, item: NodeCollectionItem) => {
     const bucket = buckets.get(key);
     if (bucket !== undefined) bucket.push(item);
     else buckets.set(key, [item]);
+    bucketOf.set(item.node.id, key);
+  };
+  for (const item of items) {
+    const { values } = currentValues(props, schema.id, item.node.id);
+    const hits = values.filter((value) => validOptionIds.has(value));
+    if (multi) {
+      // Multi-membership: the card rides every column whose option it
+      // carries; no valid values → None.
+      if (hits.length === 0) register(NONE_COLUMN_ID, item);
+      else for (const hit of hits) register(hit, item);
+    } else {
+      register(hits.length > 0 ? hits[0]! : NONE_COLUMN_ID, item);
+    }
   }
+  /** Column items with the session reorder applied (order override wins). */
+  const ordered = (columnId: string): NodeCollectionItem[] => {
+    const bucket = buckets.get(columnId) ?? [];
+    const override = columnOrder.get(columnId);
+    if (override === undefined) return bucket;
+    const byId = new Map(bucket.map((item) => [item.node.id, item]));
+    const orderedItems = override.map((id) => byId.get(id)).filter((item): item is NodeCollectionItem => item !== undefined);
+    // Cards added after the override was taken keep their input order at the end.
+    return [...orderedItems, ...bucket.filter((item) => !override.includes(item.node.id))];
+  };
   const columns = [
     ...schema.options.map((option) => ({ id: option.id, label: option.label })),
     { id: NONE_COLUMN_ID, label: "None" },
   ];
+
+  const toggleCollapse = (columnId: string) => {
+    setCollapsedColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(columnId)) next.delete(columnId);
+      else next.add(columnId);
+      return next;
+    });
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     const item = items.find((entry) => entry.node.id === String(event.active.id));
@@ -154,36 +256,66 @@ export function KanbanView(props: NodeCollectionProps) {
     const nodeId = String(event.active.id);
     setDragging(null);
     if (event.over === null) return;
-    const columnId = String(event.over.id);
-    const { value, idx } = currentValue(props, schema.id, nodeId);
-    const target = columnId === NONE_COLUMN_ID ? null : columnId;
-    if (value === target) return;
-    void applyKanbanDrop(client, nodeId, schema.id, target, idx).catch(() => {
+    const overId = String(event.over.id);
+    const sourceColumn = bucketOf.get(nodeId);
+    if (sourceColumn === undefined) return;
+    // Landing on a card resolves to that card's column (and position).
+    const targetColumn = validOptionIds.has(overId) || overId === NONE_COLUMN_ID ? overId : bucketOf.get(overId);
+    if (targetColumn === undefined) return;
+
+    const { values, idx } = currentValues(props, schema.id, nodeId);
+    const target = targetColumn === NONE_COLUMN_ID ? null : targetColumn;
+
+    if (targetColumn === sourceColumn && target !== null) {
+      // Same column (and not None): reorder within the column (session).
+      const list = ordered(sourceColumn);
+      const oldIndex = list.findIndex((item) => item.node.id === nodeId);
+      const newIndex = overId !== targetColumn ? list.findIndex((item) => item.node.id === overId) : list.length - 1;
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      const reordered = arrayMove(list, oldIndex, newIndex).map((item) => item.node.id);
+      setColumnOrder((prev) => new Map(prev).set(sourceColumn, reordered));
+      return;
+    }
+    if (multi ? target === null && values.length === 0 : values[0] === target) return;
+    void applyKanbanDrop(client, nodeId, schema.id, target, idx, multi).catch(() => {
       // The write surfaces through the client notification path; a rejected
       // drop leaves the card where it was (no local mutation happened).
     });
   };
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setDragging(null)}>
-      <div className="kanban-board">
-        {columns.map((column) => (
-          <KanbanColumn
-            key={column.id}
-            columnId={column.id}
-            label={column.label}
-            count={buckets.get(column.id)?.length ?? 0}
-            items={buckets.get(column.id) ?? []}
-            props={props}
-          />
-        ))}
+    <div>
+      <div className="kanban-toolbar">
+        <CoverLayoutToggle value={coverLayout} onChange={setCoverLayout} />
       </div>
-      <DragOverlay dropAnimation={null}>
-        {dragging !== null && (
-          <div className="kanban-ghost">{displayNameForSettings(dragging.node) || "Untitled"}</div>
-        )}
-      </DragOverlay>
-    </DndContext>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setDragging(null)}
+      >
+        <div className="kanban-board">
+          {columns.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              columnId={column.id}
+              label={column.label}
+              count={buckets.get(column.id)?.length ?? 0}
+              items={ordered(column.id)}
+              props={props}
+              collapsed={collapsedColumns.has(column.id)}
+              onToggleCollapse={() => toggleCollapse(column.id)}
+              coverLayout={coverLayout}
+            />
+          ))}
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {dragging !== null && (
+            <div className="kanban-ghost">{displayNameForSettings(dragging.node) || "Untitled"}</div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </div>
   );
 }
 
@@ -192,5 +324,5 @@ registerView({
   label: "Kanban",
   icon: "mdi-view-grid",
   component: KanbanView,
-  capabilities: { groupBy: true, sorting: true },
+  capabilities: { groupBy: true, sorting: true, cardLayout: true },
 });

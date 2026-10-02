@@ -17,6 +17,49 @@
   background: var(--color-surface-container-low, transparent);
 }
 
+.node-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Cover layouts (the four v1 placements). */
+.node-card__cover {
+  border-radius: var(--radius-sm, 6px);
+  object-fit: cover;
+  background: var(--color-surface-container, rgba(0, 0, 0, 0.04));
+}
+
+.node-card--cover-top .node-card__cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.node-card--cover-left,
+.node-card--cover-right {
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.node-card--cover-left .node-card__cover,
+.node-card--cover-right .node-card__cover {
+  width: 96px;
+  min-height: 96px;
+  flex: 0 0 96px;
+}
+
+.node-card--cover-right {
+  flex-direction: row-reverse;
+}
+
+.cards-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-2, 8px);
+}
+
 .node-card__title {
   border: none;
   background: none;

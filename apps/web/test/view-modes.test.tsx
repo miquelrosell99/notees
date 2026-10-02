@@ -157,9 +157,11 @@ describe("classed-nodes table", () => {
     await flushWrites();
 
     const table = screen.getByRole("table");
-    const headers = [...table.querySelectorAll("th")].map((th) => th.textContent);
-    // Seeded source bindings become columns between Name and Created.
-    expect(headers[0]).toBe("Name");
+    const headers = [...table.querySelectorAll("th")].map((th) => th.textContent ?? "");
+    // Leading selection checkbox column, then Name; seeded source bindings
+    // become columns between Name and Created.
+    expect(headers[0]).toBe("");
+    expect(headers[1]).toBe("Name");
     expect(headers).toContain("authors");
     expect(headers).toContain("isbn");
     expect(headers[headers.length - 1]).toBe("Created");
@@ -426,5 +428,254 @@ describe("groupBy: references grouped by containing page", () => {
     const header = linked.querySelector("button.outline-group__label")!;
     expect(header.querySelector(".outline-group__name")?.textContent).toContain("Double Source");
     expect(header.querySelector(".outline-group__count")?.textContent).toContain("2");
+  });
+});
+
+describe("table polish: multi-sort, column selector, inline editing, selection", () => {
+  const OPT_BACKLOG = "00000000-0000-0000-0005-000000000011";
+  const OPT_DOING = "00000000-0000-0000-0005-000000000012";
+
+  /** Class with bound select/text/number/date/object schemas + three members. */
+  async function seedProjectTable(client: WorkspaceClient): Promise<{
+    classId: string;
+    statusId: string;
+    noteId: string;
+    effortId: string;
+    dueId: string;
+    ownerId: string;
+    alpha: string;
+    beta: string;
+    gamma: string;
+  }> {
+    const classId = await createTitledClass(client, "project");
+    const statusId = await client.createPropertySchema({
+      name: "Status",
+      type: "select",
+      options: [
+        { id: OPT_BACKLOG, label: "Backlog" },
+        { id: OPT_DOING, label: "Doing" },
+      ],
+    });
+    const noteId = await client.createPropertySchema({ name: "Note", type: "text" });
+    const effortId = await client.createPropertySchema({ name: "Effort", type: "number" });
+    const dueId = await client.createPropertySchema({ name: "Due", type: "date" });
+    const ownerId = await client.createPropertySchema({ name: "Owner", type: "object" });
+    for (const [schema, sequence] of [
+      [statusId, 0],
+      [noteId, 1],
+      [effortId, 2],
+      [dueId, 3],
+      [ownerId, 4],
+    ] as const) {
+      await client.setClassProperty(classId, schema, { sequence });
+    }
+    const alpha = await client.createObject({ nodeType: "page", name: "Alpha" });
+    const beta = await client.createObject({ nodeType: "page", name: "Beta" });
+    const gamma = await client.createObject({ nodeType: "page", name: "Gamma" });
+    for (const id of [alpha, beta, gamma]) await client.assignClass(id, classId);
+    await client.setProperty(alpha, statusId, OPT_BACKLOG, 0);
+    await client.setProperty(beta, statusId, OPT_DOING, 0);
+    return { classId, statusId, noteId, effortId, dueId, ownerId, alpha, beta, gamma };
+  }
+
+  const expandClassedNodes = async (): Promise<void> => {
+    fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
+    await flushWrites();
+  };
+
+  const rowNames = (): Array<string | undefined> =>
+    [...screen.getByRole("table").querySelectorAll(".nt-table-name-label")].map((el) => el.textContent ?? undefined);
+
+  it("sort panel composes multi-column sorts and the header keeps quick-sort", async () => {
+    const client = await seedClient();
+    const seeded = await seedProjectTable(client);
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sort" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Status" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Name" }));
+    // Status asc: Backlog (Alpha), Doing (Beta); empty sinks last (Gamma).
+    expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
+
+    // Toggle Status to desc: Doing first.
+    fireEvent.click(screen.getByRole("button", { name: "Status: ascending — toggle" }));
+    expect(rowNames()).toEqual(["Beta", "Alpha", "Gamma"]);
+
+    // Remove the Status entry: single Name sort remains.
+    fireEvent.click(screen.getByRole("button", { name: "Remove Status sort" }));
+    expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
+  });
+
+  it("column selector hides defaults and adds property columns", async () => {
+    const client = await seedClient();
+    const seeded = await seedProjectTable(client);
+    await client.createPropertySchema({ name: "Pages", type: "text" });
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    const headers = () => [...screen.getByRole("table").querySelectorAll("th")].map((th) => th.textContent ?? "");
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Created" }));
+    expect(headers()).not.toContain("Created");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pages" }));
+    expect(headers()).toContain("Pages");
+  });
+
+  it("inline text/number editing commits through setProperty, empty unsets", async () => {
+    const client = await seedClient();
+    const seeded = await seedProjectTable(client);
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    const noteInput = screen.getAllByRole("textbox", { name: "Note" })[0]!;
+    fireEvent.change(noteInput, { target: { value: "hello world" } });
+    fireEvent.blur(noteInput);
+    await flushWrites();
+    const note = client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.noteId);
+    expect(note?.value).toBe("hello world");
+
+    const effortInput = screen.getAllByRole("spinbutton", { name: "Effort" })[1]!;
+    fireEvent.change(effortInput, { target: { value: "5" } });
+    fireEvent.blur(effortInput);
+    await flushWrites();
+    const effort = client.getEffectiveProperties(seeded.beta).find((p) => p.propertySchemaId === seeded.effortId);
+    expect(effort?.value).toBe(5);
+  });
+
+  it("date cells write a day-node reference via ensureDateChain", async () => {
+    const client = await seedClient();
+    const seeded = await seedProjectTable(client);
+    const { day } = await client.ensureDateChain("2026-10-02");
+    await client.setProperty(seeded.alpha, seeded.dueId, { nodeId: day }, 0);
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    fireEvent.click(document.querySelector(".nt-table-date")!);
+    const dateInput = screen.getByDisplayValue("2026-10-02");
+    fireEvent.change(dateInput, { target: { value: "2026-10-05" } });
+    fireEvent.blur(dateInput);
+    await flushWrites();
+
+    const due = client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.dueId);
+    const target = due?.value as { nodeId?: string };
+    expect(typeof target?.nodeId).toBe("string");
+    expect(target.nodeId).not.toBe(day);
+    expect(client.getDisplayName(target.nodeId!)).not.toBeNull();
+  });
+
+  it("node cells pick a target through the anchored NodeSelector", async () => {
+    const client = await seedClient();
+    const seeded = await seedProjectTable(client);
+    const paris = await client.createObject({ nodeType: "page", name: "Paris" });
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    // [0] is the column header sort button; [1] is Alpha's cell.
+    fireEvent.click(screen.getAllByRole("button", { name: "Owner" })[1]!);
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Paris" } });
+    await flushWrites();
+    fireEvent.click(document.querySelector(".node-result-item:not(.node-result-item--create):not(.node-result-item--date)")!);
+
+    const owner = client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.ownerId);
+    expect(owner?.value).toEqual({ nodeId: paris });
+  });
+
+  it("row checkboxes select rows; the header box selects the visible window", async () => {
+    const client = await seedClient();
+    const seeded = await seedProjectTable(client);
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Alpha" }));
+    expect(document.querySelectorAll(".nt-table-row--selected").length).toBe(1);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all rows" }));
+    expect(document.querySelectorAll(".nt-table-row--selected").length).toBe(3);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all rows" }));
+    expect(document.querySelectorAll(".nt-table-row--selected").length).toBe(0);
+  });
+});
+
+describe("kanban polish: multi-select grouping, collapsible columns", () => {
+  it("multi-select schemas make a card ride every column it carries; drops merge", async () => {
+    const client = await seedClient();
+    const statusId = await client.createPropertySchema({
+      name: "Status",
+      type: "select",
+      multi: true,
+      options: [
+        { id: "00000000-0000-0000-0005-000000000021", label: "Backlog" },
+        { id: "00000000-0000-0000-0005-000000000022", label: "Doing" },
+      ],
+    });
+    const both = await client.createObject({ nodeType: "page", name: "Both" });
+    await client.assignClass(both, SYSTEM_CLASS_UUIDS.task);
+    await client.setProperty(both, statusId, ["00000000-0000-0000-0005-000000000021"], 0);
+    const other = await client.createObject({ nodeType: "page", name: "Other" });
+    await client.assignClass(other, SYSTEM_CLASS_UUIDS.task);
+
+    render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
+
+    const col = (id: string) => document.querySelector(`.kanban-column[data-column-id="${id}"]`) as HTMLElement;
+    expect(within(col("00000000-0000-0000-0005-000000000021")).getByText("Both")).not.toBeNull();
+    expect(within(col("__none__")).getByText("Other")).not.toBeNull();
+
+    // Drop Other onto Backlog (multi merge) — the write the drag handler calls.
+    await applyKanbanDrop(client, other, statusId, "00000000-0000-0000-0005-000000000021", undefined, true);
+    await flushWrites();
+    const value = client.getEffectiveProperties(other).find((p) => p.propertySchemaId === statusId)?.value;
+    expect(value).toEqual(["00000000-0000-0000-0005-000000000021"]);
+  });
+
+  it("columns collapse and expand via their header chevron", async () => {
+    const client = await seedClient();
+    const statusId = await client.createPropertySchema({
+      name: "Status",
+      type: "select",
+      options: [{ id: "00000000-0000-0000-0005-000000000031", label: "Backlog" }],
+    });
+    const task = await client.createObject({ nodeType: "page", name: "Solo" });
+    await client.assignClass(task, SYSTEM_CLASS_UUIDS.task);
+    await client.setProperty(task, statusId, "00000000-0000-0000-0005-000000000031", 0);
+
+    render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse column Backlog" }));
+    expect(screen.queryByText("Solo")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand column Backlog" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand column Backlog" }));
+    expect(screen.getByText("Solo")).not.toBeNull();
+  });
+});
+
+describe("card covers and asset thumbnails", () => {
+  it("image assets render a thumbnail; the layout toggle switches placements", async () => {
+    const client = await seedClient();
+    const host = await client.createObject({ nodeType: "page", name: "Attachments" });
+    const asset = await client.createObject({
+      nodeType: "block",
+      parentId: host,
+      contentAst: [{ type: "text", text: "photo.png" }],
+    });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,AAAA");
+
+    render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
+
+    const cover = await screen.findByAltText("");
+    expect(cover.tagName).toBe("IMG");
+    expect(cover.getAttribute("src")).toContain("data:image/png");
+
+    // Default layout is no-cover; switch to cover-top.
+    expect(cover.closest(".node-card")!.className).toContain("node-card--no-cover");
+    fireEvent.click(screen.getByRole("radio", { name: "Cover top" }));
+    expect(cover.closest(".node-card")!.className).toContain("node-card--cover-top");
   });
 });

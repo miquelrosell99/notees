@@ -13,6 +13,7 @@ import type {
   BlockTreeNode,
   ClassBinding,
   ClientNode,
+  ClientPropertySchema,
   CreateObjectInput,
   DeleteObjectOptions,
   EffectiveProperty,
@@ -104,6 +105,7 @@ export interface OutlinerReader {
   getChildren(id: string): ClientNode[];
   /** Effective properties (export-on-query's frontmatter read). */
   getEffectiveProperties(id: string): EffectiveProperty[];
+  listPropertySchemas(): ClientPropertySchema[];
 }
 
 export interface OutlinerContextValue {

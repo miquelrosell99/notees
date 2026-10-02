@@ -27,8 +27,34 @@
 .kanban-column__header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-1, 4px);
   padding: 0 var(--spacing-1, 4px);
+}
+
+.kanban-column__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--icon-size-md, 20px);
+  height: var(--icon-size-md, 20px);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small, 6px);
+  background: transparent;
+  color: var(--color-on-surface-variant, currentColor);
+  cursor: pointer;
+}
+
+.kanban-column__toggle:hover {
+  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+  color: var(--color-on-surface, currentColor);
+}
+
+.kanban-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-2, 8px);
 }
 
 .kanban-column__title {

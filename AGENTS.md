@@ -16,7 +16,7 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 - `apps/web` — React/Vite outliner editor + worker (`notees-web` image)
 - `apps/cli` — object/property/search surface over the public API
 - `docs/` — **user-facing only** (usage, philosophy, ux)
-- `.plans/` — internal: decision record (`2026-09-24-object-graph-pim-evolution/`), design stack (`design/`), dev docs (`dev/`: architecture, development, deployment, sdk-publishing)
+- `.plans/` — internal: **the ongoing implementation plan** (`implementation-plan.md` — decision record §34 + the work registers), design stack (`design/`), dev docs (`dev/`: architecture, development, deployment, sdk-publishing)
 - `.audits/` — internal audit reports
 - Internal notes never go in `docs/`; user docs never go in dot-folders.
 
@@ -46,5 +46,5 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 
 - **SDK publish — BLOCKED on an npmjs token** (GitHub Packages rejects the `@notees/*` scope). Publish infra is ready: `pnpm release`, flow in `.plans/dev/sdk-publishing.md`.
 - **ghcr image publish — BLOCKED on a registry write token** (the host's ghcr login is read-only: push → `permission_denied: token scopes`). Compose defaults to `:latest` (built locally, tagged `latest`); images exist on the host only.
-- **Client lockstep — CURRENT (pushed)**: `notees-gtk@protocol-v2` and `notees-flutter@protocol-v2` (sibling repos) carry the full protocol (class.unassign, tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged **`v2.0.0-m1`** with CI releases published (Flutter signed APK as a GitHub Release; GTK Arch package + wheel + sdist). Any new op requires the same three-way lockstep before it counts as done.
+- **Client lockstep — CURRENT (pushed)**: `notees-gtk` and `notees-flutter` (sibling repos under `notees-clients/`) carry the full protocol (class.unassign, tags + `tag.unassign`, title-is-content, `class.reorder`, and the m2 **`beforeId`** sibling-placement field on `object.move`/`object.create`); both tagged **`v2.0.0-m2`** with CI releases published (Flutter signed APK as a GitHub Release; GTK Arch package + wheel + sdist). Any new op requires the same three-way lockstep before it counts as done.
 - Repo split (notees-sync / notees-web) — parked until the SDK is published; two services from one monorepo for now.
