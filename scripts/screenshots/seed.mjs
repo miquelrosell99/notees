@@ -46,7 +46,7 @@ async function api(pathname, { method = "GET", body } = {}) {
   return data;
 }
 
-/** POST /objects → id. Blocks carry parentId + a content token stream. */
+/** POST /objects → id. Parented blocks carry parentId + a content token stream. */
 async function createObject(payload) {
   const { id } = await api("/api/objects", { method: "POST", body: payload });
   return id;
@@ -91,7 +91,7 @@ console.log(`seeding ${BASE} ...`);
 
 // People (authors is node-typed to agent; person extends agent).
 const kuhnId = await createObject({
-  nodeType: "page",
+  presentAsMain: true,
   name: "Thomas S. Kuhn",
   classIds: [CLS.agent, CLS.person],
 });
@@ -99,7 +99,7 @@ await setProperty(kuhnId, PROP.givenName, "Thomas");
 await setProperty(kuhnId, PROP.familyName, "Kuhn");
 
 const lakatosId = await createObject({
-  nodeType: "page",
+  presentAsMain: true,
   name: "Imre Lakatos",
   classIds: [CLS.agent, CLS.person],
 });
@@ -107,7 +107,7 @@ await setProperty(lakatosId, PROP.givenName, "Imre");
 await setProperty(lakatosId, PROP.familyName, "Lakatos");
 
 const mayaId = await createObject({
-  nodeType: "page",
+  presentAsMain: true,
   name: "Maya Chen",
   classIds: [CLS.agent, CLS.person],
 });
@@ -116,7 +116,7 @@ await setProperty(mayaId, PROP.familyName, "Chen");
 
 // Sources: a book and a paper (both classed source + their sub-type).
 const kuhnBookId = await createObject({
-  nodeType: "page",
+  presentAsMain: true,
   name: "The Structure of Scientific Revolutions",
   classIds: [CLS.source, CLS.book],
 });
@@ -126,7 +126,7 @@ await setProperty(kuhnBookId, PROP.publisher, "University of Chicago Press");
 await setProperty(kuhnBookId, PROP.isbn, "0226458083");
 
 const lakatosPaperId = await createObject({
-  nodeType: "page",
+  presentAsMain: true,
   name: "Falsification and the Methodology of Scientific Research Programmes",
   classIds: [CLS.source, CLS.paper],
 });
@@ -137,7 +137,7 @@ await setProperty(lakatosPaperId, PROP.citekey, "lakatos1970");
 // asset.attach (node_asset) -> attachments property ({ nodeId } ref). The
 // multipart objectId field performs the attach server-side.
 const pdfName = "kuhn-ch3-notes.pdf";
-const assetNodeId = await createObject({ nodeType: "page", name: pdfName, classIds: [CLS.asset] });
+const assetNodeId = await createObject({ presentAsMain: true, name: pdfName, classIds: [CLS.asset] });
 const form = new FormData();
 form.append("objectId", assetNodeId);
 form.append("file", new Blob([minimalPdf([
@@ -160,7 +160,7 @@ console.log(`asset uploaded: ${upload.assetId} (${pdfName}, ${upload.size} bytes
 
 // Meeting note: blocks with marks, a mention chip, a typed-link mark with a
 // locator, and a quote token.
-const meetingId = await createObject({ nodeType: "page", name: "Weekly sync · 2026-09-24" });
+const meetingId = await createObject({ presentAsMain: true, name: "Weekly sync · 2026-09-24" });
 const blocks = [
   [{ type: "text", text: "Decisions", marks: ["bold"] }],
   [{ type: "text", text: "Ship the citations seed revision before the reading group." }],
@@ -189,19 +189,19 @@ const blocks = [
   ],
 ];
 for (const contentAst of blocks) {
-  await createObject({ nodeType: "block", parentId: meetingId, contentAst });
+  await createObject({ presentAsMain: false, parentId: meetingId, contentAst });
 }
 
 // Reading list: intro + two live query blocks (list of sources; aggregate
 // grid counting workspace nodes by type).
-const readingListId = await createObject({ nodeType: "page", name: "Reading list" });
+const readingListId = await createObject({ presentAsMain: true, name: "Reading list" });
 await createObject({
-  nodeType: "block",
+  presentAsMain: false,
   parentId: readingListId,
   contentAst: [{ type: "text", text: "Everything worth reading, kept live by queries." }],
 });
 await createObject({
-  nodeType: "block",
+  presentAsMain: false,
   parentId: readingListId,
   contentAst: [
     {
@@ -217,7 +217,7 @@ await createObject({
   ],
 });
 await createObject({
-  nodeType: "block",
+  presentAsMain: false,
   parentId: readingListId,
   contentAst: [
     {
@@ -226,7 +226,7 @@ await createObject({
         version: 1,
         scope: { type: "entire_workspace" },
         root: { type: "group", logic: "and", children: [] },
-        aggregation: { dimensions: [{ kind: "nodeType" }], measures: [{ function: "count" }] },
+        aggregation: { dimensions: [{ kind: "isClass" }], measures: [{ function: "count" }] },
       },
     },
   ],
@@ -234,10 +234,10 @@ await createObject({
 
 // Whiteboard: page classed whiteboard with a whiteboard token (cards are child
 // blocks, geometry keyed by node id; shapes/strokes are layout-only). Blocks
-// cannot be created parentless (store placement CHECK), so the page comes
-// first and the layout references the card ids created under it.
+// are parented to the page (the render bit unset = inline body), so the page
+// comes first and the layout references the card ids created under it.
 const whiteboardId = await createObject({
-  nodeType: "page",
+  presentAsMain: true,
   name: "Research whiteboard",
   classIds: [CLS.whiteboard],
 });
@@ -249,7 +249,7 @@ const wbCards = [
 const cards = {};
 for (const card of wbCards) {
   const id = await createObject({
-    nodeType: "block",
+    presentAsMain: false,
     parentId: whiteboardId,
     name: card.name,
     classIds: [CLS.card],

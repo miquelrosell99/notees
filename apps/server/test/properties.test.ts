@@ -27,7 +27,7 @@ function api(method: string, url: string, options: { payload?: unknown } = {}) {
 }
 
 async function createObject(name: string): Promise<string> {
-  const res = await api("POST", "/api/objects", { payload: { nodeType: "page", name } });
+  const res = await api("POST", "/api/objects", { payload: { presentAsMain: true, name } });
   expect(res.statusCode).toBe(201);
   return res.json().id as string;
 }
@@ -173,7 +173,7 @@ describe("objects list property filter", () => {
     const other = await createObject("filter-plain");
     const book = (
       await api("POST", "/api/objects", {
-        payload: { nodeType: "page", name: "filter-book", classIds: [SYSTEM_CLASS_UUIDS.book] },
+        payload: { presentAsMain: true, name: "filter-book", classIds: [SYSTEM_CLASS_UUIDS.book] },
       })
     ).json().id as string;
     await api("POST", `/api/objects/${book}/properties`, {
@@ -243,7 +243,7 @@ describe("effective-properties endpoint", () => {
     // binding op below requires the source class node to exist).
     const created = await api("POST", "/api/objects", {
       payload: {
-        nodeType: "page",
+        presentAsMain: true,
         name: "EffPage",
         classIds: [SYSTEM_CLASS_UUIDS.source],
       },
@@ -254,7 +254,7 @@ describe("effective-properties endpoint", () => {
     // Bind a default onto the seeded source class via the relay batch.
     const envelope = {
       id: "0192a000-0000-7000-8000-000000000601",
-      protocolVersion: 2,
+      protocolVersion: 3,
       workspaceId: server!.ctx.defaultWorkspace,
       actorId: "0192a000-0000-7000-8000-000000000002",
       deviceId: "test-device",
