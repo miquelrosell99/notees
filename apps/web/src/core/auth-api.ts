@@ -55,7 +55,7 @@ async function request<T>(
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/v1${path}`, {
+  const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api${path}`, {
     ...init,
     headers,
   });
