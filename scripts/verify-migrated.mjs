@@ -177,12 +177,13 @@ let discovered = null;
 outer: for (const term of DISCOVERY_TERMS) {
   const hits = (await apiGet(`/api/search?q=${encodeURIComponent(term)}&limit=25`)).results ?? [];
   for (const hit of hits) {
-    if (hit.nodeType !== "block") continue;
-    // Walk up to the nearest page ancestor.
+    if (hit.isClass !== false || hit.presentAsMain !== false) continue;
+    // Walk up to the nearest page ancestor (a node rendering with document
+    // chrome: non-class and parentless or render-bit set).
     let cursor = hit;
     for (let depth = 0; depth < 8 && cursor.parentId; depth += 1) {
       const parent = (await apiGet(`/api/objects/${cursor.parentId}`)).object;
-      if (parent.nodeType === "page") {
+      if (parent.isClass === false && (parent.parentId === null || parent.presentAsMain === true)) {
         const derived = deriveName(parent);
         if (derived) {
           discovered = { id: parent.id, derived, via: `${term}/${hit.id.slice(0, 8)}` };
@@ -224,7 +225,7 @@ const termCandidates = [
 let searchTerm = null;
 for (const term of [...new Set(termCandidates)]) {
   if (!term) continue;
-  const hits = (await apiGet(`/api/search?q=${encodeURIComponent(term)}&nodeType=page&limit=100`)).results ?? [];
+  const hits = (await apiGet(`/api/search?q=${encodeURIComponent(term)}&presentAsMain=true&limit=100`)).results ?? [];
   if (hits.some((h) => h.id === discovered.id)) {
     searchTerm = term;
     break;

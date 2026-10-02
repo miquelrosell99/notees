@@ -367,7 +367,7 @@ class WorkspaceTransformer:
             self.report["actor_remapped_from"][remapped_from] += 1
         return {
             "id": env_id if env_id is not None else row["id"],
-            "protocolVersion": 2,
+            "protocolVersion": 3,
             "workspaceId": row["workspace_id"],
             "actorId": actor,
             "deviceId": "migrated-v1",
@@ -441,22 +441,41 @@ class WorkspaceTransformer:
             parent_id = None
             self._note("skipped_by_reason", "orphan_parent_create")
         if kind == "class" and parent_id is not None:
-            # v2 classes are tree-external (CHECK-enforced); v1 had one
-            # class-kind node carrying a parent.
+            # v2 classes are always roots (CHECK is_class = 0 OR parent_id IS
+            # NULL); v1 had one class-kind node carrying a parent.
             parent_id = None
             self._note("skipped_by_reason", "class_kind_parent_dropped")
         if self._is_class_id(parent_id):
-            # v1 allowed nodes under class nodes; v2 rejects class parents
-            # (MoveGuard/CHECK). Migrate the node as a root page instead.
+            # v1 allowed nodes under class nodes. The importer keeps its
+            # conservative choice — migrate the node as a root page — even
+            # though v2 now renders non-class children inside classes.
             parent_id = None
             self._note("skipped_by_reason", "class_parent_rejected_create")
-        node_type = kind
+        if kind == "class":
+            # Class declaration is the class.create op (Revision 11): the
+            # class node is a root and takes no parent/classIds/render bit.
+            out_payload: dict[str, Any] = {"classId": node_id}
+            initial = p.get("initialContent")
+            if isinstance(initial, list) and initial:
+                tokens = content_tokens_from_source(initial, self.resolve_v1_name)
+                out_payload["contentAst"] = tokens
+                self.last_content[node_id] = plain_text(tokens)
+            if isinstance(p.get("icon"), str):
+                out_payload["icon"] = p["icon"]
+            if isinstance(p.get("color"), str):
+                out_payload["color"] = p["color"]
+            envs = [self._envelope(row, "class.create", out_payload)]
+            self._note("mapped_by_op", row["op_type"])
+            return envs
+        # Render state (Revision 11): pages present as main; blocks are
+        # inline-body children. v1 allowed parentless blocks — they migrate
+        # as root pages (document chrome either way) so nothing is lost.
+        present_as_main = True
+        if kind == "block" and parent_id is not None:
+            present_as_main = False
         if kind == "block" and parent_id is None:
-            # v1 allowed parentless blocks; v2 CHECK-rejects them. Migrate as
-            # pages so the content survives (reported).
-            node_type = "page"
             self.report["parentless_blocks"] += 1
-        out_payload: dict[str, Any] = {"objectId": node_id, "nodeType": node_type}
+        out_payload = {"objectId": node_id, "presentAsMain": present_as_main}
         class_ids = p.get("classIds")
         if isinstance(class_ids, list) and class_ids:
             out_payload["classIds"] = class_ids
@@ -583,7 +602,10 @@ class WorkspaceTransformer:
             # newer HLC) — replaying would clobber the seed registry row.
             self._note("dropped_by_op", "class.create (seed duplicate)")
             return []
-        out_payload: dict[str, Any] = {"classId": class_id, "name": normalize_class_name(p.get("name"))}
+        # Title-is-content: the class's name is its text content (a single
+        # text token — class.create carries contentAst, not a name field).
+        name = normalize_class_name(p.get("name"))
+        out_payload: dict[str, Any] = {"classId": class_id, "contentAst": [{"type": "text", "text": name}]}
         if isinstance(p.get("icon"), str):
             out_payload["icon"] = p["icon"]
         if isinstance(p.get("color"), str):
@@ -615,7 +637,12 @@ class WorkspaceTransformer:
         out_payload: dict[str, Any] = {"classId": class_id}
         for field in ("name", "icon", "color"):
             if isinstance(p.get(field), str):
-                out_payload[field] = normalize_class_name(p[field]) if field == "name" else p[field]
+                if field == "name":
+                    # Title-is-content: the rename rewrites the class's text
+                    # content (class.update carries contentAst, not name).
+                    out_payload["contentAst"] = [{"type": "text", "text": normalize_class_name(p[field])}]
+                else:
+                    out_payload[field] = p[field]
         if len(out_payload) == 1:
             self._note("skipped_by_reason", "class_update_no_fields")
             return []
@@ -844,7 +871,7 @@ def seed_workspace(workspace: str) -> None:
     # v2 seeds a workspace on first object-route touch (ensureSeeded). The
     # seeded system class nodes must exist before migrated class.setExtends /
     # property ops apply.
-    http_json("GET", "/api/objects?nodeType=page&limit=1", workspace)
+    http_json("GET", "/api/objects?presentAsMain=true&limit=1", workspace)
 
 
 def push_workspace(workspace: str) -> dict[str, Any]:
@@ -960,7 +987,8 @@ def verify_workspace(workspace: str, expected_envelopes: int,
             verification["spot_checks"].append({
                 "nodeId": node_id,
                 "v2_name": obj.get("name"),
-                "v2_nodeType": obj.get("nodeType"),
+                "v2_isClass": obj.get("isClass"),
+                "v2_presentAsMain": obj.get("presentAsMain"),
                 "content_match": got.strip() == want.strip(),
                 "v2_plain": got[:120],
                 "v1_plain": want[:120],
@@ -970,7 +998,7 @@ def verify_workspace(workspace: str, expected_envelopes: int,
     pages = 0
     cursor = ""
     while True:
-        result = http_json("GET", f"/api/objects?nodeType=page&limit=500&cursor={cursor}", workspace)
+        result = http_json("GET", f"/api/objects?presentAsMain=true&limit=500&cursor={cursor}", workspace)
         batch = result.get("objects", [])
         pages += len(batch)
         cursor = result.get("nextCursor") or ""
@@ -1112,7 +1140,8 @@ def cmd_apply(args: argparse.Namespace) -> None:
                 print(f"  spot {check['nodeId']}: ERROR {check['error']}", flush=True)
             else:
                 print(f"  spot {check['nodeId']}: content_match={check['content_match']} "
-                      f"name={check['v2_name']!r} nodeType={check['v2_nodeType']}", flush=True)
+                      f"name={check['v2_name']!r} isClass={check['v2_isClass']} "
+                      f"presentAsMain={check['v2_presentAsMain']}", flush=True)
         print(f"  pages listed: {verification['page_count']}", flush=True)
 
     out = HERE / "report.json"

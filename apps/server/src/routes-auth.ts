@@ -160,7 +160,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
   app.get("/server-info", async () => ({
     name: "notees-server",
     version: ctx.serverVersion,
-    protocolVersion: 2,
+    protocolVersion: 3,
     wsProtocolVersion: 2,
     setupRequired: ctx.auth.userCount() === 0,
   }));
@@ -388,7 +388,9 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     const store = ctx.workspaces.storeFor(id);
     const toExportNode = (row: NodeRow): ExportNode => ({
       id: row.id,
-      nodeType: row.node_type,
+      isClass: row.is_class as 0 | 1,
+      presentAsMain: row.present_as_main as 0 | 1,
+      parentId: row.parent_id,
       name: row.name,
       contentAst: JSON.parse(row.content) as ExportNode["contentAst"],
       classIds: JSON.parse(row.class_ids) as string[],
@@ -402,7 +404,8 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       return (
         deriveDisplayName({
           id: row.id,
-          nodeType: row.node_type,
+          isClass: row.is_class,
+          presentAsMain: row.present_as_main,
           name: row.name,
           contentAst: JSON.parse(row.content) as ExportNode["contentAst"],
           classIds: JSON.parse(row.class_ids) as string[],
@@ -414,12 +417,12 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       childrenOf: (parentId) =>
         store
           .children(parentId)
-          .filter((row) => row.node_type === "block" && row.is_active === 1)
+          .filter((row) => row.is_class === 0 && row.present_as_main === 0 && row.is_active === 1)
           .map(toExportNode),
     };
     const pages = store.database
       .prepare(
-        "SELECT * FROM node WHERE node_type = 'page' AND is_active = 1 ORDER BY created_at, id",
+        "SELECT * FROM node WHERE is_class = 0 AND (parent_id IS NULL OR present_as_main = 1) AND is_active = 1 ORDER BY created_at, id",
       )
       .all() as NodeRow[];
     const markdown = pages

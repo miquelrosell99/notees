@@ -10,22 +10,38 @@ import { z } from "zod";
 import { uuidv7 } from "uuidv7";
 
 import {
+  classCreatePayload,
   objectCreatePayload,
   objectUpdatePayload,
   propertySchemaCreatePayload,
   propertySetPayload,
   propertyUnsetPayload,
 } from "@notees/protocol";
-import { deriveDisplayName, type NodeLike } from "@notees/domain";
+import { deriveDisplayName, rendersWithDocumentChrome } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
 import type { NodeRow, Store } from "@notees/store";
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 
+/**
+ * Query-string booleans: only the strings "true"/"false" coerce (a bare
+ * z.coerce.boolean() would turn the string "false" into true).
+ */
+const booleanQueryParam = z
+  .union([z.literal("true"), z.literal("false")])
+  .transform((value) => value === "true");
+
 const listQuerySchema = z
   .object({
-    nodeType: z.enum(["page", "block", "class"]).optional(),
+    /** Class identity bit filter (Revision 11 render-state model). */
+    isClass: booleanQueryParam.optional(),
+    /**
+     * Render-bit filter: true selects the document-chrome rows (non-class
+     * roots plus main children), false the inline-body blocks (parented,
+     * bit unset).
+     */
+    presentAsMain: booleanQueryParam.optional(),
     class: z.string().uuid().optional(),
     q: z.string().max(512).optional(),
     /**
@@ -60,7 +76,15 @@ const propertyDeleteQuerySchema = z
 
 const createBodySchema = z
   .object({
-    nodeType: z.enum(["page", "block", "class"]).optional(),
+    /**
+     * Revision 11 render state. `isClass: true` declares a class node — the
+     * write becomes a class.create envelope (classes are always roots, so
+     * parentId / classIds / presentAsMain must not accompany it). Otherwise
+     * the write is object.create and `presentAsMain` sets the render bit
+     * (applier default: true when parentless, false when parented).
+     */
+    isClass: z.boolean().optional(),
+    presentAsMain: z.boolean().optional(),
     /** Title-is-content: becomes the node's initial text content. */
     name: z.string().max(1024).optional(),
     contentAst: z.array(z.unknown()).optional(),
@@ -71,7 +95,9 @@ const createBodySchema = z
 
 const updateBodySchema = z
   .object({
-    nodeType: z.enum(["page", "block", "class"]).optional(),
+    /** Render-bit toggle: promotion/demotion between the parent's
+     * main-children zone and the inline body. */
+    presentAsMain: z.boolean().optional(),
     icon: z.string().max(64).optional(),
     color: z.string().max(32).optional(),
     contentAst: z.array(z.unknown()).optional(),
@@ -82,7 +108,8 @@ const updateBodySchema = z
 const searchQuerySchema = z
   .object({
     q: z.string().min(1).max(512),
-    nodeType: z.enum(["page", "block", "class"]).optional(),
+    isClass: booleanQueryParam.optional(),
+    presentAsMain: booleanQueryParam.optional(),
     limit: z.coerce.number().int().min(1).max(500).default(50),
   })
   .strict();
@@ -112,7 +139,12 @@ function workspaceFor(ctx: ServerContext, request: FastifyRequest): string {
 interface ApiObject {
   id: string;
   workspaceId: string;
-  nodeType: string;
+  /** Class identity bit (Revision 11): true = class node (always a root). */
+  isClass: boolean;
+  /** Render bit for parented non-class nodes: true = the parent's
+   * main-children zone + document chrome when zoomed; false = inline body +
+   * block chrome. Unread for parentless nodes and classes. */
+  presentAsMain: boolean;
   parentId: string | null;
   classIds: string[];
   name: string | null;
@@ -130,7 +162,8 @@ function nodeToApi(row: NodeRow): ApiObject {
   return {
     id: row.id,
     workspaceId: row.workspace_id,
-    nodeType: row.node_type,
+    isClass: row.is_class === 1,
+    presentAsMain: row.present_as_main === 1,
     parentId: row.parent_id,
     classIds: JSON.parse(row.class_ids) as string[],
     // Title-is-content: the API name derives from the node's content (the
@@ -138,8 +171,9 @@ function nodeToApi(row: NodeRow): ApiObject {
     name:
       deriveDisplayName({
         id: row.id,
-        nodeType: row.node_type,
-        contentAst: JSON.parse(row.content) as NonNullable<NodeLike["contentAst"]>,
+        isClass: row.is_class,
+        presentAsMain: row.present_as_main,
+        contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
         classIds: JSON.parse(row.class_ids) as string[],
       }) || null,
     icon: row.icon,
@@ -208,16 +242,26 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid list query");
     }
-    const { nodeType, class: classId, q, limit, cursor } = parsed.data;
+    const { isClass, presentAsMain, class: classId, q, limit, cursor } = parsed.data;
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
 
     const clauses = ["n.is_active = 1", "n.workspace_id = ?"];
     const params: unknown[] = [workspaceId];
-    if (nodeType !== undefined) {
-      clauses.push("n.node_type = ?");
-      params.push(nodeType);
+    if (isClass !== undefined) {
+      clauses.push("n.is_class = ?");
+      params.push(isClass ? 1 : 0);
+    }
+    if (presentAsMain !== undefined) {
+      // The pages-ish listing is the document-chrome predicate (non-class
+      // roots render as documents regardless of the bit); its negation is
+      // the inline body (parented rows with the bit unset).
+      clauses.push(
+        presentAsMain
+          ? "n.is_class = 0 AND (n.parent_id IS NULL OR n.present_as_main = 1)"
+          : "n.is_class = 0 AND n.parent_id IS NOT NULL AND n.present_as_main = 0",
+      );
     }
     if (classId !== undefined) {
       clauses.push(
@@ -269,9 +313,47 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       parsed.data.name !== undefined && parsed.data.contentAst === undefined
         ? [{ type: "text", text: parsed.data.name }]
         : undefined;
+    if (parsed.data.isClass === true) {
+      // Class declaration stays the class.create op (Revision 11): classes
+      // are always roots and take no classIds / parent / render bit.
+      if (
+        parsed.data.parentId !== undefined ||
+        parsed.data.classIds.length > 0 ||
+        parsed.data.presentAsMain !== undefined
+      ) {
+        throw new AppError(
+          422,
+          "validation_failed",
+          "isClass cannot combine with parentId, classIds, or presentAsMain (classes are roots)",
+        );
+      }
+      const payload = {
+        classId: objectId,
+        ...(initialText !== undefined ? { contentAst: initialText } : {}),
+        ...(parsed.data.contentAst !== undefined ? { contentAst: parsed.data.contentAst } : {}),
+      };
+      const checked = classCreatePayload.safeParse(payload);
+      if (!checked.success) {
+        throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid class.create payload");
+      }
+      const { outcome } = await ctx.submit({
+        workspaceId,
+        opType: "class.create",
+        payload: checked.data as Record<string, unknown>,
+        affectedNodeIds: [objectId],
+        client: "api",
+      });
+      if (outcome.savedIds.length === 0) {
+        throw new AppError(409, "conflict", `object ${objectId} already exists`);
+      }
+      const store = ctx.workspaces.storeFor(workspaceId);
+      const row = requireNode(store, objectId);
+      reply.code(201);
+      return { id: objectId, object: fullObject(store, row) };
+    }
     const payload = {
       objectId,
-      ...(parsed.data.nodeType !== undefined ? { nodeType: parsed.data.nodeType } : {}),
+      ...(parsed.data.presentAsMain !== undefined ? { presentAsMain: parsed.data.presentAsMain } : {}),
       ...(initialText !== undefined ? { contentAst: initialText } : {}),
       ...(parsed.data.contentAst !== undefined ? { contentAst: parsed.data.contentAst } : {}),
       classIds: parsed.data.classIds,
@@ -520,7 +602,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid search query");
     }
-    const { q, nodeType, limit } = parsed.data;
+    const { q, isClass, presentAsMain, limit } = parsed.data;
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
@@ -528,10 +610,26 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const results = hits
       .map((hit) => store.getNode(hit.nodeId))
       .filter((row): row is NodeRow => row !== undefined && row.is_active === 1)
-      .filter((row) => nodeType === undefined || row.node_type === nodeType)
+      .filter((row) => isClass === undefined || (row.is_class === 1) === isClass)
+      .filter(
+        (row) =>
+          presentAsMain === undefined ||
+          rendersWithDocumentChrome({
+            isClass: row.is_class,
+            parentId: row.parent_id,
+            presentAsMain: row.present_as_main,
+          }) === presentAsMain,
+      )
       .map((row) => {
         const api = nodeToApi(row);
-        return { id: api.id, nodeType: api.nodeType, name: api.name, parentId: api.parentId, updatedAt: api.updatedAt };
+        return {
+          id: api.id,
+          isClass: api.isClass,
+          presentAsMain: api.presentAsMain,
+          name: api.name,
+          parentId: api.parentId,
+          updatedAt: api.updatedAt,
+        };
       });
     return { results };
   });
@@ -574,13 +672,15 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
           const derived =
             deriveDisplayName({
               id: String(row.id),
-              nodeType: row.node_type as NodeLike["nodeType"],
-              contentAst: JSON.parse((row.content as string | null) ?? "[]") as NonNullable<NodeLike["contentAst"]>,
+              isClass: row.is_class as number,
+              presentAsMain: row.present_as_main as number,
+              contentAst: JSON.parse((row.content as string | null) ?? "[]") as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
               classIds: JSON.parse((row.class_ids as string | null) ?? "[]") as string[],
             }) || null;
           const summary: Record<string, unknown> = {
             id: String(row.id),
-            nodeType: row.node_type,
+            isClass: (row.is_class as number) === 1,
+            presentAsMain: (row.present_as_main as number) === 1,
             name: derived,
             parentId: (row.parent_id as string | null) ?? null,
             createdAt: (row.created_at as string | null) ?? null,
@@ -638,13 +738,15 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     if (classRow === undefined) {
       throw new AppError(404, "not_found", `class ${id} does not exist`);
     }
-    const members = store.database
-      .prepare(
-        `SELECT n.id, n.name, n.node_type AS nodeType
-         FROM class_member_set m JOIN node n ON n.id = m.node_id
-         WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1 ORDER BY n.id`,
-      )
-      .all(id);
+    const members = (
+      store.database
+        .prepare(
+          `SELECT n.id, n.name, n.is_class AS isClass, n.present_as_main AS presentAsMain
+           FROM class_member_set m JOIN node n ON n.id = m.node_id
+           WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1 ORDER BY n.id`,
+        )
+        .all(id) as Array<{ id: string; name: string | null; isClass: number; presentAsMain: number }>
+    ).map((row) => ({ ...row, isClass: row.isClass === 1, presentAsMain: row.presentAsMain === 1 }));
     return {
       class: { ...classRow, parentClassIds: JSON.parse(classRow.parentClassIds ?? "[]") as string[] },
       members,
