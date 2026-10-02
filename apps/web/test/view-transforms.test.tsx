@@ -1,8 +1,9 @@
 /**
  * View-transform tests: block collapse and prose mode over PageView (jsdom).
  * Both are display-only transforms per SCHEMA.md — collapse is session-local
- * state that hides a subtree from rendering.
- * class flattening bullets/indents. Neither writes to the store.
+ * state that hides a subtree from rendering; prose mode ignores collapse
+ * (every subtree renders, no chevrons) while flattening bullets/indents.
+ * Neither writes to the store.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -157,5 +158,41 @@ describe("block collapse", () => {
     expect(deleteSpy).not.toHaveBeenCalled();
     // Display state only: the underlying tree is untouched.
     expect(JSON.stringify(client.getBlockTree(pageId))).toBe(treeBefore);
+  });
+});
+
+describe("prose mode", () => {
+  it("mounts no collapse chevrons", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
+
+    expect(blockTreeEl(container).classList.contains("nt-prose")).toBe(true);
+    expect(container.querySelectorAll(".nt-block-chevron").length).toBe(0);
+    expect(screen.queryByRole("button", { name: /collapse block|expand block/i })).toBeNull();
+  });
+
+  it("ignores collapse state — collapsed subtrees still render, and outline restores them hidden", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    render(<PageView client={client} pageId={pageId} />);
+
+    collapseRootParent();
+    expect(screen.queryByText("nested child")).toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
+
+    // Ignored, not cleared: the hidden subtree renders in prose mode.
+    expect(screen.getByText("nested child")).not.toBeNull();
+    expect(screen.getByText("grandchild")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /collapse block|expand block/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+
+    // The session collapse set is intact: the subtree is hidden again.
+    expect(screen.queryByText("nested child")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
   });
 });

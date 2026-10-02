@@ -849,8 +849,14 @@ select:focus-visible {
 /* --- view transforms: prose mode -------------------------------------------------
    A VIEW transform only (SCHEMA.md): the tree shape and data are untouched.
    Bullets disappear, nesting indents flatten to full-width rows (structure is
-   still implied by order), and blocks get paragraph spacing. The collapse
-   chevron stays visible so hidden subtrees remain reachable. */
+   still implied by order), and blocks get paragraph spacing. Collapse state
+   is IGNORED, not cleared (ProseView passes BlockRow `ignoreCollapse`): every
+   subtree renders and no collapse chevron mounts, so nothing can be hidden
+   in this mode. */
+
+.nt-prose .nt-block-chevron {
+  display: none;
+}
 
 .nt-prose .nt-bullet {
   display: none;
