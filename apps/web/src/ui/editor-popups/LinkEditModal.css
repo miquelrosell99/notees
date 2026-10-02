@@ -74,6 +74,24 @@
   line-height: 1.4;
 }
 
+/* ─── Node picker target (node/block modes) ───────────────────── */
+
+.link-edit-modal__target {
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-medium);
+  font-size: var(--font-size-button);
+  color: var(--color-on-surface);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* The embedded picker scrolls rather than stretching the modal. */
+.link-edit-modal .node-selector--inline .node-selector__options {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
 /* ─── Info box ────────────────────────────────────────────────── */
 
 .link-edit-modal__info {
