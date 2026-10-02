@@ -78,8 +78,8 @@ const slashPopup = () => screen.queryByRole("listbox", { name: "/ Commands" });
 describe("slash trigger popup", () => {
   it("typing / at the block start opens the command list; Text strips the trigger", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const blockId = await client.createObject({ nodeType: "block", parentId: pageId, contentAst: [] });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
@@ -103,8 +103,8 @@ describe("slash trigger popup", () => {
 
   it("filters by the typed query and ArrowDown moves the highlight", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const blockId = await client.createObject({ nodeType: "block", parentId: pageId, contentAst: [] });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
@@ -129,9 +129,8 @@ describe("slash trigger popup", () => {
 
   it("Quote wraps the block's inline tokens in a quote token", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
     });
@@ -151,8 +150,8 @@ describe("slash trigger popup", () => {
 
   it("Task assigns the task system class (the grammar's checkbox) and strips the trigger", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const blockId = await client.createObject({ nodeType: "block", parentId: pageId, contentAst: [] });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
@@ -167,9 +166,8 @@ describe("slash trigger popup", () => {
 
   it("Line break inserts a hard_break token and consumes the blank after the query", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "ab" }],
     });
@@ -189,8 +187,8 @@ describe("slash trigger popup", () => {
 
   it("Add URL strips the trigger and opens the LinkEditModal; Save inserts the external_link token", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Home" });
-    const blockId = await client.createObject({ nodeType: "block", parentId: pageId, contentAst: [] });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
@@ -224,14 +222,12 @@ describe("slash trigger popup", () => {
 describe("find & replace widget", () => {
   it("Ctrl+Shift+F opens the widget; searching highlights matching blocks; replace and replace-all write through the client", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Find" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Find" });
     const firstId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
     });
     const secondId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "say hello twice hello" }],
     });
@@ -281,9 +277,8 @@ describe("find & replace widget", () => {
 
   it("match case narrows the search", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Case" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Case" });
     await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "text", text: "Hello hello" }],
     });
@@ -301,9 +296,8 @@ describe("find & replace widget", () => {
 describe("link edit modal (external_link tokens)", () => {
   it("clicking an external-link chip in read mode opens the modal; Save rewrites the token", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Links" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
@@ -336,9 +330,8 @@ describe("link edit modal (external_link tokens)", () => {
 
   it("Cancel closes without touching the token; the mode toggle switches to a live node picker", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ nodeType: "page", name: "Links" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
     const blockId = await client.createObject({
-      nodeType: "block",
       parentId: pageId,
       contentAst: [{ type: "external_link", href: "https://a.example", text: "Alpha" }],
     });

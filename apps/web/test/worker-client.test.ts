@@ -56,7 +56,7 @@ describe("WorkerClient read cache", () => {
   it("serves reads from the seed value, then converges on the worker result", async () => {
     const client = await makeClient((method) => {
       if (method === "init") return null;
-      if (method === "search") return [{ id: "page-1", nodeType: "page", name: "Hit" }];
+      if (method === "search") return [{ id: "page-1", presentAsMain: true, name: "Hit" }];
       return null;
     });
     try {
@@ -98,9 +98,9 @@ describe("WorkerClient read cache", () => {
       if (method === "listPages")
         // Slow read: stays pending while the next key is seeded below.
         return new Promise((resolve) =>
-          setTimeout(() => resolve([{ id: "page-1", nodeType: "page", name: "P" }]), 25),
+          setTimeout(() => resolve([{ id: "page-1", presentAsMain: true, name: "P" }]), 25),
         );
-      if (method === "search") return [{ id: "hit-1", nodeType: "page", name: "Hit" }];
+      if (method === "search") return [{ id: "hit-1", presentAsMain: true, name: "Hit" }];
       return null;
     });
     try {

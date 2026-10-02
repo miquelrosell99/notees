@@ -48,6 +48,8 @@ import {
 import type { ContentAst } from "@notees/protocol";
 import { uuidv7 } from "uuidv7";
 
+import { rendersAsInlineBlock } from "@notees/domain";
+
 import { applyTextEdit } from "@/editor/edit-apply.js";
 import { withCandidateSpans } from "@/editor/capture.js";
 import { proseFromAst } from "@/editor/prose.js";
@@ -83,7 +85,7 @@ export type { CardGeometry, WhiteboardLayout, WhiteboardShape, WhiteboardStroke 
 /** The client surface the canvas needs (satisfied by WorkspaceClient and the WorkerClient proxy). */
 export interface WhiteboardClient {
   getNode(id: string): ClientNode | undefined;
-  /** Direct children in child order (card candidates; node_type filter applied here). */
+  /** Direct children in child order (card candidates; the inline-body filter is applied here). */
   getChildren(id: string): ClientNode[];
   getDisplayName(id: string): string | null;
   subscribe(listener: () => void): () => void;
@@ -420,7 +422,8 @@ export function WhiteboardCanvas({
   };
 
   const createCardAt = async (world: { x: number; y: number }) => {
-    const id = await client.createObject({ nodeType: "block", parentId: hostId, contentAst: [] });
+    // A parented child defaults to the inline body — cards ARE the body.
+    const id = await client.createObject({ parentId: hostId, contentAst: [] });
     commitLayout({
       ...viewRef.current,
       cards: {
@@ -483,11 +486,10 @@ export function WhiteboardCanvas({
 
   // --- derived render data -----------------------------------------------------
 
-  // Cards are the host's child BLOCKS (SCHEMA.md projection rules as
-  // implemented by the M1 client: child pages render in their own section,
-  // not on the canvas).
+  // Cards are the host's inline-body children (the Revision-11 render
+  // cascade: main children render in their own section, not on the canvas).
   const cards = host
-    ? client.getChildren(hostId).filter((child) => child.nodeType === "block")
+    ? client.getChildren(hostId).filter((child) => rendersAsInlineBlock(child))
     : [];
 
   if (host === undefined || storedLayoutJson === null) {

@@ -58,7 +58,7 @@ describe("TitleEditor", () => {
   it("shows the derived content excerpt when the stored name is null", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({
-      nodeType: "page",
+      presentAsMain: true,
       contentAst: [{ type: "text", text: "The Structure of Scientific Revolutions" }],
     });
     const { container } = renderTitle(client, pageId);
@@ -70,7 +70,7 @@ describe("TitleEditor", () => {
   it("does not persist anything when focus enters and leaves untouched", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({
-      nodeType: "page",
+      presentAsMain: true,
       contentAst: [{ type: "text", text: "Derived from prose" }],
     });
     const updateSpy = vi.spyOn(client, "updateObject");
@@ -88,7 +88,7 @@ describe("TitleEditor", () => {
   it("commits a typed title as the page's text content", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({
-      nodeType: "page",
+      presentAsMain: true,
       contentAst: [{ type: "text", text: "Derived from prose" }],
     });
     const updateSpy = vi.spyOn(client, "updateObject");
@@ -105,7 +105,7 @@ describe("TitleEditor", () => {
   it("content is authoritative: the name convenience yields to explicit contentAst", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({
-      nodeType: "page",
+      presentAsMain: true,
       name: "Stored Name",
       contentAst: [{ type: "text", text: "unrelated prose" }],
     });
@@ -117,7 +117,7 @@ describe("TitleEditor", () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
     const client = await makeClient();
     const pageId = await client.createObject({
-      nodeType: "page",
+      presentAsMain: true,
       name: "20260627",
       classIds: [SYSTEM_CLASS_UUIDS.day],
     });
@@ -137,7 +137,7 @@ describe("TitleEditor", () => {
     const client = await makeClient();
     const pageId = await client.createObject({
       id: "00000000-0000-0000-00dd-202906270000",
-      nodeType: "page",
+      presentAsMain: true,
       classIds: [SYSTEM_CLASS_UUIDS.day],
       contentAst: [{ type: "text", text: "20290627" }],
     });

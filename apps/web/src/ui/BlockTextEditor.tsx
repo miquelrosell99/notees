@@ -120,7 +120,7 @@ import {
 } from "react";
 
 import type { ContentAst, Mark } from "@notees/protocol";
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { rendersAsInlineBlock, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { uuidv7 } from "uuidv7";
 
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
@@ -348,7 +348,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     const parent = node.parentId !== null ? client.getNode(node.parentId) : undefined;
     const targetId =
       position?.previousSiblingId ??
-      (parent !== undefined && parent.nodeType === "block" ? parent.id : null);
+      (parent !== undefined && rendersAsInlineBlock(parent) ? parent.id : null);
     if (targetId === null || targetId === undefined) return;
     const target = client.getNode(targetId);
     if (target === undefined) return;
@@ -1209,7 +1209,6 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         void client.updateObject(currentId, { contentAst: withCandidateSpans(head) });
         void client
           .createObject({
-            nodeType: "block",
             parentId,
             contentAst: withCandidateSpans(tail),
             ...(parentId !== null ? { afterId: currentId } : {}),
@@ -1222,7 +1221,6 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         // placement afterId-only ordering could never express).
         void client
           .createObject({
-            nodeType: "block",
             parentId,
             contentAst: [],
             ...(parentId !== null ? { beforeId: currentId } : {}),
@@ -1236,7 +1234,6 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       if (children.length > 0) {
         void client
           .createObject({
-            nodeType: "block",
             parentId: currentId,
             contentAst: [],
             beforeId: children[0]!.id,
@@ -1246,7 +1243,6 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       }
       void client
         .createObject({
-          nodeType: "block",
           parentId,
           contentAst: [],
           ...(parentId !== null ? { afterId: currentId } : {}),

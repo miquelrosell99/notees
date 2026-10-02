@@ -23,6 +23,7 @@ import { createPortal } from "react-dom";
 
 import {
   parseDateNodeId,
+  rendersAsInlineBlock,
   SYSTEM_CLASS_UUIDS,
   type DatePrecision,
 } from "@notees/domain";
@@ -247,7 +248,7 @@ function ObjectPropertyRow({
       // the uploaded file; the property links to it, node_asset ties it to the
       // content-addressed bytes.
       const assetNodeId = await client.createObject({
-        nodeType: "page",
+        presentAsMain: true,
         name: uploaded.originalName,
         classIds: [assetClassId],
       });
@@ -302,7 +303,7 @@ function ObjectPropertyRow({
                 <button type="button" className="pill__text nt-chip-label" title="Download" onClick={download}>
                   {pillLabel(ref)}
                 </button>
-              ) : linkedNode?.nodeType === "block" ? (
+              ) : linkedNode !== undefined && rendersAsInlineBlock(linkedNode) ? (
                 // Text properties are node-backed carrier blocks: the value
                 // cell renders the block itself, editable — never a raw id.
                 <span className="nt-property-blockcell">
@@ -386,7 +387,7 @@ function ObjectPropertyRow({
                 }
               : (name) =>
                   client.createObject({
-                    nodeType: "page",
+                    presentAsMain: true,
                     name,
                     ...(targetClassIds !== null ? { classIds: targetClassIds } : {}),
                   })
@@ -1063,7 +1064,6 @@ function AddPropertyRow({
       case "text": {
         // Node-backed: a fresh carrier block child holds the text.
         const carrier = await client.createObject({
-          nodeType: "block",
           parentId: nodeId,
           contentAst: [{ type: "text", text: "" }],
         });
@@ -1421,10 +1421,9 @@ export function PropertiesTable({
                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editable)
                   ? editable
                   : null;
+            const rawNode = rawRef !== null ? client.getNode(rawRef) : undefined;
             const carrier =
-              rawRef !== null && client.getNode(rawRef)?.nodeType === "block"
-                ? client.getNode(rawRef)
-                : undefined;
+              rawNode !== undefined && rendersAsInlineBlock(rawNode) ? rawNode : undefined;
             return (
               <li
                 key={`${row.propertySchemaId}:${row.idx}`}

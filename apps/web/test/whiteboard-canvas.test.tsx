@@ -80,7 +80,7 @@ function whiteboardAst(layout?: unknown): ContentAst {
 
 /** Seed a fullscreen whiteboard page (whiteboard token in the page's own AST). */
 async function seedWhiteboardPage(client: WorkspaceClient, layout?: unknown): Promise<string> {
-  return client.createObject({ nodeType: "page", name: "Board", contentAst: whiteboardAst(layout) });
+  return client.createObject({ presentAsMain: true, name: "Board", contentAst: whiteboardAst(layout) });
 }
 
 /** The host's stored layout (what actually landed in the content token). */
@@ -157,8 +157,8 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const host = await seedWhiteboardPage(client, {
       cards: { [cardId]: { x: 100, y: 50, w: 200, h: 100 } },
     });
-    await client.createObject({ id: cardId, nodeType: "block", parentId: host, contentAst: text("hello card") });
-    const childPage = await client.createObject({ nodeType: "page", name: "Not a card", parentId: host });
+    await client.createObject({ id: cardId, parentId: host, contentAst: text("hello card") });
+    const childPage = await client.createObject({ presentAsMain: true, name: "Not a card", parentId: host });
 
     const { container } = render(<PageView client={client} pageId={host} />);
 
@@ -193,7 +193,7 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const host = await seedWhiteboardPage(client, {
       cards: { [cardId]: { x: 100, y: 50, w: 200, h: 100 } },
     });
-    await client.createObject({ id: cardId, nodeType: "block", parentId: host, contentAst: text("drag me") });
+    await client.createObject({ id: cardId, parentId: host, contentAst: text("drag me") });
 
     const updateSpy = vi.spyOn(client, "updateObject");
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -229,7 +229,8 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const children = client.getChildren(host);
     expect(children.length).toBe(1);
     const cardId = children[0]!.id;
-    expect(children[0]!.nodeType).toBe("block");
+    expect(children[0]!.isClass).toBe(false);
+    expect(children[0]!.presentAsMain).toBe(false);
     // …with geometry centered on the double-click point, and inline editing on.
     expect(storedLayout(client, host).cards[cardId]).toEqual({
       x: 180, y: 140, w: 240, h: 120,
@@ -339,7 +340,7 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const host = await seedWhiteboardPage(client, {
       cards: { [cardId]: { x: 0, y: 0, w: 200, h: 100 } },
     });
-    await client.createObject({ id: cardId, nodeType: "block", parentId: host, contentAst: text("remote") });
+    await client.createObject({ id: cardId, parentId: host, contentAst: text("remote") });
 
     const { container } = render(<PageView client={client} pageId={host} />);
     expect(cardEl(container, cardId).style.left).toBe("0px");
@@ -361,7 +362,7 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const host = await seedWhiteboardPage(client, {
       cards: { [cardId]: { x: 10, y: 10, w: 200, h: 100 } },
     });
-    await client.createObject({ id: cardId, nodeType: "block", parentId: host, contentAst: text("gone soon") });
+    await client.createObject({ id: cardId, parentId: host, contentAst: text("gone soon") });
 
     const { container } = render(<PageView client={client} pageId={host} />);
     fireEvent.click(screen.getByRole("button", { name: `Delete card gone soon` }));
@@ -395,14 +396,13 @@ describe("whiteboard canvas (fullscreen page)", () => {
 describe("whiteboard canvas (embedded block)", () => {
   it("renders the mini-canvas at the capped height inside the block row", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ nodeType: "page", name: "Doc" });
+    const host = await client.createObject({ presentAsMain: true, name: "Doc" });
     const boardBlock = await client.createObject({
-      nodeType: "block",
       parentId: host,
       contentAst: whiteboardAst({ cards: {} }),
     });
     const cardId = "0192a000-0000-7000-8000-0000000000c4";
-    await client.createObject({ id: cardId, nodeType: "block", parentId: boardBlock, contentAst: text("embedded card") });
+    await client.createObject({ id: cardId, parentId: boardBlock, contentAst: text("embedded card") });
     await client.updateObject(boardBlock, {
       contentAst: whiteboardAst({ cards: { [cardId]: { x: 20, y: 30, w: 180, h: 90 } } }),
     });
@@ -425,9 +425,8 @@ describe("whiteboard canvas (embedded block)", () => {
 
   it("embedded mode keeps interactions but gives the wheel to the page (no zoom/pan)", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ nodeType: "page", name: "Doc" });
+    const host = await client.createObject({ presentAsMain: true, name: "Doc" });
     await client.createObject({
-      nodeType: "block",
       parentId: host,
       contentAst: whiteboardAst(),
     });

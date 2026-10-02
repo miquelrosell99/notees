@@ -104,7 +104,7 @@ describe("worker message protocol (handleMessage)", () => {
     ]);
     expect(initResponse).toEqual({ id: 1, result: null });
 
-    const created = await send(ctx, "createObject", [{ nodeType: "page", name: "Via Protocol" }], 2);
+    const created = await send(ctx, "createObject", [{ presentAsMain: true, name: "Via Protocol" }], 2);
     expect(created.error).toBeUndefined();
     const pageId = created.result as string;
     expect(pageId).toBeTruthy();
@@ -120,7 +120,7 @@ describe("worker message protocol (handleMessage)", () => {
 
     const page = await send(ctx, "getPage", [pageId], 4);
     expect(page.error).toBeUndefined();
-    expect(page.result).toMatchObject({ id: pageId, nodeType: "page" });
+    expect(page.result).toMatchObject({ id: pageId, isClass: false, presentAsMain: true });
 
     const flushed = await send(ctx, "flush", [], 5);
     expect(flushed.error).toBeUndefined();
@@ -146,12 +146,12 @@ describe("worker message protocol (handleMessage)", () => {
     await send(ctx, "init", [
       { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "https://x.example.com", apiKey: "k" },
     ]);
-    const page = await send(ctx, "createObject", [{ nodeType: "page", name: "P" }], 2);
+    const page = await send(ctx, "createObject", [{ presentAsMain: true, name: "P" }], 2);
     const pageId = page.result as string;
     const block = await send(
       ctx,
       "createObject",
-      [{ nodeType: "block", parentId: pageId, contentAst: [{ type: "text", text: "child" }] }],
+      [{ parentId: pageId, contentAst: [{ type: "text", text: "child" }] }],
       3,
     );
     expect(block.error).toBeUndefined();
@@ -161,8 +161,8 @@ describe("worker message protocol (handleMessage)", () => {
     // empty (regression: every page rendered with zero block rows).
     const tree = await send(ctx, "getBlockTree", [pageId, null], 4);
     expect(tree.error).toBeUndefined();
-    const rows = tree.result as Array<{ node: { nodeType: string } }>;
+    const rows = tree.result as Array<{ node: { isClass: boolean; presentAsMain: boolean } }>;
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ node: { nodeType: "block" } });
+    expect(rows[0]).toMatchObject({ node: { isClass: false, presentAsMain: false } });
   });
 });

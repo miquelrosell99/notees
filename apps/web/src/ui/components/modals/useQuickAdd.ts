@@ -48,7 +48,7 @@ export interface UseQuickAddReturn {
 
 interface QuickAddWriter {
   createObject(partial: {
-    nodeType?: "page" | "block" | "class";
+    presentAsMain?: boolean;
     parentId?: string | null;
     contentAst?: Array<{ type: "text"; text: string }>;
   }): Promise<string>;
@@ -117,10 +117,10 @@ export function useQuickAdd(
 
       setIsCreating(true);
       try {
-        // Create blocks sequentially, in draft order
+        // Create blocks sequentially, in draft order (a parented child
+        // defaults to the inline body — no render bit needed).
         for (const block of nonEmptyBlocks) {
           await client.createObject({
-            nodeType: "block",
             parentId: destinationPageId,
             contentAst: [{ type: "text", text: block.content.trim() }],
           });

@@ -34,10 +34,12 @@ export interface SortSpec {
 /**
  * A table column. `kind` selects the renderer/comparator; property columns
  * carry the schema id and resolve values per row through `propertiesOf`.
+ * The Revision-11 boolean columns (`isClass` / `presentAsMain`) replace the
+ * retired single type column — render states, not identities.
  */
 export interface TableColumn {
   id: string;
-  kind: "name" | "classes" | "created" | "nodeType" | "property";
+  kind: "name" | "classes" | "created" | "isClass" | "presentAsMain" | "property";
   label: string;
   /** Required when kind === "property". */
   propertySchemaId?: string;
@@ -103,7 +105,7 @@ export interface NodeCollectionProps {
   editable?: boolean | undefined;
   /** Read-only rows: every mutation gesture off, clicking opens the node. */
   readOnly?: boolean | undefined;
-  /** Tree paths filter children to page-typed nodes. */
+  /** Tree paths filter children to main children (the Pages zone). */
   pagesOnly?: boolean | undefined;
   /** Depth cap for recursive tree rendering. */
   maxDepth?: number | undefined;
