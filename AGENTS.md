@@ -24,7 +24,7 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 
 - Install: `pnpm install` · Build: `pnpm -r --workspace-concurrency=1 build` · Test: `pnpm test` (all green = blocking gate)
 - After changing a package's public API, rebuild its dist before typechecking dependents (dev-condition exports: vitest reads `src`, `tsc` reads `dist`).
-- Deploy: Komodo stack `notees` (files-on-host → this repo's `compose.yaml`; web :8378, sync :8377). Redeploy from the Komodo UI or the Core API (`DeployStack`). Images must exist on the host (`auto_pull: false`; ghcr tags unpublished — see parked decisions). Smoke: `node scripts/screenshots/verify-min.mjs` (run from `scripts/screenshots/`).
+- Deploy: **plain Docker — Komodo is NOT required.** The stack is the repo-root `compose.yaml` (web :8378, sync :8377; data under `./config/notees/`): `docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:2.0.0-m1 . && docker build -f apps/web/Dockerfile -t ghcr.io/miquelrosell99/notees-web:2.0.0-m1 . && docker compose up -d` (build context = repo root; ghcr tags are unpublished — see parked decisions — so build the pinned tags locally first; compose has no `build:` section by design). Komodo (stack `notees` on the fleet host) is only an optional convenience on top of the same compose file — every operation it performs (`up -d` on this repo) is reproducible with the plain docker commands above. Smoke: `node scripts/screenshots/verify-min.mjs` (run from `scripts/screenshots/`; needs `NOTEES_ADMIN_PASSWORD`).
 
 ## Invariants (design law — see `.plans/` decision record §34)
 
