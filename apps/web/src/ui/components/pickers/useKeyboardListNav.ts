@@ -8,11 +8,17 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
+/** Modifier state at the moment of the pick (Ctrl/Cmd+Enter = alternative action). */
+export interface ListPickModifiers {
+  ctrlKey: boolean;
+  metaKey: boolean;
+}
+
 export interface UseKeyboardListNavOptions {
   /** Total number of selectable items */
   totalItems: number;
-  /** Called when Enter is pressed; receives the current index */
-  onSelect?: (index: number) => void;
+  /** Called when Enter is pressed; receives the current index and the modifiers held */
+  onSelect?: (index: number, modifiers: ListPickModifiers) => void;
   /** Called when Escape is pressed */
   onClose?: () => void;
   /** Whether the list is currently visible/active */
@@ -75,7 +81,7 @@ export function useKeyboardListNav({
         case "Enter":
           stop();
           if (onSelect && totalItems > 0) {
-            onSelect(selectedIndex);
+            onSelect(selectedIndex, { ctrlKey: e.ctrlKey, metaKey: e.metaKey });
           }
           break;
         case "Escape":

@@ -20,12 +20,14 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
+import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
+import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
 import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-export type NavKey = "journal" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks";
+export type NavKey = "journal" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets";
 
 export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = [
   { key: "journal", label: "Journal", icon: "mdi-calendar-clock" },
@@ -34,6 +36,7 @@ export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = 
   { key: "classes", label: "Classes", icon: "mdi-shape-outline" },
   { key: "whiteboards", label: "Whiteboards", icon: "mdi-presentation" },
   { key: "tasks", label: "Tasks", icon: "mdi-format-list-checks" },
+  { key: "assets", label: "Assets", icon: "mdi-folder-multiple-image" },
 ];
 
 const STORAGE_KEYS = {
@@ -70,6 +73,23 @@ export function recordRecent(id: string): void {
   window.dispatchEvent(new Event("notees:recents"));
 }
 
+/**
+ * Remove a page from the device-local Recents list (the row context menu).
+ * Same broadcast contract as recordRecent so every listener refreshes live.
+ */
+export function removeRecent(id: string): void {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEYS.recents) || "[]");
+    const previous = Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === "string")
+      : [];
+    localStorage.setItem(STORAGE_KEYS.recents, JSON.stringify(previous.filter((entry) => entry !== id)));
+  } catch {
+    // Storage unavailable; the list just won't persist.
+  }
+  window.dispatchEvent(new Event("notees:recents"));
+}
+
 export function Sidebar({
   client,
   workspaceName,
@@ -89,6 +109,7 @@ export function Sidebar({
   onManageWorkspaces,
   onSignOut,
   onRenameWorkspace,
+  onOpenInSidebar,
 }: {
   client: AnyClient;
   workspaceName: string;
@@ -109,11 +130,17 @@ export function Sidebar({
   onManageWorkspaces: () => void;
   onSignOut: () => void;
   onRenameWorkspace?: ((workspaceId: string, name: string) => void) | undefined;
+  /** Peek the node as a right-sidebar card (the row context menu). */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
 }) {
   const [favorites, setFavorites] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.favorites));
   const [recents, setRecents] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.recents));
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [accountMenu, setAccountMenu] = useState(false);
+  /** Right-click menu over a Favorites/Recents row. */
+  const [rowMenu, setRowMenu] = useState<SidebarItemMenuState | null>(null);
+  /** Delete confirmation target (lives here so it survives the menu closing). */
+  const [deleteTarget, setDeleteTarget] = useState<ClientNode | null>(null);
 
   // Refresh the device-local lists when any surface writes them: the node
   // context menu broadcasts notees:favorites; recordRecent broadcasts
@@ -185,8 +212,16 @@ export function Sidebar({
     .filter((node): node is ClientNode => node !== undefined)
     .slice(0, 12);
 
-  const renderRow = (node: ClientNode, icon?: string | null) => (
-    <li key={node.id} className="nt-side-row">
+  const renderRow = (node: ClientNode, icon?: string | null, list?: "favorites" | "recents") => (
+    <li
+      key={node.id}
+      className="nt-side-row"
+      onContextMenu={(event) => {
+        if (list === undefined) return;
+        event.preventDefault();
+        setRowMenu({ x: event.clientX, y: event.clientY, node, list });
+      }}
+    >
       <button
         type="button"
         className={node.id === selectedPageId ? "nt-side-item nt-side-item-active" : "nt-side-item"}
@@ -301,10 +336,13 @@ export function Sidebar({
         )}
         {section(
           "Favorites",
-          favoritePages.map((node) => renderRow(node)),
+          favoritePages.map((node) => renderRow(node, null, "favorites")),
           { icon: "mdi-star-outline" },
         )}
-        {section("Recents", recentPages.map((node) => renderRow(node, rowIconFor(node))))}
+        {section(
+          "Recents",
+          recentPages.map((node) => renderRow(node, rowIconFor(node), "recents")),
+        )}
       </nav>
       <div className="nt-sidebar-bottom">
         <button
@@ -356,6 +394,50 @@ export function Sidebar({
           </div>
         )}
       </div>
+      {rowMenu !== null && (
+        <SidebarItemMenu
+          state={rowMenu}
+          isFavorited={favorites.includes(rowMenu.node.id)}
+          onClose={() => setRowMenu(null)}
+          onOpen={(id) => {
+            setRowMenu(null);
+            openRow(id);
+          }}
+          onOpenInSidebar={onOpenInSidebar}
+          onToggleFavorite={(id) => {
+            toggleFavorite(id);
+          }}
+          onRemoveFromRecents={(id) => {
+            removeRecent(id);
+          }}
+          onRequestDelete={() => {
+            setDeleteTarget(rowMenu.node);
+            setRowMenu(null);
+          }}
+        />
+      )}
+      {deleteTarget !== null && (
+        <ConfirmationModal
+          isOpen
+          variant="danger"
+          title="Delete node?"
+          message={`"${deleteTarget.id}" and its subtree will be moved to the trash.`}
+          confirmLabel="Delete"
+          onConfirm={() => {
+            const target = deleteTarget;
+            setDeleteTarget(null);
+            void client.deleteObject(target.id).then(() => {
+              // The store notification re-renders the lists (deleted nodes
+              // drop out of byId); purge stale list entries too.
+              removeRecent(target.id);
+              if (readStoredJson(STORAGE_KEYS.favorites).includes(target.id)) {
+                toggleFavorite(target.id);
+              }
+            });
+          }}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </aside>
   );
 }
