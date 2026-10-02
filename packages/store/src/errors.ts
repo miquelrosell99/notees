@@ -17,7 +17,8 @@ export class StoreError extends Error {
 /** Envelope or payload failed protocol validation before application. */
 export class EnvelopeValidationError extends StoreError {}
 
-/** A node_type CHECK constraint rejected a write (bullet-proof schema). */
+/** A node CHECK constraint rejected a write (bullet-proof schema:
+ *  class nodes are always roots — `is_class = 0 OR parent_id IS NULL`). */
 export class CheckConstraintError extends StoreError {
   constructor(
     message: string,
@@ -28,7 +29,8 @@ export class CheckConstraintError extends StoreError {
   }
 }
 
-/** Cross-row tree guard: a class node can never be a parent (SCHEMA.md). */
+/** Cross-row tree guard: a class node may never take a parent (classes are
+ * always roots), and a node may never move into its own subtree (SCHEMA.md). */
 export class MoveGuardError extends StoreError {}
 
 /** class.setExtends would introduce a cycle in the extends chain. */
