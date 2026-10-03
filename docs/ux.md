@@ -94,6 +94,12 @@ Citations are the canonical dogfood: a `cites` verb with the locator auto-filled
 
 **Today:** the capture gestures ship in the web editor — `@` opens the node picker (mentions) with the caret already in its search field, scoped by **Main/Blocks tabs**: Main (the default) searches pages, classes, and other document-chrome nodes; Blocks narrows the same search to inline child blocks. Typed dates offer **"Link to daily page: …"** (or "Create …" when the journal page doesn't exist yet). `#` opens tag vocabulary (**Enter assigns the tag-class to the node, creating it if missing; Shift+Enter inserts a render-only chip inline**), `+` picks existing classes with the same assign/insert split, and a selection + Cmd/Ctrl+K (or the toolbar verb button) binds a free-string verb with an optional locator. Rendering resolves names everywhere. Still designed: bound-schema verbs with create-and-bind, locator autofill from PDF selections, M2 target resolution.
 
+## Templates — class-bound instantiation
+
+A template is a node, not a new kind: the `template` class says "this node's subtree is a reusable body". Binding is a property edge (the class's **Templates** cards); instantiation is a client-side clone over ordinary single-node ops — the copy is stamped with a `generated-from` provenance link, and provenance is one-way: editing a copy never writes back, and unbinding never touches copies. The create surfaces stay unfiltered (the D1 amendment: one class-filtered picker — the class's own template bind — instead of filter plumbing everywhere); template *choice* happens at the moment of creation, Capacities-style.
+
+**Today:** binding/unbinding ships on the class page (template cards), and instantiation rides the object-create flows that offer a bound template (calendar quick-create among them). Designed: `/template` slash instantiation, `{{…}}` variable substitution at apply time, apply-to-existing (§34.25 T3/T4).
+
 ## Whiteboards — spatial views of subtrees
 
 A whiteboard is a node classed `whiteboard`; the `whiteboard` content token carries its geometry. The model, precisely:
