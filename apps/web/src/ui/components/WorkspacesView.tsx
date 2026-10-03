@@ -25,6 +25,7 @@ import { ContextMenu } from "./ui/ContextMenu.js";
 import { DataStateView } from "./ui/DataStateView.js";
 import { Pill } from "./ui/Pill.js";
 import { downloadBlob } from "./modals/download.js";
+import { WorkspaceExportModal } from "./modals/WorkspaceExportModal.js";
 import { WorkspaceNameModal } from "./modals/WorkspaceNameModal.js";
 import { deleteWorkspace, exportWorkspace, renameWorkspace } from "./modals/workspaceApi.js";
 import "./WorkspacesView.css";
@@ -74,6 +75,9 @@ export function WorkspacesView({
     y: number;
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceEntry | null>(null);
+  const [exportTarget, setExportTarget] = useState<WorkspaceEntry | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +143,26 @@ export function WorkspacesView({
           setNameError(err instanceof Error ? err.message : String(err));
         });
     }
+  };
+
+  const handleExport = (includeAssets: boolean): void => {
+    if (exportTarget === null) return;
+    const target = exportTarget;
+    setExporting(true);
+    setExportError(null);
+    void exportWorkspace(serverUrl, credential, target.id, target.name ?? "Workspace", {
+      includeAssets,
+    })
+      .then(({ blob, filename }) => {
+        downloadBlob(blob, filename);
+        setExportTarget(null);
+      })
+      .catch((err: unknown) => {
+        setExportError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        setExporting(false);
+      });
   };
 
   const list = workspaces ?? [];
@@ -352,17 +376,8 @@ export function WorkspacesView({
               label: "Export",
               icon: "mdi mdi-export",
               onClick: () => {
-                const target = cardMenu.workspace;
-                void exportWorkspace(
-                  serverUrl,
-                  credential,
-                  target.id,
-                  target.name ?? "Workspace",
-                )
-                  .then(({ blob, filename }) => downloadBlob(blob, filename))
-                  .catch((err: unknown) => {
-                    setListError(err instanceof Error ? err : new Error(String(err)));
-                  });
+                setExportError(null);
+                setExportTarget(cardMenu.workspace);
               },
             },
             {
@@ -374,6 +389,20 @@ export function WorkspacesView({
               onClick: () => setDeleteTarget(cardMenu.workspace),
             },
           ]}
+        />
+      )}
+
+      {exportTarget !== null && (
+        <WorkspaceExportModal
+          isOpen
+          workspaceName={exportTarget.name ?? "Workspace"}
+          isLoading={exporting}
+          error={exportError}
+          onClose={() => {
+            setExportTarget(null);
+            setExportError(null);
+          }}
+          onExport={handleExport}
         />
       )}
 

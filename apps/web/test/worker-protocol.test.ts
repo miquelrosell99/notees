@@ -141,6 +141,34 @@ describe("worker message protocol (handleMessage)", () => {
     expect(response.error).toMatch(/unknown method/);
   });
 
+  it("roots returns top-level pages only, while listPages includes main children", async () => {
+    const { ctx } = createTestContext();
+    await send(ctx, "init", [
+      { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "https://x.example.com", apiKey: "k" },
+    ]);
+    const root = await send(ctx, "createObject", [{ presentAsMain: true, name: "Root Page" }], 2);
+    const rootId = root.result as string;
+    const sub = await send(
+      ctx,
+      "createObject",
+      [{ parentId: rootId, presentAsMain: true, name: "Subpage" }],
+      3,
+    );
+    expect(sub.error).toBeUndefined();
+
+    const roots = await send(ctx, "roots", [], 4);
+    expect(roots.error).toBeUndefined();
+    expect((roots.result as Array<{ id: string }>).map((n) => n.id)).toEqual([rootId]);
+
+    // listPages is the broader document-chrome read (parentless OR main
+    // children) — the seam must keep the two distinct.
+    const listed = await send(ctx, "listPages", [], 5);
+    expect(listed.error).toBeUndefined();
+    expect((listed.result as Array<{ id: string }>).map((n) => n.id).sort()).toEqual(
+      [rootId, sub.result as string].sort(),
+    );
+  });
+
   it("getBlockTree treats a JSON-null depth (omitted optional over RPC) as the default cap", async () => {
     const { ctx } = createTestContext();
     await send(ctx, "init", [

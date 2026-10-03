@@ -302,6 +302,10 @@ export class WorkerCore {
     return this.client.listPages();
   }
 
+  roots(): ClientNode[] {
+    return this.client.roots();
+  }
+
   listClasses(): ClientNode[] {
     return this.client.listClasses();
   }
@@ -463,6 +467,8 @@ export class WorkerCore {
         return this.getPage(args[0] as string);
       case "listPages":
         return this.listPages();
+      case "roots":
+        return this.roots();
       case "listClasses":
         return this.listClasses();
       case "getClassParents":
