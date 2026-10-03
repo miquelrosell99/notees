@@ -65,6 +65,7 @@ import {
   type LinkEditModalOpener,
 } from "./editor-popups/LinkEditModal.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
+import { ensureTemplateFamily } from "./components/templateFamily.js";
 
 /** The child-blocks triad, in switcher order. */
 const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
@@ -217,6 +218,9 @@ export function PageView({
     // Render-cascade navigation for query result lists (App routes the id).
     openNode: (id) => onOpenPage?.(id),
     openInSidebar: (id) => onOpenInSidebar?.(id),
+    // §34.25 T3: the slash template flow self-heals the template family
+    // before instantiating (idempotent no-op once present).
+    ensureTemplateFamily: () => ensureTemplateFamily(client),
   });
   const positions = outliner.positions;
 

@@ -14,6 +14,8 @@
 
 import { Fragment, type ReactNode } from "react";
 
+import { cssColorFor } from "./components/ui/colorPresets.js";
+
 export interface InlineTokensProps {
   tokens: readonly unknown[];
   resolveName?: ((nodeId: string) => string | null) | undefined;
@@ -158,7 +160,7 @@ function renderToken(
             type="button"
             className="nt-link"
             title={targetNodeId}
-            style={linkColor !== null ? { borderBottomColor: linkColor } : undefined}
+            style={linkColor !== null ? { borderBottomColor: cssColorFor(linkColor) } : undefined}
             onClick={(event) => {
               event.stopPropagation();
               onOpenNode(targetNodeId);

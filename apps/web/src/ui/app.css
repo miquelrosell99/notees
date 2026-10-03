@@ -700,7 +700,7 @@ select:focus-visible {
 /* The editable fills the block's content column side to side (v1's
    .custom-inline-editor was flex:1 — same contract): clicking anywhere on
    the row places the caret at the nearest position instead of the element
-   hugging its text and blurring out of the block. */
+   hugging its text and blurring on an outer click. */
 .nt-block-text {
   outline: none;
   display: block;
@@ -1369,6 +1369,51 @@ select:focus-visible {
   border-radius: 6px;
   color: var(--color-on-surface-variant);
   background: var(--color-surface);
+}
+
+/* Templates slot (§34.25 T3): bound-template rows (open / unbind) + the
+   AddPill bind affordance. */
+.nt-class-templates {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nt-class-template {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 420px;
+}
+
+.nt-class-template-open {
+  flex: 1;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-primary-hover);
+}
+
+.nt-class-template-open:hover {
+  background: var(--color-surface-container-high);
+}
+
+.nt-class-template-unbind {
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-class-template-unbind:hover {
+  color: var(--color-error);
 }
 
 .nt-class-bindings {

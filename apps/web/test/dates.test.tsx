@@ -4,6 +4,8 @@
  *
  *  - client date writes create the year/month/day chain once (deterministic
  *    ids make re-creates no-ops) and link the node at the schema's precision;
+ *    every chain node carries presentAsMain (date pages are main nodes — a
+ *    parented month/day must not render as an inline block);
  *  - year-precision values link the YEAR node;
  *  - date_range persists { start, end } refs with either side open;
  *  - a year node's backlink list includes the dated node (edge projection);
@@ -94,6 +96,12 @@ describe("dates (SCHEMA.md)", () => {
     expect(client.getNode(ids.year)?.parentId).toBeNull();
     expect(client.getNode(ids.month)?.parentId).toBe(ids.year);
     expect(client.getNode(ids.day)?.parentId).toBe(ids.month);
+    // Date pages are main nodes: every chain node carries the render bit, so
+    // a parented month/day renders with document chrome (and never lands in
+    // the node picker's Blocks scope).
+    expect(client.getNode(ids.year)?.presentAsMain).toBe(true);
+    expect(client.getNode(ids.month)?.presentAsMain).toBe(true);
+    expect(client.getNode(ids.day)?.presentAsMain).toBe(true);
     // Title-is-content: the day node's compact label lives in its content.
     expect(client.getNode(ids.day)?.contentAst).toEqual([{ type: "text", text: "20260927" }]);
     // The value links the day node; edges project (year backlinks below).

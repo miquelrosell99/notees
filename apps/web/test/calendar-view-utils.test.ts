@@ -159,7 +159,7 @@ describe("partitionOpenTasks", () => {
 
 describe("dateChipCandidates", () => {
   const bindingsOf =
-    (map: Record<string, Array<{ propertySchemaId: string; type: string }>>) =>
+    (map: Record<string, Array<{ propertySchemaId: string; type: string; name?: string }>>) =>
     (classId: string) =>
       map[classId] ?? [];
 

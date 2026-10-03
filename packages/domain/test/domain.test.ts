@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_CLASS_ICON,
+  DEFAULT_PAGE_ICON,
+  defaultIconFor,
   deriveDisplayName,
   isClassNode,
   plainTextExcerpt,
@@ -107,6 +110,17 @@ describe("system seeds (v1 port)", () => {
       targetClassFilter: ["template"],
     });
   });
+
+  it("templates provenance seed (§34.25 T3, D1 amendment 2026-10-03): generated-from is instance-side, never class-bound", () => {
+    expect(SYSTEM_PROPERTY_UUIDS.generatedFrom).toBe("00000000-0000-0000-0000-000000000027");
+    // Instance metadata: no SYSTEM_PROPERTY_SPECS entry (a spec would seed a
+    // class binding — the amendment forbids one); the web client authors the
+    // schema idempotently (ensureGeneratedFromProperty).
+    expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("generatedFrom");
+    for (const binding of SYSTEM_EXTRA_CLASS_BINDINGS) {
+      expect(binding.property).not.toBe("generatedFrom");
+    }
+  });
 });
 
 describe("deriveDisplayName", () => {
@@ -178,6 +192,35 @@ describe("render-state cascade predicates (Revision 11)", () => {
     expect(rendersAsInlineBlock({ isClass: false, parentId: null })).toBe(false);
     // Classes render ClassView — never inline blocks.
     expect(rendersAsInlineBlock({ isClass: true, parentId: "p" })).toBe(false);
+  });
+});
+
+describe("defaultIconFor (display-time icon defaults)", () => {
+  it("class nodes get the class glyph", () => {
+    expect(defaultIconFor({ isClass: true, parentId: null, presentAsMain: false })).toBe(
+      DEFAULT_CLASS_ICON,
+    );
+  });
+
+  it("parentless nodes get the page glyph (second cascade branch)", () => {
+    expect(defaultIconFor({ isClass: false, parentId: null, presentAsMain: false })).toBe(
+      DEFAULT_PAGE_ICON,
+    );
+  });
+
+  it("parented main-presenting nodes get the page glyph (third cascade branch)", () => {
+    expect(defaultIconFor({ isClass: false, parentId: "p", presentAsMain: true })).toBe(
+      DEFAULT_PAGE_ICON,
+    );
+  });
+
+  it("inline blocks get none — their chrome is the bullet dot", () => {
+    expect(defaultIconFor({ isClass: false, parentId: "p", presentAsMain: false })).toBeNull();
+  });
+
+  it("defaults are MDI kebab names (the web Icon resolver form)", () => {
+    expect(DEFAULT_CLASS_ICON).toMatch(/^mdi-[a-z0-9-]+$/);
+    expect(DEFAULT_PAGE_ICON).toMatch(/^mdi-[a-z0-9-]+$/);
   });
 });
 
