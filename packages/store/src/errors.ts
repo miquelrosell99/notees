@@ -47,6 +47,13 @@ export class UnsupportedCarrierError extends StoreError {}
 /** Referenced row (node/parent) does not exist in the derived state. */
 export class NotFoundError extends StoreError {}
 
+/**
+ * property.set / class.property.set carried a value whose shape does not
+ * match the property schema's type (SCHEMA.md "Node-backed text
+ * properties": one-shape-per-type, fail-loud at the apply-time write path).
+ */
+export class PropertyValueShapeError extends StoreError {}
+
 export function isSqliteError(error: unknown): boolean {
   return (
     typeof error === "object" &&

@@ -24,10 +24,12 @@ import type { SqliteDB, StoreBackend } from "./db.js";
 import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
 import { getEffectiveProperties, type EffectiveProperty } from "./effective.js";
 import {
-  buildMatchQuery,
   dropSearchIndex,
   isSearchIndexQueryable,
   reindexAllSearch,
+  searchNodes,
+  searchSnippet,
+  type SearchSnippet,
 } from "./search.js";
 import { migrate, schemaSql } from "./schema.js";
 
@@ -356,19 +358,26 @@ export class Store {
     return getEffectiveProperties(this.db, nodeId);
   }
 
-  /** FTS prefix-AND search over active nodes; ordered by node id. */
+  /**
+   * FTS prefix-AND search over active nodes (§34.30 M2): relevance-ranked —
+   * FTS5 orders by the hidden rank column, FTS4 by matchinfo hit count
+   * (its module has no rank column) — with an updated_at recency tiebreak
+   * and node id for full determinism.
+   */
   search(query: string, limit = 50): SearchHit[] {
-    const match = buildMatchQuery(query);
-    if (match === null) return [];
-    return this.db
-      .prepare(
-        `SELECT d.node_id AS nodeId FROM search_index s
-         JOIN search_index_docid d ON d.docid = s.rowid
-         JOIN node n ON n.id = d.node_id AND n.is_active = 1
-         WHERE search_index MATCH ?
-         ORDER BY d.node_id LIMIT ?`,
-      )
-      .all(match, limit) as SearchHit[];
+    return searchNodes(this.db, query, limit);
+  }
+
+  /**
+   * Snippet around the densest query-term cluster in one node's indexed
+   * plaintext (§34.30 M3) — null when the node is unknown or unmatched.
+   */
+  getSearchSnippet(
+    nodeId: string,
+    query: string,
+    opts?: { maxTokens?: number; ellipsis?: string },
+  ): SearchSnippet | null {
+    return searchSnippet(this.db, nodeId, query, opts);
   }
 
   // --- snapshot / restore / reset ----------------------------------------------

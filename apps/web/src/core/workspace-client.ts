@@ -51,6 +51,9 @@ import { sqljsBackend } from "@notees/store/sqljs";
 /** Sensible default depth cap for getBlockTree (cycle protection). */
 const DEFAULT_TREE_DEPTH = 64;
 
+/** Bare-uuid test for the legacy carrier value shape (archived data). */
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Default actor for the single-user M1 client (overridable per client). */
 const DEFAULT_ACTOR_ID = "01920000-0000-7000-8000-0000000000a1";
 
@@ -1039,18 +1042,49 @@ export class WorkspaceClient {
    * omitted optional into JSON null, and `null <= 0` is true — without the
    * normalization the worker path silently renders every page with zero
    * block rows.
+   *
+   * PB3: the node-backed-property exclusion is computed PER SUBTREE ROOT —
+   * a nested block's own carriers are excluded from ITS body, and an
+   * excluded carrier's whole subtree is pruned with it (children of an
+   * excluded row are never visited).
    */
   getBlockTree(pageId: string, depth?: number | null): BlockTreeNode[] {
     const cap = depth ?? DEFAULT_TREE_DEPTH;
-    // Node-backed property values live as children of the owner but render
-    // inside the property cell — exclude them here or they appear twice.
-    // Two shapes: node-typed references ({"nodeId"}) and text properties,
-    // whose scalar value IS the carrier block's uuid (archived data shape).
+    const build = (id: string, remaining: number): BlockTreeNode[] => {
+      if (remaining <= 0) return [];
+      // Node-backed property values live as children of the owner but render
+      // inside the property cell — exclude them here or they appear twice.
+      // Two shapes: node-typed references ({"nodeId"}) and text properties,
+      // whose scalar value may be the carrier block's uuid (legacy shape).
+      const propertyRefIds = this.propertyCarrierIdsOf(id);
+      return this.store
+        .children(id)
+        .filter(
+          (row) =>
+            row.is_class === 0 &&
+            row.present_as_main === 0 &&
+            row.is_active === 1 &&
+            !propertyRefIds.has(row.id),
+        )
+        .map((row) => ({
+          node: mapNode(row),
+          children: build(row.id, remaining - 1),
+        }));
+    };
+    return build(pageId, cap);
+  }
+
+  /**
+   * The node ids referenced by `nodeId`'s property values (canonical
+   * `{nodeId}` refs and legacy bare-uuid text values) — the carrier set the
+   * body render excludes. Scoped to ONE node: each subtree root filters its
+   * own carriers (PB3).
+   */
+  private propertyCarrierIdsOf(nodeId: string): Set<string> {
     const propertyRefIds = new Set<string>();
-    const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     for (const row of this.store.database
       .prepare("SELECT value FROM property_value WHERE node_id = ?")
-      .all(pageId) as { value: string }[]) {
+      .all(nodeId) as { value: string }[]) {
       try {
         const parsed: unknown = JSON.parse(row.value);
         if (
@@ -1067,23 +1101,7 @@ export class WorkspaceClient {
         // Scalar value — not a node reference.
       }
     }
-    const build = (id: string, remaining: number): BlockTreeNode[] => {
-      if (remaining <= 0) return [];
-      return this.store
-        .children(id)
-        .filter(
-          (row) =>
-            row.is_class === 0 &&
-            row.present_as_main === 0 &&
-            row.is_active === 1 &&
-            !propertyRefIds.has(row.id),
-        )
-        .map((row) => ({
-          node: mapNode(row),
-          children: build(row.id, remaining - 1),
-        }));
-    };
-    return build(pageId, cap);
+    return propertyRefIds;
   }
 
   /** FTS prefix-AND search over active nodes. */
@@ -1737,6 +1755,57 @@ export class WorkspaceClient {
         { objectId, propertySchemaId, idx },
         [objectId],
       ),
+    );
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
+   * "Promote to block" (SCHEMA.md "Node-backed text properties"): detach a
+   * node-backed text property value and surface the carrier in the owner's
+   * body as an ordinary child. Composed from existing ops — property.unset
+   * (whose applier trashes the now-unreferenced carrier, trash + retention
+   * per the spec) followed by object.restore (revives the carrier subtree as
+   * a body child; a safe no-op when the unset left it alive, e.g. another
+   * slot still references it). Display state only: no move op — the carrier
+   * keeps its tree position and renders in the body once no value references
+   * it. Fails loud when the slot holds no authored value or the value is not
+   * a node-backed reference.
+   */
+  async promotePropertyCarrier(objectId: string, propertySchemaId: string, idx = 0): Promise<void> {
+    const engine = this.requireEngine();
+    const row = this.store.database
+      .prepare(
+        "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
+      )
+      .get(objectId, propertySchemaId, idx) as { value: string } | undefined;
+    if (row === undefined) {
+      throw new Error(
+        `promotePropertyCarrier: no authored value at ${propertySchemaId}:${idx} on ${objectId}`,
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(row.value);
+    } catch {
+      parsed = undefined;
+    }
+    const carrier =
+      typeof parsed === "object" && parsed !== null && "nodeId" in parsed
+        ? String((parsed as { nodeId: unknown }).nodeId)
+        : typeof parsed === "string" && UUID_LIKE.test(parsed)
+          ? parsed
+          : null;
+    if (carrier === null) {
+      throw new Error(
+        `promotePropertyCarrier: value at ${propertySchemaId}:${idx} is not a node-backed carrier reference`,
+      );
+    }
+    engine.enqueue(
+      this.buildEnvelope("property.unset", { objectId, propertySchemaId, idx }, [objectId]),
+    );
+    engine.enqueue(
+      this.buildEnvelope("object.restore", { objectId: carrier }, [objectId, carrier]),
     );
     this.notify();
     this.kickPush();
