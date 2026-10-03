@@ -359,6 +359,46 @@ export class Store {
   }
 
   /**
+   * Nodes carrying an authored value for the property schema (§34.32 PG12 —
+   * the PropertyReferencesSection population): every ACTIVE node with at
+   * least one property_value row for the schema, each row's slots alongside.
+   * Ordered by the same display key as classMembers (COALESCE(name, id), id)
+   * so the listing is deterministic. Authored rows only — derived defaults
+   * never materialize (SCHEMA.md), so an unvalued binding never lists.
+   */
+  propertyValueCarriers(
+    schemaId: string,
+  ): Array<{
+    node: NodeRow;
+    slots: Array<{ idx: number; value: unknown; metadata: Record<string, unknown> | null }>;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT n.*, pv.idx AS pv_idx, pv.value AS pv_value, pv.metadata AS pv_metadata
+         FROM property_value pv
+         JOIN node n ON n.id = pv.node_id
+         WHERE pv.property_schema_id = ? AND n.is_active = 1
+         ORDER BY COALESCE((SELECT name FROM class WHERE id = n.id), n.id), n.id, pv.idx`,
+      )
+      .all(schemaId) as Array<NodeRow & { pv_idx: number; pv_value: string; pv_metadata: string | null }>;
+    const byNode = new Map<string, { node: NodeRow; slots: Array<{ idx: number; value: unknown; metadata: Record<string, unknown> | null }> }>();
+    for (const row of rows) {
+      const { pv_idx, pv_value, pv_metadata, ...node } = row;
+      let entry = byNode.get(node.id);
+      if (entry === undefined) {
+        entry = { node: node as NodeRow, slots: [] };
+        byNode.set(node.id, entry);
+      }
+      entry.slots.push({
+        idx: pv_idx,
+        value: JSON.parse(pv_value) as unknown,
+        metadata: pv_metadata !== null ? (JSON.parse(pv_metadata) as Record<string, unknown>) : null,
+      });
+    }
+    return [...byNode.values()];
+  }
+
+  /**
    * FTS prefix-AND search over active nodes (§34.30 M2): relevance-ranked —
    * FTS5 orders by the hidden rank column, FTS4 by matchinfo hit count
    * (its module has no rank column) — with an updated_at recency tiebreak

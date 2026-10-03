@@ -27,6 +27,10 @@ import { resolveExportOptions } from "./options.js";
 export interface ExportPropertyValue {
   schemaId: string;
   schemaName: string;
+  /** The schema's declared type — drives the per-type display branches. */
+  schemaType?: string | undefined;
+  /** The schema's select options (select/multi_select values resolve to labels). */
+  schemaOptions?: ReadonlyArray<{ id: string; label: string }> | undefined;
   value: unknown;
   /** Per-value qualifiers (e.g. `{ since: 1962 }`) rendered `value (since 1962)`. */
   metadata?: Record<string, unknown> | undefined;
@@ -187,9 +191,17 @@ export interface ExportDocument {
  * are ctx-free, so node-typed values (`{ nodeId }`) become the target's
  * current display name here (rename-free, SCHEMA Fork 4), everything else
  * follows the scalar projection (string/number/boolean/null/JSON).
+ *
+ * `displayEntries` carries the per-element labels behind `display` where the
+ * value is a collection: one label per array element (select/multi_select
+ * option ids resolved through the schema's options, node refs named) and the
+ * two end labels `[start, end]` (null = open side) for date_range values —
+ * the Markdown frontmatter's list/map branches consume these instead of
+ * re-deriving them serializer-side.
  */
 export interface ExportDocumentProperty extends ExportPropertyValue {
   display: string;
+  displayEntries?: Array<string | null> | undefined;
 }
 
 // --- build -------------------------------------------------------------------
@@ -257,7 +269,7 @@ export function buildExportDocument(
     blocks,
     properties: node.properties.map((property) => ({
       ...property,
-      display: resolvePropertyDisplay(property.value, ctx),
+      ...resolvePropertyDisplay(property, ctx),
     })),
     classIds: node.classIds,
     classNames: node.classIds.map((id) => normalizeInlineName(ctx.nameOf(id) ?? id)),
@@ -280,14 +292,51 @@ export function buildExportBlocks(
 }
 
 /** Property value → display string (node-typed values resolve rename-free). */
-function resolvePropertyDisplay(value: unknown, ctx: ExportContext): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (value === null || value === undefined) return "";
-  if (isRecord(value) && typeof value.nodeId === "string") {
-    return normalizeInlineName(ctx.nameOf(value.nodeId) ?? value.nodeId);
+function resolvePropertyDisplay(
+  property: ExportPropertyValue,
+  ctx: ExportContext,
+): { display: string; displayEntries?: Array<string | null> } {
+  const value = property.value;
+  const optionLabel = (entry: unknown): string | null => {
+    if (typeof entry !== "string" || property.schemaOptions === undefined) return null;
+    return property.schemaOptions.find((option) => option.id === entry)?.label ?? null;
+  };
+  const entryText = (entry: unknown): string => {
+    const label = optionLabel(entry);
+    if (label !== null) return label;
+    if (typeof entry === "string") return entry;
+    if (typeof entry === "number" || typeof entry === "boolean") return String(entry);
+    if (isRecord(entry) && typeof entry.nodeId === "string") {
+      return normalizeInlineName(ctx.nameOf(entry.nodeId) ?? entry.nodeId);
+    }
+    return JSON.stringify(entry) ?? "";
+  };
+  // date_range: { start, end } of date refs, either side open (PB2 shape).
+  if (isRecord(value) && !("nodeId" in value) && ("start" in value || "end" in value)) {
+    const ends: Array<string | null> = [value.start, value.end].map((end) => {
+      const ref =
+        isRecord(end) && typeof end.nodeId === "string" ? end.nodeId : typeof end === "string" ? end : null;
+      return ref === null ? null : normalizeInlineName(ctx.nameOf(ref) ?? ref);
+    });
+    const startLabel = ends[0] ?? "…";
+    const endLabel = ends[1] ?? "…";
+    return { display: `${startLabel} → ${endLabel}`, displayEntries: ends };
   }
-  return JSON.stringify(value) ?? "";
+  // multi_select: an array of option ids (SCHEMA.md PC2 shape).
+  if (Array.isArray(value)) {
+    if (value.length === 0) return { display: "[]" };
+    const entries = value.map(entryText);
+    return { display: entries.join(", "), displayEntries: entries };
+  }
+  const label = optionLabel(value);
+  if (label !== null) return { display: label };
+  if (typeof value === "string") return { display: value };
+  if (typeof value === "number" || typeof value === "boolean") return { display: String(value) };
+  if (value === null || value === undefined) return { display: "" };
+  if (isRecord(value) && typeof value.nodeId === "string") {
+    return { display: normalizeInlineName(ctx.nameOf(value.nodeId) ?? value.nodeId) };
+  }
+  return { display: JSON.stringify(value) ?? "" };
 }
 
 function buildBlocks(
@@ -444,7 +493,7 @@ function buildChildren(
       classIds: child.classIds,
       properties: child.properties.map((property) => ({
         ...property,
-        display: resolvePropertyDisplay(property.value, ctx),
+        ...resolvePropertyDisplay(property, ctx),
       })),
       blocks: buildBlocks(child.contentAst, ctx, options, childVisited, assetRefs),
       children: buildChildren(child.id, ctx, options, childVisited, depth + 1, assetRefs),

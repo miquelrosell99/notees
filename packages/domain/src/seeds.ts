@@ -155,9 +155,22 @@ export const SYSTEM_PROPERTY_UUIDS = {
 export type SystemPropertyName = keyof typeof SYSTEM_PROPERTY_UUIDS;
 
 /** Class-scoped system property schemas in canonical seed order (v1 port;
- * v1 `node` type maps to v2 `object`; `classFilter` → `targetClassFilter`). */
+ * v1 `node` type maps to v2 `object`; `classFilter` → `targetClassFilter`).
+ * The type union mirrors the wire enum (op-types.ts) — the spec manifest
+ * must never outrun it (§34.32 PG14). */
 export interface SystemPropertySpec {
-  type: "text" | "number" | "boolean" | "date" | "url" | "email" | "select" | "object";
+  type:
+    | "text"
+    | "number"
+    | "boolean"
+    | "date"
+    | "date_range"
+    | "url"
+    | "email"
+    | "select"
+    | "multi_select"
+    | "object"
+    | "image";
   multi?: boolean;
   bindTo: SystemClassName;
   targetClassFilter?: SystemClassName[];

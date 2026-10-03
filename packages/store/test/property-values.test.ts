@@ -528,4 +528,53 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       );
     });
   });
+
+  describe("PG12: propertyValueCarriers (the PropertyReferencesSection read)", () => {
+    it("lists active nodes with authored slots; trashed and unvalued nodes stay out", () => {
+      const store = seededStore();
+      createCarrier(store, 1727200001000, OWNER, CARRIER);
+      createCarrier(store, 1727200001050, OWNER, CARRIER_CHILD);
+      createCarrier(store, 1727200001060, OWNER, OTHER_PAGE);
+      store.apply(
+        env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: "owner-slot" }, 1727200001100),
+      );
+      store.apply(
+        env("property.set", { objectId: CARRIER, propertySchemaId: SCHEMA_TEXT, value: "carrier-a" }, 1727200001150),
+      );
+      store.apply(
+        env("property.set", { objectId: CARRIER, propertySchemaId: SCHEMA_TEXT, value: "carrier-b", idx: 1 }, 1727200001160),
+      );
+      // A different schema never lists.
+      store.apply(
+        env("property.set", { objectId: OTHER_PAGE, propertySchemaId: SCHEMA_NUMBER, value: 7 }, 1727200001170),
+      );
+      // A trashed carrier drops out.
+      store.apply(
+        env("property.set", { objectId: CARRIER_CHILD, propertySchemaId: SCHEMA_TEXT, value: "doomed" }, 1727200001180),
+      );
+      store.apply(env("object.delete", { objectId: CARRIER_CHILD, permanent: false }, 1727200001190));
+
+      const carriers = store.propertyValueCarriers(SCHEMA_TEXT);
+      expect(carriers.map((entry) => entry.node.id)).toEqual([OWNER, CARRIER]);
+      const carrierEntry = carriers.find((entry) => entry.node.id === CARRIER);
+      expect(carrierEntry?.slots).toEqual([
+        { idx: 0, value: "carrier-a", metadata: null },
+        { idx: 1, value: "carrier-b", metadata: null },
+      ]);
+      // Qualifier metadata rides along for the value column.
+      store.apply(
+        env(
+          "property.set",
+          { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: "owner-slot", metadata: { since: "2020" } },
+          1727200001200,
+        ),
+      );
+      const ownerEntry = store.propertyValueCarriers(SCHEMA_TEXT).find((entry) => entry.node.id === OWNER);
+      expect(ownerEntry?.slots[0]?.metadata).toEqual({ since: "2020" });
+
+      // Unknown schema → empty; the other schema's owner never lists.
+      expect(store.propertyValueCarriers("0192a000-0000-7000-8000-0000000000ff")).toEqual([]);
+      expect(store.propertyValueCarriers(SCHEMA_NUMBER).map((entry) => entry.node.id)).toEqual([OTHER_PAGE]);
+    });
+  });
 });

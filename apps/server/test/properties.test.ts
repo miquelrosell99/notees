@@ -237,6 +237,184 @@ describe("property schemas", () => {
   });
 });
 
+describe("property schema update/delete routes (§34.32 PG7)", () => {
+  async function createSchema(name: string, extra: Record<string, unknown> = {}): Promise<string> {
+    const schemaId = crypto.randomUUID();
+    const res = await api("POST", "/api/property-schemas", {
+      payload: { propertySchemaId: schemaId, name, type: "text", multi: false, scope: "global", ...extra },
+    });
+    expect(res.statusCode).toBe(201);
+    return schemaId;
+  }
+
+  it("PATCH renames and patches options/date behavior; empty body and unknown id fail loud", async () => {
+    const schemaId = await createSchema("pg7-color", { type: "select", options: [{ id: "opt-1", label: "Red" }] });
+
+    const renamed = await api("PATCH", `/api/property-schemas/${schemaId}`, {
+      payload: { name: "pg7-hue" },
+    });
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json().propertySchema).toMatchObject({ id: schemaId, name: "pg7-hue" });
+
+    const optionsPatched = await api("PATCH", `/api/property-schemas/${schemaId}`, {
+      payload: { options: [{ id: "opt-1", label: "Crimson" }, { id: "opt-2", label: "Teal" }] },
+    });
+    expect(optionsPatched.statusCode).toBe(200);
+    expect(optionsPatched.json().propertySchema.options).toEqual([
+      { id: "opt-1", label: "Crimson" },
+      { id: "opt-2", label: "Teal" },
+    ]);
+
+    // Date behavior patch (the Class View editor's surface).
+    const dateSchema = await createSchema("pg7-when", { type: "date" });
+    const datePatched = await api("PATCH", `/api/property-schemas/${dateSchema}`, {
+      payload: { datePrecision: "year", dateQualified: true },
+    });
+    expect(datePatched.json().propertySchema).toMatchObject({ datePrecision: "year", dateQualified: true });
+
+    const empty = await api("PATCH", `/api/property-schemas/${schemaId}`, { payload: {} });
+    expect(empty.statusCode).toBe(422);
+
+    const missing = await api("PATCH", `/api/property-schemas/${crypto.randomUUID()}`, {
+      payload: { name: "ghost" },
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+
+  it("DELETE soft-deletes: gone from reads, authored values survive, second delete 404s", async () => {
+    const schemaId = await createSchema("pg7-doomed");
+    const id = await createObject("pg7-carrier");
+    await api("POST", `/api/objects/${id}/properties`, {
+      payload: { propertySchemaId: schemaId, value: "authored-survives" },
+    });
+
+    const deleted = await api("DELETE", `/api/property-schemas/${schemaId}`);
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json()).toEqual({ id: schemaId, deleted: true });
+
+    expect((await api("GET", `/api/property-schemas/${schemaId}`)).statusCode).toBe(404);
+    const list = await api("GET", "/api/property-schemas");
+    expect(
+      (list.json().propertySchemas as Array<{ id: string }>).some((s) => s.id === schemaId),
+    ).toBe(false);
+
+    // The authored value row is untouched (SCHEMA.md: the soft-delete hides
+    // the schema; values stay stored).
+    const fetched = await api("GET", `/api/objects/${id}`);
+    expect(
+      (fetched.json().object.properties as Array<{ schemaId: string; value: unknown }>).find(
+        (p) => p.schemaId === schemaId,
+      )?.value,
+    ).toBe("authored-survives");
+
+    const again = await api("DELETE", `/api/property-schemas/${schemaId}`);
+    expect(again.statusCode).toBe(404);
+  });
+});
+
+describe("class property binding routes (§34.32 PG7)", () => {
+  async function createClass(name: string): Promise<string> {
+    const res = await api("POST", "/api/objects", { payload: { isClass: true, name } });
+    expect(res.statusCode).toBe(201);
+    return res.json().id as string;
+  }
+
+  async function createSchema(name: string, extra: Record<string, unknown> = {}): Promise<string> {
+    const schemaId = crypto.randomUUID();
+    const res = await api("POST", "/api/property-schemas", {
+      payload: { propertySchemaId: schemaId, name, type: "text", multi: false, scope: "class", ...extra },
+    });
+    expect(res.statusCode).toBe(201);
+    return schemaId;
+  }
+
+  it("POST binds sequence/flags/defaultValue and the effective read derives the default", async () => {
+    const classId = await createClass("pg7-shelf");
+    const schemaId = await createSchema("pg7-code");
+
+    const bound = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, sequence: 2, required: true, defaultValue: "n/a" },
+    });
+    expect(bound.statusCode).toBe(200);
+    expect(bound.json()).toMatchObject({
+      classId,
+      propertySchemaId: schemaId,
+      binding: { propertySchemaId: schemaId, sequence: 2, required: true, readonly: null, hideWhenEmpty: null, defaultValue: "n/a" },
+    });
+
+    // The patch contract: omitted fields keep their values.
+    const patched = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, readonly: false },
+    });
+    expect(patched.json().binding).toMatchObject({ sequence: 2, required: true, readonly: false });
+
+    const member = (
+      await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "pg7-book", classIds: [classId] } })
+    ).json().id as string;
+    const effective = await api("GET", `/api/objects/${member}/effective-properties`);
+    const row = (effective.json().properties as Array<Record<string, unknown>>).find(
+      (p) => p.schemaId === schemaId,
+    );
+    expect(row).toMatchObject({ value: "n/a", source: "default", boundBy: classId });
+  });
+
+  it("POST fails loud on a wrong-typed defaultValue (PC2) and on unknown class/schema", async () => {
+    const classId = await createClass("pg7-shelf-2");
+    const schemaId = await createSchema("pg7-code-2");
+
+    const bad = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, defaultValue: 42 },
+    });
+    expect(bad.statusCode).toBe(422);
+    expect(bad.json().error.code).toBe("validation_failed");
+
+    const noClass = await api("POST", `/api/classes/${crypto.randomUUID()}/properties`, {
+      payload: { propertySchemaId: schemaId, sequence: 0 },
+    });
+    expect(noClass.statusCode).toBe(404);
+
+    const noSchema = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: crypto.randomUUID(), sequence: 0 },
+    });
+    expect(noSchema.statusCode).toBe(404);
+
+    const empty = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId },
+    });
+    expect(empty.statusCode).toBe(422);
+  });
+
+  it("DELETE unbinds: the default stops deriving, authored values survive", async () => {
+    const classId = await createClass("pg7-shelf-3");
+    const schemaId = await createSchema("pg7-code-3");
+    await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, sequence: 0, defaultValue: "def" },
+    });
+    const member = (
+      await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "pg7-member", classIds: [classId] } })
+    ).json().id as string;
+    await api("POST", `/api/objects/${member}/properties`, {
+      payload: { propertySchemaId: schemaId, value: "mine" },
+    });
+
+    const unbound = await api("DELETE", `/api/classes/${classId}/properties/${schemaId}`);
+    expect(unbound.statusCode).toBe(200);
+    expect(unbound.json()).toMatchObject({ classId, propertySchemaId: schemaId, unbound: true });
+
+    const effective = await api("GET", `/api/objects/${member}/effective-properties`);
+    const rows = (effective.json().properties as Array<Record<string, unknown>>).filter(
+      (p) => p.schemaId === schemaId,
+    );
+    // The authored value survives; no default derives anymore.
+    expect(rows).toEqual([expect.objectContaining({ value: "mine", source: "authored" })]);
+
+    const noClass = await api("DELETE", `/api/classes/${crypto.randomUUID()}/properties/${schemaId}`);
+    expect(noClass.statusCode).toBe(404);
+    const noSchema = await api("DELETE", `/api/classes/${classId}/properties/${crypto.randomUUID()}`);
+    expect(noSchema.statusCode).toBe(404);
+  });
+});
+
 describe("effective-properties endpoint", () => {
   it("returns authored rows plus derived class-binding defaults (source/boundBy)", async () => {
     // Create the classed node first — it triggers workspace seeding (the
