@@ -1,5 +1,11 @@
 # SDK publishing — `@notees/*` v2 packages
 
+> **ARCHIVED 2026-10-03 (owner directive)** — the npmjs token is not being
+> pursued for now; npm distribution and the repo split that sat behind it are
+> off the table until re-opened. The document below stays as the ready-made
+> plan for that day; the infra (`pnpm release`, publish metadata on the
+> packages) remains live in the tree.
+
 The four shared packages under `packages/` (`protocol`, `domain`, `store`, `sync`)
 are npm-publishable. They build with tsup (`dist/index.js` ESM + `dist/index.d.ts`)
 and carry full publish metadata (version `0.1.0-m1`, `exports`, `files`, `publishConfig`,
