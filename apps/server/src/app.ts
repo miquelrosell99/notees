@@ -21,7 +21,7 @@ import { registerAuthRoutes } from "./routes-auth.js";
 import { registerObjectRoutes } from "./routes-objects.js";
 import { registerRelayRoutes, requireCredential } from "./routes-relay.js";
 
-export const SERVER_VERSION = "2.0.0-m5";
+export const SERVER_VERSION = "2.0.0-m6";
 
 export interface BuiltServer {
   app: FastifyInstance;
