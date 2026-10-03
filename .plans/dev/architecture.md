@@ -372,10 +372,23 @@ block→page/class promotion.
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
 **CLI** (`apps/cli`). Commander-based (`src/cli.ts`, exported `run()` for tests). Commands:
-`object get|create|update|delete|list|search`, `class list`, `backlinks <id>`,
-`export markdown --ids … | --linked-to <id> [--depth N|fixpoint] [--output-dir | --stdout]`
+`object get|create|update|delete|restore|list|children|upsert|search` (`create --batch`
+takes a JSON array of bodies on stdin and creates them with per-parent ordering
+preserved; `upsert` is find-or-create by exact title in `--class`/`--parent` scopes;
+`list` filters `--parent <id>` and `--trashed` — the trash listing; `restore <id>…`
+rides the `object.restore` op, whole-tree), `object property set|delete <id> <schema
+uuid|name> <value> [--idx N]` (typed values — JSON-parsed when possible), `class
+list|assign|unassign|remap|empty|delete-members` (class arg: uuid or title; `remap`/
+`delete-members` are preview-first with `--yes`/`--dry-run`, `empty` unassigns without
+confirmation),
+`backlinks <id>`,
+`export markdown --ids … | --linked-to <id> | --class <id|title> [--depth N|fixpoint] [--output-dir | --stdout]`
 (bundle engine in `src/markdown-export.ts` — children fetched position-aware via
-`GET /objects/:id/children`), `asset add|get`, `sync status`, `sync doctor`. Global flags: `--json` (stable machine
+`GET /objects/:id/children`), `export bibtex`, `import bibtex <file>` (find-or-create
+person authors, upsert sources by citekey), `asset add|get`, `ops [opType]` (the op
+catalog behind the shell's `submitOp`), `sync status`, `doctor`, `auth login|logout|status`
+(stored per-profile CLI API keys), and `shell` (scripted Node REPL over the object API;
+piped stdin runs as a script). Global flags: `--json` (stable machine
 output), `--server`/`--key` (env `NOTEES_SERVER` / `NOTEES_API_KEY` as fallbacks),
 `--profile`; destructive commands require `--yes` (otherwise a blast-radius preview and
 exit 2 — never an interactive prompt under `--json` or non-tty). Exit codes: 0 ok,
@@ -461,3 +474,10 @@ Items 8–12 were surfaced by the 2026-10-02 property-layer audit; like items 1�
 they are code-narrower-than-design (or design-lagging-code), none touches sync
 authority — the operation log, appliers, and convergence machinery implement the
 designed model as specced.
+13. **`object.restore` is TS-reference-only** (2026-10-03). The restore op ships
+    with fixture coverage in this repo (implementation-plan §34.38; SCHEMA.md's
+    deletion/restore owed item is ticked), but the GTK/Flutter sibling appliers
+    do not implement it — they reject the unknown op fail-loud (envelope v3
+    unchanged), so restores authored elsewhere stay unapplied on those clients
+    until their lockstep round lands. Owed work, tracked with the other pending
+    wire items (implementation-plan §34.34's protocol batch).

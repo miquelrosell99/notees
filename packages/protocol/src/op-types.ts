@@ -86,6 +86,23 @@ export const objectDeletePayload = z
   .strict();
 
 /**
+ * Restore from the trash (SCHEMA.md deletion/restore semantics). Whole-tree:
+ * the subtree trashed WITH the node reactivates; a descendant carrying its
+ * OWN trash row was trashed independently and stays trashed (its subtree
+ * rides along with it, not with this restore). LWW against object.delete by
+ * log order — the single global relay log makes the pair convergent.
+ * Corner: parent row missing (permanently deleted, legacy dangling row) →
+ * reparent to the workspace root; a present-but-inactive parent is left
+ * alone (restoring the parent later heals the tree; an active child under
+ * a trashed parent is transient, never data loss).
+ */
+export const objectRestorePayload = z
+  .object({
+    objectId: uuid,
+  })
+  .strict();
+
+/**
  * Reparenting + sibling ordering (the outliner's indent/outdent/Enter
  * placement). `parentId` null means workspace root and is legal ONLY for
  * pages — the store's placement CHECKs reject a parentless block, and the
@@ -325,6 +342,7 @@ export const OP_PAYLOAD_SCHEMAS = {
   "object.create": objectCreatePayload,
   "object.update": objectUpdatePayload,
   "object.delete": objectDeletePayload,
+  "object.restore": objectRestorePayload,
   "object.move": objectMovePayload,
   "class.create": classCreatePayload,
   "class.update": classUpdatePayload,

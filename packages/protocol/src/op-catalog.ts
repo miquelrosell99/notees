@@ -37,6 +37,13 @@ export const OP_CATALOG: OpCatalogEntry[] = [
     affected: "objectId",
   },
   {
+    opType: "object.restore",
+    description:
+      "Restore from the trash — whole-tree: the subtree trashed with the node reactivates, a descendant with its own trash row (trashed independently) stays trashed. LWW against object.delete by log order.",
+    example: { objectId: "<uuid>" },
+    affected: "objectId",
+  },
+  {
     opType: "object.move",
     description: "Reparent + fractional sibling order (afterId/beforeId anchors; null parent = workspace root).",
     example: { objectId: "<uuid>", parentId: "<parent-uuid>", afterId: "<sibling-uuid>" },

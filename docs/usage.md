@@ -88,10 +88,9 @@ The transcript below is one actual run against a fresh server (docs build, 2026-
 ```console
 $ notees doctor
 ok  server configured: http://localhost:8477
-ok  api key configured: present
-ok  api key shape: nk_ + 32 chars
+ok  credential configured: present
 ok  server reachable: notees-server 2.0.0-m1 (protocol v3)
-ok  authentication: API key accepted
+ok  authentication: credential accepted
 ```
 
 **1. Create a page.** Non-JSON output prints just the new id, so it scripts cleanly:
@@ -109,6 +108,16 @@ $ echo '{"contentAst":[{"type":"text","text":"Visited the Louvre with "},
     | notees object create --parent 01a0dd78-cd48-73d5-87d6-8f650e8d7487 --stdin
 01a0dd78-ce72-769e-a424-e4d372a3ff62
 ```
+
+**Seeing the children.** `notees object children <id>` lists a node's direct children in child-position order — both render zones at once, main children first-class citizens alongside inline blocks:
+
+```console
+$ notees object children 01a0dd78-cd48-73d5-87d6-8f650e8d7487
+NAME                                        KIND   ID
+Visited the Louvre with Paris trip          block  01a0dd78-ce72-769e-a424-e4d372a3ff62
+```
+
+(The `page` rows in that listing are `--presentAsMain` children — the parent's main-children zone; `block` rows are the inline body.)
 
 **3. Search.** Unified FTS over active nodes:
 
@@ -131,8 +140,8 @@ $ notees backlinks 01a0dd78-cd48-73d5-87d6-8f650e8d7487
 
 ```console
 $ notees class list
-{ "classes": [ …, { "name": "paper",  "extendsClassId": "00000000-0000-0000-0001-000000000023" },
-               { "name": "source", "extendsClassId": null }, … ] }        # trimmed
+{ "classes": [ …, { "name": "paper", "memberCount": 0, "parentClassIds": ["00000000-0000-0000-0001-000000000023"] },
+               { "name": "source", "memberCount": 181, "parentClassIds": [] }, … ] }        # trimmed
 ```
 
 Membership changes are first-class commands — the class argument accepts a uuid or a title (case-insensitive, must be unambiguous); both ops are idempotent:
@@ -147,6 +156,22 @@ Whole classes migrate in one shot — every member moves to the target class and
 ```console
 $ notees class remap fuente source --dry-run   # what would move, writes nothing
 $ notees class remap fuente source --yes       # do it
+```
+
+Membership also moves in bulk without a target class — disband a class while keeping its members, or clear the members themselves (same preview rail as remap):
+
+```console
+$ notees class empty pokemon                      # unassign every member; the nodes stay
+$ notees class delete-members pokemon --dry-run   # what would be trashed, writes nothing
+$ notees class delete-members pokemon --yes       # trash every member (recoverable)
+```
+
+**Typed properties.** Class members carry structured values beside their content — `object property set` writes one (the schema argument is a uuid or a name; the value parses as JSON when it can — `42`, `true`, `{"nodeId": "…"}` — and stays a string otherwise), `object property delete` unsets a slot:
+
+```console
+$ notees object property set 01a0dd78-… publicationDate 1962
+$ notees object property set 01a0dd78-… authors '{"nodeId":"01a1…"}' --idx 1
+$ notees object property delete 01a0dd78-… publicationDate
 ```
 
 **6. Attach an asset.** Upload is content-sniffed (jpeg/png/webp/pdf/epub/audio); the id prints, and `--object` links it to a node:
@@ -173,6 +198,19 @@ deleted 01a0dd78-cd48-73d5-87d6-8f650e8d7487
 
 Delete is a **trash, not a purge**: the node and its subtree go inactive (`isActive: false`, still retrievable via `object get`) until retention cleans up. `--permanent --yes` hard-deletes and says "unrecoverable" in the preview.
 
+**Restore.** The trash is recoverable — `object list --trashed` shows it, `object restore <id>…` brings nodes back:
+
+```console
+$ notees object list --trashed
+NAME            KIND   ID
+Paris trip      page   01a0dd78-cd48-73d5-87d6-8f650e8d7487
+
+$ notees object restore 01a0dd78-cd48-73d5-87d6-8f650e8d7487
+01a0dd78-cd48-73d5-87d6-8f650e8d7487
+```
+
+Restore is **whole-tree**: children trashed with the node come back (tree placement intact); a child trashed on its own earlier stays trashed until you restore it. A permanently deleted node is gone — restore fails loud (exit 1). `object list` also filters `--parent <id>` for direct-children scans.
+
 **8. Watch the log grow.** The relay is the authority; the CLI keeps a local cursor per profile:
 
 ```console
@@ -181,7 +219,52 @@ server http://localhost:8477: 54 envelopes (restoreEpoch 0)
 local cursor: seq 0 — 54 behind
 ```
 
-Useful supporting commands: `notees object list --presentAsMain --q <text> --limit 20 --cursor <id>` (add `--all` to follow the cursor to exhaustion), `notees object get <id>`, `notees object update <id> --name … --presentAsMain|--no-presentAsMain --icon … --color …` (this is also promotion/demotion — flipping the render bit in place, identity and links intact; see [ux.md](ux.md#promotion-and-demotion)), and `notees ops [opType]` — the operation catalog (one-line description, example payload, affected-node shape per op) that backs the shell's `submitOp`.
+Useful supporting commands: `notees object list --presentAsMain --q <text> --limit 20 --cursor <id>` (add `--all` to follow the cursor to exhaustion; `--parent <id>` and `--trashed` filter direct children and the trash), `notees object get <id>` (`--ids <uuid…>` fetches many, in order), `notees object children <id>`, `notees object restore <id>…`, `notees object property set|delete <id> <schema> <value> [--idx N]`, `notees object update <id> --name … --presentAsMain|--no-presentAsMain --icon … --color …` (this is also promotion/demotion — flipping the render bit in place, identity and links intact; see [ux.md](ux.md#promotion-and-demotion)), and `notees ops [opType]` — the operation catalog (one-line description, example payload, affected-node shape per op) that backs the shell's `submitOp`.
+
+## Use cases
+
+**Seeding a class from a dataset** — build a JSON array of create bodies and import it in one process with `object create --batch` (the 1,025-species Pokédex imports in about a minute). Each entry is exactly one `POST /api/objects` body — `name`/`contentAst`, `parentId`, `presentAsMain`, `classIds`:
+
+```console
+$ notees object create --isClass --name Pokemon
+01a101c6-89e7-7bee-89c8-d1b87ea7af15
+$ node build-dex.mjs        # writes dex.json: [{"name":"Bulbasaur"},{"name":"Ivysaur"}, …]
+$ notees object create --batch --json < dex.json
+{ "created": 1025, "ids": [ "01a1…", … ], "failures": [] }
+```
+
+Batch semantics: entries are grouped by parent and groups run concurrently (`--jobs <n>`, default 8) — entries under one parent always apply sequentially, because child position follows apply order and bulk blocks under a single parent keep their array order. Failures are collected and reported with exit 1 (add `--stop-on-error` to abort the rest); `--batch` and `--stdin` are mutually exclusive.
+
+**A re-runnable import script** — `object upsert` finds-or-creates by exact title (case-insensitive) inside `--class`/`--parent` scopes, so a script can run daily without duplicating nodes:
+
+```console
+$ notees object upsert --name "Bulbasaur" --class 01a101c6-…
+01a1…            # first run: created
+$ notees object upsert --name "bulbasaur" --class 01a101c6-…
+01a1…            # second run: the same id, no write (zero matches → create, one → reuse)
+```
+
+More than one node matches the title in scope and upsert refuses (exit 2, names the ambiguity) — narrow it with `--class` or `--parent` rather than guessing.
+
+**Structuring each imported node** — combine the two: upsert the node, then batch its info blocks as children. Blocks are children with the render bit unset, so they render inline in the body's zone; `--presentAsMain` children land in the main-children (Pages) zone instead:
+
+```console
+$ POKEMON=$(notees object upsert --name "Venusaur" --class 01a101c6-…)
+$ notees object create --batch <<EOF
+[ {"name":"#0003","parentId":"$POKEMON"},
+  {"name":"Type: Grass / Poison","parentId":"$POKEMON"},
+  {"name":"Height: 2.0 m","parentId":"$POKEMON"} ]
+EOF
+```
+
+(Real imports generate this array in a script — one entry per fact, thousands of blocks per run is fine; `object children` above is how you check the result.)
+
+**Disbanding an experiment** — a seeded class you no longer want takes one command to drain and one to delete outright; both follow the preview/`--yes` rail (see the class section above):
+
+```console
+$ notees class empty pokemon          # membership gone, nodes kept
+$ notees class delete-members pokemon --yes     # nodes to the trash (recoverable)
+```
 
 ## The web app
 
@@ -217,7 +300,7 @@ Export is a **projection, one-way by design** (the operation log is the truth) �
 
 - **A page or node** — the node menu (context menu / page header / "…" button) → **Export**. Five formats: **Markdown**, **HTML** (standalone, print-friendly), **Word (.docx)**, **LaTeX** (with a bibliography built from source-classed nodes), and **PDF** — three layouts (Notes = the app look, Essay = single-column typeset, Academic = two-column numbered headings) on A4 or Letter, rendered in the browser with a bundled open-license font (nothing leaves the machine). Options collapse open with per-format checkboxes (include child pages, hide empty properties, include asset files for Markdown, …). Markdown and PDF get a live preview. Export downloads one file — or a `.zip` when assets are included or several nodes are selected at once (human-readable `<title>-<id8>` files + `notees-manifest.json` for Markdown).
 - **A whole workspace** — the workspace switcher's Export entry opens a small dialog: optional "Include asset files", then one `.zip` download — one Markdown file per top-level and child page (properties in YAML frontmatter, cross-page links rewritten to relative file links, whiteboard layouts as sidecar JSON), an `assets/` folder when included, and the manifest mapping every file back to its node id. The same zip is available headless: `GET /api/workspaces/:id/export.zip?includeAssets=0|1`.
-- **From the CLI** — `notees export markdown --ids <id>… | --linked-to <id> [--depth N|fixpoint] [--output-dir <dir> | --stdout]` builds the same Markdown bundle (bullet order follows child position), and `notees shell`'s `exportMd(ids)` returns it as text. Markdown escaping, full-depth closure (no silent truncation), and whiteboard sidecars are the engine defaults.
+- **From the CLI** — `notees export markdown --ids <id>… | --linked-to <id> | --class <id|title> [--depth N|fixpoint] [--output-dir <dir> | --stdout]` builds the same Markdown bundle (bullet order follows child position; `--class` seeds the bundle with the class's current members — the natural "export this class" selector), and `notees shell`'s `exportMd(ids)` returns it as text. Markdown escaping, full-depth closure (no silent truncation), and whiteboard sidecars are the engine defaults.
 
 ## Object API quick reference
 
