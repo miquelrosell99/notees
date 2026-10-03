@@ -99,7 +99,10 @@ describe("NodeView render cascade (Revision 11)", () => {
 
     const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    expect(screen.getByRole("heading", { name: "Extends" })).not.toBeNull();
+    // The class page is a PageView composition: class root, the extends
+    // corner's class-only add affordance, and the Property definitions row.
+    expect(screen.getByRole("button", { name: "Add parent class" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /property definitions/i })).not.toBeNull();
     expect(container.querySelector(".nt-class")).not.toBeNull();
     expect(container.querySelector(".nt-focused-block")).toBeNull();
   });

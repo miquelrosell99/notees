@@ -305,7 +305,7 @@ describe("dates (SCHEMA.md)", () => {
     expect(row?.metadata).toEqual({ startDate: "2026-01-01", endDate: "2026-12-31" });
   });
 
-  it("Class View bindings editor: precision select (date) and qualified checkbox (object) write through", async () => {
+  it("Class View property definitions: precision select (date) and qualified checkbox (object) write through", async () => {
     const client = await seedClient();
     const dateSchema = await client.createPropertySchema({ name: "published", type: "date" });
     const linkSchema = await client.createPropertySchema({ name: "member", type: "object" });
@@ -314,6 +314,11 @@ describe("dates (SCHEMA.md)", () => {
     await client.setClassProperty(classId, linkSchema, { sequence: 1 });
     render(<ClassView client={client} classId={classId} />);
 
+    // Non-empty schema: expand the section, then each row's config panel.
+    fireEvent.click(screen.getByRole("button", { name: /property definitions/i }));
+    await flushWrites();
+
+    fireEvent.click(screen.getByRole("button", { name: "Configure published" }));
     fireEvent.change(screen.getByLabelText("Date precision for published"), {
       target: { value: "year" },
     });
@@ -322,7 +327,8 @@ describe("dates (SCHEMA.md)", () => {
       client.listPropertySchemas().find((s) => s.id === dateSchema)?.datePrecision,
     ).toBe("year");
 
-    fireEvent.click(screen.getByLabelText("Date qualified for member"));
+    fireEvent.click(screen.getByRole("button", { name: "Configure member" }));
+    fireEvent.click(screen.getByLabelText("Date qualified"));
     await flushWrites();
     expect(
       client.listPropertySchemas().find((s) => s.id === linkSchema)?.dateQualified,

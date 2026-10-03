@@ -1,14 +1,16 @@
 /**
- * Class View tests: render-cascade view resolution (class → Class View,
- * document chrome → Page View), class chrome (name/icon/
- * color), extends editing (class.setExtends m2m), read-only property bindings
- * (seed-derived), the description shelf, and the lazy classed-nodes section.
- * jsdom environment over the in-process WorkspaceClient + MemoryRelay.
+ * Class View tests: a class page IS a page (§34.44, .plans/design/05-class-
+ * view-redesign.md) — render-cascade view resolution (class → Class View,
+ * document chrome → Page View), the page chrome (title/icon/color), the
+ * extends corner pills (class.setExtends m2m, class-only picker), the
+ * classed-nodes instances section (expanded by default), the property-
+ * definitions section, and the child-blocks body + child-pages system
+ * section. jsdom environment over the in-process WorkspaceClient + MemoryRelay.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { deriveDisplayName } from "@notees/domain";
@@ -67,15 +69,20 @@ describe("Class View", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "A Page" });
 
     const classRender = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
-    // Class chrome, not the block tree.
-    expect(screen.getByRole("heading", { name: "Extends" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Property bindings" })).not.toBeNull();
-    expect(classRender.container.querySelector(".nt-block-tree")).toBeNull();
+    // Class chrome: the extends corner's class-only add affordance and the
+    // Property definitions section — and the page body tree is present (a
+    // class page is a page).
+    expect(screen.getByRole("button", { name: "Add parent class" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /property definitions/i })).not.toBeNull();
+    expect(classRender.container.querySelector(".nt-class")).not.toBeNull();
+    // The page body chrome: an empty class offers the first-block affordance.
+    expect(screen.getByRole("button", { name: /add a block/i })).not.toBeNull();
     classRender.unmount();
 
     render(<NodeView client={client} nodeId={pageId} onOpenNode={() => {}} />);
     expect(screen.getByRole("heading", { name: "A Page" })).not.toBeNull();
-    expect(screen.queryByRole("heading", { name: "Extends" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /property definitions/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add parent class" })).toBeNull();
   });
 
   it("commits the edited class name via the shared TitleEditor pattern", async () => {
@@ -94,24 +101,23 @@ describe("Class View", () => {
     expect(deriveDisplayName(client.getNode(classId)!)).toBe("Contributor");
   });
 
-  it("adds an extends parent via the picker: store update + chip", async () => {
+  it("adds an extends parent via the class-only picker: store update + pill", async () => {
     const client = await seedClient();
     const childId = await createTitledClass(client, "person");
     const parentId = await createTitledClass(client, "agent");
     render(<ClassView client={client} classId={childId} />);
 
-    expect(screen.getByText("No parent classes.")).not.toBeNull();
-
-    fireEvent.change(screen.getByLabelText("Add parent class"), { target: { value: parentId } });
+    fireEvent.click(screen.getByRole("button", { name: "Add parent class" }));
+    const dialog = screen.getByRole("dialog", { name: "Select node" });
+    fireEvent.click(within(dialog).getByText("agent"));
     await flushWrites();
 
     expect(client.getClassParents(childId)).toEqual([parentId]);
-    // The parent renders as a chip linking to its Class View.
-    const chip = screen.getByRole("button", { name: "agent" });
-    expect(chip.className).toContain("nt-class-chip-link");
+    // The parent renders as a corner pill linking to its Class View.
+    expect(screen.getByRole("button", { name: "agent" })).not.toBeNull();
   });
 
-  it("removes an extends parent via the chip's remove button", async () => {
+  it("removes an extends parent via the pill's remove button", async () => {
     const client = await seedClient();
     const childId = await createTitledClass(client, "person");
     const parentId = await createTitledClass(client, "agent");
@@ -124,34 +130,43 @@ describe("Class View", () => {
     await flushWrites();
 
     expect(client.getClassParents(childId)).toEqual([]);
-    expect(screen.getByText("No parent classes.")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "agent" })).toBeNull();
   });
 
-  it("keeps the classed-nodes section lazy: no member query until expanded", async () => {
+  it("surfaces the store's loud extends-cycle failure as a transient banner", async () => {
+    const client = await seedClient();
+    const aId = await createTitledClass(client, "alpha");
+    const bId = await createTitledClass(client, "beta");
+    await client.setClassExtends(aId, [bId]);
+    render(<ClassView client={client} classId={bId} />);
+
+    // Picking alpha as beta's parent would close the cycle b → a → b.
+    fireEvent.click(screen.getByRole("button", { name: "Add parent class" }));
+    const dialog = screen.getByRole("dialog", { name: "Select node" });
+    fireEvent.click(within(dialog).getByText("alpha"));
+    await flushWrites();
+
+    expect(screen.getByRole("alert")).not.toBeNull();
+    expect(client.getClassParents(bId)).toEqual([]);
+  });
+
+  it("lists classed nodes without expansion (the section defaults to expanded)", async () => {
     const client = await seedClient();
     const classId = await client.createClass("agent");
     const membersSpy = vi.spyOn(client, "getClassMembers");
     render(<ClassView client={client} classId={classId} />);
 
-    expect(membersSpy).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
-    await flushWrites();
-
     expect(membersSpy).toHaveBeenCalledWith(classId);
     expect(screen.getByText("No classed nodes.")).not.toBeNull();
   });
 
-  it("lists a classed node after expand and navigates to its page", async () => {
+  it("lists a classed node and navigates to its page", async () => {
     const client = await seedClient();
     const classId = await client.createClass("agent");
     const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
     const onOpenNode = vi.fn();
     render(<ClassView client={client} classId={classId} onOpenPage={onOpenNode} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
-    await flushWrites();
 
     const memberRow = screen.getByRole("button", { name: "Ada Lovelace" });
     fireEvent.click(memberRow);
@@ -165,20 +180,20 @@ describe("Class View", () => {
     await client.assignClass(pageId, classId);
     render(<ClassView client={client} classId={classId} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
-    await flushWrites();
-
     // Table is the section default (owner rule): the member renders as a
-    // table row, and the unassign action lives in the outline mode.
+    // table row, and the unassign action lives in the outline mode. Two
+    // view toolbars render on a class page (body + classed nodes) — scope
+    // the mode switch to the classed-nodes section.
     expect(screen.getByRole("table")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Ada Lovelace" })).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    const classedNodesSection = screen
+      .getByRole("button", { name: /classed nodes/i })
+      .closest("section")!;
+    fireEvent.click(within(classedNodesSection).getByRole("radio", { name: "Outline" }));
     await flushWrites();
 
-    // The × is labeled "Remove <member> from <class>"; the class-name suffix
-    // rides the retired node.name field in ClassView (source bug), so match
-    // the stable prefix only.
+    // The × is labeled "Remove <member> from <class>"; match the stable prefix.
     fireEvent.click(screen.getByRole("button", { name: /^Remove Ada Lovelace from / }));
     await flushWrites();
 
@@ -188,12 +203,17 @@ describe("Class View", () => {
     expect(screen.getByText("No classed nodes.")).not.toBeNull();
   });
 
-  it("renders the seeded property bindings in sequence order", async () => {
+  it("renders the seeded property definitions in sequence order", async () => {
     const client = await seedClient();
     const classId = await client.createClass("source");
     const { container } = render(<ClassView client={client} classId={classId} />);
 
-    const names = [...container.querySelectorAll(".nt-class-binding-name")].map(
+    // Non-empty schema collapses the section (invites setup, then stays out
+    // of the way — parity with the page's "Properties N").
+    fireEvent.click(screen.getByRole("button", { name: /property definitions/i }));
+    await flushWrites();
+
+    const names = [...container.querySelectorAll(".nt-propdef-name")].map(
       (el) => el.textContent,
     );
     expect(names).toEqual([
@@ -208,34 +228,17 @@ describe("Class View", () => {
     // Sequence order is explicit: authors (seq 2) before isbn (seq 3).
     expect(names.indexOf("authors")).toBeLessThan(names.indexOf("isbn"));
 
-    const rows = [...container.querySelectorAll(".nt-class-binding")];
+    const rows = [...container.querySelectorAll(".nt-propdef")];
     // FINAL citations authorship (2026-09-27): authors is the node-typed,
     // agent-filtered property (linkedAuthors was withdrawn same day, …0025).
     const authorsRow = rows[1]!;
-    expect(authorsRow.textContent).toContain("object");
-    expect(authorsRow.textContent).toContain("multi");
+    expect(authorsRow.querySelector(".nt-propdef-type")?.getAttribute("aria-label")).toBe(
+      "Type: object (multi)",
+    );
     expect(authorsRow.textContent).toContain("agent");
   });
 
-  it("renders the class content in the description shelf", async () => {
-    const client = await seedClient();
-    const classId = await client.createClass("agent");
-    const { container } = render(<ClassView client={client} classId={classId} />);
-
-    // Title-is-content: the class's content IS its title, so the shelf shows
-    // it from the start — scope assertions to the shelf element.
-    const shelf = container.querySelector(".nt-class-description-body")!;
-    expect(shelf.textContent).toContain("agent");
-
-    await act(async () => {
-      await client.updateObject(classId, {
-        contentAst: [{ type: "text", text: "People and organizations." }],
-      });
-    });
-    expect(shelf.textContent).toContain("People and organizations.");
-  });
-
-  it("renders the class's children sections: inline body (Blocks) + main children (Child pages)", async () => {
+  it("renders the class's child blocks as the editable body and main children under Child pages", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Container Class");
     // Classes are containers (spec I4): an inline body child and a
@@ -248,23 +251,15 @@ describe("Class View", () => {
 
     const { container } = render(<ClassView client={client} classId={classId} />);
 
-    // Both sections exist and stay collapsed (lazy per the section contract).
-    const blocksHeader = screen.getByRole("button", { name: /^Blocks/ });
-    const childPagesHeader = screen.getByRole("button", { name: /^Child pages/ });
-    expect(blocksHeader.getAttribute("aria-expanded")).toBe("false");
-    expect(childPagesHeader.getAttribute("aria-expanded")).toBe("false");
-    // Nothing queried yet: no block rows anywhere.
-    expect(container.querySelector(".nt-block")).toBeNull();
-
-    // Expand Blocks: the inline body child renders as a read-only row.
-    fireEvent.click(blocksHeader);
+    // The body is the page tree: the inline child renders directly, with no
+    // section to expand (the read-only Blocks section left with the redesign).
     expect(screen.getByText("class body block")).not.toBeNull();
-    expect(screen.queryByText("Class Main Child")).toBeNull();
 
-    // Expand Child pages: the main child renders there, not in the body.
-    fireEvent.click(childPagesHeader);
+    // Child pages moved into the system sections — expanded by default, like
+    // the page view: the main child renders there, not in the body.
     expect(screen.getByText("Class Main Child")).not.toBeNull();
-    const blocksSection = blocksHeader.closest("section")!;
-    expect(blocksSection.textContent).not.toContain("Class Main Child");
+    expect(container.querySelector(".nt-block-tree")?.textContent ?? "").not.toContain(
+      "Class Main Child",
+    );
   });
 });

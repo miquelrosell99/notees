@@ -171,8 +171,12 @@ describe("classed-nodes table", () => {
     await client.assignClass(member, classId);
     render(<ClassView client={client} classId={classId} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
-    await flushWrites();
+    // The section defaults to expanded (§34.44); only click when collapsed.
+    const classedNodesHeader = screen.getByRole("button", { name: /classed nodes/i });
+    if (classedNodesHeader.getAttribute("aria-expanded") === "false") {
+      fireEvent.click(classedNodesHeader);
+      await flushWrites();
+    }
 
     const table = screen.getByRole("table");
     const headers = [...table.querySelectorAll("th")].map((th) => th.textContent ?? "");
@@ -340,8 +344,12 @@ describe("kanban board (property-dimension groupBy)", () => {
     await client.assignClass(member, classId);
 
     render(<ClassView client={client} classId={classId} />);
-    fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
-    await flushWrites();
+    // The section defaults to expanded (§34.44); only click when collapsed.
+    const classedNodesHeader = screen.getByRole("button", { name: /classed nodes/i });
+    if (classedNodesHeader.getAttribute("aria-expanded") === "false") {
+      fireEvent.click(classedNodesHeader);
+      await flushWrites();
+    }
 
     // The section default stays table; kanban rides the switcher.
     expect(screen.getByRole("table")).not.toBeNull();
@@ -520,8 +528,12 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   }
 
   const expandClassedNodes = async (): Promise<void> => {
-    fireEvent.click(screen.getByRole("button", { name: /classed nodes/i }));
-    await flushWrites();
+    // The section defaults to expanded (§34.44); only click when collapsed.
+    const classedNodesHeader = screen.getByRole("button", { name: /classed nodes/i });
+    if (classedNodesHeader.getAttribute("aria-expanded") === "false") {
+      fireEvent.click(classedNodesHeader);
+      await flushWrites();
+    }
   };
 
   const rowNames = (): Array<string | undefined> =>
