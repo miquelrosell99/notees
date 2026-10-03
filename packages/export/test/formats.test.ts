@@ -1,5 +1,5 @@
 /**
- * E1 specs: the format registry — markdown/html available, the other formats
+ * E1 specs: the format registry — markdown/html/docx available, pdf/latex
  * registered as unavailable skeletons with reasons, per-format option
  * gating from the catalog, and the IR serializer seam.
  */
@@ -44,21 +44,25 @@ describe("format registry", () => {
     ]);
   });
 
-  it("marks markdown and html available; the skeletons carry their landing task", () => {
-    expect(availableExportFormats().map((format) => format.id)).toEqual(["markdown", "html"]);
-    for (const id of ["pdf", "docx", "latex"] as const) {
+  it("marks markdown, html, and docx available; the skeletons carry their landing task", () => {
+    expect(availableExportFormats().map((format) => format.id)).toEqual([
+      "markdown",
+      "html",
+      "docx",
+    ]);
+    for (const id of ["pdf", "latex"] as const) {
       const format = getExportFormat(id);
       expect(format).toBeDefined();
       expect(format?.availability.status).toBe("unavailable");
       const reason = format?.availability.status === "unavailable" ? format.availability.reason : "";
       expect(reason.length).toBeGreaterThan(0);
-      expect(reason).toMatch(/task [PD]1|task L1/);
+      expect(reason).toMatch(/task P1|task L1/);
     }
   });
 
   it("unavailable formats throw loud from their serializer", () => {
     const document = buildExportDocument(makeNode("aaaaaaaa-0000-4000-8000-000000000001", "x"), CTX, resolveExportOptions());
-    for (const id of ["pdf", "docx", "latex"] as const) {
+    for (const id of ["pdf", "latex"] as const) {
       const format = getExportFormat(id);
       expect(() => format?.serialize(document)).toThrowError(/not implemented/);
     }
