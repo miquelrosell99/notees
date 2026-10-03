@@ -11,12 +11,16 @@ import { uuidv7 } from "uuidv7";
 
 import {
   classCreatePayload,
+  classPropertySetPayload,
+  classPropertyUnsetPayload,
   classUnassignPayload,
   colorValueSchema,
   objectCreatePayload,
   objectRestorePayload,
   objectUpdatePayload,
   propertySchemaCreatePayload,
+  propertySchemaDeletePayload,
+  propertySchemaUpdatePayload,
   propertySetPayload,
   propertyUnsetPayload,
 } from "@notees/protocol";
@@ -82,6 +86,16 @@ const propertyDeleteQuerySchema = z
     idx: z.coerce.number().int().nonnegative().default(0),
   })
   .strict();
+
+/** propertySchema.update body: the patch fields only (the id is the route param). */
+const propertySchemaUpdateBodySchema = propertySchemaUpdatePayload
+  .omit({ propertySchemaId: true })
+  .refine((body) => Object.keys(body).length > 0, { message: "at least one field to update" });
+
+/** class.property.set body: the patch fields + propertySchemaId (class id is the route param). */
+const classPropertySetBodySchema = classPropertySetPayload
+  .omit({ classId: true })
+  .refine((body) => Object.keys(body).length > 1, { message: "at least one binding field to set" });
 
 const createBodySchema = z
   .object({
@@ -230,6 +244,48 @@ function requireClass(store: Store, id: string): void {
   if (row === undefined) {
     throw new AppError(404, "not_found", `class ${id} does not exist`);
   }
+}
+
+interface SchemaRow {
+  id: string;
+  name: string;
+  type: string;
+  multi: number;
+  scope: string;
+  options: string;
+  targetClassFilter: string | null;
+  datePrecision: string | null;
+  dateQualified: number | null;
+}
+
+function readSchemaRow(store: Store, id: string): SchemaRow | undefined {
+  return store.database
+    .prepare(
+      `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter,
+              date_precision AS datePrecision, date_qualified AS dateQualified
+       FROM property_schema WHERE id = ? AND active = 1`,
+    )
+    .get(id) as SchemaRow | undefined;
+}
+
+/** The API property-schema view (multi decoded, JSON columns parsed). */
+function schemaView(row: SchemaRow): Record<string, unknown> {
+  return {
+    ...row,
+    multi: row.multi === 1,
+    options: JSON.parse(row.options) as unknown,
+    targetClassFilter: row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
+    datePrecision: row.datePrecision === "year" || row.datePrecision === "month" || row.datePrecision === "day" ? row.datePrecision : null,
+    dateQualified: row.dateQualified === null ? null : row.dateQualified === 1,
+  };
+}
+
+function requireSchema(store: Store, id: string): SchemaRow {
+  const row = readSchemaRow(store, id);
+  if (row === undefined) {
+    throw new AppError(404, "not_found", `property schema ${id} does not exist`);
+  }
+  return row;
 }
 
 /**
@@ -626,19 +682,12 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const store = ctx.workspaces.storeFor(workspaceId);
     const rows = store.database
       .prepare(
-        `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter
+        `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter,
+                date_precision AS datePrecision, date_qualified AS dateQualified
          FROM property_schema WHERE active = 1 ORDER BY name, id`,
       )
-      .all() as Array<{ id: string; name: string; type: string; multi: number; scope: string; options: string; targetClassFilter: string | null }>;
-    return {
-      propertySchemas: rows.map((row) => ({
-        ...row,
-        multi: row.multi === 1,
-        options: JSON.parse(row.options) as unknown,
-        targetClassFilter:
-          row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
-      })),
-    };
+      .all() as SchemaRow[];
+    return { propertySchemas: rows.map(schemaView) };
   });
 
   app.get("/property-schemas/:id", async (request) => {
@@ -646,25 +695,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
-    const row = store.database
-      .prepare(
-        `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter
-         FROM property_schema WHERE id = ? AND active = 1`,
-      )
-      .get(id) as
-      | { id: string; name: string; type: string; multi: number; scope: string; options: string; targetClassFilter: string | null }
-      | undefined;
-    if (row === undefined) {
-      throw new AppError(404, "not_found", `property schema ${id} does not exist`);
-    }
-    return {
-      propertySchema: {
-        ...row,
-        multi: row.multi === 1,
-        options: JSON.parse(row.options) as unknown,
-        targetClassFilter: row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
-      },
-    };
+    return { propertySchema: schemaView(requireSchema(store, id)) };
   });
 
   app.post("/property-schemas", async (request, reply) => {
@@ -681,26 +712,137 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       client: "api",
     });
     const store = ctx.workspaces.storeFor(workspaceId);
+    reply.code(201);
+    return { propertySchema: schemaView(requireSchema(store, parsed.data.propertySchemaId)) };
+  });
+
+  /**
+   * propertySchema.update (§34.32 PG7): rename / options / date behavior
+   * patch. The stored row is the route's 404 gate — the applier's UPDATE is
+   * intentionally quiet on unknown ids, the API is not.
+   */
+  app.patch("/property-schemas/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const parsed = propertySchemaUpdateBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid propertySchema.update body");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireSchema(store, id);
+    const checked = propertySchemaUpdatePayload.safeParse({ propertySchemaId: id, ...parsed.data });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid propertySchema.update payload");
+    }
+    await ctx.submit({
+      workspaceId,
+      opType: "propertySchema.update",
+      payload: checked.data as Record<string, unknown>,
+      client: "api",
+    });
+    return { propertySchema: schemaView(requireSchema(store, id)) };
+  });
+
+  /**
+   * propertySchema.delete (§34.32 PG7): soft-delete (active = 0). Authored
+   * values on nodes survive; the schema drops out of every read. Delete of a
+   * missing/inactive schema fails loud with 404 (same contract as object
+   * delete).
+   */
+  app.delete("/property-schemas/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireSchema(store, id);
+    const checked = propertySchemaDeletePayload.safeParse({ propertySchemaId: id });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid propertySchema.delete payload");
+    }
+    await ctx.submit({
+      workspaceId,
+      opType: "propertySchema.delete",
+      payload: checked.data as Record<string, unknown>,
+      client: "api",
+    });
+    return { id, deleted: true };
+  });
+
+  /**
+   * class.property.set (§34.32 PG7): the binding upsert (sequence, flags,
+   * defaultValue patch — omitted fields keep their values; null clears a
+   * flag). A wrong-typed defaultValue fails loud at the applier (PC2) and
+   * surfaces as 422 validation_failed.
+   */
+  app.post("/classes/:id/properties", async (request) => {
+    const { id } = request.params as { id: string };
+    const parsed = classPropertySetBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid class.property.set body");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireClass(store, id);
+    const propertySchemaId = parsed.data.propertySchemaId;
+    requireSchema(store, propertySchemaId);
+    const checked = classPropertySetPayload.safeParse({ classId: id, ...parsed.data });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid class.property.set payload");
+    }
+    await ctx.submit({
+      workspaceId,
+      opType: "class.property.set",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
     const row = store.database
       .prepare(
-        `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter
-         FROM property_schema WHERE id = ? AND active = 1`,
+        `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value
+         FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
       )
-      .get(parsed.data.propertySchemaId) as
-      | { id: string; name: string; type: string; multi: number; scope: string; options: string; targetClassFilter: string | null }
+      .get(id, propertySchemaId) as
+      | { property_schema_id: string; sequence: number; required: number | null; readonly: number | null; hide_when_empty: number | null; default_value: string | null }
       | undefined;
-    if (row === undefined) {
-      throw new AppError(404, "not_found", `property schema ${parsed.data.propertySchemaId} does not exist`);
-    }
-    reply.code(201);
     return {
-      propertySchema: {
-        ...row,
-        multi: row.multi === 1,
-        options: JSON.parse(row.options) as unknown,
-        targetClassFilter: row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
-      },
+      classId: id,
+      propertySchemaId,
+      binding:
+        row === undefined
+          ? null
+          : {
+              propertySchemaId: row.property_schema_id,
+              sequence: row.sequence,
+              required: row.required === null ? null : row.required === 1,
+              readonly: row.readonly === null ? null : row.readonly === 1,
+              hideWhenEmpty: row.hide_when_empty === null ? null : row.hide_when_empty === 1,
+              defaultValue: row.default_value === null ? null : (JSON.parse(row.default_value) as unknown),
+            },
     };
+  });
+
+  /** class.property.unset (§34.32 PG7): remove the binding row (authored values survive). */
+  app.delete("/classes/:id/properties/:propertySchemaId", async (request) => {
+    const { id, propertySchemaId } = request.params as { id: string; propertySchemaId: string };
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireClass(store, id);
+    requireSchema(store, propertySchemaId);
+    const checked = classPropertyUnsetPayload.safeParse({ classId: id, propertySchemaId });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid class.property.unset payload");
+    }
+    await ctx.submit({
+      workspaceId,
+      opType: "class.property.unset",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
+    return { classId: id, propertySchemaId, unbound: true };
   });
 
   app.delete("/objects/:id", async (request) => {

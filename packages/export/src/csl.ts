@@ -292,6 +292,20 @@ function propText(props: readonly ExportPropertyValue[], schemaId: string): stri
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+/**
+ * A property value looked up by schema NAME (the loose, convention-based
+ * direction — §34.32 PG15): the container fields have no seeded system
+ * schemas, so nodeToCsl completes the CSL mapping through the BibTeX field
+ * vocabulary by schema name — `journal`/`booktitle` → container-title,
+ * `volume` → volume, `number` → issue, `pages` → page (the exact inverse of
+ * bibToCsl's field mapping, so a BibTeX→Notees→BibTeX round trip is stable
+ * for workspaces that carry schemas under those names).
+ */
+function propTextByName(props: readonly ExportPropertyValue[], schemaName: string): string | undefined {
+  const value = props.find((prop) => prop.schemaName === schemaName)?.value;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 /** First source class on the node (classIds order), if any. */
 export function sourceClassOf(classIds: readonly string[]): SourceClassName | undefined {
   for (const classId of classIds) {
@@ -345,6 +359,16 @@ export function nodeToCsl(
   if (url !== undefined) item.URL = url;
   const publisher = propText(props, SYSTEM_PROPERTY_UUIDS.publisher);
   if (publisher !== undefined) item.publisher = publisher;
+  // §34.32 PG15 — container fields complete the export mapping (schema-name
+  // convention, see propTextByName); absent on nodes without those schemas.
+  const containerTitle = propTextByName(props, "journal") ?? propTextByName(props, "booktitle");
+  if (containerTitle !== undefined) item["container-title"] = containerTitle;
+  const volume = propTextByName(props, "volume");
+  if (volume !== undefined) item.volume = volume;
+  const issue = propTextByName(props, "number");
+  if (issue !== undefined) item.issue = issue;
+  const page = propTextByName(props, "pages");
+  if (page !== undefined) item.page = page;
   return item;
 }
 
