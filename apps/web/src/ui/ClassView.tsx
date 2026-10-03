@@ -1,187 +1,39 @@
 /**
  * ClassView — the class projection (SCHEMA.md render cascade, first branch):
- * page chrome (editable name via TitleEditor, minimal icon text input +
- * preset color swatches) PLUS the class panels:
+ * a class page IS a page (`.plans/design/05-class-view-redesign.md`): the
+ * standard PageView chrome and the class's child blocks as the editable
+ * body, composed with class-relevant sections:
  *
- * - Extends: the m2m parent classes as chips (link to their Class Views,
- *   removable) plus an add-parent picker over the workspace's classes.
- *   Writes go through `class.setExtends` (replace semantics); the store's
- *   CycleError surfaces as a transient banner.
- * - Property bindings: EDITABLE — bound property schemas in sequence order
- *   (registry rows authored by class.property.set; the designed system seeds
- *   fill unbound schemas). Per-binding default/required/readonly/
- *   hideWhenEmpty editors patch via class.property.set (missing fields keep
- *   their values), remove writes class.property.unset, and an add-binding
- *   picker binds existing property schemas (class.property.set).
- * - Description shelf: the class node's own content, read-only for M1.
- * - Templates (§34.25 T3, docs/ux.md class chrome): the class's bound
- *   templates (listClassTemplateBindings) as rows (open / unbind) plus a
- *   bind affordance — a template-class-filtered NodeSelector picker writing
- *   has-template values on the class node. The `+` renders even when empty.
- * - Classes are containers (spec I4): two lazy node sections render the
- *   class's children — Blocks (the inline body, the standard block tree) and
- *   Child pages (the main-children zone, getChildPages) — plus Classed nodes:
- *   lazy per the section contract. Self-tagged children get no special
- *   partition (spec §10 — ordinary body blocks). Members link to their page
- *   (inline blocks resolve to the containing main node); each row's ×
- *   unassigns the member from THIS class (class.unassign).
+ * - corner: ExtendsRow — the class's PARENT classes as pills (class-only
+ *   picker; class.setExtends replace semantics, loud cycle failure).
+ * - header actions: the class color dot (ColorButton picker; §34.43 grammar);
+ *   the curated ClassIconButton replaces the page icon picker.
+ * - sections: ClassedNodesSection (the instances table — the class page's
+ *   centerpiece), PropertyDefinitionsSection (the schema editor),
+ *   TemplatesSection (assigned template cards).
+ * - system sections: ExtendedBySection + the standard SystemSections
+ *   (child pages, linked/unlinked references).
+ *
+ * What went away with the redesign: the Description panel (title-is-content
+ * — the title IS the content), the Extends/Extended-by admin panels, the
+ * always-visible color swatch strip, and the read-only Blocks section (the
+ * body is the editable page tree now).
  */
 
 import { useEffect, useState } from "react";
 
-import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client.js";
 
-import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
-import { Icon } from "./Icon.js";
-import { InlineTokens } from "./InlineTokens.js";
-import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
-import { NodeSelector } from "./components/pickers/NodeSelector.js";
-import { AddPill } from "./components/ui/AddPill.js";
-import { PRESET_COLOR_ENTRIES, canonicalColor, cssColorFor } from "./components/ui/colorPresets.js";
-import {
-  ensureTemplateFamily,
-  listClassTemplateBindings,
-} from "./components/templateFamily.js";
-import { Section } from "./Section.js";
-import { TitleEditor } from "./TitleEditor.js";
-import { BlockRow } from "./BlockRow.js";
-import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
-import { NodeCollection, ViewToolbar } from "./views/index.js";
-import type { NodeCollectionItem, TableColumn, ViewMode } from "./views/index.js";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-
-/** BlockTreeNode → the collection input shape (recursive). */
-function toCollectionItem(entry: BlockTreeNode): NodeCollectionItem {
-  return { node: entry.node, children: entry.children.map(toCollectionItem) };
-}
-
-/** The classed-nodes modes, in switcher order (table is the section default). */
-const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table"];
-
-/** The first bound select property with options — the kanban grouping (single or multi). */
-function kanbanBindingFor(
-  client: WorkspaceClient | WorkerClient,
-  bindings: Array<{ propertySchemaId: string }>,
-): string | undefined {
-  const schemas = client.listPropertySchemas();
-  const binding = bindings.find((b) => {
-    const schema = schemas.find((s) => s.id === b.propertySchemaId);
-    return (
-      schema !== undefined &&
-      schema.type === "select" &&
-      schema.options !== null &&
-      schema.options.length > 0
-    );
-  });
-  return binding?.propertySchemaId;
-}
-
-/**
- * Class color swatches — the shared data-level preset palette (every picker
- * shows the same row; `nodeColors.ts` order). Swatches store preset tokens
- * (`sky`) per the §34.43 wire grammar; the concrete hex lives in
- * variables.css. `LEGACY_CLASS_COLOR_TO_VAR` keeps class nodes colored with
- * this view's old raw-hex palette highlighting the right swatch; clicking
- * any swatch re-stores the token.
- */
-const LEGACY_CLASS_COLOR_TO_TOKEN: Record<string, string> = {
-  "#b42318": "red",
-  "#b54708": "orange",
-  "#067647": "green",
-  "#175cd3": "blue",
-  "#6941c6": "purple",
-  "#c11574": "pink",
-  "#475467": "gray",
-};
-
-/** Curated icon set for the class icon picker (mdi names, sprite-served). */
-const CLASS_ICONS = [
-  "mdiAccount", "mdiAccountGroup", "mdiArchive", "mdiBook", "BookOpenVariant",
-  "mdiBookmark", "mdiBriefcase", "mdiCalendar", "mdiCalendarClock", "mdiCardText",
-  "mdiCheckboxMarkedCircleOutline", "mdiClipboardText", "mdiClockOutline", "mdiCog",
-  "mdiEmail", "mdiFileDocument", "mdiFlag", "mdiFolder", "mdiFormatListBulleted",
-  "mdiFormatListChecks", "mdiHeart", "mdiHome", "mdiImage", "mdiLabel", "mdiLightbulb",
-  "mdiLink", "mdiMapMarker", "mdiMicroscope", "mdiMovie", "mdiMusicNote", "mdiNotebook",
-  "mdiPackage", "mdiPhone", "mdiPound", "mdiPresentation", "mdiScriptText", "mdiShape",
-  "mdiStar", "mdiTag", "mdiTestTube", "mdiTooth", "mdiTrayArrowDown", "mdiWeb",
-].map((name) => (name.startsWith("mdi") ? name : `mdi${name}`));
-
-/** Icon button + popup grid: picks the class icon (or clears it). */
-function ClassIconButton({
-  client,
-  classId,
-  icon,
-}: {
-  client: WorkspaceClient | WorkerClient;
-  classId: string;
-  icon: string | null;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const filtered =
-    query.trim() === ""
-      ? CLASS_ICONS
-      : CLASS_ICONS.filter((name) => name.toLowerCase().includes(query.trim().toLowerCase()));
-
-  return (
-    <span className="nt-class-iconpicker">
-      <button
-        type="button"
-        className="nt-class-iconbtn"
-        title="Class icon"
-        aria-label="Class icon"
-        onClick={() => setOpen((value) => !value)}
-      >
-        {icon !== null && icon !== "" ? (
-          <Icon path={icon} size={1.4} />
-        ) : (
-          <Icon path="mdi-dots-grid" size={1.2} />
-        )}
-      </button>
-      {open && (
-        <span className="nt-class-iconpop" role="dialog" aria-label="Choose class icon">
-          <input
-            autoFocus
-            value={query}
-            placeholder="Search icons…"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <span className="nt-class-icons">
-            {filtered.map((name) => (
-              <button
-                key={name}
-                type="button"
-                className={name === icon ? "nt-class-iconopt nt-class-iconopt-active" : "nt-class-iconopt"}
-                title={name}
-                onClick={() => {
-                  setOpen(false);
-                  setQuery("");
-                  void client.updateObject(classId, { icon: name });
-                }}
-              >
-                <Icon path={name} size={1} />
-              </button>
-            ))}
-          </span>
-          <button
-            type="button"
-            className="nt-class-iconclear"
-            onClick={() => {
-              setOpen(false);
-              void client.updateObject(classId, { icon: "" });
-            }}
-          >
-            No icon
-          </button>
-        </span>
-      )}
-    </span>
-  );
-}
+import { PageView } from "./PageView.js";
+import { ColorButton } from "./components/ui/ColorButton.js";
+import { ClassedNodesSection } from "./components/classview/ClassedNodesSection.js";
+import { ClassIconButton } from "./components/classview/ClassIconButton.js";
+import { ExtendedBySection } from "./components/classview/ExtendedBySection.js";
+import { ExtendsRow } from "./components/classview/ExtendsRow.js";
+import { PropertyDefinitionsSection } from "./components/classview/PropertyDefinitionsSection.js";
+import { SystemSections } from "./components/SystemSections.js";
+import { TemplatesSection } from "./components/classview/TemplatesSection.js";
 
 export function ClassView({
   client,
@@ -191,550 +43,73 @@ export function ClassView({
 }: {
   client: WorkspaceClient | WorkerClient;
   classId: string;
-  /** Class navigation (extends chips, class list entries). */
+  /** Class navigation (extends pills, extended-by rows). */
   onOpenClass?: ((classId: string) => void) | undefined;
-  /** Member navigation: a member's page (blocks resolve to containing page). */
+  /** Member/template navigation (members resolve to their containing page). */
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  const outliner = useOutlinerValue(client, classId, {
-    // Render-cascade navigation for query result lists: a class opens the
-    // Class View, anything else the Page View.
-    openNode: (id) => {
-      const target = client.getNode(id);
-      if (target !== undefined && target.isClass) onOpenClass?.(id);
-      else onOpenPage?.(id);
-    },
-  });
+  /** The setClassExtends failure (extends cycles fail loud in the store). */
   const [extendsError, setExtendsError] = useState<string | null>(null);
   useEffect(() => {
     if (extendsError === null) return;
     const timer = setTimeout(() => setExtendsError(null), 4000);
     return () => clearTimeout(timer);
   }, [extendsError]);
-  /** Classed-nodes view mode: session-local, table by default (owner rule). */
-  const [membersMode, setMembersMode] = useState<ViewMode>("table");
-  /**
-   * Templates slot (§34.25 T3): the bind picker's anchor (the AddPill button)
-   * + open state. The family ensure runs on open, not mount — the row reads
-   * are schema-independent (authored values surface in effective reads), so
-   * an untouched slot authors nothing.
-   */
-  const [templatePickerAnchor, setTemplatePickerAnchor] = useState<HTMLButtonElement | null>(null);
-  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
   const node = client.getNode(classId);
   if (node === undefined || !node.isClass) {
     return <div className="nt-page-missing">Class not found.</div>;
   }
 
-  const parents = client.getClassParents(classId);
-  const children = client.getClassChildren(classId);
-  const bindings = client.getClassBindings(classId);
-  const boundSchemaIds = new Set(bindings.map((b) => b.propertySchemaId));
-  const schemaCandidates = client.listPropertySchemas().filter((s) => !boundSchemaIds.has(s.id));
-  const candidates = client
-    .listClasses()
-    .filter((candidate) => candidate.id !== classId && !parents.includes(candidate.id));
-  /** The class's bound templates, each with its authored value's idx (unbind target). */
-  const templateBindings = listClassTemplateBindings(client, classId);
-
-  /** Append a has-template value at the next free idx (the metadata-section pattern). */
-  const bindTemplate = async (templateId: string) => {
-    const authoredIdx = client
-      .getEffectiveProperties(classId)
-      .filter(
-        (entry) =>
-          entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate &&
-          entry.source === "authored",
-      )
-      .map((entry) => entry.idx);
-    const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
-    await client.setProperty(
-      classId,
-      SYSTEM_PROPERTY_UUIDS.hasTemplate,
-      { nodeId: templateId },
-      nextIdx,
-    );
-  };
-
-  /** Replace the extends set; the store fails loud on cycles. */
-  const replaceExtends = async (nextParentIds: string[]) => {
-    try {
-      await client.setClassExtends(classId, nextParentIds);
-    } catch (err) {
-      setExtendsError(err instanceof Error ? err.message : "Failed to update extends");
-    }
-  };
-
-  /**
-   * A member opens directly when it renders with document chrome; an inline
-   * block member resolves to its containing main node (nearest ancestor
-   * matching the document-chrome predicate).
-   */
-  const openMember = (member: ClientNode) => {
-    if (rendersWithDocumentChrome(member)) {
-      onOpenPage?.(member.id);
-      return;
-    }
-    const seen = new Set<string>([member.id]);
-    let current = client.getNode(member.parentId ?? "");
-    while (current !== undefined && !rendersWithDocumentChrome(current) && !seen.has(current.id)) {
-      seen.add(current.id);
-      current = current.parentId !== null ? client.getNode(current.parentId) : undefined;
-    }
-    onOpenPage?.(current !== undefined && rendersWithDocumentChrome(current) ? current.id : member.id);
-  };
-
-  // Legacy raw-hex class colors (this view's old palette) highlight their
-  // successor preset swatch; the retired var() encoding folds to its token;
-  // everything else compares as stored.
-  const currentClassColor =
-    node.color !== null
-      ? (LEGACY_CLASS_COLOR_TO_TOKEN[node.color.toLowerCase()] ?? canonicalColor(node.color))
-      : null;
-
   return (
-    <OutlinerContext.Provider value={outliner}>
-      <div className="nt-page nt-class">
-        <header className="nt-page-header">
-          <div className="nt-class-title">
-            <ClassIconButton client={client} classId={classId} icon={node.icon} />
-            <TitleEditor page={node} />
-          </div>
-          <div className="nt-page-toolbar">
-            <div className="nt-class-colors" role="group" aria-label="Class color">
-              {PRESET_COLOR_ENTRIES.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={
-                    currentClassColor === value ? "nt-class-swatch nt-class-swatch-active" : "nt-class-swatch"
-                  }
-                  style={{ background: cssColorFor(value) }}
-                  aria-label={`Set color ${label}`}
-                  title={label}
-                  onClick={() => void client.updateObject(classId, { color: value })}
-                />
-              ))}
-            </div>
-          </div>
-        </header>
-
-        {extendsError !== null && (
+    <PageView
+      client={client}
+      pageId={classId}
+      onOpenPage={onOpenPage}
+      forClass
+      rootClassName="nt-class"
+      corner={
+        <ExtendsRow
+          client={client}
+          classId={classId}
+          onOpenClass={onOpenClass}
+          onError={setExtendsError}
+        />
+      }
+      iconButton={<ClassIconButton client={client} classId={classId} icon={node.icon} />}
+      headerActions={
+        <ColorButton
+          color={node.color ?? "var(--color-surface-container-highest)"}
+          size="sm"
+          showPicker
+          showNoneOption
+          title="Class color"
+          aria-label="Class color"
+          onColorChange={(color) => void client.updateObject(classId, { color })}
+        />
+      }
+      notice={
+        extendsError !== null ? (
           <div role="alert" className="nt-dnd-error">
             {extendsError}
           </div>
-        )}
-
-        <section className="nt-class-panel">
-          <h2 className="nt-class-panel-title">Extends</h2>
-          {parents.length === 0 ? (
-            <span className="nt-class-empty">No parent classes.</span>
-          ) : (
-            <ul className="nt-class-chips">
-              {parents.map((parentId) => {
-                const parent = client.getNode(parentId);
-                const label = parent !== undefined ? (displayNameForSettings(parent) ?? parentId) : parentId;
-                return (
-                  <li key={parentId} className="nt-class-chip">
-                    <button
-                      type="button"
-                      className="nt-class-chip-link"
-                      onClick={() => onOpenClass?.(parentId)}
-                    >
-                      {label}
-                    </button>
-                    <button
-                      type="button"
-                      className="nt-class-chip-remove"
-                      aria-label={`Remove parent ${label}`}
-                      onClick={() => void replaceExtends(parents.filter((id) => id !== parentId))}
-                    >
-                      ×
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {candidates.length > 0 && (
-            <select
-              className="nt-class-add-parent"
-              aria-label="Add parent class"
-              value=""
-              onChange={(event) => {
-                const parentId = event.target.value;
-                if (parentId !== "") void replaceExtends([...parents, parentId]);
-              }}
-            >
-              <option value="" disabled>
-                Add parent class…
-              </option>
-              {candidates.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {displayNameForSettings(candidate) ?? candidate.id}
-                </option>
-              ))}
-            </select>
-          )}
-        </section>
-
-        <section className="nt-class-panel">
-          <h2 className="nt-class-panel-title">Extended by</h2>
-          {children.length === 0 ? (
-            <span className="nt-class-empty">No subclasses.</span>
-          ) : (
-            // Flat read-only blocks list of the classes extending this one
-            // (transitive), mirroring the v1 readonly blocks-list prop.
-            <SortableContext
-              items={children.map((child) => child.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="nt-block-tree nt-block-tree--readonly">
-                {children.map((child) => (
-                  <BlockRow
-                    key={child.id}
-                    tree={{ node: child, children: [] }}
-                    client={client}
-                    resolveName={(id) => displayNameFromClient(client, id)}
-                    readOnly
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          )}
-        </section>
-
-        <section className="nt-class-panel">
-          <h2 className="nt-class-panel-title">Templates</h2>
-          {templateBindings.length === 0 ? (
-            <span className="nt-class-empty">No templates bound.</span>
-          ) : (
-            <ul className="nt-class-templates">
-              {templateBindings.map(({ node, idx }) => {
-                const label = displayNameForSettings(node) ?? node.id;
-                return (
-                  <li key={`${node.id}:${idx}`} className="nt-class-template">
-                    <button
-                      type="button"
-                      className="nt-class-template-open"
-                      onClick={() => onOpenPage?.(node.id)}
-                    >
-                      {label}
-                    </button>
-                    <button
-                      type="button"
-                      className="nt-class-template-unbind"
-                      aria-label={`Unbind template ${label}`}
-                      onClick={() =>
-                        void client.unsetProperty(
-                          classId,
-                          SYSTEM_PROPERTY_UUIDS.hasTemplate,
-                          idx,
-                        )
-                      }
-                    >
-                      ×
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {/*
-            The bind affordance renders even when empty (a class without
-            templates still offers the gesture). The picker lists template-
-            class nodes only — the ONE class-filtered surface; instantiation
-            surfaces stay unfiltered per the D1 amendment.
-          */}
-          <AddPill
-            label="Bind template"
-            aria-expanded={templatePickerOpen}
-            onClick={(element) => {
-              setTemplatePickerAnchor(element);
-              setTemplatePickerOpen(true);
-              void ensureTemplateFamily(client);
-            }}
-          />
-          {templatePickerOpen && templatePickerAnchor !== null && (
-            <NodeSelector
-              client={client}
-              anchorEl={templatePickerAnchor}
-              searchMode="pages"
-              classFilters={[SYSTEM_CLASS_UUIDS.template]}
-              nodes={templateBindings.map((binding) => binding.node)}
-              excludeNodeId={classId}
-              searchPlaceholder="Search templates…"
-              onClose={() => setTemplatePickerOpen(false)}
-              onAdd={(node) => {
-                setTemplatePickerOpen(false);
-                void bindTemplate(node.id);
-              }}
-            />
-          )}
-        </section>
-
-        <section className="nt-class-panel">
-          <h2 className="nt-class-panel-title">Property bindings</h2>
-          {bindings.length === 0 ? (
-            <span className="nt-class-empty">No property bindings.</span>
-          ) : (
-            <ul className="nt-class-bindings">
-              {bindings.map((binding) => (
-                <li key={binding.propertySchemaId} className="nt-class-binding">
-                  <input
-                    key={`seq:${binding.propertySchemaId}:${binding.sequence}`}
-                    type="number"
-                    className="nt-class-binding-seq"
-                    defaultValue={binding.sequence}
-                    aria-label={`Sequence for ${binding.name}`}
-                    onBlur={(event) => {
-                      const next = Number.parseInt(event.target.value, 10);
-                      if (Number.isFinite(next) && next !== binding.sequence) {
-                        void client.setClassProperty(classId, binding.propertySchemaId, {
-                          sequence: next,
-                        });
-                      }
-                    }}
-                  />
-                  <span className="nt-class-binding-name">{binding.name}</span>
-                  <span className="nt-class-binding-type">
-                    {binding.type}
-                    {binding.multi ? " · multi" : ""}
-                  </span>
-                  {binding.targetClassFilter !== null && (
-                    <span className="nt-class-binding-target">→ {binding.targetClassFilter.join(", ")}</span>
-                  )}
-                  <input
-                    key={`def:${binding.propertySchemaId}:${binding.defaultValue ?? ""}`}
-                    type="text"
-                    className="nt-class-binding-default"
-                    placeholder="default"
-                    defaultValue={binding.defaultValue ?? ""}
-                    aria-label={`Default for ${binding.name}`}
-                    onBlur={(event) => {
-                      const value = event.target.value;
-                      if (value !== (binding.defaultValue ?? "")) {
-                        void client.setClassProperty(classId, binding.propertySchemaId, {
-                          defaultValue: value,
-                        });
-                      }
-                    }}
-                  />
-                  {(
-                    [
-                      ["required", "Required", binding.required],
-                      ["readonly", "Readonly", binding.readonly],
-                      ["hideWhenEmpty", "Hide when empty", binding.hideWhenEmpty],
-                    ] as const
-                  ).map(([field, label, current]) => (
-                    <label key={field} className="nt-class-binding-flag">
-                      <input
-                        type="checkbox"
-                        checked={current === true}
-                        aria-label={`${label} for ${binding.name}`}
-                        onChange={(event) => {
-                          void client.setClassProperty(classId, binding.propertySchemaId, {
-                            [field]: event.target.checked,
-                          });
-                        }}
-                      />
-                      {label}
-                    </label>
-                  ))}
-                  {(binding.type === "date" || binding.type === "date_range") && (
-                    <label className="nt-class-binding-flag">
-                      Precision
-                      <select
-                        className="nt-class-binding-precision"
-                        aria-label={`Date precision for ${binding.name}`}
-                        value={binding.datePrecision ?? "day"}
-                        onChange={(event) => {
-                          void client.updatePropertySchema(binding.propertySchemaId, {
-                            datePrecision: event.target.value as "year" | "month" | "day",
-                          });
-                        }}
-                      >
-                        <option value="day">day</option>
-                        <option value="month">month</option>
-                        <option value="year">year</option>
-                      </select>
-                    </label>
-                  )}
-                  {binding.type === "object" && (
-                    <label className="nt-class-binding-flag">
-                      <input
-                        type="checkbox"
-                        checked={binding.dateQualified === true}
-                        aria-label={`Date qualified for ${binding.name}`}
-                        onChange={(event) => {
-                          void client.updatePropertySchema(binding.propertySchemaId, {
-                            dateQualified: event.target.checked,
-                          });
-                        }}
-                      />
-                      Date qualified
-                    </label>
-                  )}
-                  <button
-                    type="button"
-                    className="nt-class-binding-remove"
-                    aria-label={`Remove binding ${binding.name}`}
-                    onClick={() =>
-                      void client.unsetClassProperty(classId, binding.propertySchemaId)
-                    }
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {schemaCandidates.length > 0 && (
-            <select
-              className="nt-class-add-binding"
-              aria-label="Add property binding"
-              value=""
-              onChange={(event) => {
-                const propertySchemaId = event.target.value;
-                if (propertySchemaId !== "") {
-                  void client.setClassProperty(classId, propertySchemaId, {
-                    sequence: bindings.length,
-                  });
-                }
-              }}
-            >
-              <option value="" disabled>
-                Add property binding…
-              </option>
-              {schemaCandidates.map((schema) => (
-                <option key={schema.id} value={schema.id}>
-                  {schema.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </section>
-
-        <section className="nt-class-panel">
-          <h2 className="nt-class-panel-title">Description</h2>
-          {node.contentAst.length === 0 ? (
-            <span className="nt-class-empty">No description.</span>
-          ) : (
-            <div className="nt-class-description-body">
-              <InlineTokens
-                tokens={node.contentAst}
-                resolveName={(id) => displayNameFromClient(client, id)}
-                onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
-              />
-            </div>
-          )}
-        </section>
-
-        <div className="nt-page-sections">
-          <Section
-            client={client}
-            title="Blocks"
-            load={() => client.getBlockTree(classId)}
-            emptyText="No blocks."
-            renderResults={(tree) => (
-              // The class's inline body (classes are containers, spec I4):
-              // the standard block tree, read-only rows — clicking a row
-              // opens the node (inline blocks resolve to their containing
-              // main node).
-              <NodeCollection
-                viewMode="outline"
-                client={client}
-                items={tree.map(toCollectionItem)}
-                tree
-                readOnly
-                onNodeClick={(id) => {
-                  const child = client.getNode(id);
-                  if (child !== undefined) openMember(child);
-                }}
-              />
-            )}
-          />
-          <Section
-            client={client}
-            title="Child pages"
-            load={() => client.getChildPages(classId)}
-            emptyText="No child pages."
-            renderResults={(pages) => (
-              // The class's main-children zone (present-as-main children of
-              // any node type — "Pages" stays the user-facing render-state
-              // vocabulary). Rows open the node directly.
-              <NodeCollection
-                viewMode="outline"
-                client={client}
-                items={pages.map((child) => ({ node: child }))}
-                readOnly
-                onNodeClick={(id) => onOpenPage?.(id)}
-              />
-            )}
-          />
-          <Section
-            client={client}
-            title="Classed nodes"
-            load={() => client.getClassMembers(classId)}
-            emptyText="No classed nodes."
-            renderResults={(members) => {
-              const memberItems: NodeCollectionItem[] = members.map((member) => ({ node: member }));
-              const memberColumns: TableColumn[] = [
-                { id: "name", kind: "name", label: "Name", sortable: true },
-                ...bindings.map((binding) => ({
-                  id: binding.propertySchemaId,
-                  kind: "property" as const,
-                  label: binding.name,
-                  propertySchemaId: binding.propertySchemaId,
-                  sortable: true,
-                })),
-                { id: "created", kind: "created", label: "Created", sortable: true },
-              ];
-              const unassignAction = (item: NodeCollectionItem) => (
-                <button
-                  type="button"
-                  className="nt-class-member-remove"
-                  aria-label={`Remove ${displayNameForSettings(item.node) || item.node.id} from ${displayNameForSettings(node) || "this class"}`}
-                  onClick={() => void client.unassignClass(item.node.id, classId)}
-                >
-                  ×
-                </button>
-              );
-              const kanbanProperty = kanbanBindingFor(client, bindings);
-              const modes: ViewMode[] =
-                kanbanProperty !== undefined
-                  ? ["outline", "cards", "kanban", "table"]
-                  : MEMBERS_VIEW_MODES;
-              return (
-                <>
-                  <ViewToolbar
-                    modes={modes}
-                    value={membersMode}
-                    onChange={setMembersMode}
-                  />
-                  <NodeCollection
-                    viewMode={membersMode}
-                    client={client}
-                    items={memberItems}
-                    tableColumns={memberColumns}
-                    propertiesOf={(id) => client.getEffectiveProperties(id)}
-                    tableEditable
-                    kanbanProperty={kanbanProperty}
-                    onNodeClick={(id) => {
-                      const member = client.getNode(id);
-                      if (member !== undefined) openMember(member);
-                    }}
-                    trailingAction={unassignAction}
-                  />
-                </>
-              );
-            }}
-          />
-        </div>
-      </div>
-    </OutlinerContext.Provider>
+        ) : null
+      }
+      sections={
+        <>
+          <ClassedNodesSection key="classed-nodes" client={client} classId={classId} onOpenPage={onOpenPage} />
+          <PropertyDefinitionsSection key="property-definitions" client={client} classId={classId} />
+          <TemplatesSection key="templates" client={client} classId={classId} onOpenPage={onOpenPage} />
+        </>
+      }
+      systemSections={
+        <>
+          <ExtendedBySection key="extended-by" client={client} classId={classId} onOpenClass={onOpenClass} />
+          <SystemSections client={client} pageId={classId} onOpenPage={onOpenPage} />
+        </>
+      }
+    />
   );
 }
