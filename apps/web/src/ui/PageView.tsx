@@ -22,10 +22,12 @@
  * opener (see editor-popups/).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+
+import { rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -82,6 +84,26 @@ export function PageView({
   onOpenInSidebar,
   onDeleted,
   embedded = false,
+  /**
+   * Class composition (the Class View renders a class node through PageView):
+   * accepts a class node in the page read (getPage excludes classes), adds
+   * `rootClassName` to the `.nt-page` root, and enables the slots below. All
+   * slots default to the plain-page chrome.
+   */
+  forClass = false,
+  rootClassName = undefined,
+  /** Replaces the default classes corner cluster (ClassView: extends pills). */
+  corner = undefined,
+  /** Replaces the default header icon button + picker (ClassView: curated). */
+  iconButton = undefined,
+  /** Right-aligned extras in the title row (ClassView: the class color dot). */
+  headerActions = undefined,
+  /** Rendered right after the header (ClassView: the extends-cycle banner). */
+  notice = undefined,
+  /** Inserted between the block tree and the system sections (class sections). */
+  sections = undefined,
+  /** Replaces the default <SystemSections/> (ClassView: extends-by + system). */
+  systemSections = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
   pageId: string;
@@ -98,6 +120,14 @@ export function PageView({
    * install one document listener per entry.
    */
   embedded?: boolean;
+  forClass?: boolean;
+  rootClassName?: string | undefined;
+  corner?: ReactNode;
+  iconButton?: ReactNode;
+  headerActions?: ReactNode;
+  notice?: ReactNode;
+  sections?: ReactNode;
+  systemSections?: ReactNode;
 }) {
   /**
    * Child-blocks view mode (the outline/prose/cards triad): session-local
@@ -197,7 +227,14 @@ export function PageView({
     return () => clearTimeout(timer);
   }, [moveError]);
 
-  const page = client.getPage(pageId);
+  // The page read accepts a class node only in class composition (getPage
+  // excludes classes by design — rendersWithDocumentChrome is the page test).
+  const rawNode = client.getNode(pageId);
+  const page =
+    rawNode !== undefined &&
+    (rendersWithDocumentChrome(rawNode) || (forClass && rawNode.isClass))
+      ? rawNode
+      : undefined;
   const headerIcon =
     page !== undefined ? nodeIcon(page, classIconMap(client.listClasses())) : null;
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
@@ -313,14 +350,22 @@ export function PageView({
   return (
     <OutlinerContext.Provider value={outliner}>
       <LinkEditModalHost client={client} openerRef={linkOpenerRef}>
-        <div className="nt-page" ref={pageRootRef} onClick={handleExternalLinkClick}>
+        <div
+          className={rootClassName !== undefined ? `nt-page ${rootClassName}` : "nt-page"}
+          ref={pageRootRef}
+          onClick={handleExternalLinkClick}
+        >
           {/* Classes: pinned to the main content card's top-left corner
-              (outside the centered content column), with card padding. */}
-          {!embedded && (
-            <div className="nt-page-classes-corner">
-              <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
-            </div>
-          )}
+              (outside the centered content column), with card padding.
+              Class composition swaps in its extends (parent-class) pills. */}
+          {!embedded &&
+            (corner !== undefined ? (
+              corner
+            ) : (
+              <div className="nt-page-classes-corner">
+                <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
+              </div>
+            ))}
           {findOpen && (
             <FindReplaceWidget
               blocks={findDocs}
@@ -331,34 +376,40 @@ export function PageView({
           )}
           <header className="nt-page-header">
           <div className="page-header__title-row">
-            <span
-              className="page-icon-btn"
-              title="Page icon (click: change icon)"
-              ref={pageIconRef}
-              onClick={() => {
-                if (!embedded) setIconPickerOpen((open) => !open);
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setHeaderMenu({ x: event.clientX, y: event.clientY });
-              }}
-            >
-              {headerIcon !== null ? (
-                <Icon path={headerIcon} size={1.4} className="page-icon-large" />
-              ) : (
-                <span className="page-icon-placeholder">◈</span>
-              )}
-            </span>
-            {iconPickerOpen && (
-              <IconPickerPopup
-                value={page.icon ?? undefined}
-                anchorEl={pageIconRef.current}
-                onSelect={(iconValue) => {
-                  // "" clears (Icon treats empty as no icon).
-                  void client.updateObject(pageId, { icon: iconValue });
-                }}
-                onClose={() => setIconPickerOpen(false)}
-              />
+            {iconButton !== undefined ? (
+              iconButton
+            ) : (
+              <>
+                <span
+                  className="page-icon-btn"
+                  title="Page icon (click: change icon)"
+                  ref={pageIconRef}
+                  onClick={() => {
+                    if (!embedded) setIconPickerOpen((open) => !open);
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setHeaderMenu({ x: event.clientX, y: event.clientY });
+                  }}
+                >
+                  {headerIcon !== null ? (
+                    <Icon path={headerIcon} size={1.4} className="page-icon-large" />
+                  ) : (
+                    <span className="page-icon-placeholder">◈</span>
+                  )}
+                </span>
+                {iconPickerOpen && (
+                  <IconPickerPopup
+                    value={page.icon ?? undefined}
+                    anchorEl={pageIconRef.current}
+                    onSelect={(iconValue) => {
+                      // "" clears (Icon treats empty as no icon).
+                      void client.updateObject(pageId, { icon: iconValue });
+                    }}
+                    onClose={() => setIconPickerOpen(false)}
+                  />
+                )}
+              </>
             )}
             {/* Right-click anywhere on the title (not just the icon) opens the
                 page's node context menu — the browser menu is never the
@@ -383,11 +434,15 @@ export function PageView({
               <TitleEditor page={page} />
             )}
             </span>
+            {headerActions !== undefined && (
+              <div className="nt-page-toolbar">{headerActions}</div>
+            )}
           </div>
           {!embedded && (
             <TagsRow client={client} nodeId={pageId} tagIds={page.tagIds} onOpenPage={onOpenPage} />
           )}
         </header>
+        {notice}
         {moveError !== null && (
           <div role="alert" className="nt-dnd-error">
             {moveError}
@@ -398,7 +453,9 @@ export function PageView({
         {whiteboardTokenIndex >= 0 ? (
           <>
             <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
-            <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+            {systemSections ?? (
+              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+            )}
           </>
         ) : (
           <>
@@ -433,8 +490,12 @@ export function PageView({
                   {/* The system sections join the same drag context: the Child
                       pages section's read-only rows are droppable (zone-aware —
                       a drop anchored on a main child promotes into the Pages
-                      zone, see handleDragEnd). */}
-                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+                      zone, see handleDragEnd). Class composition inserts its
+                      class-relevant sections ahead of them. */}
+                  {sections}
+                  {systemSections ?? (
+                    <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+                  )}
                 </DropLineContext.Provider>
                 <DragOverlay dropAnimation={null}>
                   {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
