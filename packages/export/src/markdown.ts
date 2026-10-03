@@ -208,6 +208,19 @@ function renderPropertyScalar(property: ExportPropertyValue & { display: string 
   return yamlScalar(base);
 }
 
+/** A date_range row's two end labels (null = open side), when it is one. */
+function rangeEnds(property: ExportPropertyValue): Array<string | null> | null {
+  if (!isRecord(property.value) || "nodeId" in property.value) return null;
+  if (!("start" in property.value) && !("end" in property.value)) return null;
+  const entries = (property as { displayEntries?: Array<string | null> }).displayEntries;
+  if (entries !== undefined && entries.length === 2) return entries;
+  return null;
+}
+
+function renderRangeEnd(label: string | null): string {
+  return label === null ? "null" : yamlScalar(label);
+}
+
 function renderFrontmatter(document: ExportDocument, options: ResolvedExportOptions): string {
   const lines: string[] = ["---"];
   if (document.title.length > 0) lines.push(`name: ${yamlScalar(document.title)}`);
@@ -236,10 +249,34 @@ function renderFrontmatter(document: ExportDocument, options: ResolvedExportOpti
       if (values.length === 1) {
         const only = values[0];
         if (only === undefined) continue;
+        // §34.32 PG15 per-type branches: date_range rows emit a start/end map,
+        // multi-value arrays emit one YAML item per element (labels, not raw
+        // JSON); everything else stays a scalar.
+        const ends = rangeEnds(only);
+        if (ends !== null) {
+          lines.push(`  ${yamlKey(schemaName)}:`);
+          lines.push(`    start: ${renderRangeEnd(ends[0] ?? null)}`);
+          lines.push(`    end: ${renderRangeEnd(ends[1] ?? null)}`);
+          continue;
+        }
+        const entries = (only as { displayEntries?: string[] }).displayEntries;
+        if (Array.isArray(only.value) && only.value.length > 0 && entries !== undefined) {
+          lines.push(`  ${yamlKey(schemaName)}:`);
+          for (const entry of entries) lines.push(`    - ${yamlScalar(entry)}`);
+          continue;
+        }
         lines.push(`  ${yamlKey(schemaName)}: ${renderPropertyScalar(only)}`);
       } else {
         lines.push(`  ${yamlKey(schemaName)}:`);
-        for (const value of values) lines.push(`    - ${renderPropertyScalar(value)}`);
+        for (const value of values) {
+          const ends = rangeEnds(value);
+          if (ends !== null) {
+            lines.push(`    - start: ${renderRangeEnd(ends[0] ?? null)}`);
+            lines.push(`      end: ${renderRangeEnd(ends[1] ?? null)}`);
+            continue;
+          }
+          lines.push(`    - ${renderPropertyScalar(value)}`);
+        }
       }
     }
   }

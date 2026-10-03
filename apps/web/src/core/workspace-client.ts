@@ -898,6 +898,16 @@ export class WorkspaceClient {
   }
 
   /**
+   * Nodes carrying an authored value for the property schema (§34.32 PG12 —
+   * the PropertyView's references population). Pure read over the local
+   * store; derived defaults never materialize, so unvalued bindings never
+   * list.
+   */
+  getPropertyReferences(schemaId: string): ClientNode[] {
+    return this.store.propertyValueCarriers(schemaId).map((entry) => mapNode(entry.node));
+  }
+
+  /**
    * Asset metadata for a node reference (the derived node_asset rows that
    * asset.attach/detach maintain): the panel resolves attachment chips to
    * original names and download ids through this read. Purely local; the row
