@@ -85,7 +85,7 @@ export const EXPORT_FORMATS: readonly ExportFormatDefinition[] = [
     availability: {
       status: "unavailable",
       reason:
-        "PDF export lands in task P1 (Phase 2): client-side rendering with Notes/Essay/Academic layouts and the A4/Letter page option.",
+        "PDF is rendered by the web client (apps/web/src/ui/export-pdf — @react-pdf/renderer, code-split with local OFL fonts); the pure package cannot carry the React-based engine.",
     },
     options: optionSpecsFor("pdf"),
     serialize: notImplemented("pdf", "task P1"),
