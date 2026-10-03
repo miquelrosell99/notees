@@ -313,6 +313,10 @@ export function nodeToCsl(
   node: BibliographicNode,
   props: readonly ExportPropertyValue[],
   authors: readonly string[],
+  /** Resolve a `{nodeId}` property ref to the target's display name (the
+   *  publicationDate date-node ref — year-only values ride the date chain
+   *  since the §34.28 #19 import change; plain-string values still win). */
+  resolveName?: ((id: string) => string | undefined) | undefined,
 ): CslItem {
   const className = sourceClassOf(node.classIds) ?? DEFAULT_CLASS_NAME;
   const item: CslItem = {
@@ -324,7 +328,14 @@ export function nodeToCsl(
     .map((literal) => parseAuthorName(literal))
     .filter((name) => formatAuthorName(name).length > 0);
   if (names.length > 0) item.author = names;
-  const year = yearFromDate(propValue(props, SYSTEM_PROPERTY_UUIDS.publicationDate));
+  const pubValue = propValue(props, SYSTEM_PROPERTY_UUIDS.publicationDate);
+  const pubText =
+    typeof pubValue === "string"
+      ? pubValue
+      : typeof (pubValue as { nodeId?: unknown } | undefined)?.nodeId === "string"
+        ? resolveName?.((pubValue as { nodeId: string }).nodeId)
+        : undefined;
+  const year = yearFromDate(pubText);
   if (year !== undefined) item.issued = { "date-parts": [[year]] };
   const doi = propText(props, SYSTEM_PROPERTY_UUIDS.doi);
   if (doi !== undefined) item.DOI = doi;

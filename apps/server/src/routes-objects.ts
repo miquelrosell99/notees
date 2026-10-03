@@ -99,6 +99,10 @@ const createBodySchema = z
     contentAst: z.array(z.unknown()).optional(),
     classIds: z.array(z.string().uuid()).default([]),
     parentId: z.string().uuid().nullable().optional(),
+    /** Caller-chosen id (deterministic content-addressed ids — the date
+     * chain roots; the op payload has always accepted one). Defaults to a
+     * fresh UUIDv7. A taken id fails loud with 409. */
+    id: z.string().uuid().optional(),
   })
   .strict();
 
@@ -379,7 +383,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     }
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
-    const objectId = uuidv7();
+    const objectId = parsed.data.id ?? uuidv7();
     // Title-is-content: `name` becomes the node's initial text content (a
     // single text token) when no explicit contentAst is given.
     const initialText =

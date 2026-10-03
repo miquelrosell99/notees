@@ -345,7 +345,18 @@ function cslOf(
   const authors = properties
     .filter((property) => property.schemaId === SYSTEM_PROPERTY_UUIDS.authors)
     .map((property) => property.display);
-  return nodeToCsl({ id, name: title.length > 0 ? title : null, classIds }, properties, authors);
+  // A nodeId-shaped publicationDate resolves through the row's build-time
+  // display string (the year node's label), rename-free.
+  const pub = properties.find((property) => property.schemaId === SYSTEM_PROPERTY_UUIDS.publicationDate);
+  const resolveName =
+    pub !== undefined && typeof pub.value !== "string"
+      ? (refId: string): string | undefined =>
+          typeof (pub.value as { nodeId?: unknown }).nodeId === "string" &&
+          (pub.value as { nodeId: string }).nodeId === refId
+            ? pub.display
+            : undefined
+      : undefined;
+  return nodeToCsl({ id, name: title.length > 0 ? title : null, classIds }, properties, authors, resolveName);
 }
 
 /**
