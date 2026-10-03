@@ -14,6 +14,10 @@
  *  - `maxDepth` — the retired silent `MAX_CHILD_DEPTH` cap returns as an
  *    EXPLICIT option; `null` (default) renders the whole tree, and a hit
  *    renders a visible `![[uuid]]` cut bullet, never a silent truncation.
+ *  - `layout` — the §34.24 Notes/Essay/Academic render themes as an engine
+ *    option: `"notes"` (default) | `"essay"` | `"academic"`, gated to
+ *    pdf/docx/html/latex. H1 projects it as the HTML body class +
+ *    stylesheet variants; P1/D1/L1 theme the paged formats.
  *  - `whiteboardMode` — `"inline"` (single-file default: fenced ```json) vs
  *    `"sidecar"` (bundle/zip mode: sidecar JSON file + file link, §34.12
  *    Tier-2 convention "whiteboards → sidecar JSON + file link").
@@ -63,6 +67,13 @@ export interface ExportOptions {
   /** Page size for paged formats. pdf only. Default "a4". */
   pageFormat?: "a4" | "letter" | undefined;
   /**
+   * Layout theme: "notes" (default — the app's look), "essay" (typeset serif
+   * single column), "academic" (two-column). Gated to pdf/docx/html/latex;
+   * html (H1) projects it as the body class + stylesheet variants, the paged
+   * formats get full theming in P1/D1/L1.
+   */
+  layout?: "notes" | "essay" | "academic" | undefined;
+  /**
    * Include asset bytes. markdown bundle/zip delivery only (task E5/E7); the
    * IR collects `assetRefs` regardless so the bundle walker has them.
    * Default OFF.
@@ -83,6 +94,7 @@ export interface ResolvedExportOptions {
   hideEmptyProperties: boolean;
   showTypeLabels: boolean;
   pageFormat: "a4" | "letter";
+  layout: "notes" | "essay" | "academic";
   includeAssets: boolean;
   /** null = render the whole tree (full closure). */
   maxDepth: number | null;
@@ -97,6 +109,7 @@ export function resolveExportOptions(options?: ExportOptions): ResolvedExportOpt
     hideEmptyProperties: options?.hideEmptyProperties ?? true,
     showTypeLabels: options?.showTypeLabels ?? false,
     pageFormat: options?.pageFormat ?? "a4",
+    layout: options?.layout ?? "notes",
     includeAssets: options?.includeAssets ?? false,
     maxDepth: options?.maxDepth ?? null,
     whiteboardMode: options?.whiteboardMode ?? "inline",
@@ -174,6 +187,19 @@ export const EXPORT_OPTION_SPECS: readonly ExportOptionSpec[] = [
       { value: "a4", label: "A4" },
       { value: "letter", label: "Letter" },
     ],
+  },
+  {
+    key: "layout",
+    label: "Layout",
+    kind: "select",
+    default: "notes",
+    appliesTo: ["pdf", "docx", "html", "latex"],
+    choices: [
+      { value: "notes", label: "Notes" },
+      { value: "essay", label: "Essay" },
+      { value: "academic", label: "Academic" },
+    ],
+    note: "Render theme; HTML projects it as stylesheet variants, the paged formats theme it in P1/D1/L1.",
   },
   {
     key: "includeAssets",
