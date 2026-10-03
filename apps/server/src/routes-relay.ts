@@ -56,6 +56,9 @@ const snapshotPutQuerySchema = z.object({
  * enforces workspace membership for account principals. The operator API
  * key keeps its historical unrestricted access (CLI, owned devices).
  * `access: "write"` claims unclaimed workspaces for the first account.
+ *
+ * §34.33 AG3: scoped API keys are object-API credentials — the whole relay
+ * surface (HTTP and the WebSocket) rejects them with 403 `scope_denied`.
  */
 export function requireCredential(
   ctx: ServerContext,
@@ -66,6 +69,13 @@ export function requireCredential(
   const resolved = resolvePrincipal(ctx, request);
   if (resolved === null) {
     throw new AppError(401, "unauthenticated", "invalid or missing credentials");
+  }
+  if (resolved.scopes !== null) {
+    throw new AppError(
+      403,
+      "scope_denied",
+      "scoped API keys are not accepted on the relay surface — they are object-API credentials",
+    );
   }
   if (workspaceId !== undefined) {
     authorizeWorkspace(ctx, resolved.principal, workspaceId, access);

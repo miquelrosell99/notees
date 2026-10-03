@@ -115,6 +115,22 @@ const updateBodySchema = z
     /** Preset token or #RRGGBB hex; null clears (SCHEMA.md color grammar). */
     color: colorValueSchema.nullish(),
     contentAst: z.array(z.unknown()).optional(),
+    /**
+     * §34.33 AG5 optimistic-concurrency guard, HTTP-layer only (never
+     * enters the op payload): the node's `hlc` as last seen by the caller.
+     * The node row's (hlc_physical, hlc_logical) is the one natural
+     * per-node revision (bumped by object.update/object.move); a stale
+     * value fails 409 conflict. Other mutations have no natural revision
+     * and deliberately offer no base check — see the OpenAPI
+     * x-revision-checks extension.
+     */
+    baseRevision: z
+      .object({
+        physical: z.number().int().nonnegative(),
+        logical: z.number().int().nonnegative(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, { message: "at least one field to update" });
@@ -465,8 +481,19 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
-    requireNode(store, id);
-    const body = parsed.data as Record<string, unknown>;
+    const row = requireNode(store, id);
+    const { baseRevision, ...fields } = parsed.data;
+    if (
+      baseRevision !== undefined &&
+      (row.hlc_physical !== baseRevision.physical || row.hlc_logical !== baseRevision.logical)
+    ) {
+      throw new AppError(
+        409,
+        "conflict",
+        `base revision mismatch: the object changed since hlc ${baseRevision.physical}:${baseRevision.logical} (current ${row.hlc_physical}:${row.hlc_logical})`,
+      );
+    }
+    const body = fields as Record<string, unknown>;
     const payload = { objectId: id, ...body };
     const checked = objectUpdatePayload.safeParse(payload);
     if (!checked.success) {
@@ -479,8 +506,8 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       affectedNodeIds: [id],
       client: "api",
     });
-    const row = requireNode(store, id);
-    return { object: fullObject(store, row) };
+    const updated = requireNode(store, id);
+    return { object: fullObject(store, updated) };
   });
 
   /**
