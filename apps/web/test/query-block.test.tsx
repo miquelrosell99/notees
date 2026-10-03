@@ -293,7 +293,17 @@ describe("query block (live query token)", () => {
     const token = client.getNode(block)!.contentAst[0] as unknown as { queryAst: QueryAst };
     expect(token.queryAst).toEqual(
       composeQueryAst(
-        { scope: "page", classId: null, isClass: "", presentAsMain: "", contains: "" },
+        {
+          scope: "page",
+          classId: null,
+          isClass: "",
+          presentAsMain: "",
+          contains: "",
+          createdAfter: "",
+          createdBefore: "",
+          sortField: "",
+          sortDir: "asc",
+        },
         host,
         true,
       ),
@@ -472,7 +482,7 @@ describe("query block (live query token)", () => {
     expect(() => client.runQueryAst({ nope: true })).toThrow(InvalidQueryAstError);
   });
 
-  it("result list caps at 200 rows with an N-more line", async () => {
+  it("result list windows at 200 rows; load-more widens past the cap", async () => {
     const client = await seedClient();
     const city = await client.createClass("City");
     const host = await client.createObject({ presentAsMain: true, name: "Host" });
@@ -489,7 +499,11 @@ describe("query block (live query token)", () => {
     await screen.findByText("City 0");
     expect(container.querySelectorAll(".outline-row__main").length).toBe(QUERY_RESULT_CAP);
     expect(badge(container)).toBe(String(total));
-    expect(screen.getByText("5 more")).not.toBeNull();
+
+    // The cap is a render window, not a result ceiling: load-more widens it.
+    fireEvent.click(screen.getByRole("button", { name: /5 more/ }));
+    expect(container.querySelectorAll(".outline-row__main").length).toBe(total);
+    expect(screen.queryByRole("button", { name: /more/ })).toBeNull();
   });
 
   it("result clicks navigate per the render cascade (inline block → containing main node)", async () => {

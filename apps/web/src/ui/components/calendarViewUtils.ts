@@ -8,6 +8,7 @@ import {
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   TASK_CLOSED_STATUSES,
+  parseDateNodeId,
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
 
@@ -154,6 +155,121 @@ export function partitionOpenTasks(
   overdue.sort(byDay);
   scheduled.sort(byDay);
   return { overdue, scheduled };
+}
+
+// --- day-page derivation (§34.28 #4/#7/#11) -----------------------------------
+
+/** `YYYY-MM-DD` from parsed date-node id parts — the inverse direction of parseIsoDate. */
+export function isoOfDateParts(parts: { year: number; month: number; day: number }): string {
+  return `${String(parts.year).padStart(4, "0")}-${String(parts.month).padStart(2, "0")}-${String(
+    parts.day,
+  ).padStart(2, "0")}`;
+}
+
+/**
+ * The local ISO day a `{"nodeId": …}` date property value points at (null
+ * unless the target parses at day precision). Shared by the Calendar day
+ * view, the day-page sections, and the tasks buckets.
+ */
+export function scheduledIsoOf(value: unknown): string | null {
+  const ref = value as { nodeId?: unknown } | undefined;
+  if (typeof ref?.nodeId !== "string") return null;
+  const parsed = parseDateNodeId(ref.nodeId);
+  if (parsed === null || parsed.precision !== "day") return null;
+  return isoOfDateParts(parsed);
+}
+
+/**
+ * The 7 local ISO dates of the visible week containing `iso`, honoring the
+ * first-day-of-week setting (noon-anchored via addDaysIso, so DST never
+ * shifts the calendar day). Feeds the week strip (§34.28 #11).
+ */
+export function weekDaysOfIso(iso: string, firstDayOfWeek: number): string[] {
+  const [y, m, d] = iso.split("-").map(Number);
+  const weekday = new Date(y!, m! - 1, d!, 12).getDay();
+  const offset = (weekday - firstDayOfWeek + 7) % 7;
+  return Array.from({ length: 7 }, (_, i) => addDaysIso(iso, i - offset));
+}
+
+/**
+ * Range-aware day activity (§34.28 #11): true when the day node's backlink
+ * set holds any non-date-chain source. The edge projection fans date refs
+ * (and date_range ends) out to the deterministic day node, so one
+ * materialized read answers "objects dated this day" — a day-precision ref
+ * lands on its day, a range end lands on its end day. (Qualified-link
+ * metadata ranges edge only from their start day — the middle days stay
+ * dotless, the same visibility the Dated section has.)
+ */
+export function hasDatedRefs(backlinks: ReadonlyArray<{ sourceId: string }>): boolean {
+  return backlinks.some((edge) => parseDateNodeId(edge.sourceId) === null);
+}
+
+// --- bucketed tasks (§34.28 #5) ------------------------------------------------
+
+/**
+ * One task row's client-side bucket facts (derived from effective
+ * properties). `drivingIso` is the earliest scheduled/deadline day — the day
+ * the bucket labels and sorts by (null for unscheduled/completed).
+ */
+export interface TaskBucketRow extends OpenTaskRow {
+  deadlineIso: string | null;
+  drivingIso: string | null;
+}
+
+export interface TaskBuckets {
+  /** Driving day before today. */
+  overdue: TaskBucketRow[];
+  /** Driving day exactly today. */
+  today: TaskBucketRow[];
+  /** Driving day after today (unbounded — the hub must not drop far-future tasks). */
+  upcoming: TaskBucketRow[];
+  /** Open, no scheduled/deadline day. */
+  unscheduled: TaskBucketRow[];
+  /** Closed status — the whole closed set, not just today's completions. */
+  completed: TaskBucketRow[];
+}
+
+/**
+ * The v1 TasksPopup partition, client-side over the tasks-hub members: a
+ * task's driving day is its earliest scheduled/deadline day, and the bucket
+ * priority is Overdue → Today → Upcoming, so every open task lands in
+ * exactly one bucket. (v1's OR-section queries could list one task twice;
+ * the hub section keeps rows unique and unbounded-upcoming so nothing
+ * scheduled vanishes.)
+ */
+export function partitionTasksIntoBuckets(
+  rows: readonly TaskBucketRow[],
+  todayIso: string,
+): TaskBuckets {
+  const overdue: TaskBucketRow[] = [];
+  const today: TaskBucketRow[] = [];
+  const upcoming: TaskBucketRow[] = [];
+  const unscheduled: TaskBucketRow[] = [];
+  const completed: TaskBucketRow[] = [];
+  for (const row of rows) {
+    if (row.closed) {
+      completed.push(row);
+      continue;
+    }
+    const days = [row.scheduledIso, row.deadlineIso]
+      .filter((day): day is string => day !== null)
+      .sort();
+    const drivingIso = days[0] ?? null;
+    const withDriving: TaskBucketRow = { ...row, drivingIso };
+    if (drivingIso === null) unscheduled.push(withDriving);
+    else if (drivingIso < todayIso) overdue.push(withDriving);
+    else if (drivingIso === todayIso) today.push(withDriving);
+    else upcoming.push(withDriving);
+  }
+  const byDay = (a: TaskBucketRow, b: TaskBucketRow) =>
+    (a.drivingIso ?? "").localeCompare(b.drivingIso ?? "") || a.id.localeCompare(b.id);
+  overdue.sort(byDay);
+  upcoming.sort(byDay);
+  const byId = (a: TaskBucketRow, b: TaskBucketRow) => a.id.localeCompare(b.id);
+  today.sort(byId);
+  unscheduled.sort(byId);
+  completed.sort(byId);
+  return { overdue, today, upcoming, unscheduled, completed };
 }
 
 // --- quick-create chips (§34.28 #10) -----------------------------------------

@@ -26,32 +26,6 @@
   background: var(--color-background);
 }
 
-.nt-palette-input-icon {
-  flex-shrink: 0;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-palette-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-on-surface);
-  font: inherit;
-  font-size: var(--font-size-base);
-  padding: var(--spacing-3) 0;
-}
-
-.nt-palette-input:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-.nt-palette-input-row:focus-within {
-  border-color: var(--color-accent);
-  box-shadow: var(--shadow-focus-ring);
-}
-
 .nt-palette-results {
   overflow-y: auto;
   min-height: 0;
@@ -70,8 +44,9 @@
 
 .nt-palette-item {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   width: 100%;
   border: none;
   background: transparent;
@@ -88,6 +63,13 @@
   background: var(--color-surface-container-high);
 }
 
+.nt-palette-item-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
 .nt-palette-item-icon {
   flex-shrink: 0;
   display: inline-flex;
@@ -96,9 +78,32 @@
 
 .nt-palette-item-label {
   min-width: 0;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Containing-page label on block content hits (M4/M8). */
+.nt-palette-item-meta {
+  flex-shrink: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-2xs);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-palette-snippet {
+  padding-left: calc(0.9em + var(--spacing-2));
+}
+
+.nt-palette-searching {
+  padding: var(--spacing-2);
+  text-align: center;
+  font-size: var(--font-size-2xs);
+  color: var(--color-on-surface-variant);
 }
 
 .nt-palette-empty {

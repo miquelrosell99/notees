@@ -48,6 +48,17 @@ export function useWeekdayHeader(firstDayOfWeek: number): string[] {
   );
 }
 
+export interface CalendarDayExtraMarks {
+  /**
+   * §34.28 #11 range-aware dots: objects reference this day (date refs and
+   * date_range ends fan out to the deterministic day node) — set when the
+   * day has dated activity but no page of its own.
+   */
+  dated?: boolean;
+  /** §34.28 #15: the day page carries the reviewed flag. */
+  reviewed?: boolean;
+}
+
 export interface CalendarDayGridProps {
   year: number;
   /** 0-indexed month. */
@@ -56,6 +67,8 @@ export interface CalendarDayGridProps {
   firstDayOfWeek?: number;
   /** A day cell is marked "has-note" when the day page exists locally. */
   hasNote?: ((isoDate: string) => boolean) | undefined;
+  /** Secondary marks beyond has-note (range-aware dots, the reviewed tint). */
+  extraMarks?: ((isoDate: string) => CalendarDayExtraMarks) | undefined;
   /** The panel's outlined day (local YYYY-MM-DD); null = no selection mark. */
   selectedDate?: string | null | undefined;
   onSelectDay: (isoDate: string) => void;
@@ -66,6 +79,7 @@ export function CalendarDayGrid({
   month,
   firstDayOfWeek = 1,
   hasNote,
+  extraMarks,
   selectedDate = null,
   onSelectDay,
 }: CalendarDayGridProps) {
@@ -85,10 +99,13 @@ export function CalendarDayGrid({
         ))}
       </div>
       <div className="calendar-days">
-        {days.map((day, index) =>
-          day === null ? (
-            <span key={`pad-${index}`} className="calendar-day-cell" aria-hidden="true" />
-          ) : (
+        {days.map((day, index) => {
+          if (day === null) {
+            return <span key={`pad-${index}`} className="calendar-day-cell" aria-hidden="true" />;
+          }
+          const iso = isoLocal(year, month, day);
+          const extra = extraMarks?.(iso) ?? {};
+          return (
             <span key={day} className="calendar-day-cell">
               <Button
                 variant="ghost"
@@ -100,15 +117,17 @@ export function CalendarDayGrid({
                   day: "numeric",
                 })}
                 className={`calendar-day${isTodayMonth && day === today.getDate() ? " today" : ""}${
-                  hasNote?.(isoLocal(year, month, day)) === true ? " has-note" : ""
-                }${selectedDate === isoLocal(year, month, day) ? " selected" : ""}`}
-                onClick={() => onSelectDay(isoLocal(year, month, day))}
+                  hasNote?.(iso) === true ? " has-note" : ""
+                }${extra.dated === true ? " dated" : ""}${
+                  extra.reviewed === true ? " reviewed" : ""
+                }${selectedDate === iso ? " selected" : ""}`}
+                onClick={() => onSelectDay(iso)}
               >
                 {day}
               </Button>
             </span>
-          ),
-        )}
+          );
+        })}
       </div>
     </>
   );

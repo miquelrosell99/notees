@@ -18,8 +18,11 @@
  *    (`queryAstSchema` is strict; the protocol content token wraps it in a
  *    loose union so foreign blocks still apply — see content-mark);
  *  - scopes and conditions carry explicit ids; there are no editor-relative
- *    placeholders in v1 (the compiler accepts `currentNodeId` for future
- *    current-node-relative scopes, reserved).
+ *    ID placeholders in v1 ("this page" is baked at write time by the
+ *    builder). `{today}`-style DATE placeholders ({today}/{this_week}/
+ *    {this_month}/{this_year}) are ordinary strings in timestamp/value
+ *    positions and resolve at compile time against the run clock
+ *    (@notees/query CompileOptions.now) — see placeholders.ts.
  */
 
 import { z } from "zod";

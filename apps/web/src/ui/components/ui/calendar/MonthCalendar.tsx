@@ -17,7 +17,7 @@ import { useEffect } from "react";
 
 import { Button } from "../Button.js";
 import { SelectionButton } from "../SelectionButton.js";
-import { CalendarDayGrid, MONTHS_SHORT, isoLocal } from "./dayGrid.js";
+import { CalendarDayGrid, MONTHS_SHORT, isoLocal, type CalendarDayExtraMarks } from "./dayGrid.js";
 import { useCalendarMode } from "./useCalendarMode.js";
 import "./MonthCalendar.css";
 
@@ -39,6 +39,8 @@ export interface MonthCalendarProps {
   firstDayOfWeek?: number;
   /** Whether the day page for a local YYYY-MM-DD exists in the workspace. */
   hasNote: (isoDate: string) => boolean;
+  /** Secondary marks beyond has-note (§34.28 #11 range-aware dots, #15 reviewed). */
+  extraMarks?: ((isoDate: string) => CalendarDayExtraMarks) | undefined;
 }
 
 export function MonthCalendar({
@@ -46,6 +48,7 @@ export function MonthCalendar({
   onSelectDate,
   firstDayOfWeek = 1,
   hasNote,
+  extraMarks,
 }: MonthCalendarProps) {
   const [year, month] = (() => {
     const [y, m] = selectedDate.split("-").map(Number);
@@ -118,6 +121,7 @@ export function MonthCalendar({
           month={currentMonth}
           firstDayOfWeek={firstDayOfWeek}
           hasNote={hasNote}
+          extraMarks={extraMarks}
           selectedDate={selectedDate}
           onSelectDay={onSelectDate}
         />

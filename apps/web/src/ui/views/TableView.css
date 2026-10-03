@@ -284,6 +284,16 @@
   width: var(--icon-size-lg, 24px);
 }
 
+/* url/email cells: read-only values navigate (mailto: for email). */
+.nt-table-link {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.nt-table-link:hover {
+  text-decoration: underline;
+}
+
 .nt-table-row--selected {
   background: var(--color-primary-container, rgba(0, 0, 0, 0.06));
 }

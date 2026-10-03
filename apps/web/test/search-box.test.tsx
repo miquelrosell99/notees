@@ -6,7 +6,7 @@
  * syntax hint toggles the cheatsheet, and result clicks navigate.
  */
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 
@@ -84,6 +84,7 @@ describe("SearchBox", () => {
     const cached = {
       ...client,
       search: (q: string) => (converged ? client.search(q) : []),
+      getSearchSnippet: (id: string, q: string) => client.getSearchSnippet(id, q),
     };
     const { rerender } = render(
       <SearchBox client={cached as WorkspaceClient} onOpenNode={() => {}} cacheVersion={0} />,
@@ -164,5 +165,41 @@ describe("SearchBox", () => {
     await screen.findByText("Old Paper");
     typeQuery("");
     expect(container.querySelector(".nt-search-results")).toBeNull();
+  });
+
+  it("renders the M3 match snippet with highlighted spans", async () => {
+    const { client } = await seedWorld();
+    render(<SearchBox client={client} onOpenNode={() => {}} cacheVersion={0} />);
+
+    typeQuery("cooking");
+    // The matched token rides in a <mark> inside the snippet line.
+    const mark = await screen.findByText("Cooking", { selector: ".nt-search-mark" });
+    expect(mark.closest(".nt-search-snippet")).not.toBeNull();
+    // Non-matching hits show no snippet.
+    expect(screen.queryByText("Old Paper", { selector: ".nt-query-item-name" })).toBeNull();
+  });
+
+  it("load-more appends the next cursor page (C5)", async () => {
+    const { client } = await seedWorld();
+    for (let i = 0; i < 55; i++) {
+      await client.createObject({ presentAsMain: true, name: `Pagedoc ${String(i).padStart(2, "0")}` });
+    }
+    const searchPageSpy = vi.spyOn(client, "searchPage");
+    render(<SearchBox client={client} onOpenNode={() => {}} cacheVersion={0} />);
+
+    typeQuery("pagedoc");
+    // Ranking ties (same single-token text) break on id: newest first, so the
+    // first page is Pagedoc 54…05 and Pagedoc 00 sits on the second page.
+    await screen.findByText("Pagedoc 54");
+    // First page is the sync 50-hit cap; the panel offers the next page.
+    const more = await screen.findByRole("button", { name: "Load more results" });
+    expect(screen.getAllByText(/^Pagedoc /)).toHaveLength(50);
+    fireEvent.click(more);
+    expect(await screen.findByText("Pagedoc 00")).not.toBeNull();
+    expect(screen.getAllByText(/^Pagedoc /)).toHaveLength(55);
+    // The fetch went through the cursor API with the opaque cursor.
+    expect(searchPageSpy).toHaveBeenCalledWith("pagedoc", { limit: 50, cursor: "50" });
+    // The second page exhausted the set — the button goes away.
+    expect(screen.queryByRole("button", { name: "Load more results" })).toBeNull();
   });
 });

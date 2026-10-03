@@ -161,6 +161,25 @@ export interface QueryAggregateResult {
 }
 
 /**
+ * One page of the cursor-paginated ranked search (§34.30 C5): the resolved
+ * nodes plus the opaque cursor for the next page (null = exhausted).
+ */
+export interface SearchPageResult {
+  nodes: ClientNode[];
+  nextCursor: string | null;
+}
+
+/**
+ * Match-context snippet (§34.30 M3), mirrored from @notees/store's
+ * SearchSnippet: the whitespace-normalized excerpt plus char-offset match
+ * spans into it.
+ */
+export interface SearchSnippetData {
+  text: string;
+  matches: Array<{ start: number; length: number }>;
+}
+
+/**
  * One class → property-schema binding, as projected by the Class View.
  * Registry rows (class_property joined to property_schema) now that
  * class.property.set authors them; the designed system seeds
@@ -1114,12 +1133,59 @@ export class WorkspaceClient {
     return propertyRefIds;
   }
 
-  /** FTS prefix-AND search over active nodes. */
-  search(query: string): ClientNode[] {
+  /** FTS prefix-AND search over active nodes (ranked; limit defaults to 50). */
+  search(query: string, limit?: number): ClientNode[] {
     return this.store
-      .search(query)
+      .search(query, limit)
       .map((hit) => this.getNode(hit.nodeId))
       .filter((node): node is ClientNode => node !== undefined);
+  }
+
+  /**
+   * Cursor-paginated ranked search (§34.30 C5): the async counterpart of the
+   * cached sync `search` for load-more surfaces. `cursor` is the opaque
+   * `nextCursor` of the previous page (null/absent = first page); the result
+   * carries the next cursor (null = exhausted).
+   */
+  searchPage(
+    query: string,
+    opts?: { limit?: number; cursor?: string | null } | null,
+  ): Promise<SearchPageResult> {
+    const page = this.store.searchPage(query, { limit: opts?.limit, cursor: opts?.cursor ?? null });
+    return Promise.resolve({
+      nodes: page.hits
+        .map((hit) => this.getNode(hit.nodeId))
+        .filter((node): node is ClientNode => node !== undefined),
+      nextCursor: page.nextCursor,
+    });
+  }
+
+  /**
+   * Match-context snippet around the densest query-term cluster in one node's
+   * indexed plaintext (§34.30 M3) — the results panels' excerpt. Null when
+   * the node is unknown or carries no match. Sync like the other cached reads.
+   */
+  getSearchSnippet(
+    nodeId: string,
+    query: string,
+    opts?: { maxTokens?: number; ellipsis?: string } | null,
+  ): SearchSnippetData | null {
+    return this.store.getSearchSnippet(nodeId, query, opts ?? undefined);
+  }
+
+  /**
+   * Name→id resolution (§34.30 C6): the local twin of GET /api/resolve —
+   * case-insensitive EXACT display-name match over the ranked FTS candidates
+   * (blocks included). Null when no active node carries the exact name.
+   */
+  resolveNodeByName(name: string): string | null {
+    const wanted = name.toLowerCase();
+    for (const hit of this.store.search(name, 100)) {
+      const node = this.getNode(hit.nodeId);
+      if (node === undefined) continue;
+      if ((deriveDisplayName(node) || "").toLowerCase() === wanted) return node.id;
+    }
+    return null;
   }
 
   /**

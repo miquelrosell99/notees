@@ -155,6 +155,18 @@ const searchQuerySchema = z
     isClass: booleanQueryParam.optional(),
     presentAsMain: booleanQueryParam.optional(),
     limit: z.coerce.number().int().min(1).max(500).default(50),
+    /**
+     * Offset cursor from a previous response's `nextCursor` (§34.30 C5) —
+     * opaque to callers; anything not a decimal offset fails 422.
+     */
+    cursor: z.string().regex(/^\d+$/).optional(),
+  })
+  .strict();
+
+const resolveQuerySchema = z
+  .object({
+    /** The node's display name (title-is-content: the derived content title). */
+    name: z.string().min(1).max(512),
   })
   .strict();
 
@@ -932,12 +944,12 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid search query");
     }
-    const { q, isClass, presentAsMain, limit } = parsed.data;
+    const { q, isClass, presentAsMain, limit, cursor } = parsed.data;
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
-    const hits = store.search(q, limit);
-    const results = hits
+    const page = store.searchPage(q, { limit, cursor: cursor ?? null });
+    const results = page.hits
       .map((hit) => store.getNode(hit.nodeId))
       .filter((row): row is NodeRow => row !== undefined && row.is_active === 1)
       .filter((row) => isClass === undefined || (row.is_class === 1) === isClass)
@@ -961,7 +973,43 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
           updatedAt: api.updatedAt,
         };
       });
-    return { results };
+    return { results, nextCursor: page.nextCursor };
+  });
+
+  /**
+   * Name→id resolution (§34.30 C6): the exact-display-name counterpart of
+   * /search, so DSL clients (CLI `linked:`, future builders) resolve a node's
+   * id from its title in ONE round trip instead of prefetching through /search
+   * and filtering exact matches client-side. Title-is-content: the compared
+   * name is the derived display name, case-insensitive; the candidate pool is
+   * the ranked FTS hit set (blocks included), so resolution follows search
+   * semantics. 404 when no active node carries the exact name.
+   */
+  app.get("/resolve", async (request) => {
+    const parsed = resolveQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid resolve query");
+    }
+    const { name } = parsed.data;
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    const wanted = name.toLowerCase();
+    for (const hit of store.search(name, 100)) {
+      const row = store.getNode(hit.nodeId);
+      if (row === undefined || row.is_active !== 1) continue;
+      const api = nodeToApi(row);
+      if ((api.name ?? "").toLowerCase() === wanted) {
+        return {
+          name: api.name,
+          id: api.id,
+          isClass: api.isClass,
+          presentAsMain: api.presentAsMain,
+          parentId: api.parentId,
+        };
+      }
+    }
+    throw new AppError(404, "not_found", `no node named "${name}"`);
   });
 
   /**

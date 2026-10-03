@@ -993,6 +993,102 @@ select:focus-visible {
   padding: 2px 4px;
 }
 
+/* Load-more widens the render window past the 200-row cap (§34.31 C2). */
+.nt-query-more {
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-query-more:hover {
+  color: var(--color-on-surface);
+  text-decoration: underline;
+}
+
+/* §34.31 C1: the read-only summary + warning shown when the AST uses
+   constructs the builder can't represent. */
+.nt-query-guard {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-error);
+}
+
+.nt-query-summary {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Queries hub (§34.31 V4): header actions beside the switcher, the saved-
+   views tab bar, and the host-page footnote. */
+.nt-hub-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  align-items: center;
+}
+
+.nt-view-tabs {
+  margin: 4px 0 8px;
+}
+
+.nt-view-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+}
+
+.nt-view-tab {
+  display: inline-flex;
+  align-items: center;
+}
+
+.nt-view-tab-label-active {
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.nt-view-tab-default {
+  margin-left: 4px;
+  font-size: 8px;
+  color: var(--color-primary);
+}
+
+.nt-view-tab-menu {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.nt-view-tab-menu:hover {
+  color: var(--color-on-surface);
+}
+
+.nt-queries-host {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-size: inherit;
+  text-decoration: underline;
+}
+
 .nt-query-invalid {
   border: 1px dashed var(--color-outline);
   border-radius: 6px;
@@ -1872,6 +1968,7 @@ mark {
 /* --- search box ------------------------------------------------------------- */
 
 .nt-search {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1932,19 +2029,30 @@ mark {
 .nt-search-results {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   max-height: 320px;
   overflow-y: auto;
+  /* Sidebar mount: the panel overlays the navigation below the field
+     instead of pushing it (the nav keeps its scroll position). */
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 6px;
+  box-shadow: var(--shadow-elevation-2);
 }
 
 .nt-search-hit {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   width: 100%;
   border: none;
   background: transparent;
@@ -1957,6 +2065,56 @@ mark {
 
 .nt-search-hit:hover {
   background: var(--color-surface-container-highest);
+}
+
+.nt-search-hit-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nt-search-hit-top .nt-query-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-search-snippet {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.nt-search-mark {
+  background: var(--color-primary-container);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.nt-search-more {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-primary);
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.nt-search-more:hover:not(:disabled) {
+  background: var(--color-surface-container-highest);
+}
+
+.nt-search-more:disabled {
+  color: var(--color-on-surface-variant);
 }
 
 .nt-search-empty {
@@ -2017,6 +2175,18 @@ mark {
 /* Nav hubs (Journal / Inbox / Pages / Whiteboards / Tasks). */
 .nt-hub {
   padding: var(--spacing-8, 32px) var(--spacing-6, 24px);
+}
+
+/* The tasks hub stacks the §34.28 #5 bucket section above its collection;
+   both scroll as one hub body. */
+.nt-hub-tasks {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--spacing-8, 32px) var(--spacing-6, 24px);
+}
+
+.nt-hub-tasks .nt-hub {
+  padding: 0;
 }
 
 .nt-hub-header {

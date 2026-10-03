@@ -293,16 +293,26 @@ describe("dates (SCHEMA.md)", () => {
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
 
-    fireEvent.change(screen.getByLabelText("Alice start date"), {
-      target: { value: "2026-01-01" },
-    });
-    fireEvent.change(screen.getByLabelText("Alice end date"), {
-      target: { value: "2026-12-31" },
-    });
+    // §34.32 PG17: the qualifier slots ride the shared zoom-picker control
+    // (no native date inputs). The picker opens on TODAY's month, so the
+    // expected values are computed from the current year/month.
+    const now = new Date();
+    const expected = (day: string) =>
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${day}`;
+    fireEvent.click(screen.getByRole("button", { name: "Alice start date" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("10"));
+    fireEvent.click(screen.getByRole("button", { name: "Alice end date" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("20"));
     await flushWrites();
 
     const row = client.getEffectiveProperties(pageId).find((r) => r.propertySchemaId === schemaId);
-    expect(row?.metadata).toEqual({ startDate: "2026-01-01", endDate: "2026-12-31" });
+    expect(row?.metadata).toEqual({ startDate: expected("10"), endDate: expected("20") });
+
+    // The slot's clear affordance drops the qualifier (the link survives).
+    fireEvent.click(screen.getByRole("button", { name: "Alice start date (clear)" }));
+    await flushWrites();
+    const cleared = client.getEffectiveProperties(pageId).find((r) => r.propertySchemaId === schemaId);
+    expect(cleared?.metadata).toEqual({ endDate: expected("20") });
   });
 
   it("Class View property definitions: precision select (date) and qualified checkbox (object) write through", async () => {

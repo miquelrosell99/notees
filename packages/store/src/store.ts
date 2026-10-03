@@ -28,6 +28,7 @@ import {
   isSearchIndexQueryable,
   reindexAllSearch,
   searchNodes,
+  searchNodesPage,
   searchSnippet,
   type SearchSnippet,
 } from "./search.js";
@@ -406,6 +407,19 @@ export class Store {
    */
   search(query: string, limit = 50): SearchHit[] {
     return searchNodes(this.db, query, limit);
+  }
+
+  /**
+   * Cursor-paginated ranked search (§34.30 C5): same deterministic order as
+   * `search`, one page at a time. `cursor` is the opaque value the previous
+   * page returned (`null`/absent for the first page); `nextCursor` is null
+   * when the match set is exhausted. A garbage cursor throws (fail loud).
+   */
+  searchPage(
+    query: string,
+    opts?: { limit?: number | undefined; cursor?: string | null | undefined },
+  ): { hits: SearchHit[]; nextCursor: string | null } {
+    return searchNodesPage(this.db, query, opts?.limit ?? 50, opts?.cursor ?? null);
   }
 
   /**

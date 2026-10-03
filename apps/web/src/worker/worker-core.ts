@@ -314,8 +314,8 @@ export class WorkerCore {
     return this.client.getBlockTree(pageId, depth);
   }
 
-  search(query: string): ClientNode[] {
-    return this.client.search(query);
+  search(query: string, limit?: number | null): ClientNode[] {
+    return this.client.search(query, limit ?? undefined);
   }
 
   getBacklinks(id: string): ClientEdge[] {
@@ -490,7 +490,20 @@ export class WorkerCore {
       case "getBlockTree":
         return this.getBlockTree(args[0] as string, args[1] as number | undefined);
       case "search":
-        return this.search(args[0] as string);
+        return this.search(args[0] as string, args[1] as number | null | undefined);
+      case "searchPage":
+        return this.client.searchPage(
+          args[0] as string,
+          args[1] as { limit?: number; cursor?: string | null } | null | undefined,
+        );
+      case "getSearchSnippet":
+        return this.client.getSearchSnippet(
+          args[0] as string,
+          args[1] as string,
+          args[2] as { maxTokens?: number; ellipsis?: string } | null | undefined,
+        );
+      case "resolveNodeByName":
+        return this.client.resolveNodeByName(args[0] as string);
       case "getBacklinks":
         return this.getBacklinks(args[0] as string);
       case "getLinkedReferences":
@@ -513,6 +526,8 @@ export class WorkerCore {
         return this.getChildPageCount(args[0] as string);
       case "getEffectiveProperties":
         return this.getEffectiveProperties(args[0] as string);
+      case "getPropertyReferences":
+        return this.client.getPropertyReferences(args[0] as string);
       case "getAssetInfo":
         return this.getAssetInfo(args[0] as string);
       case "getAnnotationsForAsset":

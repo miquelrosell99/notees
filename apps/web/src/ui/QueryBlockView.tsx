@@ -5,7 +5,7 @@
  *
  *  - list mode (default): the references-section idiom (display name +
  *    render-state chip — Page/Block/Class from the isClass/presentAsMain
- *    booleans), capped (RESULT_CAP + an "N more" line);
+ *    booleans), windowed (RESULT_CAP rows + a load-more button past the cap);
  *  - table mode: a simple table (Name / Class / Main / Created) of the
  *    result set;
  *  - an AST carrying an `aggregation` always renders the aggregate grid
@@ -13,24 +13,26 @@
  *    need columns a list cannot carry. The badge shows the result count
  *    (group count for aggregates); Export (ids-based) stays list-only.
  *
- * The view mode persists in the token's `view: { mode: "list" | "table" }`
- * (the protocol token's free-form `view` record), written through the normal
+ * The view mode persists in the token's `view` record (the §34.31 V3
+ * formalized record — see queryViewRecord.ts), written through the normal
  * content update path (`object.update` on the owning node's contentAst,
  * token splice by index) — the same splice the builder uses for `queryAst`.
  *
- * The query re-runs on every client notification while mounted (the naive
- * subscribe/notify loop — a matching node created elsewhere appears without
- * a reload), with the last result cached in state between notifications.
- * Aggregated ASTs run through the client's runAggregateAst bridge (grouped
- * grid); plain ASTs through runQueryAst.
+ * Live re-runs are coalesced by notification burst (§34.31 C2): a re-run in
+ * flight marks notifications dirty and schedules exactly one trailing run,
+ * and a run whose (AST, version) pair is already the latest is skipped.
  *
- * Editing: the gear opens a minimal builder popover (scope / class /
- * isClass / presentAsMain / text-contains — the supported AST conditions —
- * plus a minimal aggregation section: one group-by dimension and one
- * measure) that rewrites the token's `queryAst`. Multi-dimension /
- * multi-measure aggregations stay AST-by-hand; the builder reads back the
- * FIRST dimension/measure and rewrites the aggregation from its own fields
- * (documented M1 builder behavior, same as unsupported conditions).
+ * Editing: the gear opens the builder popover (the shared subset from
+ * queryBuilder.ts — flat AND of class/isClass/presentAsMain/text/created-
+ * window conditions, one sort, one aggregation dimension+measure). §34.31 C1:
+ * when the AST uses constructs outside that subset (or-roots, nested groups,
+ * NOT, property/linkedTo conditions, fts, multi-sort, multi-dimension
+ * aggregations), the popover renders a READ-ONLY summary plus the list of
+ * what would be lost, and an explicit "Edit anyway" opt-in gates the lossy
+ * form — a single Apply can no longer silently clobber a richer AST.
+ *
+ * The created-window fields accept `{today}`-style placeholders alongside
+ * fixed dates (compiled at run time per @notees/query's placeholders module).
  *
  * Export (the export-on-query feature): the Export button runs
  * @notees/export's bundleMarkdown over the CURRENT result set — full nodes
@@ -52,21 +54,47 @@ import {
   type ExportNode,
 } from "@notees/export";
 import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
-import { parseQueryAst, type Aggregation, type AggregationMeasure, type Child, type QueryAst, type Scope } from "@notees/query";
+import { parseQueryAst, type QueryAst } from "@notees/query";
 
-import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
+import { displayNameFromClient } from "./dateDisplay.js";
 import { NodeCollection, ViewSwitcher } from "./views/index.js";
-import type { NodeCollectionItem, TableColumn } from "./views/index.js";
+import type { NodeCollectionItem } from "./views/index.js";
+import {
+  QUERY_TABLE_COLUMNS,
+  openQueryResult,
+  queryResultItems,
+  useQueryRun,
+  type QueryRunState,
+} from "./queryRun.js";
+import { QueryBuilderFields, useBuilderFacts } from "./components/QueryBuilderFields.js";
 
 import type {
   ClientNode,
   EffectiveProperty,
-  QueryAggregateResult,
-  QueryRunResult,
   QueryRunSummary,
 } from "@/core/workspace-client.js";
 
 import type { OutlinerClient, OutlinerReader } from "./outliner-context.js";
+import {
+  DEFAULT_BUILDER_STATE,
+  builderUnsupportedConstructs,
+  composeAggregation,
+  composeQueryAst,
+  describeBuilderState,
+  extractBuilderState,
+  type QueryBuilderState,
+} from "./queryBuilder.js";
+import { mergeQueryViewRecord, parseQueryViewRecord, type QueryViewMode } from "./queryViewRecord.js";
+
+export {
+  DEFAULT_BUILDER_STATE,
+  builderUnsupportedConstructs,
+  composeAggregation,
+  composeQueryAst,
+  describeBuilderState,
+  extractBuilderState,
+  type QueryBuilderState,
+} from "./queryBuilder.js";
 
 /** Result list cap: the token is deliberate inline content, but stays cheap. */
 export const QUERY_RESULT_CAP = 200;
@@ -86,207 +114,26 @@ export function requestQueryBuilderOpen(ownerId: string, tokenIndex: number): vo
   pendingBuilderOpens.add(`${ownerId}:${tokenIndex}`);
 }
 
-/** The query result's table columns (aligned with the view registry's table). */
-const QUERY_TABLE_COLUMNS: TableColumn[] = [
-  { id: "name", kind: "name", label: "Name", sortable: true },
-  { id: "isClass", kind: "isClass", label: "Class", sortable: true },
-  { id: "presentAsMain", kind: "presentAsMain", label: "Main", sortable: true },
-  { id: "created", kind: "created", label: "Created", sortable: true },
-];
-
-/** Query run rows → the collection input shape (unresolvable rows drop out). */
-function queryResultItems(
-  client: QueryBlockClient,
-  rows: QueryRunSummary[],
-): NodeCollectionItem[] {
-  const items: NodeCollectionItem[] = [];
-  for (const row of rows.slice(0, QUERY_RESULT_CAP)) {
-    const node = client.getNode(row.id);
-    if (node !== undefined) items.push({ node });
-  }
-  return items;
-}
-
 type QueryBlockClient = OutlinerClient & OutlinerReader;
 
 // --- view mode (token contract) ---------------------------------------------------
 
 /**
- * The persisted token view contract: `view: { mode: "list" | "table" }` on
- * the `query` content token (a free-form record in the protocol grammar, so
- * foreign keys ride along). Anything unknown reads back as the list default.
+ * The persisted view mode — the §34.31 V3 record's `mode` key
+ * (queryViewRecord.ts is the disciplined reader; this stays exported for
+ * the existing test imports).
  */
-export type QueryViewMode = "list" | "table";
-
 export function parseQueryViewMode(view: unknown): QueryViewMode {
-  if (
-    typeof view === "object" &&
-    view !== null &&
-    (view as { mode?: unknown }).mode === "table"
-  ) {
-    return "table";
-  }
-  return "list";
+  return parseQueryViewRecord(view).mode;
 }
 
-// --- builder state <-> AST -----------------------------------------------------
-
-export interface QueryBuilderState {
-  /** Scope select value; "page" = the view root's subtree (only offered for document-chrome roots). */
-  scope: "workspace" | "pages" | "page";
-  /** Class filter (class condition); null/"" = any. */
-  classId: string | null;
-  /** isClass filter (Revision-11 boolean condition); "" = any. */
-  isClass: "" | "true" | "false";
-  /** presentAsMain filter (Revision-11 boolean condition); "" = any. */
-  presentAsMain: "" | "true" | "false";
-  /** content contains filter (trimmed on write); "" = none. */
-  contains: string;
-  /** Aggregation group-by; "" / absent = none. "isClass" | "presentAsMain" | `class:<id>` | `property:<id>`. */
-  groupBy?: string;
-  /** Aggregation measure. "count" (default) | "countDistinct" | `<fn>:<propertyId>`. */
-  measure?: string;
-}
-
-const DEFAULT_BUILDER_STATE: QueryBuilderState = {
-  scope: "workspace",
-  classId: null,
-  isClass: "",
-  presentAsMain: "",
-  contains: "",
-  groupBy: "",
-  measure: "count",
-};
-
+/** Loose-token parse for the render path: invalid ASTs render the placeholder. */
 function safeParseAst(raw: unknown): QueryAst | null {
   try {
     return parseQueryAst(raw);
   } catch {
     return null;
   }
-}
-
-/**
- * Populate the builder from an AST, best effort: the builder only represents
- * a flat AND of the supported conditions and ONE aggregation dimension +
- * measure, so an `or` root, nested groups, `not` children, foreign
- * conditions, multi-dimension/multi-measure aggregations, or a linkedTo
- * scope read back as defaults/omitted — writing from the builder replaces
- * them with the composed AND / single-dimension aggregation (documented M1
- * builder behavior).
- */
-export function extractBuilderState(ast: QueryAst | null): QueryBuilderState {
-  if (ast === null) return { ...DEFAULT_BUILDER_STATE };
-  const state = { ...DEFAULT_BUILDER_STATE };
-  switch (ast.scope.type) {
-    case "pages":
-      state.scope = "pages";
-      break;
-    case "subtree":
-      state.scope = "page";
-      break;
-    default:
-      state.scope = "workspace";
-      break;
-  }
-  if (ast.root.logic !== "and") return state;
-  for (const child of ast.root.children) {
-    if (child.type === "class") state.classId = child.classId;
-    else if (child.type === "isClass") state.isClass = child.isClass ? "true" : "false";
-    else if (child.type === "presentAsMain") state.presentAsMain = child.presentAsMain ? "true" : "false";
-    else if (child.type === "content" && child.op === "contains") state.contains = child.value;
-  }
-  const aggregation = ast.aggregation;
-  if (aggregation !== undefined) {
-    const dimension = aggregation.dimensions[0];
-    state.groupBy =
-      dimension === undefined
-        ? ""
-        : dimension.kind === "isClass"
-          ? "isClass"
-          : dimension.kind === "presentAsMain"
-            ? "presentAsMain"
-            : `${dimension.kind}:${dimension.id}`;
-    const measure = aggregation.measures[0];
-    if (measure === undefined) {
-      state.measure = "count";
-    } else {
-      switch (measure.function) {
-        case "count":
-        case "countDistinct":
-          state.measure = measure.function;
-          break;
-        default:
-          state.measure = `${measure.function}:${measure.id}`;
-      }
-    }
-  }
-  return state;
-}
-
-/**
- * The aggregation the builder state composes: absent unless a group-by is
- * set or the measure is non-default (a bare count with no dimensions is the
- * plain query's own badge). Empty dimensions + a numeric measure = the grand
- * total. `min:`/`max:` measures (hand-written in the AST) round-trip through
- * the state untouched even though the select does not offer them.
- */
-export function composeAggregation(state: QueryBuilderState): Aggregation | undefined {
-  const groupBy = state.groupBy ?? "";
-  const measureSpec = state.measure ?? "count";
-  if (groupBy === "" && measureSpec === "count") return undefined;
-  const dimensions: Aggregation["dimensions"] = [];
-  if (groupBy === "isClass") {
-    dimensions.push({ kind: "isClass" });
-  } else if (groupBy === "presentAsMain") {
-    dimensions.push({ kind: "presentAsMain" });
-  } else if (groupBy.startsWith("class:")) {
-    dimensions.push({ kind: "class", id: groupBy.slice("class:".length) });
-  } else if (groupBy.startsWith("property:")) {
-    dimensions.push({ kind: "property", id: groupBy.slice("property:".length) });
-  }
-  let measure: AggregationMeasure;
-  if (measureSpec === "count") {
-    measure = { function: "count" };
-  } else if (measureSpec === "countDistinct") {
-    measure = { function: "countDistinct", kind: "node" };
-  } else {
-    const fn = measureSpec.slice(0, measureSpec.indexOf(":"));
-    const id = measureSpec.slice(measureSpec.indexOf(":") + 1);
-    measure = { function: fn as "sum" | "avg" | "min" | "max", kind: "property", id };
-  }
-  return { dimensions, measures: [measure] };
-}
-
-/** Compose the supported AST conditions into a version-1 AST (flat AND root). */
-export function composeQueryAst(
-  state: QueryBuilderState,
-  rootId: string,
-  rootIsPage: boolean,
-): QueryAst {
-  const scope: Scope =
-    state.scope === "pages"
-      ? { type: "pages" }
-      : state.scope === "page" && rootIsPage
-        ? { type: "subtree", pageId: rootId }
-        : { type: "entire_workspace" };
-  const children: Child[] = [];
-  if (state.classId !== null && state.classId !== "") {
-    children.push({ type: "class", classId: state.classId });
-  }
-  if (state.isClass !== "") children.push({ type: "isClass", isClass: state.isClass === "true" });
-  if (state.presentAsMain !== "") {
-    children.push({ type: "presentAsMain", presentAsMain: state.presentAsMain === "true" });
-  }
-  const contains = state.contains.trim();
-  if (contains !== "") children.push({ type: "content", op: "contains", value: contains });
-  const aggregation = composeAggregation(state);
-  return {
-    version: 1,
-    scope,
-    root: { type: "group", logic: "and", children },
-    ...(aggregation !== undefined ? { aggregation } : {}),
-  };
 }
 
 // --- export on query -------------------------------------------------------------
@@ -360,11 +207,6 @@ export function downloadTextFile(fileName: string, text: string): void {
 
 // --- aggregate grid ---------------------------------------------------------------
 
-/** The result of a live run: a plain query's id set, or an aggregation's grid. */
-type QueryRunState =
-  | ({ kind: "query" } & QueryRunResult)
-  | { kind: "aggregate"; dimensionCount: number } & QueryAggregateResult;
-
 /**
  * Aggregate column labels: the compiler's names are deterministic (`isClass`,
  * `presentAsMain`, `class:<id>`, `property:<id>`, `count`, `countDistinct`,
@@ -425,73 +267,45 @@ export function QueryBlockView({
   rootId,
   onOpenNode,
 }: QueryBlockViewProps) {
-  const [result, setResult] = useState<QueryRunState | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderState, setBuilderState] = useState<QueryBuilderState>(DEFAULT_BUILDER_STATE);
-
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  /** §34.31 C1: constructs the current AST uses that the builder can't represent. */
+  const [builderGuard, setBuilderGuard] = useState<string[]>([]);
+  /** The explicit "edit anyway" opt-in that unlocks the lossy builder form. */
+  const [builderOverride, setBuilderOverride] = useState(false);
 
   const viewMode = parseQueryViewMode(view);
 
-  // Live contract: re-run on every notification while mounted. The AST's
-  // serialization is the re-run key (token identity changes on every notify
-  // re-read); the result cache holds the last run until the next one lands.
-  // Aggregated ASTs run through the aggregate bridge (grouped grid); plain
-  // ASTs through the query bridge (id set + summaries).
+  // Live coalesced run (§34.31 C2 — the hook shares the burst-coalescing
+  // contract with the Queries hub): re-runs when the token's AST or the
+  // store version changes; the last result caches between runs.
+  const { result, error } = useQueryRun(client, queryAst);
+
+  // The render window (§34.31 C2): the 200 cap is a per-render window, not a
+  // hard result ceiling — "Load more" widens it. Reset when the query itself
+  // changes (a different query starts back at the default window).
   const astKey = JSON.stringify(queryAst ?? null);
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const parsed = safeParseAst(queryAst);
-        const next: QueryRunState =
-          parsed !== null && parsed.aggregation !== undefined
-            ? {
-                kind: "aggregate",
-                dimensionCount: parsed.aggregation.dimensions.length,
-                ...(await Promise.resolve(client.runAggregateAst(queryAst))),
-              }
-            : { kind: "query", ...(await Promise.resolve(client.runQueryAst(queryAst))) };
-        if (cancelled) return;
-        setResult(next);
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        setResult(null);
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-    // queryAst is keyed by its serialization (astKey).
-  }, [client, astKey, version]);
+  const [limit, setLimit] = useState(QUERY_RESULT_CAP);
+  const [limitKey, setLimitKey] = useState(astKey);
+  if (limitKey !== astKey) {
+    setLimitKey(astKey);
+    setLimit(QUERY_RESULT_CAP);
+  }
 
   const rootNode = client.getNode(rootId);
   const rootIsPage = rootNode !== undefined && rendersWithDocumentChrome(rootNode);
-  const classes = client.listClasses();
-
-  // Bound properties across all classes (deduped by schema id) — the group-by
-  // property picker and the numeric measure picker's source.
-  const boundProperties: Array<{ id: string; name: string; type: string }> = [];
-  const seenSchemas = new Set<string>();
-  for (const cls of classes) {
-    for (const binding of client.getClassBindings(cls.id)) {
-      if (seenSchemas.has(binding.propertySchemaId)) continue;
-      seenSchemas.add(binding.propertySchemaId);
-      boundProperties.push({ id: binding.propertySchemaId, name: binding.name, type: binding.type });
-    }
-  }
-  const numericProperties = boundProperties.filter((property) => property.type === "number");
-
-  const classNames = new Map(classes.map((cls) => [cls.id, displayNameForSettings(cls) || cls.id]));
-  const propertyNames = new Map(boundProperties.map((property) => [property.id, property.name]));
+  // Picker sources for the builder fields + the aggregate grid labels.
+  const facts = useBuilderFacts(client);
+  const { classNames, propertyNames } = facts;
 
   const openBuilder = () => {
-    setBuilderState(extractBuilderState(safeParseAst(queryAst)));
+    const parsed = safeParseAst(queryAst);
+    // §34.31 C1: when the AST uses constructs the builder can't represent,
+    // open on the READ-ONLY summary; the lossy form needs the explicit
+    // "edit anyway" opt-in.
+    setBuilderGuard(builderUnsupportedConstructs(parsed));
+    setBuilderOverride(false);
+    setBuilderState(extractBuilderState(parsed));
     setBuilderOpen(true);
   };
 
@@ -523,13 +337,11 @@ export function QueryBlockView({
   const applyViewMode = async (mode: QueryViewMode) => {
     const owner = client.getNode(ownerId);
     if (owner === undefined) return;
-    const viewRecord =
-      typeof view === "object" && view !== null ? (view as Record<string, unknown>) : {};
     const next = owner.contentAst.map((token, index) =>
       index === tokenIndex
         ? ({
             ...(token as unknown as Record<string, unknown>),
-            view: { ...viewRecord, mode },
+            view: mergeQueryViewRecord(view, { mode }),
           } as unknown as typeof token)
         : token,
     );
@@ -541,18 +353,7 @@ export function QueryBlockView({
    * directly; an inline block resolves to its containing main node.
    */
   const openResult = (row: QueryRunSummary) => {
-    if (onOpenNode === undefined) return;
-    if (!rendersAsInlineBlock(row)) {
-      onOpenNode(row.id);
-      return;
-    }
-    const seen = new Set<string>([row.id]);
-    let current = client.getNode(row.parentId ?? "");
-    while (current !== undefined && !rendersWithDocumentChrome(current) && !seen.has(current.id)) {
-      seen.add(current.id);
-      current = current.parentId !== null ? client.getNode(current.parentId) : undefined;
-    }
-    onOpenNode(current !== undefined && rendersWithDocumentChrome(current) ? current.id : row.id);
+    openQueryResult(client, row, onOpenNode);
   };
 
   const handleExport = () => {
@@ -637,144 +438,73 @@ export function QueryBlockView({
             // The seam type is structural; the runtime object is the full
             // client (both classes satisfy it).
             client={client as unknown as import("./views/index.js").AnyClient}
-            items={queryResultItems(client, result.rows)}
+            items={queryResultItems(client, result.rows, limit)}
             tableColumns={QUERY_TABLE_COLUMNS}
             onNodeClick={(id) => {
               const row = result.rows.find((entry) => entry.id === id);
               if (row !== undefined) openResult(row);
             }}
           />
-          {result.kind === "query" && viewMode !== "table" && result.ids.length > QUERY_RESULT_CAP && (
-            <div className="nt-query-more">{result.ids.length - QUERY_RESULT_CAP} more</div>
+          {result.kind === "query" && viewMode !== "table" && result.ids.length > limit && (
+            <button
+              type="button"
+              className="nt-query-more"
+              onClick={() => setLimit((value) => value + QUERY_RESULT_CAP)}
+            >
+              {result.ids.length - limit} more — load more
+            </button>
           )}
         </>
       )}
       {builderOpen && (
         <div className="nt-query-builder" role="dialog" aria-label="Query builder">
-          <label className="nt-query-field">
-            <span>Scope</span>
-            <select
-              value={builderState.scope}
-              onChange={(event) =>
-                setBuilderState((s) => ({
-                  ...s,
-                  scope: event.target.value as QueryBuilderState["scope"],
-                }))
-              }
-            >
-              <option value="workspace">Entire workspace</option>
-              {rootIsPage && <option value="page">This page</option>}
-              <option value="pages">Pages only</option>
-            </select>
-          </label>
-          <label className="nt-query-field">
-            <span>Class</span>
-            <select
-              value={builderState.classId ?? ""}
-              onChange={(event) =>
-                setBuilderState((s) => ({ ...s, classId: event.target.value || null }))
-              }
-            >
-              <option value="">Any class</option>
-              {classes.map((cls) => (
-                <option key={cls.id} value={cls.id}>
-                  {displayNameForSettings(cls) || cls.id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="nt-query-field">
-            <span>Class bit</span>
-            <select
-              value={builderState.isClass}
-              onChange={(event) =>
-                setBuilderState((s) => ({
-                  ...s,
-                  isClass: event.target.value as QueryBuilderState["isClass"],
-                }))
-              }
-            >
-              <option value="">Any</option>
-              <option value="true">Class</option>
-              <option value="false">Not a class</option>
-            </select>
-          </label>
-          <label className="nt-query-field">
-            <span>Render bit</span>
-            <select
-              value={builderState.presentAsMain}
-              onChange={(event) =>
-                setBuilderState((s) => ({
-                  ...s,
-                  presentAsMain: event.target.value as QueryBuilderState["presentAsMain"],
-                }))
-              }
-            >
-              <option value="">Any</option>
-              <option value="true">Main children</option>
-              <option value="false">Inline body</option>
-            </select>
-          </label>
-          <label className="nt-query-field">
-            <span>Text contains</span>
-            <input
-              value={builderState.contains}
-              onChange={(event) => setBuilderState((s) => ({ ...s, contains: event.target.value }))}
-            />
-          </label>
-          <label className="nt-query-field">
-            <span>Group by</span>
-            <select
-              value={builderState.groupBy}
-              onChange={(event) =>
-                setBuilderState((s) => ({ ...s, groupBy: event.target.value }))
-              }
-            >
-              <option value="">None</option>
-              <option value="isClass">Class bit</option>
-              <option value="presentAsMain">Render bit</option>
-              {classes.map((cls) => (
-                <option key={cls.id} value={`class:${cls.id}`}>
-                  Class: {displayNameForSettings(cls) || cls.id}
-                </option>
-              ))}
-              {boundProperties.map((property) => (
-                <option key={property.id} value={`property:${property.id}`}>
-                  Property: {property.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="nt-query-field">
-            <span>Measure</span>
-            <select
-              value={builderState.measure}
-              onChange={(event) =>
-                setBuilderState((s) => ({ ...s, measure: event.target.value }))
-              }
-            >
-              <option value="count">Count</option>
-              <option value="countDistinct">Count distinct</option>
-              {numericProperties.map((property) => (
-                <option key={property.id} value={`sum:${property.id}`}>
-                  Sum of {property.name}
-                </option>
-              ))}
-              {numericProperties.map((property) => (
-                <option key={property.id} value={`avg:${property.id}`}>
-                  Average of {property.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="nt-query-builder-actions">
-            <button type="button" onClick={() => void applyBuilder()}>
-              Apply
-            </button>
-            <button type="button" onClick={() => setBuilderOpen(false)}>
-              Cancel
-            </button>
-          </div>
+          {builderGuard.length > 0 && !builderOverride ? (
+            <>
+              <p className="nt-query-guard" role="alert">
+                This query uses constructs the builder can&rsquo;t represent (
+                {builderGuard.join(", ")}). Editing it here would rewrite the query and drop
+                them.
+              </p>
+              <ul className="nt-query-summary">
+                {describeBuilderState(builderState, {
+                  className: (id) => classNames.get(id) ?? id,
+                  propertyName: (id) => propertyNames.get(id) ?? id,
+                }).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <div className="nt-query-builder-actions">
+                <button type="button" onClick={() => setBuilderOverride(true)}>
+                  Edit anyway
+                </button>
+                <button type="button" onClick={() => setBuilderOpen(false)}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {builderGuard.length > 0 && (
+                <p className="nt-query-guard" role="alert">
+                  Editing will drop: {builderGuard.join(", ")}.
+                </p>
+              )}
+              <QueryBuilderFields
+                state={builderState}
+                onChange={(patch) => setBuilderState((s) => ({ ...s, ...patch }))}
+                facts={facts}
+                rootIsPage={rootIsPage}
+              />
+              <div className="nt-query-builder-actions">
+                <button type="button" onClick={() => void applyBuilder()}>
+                  Apply
+                </button>
+                <button type="button" onClick={() => setBuilderOpen(false)}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
