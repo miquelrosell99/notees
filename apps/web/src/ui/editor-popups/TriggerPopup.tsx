@@ -15,7 +15,11 @@
  * written imperatively.
  *
  * The command list carries only the block-type actions this editor's content
- * grammar can execute (see BlockTextEditor.runSlashCommand).
+ * grammar can execute (see BlockTextEditor.runSlashCommand): the block-type
+ * converts (text/quote/checkbox), hard_break, the external-URL link editor,
+ * and the breadth rows — query (§34.31 B1: insert a query token + open the
+ * builder), date (§34.28 #9: typed date → daily-page link), template
+ * (§34.25 T3: flat template list instantiated at the caret).
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +40,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: "checkbox", label: "Task", description: "Convert block to task (checkbox)" },
   { id: "hard_break", label: "Line break", description: "Insert a hard line break" },
   { id: "url", label: "Add URL", description: "Add a URL link to external website" },
+  { id: "query", label: "Query", description: "Insert a live query block" },
+  { id: "date", label: "Date", description: "Link to a daily page (e.g. /date feb 14)" },
+  { id: "template", label: "Template", description: "Create from a template at the caret" },
 ];
 
 /** localStorage-backed command usage counts (frequent commands rank first). */
@@ -85,11 +92,14 @@ export function TriggerPopup({
   const [placement, setPlacement] = useState<"below" | "above">("below");
   const [isPositioned, setIsPositioned] = useState(false);
 
-  // Filter + rank the commands exactly like the archived popup: label match
-  // outranks description match; usage frequency breaks ties.
+  // Filter + rank the commands exactly like the archived popup: the COMMAND
+  // WORD (the first whitespace-separated token) matches label outranking
+  // description; usage frequency breaks ties. Anything after the first word
+  // is the picked command's argument (e.g. "/date feb 14", "/template meet")
+  // and does not filter the command list — the v1 slash boundary rule.
   const commandUsage = useMemo(readSlashCommandUsage, []);
   const commands = useMemo(() => {
-    const lower = query.toLowerCase().trim();
+    const lower = (query.trim().split(/\s+/)[0] ?? "").toLowerCase();
     const scored = SLASH_COMMANDS.map((c) => {
       const labelMatch = c.label.toLowerCase().includes(lower);
       const descMatch = c.description.toLowerCase().includes(lower);

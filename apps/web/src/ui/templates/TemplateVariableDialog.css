@@ -1,0 +1,64 @@
+/* TemplateVariableDialog styles — token-only (AGENTS.md UI law). */
+
+.template-variable-dialog__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.template-variable-dialog__description {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.template-variable-dialog__code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.template-variable-dialog__empty {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.template-variable-dialog__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.template-variable-dialog__section-title {
+  margin: 0;
+  font: var(--font-title-small);
+  color: var(--color-on-surface);
+}
+
+.template-variable-dialog__dynamic-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.template-variable-dialog__dynamic-name {
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.template-variable-dialog__dynamic-value {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  overflow-wrap: anywhere;
+}
+
+.template-variable-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

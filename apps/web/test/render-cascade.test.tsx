@@ -9,11 +9,13 @@
  * environment over the in-process WorkspaceClient + MemoryRelay.
  */
 
+import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client.js";
 import { NodeView } from "../src/ui/App.js";
@@ -138,6 +140,13 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
         updateObject: async (id: string, fields: { presentAsMain?: boolean }) => {
           calls.push({ id, fields });
         },
+        // Clone surfaces the "Duplicate" item composes through (unused by
+        // these move-toggle specs).
+        getNode: () => undefined,
+        getChildren: () => [],
+        getEffectiveProperties: () => [],
+        createObject: async () => "unused",
+        setProperty: async () => {},
       },
     };
   }
@@ -181,5 +190,157 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     expect(queryByText("Move to Pages")).toBeNull();
     expect(queryByText("Move to content")).toBeNull();
     expect(calls).toEqual([]);
+  });
+
+  it("promoting a block with rich tokens asks first, naming what will flatten (BC4 guard)", () => {
+    const { client, calls } = stubClient();
+    const node = menuNode({
+      id: "n4",
+      parentId: "p1",
+      presentAsMain: false,
+      contentAst: [
+        { type: "text", text: "check " },
+        { type: "mention", targetNodeId: "t1", text: "Target" },
+        { type: "asset_ref", assetId: "a1" },
+      ],
+    });
+    const { getByText, queryByText, getByRole } = renderMenu(node, client);
+
+    fireEvent.click(getByText("Move to Pages"));
+    // The confirmation names the flattening token families; the write has
+    // NOT happened yet. The modal latches its node and renders above the
+    // (now-closed) menu — in production the host nulls the menu state on
+    // close, and the modal must outlive it.
+    const dialog = within(getByRole("dialog"));
+    expect(dialog.getByText(/flattens its rich content to plain text/)).not.toBeNull();
+    expect(dialog.getByText(/mentions, asset attachments/)).not.toBeNull();
+    expect(calls).toEqual([]);
+
+    fireEvent.click(dialog.getByText("Cancel"));
+    expect(calls).toEqual([]);
+    expect(queryByText(/flattens its rich content/)).toBeNull();
+
+    fireEvent.click(getByText("Move to Pages"));
+    fireEvent.click(within(getByRole("dialog")).getByText("Move to Pages"));
+    expect(calls).toEqual([{ id: "n4", fields: { presentAsMain: true } }]);
+  });
+
+  it("Duplicate clones the subtree through the clone engine, provenance-free, after the source (§34.25 T4/B4)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Source" });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "body" }] });
+    const node = client.getNode(pageId)!;
+    const onDuplicated = vi.fn();
+    const { getByText } = render(
+      <NodeContextMenu
+        state={{ x: 0, y: 0, node, isPage: true }}
+        client={client}
+        onClose={() => {}}
+        onOpenNode={() => {}}
+        onDuplicated={onDuplicated}
+      />,
+    );
+
+    fireEvent.click(getByText("Duplicate"));
+    await waitFor(() => expect(onDuplicated).toHaveBeenCalledTimes(1));
+    const freshId = onDuplicated.mock.calls[0]![0] as string;
+    const fresh = client.getNode(freshId)!;
+    expect(freshId).not.toBe(pageId);
+    expect(fresh.parentId).toBeNull();
+    expect(fresh.presentAsMain).toBe(true);
+    expect(fresh.contentAst).toEqual([{ type: "text", text: "Source" }]);
+    expect(client.getChildren(freshId)).toHaveLength(1);
+    expect(client.getChildren(freshId)[0]!.contentAst).toEqual([{ type: "text", text: "body" }]);
+    // Provenance-free: the generic duplicate gesture never writes generatedFrom.
+    expect(
+      client
+        .getEffectiveProperties(freshId)
+        .some((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.generatedFrom),
+    ).toBe(false);
+  });
+
+  it("the confirmations survive the menu close: a nulling host unmounts the menu, not the modal", async () => {    // Realistic host: onClose nulls the menu state (BlockRow/PageView
+    // pattern). The modal latches its node and must still appear — before
+    // the latch, the confirmation unmounted with the menu in every host.
+    const { client, calls } = stubClient();
+    function Host({ node }: { node: ClientNode }) {
+      const [menu, setMenu] = useState<{ x: number; y: number } | null>({ x: 0, y: 0 });
+      return (
+        <>
+          <span>{menu === null ? "menu-closed" : "menu-open"}</span>
+          <NodeContextMenu
+            state={menu === null ? null : { ...menu, node, isPage: false }}
+            client={client}
+            onClose={() => setMenu(null)}
+            onOpenNode={() => {}}
+          />
+        </>
+      );
+    }
+    const richNode = menuNode({
+      id: "n6",
+      parentId: "p1",
+      presentAsMain: false,
+      contentAst: [
+        { type: "text", text: "see " },
+        { type: "mention", targetNodeId: "t1", text: "Target" },
+      ],
+    });
+    const { getByText, getByRole, queryByRole } = render(<Host node={richNode} />);
+
+    fireEvent.click(getByText("Move to Pages"));
+    expect(getByText("menu-closed")).not.toBeNull();
+    const dialog = within(getByRole("dialog"));
+    expect(dialog.getByText(/flattens its rich content/)).not.toBeNull();
+    fireEvent.click(dialog.getByText("Move to Pages"));
+    await waitFor(() => expect(queryByRole("dialog")).toBeNull());
+    expect(calls).toEqual([{ id: "n6", fields: { presentAsMain: true } }]);
+  });
+
+  it("the delete confirmation rides the same latch (menu closes, modal survives)", async () => {
+    function Host({ node }: { node: ClientNode }) {
+      const [menu, setMenu] = useState<{ x: number; y: number } | null>({ x: 0, y: 0 });
+      const { client, calls } = stubClient();
+      return (
+        <>
+          <NodeContextMenu
+            state={menu === null ? null : { ...menu, node, isPage: true }}
+            client={client}
+            onClose={() => setMenu(null)}
+            onOpenNode={() => {}}
+          />
+          <span data-testid="calls">{JSON.stringify(calls)}</span>
+        </>
+      );
+    }
+    const pageNode = menuNode({ id: "n7", parentId: null, presentAsMain: true });
+    const { getByText, getByRole, queryByRole } = render(<Host node={pageNode} />);
+
+    fireEvent.click(getByText("Delete"));
+    const dialog = within(getByRole("dialog"));
+    expect(dialog.getByText(/This will delete/)).not.toBeNull();
+    // Confirm awaits the delete and closes the dialog (the stub records no
+    // call — the survival of the modal through the menu close is the pin).
+    fireEvent.click(dialog.getByText("Delete"));
+    await waitFor(() => expect(queryByRole("dialog")).toBeNull());
+  });
+
+  it("promoting a block whose rich widgets survive does not ask (whiteboard/query pass through)", () => {
+    const { client, calls } = stubClient();
+    const node = menuNode({
+      id: "n5",
+      parentId: "p1",
+      presentAsMain: false,
+      contentAst: [
+        { type: "text", text: "board" },
+        { type: "whiteboard", layout: {} },
+        { type: "query", queryAst: { all: true } },
+      ],
+    });
+    const { getByText, queryByText } = renderMenu(node, client);
+
+    fireEvent.click(getByText("Move to Pages"));
+    expect(queryByText(/flattens its rich content/)).toBeNull();
+    expect(calls).toEqual([{ id: "n5", fields: { presentAsMain: true } }]);
   });
 });

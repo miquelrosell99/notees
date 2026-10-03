@@ -85,7 +85,8 @@ describe("slash trigger popup", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "/");
     expect(slashPopup()).not.toBeNull();
-    // All five block-type actions, Text first.
+    // All slash commands (§34.25 T3 + §34.28 #9 + §34.31 B1 breadth),
+    // Text first.
     const options = within(slashPopup()!).getAllByRole("option");
     expect(options.map((o) => o.textContent)).toEqual([
       "TextPlain text block",
@@ -93,6 +94,9 @@ describe("slash trigger popup", () => {
       "TaskConvert block to task (checkbox)",
       "Line breakInsert a hard line break",
       "Add URLAdd a URL link to external website",
+      "QueryInsert a live query block",
+      "DateLink to a daily page (e.g. /date feb 14)",
+      "TemplateCreate from a template at the caret",
     ]);
 
     fireEvent.keyDown(editor, { key: "Enter" });

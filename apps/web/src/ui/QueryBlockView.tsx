@@ -71,6 +71,21 @@ import type { OutlinerClient, OutlinerReader } from "./outliner-context.js";
 /** Result list cap: the token is deliberate inline content, but stays cheap. */
 export const QUERY_RESULT_CAP = 200;
 
+// --- slash-created tokens: builder auto-open (§34.31 B1) ----------------------
+//
+// The `/query` slash flow (BlockTextEditor, edit mode) inserts a token and
+// wants the builder popover open when the block re-renders in read mode. The
+// popover lives in this component, which mounts fresh on every edit-cycle
+// exit — so the request is a module-level queue consumed on mount (a
+// listener pattern would race: the request fires before this mounts).
+
+const pendingBuilderOpens = new Set<string>();
+
+/** Ask the live token view at `ownerId`:`tokenIndex` to open its builder popover. */
+export function requestQueryBuilderOpen(ownerId: string, tokenIndex: number): void {
+  pendingBuilderOpens.add(`${ownerId}:${tokenIndex}`);
+}
+
 /** The query result's table columns (aligned with the view registry's table). */
 const QUERY_TABLE_COLUMNS: TableColumn[] = [
   { id: "name", kind: "name", label: "Name", sortable: true },
@@ -479,6 +494,16 @@ export function QueryBlockView({
     setBuilderState(extractBuilderState(safeParseAst(queryAst)));
     setBuilderOpen(true);
   };
+
+  // Consume a `/query` slash request targeted at this token (see the module
+  // queue above). Runs on every fresh mount — the normal case finds no entry.
+  useEffect(() => {
+    const key = `${ownerId}:${tokenIndex}`;
+    if (!pendingBuilderOpens.has(key)) return;
+    pendingBuilderOpens.delete(key);
+    openBuilder();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- consume-once on mount; openBuilder reads the current queryAst prop.
+  }, [ownerId, tokenIndex]);
 
   /** Rewrite the token's queryAst via the normal content update path. */
   const applyBuilder = async () => {

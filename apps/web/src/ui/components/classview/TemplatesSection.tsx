@@ -5,6 +5,11 @@
  * opening the template-class-filtered NodeSelector (the ONE class-filtered
  * surface; instantiation surfaces stay unfiltered per the D1 amendment).
  * Expanded when empty (invites setup), collapsed once bound.
+ *
+ * T4 additions: per-card "Apply to node…" (the apply-to-existing gesture —
+ * graft the template onto an existing node and write generatedFrom; a node
+ * already generated from the template is skipped, the A4 merge marker) and a
+ * "Browse gallery" entry to the TemplateGalleryModal.
  */
 
 import { useState } from "react";
@@ -18,11 +23,12 @@ import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AddPill } from "../ui/AddPill.js";
+import { Button } from "../ui/Button.js";
 import { NodeViewSection } from "../NodeViewSection.js";
-import {
-  ensureTemplateFamily,
-  listClassTemplateBindings,
-} from "../templateFamily.js";
+import { notificationStore } from "../ui/notificationStore.js";
+import { ensureTemplateFamily, listClassTemplateBindings } from "../templateFamily.js";
+import { TemplateGalleryModal } from "../../templates/TemplateGalleryModal.js";
+import { useTemplateApplyToExisting } from "../../templates/useTemplateApplyToExisting.js";
 import "./TemplatesSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -38,9 +44,24 @@ export function TemplatesSection({
 }) {
   const [pickerAnchor, setPickerAnchor] = useState<HTMLButtonElement | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [applyTarget, setApplyTarget] = useState<{ templateId: string; anchor: HTMLButtonElement } | null>(null);
 
   /** The class's bound templates, each with its authored value's idx (unbind target). */
   const templateBindings = listClassTemplateBindings(client, classId);
+
+  /** T4 apply-to-existing: variables dialog when the template carries them. */
+  const applyExisting = useTemplateApplyToExisting({
+    client,
+    ensure: () => ensureTemplateFamily(client),
+    onApplied: (_nodeId, outcome) => {
+      if (outcome === "already-applied") {
+        notificationStore.info("Template already applied", "That node was already generated from this template.");
+      } else {
+        notificationStore.success("Template applied");
+      }
+    },
+  });
 
   /** Append a has-template value at the next free idx (the metadata-section pattern). */
   const bindTemplate = async (templateId: string) => {
@@ -87,6 +108,15 @@ export function TemplatesSection({
                 </button>
                 <button
                   type="button"
+                  className="nt-template-card-apply"
+                  aria-label={`Apply template ${label} to a node`}
+                  title="Apply to an existing node"
+                  onClick={(event) => setApplyTarget({ templateId: node.id, anchor: event.currentTarget })}
+                >
+                  <Icon path="mdi-clipboard-arrow-down-outline" size={0.9} />
+                </button>
+                <button
+                  type="button"
                   className="nt-template-card-unbind"
                   aria-label={`Unbind template ${label}`}
                   onClick={() =>
@@ -104,19 +134,24 @@ export function TemplatesSection({
           })}
         </ul>
       )}
-      {/*
-        The bind affordance renders even when empty (a class without
-        templates still offers the gesture).
-      */}
-      <AddPill
-        label="Bind template"
-        aria-expanded={pickerOpen}
-        onClick={(element) => {
-          setPickerAnchor(element);
-          setPickerOpen(true);
-          void ensureTemplateFamily(client);
-        }}
-      />
+      <div className="nt-templates-actions">
+        {/*
+          The bind affordance renders even when empty (a class without
+          templates still offers the gesture).
+        */}
+        <AddPill
+          label="Bind template"
+          aria-expanded={pickerOpen}
+          onClick={(element) => {
+            setPickerAnchor(element);
+            setPickerOpen(true);
+            void ensureTemplateFamily(client);
+          }}
+        />
+        <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(true)}>
+          Browse gallery
+        </Button>
+      </div>
       {pickerOpen && pickerAnchor !== null && (
         <NodeSelector
           client={client}
@@ -133,6 +168,27 @@ export function TemplatesSection({
           }}
         />
       )}
+      {applyTarget !== null && (
+        <NodeSelector
+          client={client}
+          anchorEl={applyTarget.anchor}
+          searchMode="all"
+          excludeNodeId={applyTarget.templateId}
+          searchPlaceholder="Apply the template to…"
+          onClose={() => setApplyTarget(null)}
+          onAdd={(node) => {
+            setApplyTarget(null);
+            applyExisting.begin(applyTarget.templateId, node.id);
+          }}
+        />
+      )}
+      {applyExisting.dialog}
+      <TemplateGalleryModal
+        isOpen={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        client={client}
+        onOpenPage={(pageId) => onOpenPage?.(pageId)}
+      />
     </NodeViewSection>
   );
 }

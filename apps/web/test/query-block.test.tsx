@@ -11,7 +11,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
@@ -183,14 +183,18 @@ describe("query block (live query token)", () => {
     await screen.findByText("host body");
 
     // Subtree: the host page + its two body blocks + the query block itself —
-    // nothing from other pages.
-    const items = Array.from(container.querySelectorAll(".outline-row__main")).map(
-      (el) => el.textContent ?? "",
-    );
-    expect(items.length).toBe(4);
-    expect(items.some((t) => t.includes("host body"))).toBe(true);
-    expect(items.some((t) => t.includes("nested body"))).toBe(true);
-    expect(items.some((t) => t.includes("Paris"))).toBe(false);
+    // nothing from other pages. (The row read retries: the query re-runs
+    // async after mount, so the result list can land a tick after the page
+    // body that findByText above matched.)
+    await waitFor(() => {
+      const items = Array.from(container.querySelectorAll(".outline-row__main")).map(
+        (el) => el.textContent ?? "",
+      );
+      expect(items.length).toBe(4);
+      expect(items.some((t) => t.includes("host body"))).toBe(true);
+      expect(items.some((t) => t.includes("nested body"))).toBe(true);
+      expect(items.some((t) => t.includes("Paris"))).toBe(false);
+    });
   });
 
   it("content-contains and presentAsMain conditions filter the results", async () => {
