@@ -52,8 +52,13 @@
  *   trigger), Quote (wrap the block's inline tokens in a quote token),
  *   Task/checkbox (assign the task class, OR-set add), Line break (insert a
  *   hard_break token), Add URL (strip the trigger, then open the page-level
- *   LinkEditModal to author an external_link token at the trigger offset).
- *   No match + Enter falls back to plain prose (the query text stays).
+ *   LinkEditModal to author an external_link token at the trigger offset),
+ *   Query (§34.31 B1: insert a query token at the caret and open its builder
+ *   popover on exit), Date (§34.28 #9: typed date → mention of the daily
+ *   page, chain ensured on demand), Template (§34.25 T3: flat unfiltered
+ *   template list — the pick instantiates a fresh page through the clone
+ *   engine and links it at the caret). No match + Enter falls back to plain
+ *   prose (the query text stays).
  * - Verb on selection: FloatingToolbar → link button / Cmd+K opens the
  *   VerbPopover (free-string verb + optional locator); commit wraps the
  *   covered prose in a typed_link mark via spliceTokens.
@@ -122,7 +127,7 @@ import {
 } from "react";
 
 import type { ContentAst, Mark } from "@notees/protocol";
-import { rendersAsInlineBlock, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { chainNodeIds, rendersAsInlineBlock, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { uuidv7 } from "uuidv7";
 
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
@@ -156,8 +161,12 @@ import { notificationStore } from "./components/ui/notificationStore.js";
 import { FloatingToolbar } from "./editor-popups/FloatingToolbar.js";
 import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUsage } from "./editor-popups/TriggerPopup.js";
 import { NodeSelector, type NodePickContext } from "./components/pickers/NodeSelector.js";
+import { parseDate } from "./components/pickers/dateParser.js";
 import { NodeLinkContextMenu } from "./components/NodeLinkContextMenu.js";
 import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
+import { requestQueryBuilderOpen } from "./QueryBlockView.js";
+import { TemplateListPopup } from "./templates/TemplateListPopup.js";
+import { useTemplateInstantiator } from "./templates/useTemplateInstantiator.js";
 
 export const SAVE_DEBOUNCE_MS = 400;
 
@@ -177,6 +186,30 @@ const TRIGGER_CHAR: Record<CaptureKind, string> = { mention: "@", tag: "#", clas
 
 /** displayText schema bound (content-mark.ts mentionTokenSchema). */
 const MENTION_LABEL_MAX = 512;
+
+/**
+ * The `/query` slash starter AST — exactly what the query builder composes
+ * from its default state, so the token the builder opens on matches one
+ * clean Apply cycle (§34.31 B1).
+ */
+const STARTER_QUERY_AST: Record<string, unknown> = {
+  version: 1,
+  scope: { type: "entire_workspace" },
+  root: { type: "group", logic: "and", children: [] },
+};
+
+/** Strict local YYYY-MM-DD for the date chain (mirrors the picker idiom). */
+function toIsoDate(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Second-stage state of the `/template` slash flow (the trigger is already consumed). */
+interface TemplateStageState {
+  /** Draft-prose offset where the instantiated page's mention lands. */
+  start: number;
+  /** The remainder typed after "template" — the picker's initial filter. */
+  filter: string;
+}
 
 interface CaptureState {
   kind: CaptureKind;
@@ -271,8 +304,16 @@ function caretLineAnchor(): { top: number; left: number; caretTop: number } {
 }
 
 export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProps) {
-  const { client, positions, requestFocus, capture: captureApi, openNode, openInSidebar } =
-    useOutliner();
+  const {
+    client,
+    rootId,
+    positions,
+    requestFocus,
+    capture: captureApi,
+    openNode,
+    openInSidebar,
+    ensureTemplateFamily,
+  } = useOutliner();
   const rootRef = useRef<HTMLSpanElement>(null);
   const spanRef = useRef<HTMLSpanElement>(null);
   const nodeRef = useRef(node);
@@ -299,6 +340,52 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   const [slashUsage] = useState(readSlashCommandUsage);
   /** Opens the page-level LinkEditModal (slash "Add URL" flow). */
   const openLinkEditor = useLinkEditModalOpener();
+  /**
+   * The `/template` slash flow's second stage: the trigger is consumed and
+   * the flat template list popup owns the pick. The ref mirrors the state so
+   * the instantiator's async onInstantiated lands the mention at the offset
+   * captured when the stage opened (the dialog can outlive the state read).
+   */
+  const [templateStage, setTemplateStage] = useState<TemplateStageState | null>(null);
+  const templateStageRef = useRef<TemplateStageState | null>(null);
+  /** Open the stage: popup state + the offset the async pick callback reads. */
+  const openStage = (stage: TemplateStageState) => {
+    templateStageRef.current = stage;
+    setTemplateStage(stage);
+  };
+  /** Close the popup only — the ref survives until the pick instantiates. */
+  const closeStagePopup = () => setTemplateStage(null);
+  /** Full close (Escape / cancel): popup + the pending offset. */
+  const clearStage = () => {
+    templateStageRef.current = null;
+    setTemplateStage(null);
+  };
+  /**
+   * Shared create-with-template flow (§34.25 T3/T4): family self-heal through
+   * the outliner seam (shells without it skip the heal — the graft itself is
+   * schema-independent), variables dialog when the template carries
+   * {{variables}}, then a fresh page; the mention link lands at the stage
+   * offset.
+   */
+  const templateInstantiator = useTemplateInstantiator({
+    client,
+    ensure: () => ensureTemplateFamily?.() ?? Promise.resolve(),
+    currentPageName: captureApi.displayName(rootId) ?? undefined,
+    onInstantiated: (nodeId) => {
+      const stage = templateStageRef.current;
+      templateStageRef.current = null;
+      const el = spanRef.current;
+      if (stage === null || el === null) return;
+      const label = captureApi.displayName(nodeId) ?? "Untitled";
+      applySplice(
+        stage.start,
+        stage.start,
+        [{ type: "mention", targetNodeId: nodeId, text: label, linkId: uuidv7() }],
+        stage.start + label.length,
+      );
+      el.focus();
+    },
+  });
 
   const flush = useCallback(() => {
     if (timerRef.current !== null) {
@@ -488,8 +575,11 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   /** Filtered popup rows for the active slash capture (recomputed per keystroke). */
   const captureItems = useMemo<SlashCandidate[]>(() => {
     if (capture === null || capture.kind !== "slash") return [];
+    // Slash commands: the command word (first token) matches — label match
+    // outranks description match, usage breaks ties; the remainder is the
+    // command's argument (the ranking contract the TriggerPopup implements).
     const query = capture.query.trim();
-    const q = query.toLowerCase();
+    const q = (query.split(/\s+/)[0] ?? "").toLowerCase();
     // Slash commands: label match outranks description match, usage breaks
     // ties (the ranking contract the TriggerPopup rows were designed for).
     return SLASH_COMMANDS.map((cmd) => {
@@ -654,6 +744,68 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         initialUrl: looksLikeUrl ? query.trim() : "",
         initialLabel: looksLikeUrl ? "" : query.trim(),
       });
+      return;
+    }
+    if (commandId === "query") {
+      // §34.31 B1: insert a live query token at the caret, then hand the
+      // token's read-mode view an open-builder request (it mounts when this
+      // editor exits — see QueryBlockView's module queue).
+      const base = applyTextEdit(nodeRef.current.contentAst, draft);
+      const token = { type: "query", queryAst: STARTER_QUERY_AST } as ContentAst[number];
+      const next = spliceTokens(base, start, end, [token]);
+      const tokenIndex = next.findIndex((entry) => entry === token);
+      commitAst(withCandidateSpans(next), start);
+      requestQueryBuilderOpen(nodeRef.current.id, tokenIndex);
+      onExitEdit();
+      return;
+    }
+    if (commandId === "date") {
+      // §34.28 #9: typed date → link to the daily page (created on demand).
+      // Mirrors the @-picker's date row: ensure the chain, then insert a
+      // mention at the caret. A bare `/date` means today; an unparseable
+      // query falls back like a no-match (only the sigil is stripped — the
+      // typed text stays). The command word itself is not part of the date.
+      const trimmed = query.trim();
+      const remainder = /^date(\s+|$)/i.test(trimmed) ? trimmed.replace(/^date(\s+|$)/i, "").trim() : trimmed;
+      const parsed = parseDate(remainder) ?? (remainder === "" ? parseDate("today") : null);
+      if (parsed === null) {
+        plainFallback(start);
+        return;
+      }
+      const iso =
+        parsed.type === "day" && parsed.month !== undefined && parsed.day !== undefined
+          ? toIsoDate(parsed.year, parsed.month, parsed.day)
+          : parsed.type === "month" && parsed.month !== undefined
+            ? toIsoDate(parsed.year, parsed.month, 1)
+            : toIsoDate(parsed.year, 1, 1);
+      const ids = chainNodeIds(iso);
+      const refId = parsed.type === "year" ? ids.year : parsed.type === "month" ? ids.month : ids.day;
+      const insertAt = start;
+      applySplice(start, end, [], start);
+      void client
+        .ensureDateChain(iso)
+        .then(() => {
+          applySplice(
+            insertAt,
+            insertAt,
+            [{ type: "mention", targetNodeId: refId, text: parsed.label, linkId: uuidv7() }],
+            insertAt + parsed.label.length,
+          );
+        })
+        .catch((error: unknown) => {
+          console.warn(`[capture] ensureDateChain (${iso}) failed:`, error);
+        });
+      return;
+    }
+    if (commandId === "template") {
+      // §34.25 T3 (D1 amendment): flat unfiltered template list; the pick
+      // instantiates at the caret through the shared instantiator (variables
+      // dialog first when the template carries {{variables}}).
+      const remainder = query.toLowerCase().startsWith("template")
+        ? query.slice("template".length).trim()
+        : "";
+      applySplice(start, end, [], start);
+      openStage({ start, filter: remainder });
       return;
     }
     applySplice(start, end, [], start);
@@ -1439,6 +1591,28 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
             onAdd={commitNodePick}
           />
         ))}
+      {templateStage !== null && (
+        <TemplateListPopup
+          position={caretLineAnchor()}
+          client={client}
+          ensure={() => ensureTemplateFamily?.() ?? Promise.resolve()}
+          initialQuery={templateStage.filter}
+          onPick={(templateId) => {
+            closeStagePopup();
+            templateInstantiator.begin(templateId);
+          }}
+          onClose={() => {
+            const stage = templateStageRef.current;
+            clearStage();
+            const el = spanRef.current;
+            if (el !== null) {
+              el.focus();
+              placeCaret(el, stage?.start ?? 0);
+            }
+          }}
+        />
+      )}
+      {templateInstantiator.dialog}
       {linkMenu !== null && (
         <NodeLinkContextMenu
           state={linkMenu}
