@@ -113,6 +113,19 @@
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
+/* Static note in place of the preview for non-markdown formats (task W —
+   the preview is the engine's markdown projection only). */
+.export-modal__preview-note {
+  margin: 0;
+  padding: var(--spacing-3);
+  background: var(--color-surface-container);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+}
+
 /* ── Error ── */
 .export-modal__error {
   padding: var(--spacing-2) var(--spacing-3);
