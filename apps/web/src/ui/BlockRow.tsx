@@ -35,6 +35,8 @@ import type { WorkerClient } from "@/core/worker-client.js";
 
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
+import { AssetView } from "./AssetView.js";
+import { BlockBacklinkPanel, BlockBacklinkToggle } from "./BlockBacklinks.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
 import { PropertiesSection, TagsRow } from "./components/MetadataSection.js";
 import { NodePills } from "./components/NodePills.js";
@@ -82,6 +84,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   const dropLine = useContext(DropLineContext);
   const [editing, setEditing] = useState(false);
   const [caret, setCaret] = useState<EditorCaret>("end");
+  // Right-gutter backlink toggle (SCHEMA.md:117): the badge reads the
+  // materialized count (cheap stored number, renders unconditionally at 0
+  // hides the toggle); the linked-references query stays lazy until the
+  // first expand.
+  const backlinkCount = client.getBacklinkCount(node.id);
+  const [backlinksExpanded, setBacklinksExpanded] = useState(false);
   const isCollapsed = !ignoreCollapse && collapsed.has(node.id);
   // Sortable within this row's sibling group; the bullet/chevron area is the
   // drag handle (whole-row drag would fight text editing). A small activation
@@ -215,24 +223,50 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
                   embedded
                 />
               )}
+              renderAsset={(token, _index, fullBleed) => {
+                const assetId = (token as { assetId?: unknown }).assetId;
+                return typeof assetId === "string" ? (
+                  <AssetView client={client} assetId={assetId} fullBleed={fullBleed} />
+                ) : null;
+              }}
             />
           )}
         </div>
-        {/* Classes: dedicated column at the right end of the row (first pill
-            + "+N" overflow popup, drag to reorder). */}
-        {!readOnly && (
-          <div className="nt-block-classes">
-            <NodePills
-              client={client}
-              nodeId={node.id}
-              classIds={node.classIds}
-              onOpenPage={openNode}
-              overflow
-              iconOnlyAdd
-            />
+        {/* Right end of the row: the classes column (first pill + "+N"
+            overflow popup, drag to reorder) and the backlink gutter toggle
+            (SCHEMA.md:117 — the count badge rides the materialized
+            node_stats number). The gutter is reference material, so it shows
+            in read-only projections too. */}
+        {(backlinkCount > 0 || !readOnly) && (
+          <div className="nt-block-row-end">
+            {!readOnly && (
+              <div className="nt-block-classes">
+                <NodePills
+                  client={client}
+                  nodeId={node.id}
+                  classIds={node.classIds}
+                  onOpenPage={openNode}
+                  overflow
+                  iconOnlyAdd
+                />
+              </div>
+            )}
+            {backlinkCount > 0 && (
+              <BlockBacklinkToggle
+                count={backlinkCount}
+                expanded={backlinksExpanded}
+                onToggle={() => setBacklinksExpanded((v) => !v)}
+              />
+            )}
           </div>
         )}
       </div>
+      {/* Expanded block backlinks: the linked-references system query scoped
+          to this block, lazy per the section contract (query on first
+          toggle, cached until an invalidating notification). */}
+      {backlinkCount > 0 && (
+        <BlockBacklinkPanel nodeId={node.id} expanded={backlinksExpanded} client={client} />
+      )}
       {/* Tags: dedicated row below the block row, only when set (assignment
           rides the `#` trigger). */}
       {!readOnly && node.tagIds.length > 0 && (

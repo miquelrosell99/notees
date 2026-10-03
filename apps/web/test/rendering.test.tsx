@@ -123,6 +123,8 @@ describe("PageView rendering", () => {
     await client.createObject({
       parentId: pageId,
       contentAst: [
+        // Unknown asset (no node_asset row): the asset renderer's own
+        // broken-asset fallback draws the dashed box (BB1).
         { type: "asset_ref", assetId: "0192a000-0000-7000-8000-0000000000a1" },
         { type: "embed_ref", nodeId: "0192a000-0000-7000-8000-0000000000a2" },
         { type: "query", queryAst: { all: true } },
@@ -143,8 +145,8 @@ describe("PageView rendering", () => {
     // the "invalid query" placeholder, never a crash.
     expect(screen.getByText("invalid query")).not.toBeNull();
     // The whiteboard token renders live too (WhiteboardCanvas, embedded
-    // mini-canvas) — only truly unhandled tokens fall back to placeholder
-    // boxes (asset_ref above).
+    // mini-canvas); the asset_ref above renders via AssetView's unknown-asset
+    // fallback — known assets render as chips/previews (asset-render.test).
     expect(container.querySelector(".nt-wb-embedded")).not.toBeNull();
     expect(screen.getByText("E = mc^2").tagName).toBe("CODE");
     const link = screen.getByText("Example");
