@@ -132,6 +132,18 @@ export type ExportBlock =
 /** One outline level; `cut` marks a visible truncation (never silent). */
 export interface ExportDocumentChild {
   id: string;
+  /** The child's resolved display title (content-derived, "" when the
+   * child has no content-derived name) — the bibliography (L1) uses it as
+   * the CSL title, via `nodeToCsl`. */
+  title: string;
+  /** The child's class ids — serializers that need per-node identity
+   * (L1's bibliography: which children are source-classed, via
+   * csl.ts `sourceClassOf`) read them here. */
+  classIds: readonly string[];
+  /** The child's authored properties with display strings resolved at build
+   * time (same projection as the root's `properties`) — the L1 bibliography
+   * feeds them to `nodeToCsl`. */
+  properties: readonly ExportDocumentProperty[];
   /** The child's own content, folded to blocks. */
   blocks: readonly ExportBlock[];
   children: readonly ExportDocumentChild[];
@@ -415,19 +427,25 @@ function buildChildren(
   const out: ExportDocumentChild[] = [];
   for (const child of rows) {
     if (visited.has(child.id)) {
-      out.push({ id: child.id, blocks: [], children: [], cut: "cycle" });
+      out.push({ id: child.id, title: "", classIds: [], properties: [], blocks: [], children: [], cut: "cycle" });
       continue;
     }
     // Full closure by default; an explicit cap collapses deeper levels to a
     // visible cut entry (the root's children sit at depth 1).
     if (options.maxDepth !== null && depth > options.maxDepth) {
-      out.push({ id: child.id, blocks: [], children: [], cut: "depth" });
+      out.push({ id: child.id, title: "", classIds: [], properties: [], blocks: [], children: [], cut: "depth" });
       continue;
     }
     const childVisited = new Set(visited);
     childVisited.add(child.id);
     out.push({
       id: child.id,
+      title: deriveDisplayName(child),
+      classIds: child.classIds,
+      properties: child.properties.map((property) => ({
+        ...property,
+        display: resolvePropertyDisplay(property.value, ctx),
+      })),
       blocks: buildBlocks(child.contentAst, ctx, options, childVisited, assetRefs),
       children: buildChildren(child.id, ctx, options, childVisited, depth + 1, assetRefs),
     });

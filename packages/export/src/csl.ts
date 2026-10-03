@@ -280,7 +280,7 @@ export function cslToBib(item: CslItem): BibEntry {
 export interface BibliographicNode {
   id: string;
   name: string | null;
-  classIds: string[];
+  classIds: readonly string[];
 }
 
 function propValue(props: readonly ExportPropertyValue[], schemaId: string): unknown {

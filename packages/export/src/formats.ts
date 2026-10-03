@@ -5,16 +5,17 @@
  * option specs (from the gated catalog in options.ts — the task-E3 modal
  * renders its options section from these), and the serializer itself.
  *
- * Markdown, HTML, and Word (.docx) are implemented. pdf/latex are registered
- * skeletons with `availability: "unavailable"` and the work-record task that
- * will land them (P1/L1) — the modal lists them disabled instead of
- * stub-message tabs, and their serializer throws loud rather than no-oping.
- * The web-side registry (task E3) delegates to this one.
+ * Markdown, HTML, Word (.docx), and LaTeX are implemented. pdf is the
+ * remaining registered skeleton with `availability: "unavailable"` and the
+ * work-record task that will land it (P1) — the modal lists it disabled
+ * instead of stub-message tabs, and its serializer throws loud rather than
+ * no-oping. The web-side registry (task E3) delegates to this one.
  */
 
 import type { ExportDocument } from "./document.js";
 import { renderExportDocumentToDocx } from "./docx.js";
 import { renderExportDocumentToHtml } from "./html.js";
+import { renderExportDocumentToLatex } from "./latex.js";
 import { renderExportDocumentToMarkdown } from "./markdown.js";
 import type { ExportFormatId, ExportOptions, ExportOptionSpec } from "./options.js";
 import { optionSpecsFor, resolveExportOptions } from "./options.js";
@@ -25,11 +26,11 @@ export type ExportFormatAvailability =
   | { status: "unavailable"; reason: string };
 
 /**
- * Serialized output: text formats (markdown/html) return a string; the
+ * Serialized output: text formats (markdown/html/latex) return a string; the
  * binary formats return package bytes (docx). The union also admits a
  * Promise of either because binary serializers are async — `docx`'s packer
- * assembles the OOXML zip off the call stack (markdown/html stay sync).
- * Callers that need synchronous results must select a text format.
+ * assembles the OOXML zip off the call stack (markdown/html/latex stay
+ * sync). Callers that need synchronous results must select a text format.
  */
 export type SerializedExport = string | Uint8Array | Promise<string | Uint8Array>;
 
@@ -43,9 +44,9 @@ export interface ExportFormatDefinition {
   options: readonly ExportOptionSpec[];
   /**
    * IR → serialized output (see {@link SerializedExport} for the shape per
-   * format). Markdown/HTML render synchronously to text; docx resolves to
-   * .docx package bytes; the registered skeletons (pdf/latex) throw with
-   * their landing task — calling them is a programmer error until they land.
+   * format). Markdown/HTML/LaTeX render synchronously to text; docx resolves
+   * to .docx package bytes; the registered skeleton (pdf) throws with its
+   * landing task — calling it is a programmer error until it lands.
    */
   serialize(document: ExportDocument, options?: ExportOptions): SerializedExport;
 }
@@ -102,13 +103,10 @@ export const EXPORT_FORMATS: readonly ExportFormatDefinition[] = [
     id: "latex",
     label: "LaTeX",
     extensions: ["tex"],
-    availability: {
-      status: "unavailable",
-      reason:
-        "LaTeX export lands in task L1 (Phase 3): an escaping-correct template serializer with bibliography emission from source-class nodes.",
-    },
+    availability: { status: "available" },
     options: optionSpecsFor("latex"),
-    serialize: notImplemented("latex", "task L1"),
+    serialize: (document, options) =>
+      renderExportDocumentToLatex(document, resolveExportOptions(options)),
   },
 ];
 
