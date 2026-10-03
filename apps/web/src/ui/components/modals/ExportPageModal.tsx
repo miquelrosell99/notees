@@ -25,10 +25,21 @@
  * button dispatches on the selected card and delivers that format's own
  * bytes (single node) or one zip of per-root rendered files (batch). The
  * live preview is the engine's markdown projection, so it stays markdown-
- * only; other formats show a short static note instead.
+ * only; the other text formats show a short static note instead.
+ *
+ * PDF (task P1): the card is web-available with `delivery: "client-pdf"` —
+ * the package serializer stays a throwing skeleton while the web client
+ * renders PDFs through the lazily imported ui/export-pdf engine (react-pdf,
+ * the OFL Gentium bundle, and the layout themes live in that async chunk;
+ * the modal only ever `await import()`s it, on the first PDF export or
+ * preview). Selecting PDF reveals the layout cards (Notes/Essay/Academic,
+ * modelling decision 2) and the A4/Letter page-size SelectionButton, both
+ * feeding the engine options; the preview pane renders the PDF into a blob
+ * URL iframe, and Export downloads `<slug>.pdf` (a batch zips one PDF per
+ * root, the task-W convention).
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
-import type { ExportFormatId } from "@notees/export";
+import type { ExportFormatId, ExportOptions } from "@notees/export";
 
 import { useCopiedState } from "./overlayHooks";
 import { Modal } from "../ui/Modal.js";
@@ -36,6 +47,7 @@ import { copyToClipboard } from "./clipboard";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
 import { Checkbox } from "../ui/Checkbox.js";
+import { SelectionButton } from "../ui/SelectionButton.js";
 import { Spinner } from "../ui/Spinner.js";
 import { Icon } from "../../Icon";
 import { downloadBlob } from "./download";
@@ -56,9 +68,20 @@ import {
   getExportFormat,
   getRegisteredExportFormats,
   INCLUDE_CHILD_PAGES_KEY,
+  webSelectOption,
   type WebExportFormatDefinition,
 } from "./registerExportFormats";
 import "./ExportPageModal.css";
+
+type PdfLayout = NonNullable<ExportOptions["layout"]>;
+type PdfPageFormat = NonNullable<ExportOptions["pageFormat"]>;
+
+/** Layout card icons (MDI, keyed by the registry's layout option values). */
+const LAYOUT_ICONS: Record<PdfLayout, string> = {
+  notes: "notebook-outline",
+  essay: "text-long",
+  academic: "school-outline",
+};
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -92,7 +115,20 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
   );
   const [optionsOpen, setOptionsOpen] = useState(true);
 
+  // PDF-only selects (P1) — defaults from the package catalog's select
+  // specs (layout is also gated to docx/html/latex, but only PDF renders
+  // the dedicated cards today).
+  const layoutSpec = useMemo(() => webSelectOption("pdf", "layout"), []);
+  const pageFormatSpec = useMemo(() => webSelectOption("pdf", "pageFormat"), []);
+  const [layout, setLayout] = useState<PdfLayout>(
+    () => (layoutSpec?.defaultValue as PdfLayout | undefined) ?? "notes",
+  );
+  const [pageFormat, setPageFormat] = useState<PdfPageFormat>(
+    () => (pageFormatSpec?.defaultValue as PdfPageFormat | undefined) ?? "a4",
+  );
+
   const [previewContent, setPreviewContent] = useState<string>("");
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, triggerCopy] = useCopiedState();
@@ -120,6 +156,12 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
   const engineOptions = useMemo(
     () => ({ includeChildPages, includeEmbedded, includeOutline, hideEmptyProperties, showTypeLabels }),
     [includeChildPages, includeEmbedded, includeOutline, hideEmptyProperties, showTypeLabels],
+  );
+
+  /** The PDF engine's bag — the checkbox options + the two PDF-only selects. */
+  const pdfEngineOptions = useMemo(
+    () => ({ ...engineOptions, layout, pageFormat }),
+    [engineOptions, layout, pageFormat],
   );
 
   // Recompute the preview whenever the options change. The export engine is
@@ -160,6 +202,44 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
     };
   }, [isOpen, effectiveNodeUuids, engineOptions, client, formatId]);
 
+  // PDF preview (P1): render the selected subtree to a blob and show it in
+  // an iframe. The engine module is lazily imported (the first import pays
+  // the react-pdf + font cost — exactly the code-split boundary); failures
+  // fall back to the static note instead of surfacing an error, since the
+  // Export button itself reports real render errors.
+  useEffect(() => {
+    if (!isOpen || formatId !== "pdf" || effectiveNodeUuids.length !== 1) {
+      setPdfPreviewUrl(null);
+      return;
+    }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    const debounceTimer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const pdfModule = await import("@/ui/export-pdf/renderPdf.js");
+          const { blob } = await pdfModule.renderSubtreePdf(
+            client,
+            effectiveNodeUuids[0]!,
+            pdfEngineOptions,
+          );
+          if (cancelled) return;
+          objectUrl = URL.createObjectURL(blob);
+          setPdfPreviewUrl(objectUrl);
+        } catch {
+          if (!cancelled) setPdfPreviewUrl(null);
+        }
+      })();
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(debounceTimer);
+      if (objectUrl !== null && typeof URL.revokeObjectURL === "function") {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [isOpen, effectiveNodeUuids, client, formatId, pdfEngineOptions]);
+
   const handleSelectFormat = useCallback((id: ExportFormatId) => {
     const def = getExportFormat(id);
     if (def === undefined || def.availability.status !== "available") return;
@@ -179,6 +259,17 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
     setExporting(true);
     setError(null);
     try {
+      if (format.id === "pdf") {
+        // Client-side PDF (P1): the lazy boundary — the pdf module,
+        // react-pdf, and the font bundle load on this first import and
+        // stay out of the main chunk.
+        const pdfModule = await import("@/ui/export-pdf/renderPdf.js");
+        const exported = isBatch
+          ? await pdfModule.renderSubtreePdfBatch(client, effectiveNodeUuids, pdfEngineOptions)
+          : await pdfModule.renderSubtreePdf(client, effectiveNodeUuids[0]!, pdfEngineOptions);
+        downloadBlob(exported.blob, exported.filename);
+        return;
+      }
       // Include asset files is a markdown-bundle delivery toggle (E7): it
       // only renders on the markdown card, and only markdown's serializers
       // have an asset-bytes path — the other formats ignore it (assets stay
@@ -226,7 +317,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
     } finally {
       setExporting(false);
     }
-  }, [format, isBatch, client, effectiveNodeUuids, engineOptions, optionValues, includeChildPages]);
+  }, [format, isBatch, client, effectiveNodeUuids, engineOptions, pdfEngineOptions, optionValues, includeChildPages]);
 
   const title = useMemo(() => {
     if (isBatch) {
@@ -308,6 +399,51 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
           })}
         </div>
 
+        {/* PDF layout + page size (P1) — layout cards render only for the
+            layout-aware PDF card; both feed the engine options. */}
+        {format.id === "pdf" && layoutSpec !== undefined && pageFormatSpec !== undefined && (
+          <div className="export-modal__pdf-options">
+            <div className="export-modal__layouts" role="radiogroup" aria-label="Layout">
+              {layoutSpec.choices.map((choice) => {
+                const value = choice.value as PdfLayout;
+                const selected = layout === value;
+                return (
+                  <Card
+                    key={choice.value}
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={0}
+                    interactive
+                    selected={selected}
+                    className="export-modal__layout-card"
+                    onClick={() => setLayout(value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setLayout(value);
+                      }
+                    }}
+                  >
+                    <Icon path={`mdi mdi-${LAYOUT_ICONS[value] ?? "file-outline"}`} className="export-modal__layout-card-icon" />
+                    <span className="export-modal__layout-card-label">{choice.label}</span>
+                  </Card>
+                );
+              })}
+            </div>
+            <SelectionButton
+              size="sm"
+              label="Page size"
+              options={pageFormatSpec.choices.map((choice) => ({
+                value: choice.value,
+                icon: "mdi mdi-file-outline",
+                label: choice.label,
+              }))}
+              value={pageFormat}
+              onChange={(value) => setPageFormat(value as PdfPageFormat)}
+            />
+          </div>
+        )}
+
         {/* Options — the selected format's registry option specs. */}
         <div className="export-modal__options">
           <Button
@@ -354,6 +490,12 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
               value={previewContent}
               spellCheck={false}
               aria-label="markdown preview"
+            />
+          ) : format.id === "pdf" && pdfPreviewUrl !== null ? (
+            <iframe
+              title="pdf preview"
+              src={pdfPreviewUrl}
+              className="export-modal__pdf-preview"
             />
           ) : (
             <p className="export-modal__preview-note">
