@@ -8,14 +8,17 @@
  * Authored rows always win and survive class removal (design law); derived
  * defaults are computed HERE, never materialized — the applier writes no
  * property_value rows for them, which gives convergence and cleanup for free.
- * Binding conflicts across the node's classes resolve first-class-applied-wins:
- * the class whose OR-Set membership add carries the earliest HLC supplies the
- * default AND the binding metadata (sequence/required/readonly/hideWhenEmpty);
- * exact HLC ties break by class id. Deterministic on every replica — a pure
- * read over derived tables, no writes, no clocks.
+ * Binding conflicts resolve per the SCHEMA.md diamond rule (§34.32 PG4):
+ * OWN bindings first (first-class-applied-wins — the class whose OR-Set
+ * membership add carries the earliest HLC, exact ties by class id), then
+ * INHERITED bindings by shortest extends-path (BFS over class_extends; the
+ * class itself is distance 0), ties by the same assignment order.
+ * Deterministic on every replica — a pure read over derived tables, no
+ * writes, no clocks.
  */
 
 import { compareLww } from "./appliers.js";
+import { isValidDefaultForType } from "./property-values.js";
 import type { SqliteDB } from "./db.js";
 
 export interface EffectivePropertySchema {
@@ -128,8 +131,15 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       (a.class_id < b.class_id ? -1 : 1),
   );
 
-  // 3. Winning binding per schema: first class (in assignment order) that
-  //    binds the schema supplies default + metadata.
+  // 3. Winning binding per schema, extends-aware (SCHEMA.md diamond rule):
+  //    candidates are (class, ancestor) pairs where the ancestor's
+  //    class_property row binds the schema, discovered by BFS over
+  //    class_extends (the class itself is distance 0 = own binding — the
+  //    class_hierarchy closure carries no distance, so shortest-path walks
+  //    the edge table). The winner minimizes (distance, assignment HLC,
+  //    class id); boundBy names the ANCESTOR whose row supplies the
+  //    binding + default. With no extends edges this reduces exactly to
+  //    first-class-applied-wins over own bindings.
   interface BindingRow {
     property_schema_id: string;
     sequence: number;
@@ -138,17 +148,69 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     hide_when_empty: number | null;
     default_value: string | null;
   }
-  const winnerBySchema = new Map<string, { classId: string; binding: BindingRow }>();
+  interface BindingCandidate {
+    distance: number;
+    physical: number;
+    logical: number;
+    classId: string;
+    ancestorId: string;
+    binding: BindingRow;
+  }
+  const extendsStmt = db.prepare(
+    "SELECT parent_class_id FROM class_extends WHERE class_id = ?",
+  );
+  const reachCache = new Map<string, Array<{ ancestorId: string; distance: number }>>();
+  const reachOf = (classId: string): Array<{ ancestorId: string; distance: number }> => {
+    const cached = reachCache.get(classId);
+    if (cached) return cached;
+    const visited = new Set<string>([classId]);
+    const queue: Array<{ id: string; distance: number }> = [{ id: classId, distance: 0 }];
+    const reach: Array<{ ancestorId: string; distance: number }> = [];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      reach.push({ ancestorId: current.id, distance: current.distance });
+      for (const row of extendsStmt.all(current.id) as Array<{ parent_class_id: string }>) {
+        if (visited.has(row.parent_class_id)) continue;
+        visited.add(row.parent_class_id);
+        queue.push({ id: row.parent_class_id, distance: current.distance + 1 });
+      }
+    }
+    reachCache.set(classId, reach);
+    return reach;
+  };
   const bindingStmt = db.prepare(
     `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value
      FROM class_property WHERE class_id = ?`,
   );
+  const candidatesBySchema = new Map<string, BindingCandidate[]>();
   for (const cls of classes) {
-    for (const binding of bindingStmt.all(cls.class_id) as unknown as BindingRow[]) {
-      if (!winnerBySchema.has(binding.property_schema_id)) {
-        winnerBySchema.set(binding.property_schema_id, { classId: cls.class_id, binding });
+    for (const reach of reachOf(cls.class_id)) {
+      for (const binding of bindingStmt.all(reach.ancestorId) as unknown as BindingRow[]) {
+        const list = candidatesBySchema.get(binding.property_schema_id);
+        const candidate: BindingCandidate = {
+          distance: reach.distance,
+          physical: cls.hlc_physical,
+          logical: cls.hlc_logical,
+          classId: cls.class_id,
+          ancestorId: reach.ancestorId,
+          binding,
+        };
+        if (list) list.push(candidate);
+        else candidatesBySchema.set(binding.property_schema_id, [candidate]);
       }
     }
+  }
+  const winnerBySchema = new Map<string, { classId: string; binding: BindingRow }>();
+  for (const [schemaId, candidates] of candidatesBySchema) {
+    candidates.sort(
+      (a, b) =>
+        a.distance - b.distance ||
+        a.physical - b.physical ||
+        a.logical - b.logical ||
+        (a.classId < b.classId ? -1 : 1),
+    );
+    const winner = candidates[0]!;
+    winnerBySchema.set(schemaId, { classId: winner.ancestorId, binding: winner.binding });
   }
 
   // 4. Schema rows for everything referenced (authored rows survive schema
@@ -216,6 +278,11 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   for (const [schemaId, winner] of winnerBySchema) {
     const { binding, classId } = winner;
     if (binding.default_value === null) continue; // bound without a default
+    // PC2 read-side: a stored default that no longer matches the schema
+    // type (written before validation, or after a delete+recreate changed
+    // the type) yields no default rather than a wrong-typed value.
+    const schema = schemas.get(schemaId);
+    if (schema && !isValidDefaultForType(schema.type, parseJson(binding.default_value))) continue;
     const key = `${schemaId}:0`;
     if (rows.has(key)) continue; // authored value at idx 0 shadows the default
     push(key, {
