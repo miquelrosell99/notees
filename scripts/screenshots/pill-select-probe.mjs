@@ -92,13 +92,20 @@ const state = await page.evaluate(() => {
   const el = document.querySelector(".nt-block-text .nt-atom");
   if (!el) return { present: false };
   const cs = getComputedStyle(el);
-  const primary = getComputedStyle(document.documentElement).getPropertyValue("--color-primary").trim();
+  // Normalize --color-primary through a probe element (computed color is
+  // always rgb(); the custom property may be authored as #hex or a name).
+  const probe = document.createElement("span");
+  probe.style.color = "var(--color-primary)";
+  document.body.appendChild(probe);
+  const primary = getComputedStyle(probe).color;
+  probe.remove();
   return {
     present: true,
     selected: el.classList.contains("nt-atom--selected"),
     boxShadow: cs.boxShadow,
     color: cs.color,
     primary,
+    borderBottom: cs.borderBottomColor,
     background: cs.backgroundColor,
   };
 });
@@ -138,7 +145,9 @@ const caretState = await page.evaluate(() => {
   return {
     focused: document.activeElement === el,
     anchoredInside: el.contains(sel.anchorNode),
-    afterPill: pill === null ? null : range.comparePoint(pill, 0) === 1,
+    // comparePoint: -1 = the pill point sits BEFORE the caret (caret after
+    // the pill), 1 = after it.
+    afterPill: pill === null ? null : range.comparePoint(pill, 0) === -1,
     editorWidth: el.getBoundingClientRect().width,
     contentWidth: el.parentElement.getBoundingClientRect().width,
   };
@@ -150,8 +159,9 @@ const rowFillOk =
 
 const ringOk = state.present && state.selected && state.boxShadow !== "none" && /rgb/.test(state.boxShadow);
 const colorOk = state.color.replace(/\s/g, "") === state.primary.replace(/\s/g, "");
+const underlineHidden = state.borderBottom === "rgba(0, 0, 0, 0)";
 const noNav = urlAfterClick === urlBefore;
-console.log("ring outline:", ringOk, "| primary color:", colorOk, "| no navigation:", noNav, "| arrow clears:", cleared);
+console.log("ring outline:", ringOk, "| primary color:", colorOk, "| underline hidden:", underlineHidden, "| no navigation:", noNav, "| arrow clears:", cleared);
 console.log("page errors:", consoleErrors.length ? consoleErrors.slice(0, 4) : "none");
 
 await browser.close();
@@ -161,7 +171,7 @@ const del = await fetch(`${API}/api/objects/${host.id}`, {
   headers: { "x-api-key": KEY, "x-workspace-id": WS },
 });
 console.log("scratch cleanup (trash):", del.status);
-if (!ringOk || !colorOk || !noNav || !cleared || consoleErrors.length || del.status >= 300) {
+if (!ringOk || !colorOk || !underlineHidden || !noNav || !cleared || consoleErrors.length || del.status >= 300) {
   console.log("PILL-PROBE-FAIL");
   process.exit(1);
 }
