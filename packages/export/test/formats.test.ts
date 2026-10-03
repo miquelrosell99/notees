@@ -1,5 +1,5 @@
 /**
- * E1 specs: the format registry — markdown available, the other formats
+ * E1 specs: the format registry — markdown/html available, the other formats
  * registered as unavailable skeletons with reasons, per-format option
  * gating from the catalog, and the IR serializer seam.
  */
@@ -44,37 +44,43 @@ describe("format registry", () => {
     ]);
   });
 
-  it("marks only markdown available; the skeletons carry their landing task", () => {
-    expect(availableExportFormats().map((format) => format.id)).toEqual(["markdown"]);
-    for (const id of ["html", "pdf", "docx", "latex"] as const) {
+  it("marks markdown and html available; the skeletons carry their landing task", () => {
+    expect(availableExportFormats().map((format) => format.id)).toEqual(["markdown", "html"]);
+    for (const id of ["pdf", "docx", "latex"] as const) {
       const format = getExportFormat(id);
       expect(format).toBeDefined();
       expect(format?.availability.status).toBe("unavailable");
       const reason = format?.availability.status === "unavailable" ? format.availability.reason : "";
       expect(reason.length).toBeGreaterThan(0);
-      expect(reason).toMatch(/task [HPDC]1|task L1/);
+      expect(reason).toMatch(/task [PD]1|task L1/);
     }
   });
 
   it("unavailable formats throw loud from their serializer", () => {
     const document = buildExportDocument(makeNode("aaaaaaaa-0000-4000-8000-000000000001", "x"), CTX, resolveExportOptions());
-    for (const id of ["html", "pdf", "docx", "latex"] as const) {
+    for (const id of ["pdf", "docx", "latex"] as const) {
       const format = getExportFormat(id);
       expect(() => format?.serialize(document)).toThrowError(/not implemented/);
     }
   });
 
-  it("markdown serializer renders the IR through the registry", () => {
-    const format = getExportFormat("markdown");
-    expect(format?.availability.status).toBe("available");
+  it("markdown and html serializers render the IR through the registry", () => {
+    const markdown = getExportFormat("markdown");
+    expect(markdown?.availability.status).toBe("available");
     const document = buildExportDocument(
       makeNode("aaaaaaaa-0000-4000-8000-000000000002", "Registry render"),
       CTX,
       resolveExportOptions(),
     );
-    const md = format?.serialize(document, { showTypeLabels: false });
+    const md = markdown?.serialize(document, { showTypeLabels: false });
     expect(md).toContain("# Registry render");
     expect(md).toContain("isClass: false");
+    const html = getExportFormat("html");
+    expect(html?.availability.status).toBe("available");
+    const rendered = html?.serialize(document, { layout: "essay" });
+    expect(rendered).toContain("<!DOCTYPE html>");
+    expect(rendered).toContain("<title>Registry render</title>");
+    expect(rendered).toContain('<body class="layout-essay">');
   });
 
   it("hands each format its gated option specs", () => {
@@ -84,8 +90,13 @@ describe("format registry", () => {
     // includeOutline pdf/docx/html (+ markdown by decision).
     expect(keysFor("pdf")).toContain("pageFormat");
     expect(keysFor("markdown")).not.toContain("pageFormat");
+    expect(keysFor("markdown")).not.toContain("layout");
     expect(keysFor("markdown")).toContain("includeAssets");
     expect(keysFor("html")).not.toContain("includeAssets");
+    // The layout theme gates to the four layout-aware formats.
+    for (const id of ["html", "pdf", "docx", "latex"] as const) {
+      expect(keysFor(id)).toContain("layout");
+    }
     for (const id of ["markdown", "pdf", "docx", "html"] as const) {
       expect(keysFor(id)).toContain("includeOutline");
     }
@@ -115,6 +126,7 @@ describe("format registry", () => {
     expect(byKey.get("whiteboardMode")?.default).toBe("inline");
     expect(byKey.get("filenamePolicy")?.default).toBe("uuid");
     expect(byKey.get("pageFormat")?.default).toBe("a4");
+    expect(byKey.get("layout")?.default).toBe("notes");
   });
 
   it("resolves the option bag defaults to the hardened E2 behavior", () => {
@@ -125,6 +137,7 @@ describe("format registry", () => {
       hideEmptyProperties: true,
       showTypeLabels: false,
       pageFormat: "a4",
+      layout: "notes",
       includeAssets: false,
       maxDepth: null,
       whiteboardMode: "inline",
@@ -132,5 +145,6 @@ describe("format registry", () => {
     });
     expect(resolveExportOptions({ pageFormat: "letter", maxDepth: 3 }).pageFormat).toBe("letter");
     expect(resolveExportOptions({ pageFormat: "letter", maxDepth: 3 }).maxDepth).toBe(3);
+    expect(resolveExportOptions({ layout: "academic" }).layout).toBe("academic");
   });
 });

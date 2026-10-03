@@ -5,14 +5,15 @@
  * option specs (from the gated catalog in options.ts — the task-E3 modal
  * renders its options section from these), and the serializer itself.
  *
- * Markdown is fully implemented. html/pdf/docx/latex are registered
+ * Markdown and HTML are implemented. pdf/docx/latex are registered
  * skeletons with `availability: "unavailable"` and the work-record task that
- * will land them (H1/P1/D1/L1) — the modal lists them disabled instead of
+ * will land them (P1/D1/L1) — the modal lists them disabled instead of
  * stub-message tabs, and their serializer throws loud rather than no-oping.
  * The web-side registry (task E3) delegates to this one.
  */
 
 import type { ExportDocument } from "./document.js";
+import { renderExportDocumentToHtml } from "./html.js";
 import { renderExportDocumentToMarkdown } from "./markdown.js";
 import type { ExportFormatId, ExportOptions, ExportOptionSpec } from "./options.js";
 import { optionSpecsFor, resolveExportOptions } from "./options.js";
@@ -31,8 +32,9 @@ export interface ExportFormatDefinition {
   /** The option specs this format's serializer consumes (gated catalog subset). */
   options: readonly ExportOptionSpec[];
   /**
-   * IR → text. Markdown renders; the registered skeletons throw with their
-   * landing task — calling them is a programmer error until they land.
+   * IR → text. Markdown and HTML render; the registered skeletons
+   * (pdf/docx/latex) throw with their landing task — calling them is a
+   * programmer error until they land.
    */
   serialize(document: ExportDocument, options?: ExportOptions): string;
 }
@@ -59,12 +61,10 @@ export const EXPORT_FORMATS: readonly ExportFormatDefinition[] = [
     id: "html",
     label: "HTML",
     extensions: ["html"],
-    availability: {
-      status: "unavailable",
-      reason: "HTML export lands in task H1 (Phase 2): standalone styled HTML over the ExportDocument IR.",
-    },
+    availability: { status: "available" },
     options: optionSpecsFor("html"),
-    serialize: notImplemented("html", "task H1"),
+    serialize: (document, options) =>
+      renderExportDocumentToHtml(document, resolveExportOptions(options)),
   },
   {
     id: "pdf",
