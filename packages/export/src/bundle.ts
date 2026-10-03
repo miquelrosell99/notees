@@ -3,8 +3,8 @@
  * UUID↔name↔type manifest. E1/E2 extensions:
  *
  *  - `filenamePolicy` — "uuid" (`<uuid>.md`, rename-free default) or "slug"
- *    (`<slugified-title>-<uuid8>.md`, uuid8 fallback for empty titles; the
- *    uuid8 suffix keeps duplicate titles unique). The server zip (task E5)
+ *    (`<slugified-title>-<id8>.md`, id8 fallback for empty titles; the
+ *    id8 suffix — a pure hash of the node id — keeps duplicate titles unique). The server zip (task E5)
  *    reuses this policy.
  *  - `whiteboardMode: "sidecar"` — besides each `.md`, the bundle emits one
  *    `<owner-id>.whiteboard.json` sidecar per whiteboard block (pretty-printed
@@ -65,16 +65,29 @@ export interface ExportBundle {
 
 /**
  * Bundle file naming for one node: "uuid" keeps exports rename-free
- * (§34.12); "slug" renders `<slugified-title>-<uuid8>.md` — the slug keeps
+ * (§34.12); "slug" renders `<slugified-title>-<id8>.md` — the slug keeps
  * unicode letters/numbers (the repo's existing slug idiom), empty titles
- * fall back to the uuid8 alone, and the uuid8 suffix disambiguates duplicate
- * titles (uniqueness never relies on the slug).
+ * fall back to the id8 alone, and the id8 suffix disambiguates duplicate
+ * titles (uniqueness never relies on the slug). The suffix is a pure hash
+ * of the full id (FNV-1a, 8 hex chars), NOT `id.slice(0, 8)`: v1-derived
+ * deterministic ids (date chains, fixed system seeds) start with zero runs,
+ * so a plain prefix carries no identity signal.
  */
 export function exportFileName(node: ExportNode, policy: "uuid" | "slug"): string {
   if (policy === "uuid") return `${node.id}.md`;
   const slug = deriveDisplayName(node).replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
-  const uuid8 = node.id.slice(0, 8);
-  return `${slug.length > 0 ? `${slug}-` : ""}${uuid8}.md`;
+  const id8 = fnv1a8(node.id);
+  return `${slug.length > 0 ? `${slug}-` : ""}${id8}.md`;
+}
+
+/** FNV-1a 32-bit as 8 lowercase hex chars — deterministic, pure, dependency-free. */
+function fnv1a8(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
 }
 
 /**

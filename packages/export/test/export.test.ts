@@ -332,23 +332,28 @@ describe("bundle", () => {
 });
 
 describe("bundle filename policy", () => {
-  it("names files <slug>-<uuid8>.md under the slug policy and carries path in the manifest", () => {
+  it("names files <slug>-<id8>.md under the slug policy and carries path in the manifest", () => {
     const nodes = [
       page("cccccccc-0000-4000-8000-000000000005", "My Page!", [{ type: "text", text: "My Page!" }]),
       page("cccccccc-0000-4000-8000-000000000006", "My Page!", [{ type: "text", text: "My Page!" }]),
+      page("00000000-0000-0000-00bb-201800000000", "2018", [{ type: "text", text: "2018" }]),
       page("cccccccc-0000-4000-8000-000000000007", "   ", [{ type: "text", text: "   " }]),
     ];
     const bundle = bundleMarkdown(nodes, makeCtx(), { filenamePolicy: "slug" });
-    // Slugified titles share a slug; the uuid8 suffix disambiguates.
+    // Slugified titles share a slug; the id8 hash suffix disambiguates —
+    // including ids that share a prefix (the date-chain id zero-runs at the
+    // front, where a plain id-slice suffix would collide or carry nothing).
     expect(bundle.files.map((file) => file.path)).toEqual([
-      "My-Page-cccccccc.md",
-      "My-Page-cccccccc.md", // same node id → same file name (uuid8 is per node)
-      "cccccccc.md", // empty title falls back to the uuid8 alone
+      "My-Page-2e7e474e.md",
+      "My-Page-2d7e45bb.md",
+      "2018-8f83e696.md",
+      "2c7e4428.md", // empty title falls back to the id8 alone
     ]);
     expect(bundle.manifest.nodes.map((node) => node.path)).toEqual([
-      "My-Page-cccccccc.md",
-      "My-Page-cccccccc.md",
-      "cccccccc.md",
+      "My-Page-2e7e474e.md",
+      "My-Page-2d7e45bb.md",
+      "2018-8f83e696.md",
+      "2c7e4428.md",
     ]);
   });
 
