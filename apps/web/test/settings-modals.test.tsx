@@ -656,4 +656,147 @@ describe("ManageWorkspacesModal", () => {
     expect(screen.getByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /share|duplicate|import/i })).toBeNull();
   });
+
+  it("opens the export modal from the actions menu and downloads the zip with assets included", async () => {
+    const calls: { url: string; method: string }[] = [];
+    let resolveExport: ((response: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, method: init?.method ?? "GET" });
+        if (url.endsWith("/api/workspaces")) {
+          return Response.json({ workspaces: [WS] });
+        }
+        if (url.includes("/api/workspaces/ws1/export.zip")) {
+          // Hold the zip in flight so the modal's busy state is observable.
+          return new Promise<Response>((resolve) => {
+            resolveExport = resolve;
+          });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+    let capturedBlob: Blob | null = null;
+    Object.defineProperty(URL, "createObjectURL", {
+      value: vi.fn((blob: Blob) => {
+        capturedBlob = blob;
+        return "blob:mock";
+      }),
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+    let captured: HTMLAnchorElement | null = null;
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        captured = this;
+      });
+
+    render(
+      <WorkspacesView
+        serverUrl="https://notees.example.com"
+        credential="session-token"
+        user={null}
+        activeWorkspaceId="ws1"
+        onEnter={() => {}}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
+
+    // The E6 options modal: format note + include-assets toggle (default off).
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText(/one zip archive/i)).toBeInTheDocument();
+    const includeAssets = screen.getByRole("checkbox", { name: /include asset files/i });
+    expect(includeAssets).not.toBeChecked();
+
+    fireEvent.click(includeAssets);
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    // Busy state while the zip builds: the request carries the toggle and
+    // the footer buttons are dead until the blob lands.
+    const exportCall = calls.find((c) => c.url.includes("export.zip"));
+    expect(exportCall?.url).toContain("includeAssets=1");
+    expect(screen.getByRole("button", { name: /exporting/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^cancel$/i })).toBeDisabled();
+
+    resolveExport!(
+      new Response("zip-bytes", {
+        status: 200,
+        headers: {
+          "content-type": "application/zip",
+          "content-disposition": 'attachment; filename="garden.zip"',
+        },
+      }),
+    );
+
+    await waitFor(() => expect(captured).not.toBeNull());
+    expect(captured!.getAttribute("download")).toBe("garden.zip");
+    expect(capturedBlob!.type).toBe("application/zip");
+    // Success closes the modal again.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    click.mockRestore();
+  });
+
+  it("requests the workspace zip without assets by default", async () => {
+    const calls = stubFetch({
+      "/api/workspaces": () => ({ workspaces: [WS] }),
+    });
+    render(
+      <WorkspacesView
+        serverUrl="https://notees.example.com"
+        credential="session-token"
+        user={null}
+        activeWorkspaceId="ws1"
+        onEnter={() => {}}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await waitFor(() => {
+      const exportCall = calls.find((c) => c.url.includes("export.zip"));
+      expect(exportCall?.url).toContain("includeAssets=0");
+    });
+  });
+
+  it("surfaces an export failure in the modal without closing it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/api/workspaces")) {
+          return Response.json({ workspaces: [WS] });
+        }
+        if (url.includes("/api/workspaces/ws1/export.zip")) {
+          return Response.json({ error: { message: "zip build failed" } }, { status: 500 });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+    render(
+      <WorkspacesView
+        serverUrl="https://notees.example.com"
+        credential="session-token"
+        user={null}
+        activeWorkspaceId="ws1"
+        onEnter={() => {}}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /export/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/zip build failed/i);
+    // The modal stays open, ready to retry.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^export$/i })).toBeEnabled();
+  });
 });

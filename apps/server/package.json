@@ -24,6 +24,7 @@
     "@notees/sync": "workspace:*",
     "better-sqlite3": "^11.0.0",
     "fastify": "^5.0.0",
+    "fflate": "^0.8.2",
     "uuidv7": "^1.0.0",
     "zod": "^3.23.0"
   },

@@ -1150,6 +1150,56 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("roots (workspace top-level pages)", () => {
+    it("lists active parentless non-class rows in id order, excluding classes, parented nodes, and other workspaces", () => {
+      const store = makeStore();
+      // Creation order deliberately differs from id order: the node name
+      // cache stays null under title-is-content, so the display ORDER BY
+      // COALESCE(name, id), id reads as a deterministic id sort.
+      store.apply(
+        env("object.create", { objectId: NODE_BOOK, contentAst: [{ type: "text", text: "Alpha" }] }, 1727200001000),
+      );
+      store.apply(
+        env("object.create", { objectId: NODE_PAGE, contentAst: [{ type: "text", text: "Zeta" }] }, 1727200002000),
+      );
+      // A class is parentless by law but never a root page.
+      store.apply(
+        env("class.create", { classId: "c0000000-0000-7000-8000-0000000000c1", contentAst: [{ type: "text", text: "Genre" }] }, 1727200003000),
+      );
+      // Parented nodes stay out regardless of the render bit: a main child...
+      const sub = "0192a000-0000-7000-8000-0000000000d1";
+      store.apply(
+        env("object.create", { objectId: sub, parentId: NODE_PAGE, presentAsMain: true, contentAst: [{ type: "text", text: "Sub" }] }, 1727200004000),
+      );
+      // ...and an inline block.
+      store.apply(
+        env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000d2", parentId: NODE_PAGE, contentAst: [{ type: "text", text: "inline" }] }, 1727200005000),
+      );
+      // A page in ANOTHER workspace must not leak into this workspace's roots.
+      const otherWs = "0192a000-0000-7000-8000-000000000009";
+      store.apply(
+        newEnvelope({
+          workspaceId: otherWs,
+          actorId: ACTOR,
+          deviceId: "test-device-store",
+          hlc: { physical: 1727200006000, logical: 0 },
+          opType: "object.create",
+          payload: { objectId: "0192a000-0000-7000-8000-0000000000e9" },
+          timestamp: new Date(1727200006000).toISOString(),
+        }),
+      );
+
+      expect(store.roots(WS).map((row) => row.id)).toEqual([NODE_PAGE, NODE_BOOK]);
+      expect(store.roots(otherWs).map((row) => row.id)).toEqual([
+        "0192a000-0000-7000-8000-0000000000e9",
+      ]);
+
+      // Soft delete drops the root (and its subtree) from the read.
+      store.apply(env("object.delete", { objectId: NODE_PAGE }, 1727200007000));
+      expect(store.roots(WS).map((row) => row.id)).toEqual([NODE_BOOK]);
+    });
+  });
+
   describe("object lifecycle", () => {
     it("soft delete trashes the subtree; permanent delete hard-removes it", () => {
       const store = baseStore();

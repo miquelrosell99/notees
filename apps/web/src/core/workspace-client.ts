@@ -749,6 +749,16 @@ export class WorkspaceClient {
     return rows.map(mapNode);
   }
 
+  /**
+   * Top-level pages only (parentless non-class, active) — the shell's
+   * workspace-level page lists and the export enumerator. Same display order
+   * as listPages; unlike listPages, main children (subpages in a parent's
+   * Pages zone) are NOT included.
+   */
+  roots(): ClientNode[] {
+    return this.store.roots(this.workspaceId).map(mapNode);
+  }
+
   /** All active classes in the workspace, deterministic order (# capture). */
   listClasses(): ClientNode[] {
     const rows = this.store.database
@@ -1866,6 +1876,16 @@ export class WorkspaceClient {
     );
     this.notify();
     this.kickPush();
+  }
+
+  /**
+   * Download an asset's bytes (GET /api/assets/:id, workspace key) — the raw
+   * read the export engine's include-assets bundle uses (distinct from
+   * downloadAsset, which opens a tab, and getAssetDataUrl, images only).
+   */
+  async fetchAssetBytes(assetId: string): Promise<Blob> {
+    const { serverUrl, apiKey } = this.requireRest();
+    return fetchAssetBlob(serverUrl, apiKey, assetId);
   }
 
   /**

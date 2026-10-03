@@ -211,6 +211,24 @@ export class Store {
       .all(parentId) as NodeRow[];
   }
 
+  /**
+   * Workspace root pages: active non-class nodes with no parent, in display
+   * order (same ORDER BY as the clients' page lists). Classes are excluded
+   * even though they are always roots — they are listed separately; parented
+   * nodes (inline blocks, main children) are excluded regardless of the
+   * render bit. This is the workspace-zip enumerator (top-level pages, then
+   * walk descendants) and the shell's top-level page lists.
+   */
+  roots(workspaceId: string): NodeRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM node
+         WHERE workspace_id = ? AND is_class = 0 AND parent_id IS NULL AND is_active = 1
+         ORDER BY COALESCE(name, id), id`,
+      )
+      .all(workspaceId) as NodeRow[];
+  }
+
   /** Direct class_extends parents of a class, deterministic order. */
   classParentIds(classId: string): string[] {
     return (
