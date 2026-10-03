@@ -257,13 +257,159 @@ describe("ExportPageModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
-    expect(createObjectUrl).toHaveBeenCalled();
+    // The export dispatch is async (docx packs off the call stack), so the
+    // download lands after the click returns.
+    await vi.waitFor(() => expect(createObjectUrl).toHaveBeenCalled());
     expect(captured).not.toBeNull();
     expect(captured!.getAttribute("download")).toBe("Trip.md");
     expect(capturedBlob).not.toBeNull();
     expect(capturedBlob!.type).toBe("text/markdown");
 
     click.mockRestore();
+  }, 10000);
+
+  it("shows a static note instead of the live preview for non-markdown formats", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+
+    render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /html/i }));
+
+    // The markdown textarea is replaced by an honest static note — the
+    // preview is the engine's markdown projection only (task W).
+    expect(screen.queryByLabelText("markdown preview")).toBeNull();
+    expect(screen.getByText(/preview is available for markdown/i)).toBeInTheDocument();
+  }, 10000);
+
+  it("downloads an HTML document when the HTML card is selected", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "Book flights" }],
+    });
+
+    const download = stubDownload();
+    render(
+      <ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} nodeName="Trip" />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /html/i }));
+    await screen.findByText(/preview is available for markdown/i);
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    // Format-routed delivery (task W): the card's own bytes, not markdown
+    // under a foreign extension.
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.html");
+    expect(download.blob).not.toBeNull();
+    expect(download.blob!.type).toBe("text/html");
+
+    const html = new TextDecoder().decode(await readBlobBytes(download.blob!));
+    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("<h1>Trip</h1>");
+    expect(html).toContain("Book flights");
+
+    download.restore();
+  }, 10000);
+
+  it("downloads a LaTeX document when the LaTeX card is selected", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+
+    const download = stubDownload();
+    render(
+      <ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} nodeName="Trip" />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /latex/i }));
+    await screen.findByText(/preview is available for markdown/i);
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.tex");
+    expect(download.blob!.type).toBe("application/x-latex");
+
+    const latex = new TextDecoder().decode(await readBlobBytes(download.blob!));
+    expect(latex).toContain("\\documentclass");
+
+    download.restore();
+  }, 10000);
+
+  it("downloads a Word docx package when the Word card is selected", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+
+    const download = stubDownload();
+    render(
+      <ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} nodeName="Trip" />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /word/i }));
+    await screen.findByText(/preview is available for markdown/i);
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    // The docx packer assembles the OOXML zip off the call stack.
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.docx");
+    expect(download.blob!.type).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+    // A .docx is an OOXML zip: the main document part must be present.
+    const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
+    expect(Object.keys(entries)).toContain("word/document.xml");
+
+    download.restore();
+  }, 10000);
+
+  it("zips one rendered HTML file per root when a batch exports as HTML", async () => {
+    const client = await makeClient();
+    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+
+    const download = stubDownload();
+    render(
+      <ExportPageModal
+        isOpen={true}
+        onClose={() => {}}
+        client={client}
+        nodeUuids={[tripId, packingId]}
+      />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /html/i }));
+    await screen.findByText(/preview is available for markdown/i);
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.zip");
+    expect(download.blob!.type).toBe("application/zip");
+
+    const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
+    const decode = (data: Uint8Array) => new TextDecoder().decode(data);
+    // The E3 slug naming policy with the format's extension: one whole-file
+    // render per root.
+    const entryFor = (slug: string) => {
+      const match = Object.keys(entries).filter((name) => new RegExp(`^${slug}-[0-9a-f]{8}\\.html$`).test(name));
+      expect(match).toHaveLength(1);
+      return match[0]!;
+    };
+    const tripPath = entryFor("Trip");
+    const packingPath = entryFor("Packing");
+    expect(decode(entries[tripPath]!)).toContain("<!DOCTYPE html>");
+    expect(decode(entries[tripPath]!)).toContain("<h1>Trip</h1>");
+    expect(decode(entries[packingPath]!)).toContain("<h1>Packing</h1>");
+    // v1 non-markdown batch zips carry no manifest (it is a markdown-bundle
+    // concept) and no assets/ (the serializers have no bytes path).
+    expect(Object.keys(entries)).not.toContain("notees-manifest.json");
+    expect(Object.keys(entries).some((key) => key.startsWith("assets/"))).toBe(false);
+
+    download.restore();
   }, 10000);
 
   it("zips every selected node's subtree plus the manifest for a batch", async () => {

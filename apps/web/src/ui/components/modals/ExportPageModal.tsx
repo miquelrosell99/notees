@@ -11,14 +11,21 @@
  * rows (defaults from the package catalog), including the modal's own
  * "Include child pages" subtree toggle for markdown.
  *
- * The preview and the export run through the local export engine
+ * The preview and the markdown export run through the local export engine
  * (exportSubtree): a single node downloads one concatenated Markdown file; a
- * batch collects every node's subtree bundle into ONE zip (slug filenames
- * + `notees-manifest.json`, the E5 server-zip conventions). The markdown
+ * batch collects every node's subtree bundle into ONE zip (slug filenames +
+ * `notees-manifest.json`, the E5 server-zip conventions). The markdown
  * registry's "Include asset files" option (E7) scans the exported subtrees
  * for asset_ref tokens, fetches the bytes concurrency-limited, and switches
  * delivery to the same zip shape — single node included — with the refs
  * rewritten to relative `assets/` paths.
+ *
+ * Format routing (task W): the other available cards (html/latex/docx) no
+ * longer download markdown bytes under a foreign extension — the Export
+ * button dispatches on the selected card and delivers that format's own
+ * bytes (single node) or one zip of per-root rendered files (batch). The
+ * live preview is the engine's markdown projection, so it stays markdown-
+ * only; other formats show a short static note instead.
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
 import type { ExportFormatId } from "@notees/export";
@@ -35,6 +42,8 @@ import { downloadBlob } from "./download";
 import {
   exportSubtreeMarkdown,
   exportSubtreeBundle,
+  exportSubtreeFile,
+  exportSubtreeBatchFile,
   exportZipFileName,
   zipExportBundle,
   collectSubtreeAssetRefIds,
@@ -115,9 +124,16 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
 
   // Recompute the preview whenever the options change. The export engine is
   // synchronous and local; the debounce keeps rapid setting changes from
-  // re-rendering the world per keystroke.
+  // re-rendering the world per keystroke. The preview is the engine's
+  // markdown projection — it only runs for the markdown card; every other
+  // format shows a static note instead of misleading markdown bytes.
   useEffect(() => {
     if (!isOpen || effectiveNodeUuids.length === 0) {
+      return;
+    }
+    if (formatId !== "markdown") {
+      setPreviewContent("");
+      setLoading(false);
       return;
     }
 
@@ -142,7 +158,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
       cancelled = true;
       window.clearTimeout(debounceTimer);
     };
-  }, [isOpen, effectiveNodeUuids, engineOptions, client]);
+  }, [isOpen, effectiveNodeUuids, engineOptions, client, formatId]);
 
   const handleSelectFormat = useCallback((id: ExportFormatId) => {
     const def = getExportFormat(id);
@@ -163,11 +179,23 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
     setExporting(true);
     setError(null);
     try {
-      const includeAssets = optionValues["includeAssets"] ?? false;
-      // Zip delivery for batches (E3) and whenever asset bytes are included
-      // (E7 — a single node with assets becomes a zip too); otherwise one
-      // concatenated .md per the single-file convention.
-      if (isBatch || includeAssets) {
+      // Include asset files is a markdown-bundle delivery toggle (E7): it
+      // only renders on the markdown card, and only markdown's serializers
+      // have an asset-bytes path — the other formats ignore it (assets stay
+      // placeholder refs), so the guard is per format here.
+      const includeAssets = format.id === "markdown" && (optionValues["includeAssets"] ?? false);
+      if (isBatch && format.id !== "markdown") {
+        // Batch delivery for html/latex/docx (task W): ONE zip carrying each
+        // root's rendered file. Markdown's batch stays the E3/E7 bundle zip.
+        const exported = await exportSubtreeBatchFile(client, effectiveNodeUuids, {
+          format: format.id,
+          ...engineOptions,
+        });
+        downloadBlob(exported.blob, exported.filename);
+      } else if (isBatch || includeAssets) {
+        // Zip delivery for batches (E3) and whenever asset bytes are included
+        // (E7 — a single node with assets becomes a zip too); otherwise one
+        // concatenated .md per the single-file convention.
         const assetFiles = includeAssets
           ? await fetchSubtreeAssets(
               client,
@@ -185,9 +213,13 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         const blob = new Blob([zipExportBundle(bundle, assetFiles)], { type: "application/zip" });
         downloadBlob(blob, exportZipFileName(client, effectiveNodeUuids[0]!));
       } else {
-        const exported = exportSubtreeMarkdown(client, effectiveNodeUuids[0]!, engineOptions);
-        const blob = new Blob([exported.markdown], { type: format.mimeType });
-        downloadBlob(blob, exported.filename);
+        // Format-routed single-file delivery (task W): the selected card's
+        // own bytes — markdown keeps the historical concatenated document.
+        const exported = await exportSubtreeFile(client, effectiveNodeUuids[0]!, {
+          format: format.id,
+          ...engineOptions,
+        });
+        downloadBlob(exported.blob, exported.filename);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Export failed");
@@ -306,20 +338,29 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
           )}
         </div>
 
-        {/* Markdown live preview (read-only). */}
+        {/* Live preview — the engine's markdown projection (read-only). Other
+            formats download their own bytes (task W); showing markdown here
+            would be misleading, so they get an honest static note. */}
         <div className="export-modal__preview-wrap">
           {error && (
             <div className="export-modal__error" role="alert">
               {error}
             </div>
           )}
-          <textarea
-            className={`export-modal__preview${loading ? " export-modal__preview--loading" : ""}`}
-            readOnly
-            value={previewContent}
-            spellCheck={false}
-            aria-label={`${format.id} preview`}
-          />
+          {format.id === "markdown" ? (
+            <textarea
+              className={`export-modal__preview${loading ? " export-modal__preview--loading" : ""}`}
+              readOnly
+              value={previewContent}
+              spellCheck={false}
+              aria-label="markdown preview"
+            />
+          ) : (
+            <p className="export-modal__preview-note">
+              Preview is available for Markdown. The {format.label} export renders the whole
+              subtree in the selected format.
+            </p>
+          )}
         </div>
       </div>
     </Modal>
