@@ -1,45 +1,55 @@
 /**
- * ExportPageModal - Modal for exporting one or more nodes
+ * ExportPageModal — export one node or a batch of nodes (§34.24 E3,
+ * modelling decision 3: the Capacities structure, composed from kit
+ * primitives only).
  *
- * Improvements:
- * - Node name shown in title
- * - Batch export support (multiple node UUIDs)
+ * Format cards come from the web-side registry (registerExportFormats),
+ * which delegates to @notees/export's package catalog: available formats
+ * render as selectable cards, unavailable ones as disabled cards carrying
+ * the registry's reason — never stub-message tabs. The collapsible Options
+ * section renders the selected format's registry option specs as checkbox
+ * rows (defaults from the package catalog), including the modal's own
+ * "Include child pages" subtree toggle for markdown.
  *
- * The preview and the download are computed locally with the export engine
- * built on @notees/export (full-subtree Markdown). Formats that require the
- * server-side export service (HTML/PDF/Text/JSON) are listed but report
- * their unavailability honestly in the preview area instead of failing
- * silently; the rich text/HTML options stay available in the options panel
- * and persist in-session for when the service exists.
+ * The preview and the export run through the local export engine
+ * (exportSubtree): a single node downloads one concatenated Markdown file; a
+ * batch collects every node's subtree bundle into ONE zip (slug filenames
+ * + `notees-manifest.json`, the E5 server-zip conventions). The markdown
+ * registry's "Include asset files" option (E7) scans the exported subtrees
+ * for asset_ref tokens, fetches the bytes concurrency-limited, and switches
+ * delivery to the same zip shape — single node included — with the refs
+ * rewritten to relative `assets/` paths.
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
+import type { ExportFormatId } from "@notees/export";
+
 import { useCopiedState } from "./overlayHooks";
 import { Modal } from "../ui/Modal.js";
 import { copyToClipboard } from "./clipboard";
 import { Button } from "../ui/Button.js";
+import { Card } from "../ui/Card.js";
+import { Checkbox } from "../ui/Checkbox.js";
 import { Spinner } from "../ui/Spinner.js";
-import { SelectionButton } from "../ui/SelectionButton.js";
-import { ButtonWithPanel } from "../ui/ButtonWithPanel.js";
-import { BooleanToggle } from "../ui/BooleanToggle.js";
 import { Icon } from "../../Icon";
 import { downloadBlob } from "./download";
-import { exportSubtreeMarkdown, type ExportClient } from "./exportSubtree";
-import { getExportFormat, formatHasHtmlOptions, getExportExtension, getRegisteredExportFormats } from "./exportFormatRegistry";
-import "./registerExportFormats";
+import {
+  exportSubtreeMarkdown,
+  exportSubtreeBundle,
+  exportZipFileName,
+  zipExportBundle,
+  collectSubtreeAssetRefIds,
+  fetchSubtreeAssets,
+  type ExportClient,
+} from "./exportSubtree";
+import {
+  availableExportFormats,
+  defaultOptionValues,
+  getExportFormat,
+  getRegisteredExportFormats,
+  INCLUDE_CHILD_PAGES_KEY,
+  type WebExportFormatDefinition,
+} from "./registerExportFormats";
 import "./ExportPageModal.css";
-
-export type ExportFormat = "markdown" | "html" | "pdf" | "text" | "json";
-export type ExportLayout = "outline" | "flat";
-export type ExportStyle = "modern" | "casual" | "editorial" | "technical" | "book";
-export type ExportProperties = "none" | "main" | "all";
-export type ExportDensity = "comfortable" | "compact";
-export type ExportNumbering = "none" | "hierarchical" | "legal" | "appendix";
-export type ExportMeasure = "full" | "readable" | "book" | "two-column";
-export type ExportDoctype = "none" | "article" | "report" | "book" | "legal" | "academic";
-export type ExportLinkStyle = "raw" | "text";
-export type ExportThemeMode = "light" | "dark";
-export type ExportPageSize = "a4" | "letter" | "legal";
-export type ExportPreset = "casual" | "editorial" | "technical" | "book" | "legal" | "academic";
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -56,80 +66,28 @@ export interface ExportPageModalProps {
   nodeNames?: string[];
 }
 
-interface ExportSettings {
-  format: ExportFormat;
-  layout: ExportLayout;
-  style: ExportStyle;
-  properties: ExportProperties;
-  density: ExportDensity;
-  numbering: ExportNumbering;
-  measure: ExportMeasure;
-  doctype: ExportDoctype;
-  sectionBreak: boolean;
-  formatting: boolean;
-  showUuid: boolean;
-  linkStyle: ExportLinkStyle;
-  cssOverrides: string;
-  themeMode: ExportThemeMode;
-  coverPage: boolean;
-  pageSize: ExportPageSize;
-  includeChildPages: boolean;
-}
-
-const DEFAULT_SETTINGS: ExportSettings = {
-  format: "markdown",
-  layout: "outline",
-  style: "modern",
-  properties: "main",
-  density: "comfortable",
-  numbering: "none",
-  measure: "readable",
-  doctype: "article",
-  sectionBreak: false,
-  formatting: true,
-  showUuid: false,
-  linkStyle: "raw",
-  cssOverrides: "",
-  themeMode: "light",
-  coverPage: false,
-  pageSize: "a4",
-  includeChildPages: true,
-};
-
-/** Honest stub message for formats that need the server export service. */
-function unavailableMessage(format: string): string {
-  return `${format.toUpperCase()} export uses the server export service, which this deployment does not provide. Markdown export works fully offline.`;
+/** The first available format — markdown today; the registry decides. */
+function firstAvailableFormat(): WebExportFormatDefinition {
+  const first = availableExportFormats()[0];
+  if (first === undefined) {
+    throw new Error("ExportPageModal: the export registry has no available format");
+  }
+  return first;
 }
 
 export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, nodeName }: ExportPageModalProps) {
-  const [settings, setSettings] = useState<ExportSettings>(DEFAULT_SETTINGS);
-  const { format, layout, style, properties, density, numbering, measure, doctype, sectionBreak, formatting, showUuid, linkStyle, cssOverrides, themeMode, coverPage, pageSize, includeChildPages } = settings;
-  const setSetting = useCallback(<K extends keyof ExportSettings>(key: K, value: ExportSettings[K]) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-  }, []);
-  const applyPreset = useCallback((preset: ExportPreset) => {
-    const presets: Record<ExportPreset, Partial<ExportSettings>> = {
-      casual: { style: "casual", density: "comfortable", measure: "readable", numbering: "none", doctype: "article", sectionBreak: false, layout: "outline", themeMode: "light", coverPage: false },
-      editorial: { style: "editorial", density: "comfortable", measure: "readable", numbering: "none", doctype: "article", sectionBreak: false, layout: "outline", themeMode: "light", coverPage: true },
-      technical: { style: "technical", density: "compact", measure: "full", numbering: "hierarchical", doctype: "report", sectionBreak: true, layout: "flat", themeMode: "light", coverPage: true },
-      book: { style: "book", density: "comfortable", measure: "book", numbering: "hierarchical", doctype: "book", sectionBreak: true, layout: "flat", themeMode: "light", coverPage: true },
-      legal: { style: "technical", density: "compact", measure: "full", numbering: "legal", doctype: "legal", sectionBreak: false, layout: "outline", themeMode: "light", coverPage: false },
-      academic: { style: "editorial", density: "comfortable", measure: "readable", numbering: "none", doctype: "academic", sectionBreak: false, layout: "outline", themeMode: "light", coverPage: false },
-    };
-    setSettings((prev) => ({ ...prev, ...presets[preset] }));
-  }, []);
+  const formats = useMemo(() => getRegisteredExportFormats(), []);
+  const [formatId, setFormatId] = useState<ExportFormatId>(() => firstAvailableFormat().id);
+  const [optionValues, setOptionValues] = useState<Record<string, boolean>>(() =>
+    defaultOptionValues(firstAvailableFormat()),
+  );
+  const [optionsOpen, setOptionsOpen] = useState(true);
 
   const [previewContent, setPreviewContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, triggerCopy] = useCopiedState();
-  const [downloading, setDownloading] = useState(false);
-  const [qrModalOpen, setQrModalOpen] = useState(false);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [qrError, setQrError] = useState<string | null>(null);
-  const [qrGenerating, setQrGenerating] = useState(false);
-  const [htmlViewMode, setHtmlViewMode] = useState<"preview" | "source">("preview");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const effectiveNodeUuids = useMemo(() => {
     if (nodeUuids && nodeUuids.length > 0) return nodeUuids;
@@ -139,29 +97,25 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
 
   const isBatch = effectiveNodeUuids.length > 1;
 
-  const activePreset: ExportPreset | "custom" = useMemo(() => {
-    const current = { style, density, measure, numbering, doctype, sectionBreak, layout, themeMode, coverPage };
-    const presets: Record<ExportPreset, typeof current> = {
-      casual: { style: "casual", density: "comfortable", measure: "readable", numbering: "none", doctype: "article", sectionBreak: false, layout: "outline", themeMode: "light", coverPage: false },
-      editorial: { style: "editorial", density: "comfortable", measure: "readable", numbering: "none", doctype: "article", sectionBreak: false, layout: "outline", themeMode: "light", coverPage: true },
-      technical: { style: "technical", density: "compact", measure: "full", numbering: "hierarchical", doctype: "report", sectionBreak: true, layout: "flat", themeMode: "light", coverPage: true },
-      book: { style: "book", density: "comfortable", measure: "book", numbering: "hierarchical", doctype: "book", sectionBreak: true, layout: "flat", themeMode: "light", coverPage: true },
-      legal: { style: "technical", density: "compact", measure: "full", numbering: "legal", doctype: "legal", sectionBreak: false, layout: "outline", themeMode: "light", coverPage: false },
-      academic: { style: "editorial", density: "comfortable", measure: "readable", numbering: "none", doctype: "academic", sectionBreak: false, layout: "outline", themeMode: "light", coverPage: false },
-    };
-    for (const [key, values] of Object.entries(presets)) {
-      const match = Object.entries(values).every(([k, v]) => current[k as keyof typeof current] === v);
-      if (match) return key as ExportPreset;
-    }
-    return "custom";
-  }, [style, density, measure, numbering, doctype, sectionBreak, layout, themeMode, coverPage]);
+  // formatId only ever holds a registry id (initialized from the registry,
+  // set from clickable cards), but the registry is the authority.
+  const format = getExportFormat(formatId);
 
-  /** Markdown is the only format the local export engine produces. */
-  const isLocalFormat = format === "markdown";
+  const includeChildPages = optionValues[INCLUDE_CHILD_PAGES_KEY] ?? true;
+  const includeEmbedded = optionValues["includeEmbedded"] ?? false;
+  const includeOutline = optionValues["includeOutline"] ?? true;
+  const hideEmptyProperties = optionValues["hideEmptyProperties"] ?? true;
+  const showTypeLabels = optionValues["showTypeLabels"] ?? false;
 
-  // Recompute the preview whenever settings change. The export engine is
-  // synchronous and local; the debounce mirrors the legacy async preview
-  // cadence so rapid setting changes don't re-render the world per keystroke.
+  /** Engine options the checkbox rows reach (single-node and batch paths). */
+  const engineOptions = useMemo(
+    () => ({ includeChildPages, includeEmbedded, includeOutline, hideEmptyProperties, showTypeLabels }),
+    [includeChildPages, includeEmbedded, includeOutline, hideEmptyProperties, showTypeLabels],
+  );
+
+  // Recompute the preview whenever the options change. The export engine is
+  // synchronous and local; the debounce keeps rapid setting changes from
+  // re-rendering the world per keystroke.
   useEffect(() => {
     if (!isOpen || effectiveNodeUuids.length === 0) {
       return;
@@ -170,17 +124,11 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
     let cancelled = false;
     const debounceTimer = window.setTimeout(() => {
       if (cancelled) return;
-      if (!isLocalFormat) {
-        setPreviewContent("");
-        setLoading(false);
-        setError(unavailableMessage(format));
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
         const parts = effectiveNodeUuids.map((id) =>
-          exportSubtreeMarkdown(client, id, { includeChildPages }).markdown,
+          exportSubtreeMarkdown(client, id, engineOptions).markdown,
         );
         if (!cancelled) setPreviewContent(parts.join("\n\n---\n\n"));
       } catch (e: unknown) {
@@ -194,70 +142,69 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
       cancelled = true;
       window.clearTimeout(debounceTimer);
     };
-  }, [isOpen, format, includeChildPages, effectiveNodeUuids, isLocalFormat, client]);
+  }, [isOpen, effectiveNodeUuids, engineOptions, client]);
 
-  // For Markdown/Text/JSON tabs, show plain-text body content.
-  const displayContent = useMemo(() => {
-    if (!previewContent) return "";
-    return previewContent;
-  }, [previewContent]);
-
-  const handleFormatChange = useCallback((f: ExportFormat) => {
-    setSetting("format", f);
-  }, [setSetting]);
+  const handleSelectFormat = useCallback((id: ExportFormatId) => {
+    const def = getExportFormat(id);
+    if (def === undefined || def.availability.status !== "available") return;
+    setFormatId(id);
+    setOptionValues(defaultOptionValues(def));
+  }, []);
 
   const handleCopy = useCallback(() => {
-    const text = displayContent || previewContent;
-    if (!text) return;
-    copyToClipboard(text).then(() => {
+    if (!previewContent) return;
+    copyToClipboard(previewContent).then(() => {
       triggerCopy();
     });
-  }, [displayContent, previewContent, triggerCopy]);
+  }, [previewContent, triggerCopy]);
 
-  const handleDownload = useCallback(async () => {
-    setDownloading(true);
+  const handleExport = useCallback(async () => {
+    if (format === undefined || effectiveNodeUuids.length === 0) return;
+    setExporting(true);
     setError(null);
     try {
-      if (!isLocalFormat) {
-        setError(unavailableMessage(format));
-        return;
+      const includeAssets = optionValues["includeAssets"] ?? false;
+      // Zip delivery for batches (E3) and whenever asset bytes are included
+      // (E7 — a single node with assets becomes a zip too); otherwise one
+      // concatenated .md per the single-file convention.
+      if (isBatch || includeAssets) {
+        const assetFiles = includeAssets
+          ? await fetchSubtreeAssets(
+              client,
+              collectSubtreeAssetRefIds(client, effectiveNodeUuids, includeChildPages),
+            )
+          : undefined;
+        const bundle = exportSubtreeBundle(client, effectiveNodeUuids, {
+          ...engineOptions,
+          filenamePolicy: "slug",
+          whiteboardMode: "sidecar",
+          ...(assetFiles !== undefined
+            ? { assetPath: (assetId: string) => assetFiles.get(assetId)?.path }
+            : {}),
+        });
+        const blob = new Blob([zipExportBundle(bundle, assetFiles)], { type: "application/zip" });
+        downloadBlob(blob, exportZipFileName(client, effectiveNodeUuids[0]!));
+      } else {
+        const exported = exportSubtreeMarkdown(client, effectiveNodeUuids[0]!, engineOptions);
+        const blob = new Blob([exported.markdown], { type: format.mimeType });
+        downloadBlob(blob, exported.filename);
       }
-      const exported = exportSubtreeMarkdown(client, effectiveNodeUuids[0]!, { includeChildPages });
-      const blob = new Blob([exported.markdown], { type: getExportFormat(format)?.mimeType ?? "text/markdown" });
-      const filename = isBatch ? `export.${getExportExtension(format)}` : exported.filename;
-      downloadBlob(blob, filename);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Download failed");
+      setError(e instanceof Error ? e.message : "Export failed");
     } finally {
-      setDownloading(false);
+      setExporting(false);
     }
-  }, [isLocalFormat, format, client, effectiveNodeUuids, isBatch]);
-
-  const handleGenerateQr = useCallback(async () => {
-    const text = displayContent || previewContent;
-    if (!text) return;
-    setQrGenerating(true);
-    setQrError(null);
-    try {
-      // The QR generator library is not part of this deployment; report it
-      // in the QR dialog instead of pretending to encode.
-      throw new Error("QR code generation is unavailable in this build.");
-    } catch (e: unknown) {
-      setQrError(e instanceof Error ? e.message : "Failed to generate QR code");
-      setQrModalOpen(true);
-    } finally {
-      setQrGenerating(false);
-    }
-  }, [displayContent, previewContent]);
+  }, [format, isBatch, client, effectiveNodeUuids, engineOptions, optionValues, includeChildPages]);
 
   const title = useMemo(() => {
     if (isBatch) {
-      const count = effectiveNodeUuids.length;
-      return `Export ${count} nodes`;
+      return `Export ${effectiveNodeUuids.length} nodes`;
     }
     const plainName = nodeName ?? "";
     return plainName ? `Export: ${plainName}` : "Export";
   }, [isBatch, effectiveNodeUuids.length, nodeName]);
+
+  if (format === undefined) return null;
 
   return (
     <Modal
@@ -267,449 +214,114 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
       size="lg"
       footer={
         <div className="export-modal__footer">
-          <ButtonWithPanel
-            icon={"mdi mdi-cog"}
-            size="sm"
-            panelPosition="top"
-            panelAlignment="start"
-            panelWidth={340}
-            showCloseButton={false}
-            panelClassName="export-modal__options-panel"
-            usePortal={true}
+          <Button variant="ghost" onClick={onClose} disabled={exporting}>
+            Cancel
+          </Button>
+          <Button
+            variant="ghost"
+            icon={copied ? "mdi mdi-check" : "mdi mdi-content-copy"}
+            onClick={handleCopy}
+            disabled={loading || !previewContent || exporting}
           >
-            <div className="visibility-panel-content">
-              {/* Presets */}
-              <div className="visibility-option">
-                <div className="export-presets">
-                  <div className="export-presets__header">
-                    <span className="export-presets__label">Quick preset</span>
-                    <span className="export-presets__active">{activePreset === "custom" ? "Custom" : activePreset.charAt(0).toUpperCase() + activePreset.slice(1)}</span>
-                  </div>
-                  <div className="export-presets__row">
-                    {[
-                      { key: "casual", icon: "mdi-note-text-outline", title: "Casual note (Obsidian-like)" },
-                      { key: "editorial", icon: "mdi-feather", title: "Editorial prose (serif, elegant)" },
-                      { key: "technical", icon: "mdi-file-document-outline", title: "Technical document (LaTeX-like)" },
-                      { key: "book", icon: "mdi-book-open-variant", title: "Long-form book" },
-                      { key: "legal", icon: "mdi-scale-balance", title: "Legal memo" },
-                      { key: "academic", icon: "mdi-school", title: "Academic paper" },
-                    ].map((p) => (
-                      <button
-                        key={p.key}
-                        type="button"
-                        className={`export-preset-btn${activePreset === p.key ? " export-preset-btn--active" : ""}`}
-                        onClick={() => applyPreset(p.key as ExportPreset)}
-                        title={p.title}
-                      >
-                        <Icon path={`mdi ${p.icon}`} className="export-preset-btn__icon" />
-                        <span className="export-preset-btn__text">{p.key.charAt(0).toUpperCase() + p.key.slice(1)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="export-options-section">
-                <span className="export-options-section__label">Theme</span>
-                {formatHasHtmlOptions(format) && (
-                  <div className="visibility-option">
-                    <SelectionButton
-                      size="sm"
-                      label="Style"
-                      description="Visual theme for the exported document"
-                      labelPosition="left"
-                      options={[
-                        { value: "modern", icon: "mdi mdi-text-short", label: "Modern" },
-                        { value: "casual", icon: "mdi mdi-note-text-outline", label: "Casual" },
-                        { value: "editorial", icon: "mdi mdi-feather", label: "Editorial" },
-                        { value: "technical", icon: "mdi mdi-book-open-page-variant", label: "Technical" },
-                        { value: "book", icon: "mdi mdi-book", label: "Book" },
-                      ]}
-                      value={style}
-                      onChange={(v) => setSetting("style", v as ExportStyle)}
-                    />
-                  </div>
-                )}
-                {formatHasHtmlOptions(format) && (
-                  <div className="visibility-option">
-                    <SelectionButton
-                      size="sm"
-                      label="Theme mode"
-                      description="Light or dark background for the export"
-                      labelPosition="left"
-                      options={[
-                        { value: "light", icon: "mdi mdi-white-balance-sunny", label: "Light" },
-                        { value: "dark", icon: "mdi mdi-weather-night", label: "Dark" },
-                      ]}
-                      value={themeMode}
-                      onChange={(v) => setSetting("themeMode", v as ExportThemeMode)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="export-options-section">
-                <span className="export-options-section__label">Page</span>
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Layout"
-                    description="Outline preserves hierarchy, flat lists all content"
-                    labelPosition="left"
-                    options={[
-                      { value: "outline", icon: "mdi mdi-file-tree", label: "Outline" },
-                      { value: "flat", icon: "mdi mdi-file-document-outline", label: "Flat" },
-                    ]}
-                    value={layout}
-                    onChange={(v) => setSetting("layout", v as ExportLayout)}
-                  />
-                </div>
-                {formatHasHtmlOptions(format) && (
-                  <div className="visibility-option">
-                    <SelectionButton
-                      size="sm"
-                      label="Page size"
-                      description="Paper size for PDF output"
-                      labelPosition="left"
-                      options={[
-                        { value: "a4", icon: "mdi mdi-file-document-outline", label: "A4" },
-                        { value: "letter", icon: "mdi mdi-file-document-outline", label: "Letter" },
-                        { value: "legal", icon: "mdi mdi-file-document-outline", label: "Legal" },
-                      ]}
-                      value={pageSize}
-                      onChange={(v) => setSetting("pageSize", v as ExportPageSize)}
-                    />
-                  </div>
-                )}
-                {formatHasHtmlOptions(format) && (
-                  <div className="visibility-option">
-                    <BooleanToggle
-                      size="sm"
-                      label="Cover page"
-                      description="Render the title as a standalone title page"
-                      labelPosition="left"
-                      checked={coverPage}
-                      onChange={(e) => setSetting("coverPage", e.target.checked)}
-                    />
-                  </div>
-                )}
-                {formatHasHtmlOptions(format) && (
-                  <div className="visibility-option">
-                    <BooleanToggle
-                      size="sm"
-                      label="Section page breaks"
-                      description="Force h1/h2 headings to start on a new page"
-                      labelPosition="left"
-                      checked={sectionBreak}
-                      onChange={(e) => setSetting("sectionBreak", e.target.checked)}
-                    />
-                  </div>
-                )}
-                <div className="visibility-option">
-                  <BooleanToggle
-                    size="sm"
-                    label="Include child pages"
-                    description="Export nested pages as sections"
-                    labelPosition="left"
-                    checked={includeChildPages}
-                    onChange={(e) => setSetting("includeChildPages", e.target.checked)}
-                  />
-                </div>
-              </div>
-
-              <div className="export-options-section">
-                <span className="export-options-section__label">Content</span>
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Formatting"
-                    description="Apply rich text styles or export plain text"
-                    labelPosition="left"
-                    options={[
-                      { value: "true", icon: "mdi mdi-format-text", label: "Formatted" },
-                      { value: "false", icon: "mdi mdi-code-braces", label: "Plain" },
-                    ]}
-                    value={formatting ? "true" : "false"}
-                    onChange={(v) => setSetting("formatting", v === "true")}
-                  />
-                </div>
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Properties"
-                    description="Which nodes to show properties for"
-                    labelPosition="left"
-                    options={[
-                      { value: "none", icon: "mdi mdi-tag-off", label: "None" },
-                      { value: "main", icon: "mdi mdi-tag-outline", label: "Main node" },
-                      { value: "all", icon: "mdi mdi-tag-multiple-outline", label: "All nodes" },
-                    ]}
-                    value={properties}
-                    onChange={(v) => setSetting("properties", v as ExportProperties)}
-                  />
-                </div>
-                <div className="visibility-option">
-                  <BooleanToggle
-                    size="sm"
-                    label="Show UUID"
-                    description="Include the node UUID as a property in the export"
-                    labelPosition="left"
-                    checked={showUuid}
-                    onChange={(e) => setSetting("showUuid", e.target.checked)}
-                  />
-                </div>
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Links"
-                    description="Show raw UUIDs in links or only the display text"
-                    labelPosition="left"
-                    options={[
-                      { value: "raw", icon: "mdi mdi-link-variant", label: "Raw" },
-                      { value: "text", icon: "mdi mdi-link-off", label: "Text only" },
-                    ]}
-                    value={linkStyle}
-                    onChange={(v) => setSetting("linkStyle", v as ExportLinkStyle)}
-                  />
-                </div>
-              </div>
-
-              {formatHasHtmlOptions(format) && (
-                <div className="export-options-section">
-                  <button
-                    type="button"
-                    className="export-options-section__toggle"
-                    onClick={() => setAdvancedOpen((o) => !o)}
-                  >
-                    <span>Advanced</span>
-                    <Icon path={`mdi ${advancedOpen ? "mdi-chevron-up" : "mdi-chevron-down"}`} />
-                  </button>
-                  {advancedOpen && (
-                    <>
-                      <div className="visibility-option">
-                        <SelectionButton
-                          size="sm"
-                          label="Density"
-                          description="Spacing between elements in the output"
-                          labelPosition="left"
-                          options={[
-                            { value: "comfortable", icon: "mdi mdi-view-headline", label: "Comfortable" },
-                            { value: "compact", icon: "mdi mdi-view-compact", label: "Compact" },
-                          ]}
-                          value={density}
-                          onChange={(v) => setSetting("density", v as ExportDensity)}
-                        />
-                      </div>
-                      <div className="visibility-option">
-                        <SelectionButton
-                          size="sm"
-                          label="Measure"
-                          description="Page width and column layout"
-                          labelPosition="left"
-                          options={[
-                            { value: "full", icon: "mdi mdi-arrow-expand-horizontal", label: "Full" },
-                            { value: "readable", icon: "mdi mdi-text", label: "Readable" },
-                            { value: "book", icon: "mdi mdi-book", label: "Book" },
-                            { value: "two-column", icon: "mdi mdi-view-column", label: "2-column" },
-                          ]}
-                          value={measure}
-                          onChange={(v) => setSetting("measure", v as ExportMeasure)}
-                        />
-                      </div>
-                      <div className="visibility-option">
-                        <SelectionButton
-                          size="sm"
-                          label="Numbering"
-                          description="Add hierarchical numbers to headings"
-                          labelPosition="left"
-                          options={[
-                            { value: "none", icon: "mdi mdi-format-list-bulleted", label: "None" },
-                            { value: "hierarchical", icon: "mdi mdi-format-list-numbered-rtl", label: "Hierarchical" },
-                            { value: "legal", icon: "mdi mdi-format-list-numbered", label: "Legal" },
-                            { value: "appendix", icon: "mdi mdi-format-letter-case-upper", label: "Appendix" },
-                          ]}
-                          value={numbering}
-                          onChange={(v) => setSetting("numbering", v as ExportNumbering)}
-                        />
-                      </div>
-                      <div className="visibility-option">
-                        <SelectionButton
-                          size="sm"
-                          label="Document type"
-                          description="Semantic document behaviour: page breaks, spacing, TOC"
-                          labelPosition="left"
-                          options={[
-                            { value: "none", icon: "mdi mdi-minus", label: "None" },
-                            { value: "article", icon: "mdi mdi-newspaper", label: "Article" },
-                            { value: "report", icon: "mdi mdi-file-chart-outline", label: "Report" },
-                            { value: "book", icon: "mdi mdi-book", label: "Book" },
-                            { value: "legal", icon: "mdi mdi-scale-balance", label: "Legal" },
-                            { value: "academic", icon: "mdi mdi-school", label: "Academic" },
-                          ]}
-                          value={doctype}
-                          onChange={(v) => setSetting("doctype", v as ExportDoctype)}
-                        />
-                      </div>
-                      {formatHasHtmlOptions(format) && (
-                        <div className="visibility-option">
-                          <label className="export-modal__label" htmlFor="export-css-overrides">
-                            Custom CSS overrides{" "}
-                            <span className="export-modal__label-hint">(preview only)</span>
-                          </label>
-                          <textarea
-                            id="export-css-overrides"
-                            className="export-modal__css-textarea"
-                            value={cssOverrides}
-                            onChange={(e) => setSetting("cssOverrides", e.target.value)}
-                            placeholder={`body { font-family: Georgia, serif; }\n@media print { .sidebar { display: none; } }`}
-                            spellCheck={false}
-                            rows={4}
-                          />
-                          <p className="export-modal__pdf-hint">
-                            CSS overrides are applied to the live preview only.
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </ButtonWithPanel>
-          <div className="export-modal__footer-actions">
-            <Button variant="ghost" onClick={onClose} disabled={downloading}>
-              Cancel
-            </Button>
-            {format !== "pdf" && (
-              <Button
-                variant="ghost"
-                {...(qrGenerating ? {} : { icon: "mdi mdi-qrcode" })}
-                onClick={handleGenerateQr}
-                disabled={loading || !previewContent || downloading || qrGenerating}
-              >
-                {qrGenerating ? <Spinner size="sm" label="Generating…" /> : "QR Code"}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              icon={copied ? "mdi mdi-check" : "mdi mdi-content-copy"}
-              onClick={handleCopy}
-              disabled={loading || !previewContent || downloading}
-            >
-              {copied ? "Copied!" : "Copy"}
-            </Button>
-            <Button
-              variant="primary"
-              icon={"mdi mdi-download"}
-              onClick={handleDownload}
-              disabled={downloading || loading}
-            >
-              {downloading ? <Spinner size="sm" label="Downloading…" /> : "Download"}
-            </Button>
-          </div>
+            {copied ? "Copied!" : "Copy"}
+          </Button>
+          <Button
+            variant="primary"
+            icon="mdi mdi-download"
+            onClick={handleExport}
+            disabled={exporting || loading || effectiveNodeUuids.length === 0}
+          >
+            {exporting ? <Spinner size="sm" label="Exporting…" /> : "Export"}
+          </Button>
         </div>
       }
     >
       <div className="export-modal__body">
-        {/* Format tabs */}
-        <div className="export-modal__tabs" role="tablist" aria-label="Export format">
-          {getRegisteredExportFormats().map((def) => (
-            <button
-              key={def.format}
-              role="tab"
-              aria-selected={format === def.format}
-              className={`export-modal__tab${
-                format === def.format ? " export-modal__tab--active" : ""
-              }`}
-              onClick={() => handleFormatChange(def.format as ExportFormat)}
-            >
-              {def.label}
-            </button>
-          ))}
+        {/* Format cards — unavailable formats are disabled cards with the
+            registry's reason, not stub-message tabs. */}
+        <div className="export-modal__formats" role="radiogroup" aria-label="Export format">
+          {formats.map((def) => {
+            const availability = def.availability;
+            const available = availability.status === "available";
+            const selected = def.id === formatId;
+            return (
+              <Card
+                key={def.id}
+                role="radio"
+                aria-checked={selected}
+                aria-disabled={available ? undefined : true}
+                tabIndex={available ? 0 : undefined}
+                interactive={available}
+                selected={available && selected}
+                className="export-modal__format-card"
+                onClick={available ? () => handleSelectFormat(def.id) : undefined}
+                onKeyDown={
+                  available
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleSelectFormat(def.id);
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <Icon path={`mdi mdi-${def.icon}`} className="export-modal__format-card-icon" />
+                <span className="export-modal__format-card-label">{def.label}</span>
+                {available ? null : (
+                  <span className="export-modal__format-card-reason">{availability.reason}</span>
+                )}
+              </Card>
+            );
+          })}
         </div>
 
-        {/* Preview area */}
+        {/* Options — the selected format's registry option specs. */}
+        <div className="export-modal__options">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={`mdi mdi-chevron-${optionsOpen ? "up" : "down"}`}
+            iconPosition="right"
+            onClick={() => setOptionsOpen((open) => !open)}
+            aria-expanded={optionsOpen}
+            aria-controls="export-modal__options-rows"
+          >
+            Options
+          </Button>
+          {optionsOpen && (
+            <div className="export-modal__options-rows" id="export-modal__options-rows">
+              {format.options.map((spec) => (
+                <Checkbox
+                  key={spec.key}
+                  size="sm"
+                  label={spec.label}
+                  checked={optionValues[spec.key] ?? spec.defaultValue}
+                  onChange={(event) =>
+                    setOptionValues((prev) => ({ ...prev, [spec.key]: event.target.checked }))
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Markdown live preview (read-only). */}
         <div className="export-modal__preview-wrap">
           {error && (
-            <div className="export-modal__error">{error}</div>
+            <div className="export-modal__error" role="alert">
+              {error}
+            </div>
           )}
-
-          {!formatHasHtmlOptions(format) ? (
-            <textarea
-              className={`export-modal__preview${loading ? " export-modal__preview--loading" : ""}`}
-              readOnly
-              value={displayContent}
-              spellCheck={false}
-              aria-label={`${format} preview`}
-            />
-          ) : (
-            <>
-              {format === "html" && (
-                <div className="export-modal__view-toggle">
-                  <button
-                    type="button"
-                    className={`export-modal__view-btn${htmlViewMode === "preview" ? " export-modal__view-btn--active" : ""}`}
-                    onClick={() => setHtmlViewMode("preview")}
-                  >
-                    Preview
-                  </button>
-                  <button
-                    type="button"
-                    className={`export-modal__view-btn${htmlViewMode === "source" ? " export-modal__view-btn--active" : ""}`}
-                    onClick={() => setHtmlViewMode("source")}
-                  >
-                    Source
-                  </button>
-                </div>
-              )}
-              {format === "pdf" ? (
-                <div className={`export-modal__iframe-wrap export-modal__iframe-wrap--pdf${loading ? " export-modal__iframe-wrap--loading" : ""}`}>
-                  <div className="export-modal__pdf-unavailable">
-                    <Icon path="mdi mdi-file-pdf-box" size={2} />
-                    <p className="export-modal__pdf-hint">{unavailableMessage("pdf")}</p>
-                  </div>
-                </div>
-              ) : format === "html" && htmlViewMode === "source" ? (
-                <textarea
-                  className={`export-modal__preview${loading ? " export-modal__preview--loading" : ""}`}
-                  readOnly
-                  value={displayContent}
-                  spellCheck={false}
-                  aria-label="HTML source"
-                />
-              ) : (
-                <div className={`export-modal__iframe-wrap${loading ? " export-modal__iframe-wrap--loading" : ""}`}>
-                  <div className="export-modal__pdf-unavailable">
-                    <Icon path="mdi mdi-language-html5" size={2} />
-                    <p className="export-modal__pdf-hint">{unavailableMessage("html")}</p>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+          <textarea
+            className={`export-modal__preview${loading ? " export-modal__preview--loading" : ""}`}
+            readOnly
+            value={previewContent}
+            spellCheck={false}
+            aria-label={`${format.id} preview`}
+          />
         </div>
       </div>
-
-      <Modal
-        isOpen={qrModalOpen}
-        onClose={() => setQrModalOpen(false)}
-        title="QR Code"
-        size="sm"
-      >
-        <div className="export-modal__qr-content">
-          {qrError ? (
-            <div className="export-modal__qr-error">{qrError}</div>
-          ) : qrDataUrl ? (
-            <img
-              src={qrDataUrl}
-              alt="QR Code"
-              className="export-modal__qr-image"
-            />
-          ) : (
-            <Spinner size="md" label="Generating QR code…" />
-          )}
-        </div>
-      </Modal>
     </Modal>
   );
 }

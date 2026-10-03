@@ -1,0 +1,23 @@
+/* WorkspaceExportModal styles (§34.24 E6) — token-only: every value
+   resolves to a custom property from variables.css. */
+
+.workspace-export-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.workspace-export-modal__note {
+  margin: 0;
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.workspace-export-modal__error {
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-error-container);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  font-size: var(--font-size-base);
+}

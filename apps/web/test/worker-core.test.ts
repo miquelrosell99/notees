@@ -104,6 +104,22 @@ describe("WorkerCore OPFS persistence", () => {
     await core2.close();
   });
 
+  it("roots() returns top-level pages only (parented children excluded)", async () => {
+    const { opfs } = createMemoryOpfs();
+    const core = await createCore({
+      opfs,
+      fileName: FILE,
+      workspaceId: WS,
+      transport: new MemoryTransport(new MemoryRelay()),
+    });
+    const pageId = await core.createObject({ presentAsMain: true, name: "Top" });
+    await core.createObject({ parentId: pageId, presentAsMain: true, name: "Sub" });
+    await core.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "inline" }] });
+    expect(core.roots().map((n) => n.id)).toEqual([pageId]);
+    expect(core.listPages()).toHaveLength(2);
+    await core.close();
+  });
+
   it("debounces OPFS writes (coalesced) and serializes them behind one chain", async () => {
     vi.useFakeTimers();
     try {

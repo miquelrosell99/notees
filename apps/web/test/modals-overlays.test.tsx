@@ -9,6 +9,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { unzipSync } from "fflate";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
@@ -42,11 +43,13 @@ afterEach(() => {
   notificationStore.clearAll();
 });
 
-async function makeClient(): Promise<WorkspaceClient> {
+async function makeClient(options: { serverUrl?: string; apiKey?: string } = {}): Promise<WorkspaceClient> {
   const client = await WorkspaceClient.create({
     transport: new MemoryTransport(new MemoryRelay()),
     actorId: ACTOR,
     sqlJs: sqlModule,
+    ...(options.serverUrl !== undefined ? { serverUrl: options.serverUrl } : {}),
+    ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
   });
   clients.push(client);
   await client.bootstrapWorkspace(WS);
@@ -63,6 +66,40 @@ const OK_STATUS: SyncStatusSnapshot = {
   realtime: false,
   cursorSeq: 0,
 };
+
+/** Read a Blob's bytes in jsdom (whose Blob has no arrayBuffer()). */
+function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+/** Capture downloadBlob's anchor + blob (jsdom has no URL.createObjectURL). */
+function stubDownload() {
+  const captured: { blob: Blob | null; anchor: HTMLAnchorElement | null; restore: () => void } = {
+    blob: null,
+    anchor: null,
+    restore: () => {},
+  };
+  Object.defineProperty(URL, "createObjectURL", {
+    value: vi.fn((blob: Blob) => {
+      captured.blob = blob;
+      return "blob:mock";
+    }),
+    configurable: true,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+  const click = vi
+    .spyOn(HTMLAnchorElement.prototype, "click")
+    .mockImplementation(function (this: HTMLAnchorElement) {
+      captured.anchor = this;
+    });
+  captured.restore = () => click.mockRestore();
+  return captured;
+}
 
 describe("ExportPageModal", () => {
   it("previews the subtree markdown from the local export engine", async () => {
@@ -98,7 +135,30 @@ describe("ExportPageModal", () => {
     );
   }, 10000);
 
-  it("honors the Include child pages toggle", async () => {
+  it("lists the registry formats as cards, disabling unavailable ones with their reason", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+
+    render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
+
+    // Format cards, not tabs.
+    expect(screen.queryByRole("tablist")).toBeNull();
+    // Markdown is the only available format — selected by default.
+    expect(screen.getByRole("radio", { name: /markdown/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /markdown/i })).not.toHaveAttribute("aria-disabled");
+    // The redesign format set; every unavailable card carries the registry reason.
+    expect(screen.getByRole("radio", { name: /html.*task H1/is })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("radio", { name: /pdf.*task P1/is })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("radio", { name: /word.*task D1/is })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("radio", { name: /latex.*task L1/is })).toHaveAttribute("aria-disabled", "true");
+
+    // Clicking a disabled card changes nothing: markdown stays selected.
+    fireEvent.click(screen.getByRole("radio", { name: /html/i }));
+    expect(screen.getByRole("radio", { name: /markdown/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /html/i })).not.toBeChecked();
+  }, 10000);
+
+  it("renders the format's registry options and honors Include child pages", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
     const childId = await client.createObject({ presentAsMain: true, name: "Packing", parentId: pageId });
@@ -114,9 +174,8 @@ describe("ExportPageModal", () => {
     })) as HTMLTextAreaElement;
     await vi.waitFor(() => expect(preview.value).toContain("# Packing"), { timeout: 2000 });
 
-    // The toggle lives in the footer options panel (gear button).
-    fireEvent.click(document.querySelector(".btn-panel-container > button")!);
-    fireEvent.click(screen.getByRole("switch", { name: /include child pages/i }));
+    // The registry's markdown options render as checkbox rows.
+    fireEvent.click(screen.getByRole("checkbox", { name: /include child pages/i }));
 
     await vi.waitFor(
       () => {
@@ -128,11 +187,59 @@ describe("ExportPageModal", () => {
     );
   }, 10000);
 
-  it("downloads the markdown file on Download", async () => {
+  it("feeds the option checkboxes to the engine (type labels, outline)", async () => {
+    const client = await makeClient();
+    const classId = await client.createClass("Company");
+    // WORKAROUND(store applier): class.create's contentAst never lands in the
+    // class node's content — seed the title via object.update (same
+    // workaround as the DuplicatePageModal spec above).
+    await client.updateObject(classId, { contentAst: [{ type: "text", text: "Company" }] });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip", classIds: [classId] });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "Book flights" }],
+    });
+
+    render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
+
+    const preview = (await screen.findByLabelText("markdown preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(
+      () => {
+        // Outline ON by default: block children render as nested bullets.
+        expect(preview.value).toContain("- Book flights");
+        // Type labels OFF by default: no classNames frontmatter line.
+        expect(preview.value).not.toContain("classNames:");
+      },
+      { timeout: 2000 },
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /type labels/i }));
+    await vi.waitFor(
+      () => {
+        expect(preview.value).toContain("classNames:");
+        expect(preview.value).toContain("- Company");
+      },
+      { timeout: 2000 },
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /child outline/i }));
+    await vi.waitFor(
+      () => expect(preview.value).not.toContain("- Book flights"),
+      { timeout: 2000 },
+    );
+  }, 10000);
+
+  it("downloads one markdown file for a single node", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
 
-    const createObjectUrl = vi.fn(() => "blob:mock");
+    let capturedBlob: Blob | null = null;
+    const createObjectUrl = vi.fn((blob: Blob) => {
+      capturedBlob = blob;
+      return "blob:mock";
+    });
     const revokeObjectUrl = vi.fn();
     Object.defineProperty(URL, "createObjectURL", { value: createObjectUrl, configurable: true });
     Object.defineProperty(URL, "revokeObjectURL", { value: revokeObjectUrl, configurable: true });
@@ -146,32 +253,253 @@ describe("ExportPageModal", () => {
     render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
-    fireEvent.click(screen.getByRole("button", { name: /download/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     expect(createObjectUrl).toHaveBeenCalled();
     expect(captured).not.toBeNull();
     expect(captured!.getAttribute("download")).toBe("Trip.md");
+    expect(capturedBlob).not.toBeNull();
+    expect(capturedBlob!.type).toBe("text/markdown");
 
     click.mockRestore();
   }, 10000);
 
-  it("states honestly that service-dependent formats are unavailable", async () => {
+  it("zips every selected node's subtree plus the manifest for a batch", async () => {
     const client = await makeClient();
+    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+
+    let capturedBlob: Blob | null = null;
+    const createObjectUrl = vi.fn((blob: Blob) => {
+      capturedBlob = blob;
+      return "blob:mock";
+    });
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", { value: createObjectUrl, configurable: true });
+    Object.defineProperty(URL, "revokeObjectURL", { value: revokeObjectUrl, configurable: true });
+    let captured: HTMLAnchorElement | null = null;
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        captured = this;
+      });
+
+    render(
+      <ExportPageModal
+        isOpen={true}
+        onClose={() => {}}
+        client={client}
+        nodeUuids={[tripId, packingId]}
+      />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(captured).not.toBeNull());
+    // One zip named after the first node (the E5 `<slug>.zip` convention).
+    expect(captured!.getAttribute("download")).toBe("Trip.zip");
+    expect(capturedBlob).not.toBeNull();
+    expect(capturedBlob!.type).toBe("application/zip");
+
+    const entries = unzipSync(new Uint8Array(await readBlobBytes(capturedBlob!)));
+    const decode = (data: Uint8Array) => new TextDecoder().decode(data);
+    const tripPath = `Trip-${tripId.slice(0, 8)}.md`;
+    const packingPath = `Packing-${packingId.slice(0, 8)}.md`;
+    // Every selected node's subtree made it into the ONE zip, with the
+    // human-readable slug filenames and the bundle manifest alongside.
+    expect(Object.keys(entries)).toEqual(expect.arrayContaining([tripPath, packingPath, "notees-manifest.json"]));
+    expect(decode(entries[tripPath]!)).toContain("# Trip");
+    expect(decode(entries[packingPath]!)).toContain("# Packing");
+
+    const manifest = JSON.parse(decode(entries["notees-manifest.json"]!)) as {
+      version: number;
+      nodes: Array<{ id: string; path: string; type: string }>;
+    };
+    expect(manifest.version).toBe(2);
+    expect(manifest.nodes.map((node) => node.id)).toEqual(expect.arrayContaining([tripId, packingId]));
+    expect(manifest.nodes.map((node) => node.path)).toEqual(
+      expect.arrayContaining([tripPath, packingPath]),
+    );
+
+    click.mockRestore();
+  }, 10000);
+
+  it("zips asset bytes under assets/ and rewrites the markdown ref when Include asset files is on", async () => {
+    const client = await makeClient({ serverUrl: "https://notees.example.com", apiKey: "test-key" });
+    const assetId = "0192a000-0000-7000-8000-0000000000a1";
     const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    // asset_ref lives on an inline block (document-chrome content is
+    // text-only; block-scale rich tokens survive on inline blocks).
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "asset_ref", assetId }],
+    });
+    const hash = "a".repeat(64);
+    await client.attachAsset(pageId, {
+      assetId,
+      hash,
+      mimeType: "image/png",
+      size: 4,
+      originalName: "Boarding Pass.PNG",
+    });
 
-    render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
+    const assetBytes = new Uint8Array([137, 80, 78, 71]);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith(`/api/assets/${assetId}`)) {
+        return new Response(assetBytes, { status: 200 });
+      }
+      return new Response("unexpected", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
-    fireEvent.click(screen.getByRole("tab", { name: "PDF" }));
+    const download = stubDownload();
+    render(
+      <ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} nodeName="Trip" />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
-    // The limitation is stated in the preview error AND the placeholder.
-    expect((await screen.findAllByText(/server export service/i, undefined, { timeout: 2000 })).length)
-      .toBeGreaterThan(0);
-    // No local preview for service-dependent formats → copy is inert; the
-    // download attempt reports the limitation instead of producing a file.
-    expect(screen.getByRole("button", { name: /copy/i })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: /download/i }));
-    expect((await screen.findAllByText(/server export service/i, undefined, { timeout: 2000 })).length)
-      .toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("checkbox", { name: /include asset files/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    // A single node with assets switches to zip delivery (E7).
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.zip");
+    expect(download.blob!.type).toBe("application/zip");
+    // The bytes were fetched over the authenticated asset endpoint.
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).endsWith(`/api/assets/${assetId}`)),
+    ).toBe(true);
+
+    const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
+    const decode = (data: Uint8Array) => new TextDecoder().decode(data);
+    const pagePath = `Trip-${pageId.slice(0, 8)}.md`;
+    // The E5 naming convention: original-name slug + content-hash8 + ext.
+    const assetPath = `assets/Boarding-Pass-${hash.slice(0, 8)}.png`;
+    expect(Object.keys(entries)).toEqual(
+      expect.arrayContaining([pagePath, assetPath, "notees-manifest.json"]),
+    );
+    expect(Array.from(entries[assetPath]!)).toEqual([137, 80, 78, 71]);
+    // The markdown ref was rewritten from the raw uuid to the relative path.
+    const markdown = decode(entries[pagePath]!);
+    expect(markdown).toContain(`![asset](${assetPath})`);
+    expect(markdown).not.toContain(`![asset](<${assetId}>)`);
+
+    download.restore();
+  }, 10000);
+
+  it("keeps the raw uuid ref and adds no asset file when the bytes are unfetchable", async () => {
+    const client = await makeClient({ serverUrl: "https://notees.example.com", apiKey: "test-key" });
+    const assetId = "0192a000-0000-7000-8000-0000000000a2";
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "asset_ref", assetId }],
+    });
+    await client.attachAsset(pageId, {
+      assetId,
+      hash: "b".repeat(64),
+      mimeType: "image/png",
+      size: 4,
+      originalName: "Receipt.png",
+    });
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 404 })));
+
+    const download = stubDownload();
+    render(
+      <ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} nodeName="Trip" />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /include asset files/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
+    const pagePath = `Trip-${pageId.slice(0, 8)}.md`;
+    // The export still lands as a zip; the failed asset is skipped, not fatal.
+    expect(Object.keys(entries)).toEqual(
+      expect.arrayContaining([pagePath, "notees-manifest.json"]),
+    );
+    expect(Object.keys(entries).some((key) => key.startsWith("assets/"))).toBe(false);
+    expect(new TextDecoder().decode(entries[pagePath]!)).toContain(`![asset](<${assetId}>)`);
+
+    download.restore();
+  }, 10000);
+
+  it("scans every exported root's subtree for assets in a batch with Include asset files", async () => {
+    const client = await makeClient({ serverUrl: "https://notees.example.com", apiKey: "test-key" });
+    const assetA = "0192a000-0000-7000-8000-0000000000a1";
+    const assetB = "0192a000-0000-7000-8000-0000000000b2";
+    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    await client.createObject({
+      parentId: tripId,
+      contentAst: [{ type: "asset_ref", assetId: assetA }],
+    });
+    await client.attachAsset(tripId, {
+      assetId: assetA,
+      hash: "a".repeat(64),
+      mimeType: "image/png",
+      size: 4,
+      originalName: "Boarding Pass.PNG",
+    });
+    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+    await client.createObject({
+      parentId: packingId,
+      contentAst: [{ type: "asset_ref", assetId: assetB }],
+    });
+    await client.attachAsset(packingId, {
+      assetId: assetB,
+      hash: "b".repeat(64),
+      mimeType: "image/jpeg",
+      size: 4,
+      originalName: "Receipt.jpg",
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith(`/api/assets/${assetA}`)) {
+        return new Response(new Uint8Array([1]), { status: 200 });
+      }
+      if (url.endsWith(`/api/assets/${assetB}`)) {
+        return new Response(new Uint8Array([2]), { status: 200 });
+      }
+      return new Response("unexpected", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const download = stubDownload();
+    render(
+      <ExportPageModal
+        isOpen={true}
+        onClose={() => {}}
+        client={client}
+        nodeUuids={[tripId, packingId]}
+      />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /include asset files/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.zip");
+
+    const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
+    const decode = (data: Uint8Array) => new TextDecoder().decode(data);
+    const tripPath = `Trip-${tripId.slice(0, 8)}.md`;
+    const packingPath = `Packing-${packingId.slice(0, 8)}.md`;
+    const assetPathA = `assets/Boarding-Pass-${"a".repeat(8)}.png`;
+    const assetPathB = `assets/Receipt-${"b".repeat(8)}.jpg`;
+    expect(Object.keys(entries)).toEqual(
+      expect.arrayContaining([tripPath, packingPath, assetPathA, assetPathB, "notees-manifest.json"]),
+    );
+    expect(decode(entries[tripPath]!)).toContain(`![asset](${assetPathA})`);
+    expect(decode(entries[packingPath]!)).toContain(`![asset](${assetPathB})`);
+
+    download.restore();
   }, 10000);
 });
 
