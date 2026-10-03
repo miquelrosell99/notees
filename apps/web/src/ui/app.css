@@ -2174,18 +2174,16 @@ mark {
 }
 
 /* Arrow/click-selected pill — the only focus hint while selected (the DOM
-   caret stays at a boundary). The archived editor's selection look, verbatim:
-   primary text + underline, an 8% primary tint, and a focus-ring outline.
-   The padding/negative-margin pair lets the tint and ring extend a micro
-   beyond the text without shifting the line's layout. */
+   caret stays at a boundary). The archived editor's selection look: primary
+   text + underline, an 8% primary tint, and a focus-ring outline. Layout-
+   neutral by design — no padding/margin pair (v1's micro pad could flip a
+   tight line into wrapping the pill mid-token when the state changed). */
 .nt-atom--selected,
 .nt-atom--selected:hover {
   color: var(--color-primary);
   border-bottom-color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-radius: var(--shape-extra-small);
-  padding: 0 var(--spacing-micro);
-  margin: 0 calc(var(--spacing-micro) * -1);
   box-shadow: var(--shadow-focus-ring-primary);
 }
 
