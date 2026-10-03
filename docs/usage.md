@@ -276,9 +276,9 @@ Slice 1 is deliberately read-mostly. What works today:
 
 1. **Account boot** — server URL, then sign in (or the initial-setup screen when the server has no users yet: it creates the admin account). No API key or workspace UUID prompts: after login you pick a workspace from your list, create one, or adopt "this device" (an offline workspace pushes its backlog on connect). "Work offline" skips the account entirely — edits stay on the device and sync on the first later connection. The session is remembered; sign out from the footer.
 2. **Page list** — every active page, sidebar, `+ New page` creates one (a local-first write: applied to the local SQLite projection immediately, pushed to the relay in the background).
-3. **Page view** — the page header and its block tree, rendered from content tokens: text marks (bold/italic/strike/highlight/code), mentions and class chips resolved to current names, quotes, external links, math (plain-code fallback until KaTeX), `hard_break`; asset/embed/query/whiteboard tokens render as labeled placeholders.
+3. **Page view** — the page header and its block tree, rendered from content tokens: text marks (bold/italic/strike/highlight/code), mentions and class chips resolved to current names, quotes, external links, math (plain-code fallback until KaTeX), `hard_break`; embed tokens render the live subtree, query tokens run their saved query and render the results (edit the query's JSON only when you mean it — a malformed query renders an "invalid query" placeholder rather than guessing), whiteboard tokens open the spatial canvas, and asset tokens render their file with a lightbox.
 
-What is not there yet: editing in the browser (the outliner is M1 editor scope, landing with the interactive editor), backlinks/system sections UI, classes UI beyond the API. The data path underneath — local store, outbox, catch-up — is the same engine the editor will use.
+What is not there yet: KaTeX math rendering, in-app graph view, the plugin runtime. The data path underneath — local store, outbox, catch-up — is the same engine everything above rides.
 
 ## The Calendar
 
@@ -293,6 +293,10 @@ The sidebar's **Calendar** entry (hide it from Workspace Settings → Sidebar Vi
 - **Month grid** (right column) — the selected month with today highlighted, days that have a note dotted, and prev/next arrows; click any day to select it. The Days/Months/Years switch zooms the grid, and its Today button returns to today.
 
 Filter tabs (All / Daily note / Tasks / Dated / Created) narrow the left column to one section.
+
+## Templates
+
+A **template** is an ordinary node carrying the `template` class — its child blocks are the body that gets copied. Templates are bound to classes (the **Templates** cards on a class page, ＋ Bind template) and instantiated where objects are created: class pickers and the calendar's quick-create can offer a bound template, and the copy opens as a fresh node stamped with a `generated-from` provenance link back to the template (edit the copy freely — nothing writes back to the template). Unbinding a template from a class never touches copies already made. Apply-time variable substitution (`{{…}}` placeholders) and the `/template` slash command are designed, not shipped yet (§34.25 T3/T4).
 
 ## Exporting
 

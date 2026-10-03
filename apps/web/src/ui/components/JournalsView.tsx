@@ -19,20 +19,13 @@ import { PageView } from "../PageView.js";
 import { Icon } from "../Icon.js";
 import { rawDateKeywordOf } from "../dateDisplay.js";
 import type { AnyClient } from "./Sidebar.js";
+import { todayIsoLocal } from "./calendarViewUtils.js";
 import "./JournalsView.css";
 
 /** Entries mounted around today before the sentinels take over. */
 const INITIAL_RADIUS = 8;
 /** Entries added per sentinel crossing. */
 const PAGE = 10;
-
-function todayIsoLocal(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 /** Compact journal label (YYYYMMDD) from the content-addressed date id. */
 const sortKey = (page: { id: string }): string => rawDateKeywordOf(page) || page.id;
