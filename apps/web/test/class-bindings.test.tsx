@@ -1,14 +1,14 @@
 /**
- * Class bindings editor tests: the Class View's property-bindings section is
- * editable — the add-binding picker over existing property schemas writes
- * class.property.set, per-binding default/required/sequence editors patch
- * the row (missing fields keep their values), and remove writes
+ * Class bindings editor tests: the class page's Property definitions section
+ * is editable — the search/create add popup writes class.property.set, the
+ * expanded row's default editor patches the row (missing fields keep their
+ * values), the collapsed-row flag toggles write required, and remove writes
  * class.property.unset. jsdom over the in-process WorkspaceClient.
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
@@ -46,18 +46,28 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
-describe("Class View property bindings editor", () => {
-  it("adds a binding via the picker over existing property schemas", async () => {
+/** Expand the Property definitions section (collapsed once non-empty). */
+async function expandDefinitions(): Promise<void> {
+  const header = screen.getByRole("button", { name: /property definitions/i });
+  if (header.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(header);
+    await flushWrites();
+  }
+}
+
+describe("Class View property definitions editor", () => {
+  it("adds a binding via the search popup over existing property schemas", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Task");
     await client.createPropertySchema({ name: "priority", type: "select" });
     render(<ClassView client={client} classId={classId} />);
 
+    // Empty schema: the section starts expanded and invites setup.
     expect(screen.getByText("No property bindings.")).not.toBeNull();
 
-    fireEvent.change(screen.getByLabelText("Add property binding"), {
-      target: { value: client.listPropertySchemas()[0]!.id },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    const dialog = screen.getByRole("dialog", { name: "Add property" });
+    fireEvent.click(within(dialog).getByText("priority"));
     await flushWrites();
 
     const bindings = client.getClassBindings(classId);
@@ -70,20 +80,41 @@ describe("Class View property bindings editor", () => {
       hideWhenEmpty: null,
       defaultValue: null,
     });
-    // The picker no longer lists the bound schema.
-    expect(screen.queryByRole("option", { name: "priority" })).toBeNull();
+    // The popup no longer lists the bound schema.
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    const again = screen.getByRole("dialog", { name: "Add property" });
+    expect(within(again).queryByText("priority")).toBeNull();
   });
 
-  it("edits the default, toggles required, and reorders by sequence", async () => {
+  it("creates a new schema from the popup and binds it", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("Task");
+    render(<ClassView client={client} classId={classId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    const dialog = screen.getByRole("dialog", { name: "Add property" });
+    fireEvent.change(within(dialog).getByPlaceholderText("Search or create property…"), {
+      target: { value: "impact" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: 'Create property "impact"' }));
+    await flushWrites();
+
+    const bindings = client.getClassBindings(classId);
+    expect(bindings).toHaveLength(1);
+    expect(bindings[0]).toMatchObject({ name: "impact", type: "text", sequence: 0 });
+    expect(client.listPropertySchemas().some((s) => s.name === "impact")).toBe(true);
+  });
+
+  it("edits the default in the expanded row and toggles required on the collapsed row", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Task");
     const schemaA = await client.createPropertySchema({ name: "priority", type: "select" });
-    const schemaB = await client.createPropertySchema({ name: "effort", type: "text" });
     await client.setClassProperty(classId, schemaA, { sequence: 0, defaultValue: "medium" });
-    await client.setClassProperty(classId, schemaB, { sequence: 1 });
     render(<ClassView client={client} classId={classId} />);
+    await expandDefinitions();
 
     // Patch only the default: required/sequence keep their existing values.
+    fireEvent.click(screen.getByRole("button", { name: "Configure priority" }));
     const defaultInput = screen.getByLabelText("Default for priority");
     expect(defaultInput).toHaveProperty("value", "medium");
     fireEvent.blur(defaultInput, { target: { value: "high" } });
@@ -97,12 +128,6 @@ describe("Class View property bindings editor", () => {
     fireEvent.click(screen.getByLabelText("Required for priority"));
     await flushWrites();
     expect(client.getClassBindings(classId)[0]!.required).toBe(true);
-
-    // Swap the sequence numbers: effort (was 1) renders before priority.
-    fireEvent.blur(screen.getByLabelText("Sequence for effort"), { target: { value: "0" } });
-    await flushWrites();
-    const names = client.getClassBindings(classId).map((b) => b.name);
-    expect(names).toEqual(["effort", "priority"]);
   });
 
   it("removes a binding via the row's remove button", async () => {
@@ -111,6 +136,7 @@ describe("Class View property bindings editor", () => {
     const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
     await client.setClassProperty(classId, schemaId, { defaultValue: "medium" });
     render(<ClassView client={client} classId={classId} />);
+    await expandDefinitions();
 
     expect(client.getClassBindings(classId)).toHaveLength(1);
 
@@ -120,6 +146,8 @@ describe("Class View property bindings editor", () => {
     expect(client.getClassBindings(classId)).toEqual([]);
     expect(screen.getByText("No property bindings.")).not.toBeNull();
     // The schema is picker-eligible again.
-    expect(screen.getByRole("option", { name: "priority" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    const dialog = screen.getByRole("dialog", { name: "Add property" });
+    expect(within(dialog).getByText("priority")).not.toBeNull();
   });
 });
