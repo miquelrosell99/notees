@@ -98,16 +98,20 @@
 
   /* ==================== Data-level preset colors ====================
      Application data colors (node/class/tag colors, selection options):
-     stored on nodes as 'var(--color-preset-*)' references so themes can
-     remap the concrete hex without touching data. Not design tokens. */
-  --color-preset-red: #d64540;
-  --color-preset-orange: #e07b39;
-  --color-preset-yellow: #cfa70a;
-  --color-preset-green: #219653;
-  --color-preset-teal: #1f8b80;
-  --color-preset-blue: #336cf6;
-  --color-preset-purple: #7b4ef6;
-  --color-preset-pink: #d23885;
+     stored on nodes as preset TOKENS (`sky`) or custom `#RRGGBB` hex per
+     the protocol color grammar (packages/protocol/src/colors.ts); the
+     token → hex mapping lives here so themes can remap the palette without
+     touching data (colorPresets.ts bridges token → var at render). */
+  --color-preset-red: #e34d45;
+  --color-preset-orange: #ed822b;
+  --color-preset-yellow: #f3b816;
+  --color-preset-green: #30a66f;
+  --color-preset-teal: #27a59c;
+  --color-preset-sky: #20a9e9;
+  --color-preset-blue: #4072e7;
+  --color-preset-purple: #9662da;
+  --color-preset-pink: #de4996;
+  --color-preset-gray: #8c857d;
 
   /* ==================== Graph View (light defaults) ==================== */
   --graph-node-default: #737373;

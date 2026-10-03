@@ -37,12 +37,12 @@ import { AddPill } from "./ui/AddPill.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
-import { resolveCssColor } from "./ui/colorPresets.js";
+import { canonicalColor, cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import "./ClassPills.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-/** Readable text on a class-color background (var references resolved). */
+/** Readable text on a class-color background (stored colors resolved to hex). */
 function contrastFor(color: string): string {
   const match = /^#([0-9a-f]{6})$/i.exec(resolveCssColor(color).trim());
   if (match === null) return "var(--color-on-primary-container)";
@@ -77,10 +77,16 @@ function PillShell({
   const cls = client.getNode(classId);
   const label = displayNameFromClient(client, classId) ?? classId;
   const colored = client.effectiveClassColor(classId);
+  // Effective icon: the class glyph (display-time default when none is set).
+  const icon = client.effectiveClassIcon(classId);
   return (
     <span
       className="pill pill--hover-reveal-right"
-      style={colored !== null ? { background: colored, color: contrastFor(colored) } : undefined}
+      style={
+        colored !== null
+          ? { background: cssColorFor(colored), color: contrastFor(colored) }
+          : undefined
+      }
       onContextMenu={(event) => {
         if (cls === undefined) return;
         event.preventDefault();
@@ -88,11 +94,9 @@ function PillShell({
         onContextMenuNode(cls, event.clientX, event.clientY);
       }}
     >
-      {cls?.icon !== null && cls?.icon !== undefined && (
-        <span className="pill__left-icon">
-          <Icon path={cls.icon} size={0.7} />
-        </span>
-      )}
+      <span className="pill__left-icon">
+        <Icon path={icon} size={0.7} />
+      </span>
       <button type="button" className="pill__text" onClick={() => onOpenPage?.(classId)}>
         {label}
       </button>
@@ -139,8 +143,9 @@ function SortablePopupRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: classId,
   });
-  const cls = client.getNode(classId);
   const label = displayNameFromClient(client, classId) ?? classId;
+  // Effective icon: the class glyph (display-time default when none is set).
+  const icon = client.effectiveClassIcon(classId);
   return (
     <li
       ref={setNodeRef}
@@ -156,9 +161,7 @@ function SortablePopupRow({
       >
         <Icon path="mdi-drag-vertical" size={0.7} />
       </button>
-      {cls?.icon !== null && cls?.icon !== undefined && (
-        <Icon path={cls.icon} size={0.7} className="class-pills-popup__icon" />
-      )}
+      <Icon path={icon} size={0.7} className="class-pills-popup__icon" />
       <span className="class-pills-popup__name">{label}</span>
       <button
         type="button"
@@ -334,11 +337,8 @@ export function ClassPills({
               <ColorPickerRow
                 currentColor={client.getNode(colorMenu.classId)?.color ?? null}
                 onColorChange={(color) => {
-                  // object.update has no null color (protocol: string only) —
-                  // "No color" is a no-op until the protocol grows a clear.
-                  if (color !== null) {
-                    void client.updateObject(colorMenu.classId, { color });
-                  }
+                  // null = "No color" — object.update color:null clears (§34.43).
+                  void client.updateObject(colorMenu.classId, { color });
                   setColorMenu(null);
                 }}
               />

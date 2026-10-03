@@ -8,6 +8,7 @@
  */
 
 import { Icon } from "../../Icon.js";
+import { cssColorFor } from "../ui/colorPresets.js";
 
 export type NodeIconSize = "xs" | "sm" | "md" | "lg" | "xl" | number;
 
@@ -36,7 +37,8 @@ export function NodeIcon({
   className?: string;
   color?: string | null;
 }) {
-  // Parse JSON-encoded icon fields like {"icon":"mdiCalendarToday","color":"var(--color-preset-green)"}
+  // Parse JSON-encoded icon fields like {"icon":"mdiCalendarToday","color":"green"}
+  // (the color rides the §34.43 token|hex grammar).
   let icon = rawIcon;
   let parsedColor: string | undefined;
   if (rawIcon) {
@@ -55,10 +57,11 @@ export function NodeIcon({
       // Not JSON — use as plain string
     }
   }
-  // Explicit color prop overrides parsed color
+  // Explicit color prop overrides parsed color. Both carry stored colors
+  // (tokens/hex) — bridge to CSS at this render boundary.
   const color = colorProp ?? parsedColor;
   const resolvedSize = resolveSize(size);
-  const colorPropForIcon = color || undefined;
+  const colorPropForIcon = color !== undefined && color !== null ? cssColorFor(color) : undefined;
 
   // If icon is provided, resolve it as an MDI path (camelCase or kebab-case).
   if (icon) {

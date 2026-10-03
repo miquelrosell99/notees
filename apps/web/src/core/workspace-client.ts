@@ -19,6 +19,8 @@ import {
   chainNodeIds,
   dateNodeId,
   dateNodeLabel,
+  DEFAULT_CLASS_ICON,
+  defaultIconFor,
   deriveDisplayName,
   parseIsoDate,
   rendersWithDocumentChrome,
@@ -322,7 +324,8 @@ export interface UpdateObjectInput {
   presentAsMain?: boolean;
   contentAst?: ContentAst;
   icon?: string;
-  color?: string;
+  /** Preset token or #RRGGBB hex; null clears the color (§34.43 grammar). */
+  color?: string | null;
 }
 
 export interface DeleteObjectOptions {
@@ -1196,9 +1199,11 @@ export class WorkspaceClient {
     return null;
   }
 
-  /** Class effectiveIcon: the class's own icon, else the nearest ancestor in
-   * the extends chain with an icon (same walk as effectiveClassColor). */
-  effectiveClassIcon(classId: string): string | null {
+  /** Raw class-icon walk: the class's own icon, else the nearest ancestor
+   * in the extends chain with an icon (same walk as effectiveClassColor).
+   * No display-time default — the shared building block of the two
+   * effective-icon resolvers below. */
+  private classIconInChain(classId: string): string | null {
     const seen = new Set<string>();
     const queue = [classId];
     while (queue.length > 0) {
@@ -1217,15 +1222,28 @@ export class WorkspaceClient {
     return null;
   }
 
+  /** Class effectiveIcon: the raw chain walk, else the display-time default
+   * DEFAULT_CLASS_ICON. The default is read-side only — the stored icon stays
+   * empty until the user picks one. Never null. */
+  effectiveClassIcon(classId: string): string {
+    return this.classIconInChain(classId) ?? DEFAULT_CLASS_ICON;
+  }
+
   /** Node effectiveIcon: the node's own icon, else the first assigned class's
-   * effectiveIcon (class order), mirroring effectiveNodeColor. */
-  effectiveNodeIcon(node: Pick<ClientNode, "icon" | "classIds">): string | null {
+   * chain icon (class order, mirroring effectiveNodeColor). The class default
+   * does NOT leak into a node — an iconless classed page renders the page
+   * default, not the class glyph. The final fallback is the render-state
+   * display default (class → class glyph, document chrome → page glyph,
+   * inline block → null, whose chrome is the bullet dot). */
+  effectiveNodeIcon(
+    node: Pick<ClientNode, "icon" | "classIds" | "isClass" | "presentAsMain" | "parentId">,
+  ): string | null {
     if (node.icon !== null && node.icon !== undefined && node.icon !== "") return node.icon;
     for (const classId of node.classIds) {
-      const icon = this.effectiveClassIcon(classId);
+      const icon = this.classIconInChain(classId);
       if (icon !== null) return icon;
     }
-    return null;
+    return defaultIconFor(node);
   }
 
   /**

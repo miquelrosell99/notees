@@ -33,6 +33,14 @@ let sqlModule: SqlJsStatic;
 
 beforeAll(async () => {
   sqlModule = await initSqlJs();
+  // jsdom lacks ResizeObserver; Tabs.List (the picker's scope tabs) uses it
+  // for the active indicator.
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
 });
 
 const clients: WorkspaceClient[] = [];
@@ -154,6 +162,108 @@ describe("capture: @ mention", () => {
     // DOM re-synced to the new prose; picker closed.
     expect(editor.textContent).toBe("see Target");
     expect(picker()).toBeNull();
+  });
+
+  it("Main/Blocks scope tabs filter the search (Main first, blocks behind a tab)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    await client.createObject({ presentAsMain: true, name: "Target" });
+    // The edited block must stay the FIRST child (clickIntoBlock edits the
+    // first .nt-block-content in the page).
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    await client.createObject({ parentId: pageId, name: "Hidden needle" });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    const panel = picker()!;
+
+    // Main is the active tab by default.
+    expect(within(panel).getByRole("tab", { name: "Main" })).toHaveAttribute("aria-selected", "true");
+
+    // Main scope: document-chrome nodes match; inline child blocks don't
+    // (the no-match create row is the fallback affordance).
+    typeInPicker("needle");
+    expect(within(panel).queryByText("Hidden needle")).toBeNull();
+    expect(within(panel).getByText('Create "needle"')).not.toBeNull();
+
+    // Blocks scope: the inline child block matches, pages don't.
+    fireEvent.click(within(panel).getByRole("tab", { name: "Blocks" }));
+    expect(within(panel).getByRole("tab", { name: "Blocks" })).toHaveAttribute("aria-selected", "true");
+    expect(within(panel).getByText("Hidden needle")).not.toBeNull();
+    expect(within(panel).queryByText("Target")).toBeNull();
+    // The tab click keeps typing in the search box.
+    expect(searchBox()).toHaveFocus();
+
+    // Back on Main with a page query: the page matches, the block doesn't.
+    fireEvent.click(within(panel).getByRole("tab", { name: "Main" }));
+    typeInPicker("Target");
+    expect(within(panel).getByText("Target")).not.toBeNull();
+    fireEvent.click(within(panel).getByRole("tab", { name: "Blocks" }));
+    expect(within(panel).queryByText("Target")).toBeNull();
+
+    // Picking from the Blocks tab inserts the mention of the block.
+    typeInPicker("needle");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    const needle = client.getChildren(pageId).find((n) => deriveDisplayName(n) === "Hidden needle");
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: needle!.id });
+  });
+
+  it("classes are mentionable from the Main tab", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const classId = await client.createClass("Genretab");
+    await client.updateObject(classId, { contentAst: [{ type: "text", text: "Genretab" }] });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Genre");
+    expect(within(picker()!).getByText("Genretab")).not.toBeNull();
+
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: classId });
+  });
+
+  it("the typed-date row offers 'Link to daily page' for an existing day node, 'Create' otherwise", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    // No day node yet: the suggestion authors one.
+    typeInPicker("today");
+    expect(within(picker()!).getByText(/Create daily page: /)).not.toBeNull();
+
+    // Author the chain: the suggestion becomes a link offer.
+    const d = new Date();
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    await act(async () => {
+      await client.ensureDateChain(iso);
+    });
+    expect(within(picker()!).getByText(/Link to daily page: /)).not.toBeNull();
+    expect(within(picker()!).queryByText(/Create daily page: /)).toBeNull();
+
+    // Enter on the row links the (existing) day node as a mention.
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const chain = await client.ensureDateChain(iso);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: chain.day });
   });
 
   it("creates a backlinks edge to the target (mention edge, record-don't-resolve)", async () => {

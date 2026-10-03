@@ -134,10 +134,10 @@ describe("metadata pickers (ported popups)", () => {
 
     const swatchGroup = screen.getByRole("group", { name: "Color options" });
     const swatches = swatchGroup.querySelectorAll(".context-menu-color-swatch");
-    expect(swatches.length).toBe(9); // no-color + 8 preset colors
+    expect(swatches.length).toBe(11); // no-color + 10 preset colors
     fireEvent.click(swatches[1]!); // red
     await flushWrites();
-    expect(client.getNode(classId)?.color).toBe("var(--color-preset-red)");
+    expect(client.getNode(classId)?.color).toBe("red");
   });
 
   it("select schemas with options render the options control writing option ids", async () => {

@@ -334,6 +334,24 @@
   color: var(--color-on-surface-variant);
 }
 
+/* Scope tabs (Main/Blocks) — compact ghost tab bar above the search input.
+   The Tabs primitive's column gap is zeroed so the input sits flush between
+   the tablist and the results panel it controls. */
+.node-selector__scope-tabs.tabs {
+  gap: 0;
+}
+
+.node-selector__scope-tabs .node-selector__scope-tablist {
+  width: 100%;
+  box-sizing: border-box;
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.node-selector__scope-tabs .node-selector__scope-tablist .tabs__tab {
+  flex: 1;
+  min-width: 0;
+}
+
 .node-selector__options {
   max-height: var(--layout-size-2xl);
   overflow-y: auto;

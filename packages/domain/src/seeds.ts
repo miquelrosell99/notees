@@ -138,6 +138,12 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // §34.25 T2 — a class's bound templates (D1: relation lives on the class,
   // multi, targets the template system class).
   hasTemplate: "00000000-0000-0000-0000-000000000026",
+  // §34.25 T3 (D1 amendment, owner 2026-10-03) — instantiation provenance: a
+  // generated node records its template INSTANCE-SIDE (single node-typed,
+  // targets the template class). NOT class-bound — deliberately absent from
+  // SYSTEM_PROPERTY_SPECS (whose entries always seed a class binding); the
+  // web client self-heals the schema (ensureGeneratedFromProperty).
+  generatedFrom: "00000000-0000-0000-0000-000000000027",
   taskStatus: "00000000-0000-0000-0003-000000000001",
   taskDeadline: "00000000-0000-0000-0003-000000000002",
   taskScheduled: "00000000-0000-0000-0003-000000000003",
