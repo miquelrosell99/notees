@@ -38,6 +38,7 @@ import type {
 } from "@/core/workspace-client.js";
 
 import { AnnotationsSection } from "../AnnotationsSection.js";
+import { todayIsoLocal } from "./calendarViewUtils.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
@@ -1072,8 +1073,9 @@ function AddPropertyRow({
         return;
       }
       case "date": {
-        const today = new Date().toISOString().slice(0, 10);
-        const dayId = await client.ensureDateChain(today);
+        // Local midnight, not UTC — the "today" default must match the
+        // user's calendar day (§34.28 #1).
+        const dayId = await client.ensureDateChain(todayIsoLocal());
         await client.setProperty(nodeId, schemaId, { nodeId: dayId }, 0);
         return;
       }
