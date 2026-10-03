@@ -474,10 +474,12 @@ Items 8–12 were surfaced by the 2026-10-02 property-layer audit; like items 1�
 they are code-narrower-than-design (or design-lagging-code), none touches sync
 authority — the operation log, appliers, and convergence machinery implement the
 designed model as specced.
-13. **`object.restore` is TS-reference-only** (2026-10-03). The restore op ships
-    with fixture coverage in this repo (implementation-plan §34.38; SCHEMA.md's
-    deletion/restore owed item is ticked), but the GTK/Flutter sibling appliers
-    do not implement it — they reject the unknown op fail-loud (envelope v3
-    unchanged), so restores authored elsewhere stay unapplied on those clients
-    until their lockstep round lands. Owed work, tracked with the other pending
-    wire items (implementation-plan §34.34's protocol batch).
+13. ~~**`object.restore` is TS-reference-only**~~ RECONCILED 2026-10-03: the
+    three-way lockstep shipped same day — `notees-gtk` v2.0.0-m4 and
+    `notees-flutter` v2.0.0-m14 both implement `object.restore` with the
+    four-semantics coverage (whole-tree, independent-trash exclusion,
+    dangling-parent reparent, fail-loud on permanent delete). Flutter's
+    cache-based store gained the `trash_root` table (app DB v21) as its
+    trash-tracking home — before this its soft delete archived the subtree
+    with no root-level record, so the independent-trash exclusion was
+    unrepresentable there.
