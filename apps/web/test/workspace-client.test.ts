@@ -8,10 +8,11 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
-import { deriveDisplayName } from "@notees/domain";
+import { deriveDisplayName, DEFAULT_CLASS_ICON, DEFAULT_PAGE_ICON } from "@notees/domain";
 import { MemoryRelay, MemoryTransport, type SyncConflict } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { classIconMap, nodeIcon } from "../src/ui/iconFor.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -213,5 +214,111 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     const byName = client.search("Search Page");
     expect(byName.some((n) => n.id === pageId)).toBe(true);
     expect(byName.some((n) => n.id === blockId)).toBe(false);
+  });
+});
+
+describe("effective icons (display-time defaults)", () => {
+  async function seedIconClient(): Promise<WorkspaceClient> {
+    const client = await createClient(makeContext());
+    await client.bootstrapWorkspace(WS);
+    return client;
+  }
+
+  it("effectiveClassIcon: a class with no icon renders the class default", async () => {
+    const client = await seedIconClient();
+    const classId = await client.createClass("Plain Class");
+    expect(client.effectiveClassIcon(classId)).toBe(DEFAULT_CLASS_ICON);
+    // Display-time only: nothing was written to the store.
+    expect(client.getNode(classId)?.icon ?? null).toBeNull();
+  });
+
+  it("effectiveClassIcon: own icon wins; the extends chain is walked", async () => {
+    const client = await seedIconClient();
+    const parentId = await client.createClass("Parent", { icon: "mdi-star" });
+    const childId = await client.createClass("Child");
+    await client.setClassExtends(childId, [parentId]);
+    expect(client.effectiveClassIcon(childId)).toBe("mdi-star");
+
+    const ownId = await client.createClass("Own", { icon: "mdi-heart" });
+    await client.setClassExtends(ownId, [parentId]);
+    expect(client.effectiveClassIcon(ownId)).toBe("mdi-heart");
+  });
+
+  it("effectiveClassIcon: inheritance reaches across a multi-hop chain", async () => {
+    const client = await seedIconClient();
+    const grandId = await client.createClass("Grand", { icon: "mdi-label" });
+    const midId = await client.createClass("Mid");
+    const leafId = await client.createClass("Leaf");
+    await client.setClassExtends(midId, [grandId]);
+    await client.setClassExtends(leafId, [midId]);
+    expect(client.effectiveClassIcon(leafId)).toBe("mdi-label");
+  });
+
+  it("effectiveNodeIcon: own icon wins, then the first class with an icon (class order)", async () => {
+    const client = await seedIconClient();
+    const clsA = await client.createClass("A", { icon: "mdi-star" });
+    const clsB = await client.createClass("B", { icon: "mdi-heart" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Icon Page" });
+    await client.assignClass(pageId, clsA);
+    await client.assignClass(pageId, clsB);
+    expect(client.effectiveNodeIcon(client.getNode(pageId)!)).toBe("mdi-star");
+
+    await client.updateObject(pageId, { icon: "mdi-home" });
+    expect(client.effectiveNodeIcon(client.getNode(pageId)!)).toBe("mdi-home");
+  });
+
+  it("effectiveNodeIcon: pages default to the page glyph — the class default never leaks into a node", async () => {
+    const client = await seedIconClient();
+    // Parentless: document chrome by the second cascade branch, bit unread.
+    const parentless = await client.createObject({ presentAsMain: false, name: "Parentless" });
+    expect(client.effectiveNodeIcon(client.getNode(parentless)!)).toBe(DEFAULT_PAGE_ICON);
+    // Parented with the render bit set: the third cascade branch.
+    const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
+    const mainChild = await client.createObject({ presentAsMain: true, parentId, name: "Main" });
+    expect(client.effectiveNodeIcon(client.getNode(mainChild)!)).toBe(DEFAULT_PAGE_ICON);
+
+    // An iconless class contributes no glyph to its member pages.
+    const iconlessClass = await client.createClass("Iconless");
+    const classed = await client.createObject({ presentAsMain: true, name: "Classed" });
+    await client.assignClass(classed, iconlessClass);
+    expect(client.effectiveNodeIcon(client.getNode(classed)!)).toBe(DEFAULT_PAGE_ICON);
+    // Display-time only: the node's stored icon stays empty.
+    expect(client.getNode(classed)?.icon ?? null).toBeNull();
+  });
+
+  it("effectiveNodeIcon: inline blocks have no default — the bullet dot stays", async () => {
+    const client = await seedIconClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "inline" }],
+    });
+    expect(client.effectiveNodeIcon(client.getNode(blockId)!)).toBeNull();
+  });
+
+  it("effectiveNodeIcon: class nodes resolve to the class default", async () => {
+    const client = await seedIconClient();
+    const classId = await client.createClass("ClassNode");
+    expect(client.effectiveNodeIcon(client.getNode(classId)!)).toBe(DEFAULT_CLASS_ICON);
+  });
+
+  it("nodeIcon helper (ui/iconFor): same fallback chain as the client resolver", async () => {
+    const client = await seedIconClient();
+    const cls = await client.createClass("Mapped", { icon: "mdi-tag" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "b" }],
+    });
+    const classedId = await client.createObject({ presentAsMain: true, name: "C" });
+    await client.assignClass(classedId, cls);
+
+    const map = classIconMap(client.listClasses());
+    expect(nodeIcon(client.getNode(pageId)!, map)).toBe(DEFAULT_PAGE_ICON);
+    expect(nodeIcon(client.getNode(blockId)!, map)).toBeNull();
+    expect(nodeIcon(client.getNode(classedId)!, map)).toBe("mdi-tag");
+
+    await client.updateObject(classedId, { icon: "mdi-star" });
+    expect(nodeIcon(client.getNode(classedId)!, map)).toBe("mdi-star");
   });
 });

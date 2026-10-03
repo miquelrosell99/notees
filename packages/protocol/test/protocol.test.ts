@@ -11,6 +11,7 @@ import {
   extractTypedLinkMarks,
   KNOWN_OP_TYPES,
   newEnvelope,
+  objectUpdatePayload,
   payloadSchemaFor,
   PROTOCOL_VERSION,
 } from "../src/index.js";
@@ -40,7 +41,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the twelve required fixtures", () => {
+  it("has exactly the thirteen required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-extends-cycle.json",
@@ -48,6 +49,7 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
       "class-property-defaults.json",
       "class-unassign.json",
       "envelope-minimal.json",
+      "object-color.json",
       "object-create.json",
       "object-move-before.json",
       "object-move.json",
@@ -111,6 +113,35 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
     const hlcA = (a!.hlc as { physical: number; logical: number }) ?? { physical: 0, logical: 0 };
     const hlcB = (b!.hlc as { physical: number; logical: number }) ?? { physical: 0, logical: 0 };
     expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
+  });
+
+  it("object-color fixture exercises the full color grammar: token, hex, clear, class clear", () => {
+    const fixture = fixtures.find((f) => f.name === "object-color.json")!;
+    const updates = fixture.envelopes.filter((env) => env.opType === "object.update");
+    expect(updates.map((env) => (env.payload as { color: unknown }).color)).toEqual([
+      "sky",
+      "#123abc",
+      null,
+    ]);
+    const classOps = fixture.envelopes.filter(
+      (env) => env.opType === "class.create" || env.opType === "class.update",
+    );
+    expect(classOps.map((env) => (env.payload as { color: unknown }).color)).toEqual(["pink", null]);
+    // Retired CSS-variable encoding is rejected outright by the strict schema.
+    const legacy = objectUpdatePayload.safeParse({
+      objectId: "0192a000-0000-7000-8000-0000000000f2",
+      color: "var(--color-preset-red)",
+    });
+    expect(legacy.success).toBe(false);
+    // Long garbage strings no longer slip through as "colors" either.
+    const garbage = objectUpdatePayload.safeParse({
+      objectId: "0192a000-0000-7000-8000-0000000000f2",
+      color: "not-a-color",
+    });
+    expect(garbage.success).toBe(false);
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
 
   it("object-move fixture reparents C under A and reorders B after A within P", () => {

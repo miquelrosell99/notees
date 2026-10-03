@@ -5,12 +5,14 @@
  * Styled like Button, but shows a filled color instead of an icon.
  * Has a gap between the color fill and the button border.
  *
- * Supports hex colors and 'var(--color-preset-*)' references (the built-in
- * preset palette emits CSS variable references so themes can remap them).
+ * Supports preset tokens (`"sky"`), custom hex colors (`#RRGGBB`), and —
+ * for display only — the retired `var(--color-preset-*)` encoding (folded to
+ * its token by colorPresets). The picker stores preset tokens so themes can
+ * remap them without touching node data.
  *
  * Usage:
- *   <ColorButton color="#ff5722" onClick={handleClick} />
- *   <ColorButton color="var(--color-preset-red)" showPicker onColorChange={handleChange} />
+ *   <ColorButton color="sky" onClick={handleClick} />
+ *   <ColorButton color="sky" showPicker onColorChange={handleChange} />
  *   <ColorButton color={myColor} showPicker colors={myPalette} onColorChange={handleChange} />
  */
 import { forwardRef, useState, useRef, useEffect, useLayoutEffect, type ButtonHTMLAttributes, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react';
@@ -18,15 +20,15 @@ import { createPortal } from 'react-dom';
 import { Button } from './Button.js';
 import { TextField } from './TextField.js';
 import { observeResizes } from './overlay-hooks.js';
-import { PRESET_COLOR_ENTRIES } from './colorPresets.js';
+import { PRESET_COLOR_ENTRIES, canonicalColor, cssColorFor } from './colorPresets.js';
 import './ColorButton.css';
 
 export type ColorButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 /** A color entry for the picker palette. */
 export interface ColorEntry {
-  /** Color value emitted when the swatch is selected (hex string). */
-  cssVar: string;
+  /** Stored value emitted when the swatch is selected (preset token or hex). */
+  value: string;
   /** Human-readable label shown as tooltip */
   label: string;
 }
@@ -76,7 +78,7 @@ function ColorSwatch({
       aria-label={ariaLabel ?? title}
       {...props}
     >
-      <span className="color-btn__fill" style={{ backgroundColor: color }} />
+      <span className="color-btn__fill" style={{ backgroundColor: cssColorFor(color) }} />
     </button>
   );
 }
@@ -253,7 +255,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
       >
         <span
           className="color-btn__fill"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: cssColorFor(color) }}
         />
       </button>
 
@@ -275,17 +277,17 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
           }}
         >
           <div className="color-btn-picker__grid">
-            {palette.map(({ cssVar, label }) => (
+            {palette.map(({ value, label }) => (
               <ColorSwatch
-                key={cssVar}
-                color={cssVar}
+                key={value}
+                color={cssColorFor(value)}
                 size="xs"
-                active={color === cssVar}
+                active={canonicalColor(color) === canonicalColor(value)}
                 title={label}
                 aria-label={label}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleColorSelect(cssVar);
+                  handleColorSelect(value);
                 }}
               />
             ))}

@@ -24,11 +24,13 @@
  * Capture gestures (owner-refined 2026-09-26; node-picker popups 2026-10-01;
  * @-over-selection + link context menu 2026-10-01):
  * - `@`  mention/link: the node picker popup (ported NodeSelector) opens
- *   anchored at the caret with its own search field — pages and blocks only,
- *   no classes; picking inserts `{type:"mention", targetNodeId, text, linkId}`
+ *   anchored at the caret with its own search field — Main/Blocks scope tabs
+ *   (document-chrome nodes incl. classes vs inline child blocks, Main first)
+ *   scoping the search; picking inserts `{type:"mention", targetNodeId, text, linkId}`
  *   at the trigger; the create row links a new page named by the query; the
- *   typed-date row links the journal chain page. Esc/click-outside keeps the
- *   trigger char as plain text and hands focus back to the block.
+ *   typed-date row links the journal chain page ("Link to … page" /
+ *   "Create … page"). Esc/click-outside keeps the trigger char as plain text
+ *   and hands focus back to the block.
  * - `@` over a selection: the browser default (delete the selection, insert
  *   the sigil) is intercepted at a word boundary; the picker opens with the
  *   selected text as its search query, and the pick splices the mention over
@@ -1423,6 +1425,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
             client={client}
             anchorRect={capture.anchor ?? null}
             searchMode={capture.kind === "mention" ? "all" : capture.kind === "tag" ? "pages" : "classes"}
+            scopeTabs={capture.kind === "mention"}
             excludeNodeId={nodeRef.current.id}
             initialSearchQuery={capture.kind === "mention" ? capture.query : ""}
             searchPlaceholder={

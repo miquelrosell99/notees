@@ -207,7 +207,7 @@ const setsOf = (ops: CloneOp[], objectId: string) =>
 const create = (ops: CloneOp[], objectId: string) => {
   const found = createsOf(ops, objectId);
   expect(found, `one object.create for ${objectId}`).toHaveLength(1);
-  const op = found[0];
+  const op = found[0]!;
   if (op.opType !== "object.create") throw new Error("unreachable");
   return op.payload;
 };
@@ -321,15 +321,15 @@ describe("composeSubtreeClone", () => {
       "schema-link",
       "schema-multi",
     ]);
-    const note = rootSets[0];
+    const note = rootSets[0]!;
     if (note.opType !== "property.set") throw new Error("unreachable");
     expect(note.payload.value).toBe("Bring slides");
     expect(note.payload.idx).toBe(0);
     expect(note.payload.metadata).toEqual({ locator: "p. 2" });
-    const link = rootSets[1];
+    const link = rootSets[1]!;
     if (link.opType !== "property.set") throw new Error("unreachable");
     expect(link.payload.value).toEqual({ nodeId: PERSON }); // node-typed ref copied
-    const multi = rootSets[2];
+    const multi = rootSets[2]!;
     if (multi.opType !== "property.set") throw new Error("unreachable");
     expect(multi.payload.idx).toBe(1);
     // Child-authored values land on the child's fresh id.

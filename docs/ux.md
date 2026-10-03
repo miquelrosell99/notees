@@ -32,6 +32,8 @@ View resolution is a pure function of two booleans and one edge — `is_class` (
 
 Two placement rules complete the picture. **Nested pages have the render bit set** — a child page opens in Page View and renders in its parent's dedicated **Child pages** (main-children) zone, never inline in the parent's body. And class nodes are always roots by construction — `is_class` implies no parent, enforced by a schema CHECK and a fail-loud move-guard. Classes may themselves have non-class children; the one tree rule left is that a class can never be a child.
 
+Icons are *effective*, never required. A node displays its own icon when one is set; otherwise the first assigned class's icon (in class order, inherited through the class's `extends` chain); otherwise a display-time default — a shape glyph for classes, a document glyph for pages. The default is read-side only: nothing is written to the node until you pick an icon, and inline blocks stay iconless (their chrome is the bullet dot).
+
 **Today:** the web app renders Page View (interactive) and Class View (view resolution is the `is_class`/`parent_id`/`present_as_main` cascade); a block is reached by zooming its page, and the class catalog is inspectable via `notees class list` and `GET /api/classes` ([usage.md](usage.md)). Focused Block View as a standalone chrome remains designed.
 
 ## The outliner
@@ -90,7 +92,7 @@ All three are tokens in the same flat content stream ([SCHEMA.md grammar](../pac
 
 Citations are the canonical dogfood: a `cites` verb with the locator auto-filled from the current PDF selection, grouped backlinks by verb, bibliography views — the M2 research environment.
 
-**Today:** the capture gestures ship in the web editor — `@` opens the node picker (mentions), `#` opens tag vocabulary (**Enter assigns the tag-class to the node, creating it if missing; Shift+Enter inserts a render-only chip inline**), `+` picks existing classes with the same assign/insert split, and a selection + Cmd/Ctrl+K (or the toolbar verb button) binds a free-string verb with an optional locator. Rendering resolves names everywhere. Still designed: bound-schema verbs with create-and-bind, locator autofill from PDF selections, M2 target resolution.
+**Today:** the capture gestures ship in the web editor — `@` opens the node picker (mentions) with the caret already in its search field, scoped by **Main/Blocks tabs**: Main (the default) searches pages, classes, and other document-chrome nodes; Blocks narrows the same search to inline child blocks. Typed dates offer **"Link to daily page: …"** (or "Create …" when the journal page doesn't exist yet). `#` opens tag vocabulary (**Enter assigns the tag-class to the node, creating it if missing; Shift+Enter inserts a render-only chip inline**), `+` picks existing classes with the same assign/insert split, and a selection + Cmd/Ctrl+K (or the toolbar verb button) binds a free-string verb with an optional locator. Rendering resolves names everywhere. Still designed: bound-schema verbs with create-and-bind, locator autofill from PDF selections, M2 target resolution.
 
 ## Whiteboards — spatial views of subtrees
 
