@@ -30,6 +30,18 @@ import type { SyncStatusSnapshot } from "../src/core/workspace-client.js";
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
 
+// The PDF engine is lazily imported by the modal (the code-split boundary);
+// the stub proves the dynamic import happens and captures the options bag.
+const pdfEngineMocks = vi.hoisted(() => ({
+  renderSubtreePdfMock: vi.fn(),
+  renderSubtreePdfBatchMock: vi.fn(),
+}));
+
+vi.mock("@/ui/export-pdf/renderPdf.js", () => ({
+  renderSubtreePdf: pdfEngineMocks.renderSubtreePdfMock,
+  renderSubtreePdfBatch: pdfEngineMocks.renderSubtreePdfBatchMock,
+}));
+
 let sqlModule: SqlJsStatic;
 
 beforeAll(async () => {
@@ -41,6 +53,7 @@ const clients: WorkspaceClient[] = [];
 afterEach(() => {
   while (clients.length > 0) clients.pop()!.close();
   notificationStore.clearAll();
+  vi.clearAllMocks();
 });
 
 async function makeClient(options: { serverUrl?: string; apiKey?: string } = {}): Promise<WorkspaceClient> {
@@ -147,17 +160,24 @@ describe("ExportPageModal", () => {
     expect(screen.getByRole("radio", { name: /markdown/i })).toBeChecked();
     expect(screen.getByRole("radio", { name: /markdown/i })).not.toHaveAttribute("aria-disabled");
     // The redesign format set: html is available since H1, Word since D1,
-    // and LaTeX since L1; the remaining skeleton stays a disabled card
-    // carrying the registry reason.
+    // LaTeX since L1, and PDF since P1 (web-rendered) — no disabled cards
+    // remain in the web registry.
     expect(screen.getByRole("radio", { name: /html/i })).not.toHaveAttribute("aria-disabled");
     expect(screen.getByRole("radio", { name: /word/i })).not.toHaveAttribute("aria-disabled");
     expect(screen.getByRole("radio", { name: /latex/i })).not.toHaveAttribute("aria-disabled");
-    expect(screen.getByRole("radio", { name: /pdf.*task P1/is })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("radio", { name: /^pdf$/i })).not.toHaveAttribute("aria-disabled");
 
-    // Clicking a disabled card changes nothing: markdown stays selected.
-    fireEvent.click(screen.getByRole("radio", { name: /pdf/i }));
-    expect(screen.getByRole("radio", { name: /markdown/i })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /pdf/i })).not.toBeChecked();
+    // The layout cards render only for the layout-aware PDF card.
+    expect(screen.queryByRole("radiogroup", { name: /layout/i })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /^pdf$/i }));
+    expect(screen.getByRole("radio", { name: /^pdf$/i })).toBeChecked();
+    expect(screen.getByRole("radiogroup", { name: /layout/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^notes$/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /^essay$/i })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /^academic$/i })).not.toBeChecked();
+    // Switching away hides them again.
+    fireEvent.click(screen.getByRole("radio", { name: /html/i }));
+    expect(screen.queryByRole("radiogroup", { name: /layout/i })).toBeNull();
   }, 10000);
 
   it("renders the format's registry options and honors Include child pages", async () => {
@@ -362,6 +382,108 @@ describe("ExportPageModal", () => {
     // A .docx is an OOXML zip: the main document part must be present.
     const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
     expect(Object.keys(entries)).toContain("word/document.xml");
+
+    download.restore();
+  }, 10000);
+
+  it("downloads a PDF through the lazily imported engine when the PDF card is selected", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+
+    pdfEngineMocks.renderSubtreePdfMock.mockResolvedValue({
+      blob: new Blob(["%PDF-1.4 stub"], { type: "application/pdf" }),
+      filename: "Trip.pdf",
+    });
+    const download = stubDownload();
+    render(
+      <ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} nodeName="Trip" />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /^pdf$/i }));
+    // Layout cards + page size toggle feed the engine options.
+    fireEvent.click(screen.getByRole("radio", { name: /^essay$/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /^letter$/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.pdf");
+    expect(download.blob).not.toBeNull();
+    expect(download.blob!.type).toBe("application/pdf");
+
+    // The lazy engine received the merged bag: the modal's checkbox options
+    // plus the two PDF-only selects.
+    expect(pdfEngineMocks.renderSubtreePdfMock).toHaveBeenCalled();
+    const lastCall =
+      pdfEngineMocks.renderSubtreePdfMock.mock.calls[
+        pdfEngineMocks.renderSubtreePdfMock.mock.calls.length - 1
+      ]!;
+    expect(lastCall[0]).toBe(client);
+    expect(lastCall[1]).toBe(pageId);
+    expect(lastCall[2]).toEqual(
+      expect.objectContaining({
+        includeChildPages: true,
+        includeOutline: true,
+        hideEmptyProperties: true,
+        layout: "essay",
+        pageFormat: "letter",
+      }),
+    );
+
+    download.restore();
+  }, 10000);
+
+  it("renders the PDF preview into an iframe while the PDF card is selected", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+
+    pdfEngineMocks.renderSubtreePdfMock.mockResolvedValue({
+      blob: new Blob(["%PDF-1.4 stub"], { type: "application/pdf" }),
+      filename: "Trip.pdf",
+    });
+    const download = stubDownload();
+    render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /^pdf$/i }));
+
+    const preview = await screen.findByTitle("pdf preview", undefined, { timeout: 3000 });
+    expect(preview.getAttribute("src")).toBe("blob:mock");
+    expect(pdfEngineMocks.renderSubtreePdfMock).toHaveBeenCalled();
+
+    download.restore();
+  }, 10000);
+
+  it("zips one PDF per root when a batch exports as PDF", async () => {
+    const client = await makeClient();
+    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+
+    pdfEngineMocks.renderSubtreePdfBatchMock.mockResolvedValue({
+      blob: new Blob(["zip-bytes"], { type: "application/zip" }),
+      filename: "Trip.zip",
+    });
+    const download = stubDownload();
+    render(
+      <ExportPageModal
+        isOpen={true}
+        onClose={() => {}}
+        client={client}
+        nodeUuids={[tripId, packingId]}
+      />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /^pdf$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    expect(pdfEngineMocks.renderSubtreePdfBatchMock).toHaveBeenCalled();
+    const batchCall = pdfEngineMocks.renderSubtreePdfBatchMock.mock.calls[0]!;
+    expect(batchCall[1]).toEqual([tripId, packingId]);
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.zip");
+    expect(download.blob!.type).toBe("application/zip");
 
     download.restore();
   }, 10000);
