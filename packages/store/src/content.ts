@@ -3,12 +3,16 @@
  * extended per SCHEMA.md's owed FTS spec): text runs, typed-link text,
  * mention captured text, math expressions and recursive quote children come
  * from the domain excerpt helper; asset original names are joined from
- * node_asset. Plaintext is derived by the applier, never stored as truth.
+ * node_asset; text-ish property values (§34.30 M5) are appended from
+ * property_value — a carrier block's content for node-backed text, scalar
+ * strings as-is, select option labels, numbers in string form. Plaintext is
+ * derived by the applier, never stored as truth.
  */
 
 import { plainTextExcerpt } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
+import { nodeRefOfValue } from "./property-values.js";
 import type { StoreDatabase } from "./types.js";
 
 export function parseContentAst(raw: string | null | undefined): ContentAst {
@@ -21,8 +25,8 @@ export function parseContentAst(raw: string | null | undefined): ContentAst {
   }
 }
 
-/** Derived search plaintext for one node's serialized contentAst. */
-export function extractSearchPlaintext(db: StoreDatabase, raw: string | null | undefined): string {
+/** Content-derived plaintext: the excerpt plus asset names + quote children. */
+function contentPlaintext(db: StoreDatabase, raw: string | null | undefined): string {
   const ast = parseContentAst(raw);
   const parts: string[] = [plainTextExcerpt(ast)];
 
@@ -45,6 +49,92 @@ export function extractSearchPlaintext(db: StoreDatabase, raw: string | null | u
   };
   walk(ast);
 
+  return parts.filter((p) => p.length > 0).join(" ");
+}
+
+/** Schema types whose values contribute searchable text (§34.30 M5). */
+const SEARCH_INDEXED_VALUE_TYPES = new Set([
+  "text",
+  "url",
+  "email",
+  "select",
+  "multi_select",
+  "number",
+]);
+
+/**
+ * Text-ish property values of a node, one level deep: a text carrier's own
+ * content plaintext (the carrier's children index as their own nodes), a
+ * scalar string as-is, select labels resolved from the schema options, a
+ * number in string form. Date refs, object refs, booleans and ranges are
+ * structural — they stay out of the FTS row.
+ */
+function propertyValuesPlaintext(db: StoreDatabase, nodeId: string): string {
+  const rows = db
+    .prepare(
+      `SELECT v.value AS value, s.type AS type, s.options AS options
+       FROM property_value v JOIN property_schema s ON s.id = v.property_schema_id
+       WHERE v.node_id = ?`,
+    )
+    .all(nodeId) as Array<{ value: string; type: string; options: string }>;
+  const carrierContent = db.prepare("SELECT content FROM node WHERE id = ?");
+  const parts: string[] = [];
+  for (const row of rows) {
+    if (!SEARCH_INDEXED_VALUE_TYPES.has(row.type)) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(row.value);
+    } catch {
+      continue;
+    }
+    if (parsed === null || parsed === undefined) continue;
+    if (row.type === "text") {
+      const ref = nodeRefOfValue(parsed);
+      if (ref !== null) {
+        // Node-backed: index the carrier's content (one level — the
+        // carrier's own property values do not ride along).
+        const carrier = carrierContent.get(ref) as { content: string } | undefined;
+        const text = carrier ? contentPlaintext(db, carrier.content) : "";
+        if (text) parts.push(text);
+      } else if (typeof parsed === "string" && parsed.length > 0) {
+        parts.push(parsed);
+      }
+    } else if (row.type === "url" || row.type === "email") {
+      if (typeof parsed === "string" && parsed.length > 0) parts.push(parsed);
+    } else if (row.type === "number") {
+      if (typeof parsed === "number" && Number.isFinite(parsed)) parts.push(String(parsed));
+    } else {
+      // select / multi_select: the value is an option id — index the label.
+      const ids = Array.isArray(parsed) ? parsed : [parsed];
+      let labels: Array<{ id: string; label: string }> = [];
+      try {
+        labels = JSON.parse(row.options) as Array<{ id: string; label: string }>;
+      } catch {
+        labels = [];
+      }
+      for (const id of ids) {
+        if (typeof id !== "string") continue;
+        const option = labels.find((o) => o.id === id);
+        if (option && option.label) parts.push(option.label);
+        else parts.push(id);
+      }
+    }
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Derived search plaintext for one node's serialized contentAst. `nodeId`
+ * (optional, additive) also folds the node's text-ish property values into
+ * the row — reindexAllSearch rebuilds every row from the same function.
+ */
+export function extractSearchPlaintext(
+  db: StoreDatabase,
+  raw: string | null | undefined,
+  nodeId?: string,
+): string {
+  const parts = [contentPlaintext(db, raw)];
+  if (nodeId !== undefined) parts.push(propertyValuesPlaintext(db, nodeId));
   return parts
     .filter((p) => p.length > 0)
     .join(" ")
