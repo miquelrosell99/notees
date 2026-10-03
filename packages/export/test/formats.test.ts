@@ -1,6 +1,6 @@
 /**
- * E1 specs: the format registry — markdown/html/docx available, pdf/latex
- * registered as unavailable skeletons with reasons, per-format option
+ * E1 specs: the format registry — markdown/html/docx/latex available, pdf
+ * registered as an unavailable skeleton with its reason, per-format option
  * gating from the catalog, and the IR serializer seam.
  */
 
@@ -44,31 +44,28 @@ describe("format registry", () => {
     ]);
   });
 
-  it("marks markdown, html, and docx available; the skeletons carry their landing task", () => {
+  it("marks markdown, html, docx, and latex available; the skeleton carries its landing task", () => {
     expect(availableExportFormats().map((format) => format.id)).toEqual([
       "markdown",
       "html",
       "docx",
+      "latex",
     ]);
-    for (const id of ["pdf", "latex"] as const) {
-      const format = getExportFormat(id);
-      expect(format).toBeDefined();
-      expect(format?.availability.status).toBe("unavailable");
-      const reason = format?.availability.status === "unavailable" ? format.availability.reason : "";
-      expect(reason.length).toBeGreaterThan(0);
-      expect(reason).toMatch(/task P1|task L1/);
-    }
+    const format = getExportFormat("pdf");
+    expect(format).toBeDefined();
+    expect(format?.availability.status).toBe("unavailable");
+    const reason = format?.availability.status === "unavailable" ? format.availability.reason : "";
+    expect(reason.length).toBeGreaterThan(0);
+    expect(reason).toMatch(/task P1/);
   });
 
   it("unavailable formats throw loud from their serializer", () => {
     const document = buildExportDocument(makeNode("aaaaaaaa-0000-4000-8000-000000000001", "x"), CTX, resolveExportOptions());
-    for (const id of ["pdf", "latex"] as const) {
-      const format = getExportFormat(id);
-      expect(() => format?.serialize(document)).toThrowError(/not implemented/);
-    }
+    const format = getExportFormat("pdf");
+    expect(() => format?.serialize(document)).toThrowError(/not implemented/);
   });
 
-  it("markdown and html serializers render the IR through the registry", () => {
+  it("markdown, html, and latex serializers render the IR through the registry", () => {
     const markdown = getExportFormat("markdown");
     expect(markdown?.availability.status).toBe("available");
     const document = buildExportDocument(
@@ -85,6 +82,11 @@ describe("format registry", () => {
     expect(rendered).toContain("<!DOCTYPE html>");
     expect(rendered).toContain("<title>Registry render</title>");
     expect(rendered).toContain('<body class="layout-essay">');
+    const latex = getExportFormat("latex");
+    expect(latex?.availability.status).toBe("available");
+    const tex = latex?.serialize(document, { layout: "academic" });
+    expect(tex).toContain("\\documentclass[11pt,twocolumn]{article}");
+    expect(tex).toContain("\\section*{Registry render}");
   });
 
   it("hands each format its gated option specs", () => {
