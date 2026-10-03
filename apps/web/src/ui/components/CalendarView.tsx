@@ -27,11 +27,14 @@ import {
 
 import type { ClientNode, QueryRunResult } from "@/core/workspace-client.js";
 
+import { instantiateTemplate } from "@/core/clone.js";
 import { displayNameFromClient, formatDateName } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { PageView } from "../PageView.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
+import { TemplatePickerModal } from "./modals/TemplatePickerModal.js";
 import { ensureTaskFamily } from "./taskFamily.js";
+import { ensureTemplateProperty, listClassTemplates } from "./templateFamily.js";
 import {
   addDaysIso,
   buildCreatedTodayAst,
@@ -264,16 +267,56 @@ export function CalendarView({
     return all.filter((chip) => effective.has(chip.classId));
   }, [client, version, storedChips]);
 
-  const quickCreate = async (chip: { classId: string; schemaId: string }) => {
-    const id = await client.createObject({ presentAsMain: true, classIds: [chip.classId] });
-    await client.setDateProperty(id, chip.schemaId, selectedIso);
+  // --- create flow (§34.25 T2 — create-with-template) --------------------------
+  // A class with bound has-template values opens the picker; a class without
+  // (the common case) creates directly, exactly as before.
+  const [pendingCreate, setPendingCreate] = useState<{
+    classId: string;
+    schemaId: string;
+    templates: ClientNode[];
+  } | null>(null);
+
+  const createClassed = async (
+    classId: string,
+    schemaId: string,
+    templateId: string | null,
+  ): Promise<void> => {
+    const id = await client.createObject({ presentAsMain: true, classIds: [classId] });
+    if (templateId !== null) {
+      // Graft the template root onto the fresh object + clone its children
+      // beneath it (SCHEMA.md "Templates", instantiate-at-create).
+      await instantiateTemplate(
+        { reads: client, writes: client },
+        { templateRootId: templateId, objectId: id },
+      );
+    }
+    await client.setDateProperty(id, schemaId, selectedIso);
     onOpenPage(id);
   };
 
+  const offerCreate = async (classId: string, schemaId: string): Promise<void> => {
+    await ensureTemplateProperty(client);
+    const templates = listClassTemplates(client, classId);
+    if (templates.length === 0) {
+      await createClassed(classId, schemaId, null);
+      return;
+    }
+    setPendingCreate({ classId, schemaId, templates });
+  };
+
+  const runPickedCreate = (templateId: string | null): void => {
+    const pending = pendingCreate;
+    setPendingCreate(null);
+    if (pending === null) return;
+    void createClassed(pending.classId, pending.schemaId, templateId);
+  };
+
+  const quickCreate = async (chip: { classId: string; schemaId: string }) => {
+    await offerCreate(chip.classId, chip.schemaId);
+  };
+
   const createTask = async () => {
-    const id = await client.createObject({ presentAsMain: true, classIds: [SYSTEM_CLASS_UUIDS.task] });
-    await client.setDateProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, selectedIso);
-    onOpenPage(id);
+    await offerCreate(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.taskScheduled);
   };
 
   const isToday = selectedIso === todayIsoLocal();
@@ -483,6 +526,16 @@ export function CalendarView({
           hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
         />
       </aside>
+
+      {pendingCreate !== null && (
+        <TemplatePickerModal
+          isOpen
+          onClose={() => setPendingCreate(null)}
+          classLabel={displayNameFromClient(client, pendingCreate.classId) ?? "object"}
+          templates={pendingCreate.templates}
+          onPick={runPickedCreate}
+        />
+      )}
     </div>
   );
 }

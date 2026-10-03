@@ -135,6 +135,9 @@ export const SYSTEM_PROPERTY_UUIDS = {
   citekey: "00000000-0000-0000-0000-000000000023",
   url: "00000000-0000-0000-0000-000000000024",
   // …0025 WITHDRAWN 2026-09-27 (`linkedAuthors`, reversed same day) — never reuse.
+  // §34.25 T2 — a class's bound templates (D1: relation lives on the class,
+  // multi, targets the template system class).
+  hasTemplate: "00000000-0000-0000-0000-000000000026",
   taskStatus: "00000000-0000-0000-0003-000000000001",
   taskDeadline: "00000000-0000-0000-0003-000000000002",
   taskScheduled: "00000000-0000-0000-0003-000000000003",
@@ -185,6 +188,9 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   familyName: { type: "text", bindTo: "person" },
   citekey: { type: "text", bindTo: "source", defaultValue: "" },
   url: { type: "url", bindTo: "weblink" },
+  // §34.25 (D1): templates are ordinary nodes of the seeded `template` class;
+  // a class binds its templates by authored values on the class node itself.
+  hasTemplate: { type: "object", multi: true, bindTo: "class", targetClassFilter: ["template"] },
 };
 
 /** Extra bindings for schemas created outside SYSTEM_PROPERTY_SPECS (global cover). */
