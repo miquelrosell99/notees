@@ -32,7 +32,7 @@ import { registerRelayRoutes, authorizeWorkspace } from "./routes-relay.js";
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
 import { buildRouteScopeMap, enforceRouteScope } from "./scopes.js";
 
-export const SERVER_VERSION = "2.0.0-m6";
+export const SERVER_VERSION = "3.0.0";
 
 export interface BuiltServer {
   app: FastifyInstance;
