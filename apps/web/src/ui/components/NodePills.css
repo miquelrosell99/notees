@@ -1,15 +1,15 @@
-/* ClassPills — sortable class pill cluster + the "+N" overflow popup. */
+/* NodePills — sortable class pill cluster + the "+N" overflow popup. */
 
-.class-pills__sortable {
+.node-pills__sortable {
   display: inline-flex;
   touch-action: manipulation;
 }
 
-.class-pills__sortable--dragging {
+.node-pills__sortable--dragging {
   z-index: var(--z-sticky);
 }
 
-.class-pills__overflow {
+.node-pills__overflow {
   font-weight: var(--font-weight-semibold);
 }
 

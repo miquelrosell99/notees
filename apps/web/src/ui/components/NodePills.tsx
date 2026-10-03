@@ -1,11 +1,16 @@
 /**
- * ClassPills — the class pill cluster shared by the page-header Classes row
- * and the block row's right-hand classes column: colored pills (effective
- * color), click to open, × to unassign, right-click for the node menu
- * (Change color…), and a "+" picker (assignClass).
+ * NodePills — the class pill cluster shared by the page-header Classes row,
+ * the block row's right-hand classes column, and the class view's extends
+ * (parent-class) row: colored pills (effective color), click to open, × to
+ * remove, right-click for the node menu (Change color…), and a "+" picker.
  *
- * Ordering: pills are drag-sortable (dnd-kit horizontal strategy); drops
- * commit through `class.reorder` (user-defined order, display-only LWW).
+ * The write path is parameterizable (`actions`): the default is class
+ * membership on a node (assignClass / unassignClass / reorderClasses); the
+ * class view's extends row passes setClassExtends-based handlers instead.
+ *
+ * Ordering: pills are drag-sortable (dnd-kit horizontal strategy) unless
+ * `sortable` is false (extends order is deterministic); drops commit through
+ * `actions.reorder` (user-defined order, display-only LWW).
  * `overflow` (the block column) renders only the FIRST pill plus a "+N"
  * button; clicking it opens a popup with the full sortable list.
  */
@@ -37,10 +42,21 @@ import { AddPill } from "./ui/AddPill.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
-import { canonicalColor, cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
-import "./ClassPills.css";
+import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
+import "./NodePills.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
+
+/** Overrides for the cluster's writes; unspecified entries keep the default
+ *  class-membership behavior (assign/unassign/reorder on `nodeId`). */
+export interface NodePillsActions {
+  /** Default: `client.assignClass(nodeId, classId)`. */
+  add?: ((classId: string) => void) | undefined;
+  /** Default: `client.unassignClass(nodeId, classId)`. */
+  remove?: ((classId: string) => void) | undefined;
+  /** Default: `client.reorderClasses(nodeId, ordered)`. */
+  reorder?: ((orderedIds: string[]) => void) | undefined;
+}
 
 /** Readable text on a class-color background (stored colors resolved to hex). */
 function contrastFor(color: string): string {
@@ -67,12 +83,16 @@ function PillShell({
   client,
   onOpenPage,
   onContextMenuNode,
+  onRemove,
+  removeLabel,
 }: {
   classId: string;
   nodeId: string;
   client: AnyClient;
   onOpenPage?: ((pageId: string) => void) | undefined;
   onContextMenuNode: (node: ClientNode, x: number, y: number) => void;
+  onRemove: (classId: string) => void;
+  removeLabel: (label: string) => string;
 }) {
   const cls = client.getNode(classId);
   const label = displayNameFromClient(client, classId) ?? classId;
@@ -103,8 +123,8 @@ function PillShell({
       <button
         type="button"
         className="pill__right-button"
-        aria-label={`Remove class ${label}`}
-        onClick={() => void client.unassignClass(nodeId, classId)}
+        aria-label={removeLabel(label)}
+        onClick={() => onRemove(classId)}
       >
         ×
       </button>
@@ -120,7 +140,7 @@ function SortablePill(props: Parameters<typeof PillShell>[0]) {
   return (
     <span
       ref={setNodeRef}
-      className={`class-pills__sortable${isDragging ? " class-pills__sortable--dragging" : ""}`}
+      className={`node-pills__sortable${isDragging ? " node-pills__sortable--dragging" : ""}`}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
@@ -130,18 +150,25 @@ function SortablePill(props: Parameters<typeof PillShell>[0]) {
   );
 }
 
-/** One sortable row of the overflow popup (grip handle + icon + name + ×). */
-function SortablePopupRow({
+/** One row of the overflow popup (optional grip handle + icon + name + ×). */
+function PopupRow({
   classId,
   nodeId,
   client,
+  sortable,
+  onRemove,
+  removeLabel,
 }: {
   classId: string;
   nodeId: string;
   client: AnyClient;
+  sortable: boolean;
+  onRemove: (classId: string) => void;
+  removeLabel: (label: string) => string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: classId,
+    disabled: !sortable,
   });
   const label = displayNameFromClient(client, classId) ?? classId;
   // Effective icon: the class glyph (display-time default when none is set).
@@ -149,25 +176,27 @@ function SortablePopupRow({
   return (
     <li
       ref={setNodeRef}
-      className={`class-pills-popup__row${isDragging ? " class-pills-popup__row--dragging" : ""}`}
+      className={`node-pills-popup__row${isDragging ? " node-pills-popup__row--dragging" : ""}`}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      <button
-        type="button"
-        className="class-pills-popup__grip"
-        aria-label={`Reorder ${label}`}
-        {...attributes}
-        {...listeners}
-      >
-        <Icon path="mdi-drag-vertical" size={0.7} />
-      </button>
-      <Icon path={icon} size={0.7} className="class-pills-popup__icon" />
-      <span className="class-pills-popup__name">{label}</span>
+      {sortable && (
+        <button
+          type="button"
+          className="node-pills-popup__grip"
+          aria-label={`Reorder ${label}`}
+          {...attributes}
+          {...listeners}
+        >
+          <Icon path="mdi-drag-vertical" size={0.7} />
+        </button>
+      )}
+      <Icon path={icon} size={0.7} className="node-pills-popup__icon" />
+      <span className="node-pills-popup__name">{label}</span>
       <button
         type="button"
         className="pill__right-button"
-        aria-label={`Remove class ${label}`}
-        onClick={() => void client.unassignClass(nodeId, classId)}
+        aria-label={removeLabel(label)}
+        onClick={() => onRemove(classId)}
       >
         ×
       </button>
@@ -175,7 +204,7 @@ function SortablePopupRow({
   );
 }
 
-export function ClassPills({
+export function NodePills({
   client,
   nodeId,
   classIds,
@@ -184,6 +213,16 @@ export function ClassPills({
   overflow = false,
   /** Icon-only add pill (Pill.css reveals it on chips-container hover). */
   iconOnlyAdd = false,
+  /** Drag-sortable pills + grip (false for deterministic orders, e.g. extends). */
+  sortable = true,
+  /** Write-path overrides; defaults are the class-membership ops on `nodeId`. */
+  actions = undefined,
+  /** × aria-label factory (default "Remove class <label>"). */
+  removeLabel = undefined,
+  /** The "+" picker pill's visible label. */
+  addLabel = "Add class",
+  /** Excluded from the "+" picker (the class view excludes the class itself). */
+  excludePickerNodeId = undefined,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -191,6 +230,11 @@ export function ClassPills({
   onOpenPage?: ((pageId: string) => void) | undefined;
   overflow?: boolean | undefined;
   iconOnlyAdd?: boolean | undefined;
+  sortable?: boolean | undefined;
+  actions?: NodePillsActions | undefined;
+  removeLabel?: ((label: string) => string) | undefined;
+  addLabel?: string | undefined;
+  excludePickerNodeId?: string | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [colorMenu, setColorMenu] = useState<{ classId: string; x: number; y: number } | null>(null);
@@ -208,9 +252,12 @@ export function ClassPills({
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
 
-  const commitOrder = (ordered: string[]) => {
-    void client.reorderClasses(nodeId, ordered);
-  };
+  const onAdd = actions?.add ?? ((classId: string) => void client.assignClass(nodeId, classId));
+  const onRemove =
+    actions?.remove ?? ((classId: string) => void client.unassignClass(nodeId, classId));
+  const commitOrder = actions?.reorder ?? ((ordered: string[]) => void client.reorderClasses(nodeId, ordered));
+  const labelForRemove = removeLabel ?? ((label: string) => `Remove class ${label}`);
+
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over === null || active.id === over.id) return;
@@ -223,26 +270,32 @@ export function ClassPills({
   const onContextMenuNode = (node: ClientNode, x: number, y: number) =>
     setNodeMenu({ node, x, y });
 
+  const pillProps = {
+    nodeId,
+    client,
+    onOpenPage,
+    onContextMenuNode,
+    onRemove,
+    removeLabel: labelForRemove,
+  };
+
   return (
     <>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={visible} strategy={horizontalListSortingStrategy}>
           <div className="nt-property-chips node-metadata-pills">
-            {visible.map((classId) => (
-              <SortablePill
-                key={classId}
-                classId={classId}
-                nodeId={nodeId}
-                client={client}
-                onOpenPage={onOpenPage}
-                onContextMenuNode={onContextMenuNode}
-              />
-            ))}
+            {visible.map((classId) =>
+              sortable ? (
+                <SortablePill key={classId} classId={classId} {...pillProps} />
+              ) : (
+                <PillShell key={classId} classId={classId} {...pillProps} />
+              ),
+            )}
             {extraCount > 0 && (
               <button
                 type="button"
                 ref={overflowButtonRef}
-                className="pill pill--add class-pills__overflow"
+                className="pill pill--add node-pills__overflow"
                 aria-label={`Show ${extraCount} more class${extraCount > 1 ? "es" : ""}`}
                 onClick={(event) => {
                   const rect = event.currentTarget.getBoundingClientRect();
@@ -257,7 +310,7 @@ export function ClassPills({
               <AddPill
                 ref={addButtonRef}
                 className={iconOnlyAdd || classIds.length > 0 ? "pill--icon-only" : ""}
-                label="Add class"
+                label={addLabel}
                 aria-expanded={pickerOpen}
                 onClick={(element) => {
                   addButtonRef.current = element;
@@ -281,7 +334,7 @@ export function ClassPills({
           />
           {createPortal(
             <div
-              className="class-pills-popup"
+              className="node-pills-popup"
               role="dialog"
               aria-label="All classes"
               style={{ position: "fixed", top: overflowPos.top, left: overflowPos.left, zIndex: "var(--z-9999)" }}
@@ -290,9 +343,17 @@ export function ClassPills({
             >
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 <SortableContext items={classIds} strategy={verticalListSortingStrategy}>
-                  <ul className="class-pills-popup__list">
+                  <ul className="node-pills-popup__list">
                     {classIds.map((classId) => (
-                      <SortablePopupRow key={classId} classId={classId} nodeId={nodeId} client={client} />
+                      <PopupRow
+                        key={classId}
+                        classId={classId}
+                        nodeId={nodeId}
+                        client={client}
+                        sortable={sortable}
+                        onRemove={onRemove}
+                        removeLabel={labelForRemove}
+                      />
                     ))}
                   </ul>
                 </SortableContext>
@@ -307,11 +368,12 @@ export function ClassPills({
           client={client}
           searchMode="classes"
           nodes={assignedClasses}
+          excludeNodeId={excludePickerNodeId}
           anchorEl={addButtonRef.current}
           onClose={() => setPickerOpen(false)}
           searchPlaceholder="Search classes"
           onAdd={(node) => {
-            void client.assignClass(nodeId, node.id);
+            onAdd(node.id);
             setPickerOpen(false);
           }}
         />
