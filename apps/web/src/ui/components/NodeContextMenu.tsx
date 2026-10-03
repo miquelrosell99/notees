@@ -10,13 +10,23 @@
  * and ask in the reusable ConfirmationModal (danger variant) — never an
  * inline two-step, and the message names the node by its display name (never
  * a raw uuid). `onDeleted` lets the host navigate away (parent page, else the
- * default view) once the delete lands.
+ * default view) once the delete lands. The confirmations latch their node
+ * and render even while `state` is null: the menu closes the moment an item
+ * fires (the host nulls our state), and the modal must outlive the menu —
+ * before this latch, every host's onClose unmounted the confirmation with
+ * the menu and neither the delete nor the promote dialog could appear.
+ *
+ * Promote ("Move to Pages"): promotion stringifies content server-side
+ * (the title-is-content flatten — SCHEMA.md), so when the block carries rich
+ * tokens the menu asks first, naming what will flatten (§34.34 BC4 guard;
+ * extending the survivor set itself stays an owner ruling).
  */
 
 import { useState } from "react";
 
 import { rendersAsInlineBlock } from "@notees/domain";
 
+import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
@@ -26,8 +36,14 @@ import { copyToClipboard } from "./modals/clipboard.js";import { notificationSto
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 
-/** The minimal client surface the menu needs (both client classes satisfy it). */
-interface MenuClient {
+/**
+ * The minimal client surface the menu needs (both client classes and the
+ * outliner seam satisfy it). The clone surfaces power "Duplicate" (§34.25
+ * T4, the B4 resolution: a real subtree clone through the shared engine —
+ * the DuplicatePageModal name-conflict dialog is a different feature and
+ * keeps its name).
+ */
+interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   unassignClass(id: string, classId: string): Promise<void>;
   deleteObject(id: string, opts?: { permanent?: boolean }): Promise<void>;
   /** The render-bit toggle behind "Move to Pages" / "Move to content". */
@@ -52,6 +68,34 @@ export type NodeMenuState =
 /** Human label for a node in destructive messages: display name, never an id. */
 export function displayLabelOf(node: ClientNode): string {
   return displayNameForSettings(node) || untitledLabelOf(node);
+}
+
+/**
+ * Human names for the token types a promotion to a page flattens away
+ * (stringifyContentAst keeps text + whiteboard/query only — packages/domain
+ * node.ts). Unknown future types flatten too; they name as generic rich
+ * content rather than being silently ignored.
+ */
+const FLATTEN_TOKEN_LABELS: Record<string, string> = {
+  mention: "mentions",
+  class_chip: "class chips",
+  typed_link: "typed links",
+  external_link: "external links",
+  math: "math",
+  asset_ref: "asset attachments",
+  embed_ref: "embeds",
+  quote: "quotes",
+};
+
+/** The distinct flattening token types a block carries; empty = lossless. */
+function promotionFlattenTypes(node: ClientNode): string[] {
+  const labels = new Set<string>();
+  for (const token of node.contentAst) {
+    if (token.type === "text" || token.type === "hard_break") continue;
+    if (token.type === "whiteboard" || token.type === "query") continue;
+    labels.add(FLATTEN_TOKEN_LABELS[token.type] ?? "other rich content");
+  }
+  return [...labels];
 }
 
 export function readFavorites(): string[] {
@@ -84,6 +128,7 @@ export function NodeContextMenu({
   onChangeColor,
   onRemoveFromOwner,
   onDeleted,
+  onDuplicated,
 }: {
   state: NodeMenuState;
   client: MenuClient;
@@ -98,12 +143,71 @@ export function NodeContextMenu({
   onRemoveFromOwner?: (() => void) | undefined;
   /** Called after a delete lands (host navigates: parent page / default view). */
   onDeleted?: ((node: ClientNode) => void) | undefined;
+  /** Called with the fresh id after "Duplicate" lands (hosts may navigate). */
+  onDuplicated?: ((nodeId: string) => void) | undefined;
 }) {
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  if (state === null) return null;
+  const [pendingDelete, setPendingDelete] = useState<ClientNode | null>(null);
+  const [pendingPromote, setPendingPromote] = useState<ClientNode | null>(null);
+
+  // The confirmations latch their node and render even while `state` is
+  // null: firing a menu item closes the menu (the host nulls our state on
+  // onClose), and the modal must outlive the menu — the component instance
+  // stays mounted, only its render is gated. ConfirmationModal renders
+  // nothing while isOpen is false.
+  const confirmModals = (
+    <>
+      <ConfirmationModal
+        isOpen={pendingDelete !== null}
+        title={pendingDelete === null ? "" : `Delete ${displayLabelOf(pendingDelete)}?`}
+        message={
+          pendingDelete === null
+            ? ""
+            : `This will delete "${displayLabelOf(pendingDelete)}" and everything it contains.`
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          if (pendingDelete === null) return;
+          const target = pendingDelete;
+          await client.deleteObject(target.id);
+          setPendingDelete(null);
+          onClose();
+          onDeleted?.(target);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
+      <ConfirmationModal
+        isOpen={pendingPromote !== null}
+        title={
+          pendingPromote === null ? "" : `Move "${displayLabelOf(pendingPromote)}" to Pages?`
+        }
+        message={
+          pendingPromote === null
+            ? ""
+            : `Promoting this block to a page flattens its rich content to plain text: ${promotionFlattenTypes(pendingPromote).join(", ")}. Whiteboards and queries survive.`
+        }
+        confirmLabel="Move to Pages"
+        cancelLabel="Cancel"
+        variant="primary"
+        onConfirm={async () => {
+          if (pendingPromote === null) return;
+          await client.updateObject(pendingPromote.id, { presentAsMain: true });
+          setPendingPromote(null);
+          onClose();
+        }}
+        onCancel={() => setPendingPromote(null)}
+      />
+    </>
+  );
+
+  if (state === null) return confirmModals;
   const { node, ownerId, isPage } = state;
   const favorite = readFavorites().includes(node.id);
   const name = displayLabelOf(node);
+  // What a promotion would flatten (empty when the content is already
+  // text-only — the confirm modal stays out of that path entirely).
+  const flattenTypes = promotionFlattenTypes(node);
 
   const items: ContextMenuItem[] = [
     {
@@ -152,10 +256,44 @@ export function NodeContextMenu({
             id: "move-to-pages",
             label: "Move to Pages",
             icon: "mdi-file-tree-outline",
-            onClick: () => void client.updateObject(node.id, { presentAsMain: true }),
+            onClick: () => {
+              // BC4 guard: promotion flattens rich tokens to one text run —
+              // ask first, naming what will flatten. Text-only content (or
+              // widgets that survive) promotes immediately.
+              if (flattenTypes.length > 0) setPendingPromote(node);
+              else void client.updateObject(node.id, { presentAsMain: true });
+            },
           },
     );
   }
+  // Duplicate (§34.25 T4 / B4): a real subtree clone through the shared
+  // engine, placed right after the source (roots land with the other
+  // root pages). Deliberately provenance-free — a copy is not "generated
+  // from" a template.
+  items.push({
+    id: "duplicate",
+    label: "Duplicate",
+    icon: "mdi-content-duplicate",
+    onClick: () => {
+      onClose();
+      void cloneSubtree(
+        { reads: client, writes: client },
+        {
+          rootId: node.id,
+          parentId: node.parentId,
+          ...(node.parentId !== null ? { afterId: node.id } : {}),
+        },
+      )
+        .then((freshId) => {
+          notificationStore.success("Duplicated", name);
+          onDuplicated?.(freshId);
+        })
+        .catch((error: unknown) => {
+          console.warn(`[context-menu] duplicate (${node.id}) failed:`, error);
+          notificationStore.error("Couldn't duplicate", name);
+        });
+    },
+  });
   if (isPage && onPresent !== undefined) {
     items.push({
       id: "present",
@@ -203,7 +341,7 @@ export function NodeContextMenu({
           label: "Delete",
           icon: "mdi-delete-outline",
           danger: true,
-          onClick: () => setConfirmingDelete(true),
+          onClick: () => setPendingDelete(node),
         }
       : {
           id: "confirm-delete",
@@ -226,21 +364,7 @@ export function NodeContextMenu({
         alignRight={state.anchorEl != null}
         onClose={onClose}
       />
-      <ConfirmationModal
-        isOpen={confirmingDelete}
-        title={`Delete ${name}?`}
-        message={`This will delete "${name}" and everything it contains.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        variant="danger"
-        onConfirm={async () => {
-          await client.deleteObject(node.id);
-          setConfirmingDelete(false);
-          onClose();
-          onDeleted?.(node);
-        }}
-        onCancel={() => setConfirmingDelete(false)}
-      />
+      {confirmModals}
     </>
   );
 }
