@@ -48,13 +48,16 @@ import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
+import { DateSlotControl, collectMarkedDates } from "./pickers/DateSlotControl.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
+import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { NodePills } from "./NodePills.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
+import { PropertyView } from "./PropertyView.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -116,22 +119,6 @@ function rangeValueOf(value: unknown): DateRangeValue {
 /** The schema's commit ceiling for date values (day when unspecified). */
 function precisionOf(schema: { datePrecision?: DatePrecision | null } | null | undefined): DatePrecision {
   return schema?.datePrecision ?? "day";
-}
-
-/**
- * Day keys (`y-m0-d`, 0-indexed month) backed by an existing day node — the
- * date picker's has-note marks.
- */
-function collectMarkedDates(client: AnyClient): Set<string> {
-  const dates = new Set<string>();
-  for (const node of client.listPages()) {
-    if (!node.classIds.includes(SYSTEM_CLASS_UUIDS.day)) continue;
-    const parsed = parseDateNodeId(node.id);
-    if (parsed !== null) {
-      dates.add(`${parsed.year}-${parsed.month - 1}-${parsed.day}`);
-    }
-  }
-  return dates;
 }
 
 /**
@@ -338,6 +325,7 @@ function ObjectPropertyRow({
               )}
               {dateQualified && (
                 <QualifierRange
+                  client={client}
                   start={typeof row.metadata?.startDate === "string" ? row.metadata.startDate : ""}
                   end={typeof row.metadata?.endDate === "string" ? row.metadata.endDate : ""}
                   ariaLabel={pillLabel(ref)}
@@ -597,30 +585,16 @@ function DateRangePropertyRow({
     return (
       <span className="nt-range-slot">
         <span className="nt-range-slot-name">{title}</span>
-        <button
-          type="button"
-          className="nt-chip-label"
-          aria-label={`Set ${title.toLowerCase()} for ${label}`}
-          aria-expanded={picking?.idx === idx && picking.end === end}
-          onClick={(event) => {
-            anchorRef.current = event.currentTarget;
-            setPicking((cur) =>
-              cur !== null && cur.idx === idx && cur.end === end ? null : { idx, end },
-            );
-          }}
-        >
-          {ref !== null ? dateLabelOf(ref) : "…"}
-        </button>
-        {row?.source === "authored" && ref !== null && (
-          <button
-            type="button"
-            className="nt-chip-remove"
-            aria-label={`Clear ${title.toLowerCase()} for ${label}`}
-            onClick={() => void setEnd(idx, end, null)}
-          >
-            ×
-          </button>
-        )}
+        <DateSlotControl
+          client={client}
+          value={isoOfRef(ref)}
+          display={ref !== null ? dateLabelOf(ref) : "…"}
+          ariaLabel={`Set ${title.toLowerCase()} for ${label}`}
+          precision={precision}
+          clearable={row?.source === "authored"}
+          clearLabel={`Clear ${title.toLowerCase()} for ${label}`}
+          onCommit={(iso) => void setEnd(idx, end, iso)}
+        />
       </span>
     );
   };
@@ -691,45 +665,39 @@ function DateRangePropertyRow({
 
 /**
  * Link qualifier range control (SCHEMA.md "Dates", dateQualified schemas):
- * small start/end date inputs next to a node-typed pill; values persist as
+ * start/end date slots next to a node-typed pill; values persist as
  * property.set metadata.startDate/endDate (ISO strings — node-backed date
- * qualifiers are the possible M2 evolution).
+ * qualifiers are the possible M2 evolution). The slots ride the shared
+ * DateSlotControl (§34.32 PG17) — the same zoom-picker control the table
+ * cells use, no native date inputs.
  */
 function QualifierRange({
+  client,
   start,
   end,
   ariaLabel,
   onCommit,
 }: {
+  client: AnyClient;
   start: string;
   end: string;
   ariaLabel: string;
   onCommit: (start: string, end: string) => void;
 }) {
-  const [startValue, setStartValue] = useState(start);
-  const [endValue, setEndValue] = useState(end);
   return (
     <span className="nt-chip-qualifier">
-      <input
-        type="date"
-        className="nt-chip-qualifier-input"
-        aria-label={`${ariaLabel} start date`}
-        value={startValue}
-        onChange={(event) => {
-          setStartValue(event.target.value);
-          onCommit(event.target.value, endValue);
-        }}
+      <DateSlotControl
+        client={client}
+        value={start === "" ? null : start}
+        ariaLabel={`${ariaLabel} start date`}
+        onCommit={(iso) => onCommit(iso ?? "", end)}
       />
       <span aria-hidden="true">–</span>
-      <input
-        type="date"
-        className="nt-chip-qualifier-input"
-        aria-label={`${ariaLabel} end date`}
-        value={endValue}
-        onChange={(event) => {
-          setEndValue(event.target.value);
-          onCommit(startValue, event.target.value);
-        }}
+      <DateSlotControl
+        client={client}
+        value={end === "" ? null : end}
+        ariaLabel={`${ariaLabel} end date`}
+        onCommit={(iso) => onCommit(start, iso ?? "")}
       />
     </span>
   );
@@ -1080,8 +1048,8 @@ function AddPropertyRow({
         return;
       }
       default:
-        // url/email/select/object/image: no sensible empty value — the row's
-        // own editor will prompt on first edit.
+        // url/email/select/multi_select/object/image: no sensible empty
+        // value — the row's own editor will prompt on first edit.
         return;
     }
   }
@@ -1170,17 +1138,19 @@ function propertyGroupsOf(client: AnyClient, nodeId: string) {
     .filter((row) => !(isClassNode && row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate));
 
   // Node-typed / date / date_range / boolean schemas render as one grouped
-  // row per schema; select schemas join them only when they declare options
-  // (without options the minimal text editor is the honest editor — there is
-  // nothing to pick). Scalar rows keep the minimal text editor. Grouped rows
-  // appear at their first occurrence so the panel order is unchanged.
+  // row per schema; select AND multi_select schemas join them only when they
+  // declare options (without options the minimal text editor is the honest
+  // editor — there is nothing to pick; §34.32 PG14 routes multi_select to
+  // the selection control). Scalar rows keep the minimal text editor.
+  // Grouped rows appear at their first occurrence so the panel order is
+  // unchanged.
   const optionsOf = (propertySchemaId: string) =>
     client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options;
   const isGroupedType = (type: string | undefined, propertySchemaId: string): boolean => {
     if (type === "object" || type === "date" || type === "date_range" || type === "boolean") {
       return true;
     }
-    if (type === "select") {
+    if (type === "select" || type === "multi_select") {
       const options = optionsOf(propertySchemaId);
       return options !== null && options !== undefined && options.length > 0;
     }
@@ -1250,6 +1220,7 @@ export function PropertiesTable({
   const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId);
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
+  const [viewFor, setViewFor] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ schemaId: string; x: number; y: number } | null>(null);
 
   const schemaIdFromEvent = (event: React.SyntheticEvent): string | null => {
@@ -1343,7 +1314,7 @@ export function PropertiesTable({
         />
       );
     }
-    if (type === "select") {
+    if (type === "select" || type === "multi_select") {
       const options =
         client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options ?? [];
       return (
@@ -1353,7 +1324,7 @@ export function PropertiesTable({
           nodeId={nodeId}
           propertySchemaId={propertySchemaId}
           label={label}
-          multi={multi}
+          multi={type === "multi_select" ? true : multi}
           options={options}
           rows={groupRows}
         />
@@ -1433,6 +1404,10 @@ export function PropertiesTable({
             const rawNode = rawRef !== null ? client.getNode(rawRef) : undefined;
             const carrier =
               rawNode !== undefined && rendersAsInlineBlock(rawNode) ? rawNode : undefined;
+            // §34.32 PG14: url/email scalars keep the text editor and gain an
+            // external-link affordance (mailto: for email; url values keep
+            // their authored scheme, tel: included).
+            const linkHref = propertyLinkHref(row.schema?.type, row.value);
             return (
               <li
                 key={`${row.propertySchemaId}:${row.idx}`}
@@ -1467,6 +1442,17 @@ export function PropertiesTable({
                   }}
                 />
                 )}
+                {linkHref !== null && (
+                  <a
+                    className="nt-property-link"
+                    href={linkHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Open ${label}`}
+                  >
+                    <Icon path="mdi-open-in-new" size={0.7} />
+                  </a>
+                )}
               </li>
             );
           })}
@@ -1491,6 +1477,21 @@ export function PropertiesTable({
           client={client}
           propertySchemaId={settingsFor}
           onClose={() => setSettingsFor(null)}
+          onOpenView={() => {
+            setViewFor(settingsFor);
+            setSettingsFor(null);
+          }}
+        />
+      )}
+      {viewFor !== null && (
+        <PropertyView
+          client={client}
+          propertySchemaId={viewFor}
+          onClose={() => setViewFor(null)}
+          onOpenPage={(id) => {
+            setViewFor(null);
+            onOpenPage?.(id);
+          }}
         />
       )}
     </>
@@ -1537,16 +1538,20 @@ export function PropertiesSection({
  * clicking a property label in the table). v1 had a full PropertyView; v2's
  * schemas are registry rows, so the configuration surface is this modal:
  * rename, per-type behavior (date precision / qualified, select options).
- * Type and multi are create-time contracts and display read-only.
+ * Type and multi are create-time contracts and display read-only. The
+ * "Open property" footer path surfaces the schema inspector (PropertyView,
+ * §34.32 PG12): metadata, bound classes, and the authored-value references.
  */
 function PropertySettingsModal({
   client,
   propertySchemaId,
   onClose,
+  onOpenView,
 }: {
   client: AnyClient;
   propertySchemaId: string;
   onClose: () => void;
+  onOpenView: () => void;
 }) {
   const schema = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
   if (schema === undefined) return null;
@@ -1664,6 +1669,9 @@ function PropertySettingsModal({
         )}
       </div>
       <div className="modal__footer">
+        <Button variant="ghost" onClick={onOpenView}>
+          Open property
+        </Button>
         <Button variant="default" onClick={onClose}>
           Close
         </Button>

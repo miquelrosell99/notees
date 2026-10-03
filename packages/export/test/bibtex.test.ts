@@ -350,6 +350,36 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
     expect(item.author).toEqual([{ family: "Kuhn", given: "Thomas S." }]);
   });
 
+  it("§34.32 PG15: container fields complete the export mapping by schema-name convention", () => {
+    const item = nodeToCsl(
+      { id: "paper-1", name: "A combinatorial paper", classIds: [SOURCE_CLASS_IDS.paper] },
+      [
+        { schemaId: "j1", schemaName: "journal", value: "Biometrika" },
+        { schemaId: "v1", schemaName: "volume", value: "50" },
+        { schemaId: "n1", schemaName: "number", value: "1/2" },
+        { schemaId: "p1", schemaName: "pages", value: "207--229" },
+      ],
+      [],
+    );
+    expect(item).toMatchObject({
+      type: "article-journal",
+      "container-title": "Biometrika",
+      volume: "50",
+      issue: "1/2",
+      page: "207--229",
+    });
+    // Nodes without those schemas stay clean (no empty keys).
+    const bare = nodeToCsl(
+      { id: "book-1", name: "A book", classIds: [SOURCE_CLASS_IDS.book] },
+      [],
+      [],
+    );
+    expect(bare).not.toHaveProperty("container-title");
+    expect(bare).not.toHaveProperty("volume");
+    expect(bare).not.toHaveProperty("issue");
+    expect(bare).not.toHaveProperty("page");
+  });
+
   it("sourceClassOf picks the first source class in classIds order", () => {
     expect(sourceClassOf([SOURCE_CLASS_IDS.document, SOURCE_CLASS_IDS.book])).toBe("document");
     expect(sourceClassOf([SOURCE_CLASS_IDS.song])).toBe("song");

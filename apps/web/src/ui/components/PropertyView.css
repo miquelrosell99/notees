@@ -1,0 +1,39 @@
+/* PropertyView — the property schema's inspector modal (§34.32 PG12).
+ * Token-only: every value resolves to a custom property from variables.css. */
+
+.nt-property-view .modal__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+}
+
+.nt-property-view__type {
+  margin: 0;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--text-muted, var(--color-on-surface-variant));
+}
+
+.nt-property-view__meta {
+  margin: 0;
+  font-size: var(--font-size-sm, 0.875rem);
+  color: var(--text-muted, var(--color-on-surface-variant));
+}
+
+.nt-property-view__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  flex-wrap: wrap;
+}
+
+.nt-property-view__pills {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  flex-wrap: wrap;
+}
+
+.nt-property-view__actions {
+  display: flex;
+  justify-content: flex-end;
+}

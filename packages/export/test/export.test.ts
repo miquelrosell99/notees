@@ -226,6 +226,97 @@ describe("frontmatter", () => {
     expect(fm).toContain('name: "yes: no"');
     expect(fm).toContain('"tricky: key": "true"');
   });
+
+  it("§34.32 PG15: date_range values emit start/end maps (open side null), not raw JSON", () => {
+    const node = page("aaaaaaaa-0000-4000-8000-000000000020", "Range", [
+      { type: "text", text: "Range" },
+    ], {
+      properties: [
+        {
+          schemaId: PUBLISHED_SCHEMA_ID,
+          schemaName: "published in",
+          schemaType: "date_range",
+          value: { start: { nodeId: REPUBLIC_ID }, end: { nodeId: AUTHOR_ID } },
+        },
+        {
+          schemaId: "99999999-9999-4999-8999-999999999999",
+          schemaName: "ongoing",
+          schemaType: "date_range",
+          value: { start: { nodeId: REPUBLIC_ID }, end: null },
+        },
+      ],
+    });
+    const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
+    expect(fm).toContain("  published in:");
+    expect(fm).toContain("    start: The Republic");
+    expect(fm).toContain("    end: Ursula K. Le Guin");
+    // Open end → null, never JSON.
+    expect(fm).toContain("  ongoing:");
+    expect(fm).toContain("    start: The Republic");
+    expect(fm).toContain("    end: null");
+    expect(fm).not.toContain('{"start"');
+  });
+
+  it("§34.32 PG15: multi-select arrays emit label lists; single selects emit a label scalar", () => {
+    const node = page("aaaaaaaa-0000-4000-8000-000000000021", "Tags", [
+      { type: "text", text: "Tags" },
+    ], {
+      properties: [
+        {
+          schemaId: "77777777-7777-4777-8777-777777777777",
+          schemaName: "genres",
+          schemaType: "multi_select",
+          schemaOptions: [
+            { id: "g1", label: "Fiction" },
+            { id: "g2", label: "Mystery" },
+          ],
+          value: ["g1", "g2"],
+        },
+        {
+          schemaId: "88888888-8888-4888-8888-888888888888",
+          schemaName: "status",
+          schemaType: "select",
+          schemaOptions: [
+            { id: "s1", label: "Active" },
+            { id: "s2", label: "Shelved" },
+          ],
+          value: "s2",
+        },
+      ],
+    });
+    const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
+    expect(fm).toContain("  genres:");
+    expect(fm).toContain("    - Fiction");
+    expect(fm).toContain("    - Mystery");
+    expect(fm).toContain("  status: Shelved");
+    expect(fm).not.toContain('"g1"');
+  });
+
+  it("§34.32 PG15: range and array display strings resolve for prose serializers", () => {
+    const document = buildExportDocument(
+      page("aaaaaaaa-0000-4000-8000-000000000022", "Doc", [{ type: "text", text: "Doc" }], {
+        properties: [
+          {
+            schemaId: PUBLISHED_SCHEMA_ID,
+            schemaName: "published in",
+            value: { start: { nodeId: REPUBLIC_ID }, end: null },
+          },
+          {
+            schemaId: "77777777-7777-4777-8777-777777777777",
+            schemaName: "genres",
+            schemaOptions: [{ id: "g1", label: "Fiction" }],
+            value: ["g1"],
+          },
+        ],
+      }),
+      makeCtx(),
+      resolveExportOptions({}),
+    );
+    expect(document.properties[0]?.display).toBe("The Republic → …");
+    expect(document.properties[0]?.displayEntries).toEqual(["The Republic", null]);
+    expect(document.properties[1]?.display).toBe("Fiction");
+    expect(document.properties[1]?.displayEntries).toEqual(["Fiction"]);
+  });
 });
 
 describe("heading rule (document-chrome predicate)", () => {
