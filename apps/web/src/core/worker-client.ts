@@ -250,6 +250,10 @@ export class WorkerClient {
     return this.cachedRead<ClientNode[]>("listPages", [], []);
   }
 
+  roots(): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("roots", [], []);
+  }
+
   listClasses(): ClientNode[] {
     return this.cachedRead<ClientNode[]>("listClasses", [], []);
   }
@@ -492,6 +496,11 @@ export class WorkerClient {
   /** Record an uploaded asset on a node (asset.attach op, enqueued in the worker). */
   async attachAsset(objectId: string, asset: AssetUploadResult): Promise<void> {
     await this.call("attachAsset", [objectId, asset]);
+  }
+
+  /** Download an asset's bytes (workspace key); the export engine's include-assets read. */
+  async fetchAssetBytes(assetId: string): Promise<Blob> {
+    return fetchAssetBlob(this.serverUrl, this.apiKey, assetId);
   }
 
   /** Download an asset's bytes (workspace key) and open them in a new tab. */

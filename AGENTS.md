@@ -11,7 +11,7 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 - `packages/store` — derived SQLite schema + appliers; one TS implementation, three backends (better-sqlite3, sql.js)
 - `packages/sync` — SyncEngine (HLC + server seq, snapshots, compaction, WebSocket)
 - `packages/query` — QueryAST model + SQLite compiler
-- `packages/export` — Markdown/BibTeX round-trips
+- `packages/export` — Markdown/BibTeX round-trips over the `ExportDocument` IR (§34.24 E1/E2: typed options bag with per-format gating, metacharacter escaping, full-closure outline, whiteboard sidecar mode, slug/uuid filename policy, package-side format registry — markdown implemented, html/pdf/docx/latex registered skeletons awaiting H1/P1/D1/L1; E5: `linkTarget`/`assetPath` context hooks for relative-link zip exports)
 - `apps/server` — sync relay + object API + CAS assets (`notees-sync` image)
 - `apps/web` — React/Vite outliner editor + worker (`notees-web` image)
 - `apps/cli` — object/property/search surface over the public API
@@ -48,5 +48,5 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 
 - **SDK publish — BLOCKED on an npmjs token** (GitHub Packages rejects the `@notees/*` scope). Publish infra is ready: `pnpm release`, flow in `.plans/dev/sdk-publishing.md`.
 - **ghcr image publish — BLOCKED on a registry write token** (the host's ghcr login is read-only: push → `permission_denied: token scopes`). Compose defaults to `:latest` (built locally, tagged `latest`); images exist on the host only.
-- **Client lockstep — CURRENT (pushed)**: `notees-gtk` at **`v2.0.0-m3`** and `notees-flutter` at **`v2.0.0-m11`** both carry the full Revision 11 protocol (envelope v3, `is_class` + `present_as_main`, classes-as-containers, strict rejection of retired keys; GTK wheel/sdist/archpkg and Flutter signed APK CI releases published). **Do not run any pre-m3 GTK client or pre-m11 Flutter build against the v3 server — envelope v3 is rejected loud.** Any new op requires the same three-way lockstep before it counts as done.
+- **Client lockstep — CURRENT (pushed)**: `notees-gtk` at **`v2.0.0-m3`** and `notees-flutter` at **`v2.0.0-m13`** (client releases since m11 carry the same wire) both carry the full Revision 11 protocol (envelope v3, `is_class` + `present_as_main`, classes-as-containers, strict rejection of retired keys; GTK wheel/sdist/archpkg and Flutter signed APK CI releases published). **Do not run any pre-m3 GTK client or pre-m11 Flutter build against the v3 server — envelope v3 is rejected loud.** Any new op requires the same three-way lockstep before it counts as done.
 - Repo split (notees-sync / notees-web) — parked until the SDK is published; two services from one monorepo for now.

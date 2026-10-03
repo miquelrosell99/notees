@@ -67,21 +67,37 @@ export function deleteWorkspace(
 
 export interface WorkspaceExport {
   blob: Blob;
-  /** Suggested filename from the content-disposition header (already .md). */
+  /** Suggested filename from the content-disposition header (already .zip). */
   filename: string;
 }
 
-/** Download a full-workspace Markdown export (any membership role). */
+export interface WorkspaceExportOptions {
+  /**
+   * 1 bundles the CAS bytes of every asset the exported pages reference
+   * under assets/ and rewrites the Markdown refs; 0 (default) keeps the raw
+   * uuid references and adds no bytes.
+   */
+  includeAssets?: boolean;
+}
+
+/**
+ * Download a full-workspace ZIP export (any membership role): one Markdown
+ * file per page plus the bundle manifest; the server bundles referenced
+ * asset bytes only when asked (?includeAssets=1 — the E6 export modal owns
+ * that toggle).
+ */
 export async function exportWorkspace(
   serverUrl: string,
   token: string,
   workspaceId: string,
   fallbackName: string,
+  options: WorkspaceExportOptions = {},
 ): Promise<WorkspaceExport> {
   const headers = new Headers();
   headers.set("Authorization", `Bearer ${token}`);
+  const includeAssets = options.includeAssets === true ? "1" : "0";
   const response = await fetch(
-    `${serverUrl.replace(/\/$/, "")}/api/workspaces/${encodeURIComponent(workspaceId)}/export`,
+    `${serverUrl.replace(/\/$/, "")}/api/workspaces/${encodeURIComponent(workspaceId)}/export.zip?includeAssets=${includeAssets}`,
     { headers },
   );
   if (!response.ok) {
@@ -96,6 +112,6 @@ export async function exportWorkspace(
   }
   const disposition = response.headers.get("content-disposition") ?? "";
   const match = /filename="([^"]+)"/.exec(disposition);
-  const filename = match?.[1] ?? `${fallbackName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "workspace"}.md`;
+  const filename = match?.[1] ?? `${fallbackName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "workspace"}.zip`;
   return { blob: await response.blob(), filename };
 }

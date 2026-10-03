@@ -1414,7 +1414,9 @@ export function HubView({
   }, [client, nav]);
   const classes = client.listClasses();
   const assetClassId = classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
-  const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
+  // Top-level pages: subpages render in their parent's Pages zone, so the
+  // workspace-level hubs list roots only; the asset class stays excluded.
+  const pages = client.roots().filter((page) => !page.classIds.includes(assetClassId));
   const dateClassIds: string[] = [
     SYSTEM_CLASS_UUIDS.day,
     SYSTEM_CLASS_UUIDS.month,

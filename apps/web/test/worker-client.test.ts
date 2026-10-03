@@ -70,6 +70,22 @@ describe("WorkerClient read cache", () => {
     }
   });
 
+  it("serves roots() through the read cache", async () => {
+    const client = await makeClient((method) => {
+      if (method === "init") return null;
+      if (method === "roots") return [{ id: "root-1", presentAsMain: true, name: "R" }];
+      return null;
+    });
+    try {
+      expect(client.roots()).toEqual([]);
+      await vi.waitFor(() => {
+        expect(client.roots().map((n) => n.id)).toEqual(["root-1"]);
+      });
+    } finally {
+      client.close();
+    }
+  });
+
   it("keeps the cached value on read failure but surfaces the error loudly", async () => {
     const client = await makeClient((method) => {
       if (method === "init") return null;

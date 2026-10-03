@@ -1,94 +1,175 @@
 /**
  * Content tokens → Markdown projection (SCHEMA.md owed work "Content
- * serialization for export", §34.12 Tier 2 conventions).
+ * serialization for export", §34.12 Tier 2 conventions), hardened per the
+ * export-redesign work record (§34.24 E2).
  *
  * The op log is the truth; this is a lossy, human-facing projection:
- * UUID filenames, YAML frontmatter (name/isClass/presentAsMain/classes/
- * properties), `[[mentions]]`,
- * `#class-chips`, `![[uuid]]` embeds, fenced ```query / ```json whiteboard
- * blocks, and a workspace UUID↔name↔type manifest (bundle.ts).
+ * UUID-or-slug filenames, YAML frontmatter (name/isClass/presentAsMain/
+ * classes/properties), `[[mentions]]`, `#class-chips`, `![[uuid]]` embeds,
+ * fenced ```query / ```json whiteboard blocks, and a workspace
+ * UUID↔name↔type manifest (bundle.ts).
  *
- * Token → Markdown mapping (M1, deliberately simple):
+ * Rendering is IR-based: `buildExportDocument` (document.ts) resolves the
+ * node subtree once (names, outline tree, embed inlining, class labels);
+ * `renderExportDocumentToMarkdown` projects the IR to text. Escaping is ON
+ * by default: every user-derived string (text runs, mention/chip/verb/link
+ * text, the heading title) is escaped so arbitrary content cannot corrupt
+ * the document — while the deliberately-emitted syntax (`[[…]]`, `#chip`,
+ * fences, `![[uuid]]`) is never escaped.
  *
- *  | Token         | Markdown                                              |
- *  |---------------|-------------------------------------------------------|
- *  | text          | verbatim; marks wrap in fixed order (outer→inner):     |
- *  |               |   bold `**` → italic `*` → strike `~~` →              |
- *  |               |   highlight `==` → code `` ` `` (innermost)            |
- *  | hard_break    | newline (line jump)                                   |
- *  | mention       | `[[name]]` — displayText ?? ctx.nameOf(target) ?? raw id    |
- *  |               |   (broken targets render the id; SCHEMA Fork 4)         |
- *  | class_chip    | `#name` — displayText ?? ctx.nameOf(class) ?? raw id;  |
- *  |               |   whitespace collapsed to `-`                         |
- *  | typed_link    | `**verb** text (locator)` — verb string, or bound      |
- *  |               |   propertySchemaId resolved via ctx.nameOf; locator   |
- *  |               |   from metadata.locator, plain parentheses            |
- *  | asset_ref     | `![asset](<uuid>)`                                    |
- *  | embed_ref     | `![[uuid]]`                                           |
- *  | external_link | `[text](href)`                                        |
- *  | math          | `$expression$`                                        |
- *  | quote         | `> ` prefix per rendered line (children inline)        |
- *  | query         | fenced ```query block, pretty-printed QueryAST JSON   |
- *  | whiteboard    | fenced ```json block with the layout (M1: inline —    |
- *  |               |   no sidecar files yet)                                |
+ * Escaping coverage (documented, closes the SCHEMA.md "metacharacter
+ * escaping" deferral):
  *
- * Known M1 simplifications (documented, not accidental): text runs are
- * emitted verbatim (no Markdown-metacharacter escaping), and block-scale
- * tokens (asset_ref/embed_ref/query/whiteboard) always render as their own
- * paragraph. The package is pure/IO-free: name and child resolution are
- * injected via ExportContext.
+ *  - Inline specials everywhere in text runs: `\ ` `` ` `` `*` `_` `~`
+ *    `[` `]` `<` `>` → backslash-escaped. Code-marked runs are the exception:
+ *    a code span is literal, so only backticks are swapped (kept behavior).
+ *  - Line starts (a run's first line, lines after an interior newline, and
+ *    runs following a hard break): ATX `#`, blockquote `>`, bullet `-`/`+`,
+ *    ordered-list delimiters (`1.` → `1\.`), thematic-break/setext/highlight
+ *    runs (`---`, `===`, `==…`) get their first marker escaped. Backtick and
+ *    tilde fences cannot form (both chars always escaped).
+ *  - `[[mention]]` names: `]` and `\` escaped inside the brackets.
+ *  - `#chip` names: `\` escaped (whitespace folds to `-`, leading `#`
+ *    stripped — the chip convention itself is emitted deliberately).
+ *  - `**verb**` verbs and typed-link text: the inline-special set. Locators
+ *    escape `\` and `)` so `(…)` cannot break. External-link text escapes
+ *    the inline set; hrefs stay bare when URL-safe, otherwise they are
+ *    wrapped in `<…>` with whitespace/parens/brackets percent-encoded.
+ *  - Fences are lengthened past any backtick run inside query/whiteboard
+ *    JSON payloads, so a ``` inside a string can never close the fence.
+ *
+ * Closure: the child outline renders the WHOLE tree by default (the retired
+ * `MAX_CHILD_DEPTH` silent truncation is gone); the only cuts are visible —
+ * embed-style cycles and an explicit `maxDepth` hit render as `![[uuid]]`
+ * bullets. Whiteboards: `whiteboardMode: "inline"` (single-file default)
+ * keeps the fenced ```json block; `"sidecar"` emits a file link that
+ * `bundleMarkdown` backs with a `<uuid>.whiteboard.json` sidecar (§34.12
+ * "whiteboards → sidecar JSON + file link").
+ *
+ * Token → Markdown mapping:
+ *
+ *  | Token/IR block | Markdown                                              |
+ *  |----------------|-------------------------------------------------------|
+ *  | text           | escaped (above); marks wrap in fixed order (outer→inner):|
+ *  |                |   bold `**` → italic `*` → strike `~~` →              |
+ *  |                |   highlight `==` → code `` ` `` (innermost; literal)  |
+ *  | hard_break     | newline (line jump)                                   |
+ *  | mention        | `[[name]]` — displayText ?? ctx.nameOf(target) ?? raw id    |
+ *  |                |   (broken targets render the id; SCHEMA Fork 4); when       |
+ *  |                |   ctx.linkTarget resolves the target's exported file,       |
+ *  |                |   `[name](<path>)` instead (multi-file/zip delivery, E5)    |
+ *  | class_chip     | `#name` — displayText ?? ctx.nameOf(class) ?? raw id;  |
+ *  |                |   whitespace collapsed to `-`, leading `#` stripped    |
+ *  | typed_link     | `**verb** text (locator)` — verb string, or bound      |
+ *  |                |   propertySchemaId resolved via ctx.nameOf; locator   |
+ *  |                |   from metadata.locator, plain parentheses            |
+ *  | asset_ref      | `![asset](<uuid>)`; when ctx.assetPath resolves the    |
+ *  |                |   bundle-relative bytes path, `![asset](<path>)` (E5)  |
+ *  | embed_ref      | `![[uuid]]`, or the target's rendered content when    |
+ *  |                |   includeEmbedded resolves it via ctx.nodeOf; when    |
+ *  |                |   unresolved and ctx.linkTarget knows the file,       |
+ *  |                |   `[name](<path>)` (E5)                               |
+ *  | external_link  | `[text](href)` — href bare when safe, else `<…>`       |
+ *  | math           | `$expression$`                                        |
+ *  | quote          | `> ` prefix per rendered line (children inline)        |
+ *  | query          | fenced ```query block, pretty-printed QueryAST JSON    |
+ *  | whiteboard     | fenced ```json block (inline), or `[whiteboard](<path>)`|
+ *  |                |   backed by a sidecar file in sidecar mode             |
+ *  | outline cut    | `- ![[uuid]]` — cycle or explicit maxDepth (visible)   |
+ *
+ * Block-scale tokens (asset/embed/query/whiteboard) always render as their
+ * own paragraph (kept M1 simplification). The package is pure/IO-free:
+ * name, node, and child resolution are injected via ExportContext.
  */
 
-import type { ContentAst, ContentToken, InlineToken } from "@notees/protocol";
-import { deriveDisplayName } from "@notees/domain";
+import type { ContentAst } from "@notees/protocol";
 
-/** A property value as projected by the object API (SCHEMA.md property rows). */
-export interface ExportPropertyValue {
-  schemaId: string;
-  schemaName: string;
-  value: unknown;
-  /** Per-value qualifiers (e.g. `{ since: 1962 }`) rendered `value (since 1962)`. */
-  metadata?: Record<string, unknown> | undefined;
+import type {
+  ExportBlock,
+  ExportDocument,
+  ExportDocumentChild,
+  ExportNode,
+  ExportPropertyValue,
+  ExportSpan,
+} from "./document.js";
+import {
+  buildExportBlocks,
+  buildExportDocument,
+  isEmptyPropertyValue,
+  whiteboardSidecarPath,
+} from "./document.js";
+import type { ExportContext } from "./document.js";
+import type { ExportOptions, ResolvedExportOptions } from "./options.js";
+import { resolveExportOptions } from "./options.js";
+
+// --- escaping ----------------------------------------------------------------
+
+/** Chars that change inline parsing no matter where they appear. */
+const INLINE_SPECIALS = /([\\`*_[\]<>~])/g;
+
+function escapeInlineSpecials(text: string): string {
+  return text.replace(INLINE_SPECIALS, "\\$1");
 }
 
 /**
- * The node shape the exporter needs — satisfied by the object-API full
- * object. Revision-11 render-state model: the two booleans replace the
- * retired node_type enumeration (store row shape, 0/1).
+ * Escape a user-derived text run for inline Markdown. `atLineStart` marks
+ * runs that open a line (first span of a paragraph, or one right after a
+ * hard break); interior newlines make every following line a line start.
  */
-export interface ExportNode {
-  id: string;
-  /** Class identity bit: 1 = class node (always a root). */
-  isClass: 0 | 1;
-  /** Render bit for parented non-class nodes: 1 = main-children zone +
-   * document chrome; 0 = inline body + block chrome. */
-  presentAsMain: 0 | 1;
-  /** Tree placement; null = workspace root. */
-  parentId: string | null;
-  name: string | null;
-  contentAst: ContentAst;
-  classIds: string[];
-  properties: ExportPropertyValue[];
+export function escapeMarkdownText(text: string, atLineStart = false): string {
+  const escaped = escapeInlineSpecials(text);
+  const lines = escaped.split("\n");
+  for (let index = atLineStart ? 0 : 1; index < lines.length; index += 1) {
+    lines[index] = escapeLineStart(lines[index] ?? "");
+  }
+  return lines.join("\n");
+}
+
+/** Block constructs only bite at line start — neutralize their first marker. */
+function escapeLineStart(line: string): string {
+  let match: RegExpExecArray | null;
+  if ((match = /^(\d{1,9})([.)])([ \t])/.exec(line)) !== null) {
+    // Digits are not escapable punctuation — escape the list delimiter and
+    // re-emit the separator the match consumed.
+    return `${match[1] ?? ""}\\${match[2] ?? ""}${match[3] ?? ""}${line.slice(match[0].length)}`;
+  }
+  if (/^(?:#{1,6}(?:[ \t]|$)|>|[-+][ \t]|[-=]{3,}[ \t]*$|==)/.test(line)) {
+    return `\\${line}`;
+  }
+  return line;
+}
+
+/** `]` or `\` inside a `[[…]]` name would close or inject — escape both. */
+function escapeMentionName(name: string): string {
+  return name.replace(/([\\\]])/g, "\\$1");
+}
+
+/** Chip names keep the `#name` convention; only backslashes are escaped. */
+function escapeChipName(name: string): string {
+  return name.replace(/\\/g, "\\\\");
+}
+
+/** A `(…)` locator cannot contain a raw `)` or backslash. */
+function escapeLocator(locator: string): string {
+  return locator.replace(/([\\)])/g, "\\$1");
+}
+
+/** External-link display text lives inside `[…]`. */
+function escapeLinkText(text: string): string {
+  return escapeInlineSpecials(text);
 }
 
 /**
- * Injected resolution surface — keeps this package pure and IO-free.
- * `nameOf` resolves node/class/property-schema ids to their current display
- * name (rename-free: mentions render the target's CURRENT name, SCHEMA Fork 4).
- * `childrenOf` provides direct children for nested-bullet rendering.
+ * Link destination: bare when URL-safe, otherwise `<…>` with whitespace,
+ * parens, angle brackets, and backslashes percent-encoded.
  */
-export interface ExportContext {
-  nameOf(id: string): string | undefined;
-  childrenOf?(id: string): ExportNode[] | undefined;
-}
-
-/** Recursion guard for children nesting (embed-style cycles in the tree). */
-const MAX_CHILD_DEPTH = 24;
-
-const BLOCK_SCALE_TYPES = new Set(["asset_ref", "embed_ref", "query", "whiteboard"]);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function renderHref(href: string): string {
+  if (/^[^\s()<>\x00-\x1f\x7f\\]+$/.test(href)) return href;
+  const encoded = href
+    .replace(/[()]/g, (ch) => (ch === "(" ? "%28" : "%29"))
+    .replace(/[<>\\]/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/[\s\x00-\x1f\x7f]/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `<${encoded}>`;
 }
 
 // --- YAML frontmatter ---------------------------------------------------------
@@ -106,16 +187,16 @@ function yamlKey(name: string): string {
   return /^[A-Za-z_][A-Za-z0-9_ -]*$/.test(name) ? name : JSON.stringify(name);
 }
 
-function renderPropertyValue(property: ExportPropertyValue, ctx: ExportContext): string {
-  const value = property.value;
-  let base: string;
-  if (typeof value === "string") base = value;
-  else if (typeof value === "number" || typeof value === "boolean") base = String(value);
-  else if (value === null) base = "null";
-  else if (isRecord(value) && typeof value.nodeId === "string") {
-    base = ctx.nameOf(value.nodeId) ?? value.nodeId;
-  } else {
-    base = JSON.stringify(value);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Property row → frontmatter scalar: metadata qualifiers appended here;
+ * hideEmptyProperties OFF still shows a placeholder for null/undefined. */
+function renderPropertyScalar(property: ExportPropertyValue & { display: string }): string {
+  let base = property.display;
+  if (base.length === 0 && (property.value === null || property.value === undefined)) {
+    base = "null";
   }
   const metadata = property.metadata;
   if (metadata !== undefined && Object.keys(metadata).length > 0) {
@@ -124,22 +205,28 @@ function renderPropertyValue(property: ExportPropertyValue, ctx: ExportContext):
       .join(", ");
     base = `${base} (${qualifiers})`;
   }
-  return base;
+  return yamlScalar(base);
 }
 
-function renderFrontmatter(node: ExportNode, ctx: ExportContext): string {
+function renderFrontmatter(document: ExportDocument, options: ResolvedExportOptions): string {
   const lines: string[] = ["---"];
-  const title = deriveDisplayName(node);
-  if (title.length > 0) lines.push(`name: ${yamlScalar(title)}`);
-  lines.push(`isClass: ${node.isClass === 1 ? "true" : "false"}`);
-  lines.push(`presentAsMain: ${node.presentAsMain === 1 ? "true" : "false"}`);
-  if (node.classIds.length > 0) {
+  if (document.title.length > 0) lines.push(`name: ${yamlScalar(document.title)}`);
+  lines.push(`isClass: ${document.isClass ? "true" : "false"}`);
+  lines.push(`presentAsMain: ${document.presentAsMain ? "true" : "false"}`);
+  if (document.classIds.length > 0) {
     lines.push("classIds:");
-    for (const classId of node.classIds) lines.push(`  - ${yamlScalar(classId)}`);
+    for (const classId of document.classIds) lines.push(`  - ${yamlScalar(classId)}`);
   }
-  if (node.properties.length > 0) {
-    const bySchema = new Map<string, ExportPropertyValue[]>();
-    for (const property of node.properties) {
+  if (options.showTypeLabels && document.classNames.length > 0) {
+    lines.push("classNames:");
+    for (const name of document.classNames) lines.push(`  - ${yamlScalar(name)}`);
+  }
+  const properties = document.properties.filter(
+    (property) => !options.hideEmptyProperties || !isEmptyPropertyValue(property.value),
+  );
+  if (properties.length > 0) {
+    const bySchema = new Map<string, typeof properties>();
+    for (const property of properties) {
       const list = bySchema.get(property.schemaName);
       if (list === undefined) bySchema.set(property.schemaName, [property]);
       else list.push(property);
@@ -149,10 +236,10 @@ function renderFrontmatter(node: ExportNode, ctx: ExportContext): string {
       if (values.length === 1) {
         const only = values[0];
         if (only === undefined) continue;
-        lines.push(`  ${yamlKey(schemaName)}: ${yamlScalar(renderPropertyValue(only, ctx))}`);
+        lines.push(`  ${yamlKey(schemaName)}: ${renderPropertyScalar(only)}`);
       } else {
         lines.push(`  ${yamlKey(schemaName)}:`);
-        for (const value of values) lines.push(`    - ${yamlScalar(renderPropertyValue(value, ctx))}`);
+        for (const value of values) lines.push(`    - ${renderPropertyScalar(value)}`);
       }
     }
   }
@@ -160,13 +247,25 @@ function renderFrontmatter(node: ExportNode, ctx: ExportContext): string {
   return lines.join("\n");
 }
 
-// --- content tokens ------------------------------------------------------------
+// --- IR → markdown --------------------------------------------------------------
 
-function renderMarkedText(text: string, marks: readonly string[] | undefined): string {
-  if (marks === undefined || marks.length === 0) return text;
-  let out = text;
-  // Fixed nesting order — innermost first: code, highlight, strike, italic, bold.
-  if (marks.includes("code")) out = `\`${out.replace(/`/g, "'")}\``;
+/** Fence long enough that no backtick run inside the payload can close it. */
+function fenced(info: string, payload: string): string {
+  let longest = 0;
+  for (const match of payload.matchAll(/`+/g)) {
+    if (match[0].length > longest) longest = match[0].length;
+  }
+  const fence = "`".repeat(Math.max(3, longest + 1));
+  return `${fence}${info}\n${payload}\n${fence}`;
+}
+
+function renderMarkedText(text: string, marks: readonly string[], atLineStart: boolean): string {
+  // Code spans are literal: no markdown escaping inside (backticks swapped).
+  // Code is always the innermost wrap; the other marks keep the fixed
+  // nesting order — innermost first: highlight, strike, italic, bold.
+  let out: string = marks.includes("code")
+    ? `\`${text.replace(/`/g, "'")}\``
+    : escapeMarkdownText(text, atLineStart);
   if (marks.includes("highlight")) out = `==${out}==`;
   if (marks.includes("strike")) out = `~~${out}~~`;
   if (marks.includes("italic")) out = `*${out}*`;
@@ -174,142 +273,182 @@ function renderMarkedText(text: string, marks: readonly string[] | undefined): s
   return out;
 }
 
-function renderVerb(verb: unknown, ctx: ExportContext): string {
-  if (typeof verb === "string") return verb;
-  if (isRecord(verb) && typeof verb.propertySchemaId === "string") {
-    return ctx.nameOf(verb.propertySchemaId) ?? verb.propertySchemaId;
-  }
-  return String(verb);
-}
-
-function renderInlineToken(token: InlineToken, ctx: ExportContext): string {
-  switch (token.type) {
+function renderSpan(span: ExportSpan, atLineStart: boolean): string {
+  switch (span.kind) {
     case "text":
-      return renderMarkedText(token.text, token.marks);
-    case "hard_break":
+      return renderMarkedText(span.text, span.marks, atLineStart);
+    case "hardBreak":
       return "\n";
-    case "mention": {
-      const name = token.displayText ?? ctx.nameOf(token.targetNodeId) ?? token.targetNodeId;
-      return `[[${name}]]`;
+    case "mention":
+      // Multi-file delivery (ctx.linkTarget resolved the target's file):
+      // relative local link; otherwise the [[name]] wikilink convention.
+      return span.linkPath !== undefined
+        ? `[${escapeLinkText(span.name)}](${renderHref(span.linkPath)})`
+        : `[[${escapeMentionName(span.name)}]]`;
+    case "classChip":
+      return `#${escapeChipName(span.name)}`;
+    case "typedLink": {
+      const locator = span.locator === null ? "" : ` (${escapeLocator(span.locator)})`;
+      return `**${escapeMarkdownText(span.verb)}** ${escapeMarkdownText(span.text)}${locator}`;
     }
-    case "class_chip": {
-      const name = token.displayText ?? ctx.nameOf(token.classId) ?? token.classId;
-      return `#${name.replace(/\s+/g, "-").replace(/^#+/, "")}`;
-    }
-    case "typed_link": {
-      const locator = token.metadata?.locator;
-      return `**${renderVerb(token.verb, ctx)}** ${token.text}${locator !== undefined ? ` (${locator})` : ""}`;
-    }
-    case "external_link":
-      return `[${token.text}](${token.href})`;
+    case "externalLink":
+      return `[${escapeLinkText(span.text)}](${renderHref(span.href)})`;
     case "math":
-      return `$${token.expression}$`;
-    default:
-      return "";
+      return `$${span.expression}$`;
   }
 }
 
-function renderBlockScaleToken(token: ContentToken, ctx: ExportContext): string {
-  switch (token.type) {
-    case "asset_ref":
-      return `![asset](<${token.assetId}>)`;
-    case "embed_ref":
-      return `![[${token.nodeId}]]`;
-    case "query":
-      return "```query\n" + JSON.stringify(token.queryAst, null, 2) + "\n```";
-    case "whiteboard":
-      return "```json\n" + JSON.stringify(token.layout, null, 2) + "\n```";
-    default:
-      return renderInlineToken(token as InlineToken, ctx);
+/** Render one paragraph's spans; `atLineStart` seeds the first text run. */
+function renderSpans(spans: readonly ExportSpan[]): string {
+  let lineStart = true;
+  const parts: string[] = [];
+  for (const span of spans) {
+    parts.push(renderSpan(span, lineStart));
+    lineStart = span.kind === "hardBreak";
   }
+  return parts.join("");
 }
 
 /**
- * Render a token stream to Markdown lines: inline-scale tokens accumulate on
- * one line, block-scale tokens flush the line and get their own paragraph.
+ * Render a block list to Markdown lines. `ownerId` names the node whose
+ * stream this is — whiteboard sidecar links derive from it, and the k-th
+ * whiteboard block in THIS stream gets sidecar index k (mirrored by
+ * `listWhiteboardBlocks` in the bundle emitter).
  */
-export function renderContent(ast: ContentAst | null | undefined, ctx: ExportContext): string {
-  if (ast === null || ast === undefined) return "";
-  const out: string[] = [];
-  let line = "";
-  const flush = () => {
-    if (line.trim().length > 0) out.push(line);
-    line = "";
-  };
-  for (const token of ast) {
-    if (token.type === "quote") {
-      flush();
-      const inner = token.children.map((child) => renderInlineToken(child, ctx)).join("");
-      out.push(
-        inner
+function renderBlocksToLines(
+  blocks: readonly ExportBlock[],
+  ownerId: string,
+  options: ResolvedExportOptions,
+): string[] {
+  const lines: string[] = [];
+  let whiteboardIndex = 0;
+  for (const block of blocks) {
+    let text: string;
+    switch (block.kind) {
+      case "paragraph":
+        text = renderSpans(block.spans);
+        break;
+      case "quote": {
+        const inner = renderSpans(block.spans);
+        text = inner
           .split("\n")
-          .map((text) => `> ${text}`.trimEnd())
-          .join("\n"),
-      );
-    } else if (BLOCK_SCALE_TYPES.has(token.type)) {
-      flush();
-      out.push(renderBlockScaleToken(token, ctx));
-    } else {
-      line += renderInlineToken(token as InlineToken, ctx);
+          .map((lineText) => `> ${lineText}`.trimEnd())
+          .join("\n");
+        break;
+      }
+      case "asset":
+        // ctx.assetPath resolved the bundle-relative bytes path; otherwise
+        // the raw CAS uuid reference stands.
+        text =
+          block.assetPath !== undefined
+            ? `![asset](${renderHref(block.assetPath)})`
+            : `![asset](<${block.assetId}>)`;
+        break;
+      case "embed":
+        text =
+          block.inlined !== null
+            ? renderInlinedEmbed(block.inlined, options)
+            : block.link !== undefined
+              ? // Multi-file delivery: the target's exported file, linked.
+                `[${escapeLinkText(block.link.name)}](${renderHref(block.link.path)})`
+              : `![[${block.nodeId}]]`;
+        break;
+      case "query":
+        text = fenced("query", JSON.stringify(block.queryAst, null, 2));
+        break;
+      case "whiteboard":
+        if (options.whiteboardMode === "sidecar") {
+          text = `[whiteboard](<${whiteboardSidecarPath(ownerId, whiteboardIndex)}>)`;
+          whiteboardIndex += 1;
+        } else {
+          text = fenced("json", JSON.stringify(block.layout, null, 2));
+        }
+        break;
     }
+    if (text.trim().length > 0) lines.push(text);
   }
-  flush();
-  return out.join("\n");
+  return lines;
 }
 
-// --- children (nested bullets) ---------------------------------------------------
+/** Inlined embed (includeEmbedded): the target's blocks, then its outline
+ * indented one level under the embed point. No frontmatter/heading — the
+ * content lives inside the host document. */
+function renderInlinedEmbed(document: ExportDocument, options: ResolvedExportOptions): string {
+  const lines = renderBlocksToLines(document.blocks, document.nodeId, options);
+  if (document.children.length > 0) {
+    lines.push(...renderChildBulletLines(document.children, options, 0).map((line) => `  ${line}`));
+  }
+  return lines.join("\n");
+}
 
-function renderChildBullets(
-  id: string,
-  ctx: ExportContext,
+/** Outline tree → nested bullets; cut entries render the visible `![[uuid]]`. */
+function renderChildBulletLines(
+  children: readonly ExportDocumentChild[],
+  options: ResolvedExportOptions,
   depth: number,
-  visited: ReadonlySet<string>,
 ): string[] {
-  if (depth >= MAX_CHILD_DEPTH || ctx.childrenOf === undefined) return [];
-  const children = ctx.childrenOf(id);
-  if (children === undefined || children.length === 0) return [];
   const lines: string[] = [];
   const indent = "  ".repeat(depth);
   for (const child of children) {
-    if (visited.has(child.id)) {
+    if (child.cut !== undefined) {
       lines.push(`${indent}- ![[${child.id}]]`);
       continue;
     }
-    const nextVisited = new Set(visited);
-    nextVisited.add(child.id);
-    const content = renderContent(child.contentAst, ctx);
-    const contentLines = content.length > 0 ? content.split("\n") : [""];
+    // Block entries may carry hard-break line jumps — split to physical
+    // lines so continuations pick up the bullet indent.
+    const contentLines = renderBlocksToLines(child.blocks, child.id, options).flatMap((line) =>
+      line.split("\n"),
+    );
     const first = contentLines[0] ?? "";
     lines.push(`${indent}- ${first}`.trimEnd());
     for (const rest of contentLines.slice(1)) {
       lines.push(`${indent}  ${rest}`.trimEnd());
     }
-    lines.push(...renderChildBullets(child.id, ctx, depth + 1, nextVisited));
+    lines.push(...renderChildBulletLines(child.children, options, depth + 1));
   }
   return lines;
 }
 
-// --- node → file -----------------------------------------------------------------
-
 /**
- * Render one node to a standalone Markdown file: YAML frontmatter (name,
- * isClass/presentAsMain, classIds, properties), a `# <title>` heading for
- * every node except inline blocks (document-chrome predicate: a file gets a
- * heading unless it is a parented non-class node with the render bit unset),
- * the rendered content, and — when a children resolver is injected — direct
- * children as nested bullets.
+ * Serialize a built {@link ExportDocument} to a standalone Markdown file:
+ * YAML frontmatter, the `# <title>` heading for every node with document
+ * chrome (inline blocks carry none), the rendered content, and — unless
+ * includeOutline is off — the nested-bullets outline.
  */
-export function nodeToMarkdown(node: ExportNode, ctx: ExportContext): string {
-  const parts: string[] = [renderFrontmatter(node, ctx)];
-  const title = deriveDisplayName(node);
-  if (!(node.isClass === 0 && node.parentId != null && node.presentAsMain === 0)) {
-    parts.push(`# ${title.length > 0 ? title : node.id}`);
+export function renderExportDocumentToMarkdown(
+  document: ExportDocument,
+  options: ResolvedExportOptions,
+): string {
+  const parts: string[] = [renderFrontmatter(document, options)];
+  if (document.rendersDocumentChrome) {
+    const heading = document.title.length > 0 ? escapeMarkdownText(document.title) : document.nodeId;
+    parts.push(`# ${heading}`);
   }
-  const body = renderContent(node.contentAst, ctx);
-  if (body.length > 0) parts.push(body);
-  if (ctx.childrenOf !== undefined) {
-    const childLines = renderChildBullets(node.id, ctx, 0, new Set([node.id]));
+  const bodyLines = renderBlocksToLines(document.blocks, document.nodeId, options);
+  if (bodyLines.length > 0) parts.push(bodyLines.join("\n"));
+  if (document.children.length > 0) {
+    const childLines = renderChildBulletLines(document.children, options, 0);
     if (childLines.length > 0) parts.push(childLines.join("\n"));
   }
   return parts.join("\n\n") + "\n";
+}
+
+/**
+ * Render one node (and, via the injected resolver, its subtree) to a
+ * standalone Markdown file. `options` optional — defaults are the hardened
+ * E2 behavior (escaping ON, full closure, empty properties hidden).
+ */
+export function nodeToMarkdown(node: ExportNode, ctx: ExportContext, options?: ExportOptions): string {
+  const resolved = resolveExportOptions(options);
+  return renderExportDocumentToMarkdown(buildExportDocument(node, ctx, resolved), resolved);
+}
+
+/**
+ * Render a raw token stream to Markdown lines (no frontmatter/heading/outline
+ * — the seam the bundle's child bullets and external callers use). Kept from
+ * the pre-IR API; now a thin IR-blocks projection.
+ */
+export function renderContent(ast: ContentAst | null | undefined, ctx: ExportContext): string {
+  const blocks = buildExportBlocks(ast, ctx);
+  return renderBlocksToLines(blocks, "renderContent", resolveExportOptions()).join("\n");
 }

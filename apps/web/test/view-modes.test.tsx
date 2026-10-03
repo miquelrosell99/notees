@@ -373,6 +373,21 @@ describe("assets hub", () => {
   });
 });
 
+describe("pages hub (workspace roots)", () => {
+  it("lists top-level pages only — subpages stay in their parent's zone", async () => {
+    const client = await seedClient();
+    await client.createObject({ presentAsMain: true, name: "Top Level" });
+    const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
+    await client.createObject({ parentId, presentAsMain: true, name: "Subpage" });
+
+    render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
+
+    expect(screen.getByText("Top Level")).not.toBeNull();
+    expect(screen.getByText("Parent")).not.toBeNull();
+    expect(screen.queryByText("Subpage")).toBeNull();
+  });
+});
+
 describe("groupBy: references grouped by containing page", () => {
   /** Target page with one mention from each of two source pages. */
   async function seedReferencedPage(client: WorkspaceClient): Promise<string> {

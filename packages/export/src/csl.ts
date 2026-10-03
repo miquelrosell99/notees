@@ -41,7 +41,7 @@ import {
 } from "@notees/domain";
 
 import type { BibEntry } from "./bibtex.js";
-import type { ExportPropertyValue } from "./markdown.js";
+import type { ExportPropertyValue } from "./document.js";
 
 // --- CSL-JSON subset -----------------------------------------------------------
 

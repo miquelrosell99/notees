@@ -48,15 +48,19 @@ A fresh workspace seeds itself: a starter class catalog (`person`, `organization
 
 ## Configuring the CLI
 
-The CLI (`apps/cli`, invoked as `notees` once built, or `npx tsx src/cli.ts` in dev) talks to the server over HTTP. It needs the server URL and an API key, by flag or environment:
+The CLI (`apps/cli`, invoked as `notees` once built, or `npx tsx src/cli.ts` in dev) talks to the server over HTTP. It needs the server URL and a credential, by flag or environment:
 
 ```bash
 export NOTEES_SERVER=http://localhost:8377
-export NOTEES_API_KEY=$(cat data/api_key.txt)
+export NOTEES_API_KEY=$(cat data/api_key.txt)   # operator key, user API key, or session token
 # or per invocation: notees --server http://localhost:8377 --key nk_… <command>
 ```
 
-Every command accepts `--json` (stable machine-readable output — the human output shown below is allowed to change). Exit codes: `0` ok · `1` domain error · `2` usage · `3` auth · `4` conflict · `5` network.
+The credential is sent verbatim — the server resolves operator keys, user API keys, and account session tokens (there is no client-side shape check; an invalid credential is the server's 401 → exit 3). When you authenticate as a user, `--workspace <name|id>` (env `NOTEES_WORKSPACE`) addresses the object API at that workspace instead of the server default: a uuid passes through with any credential; a name resolves through the account's workspace listing (cached per profile) and therefore needs an account credential.
+
+Every command accepts `--json` (stable machine-readable output — the human output shown below is allowed to change; without it, listings render as compact fixed-width tables). Exit codes: `0` ok · `1` domain error · `2` usage · `3` auth · `4` conflict · `5` network.
+
+**Standing sign-in.** `notees auth login --email you@example --password-stdin` verifies the password, mints a dedicated CLI API key (listed under your account's API keys, revocable from the app), and stores it per profile — later commands on this server skip `--key` entirely. `notees auth status` reports whether the stored credential still authenticates; `notees auth logout` revokes it server-side and clears it. A key may revoke itself; managing *other* keys still requires an account session.
 
 **Destructive commands require `--yes`.** Without it, they fetch the object, print a blast-radius preview, and exit 2 — they never drop into an interactive prompt when `--json` is set or stdout is not a TTY. Scripts stay safe by construction.
 
@@ -73,7 +77,7 @@ notees shell
 # > .help                        # the full helper list
 ```
 
-Helpers: `api` (raw client), `get`, `list`, `search`, `classes`, `classInfo`, `backlinks`, `props`, `effective`, `create`, `update`, `del`, `setProperty`, `upload(filePath)`, `exportMd`. Piped stdin runs as a script and exits (`echo 'console.log((await search("Kuhn")).length)' | notees shell`) — exit 0 ok, 1 script error, 3 auth, 5 unreachable.
+Helpers: `api` (raw client), `get`, `list`, `search`, `classes`, `classInfo`, `backlinks`, `props`, `effective`, `create`, `update`, `del`, `setProperty`, `upload(filePath)`, `exportMd`, plus op submission for graph maintenance: `makeOp(opType, payload, affected?)` builds an envelope-v3 op (HLC-stamped, workspace from `--workspace`), `submitOp` / `submitOps` push ops through the relay batch endpoint — the same one write path the app uses. Piped stdin runs as a script and exits (`echo 'console.log((await search("Kuhn")).length)' | notees shell`) — exit 0 ok, 1 script error, 3 auth, 5 unreachable.
 
 ## A real session
 
@@ -131,6 +135,20 @@ $ notees class list
                { "name": "source", "extendsClassId": null }, … ] }        # trimmed
 ```
 
+Membership changes are first-class commands — the class argument accepts a uuid or a title (case-insensitive, must be unambiguous); both ops are idempotent:
+
+```console
+$ notees class assign 01a0dd78-… book        # add the book class to an object
+$ notees class unassign 01a0dd78-… book      # drop the membership (authored values survive)
+```
+
+Whole classes migrate in one shot — every member moves to the target class and `extends` edges pointing at the old class are remapped (the emptied class stays; deletion remains a separate, deliberate step). Preview-first, like the destructive commands:
+
+```console
+$ notees class remap fuente source --dry-run   # what would move, writes nothing
+$ notees class remap fuente source --yes       # do it
+```
+
 **6. Attach an asset.** Upload is content-sniffed (jpeg/png/webp/pdf/epub/audio); the id prints, and `--object` links it to a node:
 
 ```console
@@ -163,7 +181,7 @@ server http://localhost:8477: 54 envelopes (restoreEpoch 0)
 local cursor: seq 0 — 54 behind
 ```
 
-Useful supporting commands: `notees object list --presentAsMain --q <text> --limit 20 --cursor <id>`, `notees object get <id>`, `notees object update <id> --name … --presentAsMain|--no-presentAsMain --icon … --color …` (this is also promotion/demotion — flipping the render bit in place, identity and links intact; see [ux.md](ux.md#promotion-and-demotion)).
+Useful supporting commands: `notees object list --presentAsMain --q <text> --limit 20 --cursor <id>` (add `--all` to follow the cursor to exhaustion), `notees object get <id>`, `notees object update <id> --name … --presentAsMain|--no-presentAsMain --icon … --color …` (this is also promotion/demotion — flipping the render bit in place, identity and links intact; see [ux.md](ux.md#promotion-and-demotion)), and `notees ops [opType]` — the operation catalog (one-line description, example payload, affected-node shape per op) that backs the shell's `submitOp`.
 
 ## The web app
 
@@ -193,6 +211,14 @@ The sidebar's **Calendar** entry (hide it from Workspace Settings → Sidebar Vi
 
 Filter tabs (All / Daily note / Tasks / Dated / Created) narrow the left column to one section.
 
+## Exporting
+
+Export is a **projection, one-way by design** (the operation log is the truth) — engineered to be as round-trippable as possible.
+
+- **A page or node** — the node menu (context menu / page header / "…" button) → **Export**. Format cards show Markdown today (PDF, Word, HTML, and LaTeX are listed with their status); Options collapse open with checkboxes: include child pages, include embedded content, include the outline, hide empty properties, show type labels, include asset files. A live Markdown preview sits below; Export downloads one `.md` — or a `.zip` when assets are included (asset references become relative `assets/…` paths with the bytes alongside) or when several nodes are exported at once (one zip, human-readable `<title>-<id8>.md` files + `notees-manifest.json`).
+- **A whole workspace** — the workspace switcher's Export entry opens a small dialog: optional "Include asset files", then one `.zip` download — one Markdown file per top-level and child page (properties in YAML frontmatter, cross-page links rewritten to relative file links, whiteboard layouts as sidecar JSON), an `assets/` folder when included, and the manifest mapping every file back to its node id. The same zip is available headless: `GET /api/workspaces/:id/export.zip?includeAssets=0|1`.
+- **From the CLI** — `notees export markdown --ids <id>… | --linked-to <id> [--depth N|fixpoint] [--output-dir <dir> | --stdout]` builds the same Markdown bundle (bullet order follows child position), and `notees shell`'s `exportMd(ids)` returns it as text. Markdown escaping, full-depth closure (no silent truncation), and whiteboard sidecars are the engine defaults.
+
 ## Object API quick reference
 
 Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call. Bodies are camelCase JSON; `contentAst` follows the [SCHEMA.md grammar](../packages/protocol/SCHEMA.md).
@@ -202,13 +228,17 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call.
 | `GET /api/objects?isClass=&presentAsMain=&class=&q=&limit=&cursor=` | List objects (paginated, filterable; `presentAsMain` selects the document-chrome rows — "pages" — its negation the inline body) |
 | `POST /api/objects` | Create an object; body `{"name": …, "parentId": …, "presentAsMain": …, "classIds": [...], "contentAst": [...]}` (`isClass: true` declares a class — a root) — returns the full object |
 | `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` |
+| `GET /api/objects/:id/children` | Direct children in child-position order (both render zones; active only) |
 | `PATCH /api/objects/:id` | Update `name`, `presentAsMain`, `contentAst`, `icon`, `color` |
+| `PUT /api/objects/:id/classes/:classId` | Assign the object to a class (idempotent OR-Set add; class nodes are rejected — identity is the `is_class` bit) |
+| `DELETE /api/objects/:id/classes/:classId` | Remove the class membership (idempotent tombstone; authored property values survive) |
 | `DELETE /api/objects/:id` | Trash (subtree); `?permanent=true&confirm=<id>` hard-deletes |
 | `GET /api/objects/:id/backlinks` | Edges pointing at the node (mentions, typed links, property refs) |
 | `GET /api/search?q=&isClass=&presentAsMain=` | Full-text search over active nodes |
 | `GET /api/classes` · `GET /api/classes/:id` | Class catalog and detail (bindings, members) |
 | `GET /api/properties/:id/values` | Values asserted for a property schema |
 | `POST /api/assets` (multipart) · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed), download, metadata |
+| `GET /api/workspaces/:id/export.zip?includeAssets=0|1` | Full-workspace Markdown zip — one file per top-level and child page, manifest, optional `assets/` folder |
 | `GET /healthz` · `GET /api/version` | Liveness and version/protocol probes |
 
 One curl, end to end:

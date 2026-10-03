@@ -91,6 +91,8 @@ export interface OutlinerReader {
   getBlockTree(nodeId: string, depth?: number): BlockTreeNode[];
   getDisplayName(id: string): string | null;
   listPages(): ClientNode[];
+  /** Top-level pages only (parentless non-class) — shell hubs + export enumerator. */
+  roots(): ClientNode[];
   listClasses(): ClientNode[];
   search(query: string): ClientNode[];
   getClassParents(classId: string): string[];
