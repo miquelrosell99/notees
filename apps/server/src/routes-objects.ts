@@ -13,6 +13,7 @@ import {
   classCreatePayload,
   classUnassignPayload,
   objectCreatePayload,
+  objectRestorePayload,
   objectUpdatePayload,
   propertySchemaCreatePayload,
   propertySetPayload,
@@ -44,6 +45,12 @@ const listQuerySchema = z
      */
     presentAsMain: booleanQueryParam.optional(),
     class: z.string().uuid().optional(),
+    /** Direct-children filter: parent_id equality. */
+    parent: z.string().uuid().optional(),
+    /** Trash listing: true selects inactive rows (trashed), false/omitted the
+     * default active rows. Position-order reads use GET /objects/:id/children;
+     * this filter is for scans and bulk audits. */
+    trashed: booleanQueryParam.optional(),
     q: z.string().max(512).optional(),
     /**
      * Property filter `?property=<schemaId>:<value>` — exact match on the
@@ -302,13 +309,17 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid list query");
     }
-    const { isClass, presentAsMain, class: classId, q, limit, cursor } = parsed.data;
+    const { isClass, presentAsMain, class: classId, parent, trashed, q, limit, cursor } = parsed.data;
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
 
-    const clauses = ["n.is_active = 1", "n.workspace_id = ?"];
+    const clauses = [trashed === true ? "n.is_active = 0" : "n.is_active = 1", "n.workspace_id = ?"];
     const params: unknown[] = [workspaceId];
+    if (parent !== undefined) {
+      clauses.push("n.parent_id = ?");
+      params.push(parent);
+    }
     if (isClass !== undefined) {
       clauses.push("n.is_class = ?");
       params.push(isClass ? 1 : 0);
@@ -681,6 +692,31 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       client: "api",
     });
     return { id, deleted: true, permanent };
+  });
+
+  /**
+   * Restore from the trash (the object.restore op — whole-tree, convergent
+   * LWW against delete by log order). Permanently deleted nodes are gone:
+   * the applier's not_found surfaces as the route's 404.
+   */
+  app.post("/objects/:id/restore", async (request) => {
+    const { id } = request.params as { id: string };
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireNode(store, id);
+    const checked = objectRestorePayload.safeParse({ objectId: id });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid object.restore payload");
+    }
+    await ctx.submit({
+      workspaceId,
+      opType: "object.restore",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
+    return { object: fullObject(store, requireNode(store, id)) };
   });
 
   app.get("/objects/:id/backlinks", async (request) => {
