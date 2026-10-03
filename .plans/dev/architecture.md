@@ -292,7 +292,7 @@ client hook surface; no WS *client* ships in M1.
 
 *Implemented (M1).*
 
-`apps/server` is a Fastify 5 app (`src/app.ts`, version `2.0.0-m1`). Two route groups:
+`apps/server` is a Fastify 5 app (`src/app.ts`, version `2.0.0-m6`). Route groups:
 
 - **Relay API** — prefix `/api/relay/v2` (`src/routes-relay.ts`), exactly WIRE.md §1–2:
   `POST /batch`, `POST /catch-up`, `GET /snapshot`, `GET|PUT /snapshot/data`,
@@ -310,9 +310,27 @@ client hook surface; no WS *client* ships in M1.
   requests. Auth/account routes (`src/routes-auth.ts`, same `/api` prefix): setup,
   login/logout/me, workspaces CRUD + `GET /workspaces/:id/export.zip` (markdown zip via
   `@notees/export`: one file per page, manifest, optional assets), API-key management
-  (`GET/POST/DELETE /api-keys`), `GET /nodes/:id/location`, `GET /server-info`.
+  (`GET/POST/DELETE /api-keys`, optional per-key scope sets — §34.33 AG3),
+  `GET /nodes/:id/location`, `GET /server-info`.
   Workspace selection via `X-Workspace-Id` header, else a deterministic default
   workspace derived from the API key (`identity.ts`).
+- **Developer self-description** (§34.33 AG4/AG5, `src/routes-meta.ts`, prefix
+  `/api`, per-route auth): `GET /meta` (version, wire protocol versions, default
+  workspace, setup state — auth-free), `GET /openapi.json` (the OpenAPI 3.1
+  contract built by `src/openapi.ts`, auth-free; CI's `openapi-coverage` job fails
+  when the route table drifts from the registered routes), `GET /operations`
+  (paginated relay-log read — the agent audit feed; read membership +
+  `objects.read` scope for scoped keys).
+- **Agent-safety middleware** (§34.33 AG5, `src/idempotency.ts`): the
+  object/assets group replays the first 2xx response for a replayed
+  `Idempotency-Key` (24h window, 409 `idempotency_replay` on key collision;
+  multipart excluded — CAS dedupes bytes), and `PATCH /objects/:id` honors an
+  optional `baseRevision` (the node row's HLC — the one natural per-node
+  revision; 409 `conflict` when stale). Scoped API keys (§34.33 AG3,
+  `src/scopes.ts`) are enforced per route from the OpenAPI table's
+  `requiredScope` and rejected on the relay surface with 403 `scope_denied`;
+  the error-code taxonomy is pinned in `src/errors.ts` (`ERROR_TAXONOMY`,
+  exposed as the doc's `x-error-codes`).
 - Public, auth-free probes: `GET /healthz`, `GET /api/version`.
 
 **The one-write-path invariant.** Every write — a relay `/batch`, a WS batch frame, an
@@ -367,7 +385,18 @@ rows and inline token rendering (`App.tsx`, `PageView.tsx`, `BlockRow.tsx`,
 blocks AND classes; there is no stored `name`), date labels (`YYYYMMDD…`) formatted
 `YYYY/MM(/DD)`, truncated to 80 chars. Pages/classes carry text-only content
 (`stringifyContentAst`); the appliers flatten rich tokens on create and on
-block→page/class promotion.
+block→page/class promotion. **Presentation mode (§34.26, 2026-10-03)** rides the same
+read seam: `ui/presentation/deck.ts` is a pure page-subtree → slide-list builder (title
+slide, one section slide per `present_as_main=1` child, density-chunked intro runs for
+inline-body runs, trailing-image layouts, embed expansion with a visited-set cycle
+guard); `ui/presentation/DeckView.tsx` renders slides live (read-only, `InlineTokens` +
+`EmbedView` over a full `OutlinerContext`, top level read via `getChildren` + zone
+membership since `getBlockTree` is inline-body-only) inside the
+`ui/components/ui/PresentationOverlay` kit primitive (fullscreen host, auto-hiding
+toolbar, edge zones, Esc/focus-trap via the overlay stack, owned keymap); entry points
+thread `onPresent` from App through `NodeView` → `NodeMenuButton` / `PageView` →
+`NodeContextMenu`, plus the global Ctrl/Cmd+Alt+Enter chord; the slide index resumes from
+`presentationSession.ts` — module memory, session-only, never an op.
 
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
@@ -408,7 +437,7 @@ cursors; writes are atomic (tmp + rename).
 | `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
 | `apps/server` | Fastify relay + object/assets API; the one write path | `src/server.ts` (entry), `src/app.ts` (assembly), `src/config.ts`, `src/context.ts` (`ingestBatch`/`submit`), `src/relay-storage.ts`, `src/workspace-store.ts`, `src/routes-relay.ts`, `src/routes-objects.ts`, `src/assets.ts`, `src/seed.ts`, `src/identity.ts`, `src/validate.ts`, `src/rate-limit.ts`, `src/bus.ts` |
 | `apps/cli` | `notees` command surface over the HTTP API | `src/cli.ts` (`run`), `src/client.ts`, `src/state.ts`, `src/exit-codes.ts` |
-| `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) | `src/core/workspace-client.ts`, `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
+| `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode | `src/core/workspace-client.ts`, `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume, §34.26), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
 | `../design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
 | `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | seven JSON files, validated by `packages/protocol/test` and replayed by the store suite |
 
@@ -420,8 +449,12 @@ code is narrower in these places:
 1. ~~**`extends` is single-parent in M1.**~~ RECONCILED 2026-09-26: `class.setExtends`
    takes `parentClassIds: string[]` (replace semantics, m2m per `01` §6); direct edges
    live in `class_extends`, `class_hierarchy` is the m2m transitive closure, and cycles
-   (self-parent, multi-hop) fail loud. Binding resolution (own → shortest extends-path →
-   earliest HLC) remains owed work — it happens at read time in the bindings read model.
+   (self-parent, multi-hop) fail loud. ~~Binding resolution (own → shortest extends-path →
+   earliest HLC) remains owed work — it happens at read time in the bindings read model.~~
+   **DONE 2026-10-03 (§34.45 PG4)**: the diamond rule is implemented read-time in
+   `effective.ts` (shortest-path walk over `class_extends`; own binding → shortest
+   extends-path → earliest class-assignment HLC; `boundBy` names the supplying
+   ancestor).
 2. ~~**Backlinks are direct edges only.**~~ RECONCILED 2026-09-26:
    `Store.backlinksWithRollup(id)` rolls up at query time (the `00-INDEX`
    fan-out-vs-traversal choice resolved as traversal) with **source-side
