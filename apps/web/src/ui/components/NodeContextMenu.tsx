@@ -80,6 +80,7 @@ export function NodeContextMenu({
   onClose,
   onOpenNode,
   onExport,
+  onPresent,
   onChangeColor,
   onRemoveFromOwner,
   onDeleted,
@@ -89,6 +90,8 @@ export function NodeContextMenu({
   onClose: () => void;
   onOpenNode: (nodeId: string) => void;
   onExport?: ((pageId: string, name: string) => void) | undefined;
+  /** Presentation mode (§34.26): "Present" decks the page's subtree read-only. */
+  onPresent?: ((pageId: string) => void) | undefined;
   /** Present for class nodes: "Change color…" opens the swatch row. */
   onChangeColor?: ((x: number, y: number) => void) | undefined;
   /** Overrides the "Remove from this node" action (tags use unassignTag). */
@@ -152,6 +155,14 @@ export function NodeContextMenu({
             onClick: () => void client.updateObject(node.id, { presentAsMain: true }),
           },
     );
+  }
+  if (isPage && onPresent !== undefined) {
+    items.push({
+      id: "present",
+      label: "Present",
+      icon: "mdi-presentation-play",
+      onClick: () => onPresent(node.id),
+    });
   }
   if (isPage && onExport !== undefined) {
     items.push({

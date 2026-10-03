@@ -123,3 +123,6 @@ export type { FloatingButtonArrayProps, ToolbarDividerProps } from './FloatingBu
 
 export { MonthCalendar } from './calendar/MonthCalendar.js';
 export type { MonthCalendarProps } from './calendar/MonthCalendar.js';
+
+export { PresentationOverlay, PRESENTATION_CHROME_HIDE_MS } from './PresentationOverlay.js';
+export type { PresentationOverlayProps } from './PresentationOverlay.js';

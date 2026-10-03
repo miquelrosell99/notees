@@ -1,6 +1,6 @@
 # The Notees interaction model
 
-How Notees feels to use: the views, the outliner, the sections, the marks, the whiteboards, and the gestures. The normative specs behind each section live in [packages/protocol/SCHEMA.md](../packages/protocol/SCHEMA.md) and [.plans/design/01-knowledge-model.md](../.plans/design/01-knowledge-model.md); the ideas are in [philosophy.md](philosophy.md); what you can run today is in [usage.md](usage.md).
+How Notees feels to use: the views, the outliner, the sections, the marks, the whiteboards, the decks, and the gestures. The normative specs behind each section live in [packages/protocol/SCHEMA.md](../packages/protocol/SCHEMA.md) and [.plans/design/01-knowledge-model.md](../.plans/design/01-knowledge-model.md); the ideas are in [philosophy.md](philosophy.md); what you can run today is in [usage.md](usage.md).
 
 M1 alpha honesty, up front — every feature below is labeled:
 
@@ -125,6 +125,22 @@ A bullet's prominence is soft state — one op flips it, and identity is preserv
 The canonical story: a `meeting`-classed bullet in a daily note sits quietly for months. When it starts to matter, promote it — set its render bit (`--presentAsMain`), optionally nest it under the company page. Same node, same id, all links intact.
 
 **Today:** the flip is real and works from the CLI and object API (`notees object update <id> --presentAsMain` — see [usage.md](usage.md#a-real-session)). The in-editor gesture, recents/dropdown re-ranking, and the class-declaration flow are designed.
+
+## Presentation mode — the note is the deck
+
+There is no slide editor and no slide objects: a presentation is a pure read of one page's subtree, split into slides by the same tree that holds the content (structure is the slide boundary — the content grammar has no heading or divider token, and needs none).
+
+- **Slide 0 is the title slide** — the page's own text content, centered, with its icon and effective color.
+- **Every page-zone child is a section slide.** A child in the parent's main-children zone (the Pages section — the render bit set) opens a slide: its own text is the slide title, its children are the slide body, nested blocks included.
+- **Body children chunk into intro slides.** A run of inline-body children becomes one or more intro slides, closed greedily by a character budget and a block cap — short slides read large, dense slides compact, and a slide that still overflows scrolls inside itself instead of spilling off the stage.
+- **A trailing image block pulls aside.** When the last body block of a slide is an image (an `asset` reference and nothing else), the slide splits — text left, image right; an image alone centers at full size.
+- **Embeds expand into the stream.** An embedded page's children splice into the deck as slides after the slide that references them — the live-subtree embed rule is untouched; expansion adds slides, replaces nothing.
+- **Read-only but live.** The deck re-renders through the ordinary notify path as the note changes; nothing in a deck writes, and following a link exits the deck and opens the target. Session view-state only — the remembered slide index never touches the log, the store, or a device setting; it dies with the page session.
+- **Gestures:** the "…" node menu → **Present**, the page header's context menu → **Present**, or Ctrl/Cmd+Alt+Enter (Ctrl+Alt+Enter — Capacities' Ctrl+Alt+P collides with the add-property chord). Arrows, Space, PageUp/PageDown navigate; the screen edges click through; Esc exits; a floating toolbar (previous, counter, next, exit) fades when the pointer rests and returns on any activity.
+
+The overlay host is a UI-kit primitive (`PresentationOverlay`), sized for a second consumer — whiteboard fullscreen — later.
+
+**Today:** the deck builder, slide renderer, overlay, entry points, and session resume ship in the web app (§34.26 P1–P8). Desktop-class surfaces only; a phone deck is deliberately out of scope (the mobile client is capture-first). Speaker notes and deck export stay parked — page Markdown export already covers "get the content out".
 
 ## Exporting
 
