@@ -27,7 +27,9 @@
  * The engine is generic on purpose: cloneSubtree powers a real duplicate
  * gesture later (§34.25 T4) and never writes provenance; instantiateTemplate
  * powers create-with-template (T2) and the T3 surfaces and records the D1-
- * amendment generatedFrom reference on the produced root.
+ * amendment generatedFrom reference on the produced root. T4 apply-time
+ * variables (`{{name}}` in text tokens) substitute during composition via the
+ * `variables` option — extraction and the value dialog live UI-side.
  */
 
 import { uuidv7 } from "uuidv7";
@@ -124,6 +126,12 @@ export interface SubtreeCloneOptions {
   rootPresentAsMain?: boolean;
   /** Fresh-id generator (tests pin ids; production = uuidv7). */
   newId?: () => string;
+  /**
+   * T4 apply-time variables: `{{name}}` spans inside text tokens substitute
+   * from this map before the ops are composed (unknown names stay verbatim —
+   * never silently emptied).
+   */
+  variables?: Record<string, string>;
 }
 
 export interface TemplateGraftOptions {
@@ -141,11 +149,106 @@ export interface TemplateGraftOptions {
    * pass false only when a graft must stay provenance-free.
    */
   provenance?: boolean;
+  /** T4 apply-time variables (see SubtreeCloneOptions.variables). */
+  variables?: Record<string, string>;
+  /**
+   * The graft root's contentAst lands on the object by default (the fresh
+   * create is empty). Apply-to-existing passes false when the node already
+   * carries content — prefill semantics never overwrite (A4).
+   */
+  includeRootContent?: boolean;
 }
 
 const DEFAULT_STRIP: readonly string[] = [];
 /** Template instantiation's strip rule (v1 port): an instance is not a template. */
 const TEMPLATE_STRIP: readonly string[] = [SYSTEM_CLASS_UUIDS.template];
+
+// --- apply-time variables (§34.25 T4) ----------------------------------------
+//
+// Variables are `{{name}}` spans inside TEXT tokens only (the v1 whole-AST
+// string substitution is deliberately not ported — tokens are structured;
+// only a text token's own text substitutes). One syntax for both kinds:
+// `{{name}}` — static names are user-filled at apply time, dynamic names
+// (today / time / datetime / current_page, computed UI-side) are readonly in
+// the variable dialog. Unknown names stay verbatim — never silently emptied
+// (the v1 silent-empty gap stays closed).
+
+/** The `{{name}}` span pattern (whitespace inside the braces is tolerated). */
+export const TEMPLATE_VARIABLE_PATTERN = /\{\{\s*([^{}]+?)\s*\}\}/g;
+
+/** Variable names used in a text, in first-seen order, deduped (the v1 port). */
+export function variablesInText(text: string): string[] {
+  const found: string[] = [];
+  const seen = new Set<string>();
+  for (const match of text.matchAll(TEMPLATE_VARIABLE_PATTERN)) {
+    const name = match[1]!;
+    if (!seen.has(name)) {
+      seen.add(name);
+      found.push(name);
+    }
+  }
+  return found;
+}
+
+/** Every `{{name}}` in the subtree's text tokens, first-seen order, deduped. */
+export function extractTemplateVariables(
+  reads: Pick<CloneReadSurface, "getNode" | "getChildren">,
+  rootId: string,
+): string[] {
+  const found: string[] = [];
+  const seen = new Set<string>();
+  const visit = (id: string): void => {
+    const node = reads.getNode(id);
+    if (node === undefined) return;
+    for (const token of node.contentAst) {
+      if (token.type !== "text" || typeof token.text !== "string") continue;
+      for (const name of variablesInText(token.text)) {
+        if (!seen.has(name)) {
+          seen.add(name);
+          found.push(name);
+        }
+      }
+    }
+    for (const child of reads.getChildren(id)) visit(child.id);
+  };
+  visit(rootId);
+  return found;
+}
+
+/**
+ * Substitute the KNOWN names in one text; unknown names stay verbatim (the
+ * caller fills every extracted name, so this only guards hand-authored
+ * template edits between extraction and apply).
+ */
+export function substituteVariablesInText(
+  text: string,
+  values: Readonly<Record<string, string>>,
+): string {
+  return text.replace(TEMPLATE_VARIABLE_PATTERN, (span, name: string) =>
+    Object.prototype.hasOwnProperty.call(values, name) ? (values[name] ?? "") : span,
+  );
+}
+
+/** Substitute variables in every text token of an AST (non-text untouched). */
+export function substituteVariablesInAst(
+  ast: ContentAst,
+  values: Readonly<Record<string, string>>,
+): ContentAst {
+  if (Object.keys(values).length === 0) return ast;
+  return ast.map((token) =>
+    token.type === "text" && typeof token.text === "string"
+      ? { ...token, text: substituteVariablesInText(token.text, values) }
+      : token,
+  );
+}
+
+/** The variables option applied, when present (identity otherwise). */
+function withVariables(
+  ast: ContentAst,
+  variables: Record<string, string> | undefined,
+): ContentAst {
+  return variables === undefined ? ast : substituteVariablesInAst(ast, variables);
+}
 
 /** Re-key a whiteboard token's card geometry to cloned fresh ids. */
 function remapWhiteboardCards(ast: ContentAst, idMap: ReadonlyMap<string, string>): ContentAst {
@@ -238,7 +341,7 @@ export function composeSubtreeClone(
         ...(entry.isRoot && opts.rootPresentAsMain !== undefined
           ? { presentAsMain: opts.rootPresentAsMain }
           : { presentAsMain: source.presentAsMain }),
-        contentAst: remapWhiteboardCards(source.contentAst, idMap),
+        contentAst: withVariables(remapWhiteboardCards(source.contentAst, idMap), opts.variables),
         ...(classIds.length > 0 ? { classIds } : {}),
         ...(source.tagIds.length > 0 ? { tagIds: [...source.tagIds] } : {}),
         ...(entry.parentFreshId !== null ? { parentId: entry.parentFreshId } : {}),
@@ -284,9 +387,18 @@ export function composeTemplateGraft(
   const target = reads.getNode(opts.objectId);
   const existingClasses = new Set(target?.classIds ?? []);
 
-  const ops: CloneOp[] = [
-    { opType: "object.update", payload: { objectId: opts.objectId, contentAst: root.contentAst } },
-  ];
+  const ops: CloneOp[] =
+    opts.includeRootContent === false
+      ? []
+      : [
+          {
+            opType: "object.update",
+            payload: {
+              objectId: opts.objectId,
+              contentAst: withVariables(root.contentAst, opts.variables),
+            },
+          },
+        ];
   // Class assignments minus the marker class, skipping classes the object
   // already carries (the picked class is typically among the root's own).
   for (const classId of root.classIds) {
@@ -328,6 +440,7 @@ export function composeTemplateGraft(
       afterId: prevChildFresh,
       stripClassIds: [...strip],
       ...(opts.newId !== undefined ? { newId: opts.newId } : {}),
+      ...(opts.variables !== undefined ? { variables: opts.variables } : {}),
     });
     ops.push(...sub.ops);
     for (const [sourceId, freshId] of sub.idMap) idMap.set(sourceId, freshId);
