@@ -1,0 +1,94 @@
+/**
+ * PresentationOverlay styles — the fullscreen presentation host.
+ *
+ * A dark stage in every theme (a deck reads like a projector surface, not a
+ * page) driven by the presentation-stage tokens in variables.css. The chrome
+ * (toolbar + edge zones) auto-hides: the `--chrome-hidden` modifier fades the
+ * toolbar and the pointer, the edge zones stay live (they ARE the navigation
+ * when the chrome is gone).
+ */
+
+.presentation-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-presentation-stage);
+  z-index: var(--z-10000);
+  outline: none;
+}
+
+.presentation-overlay__stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Edge click zones — invisible navigation affordances. Pointer-only (the
+   keyboard context owns arrows/space); they stay live while the chrome is
+   hidden, which is exactly when they are needed. */
+.presentation-overlay__zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20%;
+  cursor: pointer;
+  z-index: var(--z-1);
+}
+
+.presentation-overlay__zone--prev {
+  left: 0;
+}
+
+.presentation-overlay__zone--next {
+  right: 0;
+}
+
+/* Floating toolbar — a pill on the stage surface so kit Button chrome keeps
+   its normal (light-surface) colors against the dark stage. */
+.presentation-overlay__toolbar {
+  position: absolute;
+  bottom: var(--spacing-6);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-full);
+  background: var(--color-surface-container-high);
+  box-shadow: var(--shadow-elevation-2);
+  transition:
+    opacity var(--motion-duration-medium) var(--motion-easing-standard),
+    visibility var(--motion-duration-medium) var(--motion-easing-standard);
+  z-index: var(--z-2);
+}
+
+.presentation-overlay__counter {
+  font: var(--font-label-large);
+  color: var(--color-on-surface);
+  min-width: var(--spacing-12);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.presentation-overlay__toolbar-divider {
+  width: var(--border-width-default);
+  height: var(--spacing-5);
+  background: var(--color-outline-variant);
+}
+
+/* Auto-hide: chrome fades, the pointer with it; any activity restores both
+   (the component pokes on pointer/keyboard input). */
+.presentation-overlay--chrome-hidden {
+  cursor: none;
+}
+
+.presentation-overlay--chrome-hidden .presentation-overlay__toolbar {
+  opacity: var(--opacity-0);
+  visibility: hidden;
+}
