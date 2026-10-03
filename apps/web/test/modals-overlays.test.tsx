@@ -304,8 +304,15 @@ describe("ExportPageModal", () => {
 
     const entries = unzipSync(new Uint8Array(await readBlobBytes(capturedBlob!)));
     const decode = (data: Uint8Array) => new TextDecoder().decode(data);
-    const tripPath = `Trip-${tripId.slice(0, 8)}.md`;
-    const packingPath = `Packing-${packingId.slice(0, 8)}.md`;
+    // Human-readable <slug>-<id8>.md names (the id8 is a hash of the node id —
+    // assert the shape, not the hash value).
+    const entryFor = (slug: string) => {
+      const match = Object.keys(entries).filter((name) => new RegExp(`^${slug}-[0-9a-f]{8}\\.md$`).test(name));
+      expect(match).toHaveLength(1);
+      return match[0]!;
+    };
+    const tripPath = entryFor("Trip");
+    const packingPath = entryFor("Packing");
     // Every selected node's subtree made it into the ONE zip, with the
     // human-readable slug filenames and the bundle manifest alongside.
     expect(Object.keys(entries)).toEqual(expect.arrayContaining([tripPath, packingPath, "notees-manifest.json"]));
@@ -374,7 +381,8 @@ describe("ExportPageModal", () => {
 
     const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
     const decode = (data: Uint8Array) => new TextDecoder().decode(data);
-    const pagePath = `Trip-${pageId.slice(0, 8)}.md`;
+    const pagePath = Object.keys(entries).find((name) => /^Trip-[0-9a-f]{8}\.md$/.test(name)) ?? "";
+    expect(pagePath).not.toBe("");
     // The E5 naming convention: original-name slug + content-hash8 + ext.
     const assetPath = `assets/Boarding-Pass-${hash.slice(0, 8)}.png`;
     expect(Object.keys(entries)).toEqual(
@@ -418,7 +426,8 @@ describe("ExportPageModal", () => {
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
     const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
-    const pagePath = `Trip-${pageId.slice(0, 8)}.md`;
+    const pagePath = Object.keys(entries).find((name) => /^Trip-[0-9a-f]{8}\.md$/.test(name)) ?? "";
+    expect(pagePath).not.toBe("");
     // The export still lands as a zip; the failed asset is skipped, not fatal.
     expect(Object.keys(entries)).toEqual(
       expect.arrayContaining([pagePath, "notees-manifest.json"]),
@@ -489,8 +498,13 @@ describe("ExportPageModal", () => {
 
     const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
     const decode = (data: Uint8Array) => new TextDecoder().decode(data);
-    const tripPath = `Trip-${tripId.slice(0, 8)}.md`;
-    const packingPath = `Packing-${packingId.slice(0, 8)}.md`;
+    const mdFor = (slug: string) => {
+      const match = Object.keys(entries).filter((name) => new RegExp(`^${slug}-[0-9a-f]{8}\\.md$`).test(name));
+      expect(match).toHaveLength(1);
+      return match[0]!;
+    };
+    const tripPath = mdFor("Trip");
+    const packingPath = mdFor("Packing");
     const assetPathA = `assets/Boarding-Pass-${"a".repeat(8)}.png`;
     const assetPathB = `assets/Receipt-${"b".repeat(8)}.jpg`;
     expect(Object.keys(entries)).toEqual(

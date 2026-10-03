@@ -18,9 +18,9 @@
  *    `"sidecar"` (bundle/zip mode: sidecar JSON file + file link, §34.12
  *    Tier-2 convention "whiteboards → sidecar JSON + file link").
  *  - `filenamePolicy` — bundle file naming: `"uuid"` (`<uuid>.md`, default —
- *    rename-free) vs `"slug"` (`<slugified-title>-<uuid8>.md`, uuid8 fallback
- *    for empty titles; the uuid8 suffix keeps names unique for duplicate
- *    titles). The server zip (task E5) reuses this policy.
+ *    rename-free) vs `"slug"` (`<slugified-title>-<id8>.md`, id8 fallback
+ *    for empty titles; the id8 suffix — a pure hash of the node id — keeps
+ *    names unique for duplicate titles). The server zip (task E5) reuses this policy.
  *
  * Gating (from §34.24): `includeOutline` — pdf/docx/html (+ markdown:
  * markdown is both a single-file and an outline format, so it supports the
@@ -72,7 +72,7 @@ export interface ExportOptions {
   maxDepth?: number | null | undefined;
   /** Whiteboard projection: inline fenced json (default) or sidecar file. */
   whiteboardMode?: "inline" | "sidecar" | undefined;
-  /** Bundle file naming: uuid (default) or `<slug>-<uuid8>.md`. */
+  /** Bundle file naming: uuid (default) or `<slug>-<id8>.md`. */
   filenamePolicy?: "uuid" | "slug" | undefined;
 }
 
@@ -210,7 +210,7 @@ export const EXPORT_OPTION_SPECS: readonly ExportOptionSpec[] = [
     appliesTo: ["markdown"],
     choices: [
       { value: "uuid", label: "UUID filenames (rename-free)" },
-      { value: "slug", label: "<title-slug>-<uuid8>" },
+      { value: "slug", label: "<title-slug>-<id8>" },
     ],
   },
 ];

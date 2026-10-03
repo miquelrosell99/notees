@@ -467,8 +467,13 @@ describe("workspace delete and export", () => {
     expect(exported.headers["content-disposition"]).toContain("Export-Me.zip");
 
     const files = unzipSync(new Uint8Array(exported.rawPayload));
-    const rootPath = `Exported-Page-${pageId.slice(0, 8)}.md`;
-    const childPath = `Child-Page-${childPageId.slice(0, 8)}.md`;
+    const findMd = (slug: string): string => {
+      const match = Object.keys(files).filter((name) => new RegExp(`^${slug}-[0-9a-f]{8}\\.md$`).test(name));
+      expect(match).toHaveLength(1);
+      return match[0]!;
+    };
+    const rootPath = findMd("Exported-Page");
+    const childPath = findMd("Child-Page");
     expect(Object.keys(files).sort()).toEqual(
       [rootPath, childPath, "notees-manifest.json"].sort(),
     );
@@ -529,7 +534,32 @@ describe("workspace delete and export", () => {
     expect(byStranger.statusCode).toBe(404);
   });
 
-  it("GET /workspaces/:id/export.zip de-dupes colliding page filenames deterministically", async () => {
+  it("reassignExportPaths keeps files, manifest, and links agreeing under a filename collision", async () => {
+    // The FNV-1a id8 suffix makes real collisions unreachable through the zip
+    // route (distinct ids → distinct suffixes), so the de-dupe machinery is
+    // defensive; exercise it directly with a synthetic colliding bundle.
+    const { reassignExportPaths } = await import("../src/routes-auth.js");
+    const bundle = {
+      files: [
+        { path: "Dup-a1.md", content: "first" },
+        { path: "Dup-a1.md", content: "second" },
+      ],
+      manifest: {
+        format: "notees-markdown" as const,
+        version: 2 as const,
+        generatedAt: "2026-10-03T00:00:00.000Z",
+        nodes: [
+          { id: "id-1", path: "Dup-a1.md", name: "Dup", type: "page" as const, isClass: false, presentAsMain: true },
+          { id: "id-2", path: "Dup-a1.md", name: "Dup", type: "page" as const, isClass: false, presentAsMain: true },
+        ],
+      },
+    };
+    reassignExportPaths(bundle, new Map([["id-1", "Dup-a1.md"], ["id-2", "Dup-a1-2.md"]]));
+    expect(bundle.files.map((file) => file.path)).toEqual(["Dup-a1.md", "Dup-a1-2.md"]);
+    expect(bundle.manifest.nodes.map((node) => node.path)).toEqual(["Dup-a1.md", "Dup-a1-2.md"]);
+  });
+
+  it("GET /workspaces/:id/export.zip gives colliding slugs distinct id8 suffixes", async () => {
     server = await makeTestServer();
     const owner = (await setupAdmin("owner@example.com")).json().token as string;
     const created = await server.app.inject({
@@ -540,9 +570,8 @@ describe("workspace delete and export", () => {
     });
     const workspaceId = created.json().id as string;
 
-    // Two pages with the SAME title AND the same uuid8 prefix (siblings
-    // authored inside the same uuidv7 timestamp window) collide under the
-    // <slug>-<uuid8> policy; the later page gains -2.
+    // Two pages with the SAME title: the hash id8 suffix disambiguates the
+    // slug without any counter de-dupe.
     const firstId = "11111111-0000-4000-8000-000000000001";
     const secondId = "11111111-0000-4000-8000-000000000002";
     const batch = await ingest(server, [
@@ -567,14 +596,14 @@ describe("workspace delete and export", () => {
     expect(exported.statusCode).toBe(200);
     const files = unzipSync(new Uint8Array(exported.rawPayload));
     expect(Object.keys(files).sort()).toEqual(
-      ["Dup-11111111.md", "Dup-11111111-2.md", "notees-manifest.json"].sort(),
+      ["Dup-143f8b7a.md", "Dup-133f89e7.md", "notees-manifest.json"].sort(),
     );
     const manifest = JSON.parse(new TextDecoder().decode(files["notees-manifest.json"])) as {
       nodes: Array<{ id: string; path: string }>;
     };
     const byId = new Map(manifest.nodes.map((node) => [node.id, node.path]));
-    expect(byId.get(firstId)).toBe("Dup-11111111.md");
-    expect(byId.get(secondId)).toBe("Dup-11111111-2.md");
+    expect(byId.get(firstId)).toBe("Dup-143f8b7a.md");
+    expect(byId.get(secondId)).toBe("Dup-133f89e7.md");
   });
 
   it("GET /workspaces/:id/export.zip?includeAssets=1 bundles referenced CAS bytes", async () => {
@@ -637,7 +666,13 @@ describe("workspace delete and export", () => {
       url: `/api/workspaces/${workspaceId}/export.zip`,
       headers: { authorization: `Bearer ${owner}` },
     });
-    const pagePath = `With-Asset-${pageId.slice(0, 8)}.md`;
+    const pagePath = (() => {
+      const match = Object.keys(unzipSync(new Uint8Array(without.rawPayload))).filter((name) =>
+        /^With-Asset-[0-9a-f]{8}\.md$/.test(name),
+      );
+      expect(match).toHaveLength(1);
+      return match[0]!;
+    })();
     const assetPath = `assets/My-Photo-${hash.slice(0, 8)}.png`;
     const filesWithout = unzipSync(new Uint8Array(without.rawPayload));
     expect(Object.keys(filesWithout).sort()).toEqual([pagePath, "notees-manifest.json"].sort());
