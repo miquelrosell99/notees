@@ -1,0 +1,37 @@
+/* DateSlotControl — one date-slot editor shared by the metadata panel and
+ * the table cells (§34.32 PG17). Token-only: every value resolves to a
+ * custom property from variables.css. */
+
+.nt-dateslot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+}
+
+.nt-dateslot__button {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-dateslot__button:hover {
+  color: var(--color-primary, currentColor);
+}
+
+.nt-dateslot__clear {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-muted, currentColor);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.nt-dateslot__clear:hover {
+  color: var(--color-on-surface, currentColor);
+}

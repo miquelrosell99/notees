@@ -24,6 +24,10 @@ function optionLabel(client: AnyClient, schemaId: string, optionId: unknown): st
   return option?.label ?? optionId;
 }
 
+function isSelectionType(type: string | undefined): boolean {
+  return type === "select" || type === "multi_select";
+}
+
 function nodeRefText(client: AnyClient, value: unknown): string {
   if (typeof value !== "object" || value === null) return "";
   const nodeId = (value as { nodeId?: unknown }).nodeId;
@@ -38,14 +42,14 @@ export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty |
   if (Array.isArray(value)) {
     return value
       .map((entry) =>
-        prop.schema?.type === "select"
+        isSelectionType(prop.schema?.type)
           ? optionLabel(client, prop.propertySchemaId, entry)
           : nodeRefText(client, entry),
       )
       .filter((text) => text !== "")
       .join(", ");
   }
-  if (prop.schema?.type === "select") return optionLabel(client, prop.propertySchemaId, value);
+  if (isSelectionType(prop.schema?.type)) return optionLabel(client, prop.propertySchemaId, value);
   if (prop.schema?.type === "boolean") return value === true ? "Yes" : "No";
   if (
     typeof value === "object" &&
@@ -56,4 +60,18 @@ export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty |
   }
   if (typeof value === "string" || typeof value === "number") return String(value);
   return JSON.stringify(value);
+}
+
+/**
+ * The external navigation target of a url/email value (§34.32 PG14): url
+ * values pass through (http(s), protocol-relative, or any scheme the author
+ * wrote — a `tel:` value rides the same href), email values become
+ * `mailto:`. Null when the value is not a non-empty string — nothing to
+ * link.
+ */
+export function propertyLinkHref(type: string | undefined, value: unknown): string | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  if (type === "url") return value.trim();
+  if (type === "email") return `mailto:${value.trim()}`;
+  return null;
 }

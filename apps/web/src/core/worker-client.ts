@@ -294,6 +294,11 @@ export class WorkerClient {
     return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
   }
 
+  /** Nodes carrying an authored value for the schema (§34.32 PG12, PropertyView). */
+  getPropertyReferences(schemaId: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getPropertyReferences", [schemaId], []);
+  }
+
   /** Asset metadata for a node reference (derived node_asset rows). */
   getAssetInfo(id: string): AssetInfo | undefined {
     return this.cachedRead<AssetInfo | undefined>("getAssetInfo", [id], undefined);
