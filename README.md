@@ -16,7 +16,7 @@ Five design decisions no competitor makes, which together define what Notees is 
 | 2 | **Unified node table — classes are nodes** | Pages, blocks, and classes are rows of one table with one identity scheme. Inheritance (`extends`) is an m2m property on class nodes; the hierarchy closure is derived, not stored. |
 | 3 | **Typed discourse links as marks on prose words** | "X *contradicts* Y" is a mark on the word you wrote — a verb in your sentence, not a field in a form. Verbs group backlinks and color the graph. |
 | 4 | **Two-way link propagation along the tree** | Backlinks roll up to containing pages, and links inherit down the tree: `refset(n) = own_links(n) ∪ refset(parent(n))`. Containment is context; nobody tags anything. |
-| 5 | **Agent-first surface** | Scoped API keys, one grammar for humans and machines, and a full CLI from M1. Agents are peers of the UI, not plugins bolted on later. |
+| 5 | **Agent-first surface** | Scoped API keys (server-enforced read/write scopes today; in-app checkboxes §34.19), one grammar for humans and machines, and a full CLI from M1. Agents are peers of the UI, not plugins bolted on later. |
 
 ## Status: M1 alpha
 
