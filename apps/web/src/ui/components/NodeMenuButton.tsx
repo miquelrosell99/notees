@@ -24,11 +24,14 @@ export function NodeMenuButton({
   client,
   node,
   onOpenNode,
+  onPresent,
   onDeleted,
 }: {
   client: WorkspaceClient | WorkerClient;
   node: ClientNode;
   onOpenNode: (nodeId: string) => void;
+  /** Presentation mode (§34.26): the "Present" menu item decks the page. */
+  onPresent?: ((nodeId: string) => void) | undefined;
   onDeleted?: ((node: ClientNode) => void) | undefined;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -67,6 +70,7 @@ export function NodeMenuButton({
           setMenu(null);
           onOpenNode(id);
         }}
+        onPresent={onPresent}
         onExport={(pageId, name) => {
           setMenu(null);
           setExporting({ pageId, name });

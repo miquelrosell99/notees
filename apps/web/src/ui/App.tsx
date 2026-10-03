@@ -49,11 +49,12 @@ import { Icon } from "./Icon.js";
 import { PageView } from "./PageView.js";
 import { displayNameForSettings } from "./dateDisplay.js";
 import { ClassView } from "./ClassView.js";
+import { DeckView } from "./presentation/DeckView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
 import { NodeMenuButton } from "./components/NodeMenuButton.js";
-import { dayNodeId, rendersAsInlineBlock, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { dayNodeId, rendersAsInlineBlock, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { CollectionHub } from "./components/CollectionHub.js";
 import type { TableColumn, ViewMode } from "./views/index.js";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
@@ -228,6 +229,7 @@ export function NodeView({
   onOpenNode,
   onOpenInSidebar,
   onDeleted,
+  onPresent,
   cornerMenu = false,
 }: {
   client: WorkspaceClient | WorkerClient;
@@ -235,6 +237,12 @@ export function NodeView({
   onOpenNode?: ((nodeId: string) => void) | undefined;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   onDeleted?: ((node: ClientNode) => void) | undefined;
+  /**
+   * Presentation mode (§34.26): the page's "Present" surfaces (the "…" menu,
+   * the header context menu) request a deck of this node's subtree, routed
+   * to the deck host above.
+   */
+  onPresent?: ((nodeId: string) => void) | undefined;
   /**
    * Main-card mode: also render the "…" node menu pinned to the content
    * card's top-right corner. Only the main view card opts in; sidebar peek
@@ -257,6 +265,7 @@ export function NodeView({
       onOpenPage={onOpenNode}
       onOpenInSidebar={onOpenInSidebar}
       onDeleted={onDeleted}
+      onPresent={onPresent}
     />
   );
   if (!cornerMenu) return view;
@@ -267,6 +276,7 @@ export function NodeView({
         client={client}
         node={node}
         onOpenNode={(id) => onOpenNode?.(id)}
+        onPresent={onPresent}
         onDeleted={onDeleted}
       />
     </div>
@@ -415,6 +425,13 @@ export function App() {
   const [activeNav, setActiveNav] = useState<NavKey>(initialNav);
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
+  /**
+   * Presentation mode (§34.26): the node id currently decked, or null.
+   * Session-local device state — never persisted, never on the wire.
+   */
+  const [presentingId, setPresentingId] = useState<string | null>(null);
+  const selectedPageIdRef = useRef<string | null>(null);
+  selectedPageIdRef.current = selectedPageId;
 
   // Browser tab title follows the open node: "NAME - Notees" (pagesVersion
   // keeps it fresh across renames and sync updates). Date pages format per
@@ -520,6 +537,29 @@ export function App() {
       if (target?.closest("input, textarea, select, [contenteditable]")) return;
       event.preventDefault();
       setQuickAddOpen(true);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Ctrl/Cmd+Alt+Enter — present the open page (§34.26 P6). Capacities'
+  // Ctrl+Alt+P collides with §34.19's reserved "add property" chord (and the
+  // browser's private-window binding); Ctrl+Alt+Enter is free in both the
+  // plan's keymap row and the tree.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || !event.altKey || !(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable]")) return;
+      const openId = selectedPageIdRef.current;
+      if (openId === null) return;
+      const live = clientRef.current;
+      const node = live?.getNode(openId);
+      if (node === undefined || !rendersWithDocumentChrome(node)) return;
+      event.preventDefault();
+      setPresentingId(openId);
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
@@ -1273,6 +1313,7 @@ export function App() {
               onOpenNode={openPage}
               onOpenInSidebar={openInSidebar}
               onDeleted={handleNodeDeleted}
+              onPresent={(id) => setPresentingId(id)}
               cornerMenu
             />
           ) : activeNav === "journal" ? (
@@ -1323,6 +1364,14 @@ export function App() {
       )}
       {quickAddOpen && (
         <QuickAddModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} client={client} />
+      )}
+      {presentingId !== null && (
+        <DeckView
+          client={client}
+          pageId={presentingId}
+          onOpenNode={openPage}
+          onClose={() => setPresentingId(null)}
+        />
       )}
       <BackendUnavailableOverlay syncStatus={syncStatus} />
       <NotificationToaster />

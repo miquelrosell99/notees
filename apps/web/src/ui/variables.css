@@ -81,6 +81,14 @@
   --color-shadow: rgb(0 0 0 / 8%);
   --color-scrim: rgb(0 0 0 / 50%);
 
+  /* ==================== Presentation stage ====================
+     Fullscreen presentation host (PresentationOverlay): a dark stage in
+     EVERY theme (a deck reads like a projector surface, not a page), with
+     its own on-stage text colors. */
+  --color-presentation-stage: #17150f;
+  --color-on-presentation-stage: #ece9e3;
+  --color-on-presentation-stage-muted: #9d968c;
+
   /* ==================== State ==================== */
   --color-disabled: #d4d4d4;
   --color-on-disabled: #a3a3a3;
@@ -727,6 +735,11 @@
   --color-shadow: rgb(0 0 0 / 50%);
   --color-scrim: rgb(0 0 0 / 70%);
 
+  /* Presentation stage — dark in every theme (see the light block). */
+  --color-presentation-stage: #0a0a09;
+  --color-on-presentation-stage: #e8e6e1;
+  --color-on-presentation-stage-muted: #a8a29e;
+
   /* Dark-theme elevation: stronger casts so lifted surfaces register
      against near-black backgrounds. */
   --shadow-elevation-1:
@@ -790,6 +803,11 @@
   --color-surface-container-highest: #171717;
   --color-surface-container-lowest: #000;
   --color-outline-variant: #1a1a1a;
+
+  /* Presentation stage — dark in every theme (see the light block). */
+  --color-presentation-stage: #000;
+  --color-on-presentation-stage: #e8e6e1;
+  --color-on-presentation-stage-muted: #a8a29e;
 }
 
 /* ==================== Functional Accent Colors ==================== */
