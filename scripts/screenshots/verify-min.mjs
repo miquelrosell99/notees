@@ -81,10 +81,14 @@ const probe = setInterval(async () => {
     if (consoleErrors.length) { console.log("ERRORS:", consoleErrors.slice(0, 6)); clearInterval(probe); }
   } catch {}
 }, 15_000);
+// The relay currently holds no snapshot (§34.43 dropped them; recreation
+// still owed), so a FRESH browser profile full-catch-ups the whole log —
+// measured ~5.3 min to idle. 900 s is the permanent window until snapshots
+// return (§34.43's own note: raise permanently if the window recurs).
 await page.waitForFunction(
   () => document.body.innerText.length > 500,
   undefined,
-  { timeout: 240_000 },
+  { timeout: 900_000 },
 ).finally(() => clearInterval(probe));
 const bootSecs = ((Date.now() - t0) / 1000).toFixed(1);
 console.log(`boot+settle: ${bootSecs}s; body text length: ${(await page.evaluate(() => document.body.innerText.length))}`);
