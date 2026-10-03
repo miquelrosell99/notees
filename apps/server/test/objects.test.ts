@@ -187,6 +187,57 @@ describe("objects API", () => {
     expect(res.json().results.map((r: { id: string }) => r.id)).toContain(id);
   });
 
+  it("search paginates with a cursor until nextCursor comes back null (C5)", async () => {
+    server = await makeTestServer();
+    for (let i = 0; i < 5; i++) {
+      await api("POST", "/api/objects", {
+        payload: { presentAsMain: true, name: `Cursorpage ${i}`, contentAst: [{ type: "text", text: "cursorword body" }] },
+      });
+    }
+    const first = await api("GET", "/api/search?q=cursorword&limit=2");
+    expect(first.statusCode).toBe(200);
+    const page1 = first.json();
+    expect(page1.results).toHaveLength(2);
+    expect(page1.nextCursor).not.toBeNull();
+    const second = await api("GET", `/api/search?q=cursorword&limit=2&cursor=${page1.nextCursor}`);
+    const page2 = second.json();
+    expect(page2.results).toHaveLength(2);
+    const ids1 = new Set(page1.results.map((r: { id: string }) => r.id));
+    expect(page2.results.every((r: { id: string }) => !ids1.has(r.id))).toBe(true);
+    const third = await api("GET", `/api/search?q=cursorword&limit=2&cursor=${page2.nextCursor}`);
+    expect(third.json().results).toHaveLength(1);
+    expect(third.json().nextCursor).toBeNull();
+    // A garbage cursor is a 422, never a silent reset to page one.
+    const bad = await api("GET", "/api/search?q=cursorword&cursor=abc");
+    expect(bad.statusCode).toBe(422);
+  });
+
+  it("search supports quoted phrases (C1)", async () => {
+    server = await makeTestServer();
+    await api("POST", "/api/objects", {
+      payload: { presentAsMain: true, contentAst: [{ type: "text", text: "the quick brown fox" }] },
+    });
+    await api("POST", "/api/objects", {
+      payload: { presentAsMain: true, contentAst: [{ type: "text", text: "quick fox brown" }] },
+    });
+    const res = await api("GET", "/api/search?q=%22quick%20brown%22");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().results).toHaveLength(1);
+    expect(res.json().results[0].name).toBe("the quick brown fox");
+  });
+
+  it("resolve maps an exact display name to an id (C6)", async () => {
+    server = await makeTestServer();
+    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "My Source" } })).json();
+    const res = await api("GET", `/api/resolve?name=${encodeURIComponent("my source")}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ id, name: "My Source" });
+    // Prefix-only or partial names do not resolve (exact match semantics).
+    const partial = await api("GET", `/api/resolve?name=${encodeURIComponent("My")}`);
+    expect(partial.statusCode).toBe(404);
+    expect(partial.json().error).toMatchObject({ code: "not_found" });
+  });
+
   it("backlinks reflect an emitted mention", async () => {
     server = await makeTestServer();
     const { id: target } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Target" } })).json();

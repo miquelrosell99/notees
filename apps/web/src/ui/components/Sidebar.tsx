@@ -2,7 +2,9 @@
  * Sidebar — the 260px workspace navigator on the background canvas.
  *
  * Original information architecture: the workspace switcher + search icon on
- * top; NAVIGATION rows switch the main view (Journal / Inbox / Pages /
+ * top, the full-text search field (SearchBox — plain FTS plus the query
+ * language, results panel overlaying the nav) below it; NAVIGATION rows
+ * switch the main view (Journal / Inbox / Pages /
  * Whiteboards / Tasks hubs — never an inline page dump); FAVORITES and
  * RECENTS are device-local; MORE reveals the class list. Favorites/recents
  * live here (moved out of App).
@@ -19,6 +21,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
+import { SearchBox } from "../SearchBox.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
@@ -27,7 +30,7 @@ import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-export type NavKey = "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets";
+export type NavKey = "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries";
 
 export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = [
   { key: "journal", label: "Journal", icon: "mdi-calendar-clock" },
@@ -38,6 +41,7 @@ export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = 
   { key: "whiteboards", label: "Whiteboards", icon: "mdi-presentation" },
   { key: "tasks", label: "Tasks", icon: "mdi-format-list-checks" },
   { key: "assets", label: "Assets", icon: "mdi-folder-multiple-image" },
+  { key: "queries", label: "Queries", icon: "mdi-database-search-outline" },
 ];
 
 const STORAGE_KEYS = {
@@ -111,6 +115,7 @@ export function Sidebar({
   onSignOut,
   onRenameWorkspace,
   onOpenInSidebar,
+  cacheVersion = 0,
 }: {
   client: AnyClient;
   workspaceName: string;
@@ -133,6 +138,13 @@ export function Sidebar({
   onRenameWorkspace?: ((workspaceId: string, name: string) => void) | undefined;
   /** Peek the node as a right-sidebar card (the row context menu). */
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
+  /**
+   * Bumped by the App on every client notification — forwarded to the
+   * sidebar SearchBox so its cached reads re-run when the worker cache
+   * refreshes (see SearchBox's prop doc). Defaults to 0 (no refreshes) for
+   * direct/test renders.
+   */
+  cacheVersion?: number | undefined;
 }) {
   const [favorites, setFavorites] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.favorites));
   const [recents, setRecents] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.recents));
@@ -314,6 +326,7 @@ export function Sidebar({
           <Icon path="mdi-magnify" size={1} />
         </button>
       </div>
+      <SearchBox client={client} onOpenNode={onOpenPage} cacheVersion={cacheVersion} />
       <nav className="nt-sidebar-nav">
         {section(
           "Navigation",

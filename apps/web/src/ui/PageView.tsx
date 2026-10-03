@@ -27,7 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, typ
 import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { rendersWithDocumentChrome } from "@notees/domain";
+import { rendersWithDocumentChrome, parseDateNodeId } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -35,6 +35,9 @@ import { proseFromAst } from "@/editor/prose.js";
 
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
+import { DayPageDateBar } from "./components/DayPageDateBar.js";
+import { DayPageSections } from "./components/DayPageSections.js";
+import { isoOfDateParts } from "./components/calendarViewUtils.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
@@ -252,6 +255,16 @@ export function PageView({
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
   /** The same tree in the view system's input shape (session view state). */
   const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);
+  /**
+   * §34.28 #4/#7 — the day branch: a node whose id parses at day precision
+   * is a day page and gets the date bar (±1 day stepping over the
+   * deterministic ids + the reviewed toggle) and the three aggregation
+   * sections. Embedded renders (journal feed, calendar daily-note embed)
+   * skip both — they already sit on aggregation surfaces.
+   */
+  const parsedDay = page !== undefined ? parseDateNodeId(pageId) : null;
+  const dayIso =
+    parsedDay !== null && parsedDay.precision === "day" ? isoOfDateParts(parsedDay) : null;
 
   // Fullscreen whiteboard (SCHEMA.md: a whiteboard page carries a
   // `whiteboard` content token — the whiteboard CLASS, not any node kind,
@@ -475,6 +488,9 @@ export function PageView({
             <TagsRow client={client} nodeId={pageId} tagIds={page.tagIds} onOpenPage={onOpenPage} />
           )}
         </header>
+        {dayIso !== null && !embedded && (
+          <DayPageDateBar client={client} pageId={pageId} iso={dayIso} onOpenPage={onOpenPage} />
+        )}
         {notice}
         {moveError !== null && (
           <div role="alert" className="nt-dnd-error">
@@ -526,6 +542,14 @@ export function PageView({
                       zone, see handleDragEnd). Class composition inserts its
                       class-relevant sections ahead of them. */}
                   {sections}
+                  {dayIso !== null && !embedded && (
+                    <DayPageSections
+                      client={client}
+                      pageId={pageId}
+                      iso={dayIso}
+                      onOpenPage={onOpenPage}
+                    />
+                  )}
                   {systemSections ?? (
                     <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
                   )}

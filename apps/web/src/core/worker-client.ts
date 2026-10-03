@@ -27,6 +27,8 @@ import type {
   QueryAggregateResult,
   QueryRunResult,
   ReferenceEntry,
+  SearchPageResult,
+  SearchSnippetData,
   SetClassPropertyInput,
   SyncStatusSnapshot,
   UpdateObjectInput,
@@ -317,8 +319,35 @@ export class WorkerClient {
     return this.cachedRead<BlockTreeNode[]>("getBlockTree", [pageId, depth], []);
   }
 
-  search(query: string): ClientNode[] {
-    return this.cachedRead<ClientNode[]>("search", [query], []);
+  search(query: string, limit?: number): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("search", [query, limit ?? null], []);
+  }
+
+  /**
+   * Cursor-paginated ranked search (§34.30 C5): raw RPC (not the read cache —
+   * the cache key would include the cursor, so a load-more could never reuse
+   * the first page anyway). `cursor` is the previous page's `nextCursor`.
+   */
+  searchPage(query: string, opts?: { limit?: number; cursor?: string | null }): Promise<SearchPageResult> {
+    return this.call("searchPage", [query, opts ?? null]) as Promise<SearchPageResult>;
+  }
+
+  /**
+   * Match-context snippet for one node + query (§34.30 M3). Served from the
+   * read cache like `search`: the first read seeds null and converges on the
+   * worker's "changed" notification.
+   */
+  getSearchSnippet(
+    nodeId: string,
+    query: string,
+    opts?: { maxTokens?: number; ellipsis?: string },
+  ): SearchSnippetData | null {
+    return this.cachedRead<SearchSnippetData | null>("getSearchSnippet", [nodeId, query, opts ?? null], null);
+  }
+
+  /** Name→id resolution (§34.30 C6): exact display-name match; null when unknown. */
+  resolveNodeByName(name: string): string | null {
+    return this.cachedRead<string | null>("resolveNodeByName", [name], null);
   }
 
   getChildren(id: string): ClientNode[] {
