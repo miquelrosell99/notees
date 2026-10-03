@@ -41,6 +41,7 @@ import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 import { actorIdForUser, type Principal } from "./identity.js";
 import { hashPassword, verifyPassword } from "./auth.js";
+import { parseApiScopes } from "./scopes.js";
 import { fullObject } from "./routes-objects.js";
 
 const emailSchema = z.string().trim().email();
@@ -190,6 +191,12 @@ export interface ResolvedRequest {
   sessionToken: string | null;
   /** The raw API key token when the principal authenticated via a user API key. */
   apiKeyToken?: string;
+  /**
+   * §34.33 AG3: the API key's scope set when the principal authenticated via
+   * a scoped user API key; null means unrestricted (operator key, sessions,
+   * and keys minted without a scope list).
+   */
+  scopes: string[] | null;
 }
 
 /** Resolves the request credential to a principal (API key, session, or user API key). */
@@ -197,7 +204,7 @@ export function resolvePrincipal(ctx: ServerContext, request: FastifyRequest): R
   const credential = extractCredential(request);
   if (credential === null) return null;
   if (constantTimeEquals(credential, ctx.config.apiKey)) {
-    return { principal: { kind: "apikey", actorId: ctx.actorId }, sessionToken: null };
+    return { principal: { kind: "apikey", actorId: ctx.actorId }, sessionToken: null, scopes: null };
   }
   const session = ctx.auth.resolveSession(credential);
   if (session !== null) {
@@ -209,6 +216,7 @@ export function resolvePrincipal(ctx: ServerContext, request: FastifyRequest): R
         isAdmin: session.user.isAdmin,
       },
       sessionToken: credential,
+      scopes: null,
     };
   }
   const apiKey = ctx.auth.resolveApiKey(credential);
@@ -222,6 +230,7 @@ export function resolvePrincipal(ctx: ServerContext, request: FastifyRequest): R
       },
       sessionToken: null,
       apiKeyToken: credential,
+      scopes: apiKey.scopes,
     };
   }
   return null;
@@ -672,13 +681,19 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
   app.post("/api-keys", async (request, reply) => {
     const { principal } = requireAccount(ctx, request);
     const parsed = z
-      .object({ name: z.string().trim().min(1).max(120) })
+      .object({ name: z.string().trim().min(1).max(120), scopes: z.unknown().optional() })
       .strict()
       .safeParse(request.body);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "name is required");
     }
-    const { row, token } = ctx.auth.createApiKey(principal.userId, parsed.data.name);
+    // §34.33 AG3: an optional scope list makes the key a scoped object-API
+    // credential; omitting it (or null) keeps the unrestricted M1 default.
+    const scopes = parseApiScopes(parsed.data.scopes);
+    if (scopes === null) {
+      throw new AppError(422, "validation_failed", "scopes must be an array of known scope names");
+    }
+    const { row, token } = ctx.auth.createApiKey(principal.userId, parsed.data.name, scopes);
     reply.code(201);
     // The full token is returned exactly once; only its sha256 is stored.
     return { apiKey: row, token };
