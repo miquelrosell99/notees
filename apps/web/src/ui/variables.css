@@ -452,6 +452,7 @@
   --modal-width-xs: 280px;
   --modal-width-2xl: 1000px;
   --page-cover-height: 100px;
+  --page-cover-height-collapsed: 8px;
   --page-icon-placeholder-size: 40px;
   --panel-width-md: 200px;
   --panel-width-sm: 120px;

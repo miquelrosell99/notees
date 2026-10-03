@@ -1,0 +1,31 @@
+/* PageBanner — the cover strip above the page title (§34.27 L2). The full
+   banner spends the --page-cover-height budget; the collapsed state is a
+   slim strip that re-expands on click. Token-only. */
+
+.nt-page-banner {
+  display: block;
+  width: 100%;
+  height: var(--page-cover-height);
+  padding: 0;
+  margin: 0 0 var(--spacing-3);
+  border: none;
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--color-surface-container-low);
+}
+
+.nt-page-banner__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.nt-page-banner--collapsed {
+  height: var(--page-cover-height-collapsed);
+}
+
+.nt-page-banner:hover {
+  background: var(--color-surface-container-high);
+}
