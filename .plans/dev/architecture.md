@@ -308,7 +308,8 @@ client hook surface; no WS *client* ships in M1.
   `GET /properties/:id/values`; asset upload/download/info with magic-byte sniffing
   (jpeg/png/webp/pdf/epub/audio), size caps (50MB media / 100MB documents), and Range
   requests. Auth/account routes (`src/routes-auth.ts`, same `/api` prefix): setup,
-  login/logout/me, workspaces CRUD + export, API-key management
+  login/logout/me, workspaces CRUD + `GET /workspaces/:id/export.zip` (markdown zip via
+  `@notees/export`: one file per page, manifest, optional assets), API-key management
   (`GET/POST/DELETE /api-keys`), `GET /nodes/:id/location`, `GET /server-info`.
   Workspace selection via `X-Workspace-Id` header, else a deterministic default
   workspace derived from the API key (`identity.ts`).
@@ -372,7 +373,9 @@ block→page/class promotion.
 
 **CLI** (`apps/cli`). Commander-based (`src/cli.ts`, exported `run()` for tests). Commands:
 `object get|create|update|delete|list|search`, `class list`, `backlinks <id>`,
-`asset add|get`, `sync status`, `sync doctor`. Global flags: `--json` (stable machine
+`export markdown --ids … | --linked-to <id> [--depth N|fixpoint] [--output-dir | --stdout]`
+(bundle engine in `src/markdown-export.ts` — children fetched position-aware via
+`GET /objects/:id/children`), `asset add|get`, `sync status`, `sync doctor`. Global flags: `--json` (stable machine
 output), `--server`/`--key` (env `NOTEES_SERVER` / `NOTEES_API_KEY` as fallbacks),
 `--profile`; destructive commands require `--yes` (otherwise a blast-radius preview and
 exit 2 — never an interactive prompt under `--json` or non-tty). Exit codes: 0 ok,
@@ -389,6 +392,7 @@ cursors; writes are atomic (tmp + rename).
 | `packages/store` | Derived store: schema, appliers, edge index, stats, search, adapter interface + both adapters | `src/index.ts`; `src/schema.ts` (DDL + `migrate`), `src/appliers.ts`, `src/edges.ts`, `src/db.ts`, `src/store.ts`, `src/adapters/better-sqlite3.ts`, `src/adapters/sqljs.ts` (export `@notees/store/sqljs`) |
 | `packages/sync` | SyncEngine, outbox, conflicts, watermark persistence, transports | `src/index.ts`; `src/sync-engine.ts`, `src/outbox.ts`, `src/conflicts.ts`, `src/meta.ts`, `src/transport.ts` (`HttpTransport`, `MemoryTransport`, `MemoryRelay`) |
 | `packages/query` | QueryAST model + SQLite compiler over the derived store (live queries) | `src/index.ts` (`ast.ts` zod model, `compiler.ts` `compile(ast)`, `execute.ts` `runQuery`/`countQuery`/`matches`); 7 condition types; deferred set in README |
+| `packages/export` | Export projections over the object graph: `ExportDocument` IR + Markdown serializer (frontmatter, escaping, full-closure outline, whiteboard sidecars), format registry (markdown today; html/pdf/docx/latex skeletons), bundles + manifest v2, BibTeX/CSL | `src/index.ts`; `document.ts` (IR + context hooks `linkTarget`/`assetPath`), `markdown.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
 | `apps/server` | Fastify relay + object/assets API; the one write path | `src/server.ts` (entry), `src/app.ts` (assembly), `src/config.ts`, `src/context.ts` (`ingestBatch`/`submit`), `src/relay-storage.ts`, `src/workspace-store.ts`, `src/routes-relay.ts`, `src/routes-objects.ts`, `src/assets.ts`, `src/seed.ts`, `src/identity.ts`, `src/validate.ts`, `src/rate-limit.ts`, `src/bus.ts` |
 | `apps/cli` | `notees` command surface over the HTTP API | `src/cli.ts` (`run`), `src/client.ts`, `src/state.ts`, `src/exit-codes.ts` |
 | `apps/web` | Browser client: workspace data path + slice-1 UI | `src/core/workspace-client.ts`, `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/shims/` (node built-ins stubbed for the browser bundle) |
