@@ -5,7 +5,10 @@
  * general date references fanning into the day node, everything created
  * that day, quick-create chips (configurable per workspace in Workspace
  * Settings; defaults = every class with a date-typed binding), and the
- * month grid in the right column (MonthCalendar).
+ * month grid in the right column (MonthCalendar) — §34.28 #11 breadth:
+ * range-aware dots (date refs and date_range ends fan out to the
+ * deterministic day node) plus the #15 reviewed tint on day cells, the
+ * week strip, and the week agenda beneath the grid.
  *
  * Data flow follows the JournalsView pattern: synchronous reads off the
  * local store plus client.subscribe re-render; the two structured queries
@@ -20,9 +23,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
-  TASK_CLOSED_STATUSES,
-  TASK_DEFAULT_STATUS,
-  parseDateNodeId,
 } from "@notees/domain";
 
 import type { ClientNode, QueryRunResult } from "@/core/workspace-client.js";
@@ -43,12 +43,16 @@ import {
   closedStatusOptionIds,
   dateChipCandidates,
   dayNodeId,
+  hasDatedRefs,
   isoWeekNumber,
   partitionOpenTasks,
   todayIsoLocal,
+  weekDaysOfIso,
   weekdayLabel,
   type OpenTaskRow,
 } from "./calendarViewUtils.js";
+import { datedRowNodes, setTaskDone, taskRowsOf, taskStatusLabel } from "./calendarRows.js";
+import { dayReviewedOf, ensureDayReviewedProperty } from "./dayReviewedProperty.js";
 import {
   resolveQuickCreateChipClasses,
   useQuickCreateClassesSetting,
@@ -59,6 +63,7 @@ import { EmptyState } from "./ui/EmptyState.js";
 import { Pill } from "./ui/Pill.js";
 import { Tabs } from "./ui/Tabs.js";
 import { MonthCalendar } from "./ui/calendar/MonthCalendar.js";
+import { WeekStrip } from "./ui/calendar/WeekStrip.js";
 import type { AnyClient } from "./Sidebar.js";
 import "./CalendarView.css";
 
@@ -71,19 +76,6 @@ const FILTERS: Array<{ value: DayFilter; label: string }> = [
   { value: "dated", label: "Dated" },
   { value: "created", label: "Created" },
 ];
-
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
-/** The local ISO day a taskScheduled value points at (null unless day-precision). */
-function scheduledIsoOf(value: unknown): string | null {
-  const ref = value as { nodeId?: unknown } | undefined;
-  if (typeof ref?.nodeId !== "string") return null;
-  const parsed = parseDateNodeId(ref.nodeId);
-  if (parsed === null || parsed.precision !== "day") return null;
-  return `${String(parsed.year).padStart(4, "0")}-${pad2(parsed.month)}-${pad2(parsed.day)}`;
-}
 
 /** Read-only class chips (the table view's idiom) on a calendar row. */
 function RowClassChips({ client, classIds }: { client: AnyClient; classIds: string[] }) {
@@ -118,6 +110,12 @@ export function CalendarView({
   // §34.28 #2 — idempotent no-op once the six schemas + bindings exist.
   useEffect(() => {
     void ensureTaskFamily(client);
+  }, [client]);
+
+  // §34.28 #15 — the reviewed day-cell tint reads the boolean property;
+  // idempotent no-op once the schema + day-class binding exist.
+  useEffect(() => {
+    void ensureDayReviewedProperty(client);
   }, [client]);
 
   const dayId = dayNodeId(selectedIso);
@@ -168,74 +166,28 @@ export function CalendarView({
   // --- tasks: client-side partition of the one query -------------------------
   const partitioned = useMemo(() => {
     if (tasksResult === null) return { overdue: [] as OpenTaskRow[], scheduled: [] as OpenTaskRow[] };
-    const rows: OpenTaskRow[] = [];
-    for (const summary of tasksResult.rows) {
-      const node = client.getNode(summary.id);
-      if (node === undefined) continue;
-      const props = client.getEffectiveProperties(node.id);
-      const scheduledIso = scheduledIsoOf(
-        props.find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled)?.value,
-      );
-      const statusValue = props.find(
-        (prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus,
-      )?.value;
-      const statusLabel =
-        typeof statusValue === "string"
-          ? (statusSchema?.options?.find((option) => option.id === statusValue)?.label ?? null)
-          : null;
-      rows.push({
-        id: node.id,
-        scheduledIso,
-        closed: statusLabel !== null && TASK_CLOSED_STATUSES.has(statusLabel as "Done" | "Cancelled"),
-      });
-    }
-    return partitionOpenTasks(rows, selectedIso);
+    return partitionOpenTasks(
+      taskRowsOf(
+        client,
+        statusSchema,
+        tasksResult.rows.map((summary) => summary.id),
+      ),
+      selectedIso,
+    );
   }, [client, tasksResult, selectedIso, statusSchema, version]);
 
   const openCount = partitioned.overdue.length + partitioned.scheduled.length;
 
-  /** The tasks hub's done write, exactly: property.set with the option id. */
-  const setTaskDone = async (row: OpenTaskRow, done: boolean) => {
-    if (statusSchema?.options === null || statusSchema === undefined) return;
-    const targetLabel = done ? ("Done" as const) : TASK_DEFAULT_STATUS;
-    const target = statusSchema.options?.find((option) => option.label === targetLabel);
-    if (target === undefined) return;
-    const prop = client
-      .getEffectiveProperties(row.id)
-      .find((entry) => entry.propertySchemaId === statusSchema.id);
-    await client.setProperty(row.id, statusSchema.id, target.id, prop?.idx ?? 0);
-  };
-
-  const statusLabelOf = (id: string): string | null => {
-    const value = client
-      .getEffectiveProperties(id)
-      .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value;
-    if (typeof value !== "string") return null;
-    return statusSchema?.options?.find((option) => option.id === value)?.label ?? value;
-  };
+  const statusLabelOf = (id: string): string | null =>
+    taskStatusLabel(
+      statusSchema,
+      client
+        .getEffectiveProperties(id)
+        .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value,
+    );
 
   // --- dated: the day node's existing backlink set (§34.28 #4a) --------------
-  const datedRows = useMemo(() => {
-    const seen = new Set<string>();
-    const rows: ClientNode[] = [];
-    for (const edge of client.getBacklinks(dayId)) {
-      if (seen.has(edge.sourceId)) continue;
-      seen.add(edge.sourceId);
-      // Date-chain nodes and the daily note itself carry no section row.
-      if (parseDateNodeId(edge.sourceId) !== null) continue;
-      const node = client.getNode(edge.sourceId);
-      if (node === undefined) continue;
-      if (node.classIds.includes(SYSTEM_CLASS_UUIDS.task)) continue; // own section
-      rows.push(node);
-    }
-    rows.sort(
-      (a, b) =>
-        (displayNameFromClient(client, a.id) ?? a.id).localeCompare(
-          displayNameFromClient(client, b.id) ?? b.id,
-        ) || a.id.localeCompare(b.id),
-    );
-    return rows;
-  }, [client, dayId, version]);
+  const datedRows = useMemo(() => datedRowNodes(client, dayId), [client, dayId, version]);
 
   // --- created today: createdAt range query, newest first --------------------
   const createdRows = useMemo(() => {
@@ -247,6 +199,33 @@ export function CalendarView({
       .filter((node): node is ClientNode => node !== undefined)
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || a.id.localeCompare(b.id));
   }, [client, createdResult, selectedIso, version]);
+
+  // --- day marks + week breadth (§34.28 #11/#15) ------------------------------
+  // Range-aware dots + the reviewed tint read the same materialized state as
+  // the sections: one backlink read per day cell (the edge projection fans
+  // date refs and date_range ends out to the deterministic day node, so an
+  // existing day page is NOT required for a mark).
+  const dayExtraMarks = useMemo(
+    () =>
+      (iso: string): { dated: boolean; reviewed: boolean } => ({
+        dated: hasDatedRefs(client.getBacklinks(dayNodeId(iso))),
+        reviewed: dayReviewedOf(client, dayNodeId(iso)),
+      }),
+    [client, version],
+  );
+
+  // The visible week of the selected day (first-day-of-week aware).
+  const weekDays = useMemo(
+    () => weekDaysOfIso(selectedIso, firstDayOfWeek),
+    [selectedIso, firstDayOfWeek],
+  );
+
+  // The week agenda: each visible day's dated references (non-task — tasks
+  // have their own section), non-empty days only.
+  const weekAgenda = useMemo(
+    () => weekDays.map((iso) => ({ iso, rows: datedRowNodes(client, dayNodeId(iso)) })),
+    [client, weekDays, version],
+  );
 
   // --- quick-create chips (§34.28 #10) ---------------------------------------
   // Defaults follow current eligibility (every class with a date-typed
@@ -335,7 +314,7 @@ export function CalendarView({
         checked={row.closed}
         disabled={statusSchema === undefined}
         aria-label={row.closed ? "Reopen task" : "Mark task done"}
-        onChange={(event) => void setTaskDone(row, event.target.checked)}
+        onChange={(event) => void setTaskDone(client, statusSchema, row.id, event.target.checked)}
       />
       <button
         type="button"
@@ -524,7 +503,56 @@ export function CalendarView({
           onSelectDate={setSelectedIso}
           firstDayOfWeek={firstDayOfWeek}
           hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+          extraMarks={dayExtraMarks}
         />
+        <WeekStrip
+          days={weekDays}
+          selectedDate={selectedIso}
+          hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
+          extraMarks={dayExtraMarks}
+          onSelectDay={setSelectedIso}
+        />
+        <div className="calendar-view__agenda" aria-label="Week agenda">
+          <h2 className="calendar-view__agenda-title">This week</h2>
+          {weekAgenda.every((day) => day.rows.length === 0) ? (
+            <p className="calendar-view__muted">Nothing dated this week.</p>
+          ) : (
+            weekAgenda
+              .filter((day) => day.rows.length > 0)
+              .map(({ iso, rows }) => {
+                const [y, m, d] = iso.split("-").map(Number);
+                return (
+                  <div key={iso} className="calendar-view__agenda-day">
+                    <button
+                      type="button"
+                      className="calendar-view__agenda-day-title"
+                      onClick={() => setSelectedIso(iso)}
+                    >
+                      {new Date(y!, m! - 1, d!, 12).toLocaleDateString(undefined, {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </button>
+                    <ul className="calendar-view__rows">
+                      {rows.map((node) => (
+                        <li key={node.id} className="calendar-view__row">
+                          <button
+                            type="button"
+                            className="calendar-view__row-name"
+                            onClick={() => onOpenPage(node.id)}
+                          >
+                            {displayNameFromClient(client, node.id) ?? node.id}
+                          </button>
+                          <RowClassChips client={client} classIds={node.classIds} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })
+          )}
+        </div>
       </aside>
 
       {pendingCreate !== null && (

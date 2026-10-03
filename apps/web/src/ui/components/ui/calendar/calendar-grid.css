@@ -76,3 +76,35 @@
 .calendar-day.btn.selected:hover {
   box-shadow: var(--shadow-focus-ring-primary);
 }
+
+/* §34.28 #11 range-aware dot: objects (date refs, date_range ends) point at
+   this day but no day page exists — a small primary dot under the number,
+   composing with the has-note fill and the today fill. */
+.calendar-day.btn.dated::after {
+  content: "";
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+}
+
+.calendar-day.btn.today.dated::after {
+  background: var(--color-on-primary);
+}
+
+/* §34.28 #15 reviewed tint: a tertiary dot at the top-right corner, on top
+   of every other treatment. */
+.calendar-day.btn.reviewed::before {
+  content: "";
+  position: absolute;
+  top: 8%;
+  right: 12%;
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--color-tertiary);
+}
