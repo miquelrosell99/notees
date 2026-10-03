@@ -20,7 +20,7 @@ M1 alpha honesty, up front — every feature below is labeled:
 | Citations: source family, BibTeX/CSL round-trip | **Today** (`notees import/export bibtex`; text authors + explicit `linkedAuthors` person links) |
 | Sources as containers (files via `attachments`, notes as child blocks) | **Today** (picker + upload in the properties panel) |
 | Class-property defaults (derived read model, first-applied-wins) | **Today** (bindings editor + effective-properties API) |
-| Export (pages, nodes, workspaces) | **Today** (Markdown engine with options + live preview; single `.md`, asset zips, batch zips, full-workspace zip with manifest; PDF/Word/HTML/LaTeX listed as coming) |
+| Export (pages, nodes, workspaces) | **Today** (Markdown/HTML/Word/LaTeX serializers + in-browser PDF with three layouts and A4/Letter; per-format options, live preview for Markdown+PDF, single files and batch/asset zips, full-workspace zip with manifest) |
 
 ## Views follow the render state
 
@@ -123,8 +123,8 @@ The canonical story: a `meeting`-classed bullet in a daily note sits quietly for
 Export is a projection of the graph into files — one-way by design (the log is the truth), engineered to preserve as much as possible.
 
 - **The node is the export root.** A page (or a block, or several selected nodes) exports as Markdown with YAML frontmatter: the title derived from its content, its classes and properties (per-value qualifiers preserved). Its block tree becomes nested bullets in child order; child pages become their own files. Nothing is lost silently: cycles and depth cuts render as visible `[[uuid]]` references, rich text is Markdown-escaped, whiteboard layouts ride along as sidecar JSON inside zips.
-- **The dialog is honest about the future.** Format cards show Markdown as the available format; PDF, Word, HTML, and LaTeX appear disabled with a reason, not as dead ends. Options are checkboxes with sane defaults (hide empty properties, include the outline); a live preview shows exactly what will download.
-- **Zips keep the graph contained.** Multi-file exports rewrite cross-page references to relative links (`[title](<file>.md)`) and name files `<title-slug>-<id8>.md` — human-readable, still identity-anchored. An optional assets folder carries the bytes behind `asset` references as `assets/<name>-<hash8>.<ext>`. A manifest maps every file back to its node id.
+- **The dialog is honest about scope.** Every format delivers real bytes: Markdown, HTML, Word, LaTeX, and PDF (three layouts — Notes, Essay, Academic — on A4/Letter, rendered in the browser with a bundled open-license font; the heavy renderer loads only when you first ask for it). Markdown and PDF preview live as you toggle options; the others state plainly that preview is a Markdown/PDF affair.
+- **Zips keep the graph contained.** Multi-file exports rewrite cross-page references to relative links (`[title](<file>.md)`) and name files `<title-slug>-<id8>.md` — human-readable, still identity-anchored (the id8 is a hash of the node id). An optional assets folder carries the bytes behind `asset` references as `assets/<name>-<hash8>.<ext>`. A manifest maps every file back to its node id.
 - **The workspace exports whole.** One zip: every top-level and child page as its own file, the same conventions, plus everything assets. The same projection is available headless — CLI `notees export markdown`, the shell's `exportMd`, and `GET /api/workspaces/:id/export.zip`.
 
 ---
