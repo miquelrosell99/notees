@@ -222,14 +222,30 @@ export class WorkerClient {
     return this.cachedRead("effectiveClassColor", [classId], null);
   }
 
-  effectiveClassIcon(classId: string): string | null {
-    return this.cachedRead("effectiveClassIcon", [classId], null);
+  effectiveClassIcon(classId: string): string {
+    // Never null — the class default is the chain's tail; "" seeds the cache
+    // until the worker refresh lands (Icon renders nothing for empty).
+    return this.cachedRead<string>("effectiveClassIcon", [classId], "");
   }
 
-  effectiveNodeIcon(node: { icon: string | null; classIds: string[] }): string | null {
+  effectiveNodeIcon(node: {
+    icon: string | null;
+    classIds: string[];
+    isClass: boolean;
+    presentAsMain: boolean;
+    parentId: string | null;
+  }): string | null {
     return this.cachedRead(
       "effectiveNodeIcon",
-      [{ icon: node.icon, classIds: node.classIds }],
+      [
+        {
+          icon: node.icon,
+          classIds: node.classIds,
+          isClass: node.isClass,
+          presentAsMain: node.presentAsMain,
+          parentId: node.parentId,
+        },
+      ],
       null,
     );
   }

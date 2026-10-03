@@ -9,14 +9,16 @@
  *   custom trigger.
  *
  * All modes render the shared NodeResultItem rows; keyboard navigation,
- * date suggestions, and create-from-query are built in. Data wiring goes
- * through the workspace client (search/list/create/class-assign).
+ * date suggestions, and create-from-query are built in. With `scopeTabs`
+ * the picker adds Main/Blocks tabs scoping the results to document-chrome
+ * nodes vs inline child blocks. Data wiring goes through the workspace
+ * client (search/list/create/class-assign).
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { chainNodeIds, rendersWithDocumentChrome } from "@notees/domain";
+import { chainNodeIds, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { ClientNode, CreateObjectInput } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
@@ -26,6 +28,7 @@ import { NodePill } from "./NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
+import { Tabs } from "../ui/Tabs.js";
 import "./NodeSelector.css";
 
 /**
@@ -79,6 +82,14 @@ interface NodeSelectorProps {
   searchMode?: NodeSearchMode;
   /** Class ids to filter search results by (nodes must carry one of them). */
   classFilters?: string[] | undefined;
+  /**
+   * Render Main/Blocks scope tabs above the search input, scoping the
+   * results to document-chrome nodes (top-level + present-as-main children,
+   * plus classes) or to inline child blocks respectively. Default tab is
+   * Main. Editor mention pickers use this; pickers with a fixed narrow
+   * scope (pages/classes modes, or callers filtering via canAdd) don't.
+   */
+  scopeTabs?: boolean;
   /** Trigger style: 'pill-row' (default) or 'inline' (always expanded). */
   trigger?: TriggerMode;
   /** Placeholder text for empty state */
@@ -145,6 +156,7 @@ export function NodeSelector({
   client,
   searchMode = "pages",
   classFilters,
+  scopeTabs = false,
   trigger = "pill-row",
   placeholder = "Select node...",
   emptyText = "Add",
@@ -173,6 +185,8 @@ export function NodeSelector({
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
+  /** Active scope-tab filter (only rendered when scopeTabs is set). */
+  const [scope, setScope] = useState<"main" | "blocks">("main");
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -303,8 +317,11 @@ export function NodeSelector({
     return parseDate(searchQuery.trim());
   }, [searchQuery, searchMode]);
 
-  const dateSuggestion = useMemo(() => {
-    if (!parsedDate) return undefined;
+  // The chain ids are pure (derived from the iso date); existence is read
+  // live each render so the suggestion label tracks graph changes under an
+  // open picker (the chain can appear while the popup is up).
+  const dateTarget = useMemo(() => {
+    if (!parsedDate) return null;
     const iso =
       parsedDate.type === "day" && parsedDate.month !== undefined && parsedDate.day !== undefined
         ? toIso(parsedDate.year, parsedDate.month, parsedDate.day)
@@ -312,32 +329,50 @@ export function NodeSelector({
           ? toIso(parsedDate.year, parsedDate.month, 1)
           : toIso(parsedDate.year, 1, 1);
     const ids = chainNodeIds(iso);
-    const refId =
-      parsedDate.type === "year" ? ids.year : parsedDate.type === "month" ? ids.month : ids.day;
-    const existing = client.getNodeRaw(refId) !== undefined;
+    return {
+      iso,
+      refId:
+        parsedDate.type === "year" ? ids.year : parsedDate.type === "month" ? ids.month : ids.day,
+    };
+  }, [parsedDate]);
+  const dateTargetExists =
+    dateTarget !== null && client.getNodeRaw(dateTarget.refId) !== undefined;
+
+  const dateSuggestion = useMemo(() => {
+    if (!parsedDate || dateTarget === null) return undefined;
     const dateTypeLabel =
       parsedDate.type === "day" ? "daily" : parsedDate.type === "month" ? "monthly" : "yearly";
-    const label = existing
-      ? `Go to ${dateTypeLabel} page: ${parsedDate.label}`
+    const label = dateTargetExists
+      ? `Link to ${dateTypeLabel} page: ${parsedDate.label}`
       : `Create ${dateTypeLabel} page: ${parsedDate.label}`;
     return {
-      key: `${iso}:${refId}`,
+      key: `${dateTarget.iso}:${dateTarget.refId}`,
       label,
       onSelect: () => {
         void (async () => {
-          await client.ensureDateChain(iso);
-          const node = client.getNode(refId);
+          await client.ensureDateChain(dateTarget.iso);
+          const node = client.getNode(dateTarget.refId);
           if (node) handleAdd(node);
         })();
       },
     };
-  }, [parsedDate, client]); // eslint-disable-line react-hooks/exhaustive-deps -- handleAdd reads stable state setters only.
+  }, [parsedDate, dateTarget, dateTargetExists, client]); // eslint-disable-line react-hooks/exhaustive-deps -- handleAdd reads stable state setters only.
+
+  // Scope-tab filter: Main keeps classes plus every document-chrome node
+  // (top-level or present-as-main children); Blocks keeps only parented
+  // non-class children with the render bit unset. The two are exhaustive
+  // over non-class nodes, and classes live in Main.
+  const matchesScopeTab = (node: ClientNode): boolean => {
+    if (!scopeTabs || searchMode === "classes") return true;
+    return scope === "main"
+      ? node.isClass || rendersWithDocumentChrome(node)
+      : rendersAsInlineBlock(node);
+  };
 
   // Search results through the client. Classes are matched by name over the
-  // class list: the FTS index covers object.create/object.update rows only
-  // (class.create/class.update appliers do not reindex), so client.search
-  // cannot see classes — and name filtering is the better picker behavior
-  // for short queries anyway.
+  // class list (name filtering is the better picker behavior for short
+  // queries); object/block hits go through the FTS index — the class appliers
+  // reindex too, so "all"-mode search surfaces classes as well.
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (searchMode === "classes") {
@@ -351,6 +386,7 @@ export function NodeSelector({
     const hits = q === "" ? [] : client.search(searchQuery.trim());
     const filtered = hits.filter((node) => {
       if (searchMode === "pages" && !rendersWithDocumentChrome(node)) return false;
+      if (!matchesScopeTab(node)) return false;
       if (classFilters !== undefined && classFilters.length > 0) {
         if (!node.classIds.some((id) => classFilters.includes(id))) return false;
       }
@@ -368,10 +404,12 @@ export function NodeSelector({
           if (seen.has(node.id)) return false;
           seen.add(node.id);
           return true;
-        });
+        })
+        .filter(matchesScopeTab);
     }
     return [];
-  }, [client, searchQuery, searchMode, classFilters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesScopeTab derives from scope/scopeTabs/searchMode.
+  }, [client, searchQuery, searchMode, classFilters, scopeTabs, scope]);
 
   const filteredResults = useMemo(
     () =>
@@ -431,12 +469,16 @@ export function NodeSelector({
     };
   }, [isPickerOpen, isAnchored, anchorEl, onClose]);
 
-  // Focus search input when picker opens.
+  // Focus the search input once the open picker is positioned. The popup
+  // renders visibility:hidden until measured, and browsers refuse focus
+  // inside a hidden subtree — keying on `position` (set by the positioning
+  // layout effect) guarantees the panel is visible before focus() runs, so
+  // typing reaches the popup instead of staying in the edited block.
   useEffect(() => {
-    if (isPickerOpen && searchInputRef.current) {
+    if (isPickerOpen && position !== null && searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [isPickerOpen]);
+  }, [isPickerOpen, position]);
 
   const handleClosePicker = () => {
     if (isAnchored) {
@@ -523,6 +565,13 @@ export function NodeSelector({
     setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
   };
 
+  /** Switch the Main/Blocks scope: re-page results and keep typing in the search box. */
+  const handleScopeChange = (next: "main" | "blocks") => {
+    setScope(next);
+    setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
+    searchInputRef.current?.focus();
+  };
+
   const renderResults = (emptyClassName: string, createIconSize: number) => (
     <>
       {dateSuggestion && (
@@ -581,10 +630,37 @@ export function NodeSelector({
     </>
   );
 
-  // ── inline mode: always-expanded search + results ─────────────────────
-  if (trigger === "inline") {
-    return (
-      <div id={id} className={`node-selector node-selector--inline ${className}`} data-editor-companion>
+  /**
+   * Search input + results. With scopeTabs the body wraps in a Tabs root:
+   * the tablist scopes the results (the shared search input sits between
+   * list and panel), and the active tab's panel hosts the results list so
+   * tab aria-controls resolves to the region it actually controls.
+   */
+  const renderBody = (createIconSize: number) =>
+    scopeTabs && searchMode !== "classes" ? (
+      <Tabs value={scope} onChange={handleScopeChange} className="node-selector__scope-tabs">
+        <Tabs.List variant="ghost" className="node-selector__scope-tablist">
+          <Tabs.Tab value="main">Main</Tabs.Tab>
+          <Tabs.Tab value="blocks">Blocks</Tabs.Tab>
+        </Tabs.List>
+        <input
+          ref={searchInputRef}
+          type="text"
+          className="node-selector__search"
+          placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <Tabs.Panel value={scope}>
+          <div className="node-selector__options" ref={listRef}>
+            {renderResults("node-selector__no-results", createIconSize)}
+          </div>
+        </Tabs.Panel>
+      </Tabs>
+    ) : (
+      <>
         <input
           ref={searchInputRef}
           type="text"
@@ -596,8 +672,16 @@ export function NodeSelector({
           onKeyDown={handleKeyDown}
         />
         <div className="node-selector__options" ref={listRef}>
-          {renderResults("node-selector__no-results", 0.7)}
+          {renderResults("node-selector__no-results", createIconSize)}
         </div>
+      </>
+    );
+
+  // ── inline mode: always-expanded search + results ─────────────────────
+  if (trigger === "inline") {
+    return (
+      <div id={id} className={`node-selector node-selector--inline ${className}`} data-editor-companion>
+        {renderBody(0.7)}
       </div>
     );
   }
@@ -619,19 +703,7 @@ export function NodeSelector({
                 : { visibility: "hidden" }
             }
           >
-            <input
-              ref={searchInputRef}
-              type="text"
-              className="node-selector__search"
-              placeholder={searchPlaceholder}
-              aria-label={searchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-            <div className="node-selector__options" ref={listRef}>
-              {renderResults("node-selector__no-results", 0.55)}
-            </div>
+            {renderBody(0.55)}
           </div>,
           document.body,
         )}
@@ -687,19 +759,7 @@ export function NodeSelector({
                   : { visibility: "hidden" }
               }
             >
-              <input
-                ref={searchInputRef}
-                type="text"
-                className="node-selector__search"
-                placeholder={searchPlaceholder}
-                aria-label={searchPlaceholder}
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              <div className="node-selector__options" ref={listRef}>
-                {renderResults("node-selector__no-results", 0.55)}
-              </div>
+              {renderBody(0.55)}
             </div>
           )}
         </div>

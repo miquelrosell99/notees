@@ -25,13 +25,14 @@
  * instance's own classes; SCHEMA.md D2).
  *
  * The engine is generic on purpose: cloneSubtree powers a real duplicate
- * gesture later (§34.25 T4), instantiateTemplate powers create-with-template
- * (T2) and the T3 surfaces.
+ * gesture later (§34.25 T4) and never writes provenance; instantiateTemplate
+ * powers create-with-template (T2) and the T3 surfaces and records the D1-
+ * amendment generatedFrom reference on the produced root.
  */
 
 import { uuidv7 } from "uuidv7";
 
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import type {
@@ -111,8 +112,8 @@ export interface SubtreeCloneOptions {
   rootId: string;
   /** Parent of the cloned root; omitted/null = workspace root. */
   parentId?: string | null;
-  afterId?: string;
-  beforeId?: string;
+  afterId?: string | undefined;
+  beforeId?: string | undefined;
   /**
    * Class ids dropped from every cloned node (template instantiation passes
    * the `template` marker class — the strip rule; a plain duplicate passes
@@ -133,6 +134,13 @@ export interface TemplateGraftOptions {
   /** Defaults to the `template` marker class. */
   stripClassIds?: readonly string[];
   newId?: () => string;
+  /**
+   * D1-amendment provenance (default true): record `generatedFrom` →
+   * templateRootId on the produced root. Every instantiation path keeps the
+   * default (create-with-template, gallery Use, slash, T4 apply-to-existing);
+   * pass false only when a graft must stay provenance-free.
+   */
+  provenance?: boolean;
 }
 
 const DEFAULT_STRIP: readonly string[] = [];
@@ -380,7 +388,10 @@ export async function cloneSubtree(io: CloneIO, opts: SubtreeCloneOptions): Prom
 /**
  * Instantiate a template onto a freshly created object (create-with-template,
  * SCHEMA.md "Templates"): grafts the root's content/classes/properties and
- * clones the root's children beneath the object in order.
+ * clones the root's children beneath the object in order. Instantiation
+ * provenance (D1 amendment): unless `provenance: false`, the produced root
+ * records `generatedFrom` → the template — the generic cloneSubtree duplicate
+ * path never writes it.
  */
 export async function instantiateTemplate(
   io: CloneIO,
@@ -388,4 +399,27 @@ export async function instantiateTemplate(
 ): Promise<void> {
   const composition = composeTemplateGraft(io.reads, opts);
   await submitCloneOps(io.writes, composition.ops);
+  if (opts.provenance !== false) {
+    await writeGeneratedFrom(io.writes, opts.objectId, opts.templateRootId);
+  }
+}
+
+/**
+ * The D1-amendment provenance write: the generated node records its template
+ * instance-side (single node-typed value; the template's instance list is a
+ * derived backlink read — never a list write on the template). Used by the
+ * instantiation wrapper and by the slash path, which clones via cloneSubtree
+ * and writes provenance at the call site.
+ */
+export async function writeGeneratedFrom(
+  writes: Pick<CloneWriteSurface, "setProperty">,
+  objectId: string,
+  templateRootId: string,
+): Promise<void> {
+  await writes.setProperty(
+    objectId,
+    SYSTEM_PROPERTY_UUIDS.generatedFrom,
+    { nodeId: templateRootId },
+    0,
+  );
 }

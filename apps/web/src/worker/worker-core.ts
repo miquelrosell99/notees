@@ -460,7 +460,15 @@ export class WorkerCore {
       case "effectiveClassIcon":
         return this.client.effectiveClassIcon(args[0] as string);
       case "effectiveNodeIcon":
-        return this.client.effectiveNodeIcon(args[0] as { icon: string | null; classIds: string[] });
+        return this.client.effectiveNodeIcon(
+          args[0] as {
+            icon: string | null;
+            classIds: string[];
+            isClass: boolean;
+            presentAsMain: boolean;
+            parentId: string | null;
+          },
+        );
       case "effectiveNodeColor":
         return this.client.effectiveNodeColor(args[0] as { color: string | null; classIds: string[] });
       case "getPage":

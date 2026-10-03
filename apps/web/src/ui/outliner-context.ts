@@ -60,6 +60,18 @@ export interface OutlinerClient {
   /** OR-set tag membership remove — the tag pill's × gesture. */
   unassignTag(id: string, tagId: string): Promise<void>;
   /**
+   * Author a property value (property.set) — the slash template flow's
+   * provenance write (generatedFrom on the instantiated block) plus future
+   * capture gestures that carry values.
+   */
+  setProperty(
+    objectId: string,
+    propertySchemaId: string,
+    value: unknown,
+    idx?: number,
+    metadata?: Record<string, unknown>,
+  ): Promise<void>;
+  /**
    * Replace a class's full extends parent set (`class.setExtends`, m2m
    * replace semantics). The store fails loud on cycles (CycleError) — the
    * Class View surfaces that as a transient message.
@@ -144,6 +156,14 @@ export interface OutlinerContextValue {
     listClasses(): ClientNode[];
     displayName(id: string): string | null;
   };
+  /**
+   * §34.25 T3: the template family's idempotent self-heal (template class
+   * node + has-template/generated-from schemas), invoked by the slash
+   * template flow before instantiation. The full client lives at the view
+   * level (PageView), which provides the seam; shells without it skip the
+   * heal (the provenance write itself is schema-independent).
+   */
+  ensureTemplateFamily?: (() => Promise<void>) | undefined;
 }
 
 /**
@@ -157,7 +177,11 @@ export interface OutlinerContextValue {
 export function useOutlinerValue(
   client: OutlinerClient & OutlinerReader,
   rootId: string,
-  options?: { openNode?: (nodeId: string) => void; openInSidebar?: (nodeId: string) => void },
+  options?: {
+    openNode?: (nodeId: string) => void;
+    openInSidebar?: (nodeId: string) => void;
+    ensureTemplateFamily?: () => Promise<void>;
+  },
 ): OutlinerContextValue {
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
@@ -211,6 +235,7 @@ export function useOutlinerValue(
       listClasses: () => client.listClasses(),
       displayName: (id) => displayNameFromClient(client, id),
     },
+    ensureTemplateFamily: options?.ensureTemplateFamily,
   };
 }
 

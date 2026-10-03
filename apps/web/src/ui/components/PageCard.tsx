@@ -8,6 +8,7 @@
  */
 
 import type { ReactNode } from "react";
+import { cssColorFor } from "./ui/colorPresets.js";
 import "./PageCard.css";
 
 /** The ONE floating content card; `accent` paints the node-color left border. */
@@ -18,7 +19,7 @@ export function PageCard({ children, accent }: { children: ReactNode; accent?: s
         className={accent !== null && accent !== undefined ? "nt-page-card has-node-border" : "nt-page-card"}
         style={
           accent !== null && accent !== undefined
-            ? { borderLeft: "3px solid", borderLeftColor: accent }
+            ? { borderLeft: "3px solid", borderLeftColor: cssColorFor(accent) }
             : undefined
         }
       >
