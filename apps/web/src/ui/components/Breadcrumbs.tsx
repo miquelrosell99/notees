@@ -7,9 +7,16 @@
  * Data wiring is v2: the chain walks node.parentId via client.getNode
  * until the workspace root (no ancestors → nothing renders). The parent
  * re-renders on client notifications, so renames refresh the chain.
+ *
+ * Edit gestures (§34.27 L4, v1 parity §34.19 :1134, opt-in via `editable`):
+ * hovering a crumb reveals a chevron and right-click opens the same menu —
+ * Open / Reassign parent… (node picker) / Remove parent (detach to the
+ * workspace root; a root crumb offers Add parent… instead) — acting on the
+ * CRUMB's node, plus a trailing "+ Add parent" pill when the leaf itself is
+ * parentless. Single-parent tree: every gesture is one object.move.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -17,6 +24,8 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { Icon } from "../Icon.js";
+import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
+import { NodeSelector } from "./pickers/NodeSelector.js";
 import "./Breadcrumbs.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -72,6 +81,8 @@ export function Breadcrumbs({
   /** Append the current node itself as a highlighted trailing crumb. */
   showCurrent = false,
   anchor = "left",
+  /** Parent-edit gestures (the v1 row): crumb chevron/right-click menus + Add parent. */
+  editable = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -92,11 +103,22 @@ export function Breadcrumbs({
    * capped (see clipCrumbName).
    */
   anchor?: "left" | "right" | undefined;
+  editable?: boolean | undefined;
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
   const [leadPopupOpen, setLeadPopupOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const [leadClipped, setLeadClipped] = useState(false);
+  /** Edit menu: which node's parentage is being edited + where it opens. */
+  const [editMenu, setEditMenu] = useState<{
+    node: ClientNode;
+    position: { x: number; y: number };
+  } | null>(null);
+  /** Parent picker target (the node whose parent is being reassigned/added). */
+  const [parentPicker, setParentPicker] = useState<{
+    nodeId: string;
+    position: { x: number; y: number };
+  } | null>(null);
 
   const currentNode = showCurrent ? client.getNode(nodeId) : undefined;
   let items = ancestryOf(client, nodeId);
@@ -142,12 +164,57 @@ export function Breadcrumbs({
     : (startItems[startItems.length - 1]?.node.id ?? null);
   const withSeparator = (id: string, base: boolean) => base || (showCurrentCrumb && id === lastKey);
 
+  /** Open the crumb's edit menu (right-click, or the hover chevron). */
+  const openEditMenu = (event: MouseEvent, node: ClientNode) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setEditMenu({ node, position: { x: event.clientX, y: event.clientY } });
+  };
+
+  /** The parentage menu for one crumb node (also used for the current crumb). */
+  const editMenuItems = (node: ClientNode, position: { x: number; y: number }): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = [
+      {
+        id: "open",
+        label: "Open",
+        icon: "mdi-arrow-top-right",
+        onClick: () => onOpenNode?.(node.id),
+      },
+    ];
+    if (node.parentId !== null) {
+      items.push(
+        {
+          id: "reassign",
+          label: "Reassign parent…",
+          icon: "mdi-file-move-outline",
+          onClick: () => setParentPicker({ nodeId: node.id, position }),
+        },
+        {
+          id: "remove",
+          label: "Remove parent",
+          icon: "mdi-link-variant-off",
+          danger: true,
+          onClick: () => void client.moveObject(node.id, null).catch(() => undefined),
+        },
+      );
+    } else {
+      items.push({
+        id: "add",
+        label: "Add parent…",
+        icon: "mdi-plus",
+        onClick: () => setParentPicker({ nodeId: node.id, position }),
+      });
+    }
+    return items;
+  };
+
   const crumb = (item: Crumb, key: string, showSeparator: boolean) => (
     <span key={key} className="node-breadcrumb-item">
       <button
         type="button"
         className="node-breadcrumb-link"
         onClick={() => onOpenNode?.(item.node.id)}
+        onContextMenu={editable ? (event) => openEditMenu(event, item.node) : undefined}
       >
         {client.effectiveNodeIcon(item.node) !== null && (
           <Icon
@@ -158,6 +225,17 @@ export function Breadcrumbs({
         )}
         <span className="node-breadcrumb-name">{item.name}</span>
       </button>
+      {editable && (
+        <button
+          type="button"
+          className="node-breadcrumb-edit"
+          aria-label={`Edit parent of ${item.name}`}
+          title="Edit parent"
+          onClick={(event) => openEditMenu(event, item.node)}
+        >
+          <Icon path="mdi-menu-down" size={0.7} />
+        </button>
+      )}
       {showSeparator && (
         <Icon path="mdi-chevron-right" size={0.7} className="node-breadcrumb-separator" />
       )}
@@ -289,6 +367,7 @@ export function Breadcrumbs({
             className="node-breadcrumb-link"
             aria-current="page"
             onClick={() => onOpenNode?.(currentNode.id)}
+            onContextMenu={editable ? (event) => openEditMenu(event, currentNode) : undefined}
           >
             {client.effectiveNodeIcon(currentNode) !== null && (
               <Icon
@@ -299,7 +378,61 @@ export function Breadcrumbs({
             )}
             <span className="node-breadcrumb-name">{crumbNameOf(currentNode)}</span>
           </button>
+          {editable && (
+            <button
+              type="button"
+              className="node-breadcrumb-edit"
+              aria-label={`Edit parent of ${crumbNameOf(currentNode)}`}
+              title="Edit parent"
+              onClick={(event) => openEditMenu(event, currentNode)}
+            >
+              <Icon path="mdi-menu-down" size={0.7} />
+            </button>
+          )}
         </span>
+      )}
+
+      {editable && currentNode !== undefined && currentNode.parentId === null && (
+        <button
+          type="button"
+          className="node-breadcrumb-add"
+          onClick={(event) =>
+            setParentPicker({
+              nodeId: currentNode.id,
+              position: { x: event.clientX, y: event.clientY },
+            })
+          }
+        >
+          + Add parent
+        </button>
+      )}
+
+      {editable && editMenu !== null && (
+        <ContextMenu
+          items={editMenuItems(editMenu.node, editMenu.position)}
+          position={editMenu.position}
+          onClose={() => setEditMenu(null)}
+        />
+      )}
+      {editable && parentPicker !== null && (
+        <NodeSelector
+          client={client}
+          anchorRect={{
+            top: parentPicker.position.y,
+            left: parentPicker.position.x,
+          }}
+          searchMode="pages"
+          excludeNodeId={parentPicker.nodeId}
+          searchPlaceholder="Search pages…"
+          onClose={() => setParentPicker(null)}
+          onAdd={(node) => {
+            const target = parentPicker.nodeId;
+            setParentPicker(null);
+            if (node.id !== target) {
+              void client.moveObject(target, node.id).catch(() => undefined);
+            }
+          }}
+        />
       )}
     </nav>
   );

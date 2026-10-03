@@ -1,8 +1,15 @@
 /**
  * SystemSections — the card-bottom system sections: Linked references,
  * Child pages and Unlinked references, each in the shared NodeViewSection
- * starts expanded; the other two start collapsed. The lazy-loading contract
- * lives in Section (../Section.js): a collapsed section executes no query.
+ * chrome. Linked references start expanded; the other two start collapsed.
+ * The lazy-loading contract lives in Section (../Section.js): a collapsed
+ * section executes no query.
+ *
+ * Unlinked references carry the v1 action pair (§34.27 L4, §34.19 :1137):
+ * Promote rewrites the source block's literal name match into a mention
+ * (./unlinkedRefs.ts — after the write the source moves to Linked, the
+ * honest place for it); Ignore dismisses the source device-locally, per
+ * page — device state, never an op (./viewPrefs.js).
  *
  * Extracted from PageView.tsx.
  */
@@ -16,6 +23,10 @@ import { Icon } from "../Icon.js";
 import { Breadcrumbs } from "./Breadcrumbs.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { Section } from "../Section.js";
+import { displayNameForSettings } from "../dateDisplay.js";
+import { untitledLabelOf } from "../renderStateLabel.js";
+import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js";
+import { promoteMentionInAst } from "./unlinkedRefs.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
 import type { NodeCollectionItem } from "../views/index.js";
 import "./SystemSections.css";
@@ -45,16 +56,35 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
  * page); each row renders the referencing block's content (the block/editor
  * view), and clicking it opens the source — the block itself in focused view
  * when the edge is direct, otherwise the containing page.
+ *
+ * `unlinkedPageId` enables the promote/ignore action pair on every row (the
+ * unlinked section only): Promote converts the literal match into a mention;
+ * Ignore dismisses the source for this page, device-locally.
+ *
+ * Exported for the block-level backlink gutter (SCHEMA.md:117 — the expanded
+ * linked-references section beneath a block row reuses this rendering).
  */
-function ReferenceList({
+export function ReferenceList({
   entries,
   client,
   onOpenPage,
+  unlinkedPageId,
 }: {
   entries: ReferenceEntry[];
   client: AnyClient;
   onOpenPage?: ((nodeId: string) => void) | undefined;
+  unlinkedPageId?: string | undefined;
 }) {
+  const promote = useCallback(
+    (source: ClientNode) => {
+      if (unlinkedPageId === undefined) return;
+      const name = client.getDisplayName(unlinkedPageId);
+      if (name === null) return;
+      const next = promoteMentionInAst(source.contentAst, name, unlinkedPageId);
+      if (next !== null) void client.updateObject(source.id, { contentAst: next });
+    },
+    [client, unlinkedPageId],
+  );
   const items: NodeCollectionItem[] = entries.map((entry) => ({
     node: entry.source,
     meta: { containingPageId: entry.containingPageId },
@@ -79,11 +109,38 @@ function ReferenceList({
               excludeIds={containingPageId !== undefined ? [containingPageId] : undefined}
             />
             <ReferenceSubtree client={client} rootId={item.node.id} onOpenNode={onOpenPage} />
+            {unlinkedPageId !== undefined && (
+              <span className="nt-ref-actions">
+                <button
+                  type="button"
+                  className="nt-ref-action"
+                  aria-label={`Promote ${displayNameOf(item.node)} to a link`}
+                  title="Promote to link"
+                  onClick={() => promote(item.node)}
+                >
+                  <Icon path="mdi-link-plus" size={0.8} />
+                </button>
+                <button
+                  type="button"
+                  className="nt-ref-action"
+                  aria-label={`Ignore ${displayNameOf(item.node)}`}
+                  title="Ignore (this device)"
+                  onClick={() => writeIgnoredUnlinkedRef(unlinkedPageId, item.node.id, true)}
+                >
+                  <Icon path="mdi-eye-off-outline" size={0.8} />
+                </button>
+              </span>
+            )}
           </>
         );
       }}
     />
   );
+}
+
+/** Crumb-safe row label for the action aria labels. */
+function displayNameOf(node: ClientNode): string {
+  return displayNameForSettings(node) || untitledLabelOf(node);
 }
 
 export function SystemSections({
@@ -96,7 +153,13 @@ export function SystemSections({
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
-  const loadUnlinkedRefs = useCallback(() => client.getUnlinkedReferences(pageId), [client, pageId]);
+  const ignored = useIgnoredUnlinkedRefs(pageId);
+  const loadUnlinkedRefs = useCallback(() => {
+    const dismissed = new Set(ignored);
+    return client
+      .getUnlinkedReferences(pageId)
+      .filter((entry) => !dismissed.has(entry.source.id));
+  }, [client, pageId, ignored]);
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
 
   // Empty sections hide entirely (owner rule): linked refs read the
@@ -156,7 +219,14 @@ export function SystemSections({
           icon={<Icon path="mdi-link-off" size={0.9} />}
           load={loadUnlinkedRefs}
           emptyText="No unlinked references."
-          renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
+          renderResults={(entries) => (
+            <ReferenceList
+              entries={entries}
+              client={client}
+              onOpenPage={onOpenPage}
+              unlinkedPageId={pageId}
+            />
+          )}
         />
       )}
     </div>

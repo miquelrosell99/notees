@@ -1,0 +1,119 @@
+/* Right-sidebar context sections (§34.27 L3): the TOC + references rail
+   blocks above the peek-card stack. Compact 340px-rail chrome, token-only. */
+
+.nt-rail-toc {
+  padding: var(--spacing-3);
+  background: var(--color-surface-container-low);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-card, 14px);
+}
+
+.nt-rail-toc__title {
+  font: var(--font-label-medium);
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+  margin-bottom: var(--spacing-2);
+}
+
+.nt-rail-toc__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-rail-toc__entry {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  color: var(--color-on-surface);
+  font: var(--font-body-medium);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.nt-rail-toc__entry:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-rail-toc__item--nested .nt-rail-toc__entry {
+  padding-left: calc(var(--spacing-2) + var(--spacing-4));
+  color: var(--color-on-surface-variant);
+}
+
+.nt-rail-toc__item--active > .nt-rail-toc__entry {
+  color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.nt-rail-toc__icon {
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-rail-toc__item--active > .nt-rail-toc__entry .nt-rail-toc__icon {
+  color: var(--color-primary);
+}
+
+.nt-rail-toc__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* References rows (the Section chrome around them comes from NodeViewSection). */
+.nt-rail-ref__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-rail-ref__row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  color: var(--color-on-surface);
+  font: var(--font-body-medium);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.nt-rail-ref__row:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-rail-ref__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-rail-ref__context {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+}

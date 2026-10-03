@@ -1,14 +1,16 @@
 /**
  * CollectionHub — the hub shell behind a sidebar entry: header (icon,
  * title, count, view switcher) over a NodeCollection of the hub's nodes.
- * View mode is session-local state (reset on reload). Hubs with a single
- * mode render no switcher. The pages/classes hubs ride the outline mode;
- * tasks defaults to table; assets to cards (owner rules).
+ * View mode persists per hub device-locally when `persistKey` is given
+ * (§34.27 L1 — never an op); without a key it stays session-local. The
+ * pages/classes hubs ride the outline mode; tasks defaults to table; assets
+ * to cards (owner rules).
  */
 
 import { useEffect, useState } from "react";
 
 import { Icon } from "../Icon.js";
+import { useViewModePreference } from "../viewPrefs.js";
 import { NodeCollection, ViewToolbar } from "../views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../views/index.js";
 import type { AnyClient } from "../views/types.js";
@@ -21,6 +23,12 @@ export interface CollectionHubProps {
   /** Available modes in switcher order. */
   modes: ViewMode[];
   defaultMode: ViewMode;
+  /**
+   * The hub's persistence identity (e.g. the nav key "tasks"): the chosen
+   * mode survives reloads under `viewMode.hub.<persistKey>`. Omitted = the
+   * title is the identity (ad-hoc hubs persist too, keyed by title).
+   */
+  persistKey?: string | undefined;
   tableColumns?: TableColumn[] | undefined;
   cardProperties?: string[] | undefined;
   tableEditable?: boolean | undefined;
@@ -38,6 +46,7 @@ export function CollectionHub({
   items,
   modes,
   defaultMode,
+  persistKey,
   tableColumns,
   cardProperties,
   tableEditable = false,
@@ -48,7 +57,11 @@ export function CollectionHub({
 }: CollectionHubProps) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  const [mode, setMode] = useState<ViewMode>(defaultMode);
+  const [mode, setMode] = useViewModePreference(
+    persistKey ?? `session.${title}`,
+    defaultMode,
+    modes,
+  );
   return (
     <div className="nt-hub">
       <header className="nt-hub-header">

@@ -8,8 +8,6 @@
  * member from THIS class.
  */
 
-import { useState } from "react";
-
 import { rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -18,6 +16,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { Section } from "../../Section.js";
+import { useViewModePreference } from "../../viewPrefs.js";
 import { NodeCollection, ViewToolbar } from "../../views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../../views/index.js";
 
@@ -53,9 +52,23 @@ export function ClassedNodesSection({
   classId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
-  /** Session-local view mode, table by default (owner rule). */
-  const [membersMode, setMembersMode] = useState<ViewMode>("table");
   const bindings = client.getClassBindings(classId);
+  const kanbanProperty = kanbanBindingFor(client, bindings);
+  const modes: ViewMode[] =
+    kanbanProperty !== undefined
+      ? ["outline", "cards", "kanban", "table"]
+      : MEMBERS_VIEW_MODES;
+  /**
+   * Durable display state per class (§34.27 L1) — device-local, never an
+   * op; table stays the default per the owner rule, and a persisted mode
+   * the switcher no longer offers (kanban without a grouping select) falls
+   * back to the default.
+   */
+  const [membersMode, setMembersMode] = useViewModePreference(
+    `classMembers.${classId}`,
+    "table",
+    modes,
+  );
 
   /**
    * A member opens directly when it renders with document chrome; an inline
@@ -107,11 +120,6 @@ export function ClassedNodesSection({
             ×
           </button>
         );
-        const kanbanProperty = kanbanBindingFor(client, bindings);
-        const modes: ViewMode[] =
-          kanbanProperty !== undefined
-            ? ["outline", "cards", "kanban", "table"]
-            : MEMBERS_VIEW_MODES;
         return (
           <>
             <ViewToolbar
