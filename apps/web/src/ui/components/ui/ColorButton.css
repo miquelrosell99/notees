@@ -113,7 +113,7 @@
 
 .color-btn-picker__grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--spacing-micro);
   margin-bottom: var(--spacing-2);
 }

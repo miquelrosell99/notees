@@ -100,6 +100,16 @@ Revision 10's `node_type ∈ {page, block, class}` enumeration is replaced by **
 - **Queries:** "containing page of B" = nearest ancestor that is parentless or presents as main; "blocks inside page Y at any level" = subtree CTE from Y joined against the edge index (v1 `specific_pages` scope port) — read O(subtree), write zero; an ancestor-closure read model is a *derived* optimization only if profiling demands it.
 - **Whiteboard:** `whiteboard` system class + content token; fullscreen = parentless (document chrome by the second cascade branch), embedded = a parented inline body child; cards are its children. General rule: what-it-is lives in class, specialized data lives in tokens/assertion rows — never new kinds or flags.
 
+## Data color grammar (NORMATIVE, owner 2026-10-03, §34.43)
+
+A node/class `color` (on `object.update` / `class.create` / `class.update` — `object.create` carries no appearance fields) is ONE string field with a strict grammar:
+
+- a **preset token**: exactly one of `red, orange, yellow, green, teal, sky, blue, purple, pink, gray` (the token SET is normative; display order is a client concern — web: hue order then gray);
+- or a custom hex **`#RRGGBB`** (exactly 6 hex digits);
+- or **`null` to clear** — `object.update` gains the clear with this grammar (the UI's "No color" was a protocol no-op until now); `class.update` documented "null clears" since M1 and the schema now accepts what the catalog documented.
+
+The concrete preset hex is **never on the wire** — it lives client-side (web: `variables.css --color-preset-*`; Flutter: `ColorPresets`; GTK resolves nothing — it round-trips the string), so themes remap the palette without touching data. The first v3 encoding stored CSS variable references (`var(--color-preset-red)`); that web-ism leaked onto the wire, drifted between clients (mobile stored resolved hexes), and is **rejected outright** by the strict schemas — stored logs are rewritten **in place, once**, by `scripts/migrate-color-tokens.mts` (var refs AND known legacy preset hexes from the retired ClassView palette and the drifted mobile palette fold to their tokens; other hexes stay custom). Appliers distinguish field **absence** (no write) from **present-null** (clear, writes NULL) — presence checks, not null checks, on the write path. The icon field may embed a color inside its JSON string (`{"icon":"mdiX","color":"sky"}`) — the same grammar applies inside the JSON.
+
 ## Projection-reclassification rules (NORMATIVE, 2026-09-25; classed-with-parent rule deleted 2026-10-02 — classes are containers now, spec I4)
 
 In a node's body block-list, exclude direct children that are:

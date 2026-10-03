@@ -14,6 +14,10 @@
  *   their values), remove writes class.property.unset, and an add-binding
  *   picker binds existing property schemas (class.property.set).
  * - Description shelf: the class node's own content, read-only for M1.
+ * - Templates (§34.25 T3, docs/ux.md class chrome): the class's bound
+ *   templates (listClassTemplateBindings) as rows (open / unbind) plus a
+ *   bind affordance — a template-class-filtered NodeSelector picker writing
+ *   has-template values on the class node. The `+` renders even when empty.
  * - Classes are containers (spec I4): two lazy node sections render the
  *   class's children — Blocks (the inline body, the standard block tree) and
  *   Child pages (the main-children zone, getChildPages) — plus Classed nodes:
@@ -25,7 +29,7 @@
 
 import { useEffect, useState } from "react";
 
-import { rendersWithDocumentChrome } from "@notees/domain";
+import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -34,6 +38,13 @@ import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js"
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
+import { NodeSelector } from "./components/pickers/NodeSelector.js";
+import { AddPill } from "./components/ui/AddPill.js";
+import { PRESET_COLOR_ENTRIES, canonicalColor, cssColorFor } from "./components/ui/colorPresets.js";
+import {
+  ensureTemplateFamily,
+  listClassTemplateBindings,
+} from "./components/templateFamily.js";
 import { Section } from "./Section.js";
 import { TitleEditor } from "./TitleEditor.js";
 import { BlockRow } from "./BlockRow.js";
@@ -68,8 +79,23 @@ function kanbanBindingFor(
   return binding?.propertySchemaId;
 }
 
-/** Preset class-color swatches (the design system's accent scale). */
-const CLASS_COLORS = ["#b42318", "#b54708", "#067647", "#175cd3", "#6941c6", "#c11574", "#475467"];
+/**
+ * Class color swatches — the shared data-level preset palette (every picker
+ * shows the same row; `nodeColors.ts` order). Swatches store preset tokens
+ * (`sky`) per the §34.43 wire grammar; the concrete hex lives in
+ * variables.css. `LEGACY_CLASS_COLOR_TO_VAR` keeps class nodes colored with
+ * this view's old raw-hex palette highlighting the right swatch; clicking
+ * any swatch re-stores the token.
+ */
+const LEGACY_CLASS_COLOR_TO_TOKEN: Record<string, string> = {
+  "#b42318": "red",
+  "#b54708": "orange",
+  "#067647": "green",
+  "#175cd3": "blue",
+  "#6941c6": "purple",
+  "#c11574": "pink",
+  "#475467": "gray",
+};
 
 /** Curated icon set for the class icon picker (mdi names, sprite-served). */
 const CLASS_ICONS = [
@@ -189,6 +215,14 @@ export function ClassView({
   }, [extendsError]);
   /** Classed-nodes view mode: session-local, table by default (owner rule). */
   const [membersMode, setMembersMode] = useState<ViewMode>("table");
+  /**
+   * Templates slot (§34.25 T3): the bind picker's anchor (the AddPill button)
+   * + open state. The family ensure runs on open, not mount — the row reads
+   * are schema-independent (authored values surface in effective reads), so
+   * an untouched slot authors nothing.
+   */
+  const [templatePickerAnchor, setTemplatePickerAnchor] = useState<HTMLButtonElement | null>(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
   const node = client.getNode(classId);
   if (node === undefined || !node.isClass) {
@@ -203,6 +237,27 @@ export function ClassView({
   const candidates = client
     .listClasses()
     .filter((candidate) => candidate.id !== classId && !parents.includes(candidate.id));
+  /** The class's bound templates, each with its authored value's idx (unbind target). */
+  const templateBindings = listClassTemplateBindings(client, classId);
+
+  /** Append a has-template value at the next free idx (the metadata-section pattern). */
+  const bindTemplate = async (templateId: string) => {
+    const authoredIdx = client
+      .getEffectiveProperties(classId)
+      .filter(
+        (entry) =>
+          entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate &&
+          entry.source === "authored",
+      )
+      .map((entry) => entry.idx);
+    const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
+    await client.setProperty(
+      classId,
+      SYSTEM_PROPERTY_UUIDS.hasTemplate,
+      { nodeId: templateId },
+      nextIdx,
+    );
+  };
 
   /** Replace the extends set; the store fails loud on cycles. */
   const replaceExtends = async (nextParentIds: string[]) => {
@@ -232,6 +287,14 @@ export function ClassView({
     onOpenPage?.(current !== undefined && rendersWithDocumentChrome(current) ? current.id : member.id);
   };
 
+  // Legacy raw-hex class colors (this view's old palette) highlight their
+  // successor preset swatch; the retired var() encoding folds to its token;
+  // everything else compares as stored.
+  const currentClassColor =
+    node.color !== null
+      ? (LEGACY_CLASS_COLOR_TO_TOKEN[node.color.toLowerCase()] ?? canonicalColor(node.color))
+      : null;
+
   return (
     <OutlinerContext.Provider value={outliner}>
       <div className="nt-page nt-class">
@@ -242,16 +305,17 @@ export function ClassView({
           </div>
           <div className="nt-page-toolbar">
             <div className="nt-class-colors" role="group" aria-label="Class color">
-              {CLASS_COLORS.map((color) => (
+              {PRESET_COLOR_ENTRIES.map(({ value, label }) => (
                 <button
-                  key={color}
+                  key={value}
                   type="button"
                   className={
-                    node.color === color ? "nt-class-swatch nt-class-swatch-active" : "nt-class-swatch"
+                    currentClassColor === value ? "nt-class-swatch nt-class-swatch-active" : "nt-class-swatch"
                   }
-                  style={{ background: color }}
-                  aria-label={`Set color ${color}`}
-                  onClick={() => void client.updateObject(classId, { color })}
+                  style={{ background: cssColorFor(value) }}
+                  aria-label={`Set color ${label}`}
+                  title={label}
+                  onClick={() => void client.updateObject(classId, { color: value })}
                 />
               ))}
             </div>
@@ -340,6 +404,75 @@ export function ClassView({
                 ))}
               </div>
             </SortableContext>
+          )}
+        </section>
+
+        <section className="nt-class-panel">
+          <h2 className="nt-class-panel-title">Templates</h2>
+          {templateBindings.length === 0 ? (
+            <span className="nt-class-empty">No templates bound.</span>
+          ) : (
+            <ul className="nt-class-templates">
+              {templateBindings.map(({ node, idx }) => {
+                const label = displayNameForSettings(node) ?? node.id;
+                return (
+                  <li key={`${node.id}:${idx}`} className="nt-class-template">
+                    <button
+                      type="button"
+                      className="nt-class-template-open"
+                      onClick={() => onOpenPage?.(node.id)}
+                    >
+                      {label}
+                    </button>
+                    <button
+                      type="button"
+                      className="nt-class-template-unbind"
+                      aria-label={`Unbind template ${label}`}
+                      onClick={() =>
+                        void client.unsetProperty(
+                          classId,
+                          SYSTEM_PROPERTY_UUIDS.hasTemplate,
+                          idx,
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {/*
+            The bind affordance renders even when empty (a class without
+            templates still offers the gesture). The picker lists template-
+            class nodes only — the ONE class-filtered surface; instantiation
+            surfaces stay unfiltered per the D1 amendment.
+          */}
+          <AddPill
+            label="Bind template"
+            aria-expanded={templatePickerOpen}
+            onClick={(element) => {
+              setTemplatePickerAnchor(element);
+              setTemplatePickerOpen(true);
+              void ensureTemplateFamily(client);
+            }}
+          />
+          {templatePickerOpen && templatePickerAnchor !== null && (
+            <NodeSelector
+              client={client}
+              anchorEl={templatePickerAnchor}
+              searchMode="pages"
+              classFilters={[SYSTEM_CLASS_UUIDS.template]}
+              nodes={templateBindings.map((binding) => binding.node)}
+              excludeNodeId={classId}
+              searchPlaceholder="Search templates…"
+              onClose={() => setTemplatePickerOpen(false)}
+              onAdd={(node) => {
+                setTemplatePickerOpen(false);
+                void bindTemplate(node.id);
+              }}
+            />
           )}
         </section>
 

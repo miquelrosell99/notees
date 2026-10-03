@@ -48,7 +48,7 @@ import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
-import { resolveCssColor } from "./ui/colorPresets.js";
+import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { ClassPills } from "./ClassPills.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
@@ -160,8 +160,8 @@ function isAssetClass(client: AnyClient, classId: string): boolean {
 
 /**
  * Readable text on a class-color background: relative-luminance threshold
- * picks the black/white token. Stored colors are 'var(--color-preset-*)'
- * references (or legacy hex), so resolve before computing.
+ * picks the black/white token. Stored colors are preset tokens (`sky`) or
+ * custom hex, so resolve to a concrete hex before computing.
  */
 function contrastFor(color: string): string {
   const match = /^#([0-9a-f]{6})$/i.exec(resolveCssColor(color).trim());
@@ -961,7 +961,7 @@ export function TagsRow({
               className="pill pill--hover-reveal-right"
               style={
                 colored !== null
-                  ? { background: colored, color: contrastFor(colored) }
+                  ? { background: cssColorFor(colored), color: contrastFor(colored) }
                   : undefined
               }
               onContextMenu={(event) => {
