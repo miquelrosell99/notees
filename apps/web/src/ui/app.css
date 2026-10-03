@@ -697,9 +697,13 @@ select:focus-visible {
   background: var(--color-surface);
 }
 
+/* The editable fills the block's content column side to side (v1's
+   .custom-inline-editor was flex:1 — same contract): clicking anywhere on
+   the row places the caret at the nearest position instead of the element
+   hugging its text and blurring out of the block. */
 .nt-block-text {
   outline: none;
-  display: inline-block;
+  display: block;
   min-width: 1ch;
 }
 
@@ -736,7 +740,7 @@ select:focus-visible {
 /* --- capture gestures ----------------------------------------------------------- */
 
 .nt-editor-root {
-  display: inline;
+  display: block;
 }
 
 .nt-verb-popover {
