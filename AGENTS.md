@@ -36,6 +36,7 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 - Identity is UUIDv7 everywhere; titles/paths/citekeys are attributes, never identity.
 - Sync server (PostgreSQL relay) is coordination, not the object database.
 - **Docs are part of the change** (owner rule): any app change that alters behavior, the model, the wire, or the UX must update the relevant documentation in the same pass — user-facing `docs/` (usage, ux, philosophy), the normative `packages/protocol/SCHEMA.md`, `AGENTS.md` when it describes the changed reality, and the internal `.plans/` dev docs (architecture, development). A change without its doc updates is not done.
+- **The plan is the record** (owner rule 2026-10-03): `.plans/implementation-plan.md` is the ongoing work record and must stay current in the same pass — check it (and the rest of `.plans/`) for existing designs before implementing (follow them, or improve them in place), then record the work: a new §34 work-record entry per slice (what shipped, verification, register cross-checks), owed-work rows ticked, and any deviation registered where future readers will look. A change without its plan update is not done.
 
 ## UI primitives (always)
 
