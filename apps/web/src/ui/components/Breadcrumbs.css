@@ -142,6 +142,54 @@
   text-overflow: ellipsis;
 }
 
+/* ─── Parent-edit gestures (§34.27 L4) ─────────────────────────────────── */
+
+/* The chevron rides inside the crumb item, revealed on hover/focus. */
+.node-breadcrumb-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: calc(-1 * var(--spacing-1));
+  width: var(--height-xs);
+  height: var(--height-xs);
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-breadcrumb-item:hover .node-breadcrumb-edit,
+.node-breadcrumb-edit:focus-visible {
+  opacity: var(--opacity-100);
+}
+
+.node-breadcrumb-edit:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.node-breadcrumb-add {
+  flex-shrink: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) dashed var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font: var(--font-label-medium);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.node-breadcrumb-add:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
 /* ─── Right-anchored trails (sidebar card headers) ─────────────────────── */
 
 /* Pack the trail toward the RIGHT end; overflow spills invisibly on the

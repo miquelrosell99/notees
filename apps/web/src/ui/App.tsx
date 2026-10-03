@@ -58,6 +58,7 @@ import { dayNodeId, rendersAsInlineBlock, rendersWithDocumentChrome, SYSTEM_CLAS
 import { CollectionHub } from "./components/CollectionHub.js";
 import type { TableColumn, ViewMode } from "./views/index.js";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
+import { TocSection, ReferencesSection } from "./components/sidebarSections.js";
 import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
@@ -312,6 +313,7 @@ function SidebarNodeCard({
             onOpenNode={onOpenNode}
             showCurrent={!rendersAsInlineBlock(node)}
             anchor="right"
+            editable
           />
         )}
         <span className="nt-sidebar-card__actions">
@@ -1224,7 +1226,7 @@ export function App() {
         syncStatus={syncStatus}
         breadcrumbs={
           selectedPageId !== null ? (
-            <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} showCurrent />
+            <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} showCurrent editable />
           ) : null
         }
         sidebarOpen={sidebarOpen}
@@ -1326,6 +1328,28 @@ export function App() {
         </PageCard>
         {rightPanelOpen && (
           <aside className="nt-right-card" aria-label="Right sidebar">
+            {selectedPageId !== null &&
+              (() => {
+                const contextNode = client.getNode(selectedPageId);
+                if (contextNode === undefined || !rendersWithDocumentChrome(contextNode)) {
+                  return null;
+                }
+                return (
+                  <div className="nt-right-card-context">
+                    <TocSection
+                      client={client}
+                      pageId={selectedPageId}
+                      activeId={selectedPageId}
+                      onOpenNode={openPage}
+                    />
+                    <ReferencesSection
+                      client={client}
+                      pageId={selectedPageId}
+                      onOpenNode={openPage}
+                    />
+                  </div>
+                );
+              })()}
             {sidebarCards.length === 0 ? (
               <div className="nt-right-card-placeholder" />
             ) : (
@@ -1495,6 +1519,7 @@ export function HubView({
         items={members.map((node) => ({ node }))}
         modes={modes}
         defaultMode="table"
+        persistKey="hub.tasks"
         tableColumns={taskTableColumns(client)}
         cardProperties={TASK_PROPERTY_COLUMNS.map((col) => col.id)}
         tableEditable
@@ -1519,6 +1544,7 @@ export function HubView({
         items={members}
         modes={["cards", "table"]}
         defaultMode="cards"
+        persistKey="hub.assets"
         tableColumns={HUB_ASSET_COLUMNS}
         emptyTitle="No assets yet"
         onOpenNode={onOpenNode}
@@ -1543,6 +1569,7 @@ export function HubView({
       items={items.map((node) => ({ node }))}
       modes={["outline"]}
       defaultMode="outline"
+      persistKey={`hub.${nav}`}
       emptyTitle="Nothing here yet."
       onOpenNode={onOpenNode}
       onOpenInSidebar={onOpenInSidebar}

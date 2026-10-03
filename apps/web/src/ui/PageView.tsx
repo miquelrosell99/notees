@@ -53,7 +53,10 @@ import {
 } from "./block-dnd.js";
 import { PropertiesSection, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
+import { PageBanner } from "./components/PageBanner.js";
+import { PageFooter } from "./components/PageFooter.js";
 import { SystemSections } from "./components/SystemSections.js";
+import { coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
 import { TitleEditor } from "./TitleEditor.js";
@@ -61,6 +64,7 @@ import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
 import { NodeCollection, ViewToolbar } from "./views/index.js";
 import type { NodeCollectionItem, ViewMode } from "./views/index.js";
+import { useViewModePreference } from "./viewPrefs.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
 import {
   LinkEditModalHost,
@@ -133,10 +137,15 @@ export function PageView({
   systemSections?: ReactNode;
 }) {
   /**
-   * Child-blocks view mode (the outline/prose/cards triad): session-local
-   * display state, reset on reload — never an op, never persisted.
+   * Child-blocks view mode (the outline/prose/cards triad): durable display
+   * state per page (§34.27 L1) — device-local, never an op. Unset/stale
+   * values fall back to outline, the surface default.
    */
-  const [blocksMode, setBlocksMode] = useState<ViewMode>("outline");
+  const [blocksMode, setBlocksMode] = useViewModePreference(
+    `nodeBlocks.${pageId}`,
+    "outline",
+    BLOCKS_VIEW_MODES,
+  );
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   /** Icon picker popup anchor + open state (clicking the page icon). */
   const pageIconRef = useRef<HTMLElement | null>(null);
@@ -253,6 +262,24 @@ export function PageView({
       typeof token === "object" && token !== null &&
       (token as { type?: unknown }).type === "whiteboard",
   ) ?? -1;
+
+  /**
+   * Cover property self-heal (§34.27 L2): the cover schema + source binding
+   * are seed-manifest entries nothing else authors (the v1 migration is the
+   * only other writer), so a fresh workspace self-heals them on first page
+   * view — an idempotent no-op once present. The banner below then reads
+   * the effective cover value; pages without one (date pages, whiteboard
+   * pages, everything not classed `source`) render no banner at all.
+   */
+  useEffect(() => {
+    void ensureCoverProperty(client);
+  }, [client]);
+
+  /** The cover's asset target, when the page carries the property. */
+  const coverAssetId =
+    page !== undefined && !embedded && whiteboardTokenIndex < 0
+      ? coverAssetIdOf(client, pageId)
+      : null;
 
   const outliner = useOutlinerValue(client, pageId, {
     // Render-cascade navigation for query result lists (App routes the id).
@@ -378,6 +405,9 @@ export function PageView({
             />
           )}
           <header className="nt-page-header">
+          {coverAssetId !== null && (
+            <PageBanner client={client} pageId={pageId} assetId={coverAssetId} />
+          )}
           <div className="page-header__title-row">
             {iconButton !== undefined ? (
               iconButton
@@ -511,6 +541,9 @@ export function PageView({
               </button>
             )}
           </>
+        )}
+        {!embedded && (
+          <PageFooter client={client} page={page} tree={tree} onOpenNode={onOpenPage} />
         )}
         </div>
         <NodeContextMenu
