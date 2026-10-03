@@ -1,9 +1,9 @@
-# Class view redesign — a class page is a page (proposal, rev 2, 2026-10-03)
+# Class view redesign — a class page is a page (**SHIPPED** 2026-10-03, §34.44)
 
-Status: proposal for owner review, **rev 2** (owner direction: render classes with
-the normal page view plus extra class-relevant sections — not a bespoke layout).
-No wire/protocol change — pure web view-layer (`apps/web`); no client-lockstep
-impact (GTK/Flutter class views are separate code).
+Status: **implemented** (§34.44 work record; commits `8430ac73` + `7134fbaf`) — the
+class view is a PageView composition: editable body, extends corner pills, classed
+nodes / property definitions / templates sections, Extended by + system sections.
+No wire/protocol change — pure web view-layer.
 
 ## Problem
 
