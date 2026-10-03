@@ -143,19 +143,20 @@ describe("ExportPageModal", () => {
 
     // Format cards, not tabs.
     expect(screen.queryByRole("tablist")).toBeNull();
-    // Markdown is the only available format — selected by default.
+    // Markdown is the first available format — selected by default.
     expect(screen.getByRole("radio", { name: /markdown/i })).toBeChecked();
     expect(screen.getByRole("radio", { name: /markdown/i })).not.toHaveAttribute("aria-disabled");
-    // The redesign format set; every unavailable card carries the registry reason.
-    expect(screen.getByRole("radio", { name: /html.*task H1/is })).toHaveAttribute("aria-disabled", "true");
+    // The redesign format set: html is available since H1; the remaining
+    // skeletons stay disabled cards carrying the registry reason.
+    expect(screen.getByRole("radio", { name: /html/i })).not.toHaveAttribute("aria-disabled");
     expect(screen.getByRole("radio", { name: /pdf.*task P1/is })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("radio", { name: /word.*task D1/is })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("radio", { name: /latex.*task L1/is })).toHaveAttribute("aria-disabled", "true");
 
     // Clicking a disabled card changes nothing: markdown stays selected.
-    fireEvent.click(screen.getByRole("radio", { name: /html/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /pdf/i }));
     expect(screen.getByRole("radio", { name: /markdown/i })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /html/i })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /pdf/i })).not.toBeChecked();
   }, 10000);
 
   it("renders the format's registry options and honors Include child pages", async () => {
