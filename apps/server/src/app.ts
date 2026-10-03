@@ -2,6 +2,13 @@
  * Fastify assembly: plugins, the WIRE error envelope, request logging (pino
  * via fastify), the global 10k req/min per-IP fallback limiter, and the
  * public health/version probes. Every failure answer is the §3 envelope.
+ *
+ * §34.33 developer-API additions: the meta plugin (GET /api/meta,
+ * /api/openapi.json, /api/operations), AG3 scoped-key enforcement on the
+ * object/assets group (route scopes from the OpenAPI table), and the AG5
+ * Idempotency-Key hooks on the same group. The registered-route inventory
+ * (`BuiltServer.registeredRoutes`, collected via onRoute) feeds the
+ * route-coverage test that keeps the OpenAPI document honest.
  */
 
 import { mkdirSync } from "node:fs";
@@ -17,15 +24,21 @@ import type { ServerConfig } from "./config.js";
 import { ServerContext } from "./context.js";
 import { AppError, errorBody, type ErrorCode } from "./errors.js";
 import { registerAssetRoutes } from "./assets.js";
-import { registerAuthRoutes } from "./routes-auth.js";
+import { registerIdempotencyHooks } from "./idempotency.js";
+import { registerAuthRoutes, resolvePrincipal } from "./routes-auth.js";
+import { registerMetaRoutes } from "./routes-meta.js";
 import { registerObjectRoutes } from "./routes-objects.js";
-import { registerRelayRoutes, requireCredential } from "./routes-relay.js";
+import { registerRelayRoutes, authorizeWorkspace } from "./routes-relay.js";
+import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
+import { buildRouteScopeMap, enforceRouteScope } from "./scopes.js";
 
 export const SERVER_VERSION = "2.0.0-m6";
 
 export interface BuiltServer {
   app: FastifyInstance;
   ctx: ServerContext;
+  /** Every route registered on the app (method + full url), via onRoute. */
+  registeredRoutes: Array<{ method: string; url: string }>;
 }
 
 export async function buildServer(
@@ -37,6 +50,16 @@ export async function buildServer(
   const app = Fastify({
     logger: options.logger ?? config.logger,
     bodyLimit: 128 * 1024 * 1024,
+  });
+
+  // Route inventory for the OpenAPI coverage test (test/openapi-coverage
+  // .test.ts): every registered route must appear in the document.
+  const registeredRoutes: Array<{ method: string; url: string }> = [];
+  app.addHook("onRoute", (route) => {
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    for (const method of methods) {
+      registeredRoutes.push({ method: String(method).toUpperCase(), url: route.url });
+    }
   });
 
   // Cross-origin browser access (web client on another origin/port). Disabled
@@ -118,6 +141,17 @@ export async function buildServer(
     wsProtocolVersion: 2,
   }));
 
+  // Developer self-description (§34.33 AG4/AG5): meta, the OpenAPI contract,
+  // and the paginated operation feed. Each route enforces its own auth, so
+  // this plugin has no group preHandler.
+  const openApiDocument = buildOpenApiDocument(SERVER_VERSION);
+  await app.register(
+    async (api) => {
+      registerMetaRoutes(api, ctx, openApiDocument);
+    },
+    { prefix: "/api" },
+  );
+
   await app.register(
     async (relay) => {
       registerRelayRoutes(relay, ctx);
@@ -136,15 +170,27 @@ export async function buildServer(
   );
 
   // The object/assets machine API: any authenticated principal (operator API
-  // key or account session) — v1 of multi-account object authorization is the
-  // default workspace, claimed by the first account (see routes-auth /setup).
+  // key, account session, or per-user API key) — v1 of multi-account object
+  // authorization is the default workspace, claimed by the first account
+  // (see routes-auth /setup). Scoped API keys (§34.33 AG3) pass auth here
+  // and are then checked against the route's scope from the OpenAPI table;
+  // the relay surface rejects them outright.
+  const routeScopes = buildRouteScopeMap(documentedRoutes());
   const apiAuth = async (request: import("fastify").FastifyRequest) => {
-    requireCredential(ctx, request, ctx.defaultWorkspace, "write");
+    const resolved = resolvePrincipal(ctx, request);
+    if (resolved === null) {
+      throw new AppError(401, "unauthenticated", "invalid or missing credentials");
+    }
+    authorizeWorkspace(ctx, resolved.principal, ctx.defaultWorkspace, "write");
+    enforceRouteScope(request, resolved.scopes, routeScopes);
   };
 
   await app.register(
     async (api) => {
       api.addHook("preHandler", apiAuth);
+      // §34.33 AG5: Idempotency-Key replay after auth+scope, so a replayed
+      // mutation still requires the caller's credentials and scope.
+      registerIdempotencyHooks(api, ctx);
       registerObjectRoutes(api, ctx);
       registerAssetRoutes(api, ctx);
     },
@@ -155,5 +201,5 @@ export async function buildServer(
     await ctx.close();
   });
 
-  return { app, ctx };
+  return { app, ctx, registeredRoutes };
 }

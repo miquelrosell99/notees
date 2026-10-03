@@ -154,6 +154,8 @@ CREATE INDEX IF NOT EXISTS idx_member_user ON workspace_member (user_id);
 -- Per-user API keys: machine credentials minted from user settings. Only the
 -- sha256 of the key is stored; the full nk_-prefixed token is shown once at
 -- creation (like session tokens, nt_-prefixed, only hashed at rest).
+-- The scopes column (§34.33 AG3): optional JSON array of scope names; NULL
+-- means unrestricted (the M1 default; pre-scopes rows migrate as NULL).
 CREATE TABLE IF NOT EXISTS api_key (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
@@ -162,7 +164,8 @@ CREATE TABLE IF NOT EXISTS api_key (
     prefix TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     last_used_at INTEGER,
-    revoked_at INTEGER
+    revoked_at INTEGER,
+    scopes TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key (user_id);
 `;
@@ -258,6 +261,12 @@ export interface ApiKeyRow {
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
+  /**
+   * §34.33 AG3: the key's scope set, or null when the key is unrestricted
+   * (created without scopes — the M1 default; the operator key and account
+   * sessions are always unrestricted).
+   */
+  scopes: string[] | null;
 }
 
 interface ApiKeyRaw {
@@ -268,6 +277,7 @@ interface ApiKeyRaw {
   created_at: number;
   last_used_at: number | null;
   revoked_at: number | null;
+  scopes: string | null;
 }
 
 function toApiKeyRow(raw: ApiKeyRaw): ApiKeyRow {
@@ -279,6 +289,7 @@ function toApiKeyRow(raw: ApiKeyRaw): ApiKeyRow {
     createdAt: raw.created_at,
     lastUsedAt: raw.last_used_at,
     revokedAt: raw.revoked_at,
+    scopes: raw.scopes === null ? null : (JSON.parse(raw.scopes) as string[]),
   };
 }
 
@@ -314,6 +325,12 @@ export class AuthStorage {
       if (!columns.has(name)) {
         this.db.exec(`ALTER TABLE "user" ADD COLUMN ${name} ${type}`);
       }
+    }
+    const keyColumns = new Set(
+      (this.db.pragma("table_info(api_key)") as { name: string }[]).map((c) => c.name),
+    );
+    if (!keyColumns.has("scopes")) {
+      this.db.exec("ALTER TABLE api_key ADD COLUMN scopes TEXT");
     }
   }
 
@@ -497,15 +514,23 @@ export class AuthStorage {
   // --- API keys -------------------------------------------------------------------
 
   /** Mint a key; returns the row plus the full token (shown to the user once). */
-  createApiKey(userId: string, name: string): { row: ApiKeyRow; token: string } {
+  createApiKey(userId: string, name: string, scopes?: string[]): { row: ApiKeyRow; token: string } {
     const token = generateApiKeyToken();
     const id = uuidv7();
     this.db
       .prepare(
-        `INSERT INTO api_key (id, user_id, name, key_hash, prefix, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO api_key (id, user_id, name, key_hash, prefix, created_at, scopes)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, userId, name.trim() || "API key", tokenDigest(token), token.slice(0, 12), Date.now());
+      .run(
+        id,
+        userId,
+        name.trim() || "API key",
+        tokenDigest(token),
+        token.slice(0, 12),
+        Date.now(),
+        scopes !== undefined ? JSON.stringify(scopes) : null,
+      );
     const row = this.db.prepare("SELECT * FROM api_key WHERE id = ?").get(id) as ApiKeyRaw;
     return { row: toApiKeyRow(row), token };
   }
@@ -524,23 +549,33 @@ export class AuthStorage {
     return result.changes > 0;
   }
 
-  /** Resolve a key to its owning user id (and the key's own row id — self-revocation); updates last_used_at. */
-  resolveApiKey(token: string): { userId: string; isAdmin: boolean; keyId: string } | null {
+  /**
+   * Resolve a key to its owning user id (and the key's own row id — self-
+   * revocation); updates last_used_at. `scopes` is null for unrestricted
+   * keys (§34.33 AG3).
+   */
+  resolveApiKey(token: string): { userId: string; isAdmin: boolean; keyId: string; scopes: string[] | null } | null {
 
     const row = this.db
       .prepare(
-        `SELECT k.id AS key_id, k.revoked_at AS revoked_at, u.id AS user_id, u.is_admin AS is_admin
+        `SELECT k.id AS key_id, k.revoked_at AS revoked_at, k.scopes AS scopes,
+                u.id AS user_id, u.is_admin AS is_admin
          FROM api_key k JOIN "user" u ON u.id = k.user_id
          WHERE k.key_hash = ?`,
       )
       .get(tokenDigest(token)) as
-      | { key_id: string; revoked_at: number | null; user_id: string; is_admin: number }
+      | { key_id: string; revoked_at: number | null; scopes: string | null; user_id: string; is_admin: number }
       | undefined;
     if (row === undefined || row.revoked_at !== null) return null;
     this.db
       .prepare("UPDATE api_key SET last_used_at = ? WHERE id = ?")
       .run(Date.now(), row.key_id);
-    return { userId: row.user_id, isAdmin: row.is_admin === 1, keyId: row.key_id };
+    return {
+      userId: row.user_id,
+      isAdmin: row.is_admin === 1,
+      keyId: row.key_id,
+      scopes: row.scopes === null ? null : (JSON.parse(row.scopes) as string[]),
+    };
   }
 
   // --- password-derived keys ------------------------------------------------------
