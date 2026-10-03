@@ -8,8 +8,10 @@
  * optional renderEmbed callback (placeholder box when absent); query renders
  * the live query block via the optional renderQuery callback (placeholder box
  * when absent); whiteboard renders the live canvas via the optional
- * renderWhiteboard callback (placeholder box when absent); other block-scale
- * tokens render as labeled placeholder boxes.
+ * renderWhiteboard callback (placeholder box when absent); asset_ref renders
+ * via the optional renderAsset callback (SCHEMA.md:61 — full-bleed when alone
+ * in the stream; placeholder box when absent); other block-scale tokens
+ * render as labeled placeholder boxes.
  */
 
 import { Fragment, type ReactNode } from "react";
@@ -38,6 +40,14 @@ export interface InlineTokensProps {
    * previews), whiteboard falls back to the placeholder box.
    */
   renderWhiteboard?: ((token: unknown, index: number) => ReactNode) | undefined;
+  /**
+   * Live asset renderer for `asset_ref` tokens (AssetView), injected by the
+   * row; `fullBleed` is true when the token is alone in its stream
+   * (SCHEMA.md:61 — a block whose entire content is one asset renders at
+   * block width). When absent (read-only embed projections), asset_ref falls
+   * back to the placeholder box.
+   */
+  renderAsset?: ((token: unknown, index: number, fullBleed: boolean) => ReactNode) | undefined;
   /**
    * Navigation for inline node references: when set, mention tokens render
    * as dashed-underline links that open the target (read mode).
@@ -103,6 +113,8 @@ function renderToken(
   renderEmbed: InlineTokensProps["renderEmbed"],
   renderQuery: InlineTokensProps["renderQuery"],
   renderWhiteboard: InlineTokensProps["renderWhiteboard"],
+  renderAsset: InlineTokensProps["renderAsset"],
+  assetAlone: boolean,
   onOpenNode: InlineTokensProps["onOpenNode"],
   resolveColor: InlineTokensProps["resolveColor"],
   onMentionMenu: InlineTokensProps["onMentionMenu"],
@@ -218,6 +230,9 @@ function renderToken(
     case "hard_break":
       return <br key={key} />;
     case "asset_ref":
+      if (renderAsset !== undefined) {
+        return <Fragment key={key}>{renderAsset(token, key, assetAlone)}</Fragment>;
+      }
       return <Placeholder key={key} label="asset" detail={typeof t.assetId === "string" ? t.assetId : undefined} />;
     case "embed_ref": {
       const nodeId = typeof t.nodeId === "string" ? t.nodeId : "";
@@ -243,10 +258,18 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
+  // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
+  // flag reaches only the (single) asset token in that stream.
+  const assetAlone =
+    renderAsset !== undefined &&
+    tokens.length === 1 &&
+    typeof tokens[0] === "object" &&
+    tokens[0] !== null &&
+    (tokens[0] as { type?: unknown }).type === "asset_ref";
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery, renderWhiteboard, onOpenNode, resolveColor, onMentionMenu))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, onMentionMenu))}
     </>
   );
 }

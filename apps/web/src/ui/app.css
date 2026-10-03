@@ -1116,12 +1116,54 @@ select:focus-visible {
   cursor: grabbing;
 }
 
-/* Block classes: dedicated column pinned to the right end of the row. */
-.nt-block-classes {
+/* Right end of the row: the classes column and the backlink gutter toggle,
+   pinned right as a group (either may be absent). */
+.nt-block-row-end {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
   flex-shrink: 0;
-  padding-left: var(--spacing-2);
   align-self: flex-start;
+}
+
+/* Block classes: dedicated column inside the row-end group (first pill
+   + "+N" overflow popup, drag to reorder). */
+.nt-block-classes {
+  padding-left: var(--spacing-2);
+}
+
+/* Backlink gutter toggle (SCHEMA.md:117): the materialized count rides a
+   Badge; quiet by default, emphasized on row hover / when expanded. */
+.nt-block-backlink-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-micro);
+  padding: 0 var(--spacing-1);
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  opacity: 0.7;
+  transition: opacity var(--motion-duration-short, 120ms) var(--motion-easing-standard, ease);
+}
+
+.nt-block-backlink-toggle:hover,
+.nt-block-backlink-toggle--expanded,
+.nt-block-row-end:focus-within > .nt-block-backlink-toggle {
+  opacity: 1;
+  color: var(--color-on-surface);
+}
+
+/* Expanded block backlinks: beneath the block row, aligned with the content
+   column (same 26px offset as tags/properties). */
+.nt-block-backlink-refs {
+  margin-left: 26px;
+  padding: var(--spacing-1) 0;
 }
 
 /* Block tags / properties: dedicated rows under the block row, aligned with
@@ -1519,6 +1561,93 @@ select:focus-visible {
   color: var(--color-on-surface-variant);
   font-size: 0.88em;
   background: var(--color-surface-container-high);
+}
+
+/* --- asset_ref renderer (SCHEMA.md:61) --------------------------------------
+   Inline: an image preview capped at text height, or a filename+size chip.
+   Full-bleed (the token alone in its stream): the image spans the block
+   width (caption from the title), the chip becomes a file card row. */
+
+.nt-asset {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 1px 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.nt-asset--image {
+  display: inline-block;
+  border-radius: 6px;
+  overflow: hidden;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.nt-asset--image img {
+  display: block;
+  max-height: 1.6em;
+  max-width: 8em;
+  object-fit: cover;
+}
+
+.nt-asset--fullbleed.nt-asset--image {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.nt-asset--fullbleed.nt-asset--image img {
+  max-height: 60vh;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.nt-asset--chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  max-width: 100%;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  padding: 0 var(--spacing-2);
+  line-height: 1.5;
+  font-size: 0.88em;
+}
+
+.nt-asset--chip:hover {
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface);
+}
+
+.nt-asset-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 24em;
+  color: var(--color-on-surface);
+}
+
+.nt-asset-size {
+  flex-shrink: 0;
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-asset--fullbleed.nt-asset--chip {
+  display: flex;
+  padding: var(--spacing-2);
+  font-size: 1em;
+}
+
+.nt-asset--fullbleed.nt-asset--chip .nt-asset-name {
+  max-width: none;
+  flex: 1;
+  text-align: left;
 }
 
 code {
