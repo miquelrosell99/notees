@@ -5,6 +5,11 @@
  * unrestricted legacy principal.
  */
 
+import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { unzipSync } from "fflate";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { hashPassword } from "../src/auth.js";
@@ -368,7 +373,7 @@ describe("workspace delete and export", () => {
     expect(byExMember.statusCode).toBe(404);
   });
 
-  it("GET /workspaces/:id/export downloads the workspace as Markdown", async () => {
+  it("GET /workspaces/:id/export.zip downloads the workspace as a zip of page files", async () => {
     server = await makeTestServer();
     const owner = (await setupAdmin("owner@example.com")).json().token as string;
     const created = await server.app.inject({
@@ -379,14 +384,57 @@ describe("workspace delete and export", () => {
     });
     const workspaceId = created.json().id as string;
 
-    // A page with a nested block, written through the relay.
+    // A root page (property set), a main-zone child page it mentions from
+    // an inline block, and nested inline-body blocks. Rich tokens (mentions)
+    // survive only on inline blocks — document-chrome nodes flatten to
+    // text-only content (SCHEMA.md content flatten invariant).
     const pageId = crypto.randomUUID();
+    const childPageId = crypto.randomUUID();
+    const mentionBlockId = crypto.randomUUID();
     const blockId = crypto.randomUUID();
+    const nestedBlockId = crypto.randomUUID();
+    const schemaId = crypto.randomUUID();
     const batch = await ingest(server, [
       testEnvelope({
         workspaceId,
+        opType: "propertySchema.create",
+        payload: { propertySchemaId: schemaId, name: "Status", type: "text" },
+      }),
+      testEnvelope({
+        workspaceId,
         opType: "object.create",
-        payload: pagePayload("Exported Page", { objectId: pageId }),
+        payload: {
+          objectId: pageId,
+          presentAsMain: true,
+          contentAst: [{ type: "text", text: "Exported Page" }],
+        },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "property.set",
+        payload: { objectId: pageId, propertySchemaId: schemaId, value: "in progress", idx: 0 },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: {
+          objectId: childPageId,
+          parentId: pageId,
+          presentAsMain: true,
+          contentAst: [{ type: "text", text: "Child Page" }],
+        },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: {
+          objectId: mentionBlockId,
+          parentId: pageId,
+          contentAst: [
+            { type: "text", text: "see " },
+            { type: "mention", targetNodeId: childPageId, text: "Child Page", displayText: "Child Page" },
+          ],
+        },
       }),
       testEnvelope({
         workspaceId,
@@ -397,19 +445,75 @@ describe("workspace delete and export", () => {
           contentAst: [{ type: "text", text: "child block body" }],
         },
       }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: {
+          objectId: nestedBlockId,
+          parentId: blockId,
+          contentAst: [{ type: "text", text: "nested grandchild" }],
+        },
+      }),
     ]);
     expect(batch.statusCode).toBe(200);
 
     const exported = await server.app.inject({
       method: "GET",
-      url: `/api/workspaces/${workspaceId}/export`,
+      url: `/api/workspaces/${workspaceId}/export.zip`,
       headers: { authorization: `Bearer ${owner}` },
     });
     expect(exported.statusCode).toBe(200);
-    expect(exported.headers["content-type"]).toContain("text/markdown");
-    expect(exported.headers["content-disposition"]).toContain("Export-Me.md");
-    expect(exported.body).toContain("Exported Page");
-    expect(exported.body).toContain("child block body");
+    expect(exported.headers["content-type"]).toContain("application/zip");
+    expect(exported.headers["content-disposition"]).toContain("Export-Me.zip");
+
+    const files = unzipSync(new Uint8Array(exported.rawPayload));
+    const rootPath = `Exported-Page-${pageId.slice(0, 8)}.md`;
+    const childPath = `Child-Page-${childPageId.slice(0, 8)}.md`;
+    expect(Object.keys(files).sort()).toEqual(
+      [rootPath, childPath, "notees-manifest.json"].sort(),
+    );
+    const decode = (entry: Uint8Array | undefined): string =>
+      new TextDecoder().decode(entry ?? new Uint8Array());
+    const root = decode(files[rootPath]);
+    const child = decode(files[childPath]);
+
+    // Properties ride the frontmatter now (the retired single-file route
+    // dropped them); blocks render as nested bullets inside their page.
+    expect(root).toContain("properties:");
+    expect(root).toContain("Status: in progress");
+    expect(root).toContain("child block body");
+    expect(root).toContain("nested grandchild");
+    // The mention became a relative link into the child page's file.
+    expect(root).toContain(`[Child Page](${childPath})`);
+    expect(root).not.toContain("[[Child Page]]");
+    // The child page is its own document.
+    expect(child).toContain("# Child Page");
+
+    const manifest = JSON.parse(decode(files["notees-manifest.json"])) as {
+      format: string;
+      version: number;
+      nodes: Array<{ id: string; path: string; name: string; type: string }>;
+    };
+    expect(manifest.format).toBe("notees-markdown");
+    expect(manifest.version).toBe(2);
+    const byId = new Map(manifest.nodes.map((node) => [node.id, node]));
+    expect(byId.get(pageId)).toMatchObject({ path: rootPath, name: "Exported Page", type: "page" });
+    expect(byId.get(childPageId)).toMatchObject({ path: childPath, name: "Child Page", type: "page" });
+
+    // The replaced single-file route is gone, and unknown includeAssets
+    // values fail loud.
+    const gone = await server.app.inject({
+      method: "GET",
+      url: `/api/workspaces/${workspaceId}/export`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(gone.statusCode).toBe(404);
+    const badQuery = await server.app.inject({
+      method: "GET",
+      url: `/api/workspaces/${workspaceId}/export.zip?includeAssets=2`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(badQuery.statusCode).toBe(422);
 
     // Non-member: the workspace's existence is not revealed.
     const strangerUser = server.ctx.auth.createUser({
@@ -419,10 +523,139 @@ describe("workspace delete and export", () => {
     const stranger = server.ctx.auth.createSession(strangerUser.id).token;
     const byStranger = await server.app.inject({
       method: "GET",
-      url: `/api/workspaces/${workspaceId}/export`,
+      url: `/api/workspaces/${workspaceId}/export.zip`,
       headers: { authorization: `Bearer ${stranger}` },
     });
     expect(byStranger.statusCode).toBe(404);
+  });
+
+  it("GET /workspaces/:id/export.zip de-dupes colliding page filenames deterministically", async () => {
+    server = await makeTestServer();
+    const owner = (await setupAdmin("owner@example.com")).json().token as string;
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "Dupes" },
+    });
+    const workspaceId = created.json().id as string;
+
+    // Two pages with the SAME title AND the same uuid8 prefix (siblings
+    // authored inside the same uuidv7 timestamp window) collide under the
+    // <slug>-<uuid8> policy; the later page gains -2.
+    const firstId = "11111111-0000-4000-8000-000000000001";
+    const secondId = "11111111-0000-4000-8000-000000000002";
+    const batch = await ingest(server, [
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: pagePayload("Dup", { objectId: firstId }),
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: pagePayload("Dup", { objectId: secondId }),
+      }),
+    ]);
+    expect(batch.statusCode).toBe(200);
+
+    const exported = await server.app.inject({
+      method: "GET",
+      url: `/api/workspaces/${workspaceId}/export.zip`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(exported.statusCode).toBe(200);
+    const files = unzipSync(new Uint8Array(exported.rawPayload));
+    expect(Object.keys(files).sort()).toEqual(
+      ["Dup-11111111.md", "Dup-11111111-2.md", "notees-manifest.json"].sort(),
+    );
+    const manifest = JSON.parse(new TextDecoder().decode(files["notees-manifest.json"])) as {
+      nodes: Array<{ id: string; path: string }>;
+    };
+    const byId = new Map(manifest.nodes.map((node) => [node.id, node.path]));
+    expect(byId.get(firstId)).toBe("Dup-11111111.md");
+    expect(byId.get(secondId)).toBe("Dup-11111111-2.md");
+  });
+
+  it("GET /workspaces/:id/export.zip?includeAssets=1 bundles referenced CAS bytes", async () => {
+    server = await makeTestServer();
+    const owner = (await setupAdmin("owner@example.com")).json().token as string;
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "Asset Me" },
+    });
+    const workspaceId = created.json().id as string;
+
+    // An uploaded asset: CAS bytes on disk + the relay's asset index (what
+    // the multipart upload route writes), referenced from a page.
+    const assetId = crypto.randomUUID();
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    const hashDir = join(server.dataDir, "workspaces", workspaceId, "assets", hash.slice(0, 4));
+    mkdirSync(hashDir, { recursive: true });
+    writeFileSync(join(hashDir, hash), bytes);
+    server.ctx.relay.recordAsset({
+      assetId,
+      workspaceId,
+      hash,
+      mimeType: "image/png",
+      size: bytes.length,
+      originalName: "My Photo.PNG",
+      uploadedAt: new Date().toISOString(),
+    });
+    const pageId = crypto.randomUUID();
+    const assetBlockId = crypto.randomUUID();
+    const batch = await ingest(server, [
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: {
+          objectId: pageId,
+          presentAsMain: true,
+          contentAst: [{ type: "text", text: "With Asset" }],
+        },
+      }),
+      // asset_ref lives on an inline block (document-chrome content is
+      // text-only; block-scale rich tokens survive on inline blocks).
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: {
+          objectId: assetBlockId,
+          parentId: pageId,
+          contentAst: [{ type: "asset_ref", assetId }],
+        },
+      }),
+    ]);
+    expect(batch.statusCode).toBe(200);
+
+    // Default: no asset bytes, the raw uuid reference stands.
+    const without = await server.app.inject({
+      method: "GET",
+      url: `/api/workspaces/${workspaceId}/export.zip`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    const pagePath = `With-Asset-${pageId.slice(0, 8)}.md`;
+    const assetPath = `assets/My-Photo-${hash.slice(0, 8)}.png`;
+    const filesWithout = unzipSync(new Uint8Array(without.rawPayload));
+    expect(Object.keys(filesWithout).sort()).toEqual([pagePath, "notees-manifest.json"].sort());
+    expect(new TextDecoder().decode(filesWithout[pagePath])).toContain(`![asset](<${assetId}>)`);
+
+    // includeAssets=1: bytes ride under assets/ and the ref is rewritten.
+    const withAssets = await server.app.inject({
+      method: "GET",
+      url: `/api/workspaces/${workspaceId}/export.zip?includeAssets=1`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(withAssets.statusCode).toBe(200);
+    const filesWith = unzipSync(new Uint8Array(withAssets.rawPayload));
+    expect(Object.keys(filesWith).sort()).toEqual(
+      [pagePath, assetPath, "notees-manifest.json"].sort(),
+    );
+    expect(new TextDecoder().decode(filesWith[pagePath])).toContain(`![asset](${assetPath})`);
+    expect(Buffer.from(filesWith[assetPath] ?? new Uint8Array())).toEqual(bytes);
   });
 
   it("GET /nodes/:id/location resolves the workspace holding the node", async () => {
@@ -552,6 +785,46 @@ describe("api keys", () => {
       headers: { authorization: `Bearer ${key}` },
     });
     expect(me.statusCode).toBe(401);
+  });
+
+  it("a key can revoke itself (the CLI logout path) but no other key", async () => {
+    server = await makeTestServer();
+    const session = (await setupAdmin()).json().token as string;
+    const authHeaders = { authorization: `Bearer ${session}` };
+    const self = (
+      await server.app.inject({ method: "POST", url: "/api/api-keys", headers: authHeaders, payload: { name: "self" } })
+    ).json() as { apiKey: { id: string }; token: string };
+    const other = (
+      await server.app.inject({ method: "POST", url: "/api/api-keys", headers: authHeaders, payload: { name: "other" } })
+    ).json() as { apiKey: { id: string }; token: string };
+
+    // Managing another key still demands an account session.
+    const foreign = await server.app.inject({
+      method: "DELETE",
+      url: `/api/api-keys/${other.apiKey.id}`,
+      headers: { authorization: `Bearer ${self.token}` },
+    });
+    expect(foreign.statusCode).toBe(401);
+
+    // Self-revocation succeeds and kills the key immediately.
+    const own = await server.app.inject({
+      method: "DELETE",
+      url: `/api/api-keys/${self.apiKey.id}`,
+      headers: { authorization: `Bearer ${self.token}` },
+    });
+    expect(own.statusCode).toBe(200);
+    const me = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${self.token}` },
+    });
+    expect(me.statusCode).toBe(401);
+    const otherMe = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${other.token}` },
+    });
+    expect(otherMe.statusCode).toBe(200);
   });
 
   it("an api key syncs the relay with its owner's memberships", async () => {

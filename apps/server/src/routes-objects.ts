@@ -11,6 +11,7 @@ import { uuidv7 } from "uuidv7";
 
 import {
   classCreatePayload,
+  classUnassignPayload,
   objectCreatePayload,
   objectUpdatePayload,
   propertySchemaCreatePayload,
@@ -195,14 +196,55 @@ function requireNode(store: Store, id: string): NodeRow {
   return row;
 }
 
-function fullObject(store: Store, row: NodeRow) {
+function requireClass(store: Store, id: string): void {
+  const row = store.database.prepare("SELECT 1 FROM class WHERE id = ? AND active = 1").get(id);
+  if (row === undefined) {
+    throw new AppError(404, "not_found", `class ${id} does not exist`);
+  }
+}
+
+/**
+ * Class title read model (title-is-content): the display name derives from
+ * the class NODE's content — the node is the authority. The registry `name`
+ * is a write-side denormalized cache (applyClassCreate/applyClassUpdate
+ * maintain it) that pre-title-is-content rows never backfilled, so reads
+ * treat it as a fallback only, never the source of truth.
+ */
+function classNameFromNode(nodeContent: string | null, nodeClassIds: string | null, cachedName: string): string {
+  if (nodeContent !== null) {
+    const derived = deriveDisplayName({
+      id: "",
+      isClass: 1,
+      presentAsMain: 0,
+      contentAst: JSON.parse(nodeContent) as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
+      classIds: JSON.parse(nodeClassIds ?? "[]") as string[],
+    });
+    if (derived) return derived;
+  }
+  return cachedName;
+}
+
+/**
+ * The full object projection behind GET /objects/:id (and the children
+ * read): base row + resolved classes + authored property rows. The
+ * workspace-zip export (routes-auth) builds its ExportNodes from this so
+ * exported frontmatter carries properties.
+ */
+export function fullObject(store: Store, row: NodeRow) {
   const base = nodeToApi(row);
   const classes = base.classIds
     .map((classId) => {
       const classRow = store.database
-        .prepare("SELECT id, name, icon, color FROM class WHERE id = ? AND active = 1")
-        .get(classId) as { id: string; name: string; icon: string | null; color: string | null } | undefined;
-      return classRow ?? null;
+        .prepare(
+          `SELECT c.id, c.name, c.icon, c.color, n.content AS nodeContent, n.class_ids AS nodeClassIds
+           FROM class c LEFT JOIN node n ON n.id = c.id AND n.is_active = 1
+           WHERE c.id = ? AND c.active = 1`,
+        )
+        .get(classId) as
+        | { id: string; name: string; icon: string | null; color: string | null; nodeContent: string | null; nodeClassIds: string | null }
+        | undefined;
+      if (classRow === undefined) return null;
+      return { id: classRow.id, name: classNameFromNode(classRow.nodeContent, classRow.nodeClassIds, classRow.name), icon: classRow.icon, color: classRow.color };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
   const properties = (
@@ -235,6 +277,24 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const store = ctx.workspaces.storeFor(workspaceId);
     const row = requireNode(store, id);
     return { object: fullObject(store, row) };
+  });
+
+  /**
+   * Direct children in child-order position order, active rows only. The
+   * full projection matches GET /objects/:id (contentAst included) — the
+   * export nested-bullets read, replacing the paged-list scan.
+   */
+  app.get("/objects/:id/children", async (request) => {
+    const { id } = request.params as { id: string };
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireNode(store, id);
+    const children = store
+      .children(id)
+      .filter((row) => row.is_active === 1)
+      .map((row) => fullObject(store, row));
+    return { children };
   });
 
   app.get("/objects", async (request) => {
@@ -404,6 +464,65 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     });
     const row = requireNode(store, id);
     return { object: fullObject(store, row) };
+  });
+
+  /**
+   * Class membership assign: the add rides the re-issued `object.create`
+   * carrier (the OR-Set add-wins seed — applyObjectCreate's alreadyExists
+   * branch upserts class_member_set without touching the tree). Idempotent
+   * by construction; the effective-values read model derives the class's
+   * bound defaults automatically. Class identity itself is never membership:
+   * the is_class bit rejects class nodes here (fail loud).
+   */
+  app.put("/objects/:id/classes/:classId", async (request) => {
+    const { id, classId } = request.params as { id: string; classId: string };
+    const checked = objectCreatePayload.safeParse({ objectId: id, classIds: [classId] });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid assign payload");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    const row = requireNode(store, id);
+    if (row.is_class === 1) {
+      throw new AppError(422, "validation_failed", "a class node is not a class member (identity is the is_class bit)");
+    }
+    requireClass(store, classId);
+    await ctx.submit({
+      workspaceId,
+      opType: "object.create",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
+    return { object: fullObject(store, requireNode(store, id)) };
+  });
+
+  /**
+   * Class membership remove: the OR-Set tombstone (class.unassign). Removing
+   * a membership the node does not have is a no-op tombstone — idempotent,
+   * so scripts can "ensure absent". Authored property values survive; the
+   * class's derived defaults drop from the effective read automatically.
+   */
+  app.delete("/objects/:id/classes/:classId", async (request) => {
+    const { id, classId } = request.params as { id: string; classId: string };
+    const checked = classUnassignPayload.safeParse({ objectId: id, classId });
+    if (!checked.success) {
+      throw new AppError(422, "validation_failed", checked.error.issues[0]?.message ?? "invalid unassign payload");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireNode(store, id);
+    requireClass(store, classId);
+    await ctx.submit({
+      workspaceId,
+      opType: "class.unassign",
+      payload: checked.data as Record<string, unknown>,
+      affectedNodeIds: [id],
+      client: "api",
+    });
+    return { object: fullObject(store, requireNode(store, id)) };
   });
 
   app.post("/objects/:id/properties", async (request, reply) => {
@@ -706,19 +825,28 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const classes = store.database
       .prepare(
         `SELECT c.id, c.name, c.icon, c.color, c.description,
+                n.content AS nodeContent, n.class_ids AS nodeClassIds,
                 (SELECT json_group_array(parent_class_id) FROM (
                    SELECT parent_class_id FROM class_extends e
                    WHERE e.class_id = c.id ORDER BY parent_class_id)) AS parentClassIds,
                 (SELECT COUNT(*) FROM class_member_set m WHERE m.class_id = c.id AND m.present = 1) AS memberCount
-         FROM class c WHERE c.active = 1 ORDER BY c.name, c.id`,
+         FROM class c LEFT JOIN node n ON n.id = c.id AND n.is_active = 1
+         WHERE c.active = 1`,
       )
-      .all() as { id: string; name: string; icon: string | null; color: string | null; description: string | null; parentClassIds: string | null; memberCount: number }[];
-    return {
-      classes: classes.map((row) => ({
-        ...row,
-        parentClassIds: JSON.parse(row.parentClassIds ?? "[]") as string[],
-      })),
-    };
+      .all() as { id: string; name: string; icon: string | null; color: string | null; description: string | null; nodeContent: string | null; nodeClassIds: string | null; parentClassIds: string | null; memberCount: number }[];
+    const listed = classes.map((row) => ({
+      id: row.id,
+      name: classNameFromNode(row.nodeContent, row.nodeClassIds, row.name),
+      icon: row.icon,
+      color: row.color,
+      description: row.description,
+      parentClassIds: JSON.parse(row.parentClassIds ?? "[]") as string[],
+      memberCount: row.memberCount,
+    }));
+    // Title-is-content: ordering keys on the DERIVED title (the registry
+    // cache is a fallback, not the authority).
+    listed.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.id.localeCompare(b.id));
+    return { classes: listed };
   });
 
   app.get("/classes/:id", async (request) => {
@@ -729,26 +857,48 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const classRow = store.database
       .prepare(
         `SELECT c.id, c.name, c.icon, c.color, c.description,
+                n.content AS nodeContent, n.class_ids AS nodeClassIds,
                 (SELECT json_group_array(parent_class_id) FROM (
                    SELECT parent_class_id FROM class_extends e
                    WHERE e.class_id = c.id ORDER BY parent_class_id)) AS parentClassIds
-         FROM class c WHERE c.id = ? AND c.active = 1`,
+         FROM class c LEFT JOIN node n ON n.id = c.id AND n.is_active = 1
+         WHERE c.id = ? AND c.active = 1`,
       )
-      .get(id) as { id: string; name: string; icon: string | null; color: string | null; description: string | null; parentClassIds: string | null } | undefined;
+      .get(id) as
+      | { id: string; name: string; icon: string | null; color: string | null; description: string | null; nodeContent: string | null; nodeClassIds: string | null; parentClassIds: string | null }
+      | undefined;
     if (classRow === undefined) {
       throw new AppError(404, "not_found", `class ${id} does not exist`);
     }
     const members = (
       store.database
         .prepare(
-          `SELECT n.id, n.name, n.is_class AS isClass, n.present_as_main AS presentAsMain
+          `SELECT n.id, n.is_class AS isClass, n.present_as_main AS presentAsMain, n.content, n.class_ids
            FROM class_member_set m JOIN node n ON n.id = m.node_id
            WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1 ORDER BY n.id`,
         )
-        .all(id) as Array<{ id: string; name: string | null; isClass: number; presentAsMain: number }>
-    ).map((row) => ({ ...row, isClass: row.isClass === 1, presentAsMain: row.presentAsMain === 1 }));
+        .all(id) as Array<{ id: string; isClass: number; presentAsMain: number; content: string; class_ids: string }>
+    ).map((row) => ({
+      id: row.id,
+      name: deriveDisplayName({
+        id: row.id,
+        isClass: row.isClass,
+        presentAsMain: row.presentAsMain,
+        contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
+        classIds: JSON.parse(row.class_ids) as string[],
+      }) || null,
+      isClass: row.isClass === 1,
+      presentAsMain: row.presentAsMain === 1,
+    }));
     return {
-      class: { ...classRow, parentClassIds: JSON.parse(classRow.parentClassIds ?? "[]") as string[] },
+      class: {
+        id: classRow.id,
+        name: classNameFromNode(classRow.nodeContent, classRow.nodeClassIds, classRow.name),
+        icon: classRow.icon,
+        color: classRow.color,
+        description: classRow.description,
+        parentClassIds: JSON.parse(classRow.parentClassIds ?? "[]") as string[],
+      },
       members,
     };
   });

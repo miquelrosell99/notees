@@ -26,6 +26,9 @@ importers:
       '@notees/export':
         specifier: workspace:*
         version: link:../../packages/export
+      '@notees/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@notees/query':
         specifier: workspace:*
         version: link:../../packages/query
@@ -87,6 +90,9 @@ importers:
       fastify:
         specifier: ^5.0.0
         version: 5.12.5
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.3
       uuidv7:
         specifier: ^1.0.0
         version: 1.2.1
@@ -151,6 +157,9 @@ importers:
       '@notees/sync':
         specifier: workspace:*
         version: link:../../packages/sync
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.3
       react:
         specifier: ^19.0.0
         version: 19.3.0
@@ -1685,6 +1694,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   file-uri-to-path@1.0.0:
     resolution: {integrity: sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==}
@@ -3553,6 +3565,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
+
+  fflate@0.8.3: {}
 
   file-uri-to-path@1.0.0: {}
 

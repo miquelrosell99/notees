@@ -14,7 +14,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -75,6 +75,17 @@ function workspaceFor(ctx: ServerContext, request: FastifyRequest): string {
 
 function assetPath(ctx: ServerContext, workspaceId: string, hash: string): string {
   return join(ctx.config.dataDir, "workspaces", workspaceId, "assets", hash.slice(0, 4), hash);
+}
+
+/**
+ * Read CAS bytes for an asset hash (the workspace-zip export bundles them).
+ * Returns null when the bytes are absent — the export then skips the file
+ * and keeps the raw uuid reference in the Markdown.
+ */
+export function readAssetBytes(ctx: ServerContext, workspaceId: string, hash: string): Buffer | null {
+  const path = assetPath(ctx, workspaceId, hash);
+  if (!existsSync(path)) return null;
+  return readFileSync(path);
 }
 
 function parseRange(header: string | undefined, size: number): { start: number; end: number } | null | "invalid" {

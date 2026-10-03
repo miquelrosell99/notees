@@ -116,6 +116,61 @@ describe("objects API", () => {
     expect(nonClasses.objects.map((o: { id: string }) => o.id)).toContain(block.id);
   });
 
+  it("children endpoint returns active children in child-position order", async () => {
+    server = await makeTestServer();
+    const { id: parent } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Host" } })).json();
+    const { id: a } = (
+      await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "first", parentId: parent } })
+    ).json();
+    const { id: b } = (
+      await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "second", parentId: parent } })
+    ).json();
+    const { id: c } = (
+      await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "third", parentId: parent } })
+    ).json();
+    // A main child (child page): the endpoint returns every active child,
+    // both render zones — filtering to the inline body is the caller's job.
+    const { id: main } = (
+      await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "main child", parentId: parent } })
+    ).json();
+
+    // Invert the position order with an object.move (ids stay creation-ordered,
+    // so id order and child order genuinely differ). The crafted HLC runs
+    // ahead of the server-stamped creates, so the move wins the LWW compare.
+    const move = newEnvelope({
+      workspaceId: server.ctx.defaultWorkspace,
+      actorId: "99999999-8888-4777-8666-555555555555",
+      deviceId: "test",
+      hlc: { physical: Date.now() + 1000, logical: 0 },
+      opType: "object.move",
+      payload: { objectId: c, parentId: parent, beforeId: a },
+    });
+    const ingested = await api("POST", "/api/relay/v2/batch", { payload: { envelopes: [move] } });
+    expect(ingested.statusCode).toBe(200);
+    expect(ingested.json()).toMatchObject({ savedCount: 1, savedIds: [move.id] });
+
+    const res = await api("GET", `/api/objects/${parent}/children`);
+    expect(res.statusCode).toBe(200);
+    const children = res.json().children;
+    expect(children.map((o: { id: string }) => o.id)).toEqual([c, a, b, main]);
+    // The full projection rides along (same shape as GET /objects/:id).
+    expect(children[0]).toMatchObject({ id: c, parentId: parent, presentAsMain: false, isActive: true });
+    expect(children[0].contentAst).toEqual([{ type: "text", text: "third" }]);
+
+    // Trashing a child drops it from the list (soft delete keeps the
+    // child-order row; the endpoint filters it) — order preserved otherwise.
+    await api("DELETE", `/api/objects/${a}`);
+    const after = (await api("GET", `/api/objects/${parent}/children`)).json().children;
+    expect(after.map((o: { id: string }) => o.id)).toEqual([c, b, main]);
+  });
+
+  it("children endpoint 404s for a missing parent", async () => {
+    server = await makeTestServer();
+    const res = await api("GET", `/api/objects/${crypto.randomUUID()}/children`);
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toMatchObject({ code: "not_found", status: 404 });
+  });
+
   it("search finds inserted content", async () => {
     server = await makeTestServer();
     const { id } = (
@@ -249,5 +304,77 @@ describe("objects API", () => {
     // The values endpoint still selects the (retired) node.name column, so
     // objectName is null post-title-is-content; the stored value is the point.
     expect(res.json().values).toEqual([{ objectId: id, objectName: null, idx: 0, value: "978-3-16-148410-0" }]);
+  });
+});
+
+describe("class membership endpoints", () => {
+  it("PUT assigns idempotently; DELETE unassigns idempotently", async () => {
+    server = await makeTestServer();
+    const { id: classId } = (await api("POST", "/api/objects", { payload: { isClass: true, name: "Genre" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Novel" } })).json();
+
+    const assigned = await api("PUT", `/api/objects/${id}/classes/${classId}`);
+    expect(assigned.statusCode).toBe(200);
+    expect(assigned.json().object.classIds).toEqual([classId]);
+
+    // OR-Set add-wins carrier: re-adding is an idempotent no-op.
+    const again = await api("PUT", `/api/objects/${id}/classes/${classId}`);
+    expect(again.statusCode).toBe(200);
+    expect(again.json().object.classIds).toEqual([classId]);
+
+    const removed = await api("DELETE", `/api/objects/${id}/classes/${classId}`);
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().object.classIds).toEqual([]);
+
+    // Removing an absent membership is an idempotent no-op tombstone.
+    const againRemoved = await api("DELETE", `/api/objects/${id}/classes/${classId}`);
+    expect(againRemoved.statusCode).toBe(200);
+    expect(againRemoved.json().object.classIds).toEqual([]);
+  });
+
+  it("assign rejects class nodes, missing objects, and missing classes (fail loud)", async () => {
+    server = await makeTestServer();
+    const { id: classId } = (await api("POST", "/api/objects", { payload: { isClass: true, name: "Genre" } })).json();
+    const { id: otherClassId } = (await api("POST", "/api/objects", { payload: { isClass: true, name: "Other" } })).json();
+
+    // Class identity is the is_class bit — a class node is never a member.
+    const classNode = await api("PUT", `/api/objects/${classId}/classes/${otherClassId}`);
+    expect(classNode.statusCode).toBe(422);
+
+    const missingObject = await api("PUT", `/api/objects/${crypto.randomUUID()}/classes/${classId}`);
+    expect(missingObject.statusCode).toBe(404);
+
+    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Novel" } })).json();
+    const missingClass = await api("PUT", `/api/objects/${id}/classes/${crypto.randomUUID()}`);
+    expect(missingClass.statusCode).toBe(404);
+  });
+});
+
+describe("class title derivation", () => {
+  it("classes routes derive titles from the class node's content, not the registry cache", async () => {
+    server = await makeTestServer();
+    const { id: classId } = (await api("POST", "/api/objects", { payload: { isClass: true, name: "Migrated" } })).json();
+    const { id: memberId } = (
+      await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Member Page", classIds: [classId] } })
+    ).json();
+
+    // Simulate the pre-title-is-content migration drift: the registry cache
+    // row is blank while the class node's content carries the title.
+    const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
+    store.database.prepare("UPDATE class SET name = '' WHERE id = ?").run(classId);
+
+    const list = await api("GET", "/api/classes");
+    expect(list.statusCode).toBe(200);
+    const row = list.json().classes.find((entry: { id: string }) => entry.id === classId);
+    expect(row.name).toBe("Migrated");
+    expect(row.memberCount).toBe(1);
+
+    const detail = await api("GET", `/api/classes/${classId}`);
+    expect(detail.json().class.name).toBe("Migrated");
+    expect(detail.json().members).toEqual([expect.objectContaining({ id: memberId, name: "Member Page" })]);
+
+    // The embedded class summary on the object read derives the same way.
+    const object = (await api("GET", `/api/objects/${memberId}`)).json().object;
+    expect(object.classes).toEqual([expect.objectContaining({ id: classId, name: "Migrated" })]);
   });
 });

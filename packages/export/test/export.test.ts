@@ -8,9 +8,11 @@ import { describe, expect, it } from "vitest";
 import type { ContentAst } from "@notees/protocol";
 
 import {
+  buildExportDocument,
   bundleMarkdown,
   concatBundleMarkdown,
   nodeToMarkdown,
+  resolveExportOptions,
   type ExportContext,
   type ExportNode,
 } from "../src/index.js";
@@ -296,10 +298,24 @@ describe("bundle", () => {
     ]);
     expect(bundle.files[0]?.content).toContain("# Alpha");
     expect(bundle.manifest.format).toBe("notees-markdown");
-    expect(bundle.manifest.version).toBe(1);
+    expect(bundle.manifest.version).toBe(2);
     expect(bundle.manifest.nodes).toEqual([
-      { id: "cccccccc-0000-4000-8000-000000000001", name: "Alpha", isClass: false, presentAsMain: true },
-      { id: "cccccccc-0000-4000-8000-000000000002", name: "Beta", isClass: false, presentAsMain: true },
+      {
+        id: "cccccccc-0000-4000-8000-000000000001",
+        path: "cccccccc-0000-4000-8000-000000000001.md",
+        name: "Alpha",
+        type: "page",
+        isClass: false,
+        presentAsMain: true,
+      },
+      {
+        id: "cccccccc-0000-4000-8000-000000000002",
+        path: "cccccccc-0000-4000-8000-000000000002.md",
+        name: "Beta",
+        type: "page",
+        isClass: false,
+        presentAsMain: true,
+      },
     ]);
   });
 
@@ -312,5 +328,206 @@ describe("bundle", () => {
     expect(text).toContain("# One");
     expect(text).toContain("# Two");
     expect(text).toContain("\n\n---\n\n");
+  });
+});
+
+describe("bundle filename policy", () => {
+  it("names files <slug>-<uuid8>.md under the slug policy and carries path in the manifest", () => {
+    const nodes = [
+      page("cccccccc-0000-4000-8000-000000000005", "My Page!", [{ type: "text", text: "My Page!" }]),
+      page("cccccccc-0000-4000-8000-000000000006", "My Page!", [{ type: "text", text: "My Page!" }]),
+      page("cccccccc-0000-4000-8000-000000000007", "   ", [{ type: "text", text: "   " }]),
+    ];
+    const bundle = bundleMarkdown(nodes, makeCtx(), { filenamePolicy: "slug" });
+    // Slugified titles share a slug; the uuid8 suffix disambiguates.
+    expect(bundle.files.map((file) => file.path)).toEqual([
+      "My-Page-cccccccc.md",
+      "My-Page-cccccccc.md", // same node id → same file name (uuid8 is per node)
+      "cccccccc.md", // empty title falls back to the uuid8 alone
+    ]);
+    expect(bundle.manifest.nodes.map((node) => node.path)).toEqual([
+      "My-Page-cccccccc.md",
+      "My-Page-cccccccc.md",
+      "cccccccc.md",
+    ]);
+  });
+
+  it("keeps <uuid>.md names by default", () => {
+    const nodes = [page("cccccccc-0000-4000-8000-000000000008", "Titled", [{ type: "text", text: "Titled" }])];
+    const bundle = bundleMarkdown(nodes, makeCtx());
+    expect(bundle.files.map((file) => file.path)).toEqual(["cccccccc-0000-4000-8000-000000000008.md"]);
+  });
+});
+
+describe("whiteboard sidecar files", () => {
+  const layout = { viewport: { x: 0, y: 0 }, cards: { a: { x: 1, y: 2, w: 3, h: 4 } } };
+  const secondLayout = { viewport: { x: 9 }, cards: {} };
+
+  function whiteboardPage(id: string, layouts: unknown[]): ExportNode {
+    return page(id, "board", layouts.map((l) => ({ type: "whiteboard", layout: l })) as ContentAst);
+  }
+
+  it("inline mode (default) keeps the fenced json block and emits no sidecars", () => {
+    const id = "cccccccc-0000-4000-8000-000000000009";
+    const bundle = bundleMarkdown([whiteboardPage(id, [layout])], makeCtx());
+    expect(bundle.files.map((file) => file.path)).toEqual([`${id}.md`]);
+    expect(bundle.files[0]?.content).toContain("```json\n" + JSON.stringify(layout, null, 2) + "\n```");
+  });
+
+  it("sidecar mode rewrites the link and emits <uuid>.whiteboard.json next to the .md", () => {
+    const id = "cccccccc-0000-4000-8000-000000000010";
+    const bundle = bundleMarkdown([whiteboardPage(id, [layout])], makeCtx(), {
+      whiteboardMode: "sidecar",
+    });
+    expect(bundle.files.map((file) => file.path)).toEqual([`${id}.md`, `${id}.whiteboard.json`]);
+    const md = bundle.files[0]?.content ?? "";
+    expect(md).toContain(`[whiteboard](<${id}.whiteboard.json>)`);
+    expect(md).not.toContain("```json");
+    expect(bundle.files[1]?.content).toBe(JSON.stringify(layout, null, 2) + "\n");
+  });
+
+  it("numbers additional whiteboards per node (<uuid>.<n>.whiteboard.json)", () => {
+    const id = "cccccccc-0000-4000-8000-000000000011";
+    const bundle = bundleMarkdown([whiteboardPage(id, [layout, secondLayout])], makeCtx(), {
+      whiteboardMode: "sidecar",
+    });
+    expect(bundle.files.map((file) => file.path)).toEqual([
+      `${id}.md`,
+      `${id}.whiteboard.json`,
+      `${id}.1.whiteboard.json`,
+    ]);
+    const md = bundle.files[0]?.content ?? "";
+    expect(md).toContain(`[whiteboard](<${id}.whiteboard.json>)`);
+    expect(md).toContain(`[whiteboard](<${id}.1.whiteboard.json>)`);
+    expect(bundle.files[2]?.content).toBe(JSON.stringify(secondLayout, null, 2) + "\n");
+  });
+
+  it("emits sidecars for whiteboards inside child block streams, named by the child id", () => {
+    const pageId = "cccccccc-0000-4000-8000-000000000012";
+    const childId = "bbbbbbbb-0000-4000-8000-000000000001";
+    const child: ExportNode = {
+      id: childId,
+      isClass: 0,
+      presentAsMain: 0,
+      parentId: pageId,
+      name: null,
+      contentAst: [{ type: "whiteboard", layout }],
+      classIds: [],
+      properties: [],
+    };
+    const parent = page(pageId, "parent", [{ type: "text", text: "parent" }]);
+    const ctx = makeCtx({ childrenOf: (id) => (id === pageId ? [child] : []) });
+    const bundle = bundleMarkdown([parent], ctx, { whiteboardMode: "sidecar" });
+    expect(bundle.files.map((file) => file.path)).toEqual([
+      `${pageId}.md`,
+      `${childId}.whiteboard.json`,
+    ]);
+    expect(bundle.files[0]?.content).toContain(`[whiteboard](<${childId}.whiteboard.json>)`);
+  });
+});
+
+
+describe("link/asset rewriting hooks (multi-file delivery)", () => {
+  const TARGET_ID = "dddddddd-0000-4000-8000-000000000001";
+
+  it("rewrites a mention to a relative link when ctx.linkTarget resolves the target", () => {
+    const node = page("dddddddd-0000-4000-8000-000000000002", "host", [
+      { type: "mention", targetNodeId: TARGET_ID, text: "the Republic", displayText: "the Republic" },
+    ]);
+    const ctx = makeCtx({
+      linkTarget: (id) => (id === TARGET_ID ? { path: "The-Republic-dddddddd.md" } : undefined),
+    });
+    const md = nodeToMarkdown(node, ctx);
+    expect(md).toContain("[the Republic](The-Republic-dddddddd.md)");
+    expect(md).not.toContain("[[the Republic]]");
+  });
+
+  it("keeps the [[name]] convention when linkTarget misses or is absent", () => {
+    const node = page("dddddddd-0000-4000-8000-000000000003", "host", [
+      { type: "mention", targetNodeId: TARGET_ID, text: "x", displayText: "the Republic" },
+      { type: "text", text: " and " },
+      { type: "mention", targetNodeId: "88888888-8888-4888-8888-888888888888", text: "y" },
+    ]);
+    const withMiss = makeCtx({ linkTarget: () => undefined });
+    expect(nodeToMarkdown(node, withMiss)).toContain("[[the Republic]]");
+    expect(nodeToMarkdown(node, makeCtx())).toContain("[[the Republic]]");
+  });
+
+  it("rewrites an unresolved embed to a named relative link when linkTarget resolves it", () => {
+    const node = page("dddddddd-0000-4000-8000-000000000004", "host", [
+      { type: "embed_ref", nodeId: TARGET_ID },
+    ]);
+    const ctx = makeCtx({
+      nameOf: (id) => (id === TARGET_ID ? "The Republic" : NAMES.get(id)),
+      linkTarget: (id) => (id === TARGET_ID ? { path: "The-Republic-dddddddd.md" } : undefined),
+    });
+    const md = nodeToMarkdown(node, ctx);
+    expect(md).toContain("[The Republic](The-Republic-dddddddd.md)");
+    expect(md).not.toContain("![[dddddddd-0000-4000-8000-000000000001]]");
+  });
+
+  it("keeps embed precedence: inlined content wins over the link rewrite", () => {
+    const target = page(TARGET_ID, "The Republic", [{ type: "text", text: "The Republic" }]);
+    const node = page("dddddddd-0000-4000-8000-000000000005", "host", [
+      { type: "embed_ref", nodeId: TARGET_ID },
+    ]);
+    const ctx = makeCtx({
+      nodeOf: (id) => (id === TARGET_ID ? target : undefined),
+      linkTarget: (id) => (id === TARGET_ID ? { path: "The-Republic-dddddddd.md" } : undefined),
+    });
+    const md = nodeToMarkdown(node, ctx, { includeEmbedded: true });
+    expect(md).toContain("The Republic");
+    expect(md).not.toContain("(The-Republic-dddddddd.md)");
+  });
+
+  it("leaves outline cut entries as ![[uuid]] even when linkTarget would resolve them", () => {
+    const cyclic = block("dddddddd-0000-4000-8000-000000000006", [
+      { type: "text", text: "cycle back" },
+    ]);
+    const node = page("dddddddd-0000-4000-8000-000000000007", "host", []);
+    const ctx = makeCtx({
+      // The child resolver returns the root as its own child → cycle cut.
+      childrenOf: (id) => (id === node.id ? [{ ...node, presentAsMain: 0, parentId: node.id, contentAst: [] }] : []),
+      linkTarget: () => ({ path: "anywhere.md" }),
+    });
+    const md = nodeToMarkdown(node, ctx);
+    expect(md).toContain("- ![[dddddddd-0000-4000-8000-000000000007]]");
+    expect(md).not.toContain(cyclic.id);
+  });
+
+  it("rewrites an asset_ref to the resolved bytes path when ctx.assetPath returns", () => {
+    const node = page("dddddddd-0000-4000-8000-000000000008", "host", [
+      { type: "asset_ref", assetId: ASSET_ID },
+    ]);
+    const withPath = makeCtx({ assetPath: (id) => (id === ASSET_ID ? "assets/photo-abcdef12.png" : undefined) });
+    expect(nodeToMarkdown(node, withPath)).toContain("![asset](assets/photo-abcdef12.png)");
+    // Miss/absent keeps the raw CAS uuid reference.
+    expect(nodeToMarkdown(node, makeCtx({ assetPath: () => undefined }))).toContain(
+      `![asset](<${ASSET_ID}>)`,
+    );
+    expect(nodeToMarkdown(node, makeCtx())).toContain(`![asset](<${ASSET_ID}>)`);
+  });
+
+  it("collects assetRefs across the whole subtree: own stream, children, and inlined embeds", () => {
+    const EMBED_ID = "66666666-6666-4666-8666-666666666666";
+    const CHILD_ASSET = "55555555-5555-4555-8555-555555555556";
+    const EMBED_ASSET = "55555555-5555-4555-8555-555555555557";
+    const child = block("dddddddd-0000-4000-8000-000000000009", [
+      { type: "asset_ref", assetId: CHILD_ASSET },
+    ]);
+    const embedTarget = page(EMBED_ID, "embedded", [
+      { type: "asset_ref", assetId: EMBED_ASSET },
+    ]);
+    const node = page("dddddddd-0000-4000-8000-000000000010", "host", [
+      { type: "text", text: "host" },
+      { type: "asset_ref", assetId: ASSET_ID },
+      { type: "embed_ref", nodeId: EMBED_ID },
+    ]);
+    const ctx = makeCtx({
+      childrenOf: (id) => (id === node.id ? [child] : []),
+      nodeOf: (id) => (id === EMBED_ID ? embedTarget : undefined),
+    });
+    const document = buildExportDocument(node, ctx, resolveExportOptions({ includeEmbedded: true }));
+    expect(document.assetRefs).toEqual([ASSET_ID, EMBED_ASSET, CHILD_ASSET]);
   });
 });

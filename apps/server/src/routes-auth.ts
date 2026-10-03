@@ -11,7 +11,16 @@
  *  - GET  /auth/me            the authenticated account;
  *  - GET  /workspaces         the account's workspaces (membership view);
  *  - POST /workspaces         create a workspace (creator becomes owner);
- *  - PATCH /workspaces/:id    rename a workspace (owner-only via membership).
+ *  - PATCH /workspaces/:id    rename a workspace (owner-only via membership);
+ *  - GET  /workspaces/:id/export.zip
+ *                             full-workspace ZIP export (§34.24 E5): one
+ *                             Markdown file per page (roots + their
+ *                             main-zone descendants), properties frontmatter,
+ *                             relative links between the files, the bundle
+ *                             manifest at the zip root as
+ *                             notees-manifest.json, and — with
+ *                             ?includeAssets=1 — the CAS bytes of every
+ *                             asset_ref'd asset under assets/.
  *
  * Sessions travel in the Authorization: Bearer header or the X-API-Key slot
  * (the sync transport already uses both — see transport.ts).
@@ -20,16 +29,19 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { deriveDisplayName } from "@notees/domain";
-import type { ExportContext, ExportNode } from "@notees/export";
-import { nodeToMarkdown } from "@notees/export";
+import type { ExportBundle, ExportContext, ExportNode } from "@notees/export";
+import { bundleMarkdown, exportFileName } from "@notees/export";
 import type { NodeRow } from "@notees/store";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { zipSync } from "fflate";
 
+import { readAssetBytes } from "./assets.js";
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 import { actorIdForUser, type Principal } from "./identity.js";
 import { hashPassword, verifyPassword } from "./auth.js";
+import { fullObject } from "./routes-objects.js";
 
 const emailSchema = z.string().trim().email();
 const passwordSchema = z.string().min(8).max(256);
@@ -53,6 +65,98 @@ const createWorkspaceSchema = z
 const renameWorkspaceSchema = z
   .object({ name: z.string().trim().min(1).max(120) })
   .strict();
+
+const exportZipQuerySchema = z
+  .object({
+    /**
+     * 1 bundles the CAS bytes of every asset the exported pages reference
+     * (asset_ref) under assets/ and rewrites the Markdown refs to those
+     * paths; 0 (default) keeps the raw uuid references and adds no bytes.
+     */
+    includeAssets: z.union([z.literal("0"), z.literal("1")]).optional(),
+  })
+  .strict();
+
+/** The workspace-name slug idiom (unicode letters/numbers, `-` separators). */
+function slugifyName(name: string): string {
+  return name.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Zip file naming for one asset: `assets/<original-name-slug>-<hash8>.<ext>`.
+ * The extension prefers the upload's original name (sanitized to a short
+ * alphanumeric token); a nameless upload falls back to the sniffed mime
+ * mapping, then to `bin`. The hash8 suffix keeps identical names unique.
+ */
+function assetZipFileName(originalName: string, hash: string, mimeType: string): string {
+  const slug = slugifyName(originalName.replace(/\.[A-Za-z0-9]{1,8}$/, ""));
+  const dot = originalName.lastIndexOf(".");
+  const rawExt = dot > 0 ? originalName.slice(dot + 1).toLowerCase() : "";
+  const ext = /^[a-z0-9]{1,8}$/.test(rawExt) ? rawExt : (ASSET_MIME_EXTENSIONS[mimeType] ?? "bin");
+  return `${slug.length > 0 ? `${slug}-` : ""}${hash.slice(0, 8)}.${ext}`;
+}
+
+const ASSET_MIME_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+  "application/epub+zip": "epub",
+  "audio/mpeg": "mp3",
+  "audio/ogg": "ogg",
+  "audio/flac": "flac",
+  "audio/wav": "wav",
+  "audio/mp4": "m4a",
+};
+
+/**
+ * Deterministic filename assignment for the exported pages: the slug
+ * policy's `<title-slug>-<uuid8>.md` with uuid8 fallback for empty titles;
+ * when two pages STILL collide (same title authored inside the same
+ * uuidv7 timestamp window), the later page gains `-2`, `-3`, … before the
+ * extension. The uuid→path map is computed BEFORE rendering because the
+ * markdown link rewriting consults it.
+ */
+function assignExportPaths(nodes: readonly ExportNode[]): Map<string, string> {
+  const paths = new Map<string, string>();
+  const taken = new Set<string>();
+  for (const node of nodes) {
+    let path = exportFileName(node, "slug");
+    if (taken.has(path)) {
+      const stem = path.replace(/\.md$/, "");
+      let counter = 2;
+      while (taken.has(`${stem}-${counter}.md`)) counter += 1;
+      path = `${stem}-${counter}.md`;
+    }
+    taken.add(path);
+    paths.set(node.id, path);
+  }
+  return paths;
+}
+
+/**
+ * Re-point a rendered bundle's node files (and manifest entries) at the
+ * pre-assigned paths. bundleMarkdown recomputes the policy names itself;
+ * they agree with assignExportPaths except under a collision, where the
+ * bundle still carries the duplicate. The node files are the bundle files
+ * whose path equals the next manifest entry's path — the bundle emits one
+ * `.md` per node in manifest order, followed by that node's whiteboard
+ * sidecars — so the walk is deterministic.
+ */
+export function reassignExportPaths(bundle: ExportBundle, paths: Map<string, string>): void {
+  let nodeIndex = 0;
+  for (const file of bundle.files) {
+    const entry = bundle.manifest.nodes[nodeIndex];
+    if (entry === undefined) break;
+    if (file.path !== entry.path) continue; // a sidecar, not the node's own file
+    const assigned = paths.get(entry.id);
+    if (assigned !== undefined) {
+      file.path = assigned;
+      entry.path = assigned;
+    }
+    nodeIndex += 1;
+  }
+}
 
 /** Extracts a credential from X-API-Key, Authorization: Bearer, or ?token=. */
 export function extractCredential(request: FastifyRequest): string | null {
@@ -376,26 +480,44 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     return { ok: true };
   });
 
-  // GET /workspaces/:id/export — full-workspace Markdown download built from
-  // the derived store via @notees/export (one section per page, nested
-  // bullets under each).
-  app.get("/workspaces/:id/export", async (request, reply) => {
+  // GET /workspaces/:id/export.zip — full-workspace ZIP export (§34.24 E5):
+  // one Markdown file per page (top-level pages plus their main-zone child
+  // pages, each rendered by @notees/export with properties frontmatter and
+  // inline-body blocks as nested bullets), relative links between the files,
+  // the bundle manifest at the zip root, and — with ?includeAssets=1 — the
+  // CAS bytes of every referenced asset under assets/. Blocks are never
+  // standalone files; classes are not exported.
+  app.get("/workspaces/:id/export.zip", async (request, reply) => {
     const principal = requireUser(ctx, request);
     const { id } = request.params as { id: string };
+    const parsed = exportZipQuerySchema.safeParse(request.query ?? {});
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid export query");
+    }
     if (ctx.auth.membership(id, principal.userId) === null) {
       throw new AppError(404, "not_found", "no such workspace");
     }
     const store = ctx.workspaces.storeFor(id);
-    const toExportNode = (row: NodeRow): ExportNode => ({
-      id: row.id,
-      isClass: row.is_class as 0 | 1,
-      presentAsMain: row.present_as_main as 0 | 1,
-      parentId: row.parent_id,
-      name: row.name,
-      contentAst: JSON.parse(row.content) as ExportNode["contentAst"],
-      classIds: JSON.parse(row.class_ids) as string[],
-      properties: [],
-    });
+    const toExportNode = (row: NodeRow): ExportNode => {
+      const object = fullObject(store, row);
+      return {
+        id: object.id,
+        isClass: object.isClass ? 1 : 0,
+        presentAsMain: object.presentAsMain ? 1 : 0,
+        parentId: object.parentId,
+        name: object.name,
+        contentAst: object.contentAst as ExportNode["contentAst"],
+        classIds: object.classIds,
+        properties: object.properties.map((property) => ({
+          schemaId: property.schemaId,
+          schemaName: property.schemaName,
+          value: property.value,
+          ...(typeof property.metadata === "object" && property.metadata !== null && !Array.isArray(property.metadata)
+            ? { metadata: property.metadata as Record<string, unknown> }
+            : {}),
+        })),
+      };
+    };
     const nameOf = (nodeId: string): string | undefined => {
       const row = store.database.prepare("SELECT * FROM node WHERE id = ?").get(nodeId) as
         | NodeRow
@@ -412,6 +534,72 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
         }) || undefined
       );
     };
+    // The page set: workspace roots, then transitive descendants through the
+    // main-children zone. Blocks (render bit unset) stay inside their page's
+    // file; classes are never exported.
+    const pageRows: NodeRow[] = [];
+    const seenPages = new Set<string>();
+    const visitPage = (row: NodeRow): void => {
+      if (seenPages.has(row.id)) return;
+      seenPages.add(row.id);
+      pageRows.push(row);
+      for (const child of store.children(row.id)) {
+        if (child.is_class === 0 && child.present_as_main === 1 && child.is_active === 1) {
+          visitPage(child);
+        }
+      }
+    };
+    for (const root of store.roots(id)) visitPage(root);
+    const exportNodes = pageRows.map(toExportNode);
+    const pathById = assignExportPaths(exportNodes);
+
+    // Assets (?includeAssets=1): scan the exported pages' rendered subtrees
+    // (the page plus its inline-body descendants) for asset_ref tokens, then
+    // map each asset to assets/<name-slug>-<hash8>.<ext> and read its bytes
+    // from the local CAS. Unknown assets or missing bytes skip the file and
+    // keep the raw uuid reference in the Markdown.
+    const assetPaths = new Map<string, string>();
+    const assetFiles: Array<{ path: string; bytes: Buffer }> = [];
+    if (parsed.data.includeAssets === "1") {
+      const inlineChildren = (row: NodeRow): NodeRow[] =>
+        store
+          .children(row.id)
+          .filter((child) => child.is_class === 0 && child.present_as_main === 0 && child.is_active === 1);
+      const assetRefIds = new Set<string>();
+      const walkRefs = (row: NodeRow, visited: Set<string>): void => {
+        if (visited.has(row.id)) return;
+        visited.add(row.id);
+        const ast = JSON.parse(row.content) as unknown;
+        if (Array.isArray(ast)) {
+          for (const token of ast) {
+            if (
+              typeof token === "object" &&
+              token !== null &&
+              (token as { type?: unknown }).type === "asset_ref" &&
+              typeof (token as { assetId?: unknown }).assetId === "string"
+            ) {
+              assetRefIds.add((token as { assetId: string }).assetId);
+            }
+          }
+        }
+        for (const child of inlineChildren(row)) walkRefs(child, visited);
+      };
+      for (const row of pageRows) walkRefs(row, new Set<string>());
+      const emittedPaths = new Set<string>();
+      for (const assetId of assetRefIds) {
+        const asset = ctx.relay.assetById(assetId);
+        if (asset === null || asset.workspaceId !== id) continue;
+        const bytes = readAssetBytes(ctx, id, asset.hash);
+        if (bytes === null) continue;
+        const path = `assets/${assetZipFileName(asset.originalName, asset.hash, asset.mimeType)}`;
+        assetPaths.set(assetId, path);
+        if (!emittedPaths.has(path)) {
+          emittedPaths.add(path);
+          assetFiles.push({ path, bytes });
+        }
+      }
+    }
+
     const exportContext: ExportContext = {
       nameOf,
       childrenOf: (parentId) =>
@@ -419,15 +607,26 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
           .children(parentId)
           .filter((row) => row.is_class === 0 && row.present_as_main === 0 && row.is_active === 1)
           .map(toExportNode),
+      // Relative links between the exported files (same zip directory).
+      linkTarget: (nodeId) => {
+        const path = pathById.get(nodeId);
+        return path === undefined ? undefined : { path };
+      },
+      // Bundle-relative asset paths, only for assets whose bytes made it in.
+      assetPath: (assetId) => assetPaths.get(assetId),
     };
-    const pages = store.database
-      .prepare(
-        "SELECT * FROM node WHERE is_class = 0 AND (parent_id IS NULL OR present_as_main = 1) AND is_active = 1 ORDER BY created_at, id",
-      )
-      .all() as NodeRow[];
-    const markdown = pages
-      .map((row) => nodeToMarkdown(toExportNode(row), exportContext))
-      .join("\n\n---\n\n");
+    const bundle = bundleMarkdown(exportNodes, exportContext, {
+      filenamePolicy: "slug",
+      whiteboardMode: "sidecar",
+    });
+    reassignExportPaths(bundle, pathById);
+
+    const entries: Record<string, Uint8Array> = {};
+    for (const file of bundle.files) entries[file.path] = new TextEncoder().encode(file.content);
+    for (const asset of assetFiles) entries[asset.path] = new Uint8Array(asset.bytes);
+    entries["notees-manifest.json"] = new TextEncoder().encode(
+      `${JSON.stringify(bundle.manifest, null, 2)}\n`,
+    );
     const workspaceName =
       (
         ctx.auth.listWorkspacesForUser(principal.userId, () => ({
@@ -435,11 +634,11 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
           latestSeq: 0,
         })) as Array<{ id: string; name: string | null }>
       ).find((w) => w.id === id)?.name ?? id;
-    const slug = (workspaceName || "workspace").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "workspace";
+    const slug = slugifyName(workspaceName || "workspace") || "workspace";
     return reply
-      .header("content-type", "text/markdown; charset=utf-8")
-      .header("content-disposition", `attachment; filename="${slug}.md"`)
-      .send(markdown);
+      .header("content-type", "application/zip")
+      .header("content-disposition", `attachment; filename="${slug}.zip"`)
+      .send(Buffer.from(zipSync(entries)));
   });
 
   // GET /nodes/:id/location — which of the account's workspaces holds this
@@ -486,12 +685,31 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
   });
 
   app.delete("/api-keys/:id", async (request) => {
-    const { principal } = requireAccount(ctx, request);
     const { id } = request.params as { id: string };
-    const revoked = ctx.auth.revokeApiKey(principal.userId, id);
-    if (!revoked) {
-      throw new AppError(404, "not_found", "no such API key (or already revoked)");
+    const resolved = resolvePrincipal(ctx, request);
+    if (resolved === null) {
+      throw new AppError(401, "unauthenticated", "invalid or missing credentials");
     }
-    return { ok: true };
+    if (resolved.sessionToken !== null) {
+      // Account session: revoke any of the user's keys.
+      const { principal } = requireAccount(ctx, request);
+      const revoked = ctx.auth.revokeApiKey(principal.userId, id);
+      if (!revoked) {
+        throw new AppError(404, "not_found", "no such API key (or already revoked)");
+      }
+      return { ok: true };
+    }
+    if (resolved.apiKeyToken !== undefined) {
+      // Self-revocation: a key may revoke ITSELF (the CLI's `notees auth
+      // logout` holds no session); other keys still require an account
+      // session — possession of one key must not manage the rest.
+      const own = ctx.auth.resolveApiKey(resolved.apiKeyToken);
+      if (own === null || own.keyId !== id) {
+        throw new AppError(401, "unauthenticated", "an API key may only revoke itself; use a session for other keys");
+      }
+      ctx.auth.revokeApiKey(own.userId, own.keyId);
+      return { ok: true };
+    }
+    throw new AppError(401, "unauthenticated", "a valid session token is required");
   });
 }

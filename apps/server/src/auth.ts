@@ -524,8 +524,8 @@ export class AuthStorage {
     return result.changes > 0;
   }
 
-  /** Resolve a key to its owning user id; updates last_used_at. */
-  resolveApiKey(token: string): { userId: string; isAdmin: boolean } | null {
+  /** Resolve a key to its owning user id (and the key's own row id — self-revocation); updates last_used_at. */
+  resolveApiKey(token: string): { userId: string; isAdmin: boolean; keyId: string } | null {
 
     const row = this.db
       .prepare(
@@ -540,7 +540,7 @@ export class AuthStorage {
     this.db
       .prepare("UPDATE api_key SET last_used_at = ? WHERE id = ?")
       .run(Date.now(), row.key_id);
-    return { userId: row.user_id, isAdmin: row.is_admin === 1 };
+    return { userId: row.user_id, isAdmin: row.is_admin === 1, keyId: row.key_id };
   }
 
   // --- password-derived keys ------------------------------------------------------
