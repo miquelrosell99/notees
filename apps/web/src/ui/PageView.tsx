@@ -83,6 +83,7 @@ export function PageView({
   onOpenPage,
   onOpenInSidebar,
   onDeleted,
+  onPresent,
   embedded = false,
   /**
    * Class composition (the Class View renders a class node through PageView):
@@ -113,6 +114,8 @@ export function PageView({
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /** Post-delete navigation (host routes to the parent / default view). */
   onDeleted?: ((node: ClientNode) => void) | undefined;
+  /** Presentation mode (§34.26): "Present" decks this page's subtree read-only. */
+  onPresent?: ((pageId: string) => void) | undefined;
   /**
    * Embedded mode (journals feed): the title renders as a static button that
    * navigates to the full page view instead of the inline TitleEditor, and
@@ -522,6 +525,7 @@ export function PageView({
             setHeaderMenu(null);
             onOpenPage?.(id);
           }}
+          onPresent={onPresent}
           onExport={(id, name) => {
             setHeaderMenu(null);
             setExporting({ pageId: id, name });
