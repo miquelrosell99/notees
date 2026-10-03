@@ -41,7 +41,7 @@ Sanity probes (no auth needed for the first two):
 
 ```bash
 curl -s localhost:8377/healthz                       # {"ok":true}
-curl -s localhost:8377/api/version                # {"name":"notees-server","version":"2.0.0-m1","protocolVersion":3,...}
+curl -s localhost:8377/api/version                # {"name":"notees-server","version":"2.0.0-m6","protocolVersion":3,...}
 ```
 
 A fresh workspace seeds itself: a starter class catalog (`person`, `organization`, the `source` tree with its `book`/`paper`/`article`/`document`/`movie`/`thesis` children, `task`, `whiteboard`, `collection`, `query`, `template`, `note`, the `day`/`month`/`year` journals, …), plus `scratchpad` and `inbox` pages.
@@ -166,7 +166,7 @@ $ notees class delete-members pokemon --dry-run   # what would be trashed, write
 $ notees class delete-members pokemon --yes       # trash every member (recoverable)
 ```
 
-**Typed properties.** Class members carry structured values beside their content — `object property set` writes one (the schema argument is a uuid or a name; the value parses as JSON when it can — `42`, `true`, `{"nodeId": "…"}` — and stays a string otherwise), `object property delete` unsets a slot:
+**Typed properties.** Class members carry structured values beside their content — `object property set` writes one (the schema argument is a uuid or a name; the value parses as JSON when it can — `42`, `true`, `{"nodeId": "…"}` — and stays a string otherwise), `object property delete` unsets a slot. The write path is shape-checked per schema type: a date or object-typed property takes a `{"nodeId": "…"}` reference (a date is a node), a text property takes a plain string or a block reference, and a mismatched shape is rejected with an error rather than stored. Deleting a text property whose value references a carrier block moves that block to the trash (recoverable with `object restore`); plain-string values simply clear:
 
 ```console
 $ notees object property set 01a0dd78-… publicationDate 1962
@@ -280,6 +280,17 @@ Slice 1 is deliberately read-mostly. What works today:
 
 What is not there yet: KaTeX math rendering, in-app graph view, the plugin runtime. The data path underneath — local store, outbox, catch-up — is the same engine everything above rides.
 
+## Presenting a page
+
+Any page decks itself: the "…" node menu (top-right of the content card) → **Present**, the page header's right-click menu → **Present**, or **Ctrl/Cmd+Alt+Enter** with the page open. (Capacities uses Ctrl+Alt+P; that chord stays reserved for add-property here.)
+
+The deck is a live, read-only read of the note — there are no slide objects:
+
+- Slide 1 is the page itself (title, icon, color); each child in its **Pages** zone opens a section slide (its text is the title, its children the body); inline body blocks chunk into intro slides by a density rule; a trailing image block pulls aside (text left, image right, or centered when alone); embedded pages expand their children into the stream after the referencing slide.
+- **Navigate** with ← → ↑ ↓, Space, PageUp/PageDown, the screen edges, or the floating toolbar (previous / counter / next / exit — it fades while you read and returns on any movement or keypress). **Esc** exits.
+- Following a link inside a deck exits and opens the target in the app. Nothing in a deck edits the note.
+- Reopening a deck within the session resumes at the slide you left — the index is session memory only, never persisted, never synced.
+
 ## The Calendar
 
 The sidebar's **Calendar** entry (hide it from Workspace Settings → Sidebar Visibility) opens a day view for one date — today by default:
@@ -308,7 +319,9 @@ Export is a **projection, one-way by design** (the operation log is the truth) �
 
 ## Object API quick reference
 
-Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call. Bodies are camelCase JSON; `contentAst` follows the [SCHEMA.md grammar](../packages/protocol/SCHEMA.md).
+Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call except the public probes (`/healthz`, `/api/version`, `/api/meta`, `/api/openapi.json`, `/api/server-info`, `/api/setup`, `/api/auth/login`). Bodies are camelCase JSON; `contentAst` follows the [SCHEMA.md grammar](../packages/protocol/SCHEMA.md).
+
+**The developer contract is machine-readable:** `GET /api/openapi.json` serves the OpenAPI 3.1 document of the whole HTTP surface (§34.33 AG4), and CI fails when it drifts from the registered routes. It pins the error taxonomy (`x-error-codes` — every failure answers `{"error": {code, message, status}}`, codes and statuses are stable), the rate limits (`x-rate-limits` — 10k req/min/IP global fallback, 30k envelopes/min/workspace relay batches, 10 logins/min/IP + the 5-failures lockout), the API-key scope vocabulary (`x-api-key-scopes`), and the revision/idempotency rules below.
 
 | Endpoint | What it does |
 |---|---|
@@ -316,7 +329,7 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call.
 | `POST /api/objects` | Create an object; body `{"name": …, "parentId": …, "presentAsMain": …, "classIds": [...], "contentAst": [...]}` (`isClass: true` declares a class — a root) — returns the full object |
 | `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` |
 | `GET /api/objects/:id/children` | Direct children in child-position order (both render zones; active only) |
-| `PATCH /api/objects/:id` | Update `name`, `presentAsMain`, `contentAst`, `icon`, `color` |
+| `PATCH /api/objects/:id` | Update `name`, `presentAsMain`, `contentAst`, `icon`, `color`; optional `baseRevision: {physical, logical}` — the object's `hlc` as last seen — 409s when stale (the only route with a natural per-node revision; see `x-revision-checks`) |
 | `PUT /api/objects/:id/classes/:classId` | Assign the object to a class (idempotent OR-Set add; class nodes are rejected — identity is the `is_class` bit) |
 | `DELETE /api/objects/:id/classes/:classId` | Remove the class membership (idempotent tombstone; authored property values survive) |
 | `DELETE /api/objects/:id` | Trash (subtree); `?permanent=true&confirm=<id>` hard-deletes |
@@ -326,13 +339,21 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call.
 | `GET /api/properties/:id/values` | Values asserted for a property schema |
 | `POST /api/assets` (multipart) · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed), download, metadata |
 | `GET /api/workspaces/:id/export.zip?includeAssets=0|1` | Full-workspace Markdown zip — one file per top-level and child page, manifest, optional `assets/` folder |
+| `GET /api/meta` | Server self-description: version, wire protocol versions, default workspace, setup state (auth-free) |
+| `GET /api/openapi.json` | The OpenAPI 3.1 contract (auth-free, `cache-control: no-store`) |
+| `GET /api/operations?workspaceId=&afterSeq=&limit=` | Paginated read of the workspace's relay operation log — the audit feed for agents (cursor shape like relay catch-up; entries are envelope-v3 ops) |
 | `GET /healthz` · `GET /api/version` | Liveness and version/protocol probes |
+
+**Agent safety (§34.33 AG5).** Mutating JSON routes honor `Idempotency-Key: <key>`: the first 2xx response is replayed verbatim (header `x-idempotency-replay: true`) for an identical retry within 24h — no second write enters the log; reusing a key with a *different* request fails 409 `idempotency_replay`. Multipart uploads are excluded (CAS dedupes identical bytes by hash). The relay `/batch` needs nothing: it dedupes by envelope id.
+
+**Scoped API keys (§34.33 AG3, server side).** `POST /api/api-keys` accepts an optional `scopes` list (e.g. `["objects.read"]` for a read-only agent); keys without scopes — and the operator key and sessions — stay unrestricted. Scope checks are per-route (the OpenAPI `x-required-scope` extension is the enforcement table): an out-of-scope call gets 403 `scope_denied`, and scoped keys are rejected on the whole relay surface. The in-app Read/Write/Admin checkboxes are separate web work (§34.19).
 
 One curl, end to end:
 
 ```bash
 curl -s -X POST localhost:8377/api/objects \
   -H "X-API-Key: $NOTEES_API_KEY" -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: import-run-2026-10-03' \
   -d '{"parentId":"01a0dd78-cd48-73d5-87d6-8f650e8d7487",
        "contentAst":[{"type":"text","text":"Back via curl"}]}'
 ```
@@ -341,7 +362,7 @@ The relay surface your clients sync through (`POST /api/relay/v2/batch`, `POST /
 
 ## Scope: accounts + operator key
 
-The server has accounts (email + password, scrypt-hashed) with sessions, and an initial-setup screen gates the first admin. Workspace access is membership-based: the first account to write to an unclaimed workspace adopts it; reads require membership. The operator API key (`nk_…`) remains the machine path — the CLI and owned devices use it with unrestricted access. Multi-user hardening (roles, shares, registration) still lands with M3; expose the port to machines you trust.
+The server has accounts (email + password, scrypt-hashed) with sessions, and an initial-setup screen gates the first admin. Workspace access is membership-based: the first account to write to an unclaimed workspace adopts it; reads require membership. The operator API key (`nk_…`) remains the machine path — the CLI and owned devices use it with unrestricted access. Per-user API keys minted from settings can carry a read-only or other scope set (server-enforced; see the quick reference above). Multi-user hardening (roles, shares, registration) still lands with M3; expose the port to machines you trust.
 
 ## See also
 
