@@ -15,6 +15,7 @@ import { actorIdForKey, defaultWorkspaceId } from "./identity.js";
 import { AuthStorage, AccountLockout, hashPassword } from "./auth.js";
 import { EnvelopeFactory } from "./envelope-factory.js";
 import { AppError } from "./errors.js";
+import { IdempotencyStore } from "./idempotency.js";
 import { FixedWindowLimiter } from "./rate-limit.js";
 import { RelayStorage } from "./relay-storage.js";
 import { seedWorkspace, type SeedResult } from "./seed.js";
@@ -40,6 +41,8 @@ export class ServerContext {
     global: FixedWindowLimiter;
     login: FixedWindowLimiter;
   };
+  /** §34.33 AG5: Idempotency-Key → first-successful-response replay store. */
+  readonly idempotency: IdempotencyStore;
   readonly defaultWorkspace: string;
   readonly serverVersion: string;
   /**
@@ -71,6 +74,7 @@ export class ServerContext {
       global: new FixedWindowLimiter(),
       login: new FixedWindowLimiter(),
     };
+    this.idempotency = new IdempotencyStore();
     this.defaultWorkspace = defaultWorkspaceId();
     void hashPassword(randomBytesForDummy()).then((hash) => {
       this.dummyPasswordHash = hash;
