@@ -25,6 +25,7 @@ import {
   parseDateNodeId,
   rendersAsInlineBlock,
   SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
   type DatePrecision,
 } from "@notees/domain";
 
@@ -49,7 +50,7 @@ import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
-import { ClassPills } from "./ClassPills.js";
+import { NodePills } from "./NodePills.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
@@ -911,7 +912,7 @@ export function ClassesRow({
   return (
     <div className="node-metadata-row nt-classes-row">
       <div className="section-label">Classes:</div>
-      <ClassPills client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+      <NodePills client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
     </div>
   );
 }
@@ -1158,7 +1159,13 @@ function AddPropertyRow({
  * bound-but-empty grouped bindings that still render an add affordance.
  */
 function propertyGroupsOf(client: AnyClient, nodeId: string) {
-  const rows = client.getEffectiveProperties(nodeId);
+  const node = client.getNode(nodeId);
+  // Class pages: the class's has-template values render in the dedicated
+  // Templates section — the generic table suppresses that schema row.
+  const isClassNode = node?.isClass === true;
+  const rows = client
+    .getEffectiveProperties(nodeId)
+    .filter((row) => !(isClassNode && row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate));
 
   // Node-typed / date / date_range / boolean schemas render as one grouped
   // row per schema; select schemas join them only when they declare options
@@ -1198,10 +1205,10 @@ function propertyGroupsOf(client: AnyClient, nodeId: string) {
   // hosts the add/set affordance (the scalar editor has no way to author a
   // first value). hideWhenEmpty bindings are the exception.
   const emptyObjectBindings: ClassBinding[] = [];
-  const node = client.getNode(nodeId);
   for (const classId of node?.classIds ?? []) {
     for (const binding of client.getClassBindings(classId)) {
       if (!isGroupedType(binding.type, binding.propertySchemaId)) continue;
+      if (isClassNode && binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) continue;
       if (renderedGroups.has(binding.propertySchemaId)) continue;
       if (emptyObjectBindings.some((b) => b.propertySchemaId === binding.propertySchemaId)) continue;
       if (binding.hideWhenEmpty === true) continue;

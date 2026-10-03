@@ -37,7 +37,7 @@ import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
 import { PropertiesSection, TagsRow } from "./components/MetadataSection.js";
-import { ClassPills } from "./components/ClassPills.js";
+import { NodePills } from "./components/NodePills.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
@@ -222,7 +222,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             + "+N" overflow popup, drag to reorder). */}
         {!readOnly && (
           <div className="nt-block-classes">
-            <ClassPills
+            <NodePills
               client={client}
               nodeId={node.id}
               classIds={node.classIds}
