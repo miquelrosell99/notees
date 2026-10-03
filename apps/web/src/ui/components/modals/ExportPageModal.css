@@ -57,6 +57,54 @@
   overflow-wrap: anywhere;
 }
 
+/* ── PDF layout cards + page size (P1) ── */
+.export-modal__pdf-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.export-modal__layouts {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.export-modal__layout-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+  text-align: center;
+  min-width: 6.5rem;
+}
+
+.export-modal__layout-card-icon {
+  font-size: var(--font-size-lg);
+  line-height: 1;
+  color: var(--color-on-surface-variant);
+}
+
+.export-modal__layout-card[aria-checked="true"] .export-modal__layout-card-icon {
+  color: var(--color-primary);
+}
+
+.export-modal__layout-card-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+/* Rendered PDF preview (P1) */
+.export-modal__pdf-preview {
+  width: 100%;
+  min-height: 22.5rem;
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--color-surface-container);
+}
+
 /* ── Options ── */
 .export-modal__options {
   display: flex;

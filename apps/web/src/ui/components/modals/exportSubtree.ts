@@ -67,7 +67,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 export type ExportClient = WorkspaceClient | WorkerClient;
 
 /** Map a client node to the exporter's shape, with its effective properties. */
-function toExportNode(client: ExportClient, id: string): ExportNode | undefined {
+export function toExportNode(client: ExportClient, id: string): ExportNode | undefined {
   const node = client.getNode(id);
   if (node === undefined) return undefined;
   const properties: ExportPropertyValue[] = client
@@ -216,10 +216,11 @@ export function exportSubtreeBundle(
 /**
  * Claim a bundle/zip path against the in-use set — a later collision gains
  * `-2`, `-3`, … before the extension, mirroring the server zip's path
- * assignment. Shared by the markdown bundle de-duplication and the
- * format-routed batch zip (task W).
+ * assignment. Shared by the markdown bundle de-duplication, the
+ * format-routed batch zip (task W), and the P1 PDF batch zip.
+ * Exported for the P1 PDF engine.
  */
-function claimUniquePath(used: Set<string>, path: string): string {
+export function claimUniquePath(used: Set<string>, path: string): string {
   if (!used.has(path)) {
     used.add(path);
     return path;
@@ -333,8 +334,11 @@ function subtreeChildrenOf(client: ExportClient, id: string, includeChildPages: 
  * the root's whole subtree, resolved once (names, outline tree, embed
  * inlining) — the package serializers stay ctx-free projections over it.
  * This is the shared IR construction the format switch below reuses.
+ *
+ * Exported for the P1 PDF engine (ui/export-pdf): it consumes the same IR
+ * through the single shared construction instead of re-deriving it.
  */
-function buildSubtreeDocument(
+export function buildSubtreeDocument(
   client: ExportClient,
   rootId: string,
   options: ExportSubtreeOptions,
@@ -352,8 +356,8 @@ function buildSubtreeDocument(
 
 /** Single-file download name: `<title-slug>.<ext>`, falling back to the node
  *  id for empty titles (the markdown path's own naming stays untouched in
- *  exportSubtreeMarkdown). */
-function exportFileSlugName(rootName: string, rootId: string, extension: string): string {
+ *  exportSubtreeMarkdown). Exported for the P1 PDF engine's download names. */
+export function exportFileSlugName(rootName: string, rootId: string, extension: string): string {
   const slug = rootName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
   return `${slug.length > 0 ? slug : rootId}.${extension}`;
 }
@@ -418,9 +422,10 @@ export async function exportSubtreeFile(
       return { blob: new Blob([new Uint8Array(bytes)], { type: delivery.mimeType }), filename };
     }
     default:
-      // pdf: the registry card is disabled (task P1) — selecting it is a
-      // programmer error, so fail loud like the package registry does.
-      throw new Error(`${options.format} export is not available — the registry lists it disabled`);
+      // pdf: rendered by the lazily imported client-side engine (task P1,
+      // ui/export-pdf) — routing it here is a programmer error, so fail
+      // loud like the package registry does.
+      throw new Error(`${options.format} export must route through the client-side PDF engine (ui/export-pdf)`);
   }
 }
 
@@ -441,6 +446,8 @@ export async function exportSubtreeFile(
  * markdown is NOT routed here — its batch delivery is the E3/E7 bundle zip
  * (exportSubtreeBundle + zipExportBundle, include-assets orchestration and
  * all), which the modal drives directly; passing it is a programmer error.
+ * pdf is NOT routed here either — its batch delivery is the client-side PDF
+ * engine's zip (ui/export-pdf renderSubtreePdfBatch, task P1).
  */
 export async function exportSubtreeBatchFile(
   client: ExportClient,
@@ -450,6 +457,9 @@ export async function exportSubtreeBatchFile(
   const delivery = getWebExportFormat(options.format);
   if (options.format === "markdown" || delivery === undefined) {
     throw new Error("exportSubtreeBatchFile: route markdown batch delivery through exportSubtreeBundle (E3/E7)");
+  }
+  if (options.format === "pdf") {
+    throw new Error("exportSubtreeBatchFile: route pdf batch delivery through the client-side PDF engine (task P1)");
   }
   const encode = new TextEncoder();
   const entries: Record<string, Uint8Array> = {};
@@ -574,8 +584,9 @@ async function blobBytes(blob: Blob): Promise<Uint8Array> {
  * Order-preserving concurrency-limited map: at most `limit` tasks run at
  * once. Asset fetches are N+1 REST reads; a small pool keeps the tab
  * responsive on subtrees heavy with assets. Rejections propagate.
+ * Exported for the P1 PDF engine's data-URL asset resolution.
  */
-async function mapWithConcurrency<T>(
+export async function mapWithConcurrency<T>(
   items: readonly T[],
   limit: number,
   task: (item: T) => Promise<void>,
