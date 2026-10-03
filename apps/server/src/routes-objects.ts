@@ -12,6 +12,7 @@ import { uuidv7 } from "uuidv7";
 import {
   classCreatePayload,
   classUnassignPayload,
+  colorValueSchema,
   objectCreatePayload,
   objectRestorePayload,
   objectUpdatePayload,
@@ -107,7 +108,8 @@ const updateBodySchema = z
      * main-children zone and the inline body. */
     presentAsMain: z.boolean().optional(),
     icon: z.string().max(64).optional(),
-    color: z.string().max(32).optional(),
+    /** Preset token or #RRGGBB hex; null clears (SCHEMA.md color grammar). */
+    color: colorValueSchema.nullish(),
     contentAst: z.array(z.unknown()).optional(),
   })
   .strict()

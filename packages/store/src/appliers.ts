@@ -712,7 +712,7 @@ function upsertClassNode(
   db: StoreDatabase,
   env: Envelope,
   classId: string,
-  fields: { contentAst?: unknown; icon?: string | undefined; color?: string | undefined },
+  fields: { contentAst?: unknown; icon?: string | undefined; color?: string | null | undefined },
 ): void {
   // The class node (is_class = 1) is the structural authority for the
   // class_list read model; the registry row carries class-only config (its
@@ -725,16 +725,22 @@ function upsertClassNode(
   // The INSERT carries the create-time content directly (the LWW-gated
   // UPDATE below can never beat this envelope's own HLC — equal on every
   // clause — so routing create fields through it would silently drop them).
+  // Create-time icon/color ride along for the same reason: without them the
+  // class node row stays iconless while the registry row carries the glyph,
+  // and every effective-icon read (which reads node rows) misses it.
   db.prepare(
     `INSERT OR IGNORE INTO node (
        id, workspace_id, is_class, present_as_main, parent_id, class_ids, name, content,
+       icon, color,
        is_active, created_at, updated_at, created_by, updated_by,
        hlc_physical, hlc_logical, actor_id
-     ) VALUES (?, ?, 1, 0, NULL, '[]', NULL, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, 1, 0, NULL, '[]', NULL, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     classId,
     env.workspaceId,
     content ?? "[]",
+    fields.icon ?? null,
+    fields.color ?? null,
     env.timestamp,
     env.timestamp,
     env.actorId,

@@ -343,6 +343,39 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("color grammar (§34.43: token | #hex | null-clear)", () => {
+    it("object.update applies preset token, custom hex, then null as a clear", () => {
+      const store = baseStore();
+      const page = "0192a000-0000-7000-8000-000000000510";
+      const [create, ...updates] = loadFixture("object-color.json");
+      store.apply(create!);
+      store.apply(updates[0]!);
+      expect(store.getNode(page)?.color).toBe("sky");
+      store.apply(updates[1]!);
+      expect(store.getNode(page)?.color).toBe("#123abc");
+      store.apply(updates[2]!);
+      expect(store.getNode(page)?.color).toBeNull();
+    });
+
+    it("class.create carries a token color and class.update null clears both rows", () => {
+      const store = baseStore();
+      const classId = "0192a000-0000-7000-8000-000000000511";
+      const [create, ...updates] = loadFixture("object-color.json");
+      store.apply(create!);
+      const [, , , classCreate, classUpdate] = updates;
+      store.apply(classCreate!);
+      expect(store.getNode(classId)?.color).toBe("pink");
+      expect(
+        (store.database.prepare("SELECT color FROM class WHERE id = ?").get(classId) as { color: string }).color,
+      ).toBe("pink");
+      store.apply(classUpdate!);
+      expect(store.getNode(classId)?.color).toBeNull();
+      expect(
+        (store.database.prepare("SELECT color FROM class WHERE id = ?").get(classId) as { color: string }).color,
+      ).toBeNull();
+    });
+  });
+
   describe("convergence", () => {
     it("property-set-lww converges regardless of application order", () => {
       const [laptop, phone] = loadFixture("property-set-lww.json");

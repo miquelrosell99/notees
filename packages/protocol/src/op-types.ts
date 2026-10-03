@@ -11,6 +11,8 @@
 
 import { z } from "zod";
 
+import { colorValueSchema } from "./colors.js";
+
 const uuid = z.string().uuid();
 
 // --- objects -----------------------------------------------------------------
@@ -66,7 +68,9 @@ export const objectUpdatePayload = z
      * script (scripts/migrate-node-type.mts, planned). */
     presentAsMain: z.boolean().optional(),
     icon: z.string().max(64).optional(),
-    color: z.string().max(32).optional(),
+    /** Preset token (`sky`) or custom `#RRGGBB` hex (colors.ts grammar);
+     * null CLEARS the node's color. */
+    color: colorValueSchema.nullish(),
     /** Canonical wire carrier: base64 incremental CRDT delta. */
     contentDeltaB64: z.string().optional(),
     /** Readable carrier (fixtures, tests, plain-text editor path before the Yjs port). */
@@ -138,7 +142,8 @@ export const classCreatePayload = z
      * plain `name` string and wrap it into a single text token. */
     contentAst: z.array(z.unknown()).optional(),
     icon: z.string().max(64).optional(),
-    color: z.string().max(32).optional(),
+    /** Preset token or `#RRGGBB` hex (colors.ts grammar); null = no color. */
+    color: colorValueSchema.nullish(),
     description: z.string().max(4096).optional(),
   })
   .strict();
@@ -150,7 +155,9 @@ export const classUpdatePayload = z
      * class.create. */
     contentAst: z.array(z.unknown()).optional(),
     icon: z.string().max(64).optional(),
-    color: z.string().max(32).optional(),
+    /** Preset token or `#RRGGBB` hex (colors.ts grammar); null clears —
+     * the schema now accepts what the catalog always documented. */
+    color: colorValueSchema.nullish(),
     description: z.string().max(4096).optional(),
   })
   .strict();

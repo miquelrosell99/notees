@@ -26,8 +26,8 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   },
   {
     opType: "object.update",
-    description: "LWW field writes: render bit (promote/demote), icon, color, content (contentAst readable carrier or contentDeltaB64 wire carrier — exactly one per update).",
-    example: { objectId: "<uuid>", contentAst: [{ type: "text", text: "New title" }] },
+    description: "LWW field writes: render bit (promote/demote), icon, color, content (contentAst readable carrier or contentDeltaB64 wire carrier — exactly one per update). color: preset token or #RRGGBB hex (colors.ts grammar), null clears.",
+    example: { objectId: "<uuid>", color: "sky" },
     affected: "objectId",
   },
   {
