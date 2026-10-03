@@ -94,6 +94,19 @@ describe("system seeds (v1 port)", () => {
     expect(SYSTEM_PROPERTY_UUIDS).not.toHaveProperty("linkedAuthors");
     expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("linkedAuthors");
   });
+
+  it("templates seed (§34.25 T2): has-template reserved, seeded, targets the template class", () => {
+    // Next free id in the general block (…0018 withdrawn, …0025 withdrawn —
+    // never reused); the domain-wide block rule above pins the prefix.
+    expect(SYSTEM_PROPERTY_UUIDS.hasTemplate).toBe("00000000-0000-0000-0000-000000000026");
+    // D1: the relation lives on the class node, multi, targeting templates.
+    expect(SYSTEM_PROPERTY_SPECS.hasTemplate).toEqual({
+      type: "object",
+      multi: true,
+      bindTo: "class",
+      targetClassFilter: ["template"],
+    });
+  });
 });
 
 describe("deriveDisplayName", () => {
