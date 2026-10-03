@@ -5,9 +5,10 @@
  * contexts (a page's child blocks, the child-page tree, reference subtrees)
  * and flat lists (classed nodes, tasks, assets, hub lists) — the difference
  * is only whether items carry `children`. Containers resolve items from the
- * client, pick the available modes + defaults, and own the session-local
- * view-mode state (display state per SCHEMA.md: reset on reload, never an
- * op, never persisted).
+ * client, pick the available modes + defaults, and own the view-mode state:
+ * display state per SCHEMA.md — never an op; durable where the container
+ * persists it device-locally (§34.27 L1, `viewPrefs.ts`), session-local
+ * otherwise.
  *
  * The flag set is the ported v1 subset — extended on demand, not inherited
  * wholesale.
@@ -167,7 +168,7 @@ export interface ViewCapabilities {
   sorting?: boolean;
   /** Supports groupBy (containing-page groups / kanban property columns). */
   groupBy?: boolean;
-  /** Supports cover layouts (future, covers are owed chrome). */
+  /** Supports cover layouts (cards/kanban; §34.27 L1 persists the choice). */
   cardLayout?: boolean;
   /** Wrap in the ErrorBoundary when rendered inside chrome. */
   errorBoundary?: boolean;
