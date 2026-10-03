@@ -577,18 +577,25 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     expect(headers()).toContain("Pages");
   });
 
-  it("inline text/number editing commits through setProperty, empty unsets", async () => {
+  it("inline text editing writes a node-backed carrier; numbers commit as scalars; empty unsets", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
     render(<ClassView client={client} classId={seeded.classId} />);
     await expandClassedNodes();
 
+    // Text cells are node-backed (PB2 one-shape-per-type): the commit
+    // creates a carrier block child and links {nodeId}; the carrier's
+    // content holds the text.
     const noteInput = screen.getAllByRole("textbox", { name: "Note" })[0]!;
     fireEvent.change(noteInput, { target: { value: "hello world" } });
     fireEvent.blur(noteInput);
     await flushWrites();
     const note = client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.noteId);
-    expect(note?.value).toBe("hello world");
+    const carrierId = (note?.value as { nodeId?: string }).nodeId;
+    expect(typeof carrierId).toBe("string");
+    const carrier = client.getNode(carrierId!);
+    expect(carrier?.parentId).toBe(seeded.alpha);
+    expect(carrier?.contentAst).toEqual([{ type: "text", text: "hello world" }]);
 
     const effortInput = screen.getAllByRole("spinbutton", { name: "Effort" })[1]!;
     fireEvent.change(effortInput, { target: { value: "5" } });

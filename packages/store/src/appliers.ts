@@ -33,11 +33,17 @@ import { reindexNode, removeSearchIndexEntry } from "./search.js";
 import { rebuildEdges } from "./edges.js";
 import { rebuildNodeStats } from "./stats.js";
 import {
+  assertValueShapeForType,
+  isValidDefaultForType,
+  nodeRefOfValue,
+} from "./property-values.js";
+import {
   CycleError,
   EnvelopeValidationError,
   isSqliteError,
   MoveGuardError,
   NotFoundError,
+  PropertyValueShapeError,
   StoreError,
   translateSqliteError,
   UnsupportedCarrierError,
@@ -122,6 +128,15 @@ function requireNode(db: StoreDatabase, nodeId: string, opType: string) {
   const row = getNodeRow(db, nodeId);
   if (!row) throw new NotFoundError(`${opType}: node ${nodeId} does not exist`, opType);
   return row;
+}
+
+/** The property schema's type, null when the schema row is unknown
+ *  (property.set has no schema FK — arbitrary ids store unchecked). */
+function propertySchemaTypeOf(db: StoreDatabase, propertySchemaId: string): string | null {
+  const row = db.prepare("SELECT type FROM property_schema WHERE id = ?").get(propertySchemaId) as
+    | { type: string }
+    | undefined;
+  return row?.type ?? null;
 }
 
 /** Subtree ids (inclusive) via a parent_id walk; deterministic order. */
@@ -1044,6 +1059,25 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     return summary(opType, [p.classId], true);
   }
 
+  // PC2 (§34.32): defaultValue is typed per the schema type — a wrong-typed
+  // default fails loud here instead of deriving silently on every read.
+  // Omitted defaultValue (patch keeps the stored one) skips the check; a
+  // stored default that drifts out of match (schema delete+recreate with a
+  // different type) is dropped defensively at the effective read instead.
+  if (p.defaultValue !== undefined) {
+    const schemaType = propertySchemaTypeOf(db, p.propertySchemaId);
+    if (schemaType !== null && !isValidDefaultForType(schemaType, p.defaultValue)) {
+      throw new PropertyValueShapeError(
+        `${opType}: defaultValue for ${schemaType} schema ` +
+          (schemaType === "date" || schemaType === "date_range" || schemaType === "object"
+            ? "must be null — node-typed defaults are not supported"
+            : `must be typed ${schemaType}`) +
+          ` — got ${JSON.stringify(p.defaultValue)}`,
+        opType,
+      );
+    }
+  }
+
   const required = p.required === undefined ? null : p.required ? 1 : 0;
   const readonlyFlag = p.readonly === undefined ? null : p.readonly ? 1 : 0;
   const hideWhenEmpty = p.hideWhenEmpty === undefined ? null : p.hideWhenEmpty ? 1 : 0;
@@ -1192,6 +1226,12 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   const p = env.payload as OpPayload<"property.set">;
   const incoming = winnerFromEnvelope(env);
 
+  // PB2 (§34.32): one-shape-per-type at the write path. The schema row (when
+  // known — property.set has no schema FK) types the slot; a legacy bare-uuid
+  // reference normalizes to {nodeId}; a mismatch fails loud.
+  const schemaType = propertySchemaTypeOf(db, p.propertySchemaId);
+  const value = schemaType !== null ? assertValueShapeForType(schemaType, p.value ?? null, opType) : (p.value ?? null);
+
   // A tombstone with a winning (>=) (hlc, actor) blocks the write.
   const tombstone = db
     .prepare(
@@ -1221,7 +1261,7 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
       propertyValueId(p.objectId, p.propertySchemaId, p.idx),
       p.objectId,
       p.propertySchemaId,
-      JSON.stringify(p.value ?? null),
+      JSON.stringify(value ?? null),
       p.idx,
       p.metadata !== undefined ? JSON.stringify(p.metadata) : null,
       env.hlc.physical,
@@ -1233,7 +1273,7 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
       `UPDATE property_value SET value = ?, metadata = ?, hlc_physical = ?, hlc_logical = ?, actor_id = ?
        WHERE node_id = ? AND property_schema_id = ? AND idx = ?`,
     ).run(
-      JSON.stringify(p.value ?? null),
+      JSON.stringify(value ?? null),
       p.metadata !== undefined ? JSON.stringify(p.metadata) : null,
       env.hlc.physical,
       env.hlc.logical,
@@ -1246,6 +1286,9 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
     return summary(opType, [p.objectId], true);
   }
 
+  // The FTS row carries the node's text-ish property values (§34.30 M5), so
+  // property writes reindex the owner exactly like content writes.
+  reindexNode(db, p.objectId);
   rebuildEdges(db, p.objectId, env.timestamp);
   return summary(opType, [p.objectId]);
 }
@@ -1270,19 +1313,80 @@ function applyPropertyUnset(db: StoreDatabase, env: Envelope): ChangeSummary {
 
   const existing = db
     .prepare(
-      "SELECT hlc_physical, hlc_logical, actor_id FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
+      "SELECT value, hlc_physical, hlc_logical, actor_id FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
     )
     .get(p.objectId, p.propertySchemaId, p.idx) as
-    | { hlc_physical: number; hlc_logical: number; actor_id: string | null }
+    | { value: string; hlc_physical: number; hlc_logical: number; actor_id: string | null }
     | undefined;
   if (existing && compareLww(incoming, rowWinner(existing)) > 0) {
     db.prepare(
       "DELETE FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
     ).run(p.objectId, p.propertySchemaId, p.idx);
+    // PB2 (SCHEMA.md "Node-backed text properties"): unsetting a node-backed
+    // text value deletes the carrier block — trash + retention, consistent
+    // with node deletion. Guards: the removed value references a node, the
+    // target is an active non-class CHILD of the owner, and no other
+    // property_value row (any owner/slot, both stored shapes) still
+    // references it. Scalar text values (citekey-style) carry no carrier.
+    trashTextCarrierIfOrphaned(db, p.objectId, p.propertySchemaId, existing.value, env.timestamp);
   }
 
+  // M5: the owner's indexed text includes its property values — reindex.
+  reindexNode(db, p.objectId);
   rebuildEdges(db, p.objectId, env.timestamp);
   return summary(opType, [p.objectId]);
+}
+
+/**
+ * The carrier-deletion half of property.unset (PB2). The value row is
+ * already deleted; `removedValueRaw` is its stored JSON. Trashes the
+ * now-unreferenced carrier inside the same transaction.
+ */
+function trashTextCarrierIfOrphaned(
+  db: StoreDatabase,
+  objectId: string,
+  propertySchemaId: string,
+  removedValueRaw: string,
+  timestamp: string,
+): void {
+  if (propertySchemaTypeOf(db, propertySchemaId) !== "text") return;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(removedValueRaw);
+  } catch {
+    return;
+  }
+  const target = nodeRefOfValue(parsed);
+  if (target === null) return;
+  // Exclusive reference: no other live property_value row (any owner or
+  // slot) points at the carrier — both the {nodeId} and the legacy
+  // bare-uuid stored shapes.
+  const stillReferenced =
+    db
+      .prepare(
+        `SELECT 1 FROM property_value
+          WHERE value = ? OR value = ? LIMIT 1`,
+      )
+      .get(JSON.stringify({ nodeId: target }), JSON.stringify(target)) !== undefined;
+  if (stillReferenced) return;
+  const carrier = getNodeRow(db, target) as
+    | { parent_id: string | null; is_class: number; is_active: number }
+    | undefined;
+  if (
+    !carrier ||
+    carrier.parent_id !== objectId ||
+    carrier.is_class !== 0 ||
+    carrier.is_active !== 1
+  ) {
+    return;
+  }
+  const ids = subtreeIds(db, target);
+  const placeholders = ids.map(() => "?").join(",");
+  db.prepare(`UPDATE node SET is_active = 0 WHERE id IN (${placeholders})`).run(...ids);
+  db.prepare(
+    "INSERT OR REPLACE INTO trash (node_id, deleted_at, is_permanent) VALUES (?, ?, 0)",
+  ).run(target, timestamp);
+  rebuildNodeStats(db, [target, ...ancestorIds(db, target)]);
 }
 
 // --- asset.* ----------------------------------------------------------------------

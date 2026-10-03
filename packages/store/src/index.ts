@@ -6,4 +6,5 @@ export * from "./stats.js";
 export * from "./search.js";
 export * from "./db.js";
 export * from "./effective.js";
+export * from "./property-values.js";
 export * from "./store.js";

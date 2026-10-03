@@ -171,7 +171,7 @@ function InlineInput({
   );
 }
 
-/** The cell-level write shared by the inline editors. */
+/** The cell-level write shared by the inline editors (scalar types). */
 function commitCellValue(
   props: NodeCollectionProps,
   row: TableRow,
@@ -185,6 +185,66 @@ function commitCellValue(
     return;
   }
   void client.setProperty(row.item.node.id, schemaId, next, idx ?? 0);
+}
+
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The carrier block a text value references ({nodeId} or legacy bare uuid). */
+function carrierRefOf(value: unknown): string | null {
+  if (typeof value === "object" && value !== null && "nodeId" in value) {
+    const id = (value as { nodeId: unknown }).nodeId;
+    return typeof id === "string" && id.length > 0 ? id : null;
+  }
+  return typeof value === "string" && UUID_LIKE.test(value) ? value : null;
+}
+
+/** The draft shown in a text cell: the carrier's raw text when node-backed. */
+function textCellDraft(client: AnyClient, prop: EffectiveProperty | undefined): string {
+  const ref = carrierRefOf(prop?.value);
+  if (ref !== null) {
+    const node = client.getNode(ref);
+    if (node !== undefined) {
+      return node.contentAst
+        .map((token) => (token.type === "text" ? (token.text ?? "") : ""))
+        .join("");
+    }
+  }
+  return propertyDisplayText(client, prop);
+}
+
+/**
+ * Text-property cell commit — node-backed per SCHEMA.md (PB2 one-shape-per-
+ * type): strings no longer ride property.set directly. Editing an existing
+ * carrier writes its content; a fresh value creates a carrier child of the
+ * row node and links {nodeId}; clearing unsets (whose applier trashes the
+ * orphaned carrier).
+ */
+async function commitTextCellValue(
+  props: NodeCollectionProps,
+  row: TableRow,
+  schemaId: string,
+  idx: number | undefined,
+  next: string,
+): Promise<void> {
+  const { client } = props;
+  const nodeId = row.item.node.id;
+  if (next === "") {
+    if (idx !== undefined) await client.unsetProperty(nodeId, schemaId, idx);
+    return;
+  }
+  const prop = row.properties.find(
+    (p) => p.propertySchemaId === schemaId && (idx === undefined || p.idx === idx),
+  );
+  const existing = carrierRefOf(prop?.value);
+  if (existing !== null && client.getNode(existing) !== undefined) {
+    await client.updateObject(existing, { contentAst: [{ type: "text", text: next }] });
+    return;
+  }
+  const carrier = await client.createObject({
+    parentId: nodeId,
+    contentAst: [{ type: "text", text: next }],
+  });
+  await client.setProperty(nodeId, schemaId, { nodeId: carrier }, idx ?? 0);
 }
 
 function DateCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaId: string; props: NodeCollectionProps; schemaName: string }) {
@@ -300,6 +360,15 @@ function PropertyCell({ row, column, props }: { row: TableRow; column: TableColu
   }
 
   if (editable && (schema?.type === "text" || schema?.type === "url" || schema?.type === "email") && schema?.multi !== true) {
+    if (schema?.type === "text") {
+      return (
+        <InlineInput
+          value={textCellDraft(client, prop)}
+          ariaLabel={schema.name}
+          onCommit={(next) => void commitTextCellValue(props, row, schemaId, prop?.idx, next)}
+        />
+      );
+    }
     return (
       <InlineInput
         value={propertyDisplayText(client, prop)}
