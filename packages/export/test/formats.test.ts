@@ -56,7 +56,7 @@ describe("format registry", () => {
     expect(format?.availability.status).toBe("unavailable");
     const reason = format?.availability.status === "unavailable" ? format.availability.reason : "";
     expect(reason.length).toBeGreaterThan(0);
-    expect(reason).toMatch(/task P1/);
+    expect(reason).toMatch(/web client/);
   });
 
   it("unavailable formats throw loud from their serializer", () => {
