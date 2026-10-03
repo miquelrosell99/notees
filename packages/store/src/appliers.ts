@@ -555,6 +555,76 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
 }
 
 /**
+ * Restore from the trash (the object.restore op). Whole-tree, per SCHEMA.md's
+ * deletion/restore semantics: every descendant trashed WITH the root
+ * reactivates; a descendant carrying its OWN trash row was trashed
+ * independently (its subtree rode with that delete, not with this restore)
+ * and stays trashed — so the reactivation set is "subtree minus the
+ * independently-trashed branches", computed by walking up from each id to
+ * the root and bailing at the first own-trash-row ancestor. The root's own
+ * trash row is consumed. Corner: parent row missing (permanently deleted —
+ * the chain above is unknowable from the derived store) → reparent to the
+ * workspace root; a present-but-inactive parent is left alone (transient
+ * state that restoring the parent heals — never data loss). LWW against
+ * object.delete is plain log order: the single global relay log applies
+ * each op to every replica once, so the pair converges.
+ */
+function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "object.restore";
+  const p = env.payload as OpPayload<"object.restore">;
+  const root = requireNode(db, p.objectId, opType);
+
+  // Corner: dangling parent_id (parent permanently deleted, legacy rows) —
+  // reparent to the workspace root; the child_order rows of a hard-deleted
+  // parent were purged with it, so no order row needs repair.
+  if (typeof root.parent_id === "string") {
+    const parent = getNodeRow(db, root.parent_id);
+    if (parent === undefined) {
+      db.prepare("UPDATE node SET parent_id = NULL WHERE id = ?").run(p.objectId);
+      root.parent_id = null;
+    }
+  }
+
+  const ids = subtreeIds(db, p.objectId);
+  const hasOwnTrashRow = (id: string) =>
+    db.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(id) !== undefined;
+  const parentOf = (id: string): string | null =>
+    (db.prepare("SELECT parent_id AS pid FROM node WHERE id = ?").get(id) as { pid: string | null } | undefined)
+      ?.pid ?? null;
+
+  const toReactivate: string[] = [];
+  for (const id of ids) {
+    if (id === p.objectId) {
+      toReactivate.push(id);
+      continue;
+    }
+    // The id itself carries a trash row → trashed independently, full stop.
+    if (hasOwnTrashRow(id)) continue;
+    // Otherwise walk up: an own-trash-row ancestor below the root means this
+    // id rode THAT delete (the ancestor's subtree), not the root's.
+    let cursor: string | null = parentOf(id);
+    let ridesThisDelete = true;
+    while (cursor !== null) {
+      if (cursor === p.objectId) break;
+      if (hasOwnTrashRow(cursor)) {
+        ridesThisDelete = false;
+        break;
+      }
+      cursor = parentOf(cursor);
+    }
+    if (ridesThisDelete) toReactivate.push(id);
+  }
+
+  const placeholders = toReactivate.map(() => "?").join(",");
+  db.prepare(`UPDATE node SET is_active = 1 WHERE id IN (${placeholders})`).run(...toReactivate);
+  db.prepare("DELETE FROM trash WHERE node_id = ?").run(p.objectId);
+
+  const affected = new Set<string>([p.objectId, ...ancestorIds(db, p.objectId)]);
+  rebuildNodeStats(db, [...affected]);
+  return summary(opType, [...affected]);
+}
+
+/**
  * Reparent + reorder (object.move): the outliner's indent/outdent/Enter
  * placement. Parent/position are row-level LWW by envelope (hlc, actor) — the
  * same rule as object.update — and the winning HLC is stored on the node row,
@@ -1272,6 +1342,7 @@ const APPLIERS: Record<
   "object.create": applyObjectCreate,
   "object.update": applyObjectUpdate,
   "object.delete": applyObjectDelete,
+  "object.restore": applyObjectRestore,
   "object.move": applyObjectMove,
   "class.create": applyClassCreate,
   "class.update": applyClassUpdate,

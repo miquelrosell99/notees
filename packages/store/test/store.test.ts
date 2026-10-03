@@ -280,6 +280,19 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(JSON.parse(book?.class_ids ?? "[]")).toEqual([BOOK_CLASS]);
     });
 
+    it("object-restore.json trashes then restores: page + child active, trash row consumed", () => {
+      const store = makeStore();
+      store.applyMany(allFixtureEnvelopes());
+      const pageId = "0192a000-0000-7000-8000-0000000000e2";
+      const childId = "0192a000-0000-7000-8000-0000000000e3";
+      expect(store.getNode(pageId)).toMatchObject({ is_active: 1, present_as_main: 1 });
+      expect(store.getNode(childId)).toMatchObject({ is_active: 1, present_as_main: 0 });
+      expect(store.children(pageId).map((n) => n.id)).toEqual([childId]);
+      expect(
+        store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(pageId),
+      ).toBeUndefined();
+    });
+
     it("converges the property LWW fixture to the higher-HLC phone value", () => {
       const store = makeStore();
       store.applyMany(allFixtureEnvelopes());
@@ -1197,6 +1210,108 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // Soft delete drops the root (and its subtree) from the read.
       store.apply(env("object.delete", { objectId: NODE_PAGE }, 1727200007000));
       expect(store.roots(WS).map((row) => row.id)).toEqual([NODE_BOOK]);
+    });
+  });
+
+  describe("object.restore", () => {
+    const child = "0192a000-0000-7000-8000-0000000000d1";
+    const grandchild = "0192a000-0000-7000-8000-0000000000d2";
+    const sibling = "0192a000-0000-7000-8000-0000000000d3";
+
+    const family = (store: Store) => {
+      store.apply(
+        env(
+          "object.create",
+          { objectId: child, parentId: NODE_PAGE, contentAst: [{ type: "text", text: "child block" }] },
+          1727200002000,
+        ),
+      );
+      store.apply(
+        env(
+          "object.create",
+          { objectId: grandchild, parentId: child, contentAst: [{ type: "text", text: "grandchild" }] },
+          1727200002100,
+        ),
+      );
+      store.apply(
+        env(
+          "object.create",
+          { objectId: sibling, parentId: NODE_PAGE, contentAst: [{ type: "text", text: "sibling" }] },
+          1727200002200,
+        ),
+      );
+    };
+
+    it("restores the whole subtree trashed with the node and consumes the trash row", () => {
+      const store = baseStore();
+      family(store);
+      store.apply(env("object.delete", { objectId: NODE_PAGE }, 1727200003000));
+      expect(store.getNode(grandchild)?.is_active).toBe(0);
+
+      store.apply(env("object.restore", { objectId: NODE_PAGE }, 1727200003100));
+      expect(store.getNode(NODE_PAGE)?.is_active).toBe(1);
+      expect(store.getNode(child)?.is_active).toBe(1);
+      expect(store.getNode(grandchild)?.is_active).toBe(1);
+      expect(store.getNode(sibling)?.is_active).toBe(1);
+      expect(
+        store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(NODE_PAGE),
+      ).toBeUndefined();
+      // Tree placement survived the trash round-trip.
+      expect(store.children(NODE_PAGE).map((n) => n.id)).toEqual([child, sibling]);
+    });
+
+    it("a descendant trashed independently (own trash row) stays trashed on the parent's restore", () => {
+      const store = baseStore();
+      family(store);
+      // The child is trashed on its own first; the parent follows.
+      store.apply(env("object.delete", { objectId: child }, 1727200002900));
+      store.apply(env("object.delete", { objectId: NODE_PAGE }, 1727200003000));
+
+      store.apply(env("object.restore", { objectId: NODE_PAGE }, 1727200003100));
+      expect(store.getNode(NODE_PAGE)?.is_active).toBe(1);
+      expect(store.getNode(sibling)?.is_active).toBe(1);
+      expect(store.getNode(child)?.is_active).toBe(0);
+      expect(store.getNode(grandchild)?.is_active).toBe(0);
+      // Its own trash row survives — a later child restore still works.
+      expect(
+        store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(child),
+      ).toBeDefined();
+      store.apply(env("object.restore", { objectId: child }, 1727200003200));
+      expect(store.getNode(child)?.is_active).toBe(1);
+      expect(store.getNode(grandchild)?.is_active).toBe(1);
+    });
+
+    it("dangling parent (parent row gone) reparents to the workspace root", () => {
+      const store = baseStore();
+      family(store);
+      // Trash the grandchild normally (its parent exists at that point).
+      store.apply(env("object.delete", { objectId: grandchild }, 1727200002900));
+      // Legacy corner: the parent's row disappears after the trash (imported
+      // data pruned without FK enforcement) while the trashed node survives
+      // with a dangling parent_id. FKs are per-connection in SQLite — the
+      // derived schema enforces parent_id, so the toggle simulates the state;
+      // sql.js compiles without enforcement (same simulation for free).
+      store.database.pragma("foreign_keys = OFF");
+      store.database
+        .prepare("DELETE FROM node_child_order WHERE parent_id = ? OR child_id = ?")
+        .run(child, child);
+      store.database.prepare("DELETE FROM trash WHERE node_id = ?").run(child);
+      store.database.prepare("DELETE FROM node WHERE id = ?").run(child);
+      store.database.pragma("foreign_keys = ON");
+
+      store.apply(env("object.restore", { objectId: grandchild }, 1727200003100));
+      const row = store.getNode(grandchild);
+      expect(row?.is_active).toBe(1);
+      expect(row?.parent_id).toBeNull();
+      expect(store.roots(WS).map((r) => r.id)).toContain(grandchild);
+    });
+
+    it("restoring a permanently deleted node fails loud (not_found)", () => {
+      const store = baseStore();
+      store.apply(env("object.delete", { objectId: NODE_PAGE, permanent: true }, 1727200003000));
+      expect(() => store.apply(env("object.restore", { objectId: NODE_PAGE }, 1727200003100))).toThrow(
+        /does not exist/,
+      );
     });
   });
 
