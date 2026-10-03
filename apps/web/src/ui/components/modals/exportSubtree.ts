@@ -70,11 +70,17 @@ export type ExportClient = WorkspaceClient | WorkerClient;
 export function toExportNode(client: ExportClient, id: string): ExportNode | undefined {
   const node = client.getNode(id);
   if (node === undefined) return undefined;
+  const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
   const properties: ExportPropertyValue[] = client
     .getEffectiveProperties(id)
     .map((property) => ({
       schemaId: property.propertySchemaId,
       schemaName: property.schema?.name ?? property.propertySchemaId,
+      ...(property.schema !== null ? { schemaType: property.schema.type } : {}),
+      ...((() => {
+        const options = schemas.get(property.propertySchemaId)?.options;
+        return options !== null && options !== undefined && options.length > 0 ? { schemaOptions: options } : {};
+      })()),
       value: property.value,
       ...(property.metadata !== null ? { metadata: property.metadata } : {}),
     }));

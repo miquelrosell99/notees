@@ -1,0 +1,84 @@
+/* WeekStrip — the 7-day week row under the month grid: weekday initial over
+   the day number, with the month grid's day treatments (today / has-note /
+   dated dot / reviewed tint / selected ring). Tokens from variables.css. */
+
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--spacing-micro);
+}
+
+.week-strip__day.btn {
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: var(--spacing-1) 0;
+  border-radius: var(--shape-small);
+  position: relative;
+}
+
+.week-strip__weekday {
+  font: var(--font-label-small);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+}
+
+.week-strip__num {
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+}
+
+.week-strip__day.has-note {
+  background: var(--color-primary-container);
+}
+
+.week-strip__day.has-note .week-strip__num {
+  color: var(--color-on-primary-container);
+  font-weight: 500;
+}
+
+.week-strip__day.today {
+  background: var(--color-primary);
+}
+
+.week-strip__day.today .week-strip__weekday,
+.week-strip__day.today .week-strip__num {
+  color: var(--color-on-primary);
+}
+
+.week-strip__day.selected {
+  box-shadow: var(--shadow-focus-ring-primary);
+}
+
+/* Same mark convention as the month grid (calendar-grid.css). */
+.week-strip__day.dated::after {
+  content: "";
+  position: absolute;
+  bottom: 6%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+}
+
+.week-strip__day.today.dated::after {
+  background: var(--color-on-primary);
+}
+
+.week-strip__day.reviewed::before {
+  content: "";
+  position: absolute;
+  top: 6%;
+  right: 10%;
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--color-tertiary);
+}

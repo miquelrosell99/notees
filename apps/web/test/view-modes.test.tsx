@@ -2,8 +2,9 @@
  * View-modes tests: the registry + switcher, the child-blocks triad
  * (outline/prose/cards) over PageView, the classed-nodes table default,
  * and the Tasks/Assets hub modes. jsdom over the in-process
- * WorkspaceClient + MemoryRelay; view-mode state is session-local, so a
- * fresh render always lands on the surface default.
+ * WorkspaceClient + MemoryRelay; view-mode state persists device-locally
+ * (§34.27 L1), and the global afterEach clears localStorage — so a fresh
+ * render still lands on the surface default here.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -217,8 +218,11 @@ describe("tasks hub", () => {
     expect(cards.length).toBe(2);
 
     fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
-    expect(screen.getByRole("button", { name: /Write report/ })).not.toBeNull();
-    expect(screen.getByRole("button", { name: /Call the office/ })).not.toBeNull();
+    // §34.28 #5 — the bucket section above the collection lists the same
+    // tasks; scope the outline assertions to the hub collection itself.
+    const hub = within(document.querySelector(".nt-hub") as HTMLElement);
+    expect(hub.getByRole("button", { name: /Write report/ })).not.toBeNull();
+    expect(hub.getByRole("button", { name: /Call the office/ })).not.toBeNull();
   });
 
   it("sorts by name ascending and descending via header clicks", async () => {
@@ -605,7 +609,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     expect(effort?.value).toBe(5);
   });
 
-  it("date cells write a day-node reference via ensureDateChain", async () => {
+  it("date cells write a day-node reference via ensureDateChain (shared zoom-picker control)", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
     const { day } = await client.ensureDateChain("2026-10-02");
@@ -613,10 +617,11 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     render(<ClassView client={client} classId={seeded.classId} />);
     await expandClassedNodes();
 
-    fireEvent.click(document.querySelector(".nt-table-date")!);
-    const dateInput = screen.getByDisplayValue("2026-10-02");
-    fireEvent.change(dateInput, { target: { value: "2026-10-05" } });
-    fireEvent.blur(dateInput);
+    // §34.32 PG17: the cell rides the shared DateSlotControl — clicking opens
+    // the zoom picker initialized at the committed month (Oct 2026); picking
+    // the 5th rewrites the ref through ensureDateChain.
+    fireEvent.click(screen.getAllByRole("button", { name: "Due" })[1]!);
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("5"));
     await flushWrites();
 
     const due = client.getEffectiveProperties(seeded.alpha).find((p) => p.propertySchemaId === seeded.dueId);
@@ -718,12 +723,15 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
 
+    // §34.28 #5 — the bucket section also lists "Solo"; the collapse
+    // assertions scope to the board itself.
+    const board = () => document.querySelector(".kanban-board") as HTMLElement;
     fireEvent.click(screen.getByRole("button", { name: "Collapse column Backlog" }));
-    expect(screen.queryByText("Solo")).toBeNull();
+    expect(within(board()).queryByText("Solo")).toBeNull();
     expect(screen.getByRole("button", { name: "Expand column Backlog" })).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Expand column Backlog" }));
-    expect(screen.getByText("Solo")).not.toBeNull();
+    expect(within(board()).getByText("Solo")).not.toBeNull();
   });
 });
 

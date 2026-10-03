@@ -35,6 +35,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { EmptyState } from "../components/ui/index.js";
 import { Icon } from "../Icon.js";
 import { displayNameForSettings } from "../dateDisplay.js";
+import { useCardLayoutPreference } from "../viewPrefs.js";
 import { registerView } from "./registry.js";
 import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
 import type { AnyClient, CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
@@ -183,7 +184,8 @@ export function KanbanView(props: NodeCollectionProps) {
   const [collapsedColumns, setCollapsedColumns] = useState<ReadonlySet<string>>(new Set());
   /** Within-column order overrides (session — see the persistence note). */
   const [columnOrder, setColumnOrder] = useState<ReadonlyMap<string, readonly string[]>>(new Map());
-  const [coverLayout, setCoverLayout] = useState<CardLayout>("no-cover");
+  /** The cover layout persists device-locally (§34.27 L1) — never an op. */
+  const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
 
   const schema =
     kanbanProperty !== undefined

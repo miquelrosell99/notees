@@ -13,13 +13,14 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, parseDateNodeId } from "@notees/domain";
 
 import { PageView } from "../PageView.js";
 import { Icon } from "../Icon.js";
 import { rawDateKeywordOf } from "../dateDisplay.js";
 import type { AnyClient } from "./Sidebar.js";
-import { todayIsoLocal } from "./calendarViewUtils.js";
+import { addDaysIso, isoOfDateParts, todayIsoLocal } from "./calendarViewUtils.js";
+import { Button } from "./ui/Button.js";
 import "./JournalsView.css";
 
 /** Entries mounted around today before the sentinels take over. */
@@ -146,6 +147,23 @@ export function JournalsView({
     onOpenPage(day);
   };
 
+  /**
+   * §34.28 #7 — the journal header date bar: ±1 day over the deterministic
+   * date-node ids (ensure-chain is idempotent, so stepping into a day with
+   * no page materializes it and opens it), anchored on the feed's anchor
+   * entry; no pages at all falls back to today.
+   */
+  const anchorIso = (() => {
+    const anchor = pages[anchorIndex];
+    if (anchor === undefined) return todayIsoLocal();
+    const parsed = parseDateNodeId(anchor.id);
+    return parsed !== null ? isoOfDateParts(parsed) : todayIsoLocal();
+  })();
+
+  const openDay = (iso: string) => {
+    void client.ensureDateChain(iso).then(({ day }) => onOpenPage(day));
+  };
+
   return (
     <div className="journals-view">
       <header className="journals-view__header">
@@ -153,11 +171,27 @@ export function JournalsView({
           <Icon path="mdi-notebook-outline" size={1.1} />
           Journal
         </h1>
-        {pages.length > 0 && (
-          <button type="button" className="journals-view__today-btn" onClick={scrollToToday}>
-            Today
-          </button>
-        )}
+        <span className="journals-view__nav">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="mdi-chevron-left"
+            aria-label="Previous day"
+            onClick={() => openDay(addDaysIso(anchorIso, -1))}
+          />
+          {pages.length > 0 && (
+            <button type="button" className="journals-view__today-btn" onClick={scrollToToday}>
+              Today
+            </button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="mdi-chevron-right"
+            aria-label="Next day"
+            onClick={() => openDay(addDaysIso(anchorIso, 1))}
+          />
+        </span>
       </header>
       {pages.length === 0 ? (
         <div className="journals-empty">

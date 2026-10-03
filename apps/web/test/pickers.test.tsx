@@ -175,6 +175,69 @@ describe("metadata pickers (ported popups)", () => {
     expect(client.getEffectiveProperties(pageId)).toEqual([]);
   });
 
+  it("§34.32 PG14: multi_select schemas route to the selection control and write arrays", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({
+      name: "genres",
+      type: "multi_select",
+      options: [
+        { id: "g1", label: "Fiction" },
+        { id: "g2", label: "Mystery" },
+      ],
+    });
+    const classId = await createTitledClass(client, "Shelf");
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Novel" });
+    await client.assignClass(pageId, classId);
+    render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+
+    // Unvalued: the Empty cell opens the options picker; each pick appends
+    // to the array value (the multi_select control, previously undispatched).
+    const row = screen.getByText("genres").closest(".nt-property-select") as HTMLElement;
+    fireEvent.click(within(row).getByText("Empty"));
+    fireEvent.click(within(row).getByText("Fiction"));
+    await flushWrites();
+    expect(client.getEffectiveProperties(pageId)).toEqual([
+      expect.objectContaining({ propertySchemaId: schemaId, value: ["g1"], source: "authored" }),
+    ]);
+
+    // The pill shows the label; the multi "+" affordance picks a second option.
+    const rowAfter = screen.getByText("genres").closest(".nt-property-select") as HTMLElement;
+    expect(within(rowAfter).getByText("Fiction")).not.toBeNull();
+    fireEvent.click(within(rowAfter).getByRole("button", { name: "Add option" }));
+    fireEvent.click(within(rowAfter).getByText("Mystery"));
+    await flushWrites();
+    expect(client.getEffectiveProperties(pageId)).toEqual([
+      expect.objectContaining({ propertySchemaId: schemaId, value: ["g1", "g2"], source: "authored" }),
+    ]);
+
+    // Removing one option keeps the other (multi semantics).
+    const rowFinal = screen.getByText("genres").closest(".nt-property-select") as HTMLElement;
+    fireEvent.click(within(rowFinal).getByRole("button", { name: "Remove Fiction" }));
+    await flushWrites();
+    expect(client.getEffectiveProperties(pageId)).toEqual([
+      expect.objectContaining({ propertySchemaId: schemaId, value: ["g2"], source: "authored" }),
+    ]);
+  });
+
+  it("§34.32 PG14: url/email scalars keep the text editor and gain a link affordance", async () => {
+    const client = await seedClient();
+    const urlSchema = await client.createPropertySchema({ name: "homepage", type: "url" });
+    const emailSchema = await client.createPropertySchema({ name: "contact", type: "email" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Linked" });
+    await client.setProperty(pageId, urlSchema, "https://example.org", 0);
+    await client.setProperty(pageId, emailSchema, "hi@example.org", 0);
+    render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+
+    const link = screen.getByRole("link", { name: "Open homepage" }) as HTMLAnchorElement;
+    expect(link.href).toBe("https://example.org/");
+    expect(link.target).toBe("_blank");
+    const mail = screen.getByRole("link", { name: "Open contact" }) as HTMLAnchorElement;
+    expect(mail.href).toBe("mailto:hi@example.org");
+  });
+
   it("boolean schemas render the checkbox toggle writing true/false", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "archived", type: "boolean" });

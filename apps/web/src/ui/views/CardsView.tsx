@@ -24,6 +24,7 @@ import { SelectionButton } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
+import { useCardLayoutPreference } from "../viewPrefs.js";
 import type { CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import "./CardsView.css";
 
@@ -152,7 +153,7 @@ const COVER_LAYOUT_OPTIONS: Array<{ value: CardLayout; icon: string; label: stri
   { value: "cover-top", icon: "mdi-dock-top", label: "Cover top" },
 ];
 
-/** The cover-layout picker (the four v1 layouts), session state. */
+/** The cover-layout picker (the four v1 layouts); the choice persists per device. */
 export function CoverLayoutToggle({ value, onChange }: { value: CardLayout; onChange: (layout: CardLayout) => void }) {
   return (
     <SelectionButton
@@ -169,7 +170,9 @@ export function CoverLayoutToggle({ value, onChange }: { value: CardLayout; onCh
 
 export function CardsView(props: NodeCollectionProps) {
   const { items, tree = undefined } = props;
-  const [coverLayout, setCoverLayout] = useState<CardLayout>("no-cover");
+  // The cover layout persists device-locally (§34.27 L1) — one preference
+  // per device shared by every cards/kanban surface; never an op.
+  const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
   if (items.length === 0) return null;
   if (tree === true || hasChildren(items)) return <TreeCards items={items} props={props} />;
   return (

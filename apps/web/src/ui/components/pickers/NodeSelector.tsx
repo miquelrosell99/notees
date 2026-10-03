@@ -11,8 +11,12 @@
  * All modes render the shared NodeResultItem rows; keyboard navigation,
  * date suggestions, and create-from-query are built in. With `scopeTabs`
  * the picker adds Main/Blocks tabs scoping the results to document-chrome
- * nodes vs inline child blocks. Data wiring goes through the workspace
- * client (search/list/create/class-assign).
+ * nodes vs inline child blocks. `searchMode="blocks"` (M8) is the block-
+ * linking candidate set — inline blocks only, each labeled with its
+ * containing-page path. A leading `class:<name>` prefix in the query (M7)
+ * refines any non-classes mode to that class's members; the create row
+ * answers the rest of the query and carries the refined class. Data wiring
+ * goes through the workspace client (search/list/create/class-assign).
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -49,7 +53,7 @@ export interface NodeSelectorClient {
 
 type AnyClient = NodeSelectorClient;
 
-export type NodeSearchMode = "pages" | "classes" | "all";
+export type NodeSearchMode = "pages" | "classes" | "all" | "blocks";
 type TriggerMode = "pill-row" | "inline";
 
 /**
@@ -265,8 +269,37 @@ export function NodeSelector({
     }
   };
 
-  // Built-in create: pages pickers create a page (carrying the class
-  // filters), classes pickers create a class. Callers override via onCreateNew.
+  // Class refine (§34.30 M7): a leading `class:<name>` prefix scopes the
+  // search to that class's members. The name is resolved greedily over the
+  // class list — the LONGEST display-name prefix wins, so spaced names
+  // ("class:My Class ada") parse unambiguously; an unknown name leaves the
+  // query untouched (the raw text just searches).
+  const classRefine = useMemo((): { classId: string | null; query: string } => {
+    if (searchMode === "classes") return { classId: null, query: searchQuery };
+    const raw = searchQuery.trim();
+    if (!/^class:/i.test(raw)) return { classId: null, query: searchQuery };
+    const rest = raw.slice("class:".length).trimStart();
+    const restLower = rest.toLowerCase();
+    const hit = client
+      .listClasses()
+      .map((cls) => ({ cls, name: (displayNameForSettings(cls) || "").toLowerCase() }))
+      .filter((entry) => entry.name !== "" && (restLower === entry.name || restLower.startsWith(entry.name + " ")))
+      .sort((a, b) => b.name.length - a.name.length)[0];
+    if (hit === undefined) return { classId: null, query: searchQuery };
+    return { classId: hit.cls.id, query: rest.slice(hit.name.length) };
+  }, [client, searchQuery, searchMode]);
+
+  // Effective class ids: caller-side classFilters plus the refined class —
+  // the create row and the empty-query member listing both honor them.
+  const effectiveClassIds = useMemo(() => {
+    const ids = new Set<string>(classFilters ?? []);
+    if (classRefine.classId !== null) ids.add(classRefine.classId);
+    return [...ids];
+  }, [classFilters, classRefine]);
+
+  // Built-in create: pages pickers create a page (carrying the effective
+  // class filters), classes pickers create a class. Callers override via
+  // onCreateNew.
   const defaultCreateNew = (name: string): Promise<string> => {
     if (searchMode === "classes") {
       return client.createClass(name);
@@ -274,9 +307,7 @@ export function NodeSelector({
     return client.createObject({
       presentAsMain: true,
       name,
-      ...(classFilters !== undefined && classFilters.length > 0
-        ? { classIds: classFilters }
-        : {}),
+      ...(effectiveClassIds.length > 0 ? { classIds: effectiveClassIds } : {}),
     });
   };
 
@@ -289,17 +320,18 @@ export function NodeSelector({
     }
   };
 
-  // Create support: default on for page/class pickers.
+  // Create support: default on for page/class pickers. The create row answers
+  // the EFFECTIVE query — under a `class:` refine the prefix scopes the
+  // search; it must not become part of the created node's title (M7).
+  const effectiveQuery = classRefine.query.trim();
   const createEnabled = allowCreate ?? true;
   const effectiveCreateNew = onCreateNew ?? defaultCreateNew;
   const showCreateOption =
-    !!effectiveCreateNew &&
-    createEnabled &&
-    (alwaysShowCreate || searchQuery.trim().length > 0);
+    !!effectiveCreateNew && createEnabled && (alwaysShowCreate || effectiveQuery.length > 0);
 
   const handleCreateNew = () => {
-    if (!effectiveCreateNew || !searchQuery.trim()) return;
-    const result = effectiveCreateNew(searchQuery.trim());
+    if (!effectiveCreateNew || !effectiveQuery) return;
+    const result = effectiveCreateNew(effectiveQuery);
     if (result instanceof Promise) {
       result.then(resolveCreateResult).catch(() => {});
     } else {
@@ -371,10 +403,13 @@ export function NodeSelector({
 
   // Search results through the client. Classes are matched by name over the
   // class list (name filtering is the better picker behavior for short
-  // queries); object/block hits go through the FTS index — the class appliers
-  // reindex too, so "all"-mode search surfaces classes as well.
+  // queries); object/block hits go through the M2-ranked FTS index — the
+  // class appliers reindex too, so "all"-mode search surfaces classes as
+  // well. A `class:` refine (M7) narrows the candidates to the refined
+  // class's members; "blocks" mode (M8) keeps only inline-body blocks — the
+  // `((` block-linking candidate set.
   const searchResults = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = classRefine.query.trim().toLowerCase();
     if (searchMode === "classes") {
       const classes = client.listClasses().filter((node) => {
         if (q === "") return true;
@@ -383,33 +418,35 @@ export function NodeSelector({
       });
       return classes;
     }
-    const hits = q === "" ? [] : client.search(searchQuery.trim());
+    const hits = q === "" ? [] : client.search(classRefine.query.trim());
     const filtered = hits.filter((node) => {
       if (searchMode === "pages" && !rendersWithDocumentChrome(node)) return false;
+      if (searchMode === "blocks" && !rendersAsInlineBlock(node)) return false;
       if (!matchesScopeTab(node)) return false;
-      if (classFilters !== undefined && classFilters.length > 0) {
-        if (!node.classIds.some((id) => classFilters.includes(id))) return false;
+      if (effectiveClassIds.length > 0) {
+        if (!node.classIds.some((id) => effectiveClassIds.includes(id))) return false;
       }
       return true;
     });
     if (q !== "") return filtered;
-    // An empty query in a class-filtered picker lists the target classes'
-    // members (the picker's natural candidate set); unfiltered pickers wait
-    // for input.
-    if (classFilters !== undefined && classFilters.length > 0) {
+    // An empty effective query in a class-scoped picker lists the target
+    // classes' members (the picker's natural candidate set); unfiltered
+    // pickers wait for input.
+    if (effectiveClassIds.length > 0) {
       const seen = new Set<string>();
-      return classFilters
+      return effectiveClassIds
         .flatMap((id) => client.getClassMembers(id))
         .filter((node) => {
           if (seen.has(node.id)) return false;
           seen.add(node.id);
           return true;
         })
-        .filter(matchesScopeTab);
+        .filter(matchesScopeTab)
+        .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node));
     }
     return [];
     // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesScopeTab derives from scope/scopeTabs/searchMode.
-  }, [client, searchQuery, searchMode, classFilters, scopeTabs, scope]);
+  }, [client, searchQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope]);
 
   const filteredResults = useMemo(
     () =>
@@ -546,6 +583,26 @@ export function NodeSelector({
     return ".../ " + (last.length > 26 ? last.slice(0, 23) + "..." : last) + " /";
   };
 
+  // Containing-page breadcrumb for a block hit (§34.30 M8): the nearest
+  // document-chrome ancestor's path plus the page itself — the label that
+  // tells a "…" block result apart from same-named pages.
+  const buildContainingPagePath = (node: ClientNode): string => {
+    let currentId = node.parentId;
+    let guard = 0;
+    while (currentId !== null && guard < 64) {
+      const parent = client.getNode(currentId);
+      if (parent === undefined) break;
+      if (rendersWithDocumentChrome(parent)) {
+        const ancestors = buildParentPath(parent);
+        const name = displayNameForSettings(parent) || "Untitled";
+        return ancestors !== "" ? `${ancestors} ${name}` : name;
+      }
+      currentId = parent.parentId;
+      guard += 1;
+    }
+    return "";
+  };
+
   // Get display classes for a node (class names as small pills).
   const getDisplayClasses = (node: ClientNode): Array<{ nodeUuid: string; name: string }> => {
     if (node.classIds.length === 0) return [];
@@ -591,7 +648,9 @@ export function NodeSelector({
           <NodeResultItem
             key={node.id}
             node={node}
-            parentPath={rendersWithDocumentChrome(node) ? buildParentPath(node) : ""}
+            parentPath={
+              rendersWithDocumentChrome(node) ? buildParentPath(node) : buildContainingPagePath(node)
+            }
             displayClasses={getDisplayClasses(node)}
             isHighlighted={globalIndex === selectedIndex}
             isSelected={assignedIds.has(node.id)}
@@ -604,7 +663,7 @@ export function NodeSelector({
       {showCreateOption && (
         <NodeResultItem
           key="__create"
-          node={{ name: createLabel ?? `Create "${searchQuery.trim()}"` }}
+          node={{ name: createLabel ?? `Create "${effectiveQuery}"` }}
           isHighlighted={selectedIndex === createIndex}
           onClick={handleCreateNew}
           onMouseEnter={() => setSelectedIndex(createIndex)}

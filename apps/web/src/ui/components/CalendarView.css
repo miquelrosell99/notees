@@ -23,6 +23,9 @@
   width: var(--layout-size-8xl);
   overflow-y: auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
 }
 
 .calendar-view__header {
@@ -221,6 +224,44 @@
   margin: 0;
   font: var(--font-body-small);
   color: var(--color-on-surface-variant);
+}
+
+/* §34.28 #11 week breadth: the agenda under the week strip lists each
+   visible day's dated references (non-task), non-empty days only. */
+.calendar-view__agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+}
+
+.calendar-view__agenda-title {
+  margin: 0;
+  font: var(--font-label-medium);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.calendar-view__agenda-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.calendar-view__agenda-day-title {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font: var(--font-label-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+}
+
+.calendar-view__agenda-day-title:hover {
+  color: var(--color-primary);
 }
 
 .calendar-view__error {
