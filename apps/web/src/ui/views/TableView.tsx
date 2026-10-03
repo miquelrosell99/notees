@@ -10,9 +10,10 @@
  * - Rows: windowed ("Show more"); row checkboxes with a tri-state header
  *   box when `selectable` (default on) — selection is session state.
  * - Cells: boolean + select edit inline; text/url/email and number/integer
- *   commit on blur/Enter (empty unsets); date cells use a native date
- *   input writing a day-node reference (ensureDateChain); node cells open
- *   the anchored NodeSelector. Multi-value properties stay read-only.
+ *   commit on blur/Enter (empty unsets); date cells ride the shared
+ *   DateSlotControl (the zoom picker, §34.32 PG17) writing a day-node
+ *   reference (ensureDateChain); node cells open the anchored NodeSelector.
+ *   Multi-value properties stay read-only.
  * - Name cell: row click opens, shift+click peeks.
  */
 
@@ -22,10 +23,11 @@ import { parseDateNodeId } from "@notees/domain";
 import { BooleanToggle, ButtonWithPanel, Checkbox } from "../components/ui/index.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
+import { DateSlotControl } from "../components/pickers/DateSlotControl.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { registerView } from "./registry.js";
-import { isEmptyPropertyValue, propertyDisplayText } from "./propertyDisplay.js";
+import { isEmptyPropertyValue, propertyDisplayText, propertyLinkHref } from "./propertyDisplay.js";
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client.js";
 import type {
   AnyClient,
@@ -257,31 +259,23 @@ function DateCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaI
     parsed !== null && parsed.precision === "day"
       ? `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`
       : null;
-  const [picking, setPicking] = useState(false);
-  if (picking) {
-    return (
-      <InlineInput
-        value={iso ?? ""}
-        inputType="date"
-        ariaLabel={schemaName}
-        onCommit={(next) => {
-          setPicking(false);
-          if (next === iso || (next === "" && iso === null)) return;
-          if (next === "") {
-            commitCellValue(props, row, schemaId, prop?.idx, null);
-            return;
-          }
-          void client.ensureDateChain(next).then(({ day }) => {
-            commitCellValue(props, row, schemaId, prop?.idx, { nodeId: day });
-          });
-        }}
-      />
-    );
-  }
   return (
-    <button type="button" className="nt-table-date" onClick={() => setPicking(true)}>
-      {iso ?? propertyDisplayText(client, prop)}
-    </button>
+    <DateSlotControl
+      client={client}
+      value={iso}
+      display={iso ?? propertyDisplayText(client, prop)}
+      ariaLabel={schemaName}
+      onCommit={(next) => {
+        if (next === iso) return;
+        if (next === null) {
+          commitCellValue(props, row, schemaId, prop?.idx, null);
+          return;
+        }
+        void client.ensureDateChain(next).then(({ day }) => {
+          commitCellValue(props, row, schemaId, prop?.idx, { nodeId: day });
+        });
+      }}
+    />
   );
 }
 
@@ -397,6 +391,17 @@ function PropertyCell({ row, column, props }: { row: TableRow; column: TableColu
 
   if (editable && schema?.type === "object" && schema?.multi !== true) {
     return <NodeCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
+  }
+
+  // §34.32 PG14: url/email values render as links (mailto: for email; a url
+  // value keeps whatever scheme the author wrote, tel: included).
+  const href = propertyLinkHref(schema?.type, prop?.value);
+  if (href !== null) {
+    return (
+      <a className="nt-table-link" href={href} target="_blank" rel="noreferrer">
+        {propertyDisplayText(client, prop)}
+      </a>
+    );
   }
 
   return <>{propertyDisplayText(client, prop)}</>;

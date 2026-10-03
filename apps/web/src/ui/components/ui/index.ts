@@ -124,5 +124,8 @@ export type { FloatingButtonArrayProps, ToolbarDividerProps } from './FloatingBu
 export { MonthCalendar } from './calendar/MonthCalendar.js';
 export type { MonthCalendarProps } from './calendar/MonthCalendar.js';
 
+export { WeekStrip } from './calendar/WeekStrip.js';
+export type { WeekStripProps } from './calendar/WeekStrip.js';
+
 export { PresentationOverlay, PRESENTATION_CHROME_HIDE_MS } from './PresentationOverlay.js';
 export type { PresentationOverlayProps } from './PresentationOverlay.js';

@@ -65,7 +65,10 @@ import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { JournalsView } from "./components/JournalsView.js";
 import { CalendarView } from "./components/CalendarView.js";
 import { ensureTaskFamily } from "./components/taskFamily.js";
+import { TaskBuckets } from "./components/TaskBuckets.js";
+import { todayIsoLocal } from "./components/calendarViewUtils.js";
 import { CalendarPopup } from "./components/ui/CalendarPopup.js";
+import { QueriesHub } from "./components/QueriesHub.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
@@ -191,6 +194,7 @@ const NAV_PATHS: Record<string, NavKey> = {
   whiteboards: "whiteboards",
   tasks: "tasks",
   assets: "assets",
+  queries: "queries",
 };
 
 export function navFromPath(pathname: string): NavKey | null {
@@ -200,6 +204,39 @@ export function navFromPath(pathname: string): NavKey | null {
 
 export function pathForNav(nav: NavKey): string {
   return `/${nav}`;
+}
+
+/**
+ * Ctrl/Cmd+Shift+T — open today's daily page (§34.28 #8; the §34.19 :1140
+ * keymap row reserves the chord for "today"). Local-midnight today (never
+ * the UTC .slice pattern), ensure-chain (idempotent get-or-create) + open.
+ * Text fields keep the keystroke — the guard matches the other global
+ * chords. Note: browsers reserve Ctrl+Shift+T for "reopen closed tab", so
+ * the chord fires only where the browser yields it (and under Cmd on macOS);
+ * exported for the day-features tests.
+ */
+export function openTodayKeyHandler(opts: {
+  client: () => AnyClient | null;
+  openPage: (nodeId: string) => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    if (event.key.toLowerCase() !== "t" || !event.shiftKey || !(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+    // Document-level dispatch (and window) has no Element target — only
+    // element targets can sit inside a text field.
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    const live = opts.client();
+    if (live === null) return;
+    event.preventDefault();
+    void live.ensureDateChain(todayIsoLocal()).then(({ day }) => opts.openPage(day));
+  };
 }
 
 /**
@@ -565,6 +602,16 @@ export function App() {
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Ctrl/Cmd+Shift+T — open today's daily page (§34.28 #8).
+  useEffect(() => {
+    const handler = openTodayKeyHandler({
+      client: () => clientRef.current,
+      openPage,
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, []);
 
   /**
@@ -959,9 +1006,9 @@ export function App() {
     setPhase({ name: "server" });
   }
 
-  async function handleNewPage() {
+  async function handleNewPage(title?: string) {
     if (client === null) return;
-    const id = await client.createObject({ presentAsMain: true, name: "Untitled" });
+    const id = await client.createObject({ presentAsMain: true, name: title ?? "Untitled" });
     setSelectedPageId(id);
   }
 
@@ -1297,6 +1344,7 @@ export function App() {
             if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
           }}
           onOpenInSidebar={openInSidebar}
+          cacheVersion={pagesVersion}
         />
         <PageCard
           accent={
@@ -1322,6 +1370,8 @@ export function App() {
             <JournalsView client={client} onOpenPage={openPage} />
           ) : activeNav === "calendar" ? (
             <CalendarView client={client} onOpenPage={openPage} />
+          ) : activeNav === "queries" ? (
+            <QueriesHub client={client} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           ) : (
             <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           )}
@@ -1373,8 +1423,9 @@ export function App() {
         onRequestOpen={() => setPaletteOpen(true)}
         onClose={() => setPaletteOpen(false)}
         onOpenNode={openPage}
-        onNewPage={() => void handleNewPage()}
+        onNewPage={(title) => void handleNewPage(title)}
         onSignOut={() => void handleSignOut()}
+        cacheVersion={pagesVersion}
       />
       {settingsOpen && sessionSignedIn && user !== null && !offline && (
         <UserSettingsModal
@@ -1512,22 +1563,27 @@ export function HubView({
         ? ["outline", "cards", "kanban", "table"]
         : ["outline", "cards", "table"];
     return (
-      <CollectionHub
-        client={client}
-        icon={entry?.icon ?? "mdi-format-list-checks"}
-        title={entry?.label ?? "Tasks"}
-        items={members.map((node) => ({ node }))}
-        modes={modes}
-        defaultMode="table"
-        persistKey="hub.tasks"
-        tableColumns={taskTableColumns(client)}
-        cardProperties={TASK_PROPERTY_COLUMNS.map((col) => col.id)}
-        tableEditable
-        kanbanProperty={kanbanProperty}
-        emptyTitle="No tasks yet"
-        onOpenNode={onOpenNode}
-        onOpenInSidebar={onOpenInSidebar}
-      />
+      <div className="nt-hub-tasks">
+        {/* §34.28 #5 — the bucketed surface (Overdue/Today/Upcoming/
+            Unscheduled/Completed) over the same members; device-collapse. */}
+        <TaskBuckets client={client} onOpenNode={onOpenNode} />
+        <CollectionHub
+          client={client}
+          icon={entry?.icon ?? "mdi-format-list-checks"}
+          title={entry?.label ?? "Tasks"}
+          items={members.map((node) => ({ node }))}
+          modes={modes}
+          defaultMode="table"
+          persistKey="hub.tasks"
+          tableColumns={taskTableColumns(client)}
+          cardProperties={TASK_PROPERTY_COLUMNS.map((col) => col.id)}
+          tableEditable
+          kanbanProperty={kanbanProperty}
+          emptyTitle="No tasks yet"
+          onOpenNode={onOpenNode}
+          onOpenInSidebar={onOpenInSidebar}
+        />
+      </div>
     );
   }
 
