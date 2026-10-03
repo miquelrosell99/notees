@@ -1142,8 +1142,21 @@ describe("buildMatchExpression (FTS match compilation)", () => {
     expect(buildMatchExpression("Kuhn Scient")).toBe("Kuhn* AND Scient*");
   });
 
+  it("compiles quoted segments to exact phrases (C1)", () => {
+    expect(buildMatchExpression('"quick brown" fox')).toBe('"quick brown" AND fox*');
+    expect(buildMatchExpression('ISO "11607-1" validation')).toBe(
+      '"11607 1" AND ISO* AND validation*',
+    );
+    expect(buildMatchExpression('"a   b"')).toBe('"a b"');
+  });
+
+  it("treats an unterminated quote as plain text", () => {
+    expect(buildMatchExpression('"quick brown')).toBe("quick* AND brown*");
+  });
+
   it("returns null when nothing searchable remains", () => {
     expect(buildMatchExpression("---")).toBeNull();
     expect(buildMatchExpression("   ")).toBeNull();
+    expect(buildMatchExpression('""')).toBeNull();
   });
 });

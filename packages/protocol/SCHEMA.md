@@ -66,7 +66,7 @@ Token set (zod schemas are the executable form, `src/content-mark.ts`):
 | `asset_ref` | `assetId` | renders inline (chip/preview); alone in a stream position = full-bleed |
 | `embed_ref` | `nodeId` | live subtree, never a clone; renderer cycle guard |
 | `quote` | `children` (inline tokens) | the only nested token |
-| `query` | `queryAst`, `view?` | block-scale live query. `view` is a free-form record; the web renderer persists `view.mode: "list" \| "table"` (list default) and renders the aggregate grid when `queryAst` carries an `aggregation` |
+| `query` | `queryAst`, `view?` | block-scale live query. `view` is a free-form record; the web renderer persists `view.mode: "list" \| "table"` (list default) and renders the aggregate grid when `queryAst` carries an `aggregation`. See "The token view record" below |
 | `whiteboard` | `layout` | shapes/strokes/viewport + per-card geometry. **A whiteboard node is defined by the `whiteboard` system class (what-it-is axis); this token carries geometry and shapes.** Never a kind or a flag — the general rule: what-it-is always lives in class, specialized data lives in content tokens or assertion rows. Class↔token divergence is a lint suggestion, never a prohibition (design law). See "Whiteboard modeling" below. |
 | `external_link` | `href`, `text` | |
 | `math` | `expression` | KaTeX source |
@@ -75,6 +75,26 @@ Token set (zod schemas are the executable form, `src/content-mark.ts`):
 Typed-link rule: a typed link is a **mark on a prose word** (01-knowledge-model.md §9) — nothing is inserted; the word you wrote is the annotation. Delete the word and the mark dies with it; marks ride inside the CRDT-synchronized content (per-node `Y.Text` over the serialized token array — v1 port; canonical wire carrier `contentDeltaB64`, readable carrier `contentAst`). Plaintext for FTS is derived by the applier, never stored as truth. Per-field CRDTs remain a documented M3+ option if real-time collaboration ever demands finer granularity.
 
 Storage of the token array: the block node's content serializes into its per-node CRDT; content ops (`object.create/update`) are the only write path — **no token type introduces a new op or sync primitive**.
+
+## The token view record (NORMATIVE, §34.31 V3, 2026-10-04)
+
+The `query` token's optional `view` record is the saved view's persisted configuration. The protocol grammar keeps it a **free-form record** (`z.record(z.unknown())` — additive by construction: foreign keys ride along, newer writers must not break older readers, writers merge into the existing record and never replace it). The disciplined shape (web client reader/writer: `apps/web/src/ui/queryViewRecord.ts`):
+
+- `mode: "list" | "table"` — the result rendering (list default; anything unknown reads back as list).
+- `title?: string` — the saved view's display name (ViewTabs; absent = the positional "Query N" fallback). A saved view is otherwise anonymous — title-is-content names NODES, not views.
+- `isDefault?: boolean` — the section opens on this saved view (the per-surface default is configuration in the record, not code). One token per section carries the flag.
+
+Reserved for future writers (readers must tolerate them; no current writer emits them): `columns`, `sort`, `groupBy`, `pageSize` (the §34.32 PG9 property-column ride). A version key is intentionally absent — the free-form record IS the versioning mechanism (unknown keys ignore forward-compatibly).
+
+Query blocks are the saved-view vehicle: the token is content, so a saved query rides the op log — synced, local-first, no view entity, no new op. The Queries hub hosts workspace-level saved views as tokens on an ordinary page (§34.31 V1/V4).
+
+## Query compile-time placeholders (NORMATIVE, §34.31 C4/V2, 2026-10-04)
+
+The QueryAST carries **explicit ids only** — no editor-relative id placeholders ("this page" is baked at write time by the builder as a `subtree` scope; the once-reserved `currentNodeId` compile option was dead and is removed). `{today}`-style **date placeholders** ARE ordinary strings in two positions, resolved to concrete dates at compile time against the run clock (`@notees/query` `CompileOptions.now`, default the current instant — a saved view re-evaluates on the day it runs):
+
+- `{today}`, `{this_week}` (ISO week, Monday start), `{this_month}`, `{this_year}`;
+- `createdAfter`/`createdBefore` timestamps: the placeholder resolves to the period's local-day boundary expressed in UTC (`created_at` is UTC on the wire) — After floors at the local day start, Before ceilings at the local day end (both inclusive, matching the ops);
+- property-condition comparison values (`eq`/`neq`/`gt`/`gte`/`lt`/`lte`): the placeholder resolves to the period start as a plain `YYYY-MM-DD` date — the hand-typed shape, so the ISO-date arms (including the date-node-ref containment match) apply. `contains` (text-substring) and unknown `{...}` tokens never resolve — they stay literal.
 
 ## Whiteboard modeling (NORMATIVE, 2026-09-26)
 

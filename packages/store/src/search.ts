@@ -51,20 +51,47 @@ export function matchTerms(query: string): string[] {
 }
 
 /**
- * Prefix-AND FTS query (v1 client search pattern): each maximal run of
- * letters/digits becomes a bare prefix token, all terms ANDed. Splitting at
- * every non-alphanumeric boundary mirrors the unicode61 tokenizer (which
- * splits indexed text at the same boundaries), so "11607-1" compiles to
- * `11607* AND 1*` and matches the indexed tokens instead of merging into a
- * nonexistent "116071". Bare tokens (not quoted prefix phrases) are the
- * intersection of the FTS4 and FTS5 query languages — FTS5's `"term"*` quoted
- * phrase prefix is a silent no-match on FTS4 (stock sql.js) — and bare tokens
- * must not carry FTS query syntax (quotes, parens, colons).
+ * Prefix-AND FTS query (v1 client search pattern) with quoted-phrase support
+ * (§34.30 C1): each maximal run of letters/digits OUTSIDE double quotes
+ * becomes a bare prefix token; each double-quoted segment becomes an exact
+ * FTS phrase (valid MATCH syntax on FTS4 and FTS5 alike — verified against
+ * the shipped sql.js wasm; FTS5's `"term"*` phrase-PREFIX stays off the table
+ * because FTS4 silently no-matches it). An unterminated quote degrades to
+ * plain text. Splitting at every non-alphanumeric boundary mirrors the
+ * unicode61 tokenizer (which splits indexed text at the same boundaries), so
+ * "11607-1" compiles to `11607* AND 1*` and matches the indexed tokens
+ * instead of merging into a nonexistent "116071". Bare tokens must not carry
+ * FTS query syntax (quotes, parens, colons), which is why the quoted segments
+ * are extracted before the prefix pass runs.
  */
 export function buildMatchQuery(query: string): string | null {
-  const terms = matchTerms(query);
-  if (terms.length === 0) return null;
-  return terms.map((t) => `${t}*`).join(" AND ");
+  const clauses: string[] = [];
+  const unquoted: string[] = [];
+  const pattern = /"([^"]*)"/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(query)) !== null) {
+    unquoted.push(query.slice(last, match.index));
+    last = match.index + match[0].length;
+    const terms = matchTerms(match[1]!);
+    if (terms.length > 0) clauses.push(`"${terms.join(" ")}"`);
+  }
+  unquoted.push(query.slice(last));
+  for (const term of matchTerms(unquoted.join(" "))) clauses.push(`${term}*`);
+  if (clauses.length === 0) return null;
+  return clauses.join(" AND ");
+}
+
+/**
+ * Parse the opaque pagination cursor into a row offset. The cursor is the
+ * decimal offset string the previous page returned (null = first page);
+ * anything else fails loud — a silently-reset cursor would make the UI
+ * jump back to the first page mid-browse.
+ */
+function parseSearchCursor(cursor: string | null | undefined): number {
+  if (cursor === null || cursor === undefined || cursor === "") return 0;
+  if (!/^\d+$/.test(cursor)) throw new Error(`search: invalid cursor "${cursor}"`);
+  return Number(cursor);
 }
 
 // --- ranked search (§34.30 M2) ---------------------------------------------------
@@ -84,6 +111,17 @@ export function buildMatchQuery(query: string): string | null {
 
 export interface RankedSearchHit {
   nodeId: string;
+}
+
+export interface RankedSearchPage {
+  hits: RankedSearchHit[];
+  /**
+   * Offset cursor for the next page (opaque to callers), or null when this
+   * page exhausted the match set. Ranking is deterministic (relevance,
+   * recency, id), so an offset cursor pages a stable order; a concurrent edit
+   * may shift rows at worst, never corrupt.
+   */
+  nextCursor: string | null;
 }
 
 /** Detected search_index module, cached per connection (a WeakMap: restore
@@ -133,19 +171,35 @@ function compareRecency(a: string | null, b: string | null): number {
  * recency tiebreak, node id for full determinism.
  */
 export function searchNodes(db: StoreDatabase, query: string, limit: number): RankedSearchHit[] {
+  return searchNodesPage(db, query, limit).hits;
+}
+
+/**
+ * Cursor-paginated ranked search (§34.30 C5): the same deterministic order
+ * as searchNodes, sliced one page at a time. The returned cursor is the
+ * opaque next-page argument (null = done).
+ */
+export function searchNodesPage(
+  db: StoreDatabase,
+  query: string,
+  limit: number,
+  cursor: string | null = null,
+): RankedSearchPage {
   const match = buildMatchQuery(query);
-  if (match === null) return [];
+  if (match === null) return { hits: [], nextCursor: null };
+  const offset = parseSearchCursor(cursor);
   if (searchIndexModule(db) === "fts5") {
-    return db
+    const hits = db
       .prepare(
         `SELECT d.node_id AS nodeId FROM search_index s
          JOIN search_index_docid d ON d.docid = s.rowid
          JOIN node n ON n.id = d.node_id AND n.is_active = 1
          WHERE search_index MATCH ?
          ORDER BY s.rank ASC, n.updated_at DESC, d.node_id ASC
-         LIMIT ?`,
+         LIMIT ? OFFSET ?`,
       )
-      .all(match, limit) as RankedSearchHit[];
+      .all(match, limit, offset) as RankedSearchHit[];
+    return { hits, nextCursor: hits.length === limit ? String(offset + limit) : null };
   }
   const rows = db
     .prepare(
@@ -157,8 +211,11 @@ export function searchNodes(db: StoreDatabase, query: string, limit: number): Ra
        WHERE search_index MATCH ?`,
     )
     .all(match) as unknown as Fts4MatchRow[];
-  const phraseCount = matchTerms(query).length;
-  return rows
+  // Every AND clause (prefix token or quoted phrase) is exactly one FTS
+  // phrase — 'x' layout is per phrase — so the clause count, not the raw
+  // term count, sizes the matchinfo blob (C1 phrases make them differ).
+  const phraseCount = match.split(" AND ").length;
+  const hits = rows
     .map((row) => ({ ...row, score: matchinfoHitScore(row.mi, phraseCount) }))
     .sort(
       (a, b) =>
@@ -166,8 +223,9 @@ export function searchNodes(db: StoreDatabase, query: string, limit: number): Ra
         compareRecency(a.updatedAt, b.updatedAt) ||
         (a.nodeId < b.nodeId ? -1 : 1),
     )
-    .slice(0, limit)
+    .slice(offset, offset + limit)
     .map(({ nodeId }) => ({ nodeId }));
+  return { hits, nextCursor: hits.length === limit ? String(offset + limit) : null };
 }
 
 // --- snippets (§34.30 M3) ----------------------------------------------------------

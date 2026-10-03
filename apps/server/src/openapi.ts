@@ -509,6 +509,8 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   // --- search & query -------------------------------------------------------------------
   ["get", "/api/search", {
     summary: "Full-text search over active nodes (FTS index)",
+    description:
+      "Relevance-ranked (rank + recency) with cursor pagination: pass the previous response's `nextCursor` as `cursor` until it comes back null. Quoted `\"phrases\"` match exact adjacency; other terms match as prefixes (ANDed).",
     tags: ["Search & Query"],
     requiredScope: "search",
     query: {
@@ -516,8 +518,20 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       isClass: { description: "class identity bit filter", type: "string" },
       presentAsMain: { description: "render-bit filter", type: "string" },
       limit: { description: "max results (default 50, max 500)", type: "integer" },
+      cursor: { description: "opaque pagination cursor from a previous response's nextCursor", type: "string" },
     },
     errors: ["validation_failed"],
+  }],
+  ["get", "/api/resolve", {
+    summary: "Resolve a node's id from its exact display name (title-is-content)",
+    description:
+      "Case-insensitive exact-name match over the ranked FTS candidates — the one-round-trip counterpart of /search for name→id resolution (CLI `linked:`, query builders). 404 when no active node carries the exact name.",
+    tags: ["Search & Query"],
+    requiredScope: "search",
+    query: {
+      name: { description: "the node's display name", type: "string", required: true },
+    },
+    errors: ["validation_failed", "not_found"],
   }],
   ["post", "/api/query", {
     summary: "Arbitrary QueryAST execution (the compiled query language)",

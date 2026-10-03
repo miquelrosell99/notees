@@ -43,6 +43,11 @@ import type {
   QueryAst,
   SortSpec,
 } from "./ast.js";
+import {
+  resolveTimestampPlaceholder,
+  resolveValuePlaceholder,
+  type PlaceholderContext,
+} from "./placeholders.js";
 
 export interface CompiledQuery {
   sql: string;
@@ -57,30 +62,46 @@ export interface CompiledAggregate {
   columns: string[];
 }
 
-export interface CompileOptions {
-  /**
-   * Reserved for future current-node-relative scopes/placeholders (v1's
-   * current_page / {current_node_uuid}); the M1 AST carries explicit ids, so
-   * this is accepted but unused.
-   */
-  currentNodeId?: string | undefined;
-}
+/**
+ * The placeholder clock (§34.31 C4): `{today}`-style tokens in
+ * createdAfter/createdBefore timestamps and comparison-bound property values
+ * resolve against this instant. Defaults to the current time on each
+ * compile, so a saved view re-evaluates on the day it runs. (The once-
+ * reserved `currentNodeId` option was dead — the strict AST carries explicit
+ * ids, "this page" is baked at write time — and is removed.)
+ */
+export type CompileOptions = PlaceholderContext;
 
 /**
  * Prefix-AND FTS match expression (port of the store's buildMatchQuery —
  * kept here so the query package stays standalone, dependency-free). Each
- * maximal run of letters/digits becomes a bare prefix token (`term*`), all
- * terms ANDed; splitting at every non-alphanumeric boundary mirrors the
- * unicode61 tokenizer ("11607-1" → `11607* AND 1*`). Null when nothing
- * searchable remains.
+ * maximal run of letters/digits OUTSIDE double quotes becomes a bare prefix
+ * token (`term*`); each double-quoted segment becomes an exact FTS phrase
+ * (valid MATCH syntax on FTS4 and FTS5 alike). Splitting at every
+ * non-alphanumeric boundary mirrors the unicode61 tokenizer ("11607-1" →
+ * `11607* AND 1*`). Null when nothing searchable remains.
  */
 export function buildMatchExpression(query: string): string | null {
-  const terms = query
-    .trim()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((t) => t.length > 0);
-  if (terms.length === 0) return null;
-  return terms.map((t) => `${t}*`).join(" AND ");
+  const splitTerms = (text: string): string[] =>
+    text
+      .trim()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((t) => t.length > 0);
+  const clauses: string[] = [];
+  const unquoted: string[] = [];
+  const pattern = /"([^"]*)"/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(query)) !== null) {
+    unquoted.push(query.slice(last, match.index));
+    last = match.index + match[0].length;
+    const terms = splitTerms(match[1]!);
+    if (terms.length > 0) clauses.push(`"${terms.join(" ")}"`);
+  }
+  unquoted.push(query.slice(last));
+  for (const term of splitTerms(unquoted.join(" "))) clauses.push(`${term}*`);
+  if (clauses.length === 0) return null;
+  return clauses.join(" AND ");
 }
 
 const SORT_COLUMNS: Record<SortSpec["field"], { column: string; nullable: boolean }> = {
@@ -427,9 +448,13 @@ class Compiler {
         // scope form joins the same CTE for its distance column).
         return `n.id IN (SELECT id FROM (${this.linkedToSql(condition.nodeId)}))`;
       case "createdAfter":
-        return `n.created_at >= ${this.push(condition.timestamp)}`;
+        return `n.created_at >= ${this.push(
+          resolveTimestampPlaceholder(condition.timestamp, "after", this.options),
+        )}`;
       case "createdBefore":
-        return `n.created_at <= ${this.push(condition.timestamp)}`;
+        return `n.created_at <= ${this.push(
+          resolveTimestampPlaceholder(condition.timestamp, "before", this.options),
+        )}`;
       default:
         throw new Error(
           `query compile: unknown condition type ${(condition as { type: string }).type}`,
@@ -491,7 +516,17 @@ class Compiler {
    */
   private propertySql(condition: Extract<Condition, { type: "property" }>): string {
     const valueOps: readonly PropertyOp[] = ["eq", "neq", "contains", "gt", "gte", "lt", "lte"];
-    if (valueOps.includes(condition.op) && (condition.value === undefined || condition.value === null)) {
+    // The comparison bound rides the placeholder clock: a `{today}`-style
+    // token resolves to the period start as a plain YYYY-MM-DD date (the
+    // hand-typed shape — the ISO-date arms below apply to it). contains is
+    // a text-substring op and exists carries no value: neither resolves.
+    const bound =
+      typeof condition.value === "string" &&
+      condition.op !== "contains" &&
+      condition.op !== "exists"
+        ? resolveValuePlaceholder(condition.value, this.options)
+        : condition.value;
+    if (valueOps.includes(condition.op) && (bound === undefined || bound === null)) {
       throw new Error(`query compile: property op '${condition.op}' requires a non-null value`);
     }
     const includeDefaults = condition.includeDefaults ?? true;
@@ -548,19 +583,17 @@ class Compiler {
 
     let predicate = "";
     const boundIso =
-      typeof condition.value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(condition.value)
-        ? condition.value
-        : null;
+      typeof bound === "string" && /^\d{4}-\d{2}-\d{2}$/.test(bound) ? bound : null;
     if (condition.op === "eq") {
-      const scalar = `json_extract(value, '$') = ${this.push(condition.value)}`;
+      const scalar = `json_extract(value, '$') = ${this.push(bound)}`;
       predicate =
         boundIso !== null ? `WHERE ${scalar} OR ${this.dateRefSql("=", boundIso)}` : `WHERE ${scalar}`;
     } else if (condition.op === "neq") {
       if (boundIso !== null) {
-        const scalar = `json_extract(value, '$') = ${this.push(condition.value)}`;
+        const scalar = `json_extract(value, '$') = ${this.push(bound)}`;
         predicate = `WHERE NOT (${scalar} OR ${this.dateRefSql("=", boundIso)})`;
       } else {
-        predicate = `WHERE json_extract(value, '$') != ${this.push(condition.value)}`;
+        predicate = `WHERE json_extract(value, '$') != ${this.push(bound)}`;
       }
     } else if (condition.op === "contains") {
       const scalar = `CAST(json_extract(value, '$') AS TEXT) LIKE '%' || ${this.push(condition.value)} || '%'`;
@@ -574,10 +607,10 @@ class Compiler {
         // The scalar arm is gated to non-object values: a { "nodeId": … } ref
         // would otherwise compare as raw JSON text ('{' sorts after digits).
         const scalar =
-          `json_type(value, '$') != 'object' AND json_extract(value, '$') ${sqlOp} ${this.push(condition.value)}`;
+          `json_type(value, '$') != 'object' AND json_extract(value, '$') ${sqlOp} ${this.push(bound)}`;
         predicate = `WHERE (${scalar}) OR ${this.dateRefSql(sqlOp, boundIso)}`;
       } else {
-        predicate = `WHERE json_extract(value, '$') ${sqlOp} ${this.push(condition.value)}`;
+        predicate = `WHERE json_extract(value, '$') ${sqlOp} ${this.push(bound)}`;
       }
     }
 

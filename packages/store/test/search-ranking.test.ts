@@ -289,4 +289,77 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(snippet!.text).toContain("plain owner title");
     });
   });
+
+  describe("C1: quoted phrases in the MATCH query", () => {
+    function phraseStore(): Store {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000c1", contentAst: text("the quick brown fox jumps") }, 1727200001000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000c2", contentAst: text("quick fox brown jumps the") }, 1727200002000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000c3", contentAst: text("quick brownish fox leaps") }, 1727200003000));
+      return store;
+    }
+
+    it("a quoted phrase matches only the exact adjacency", () => {
+      const hits = phraseStore().search('"quick brown fox"', 10).map((h) => h.nodeId);
+      expect(hits).toEqual(["0192a000-0000-7000-8000-0000000000c1"]);
+    });
+
+    it("phrase + bare term AND together", () => {
+      const store = phraseStore();
+      // "brown fox" adjacent AND prefixed `jump*` — only c1 qualifies.
+      expect(store.search('"brown fox" jump', 10).map((h) => h.nodeId)).toEqual([
+        "0192a000-0000-7000-8000-0000000000c1",
+      ]);
+      // c2 carries both terms but not adjacently — the phrase excludes it.
+      expect(store.search('"brown fox" jump', 10)).not.toContainEqual({
+        nodeId: "0192a000-0000-7000-8000-0000000000c2",
+      });
+    });
+
+    it("unbalanced quotes degrade to plain text (never break the MATCH)", () => {
+      const store = phraseStore();
+      expect(store.search('"quick brown', 10).map((h) => h.nodeId)).toContain(
+        "0192a000-0000-7000-8000-0000000000c1",
+      );
+    });
+  });
+
+  describe("C5: cursor-paginated search", () => {
+    function pagedStore(): Store {
+      const store = makeStore();
+      for (let i = 0; i < 7; i++) {
+        store.apply(
+          env(
+            "object.create",
+            { objectId: `0192a000-0000-7000-8000-0000000001${String(i).padStart(2, "0")}`, contentAst: text("pageword result") },
+            1727200001000 + i * 1000,
+          ),
+        );
+      }
+      return store;
+    }
+
+    it("pages the deterministic order with a cursor until exhausted", () => {
+      const store = pagedStore();
+      const first = store.searchPage("pageword", { limit: 3 });
+      expect(first.hits).toHaveLength(3);
+      expect(first.nextCursor).not.toBeNull();
+      const second = store.searchPage("pageword", { limit: 3, cursor: first.nextCursor });
+      expect(second.hits).toHaveLength(3);
+      // No overlap between pages.
+      const firstIds = new Set(first.hits.map((h) => h.nodeId));
+      expect(second.hits.every((h) => !firstIds.has(h.nodeId))).toBe(true);
+      const third = store.searchPage("pageword", { limit: 3, cursor: second.nextCursor });
+      expect(third.hits).toHaveLength(1);
+      expect(third.nextCursor).toBeNull();
+      // The concatenation equals the single-shot ranked list.
+      const all = store.search("pageword", 10).map((h) => h.nodeId);
+      expect([...first.hits, ...second.hits, ...third.hits].map((h) => h.nodeId)).toEqual(all);
+    });
+
+    it("a garbage cursor fails loud", () => {
+      const store = pagedStore();
+      expect(() => store.searchPage("pageword", { cursor: "not-a-number" })).toThrow(/invalid cursor/);
+    });
+  });
 });
