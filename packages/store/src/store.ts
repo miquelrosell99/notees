@@ -19,7 +19,8 @@
  * clock, so replayed logs converge to byte-identical databases.
  */
 
-import type { Envelope } from "@notees/protocol";
+import type { Envelope, WorkspaceFeature } from "@notees/protocol";
+import { managedClassIds } from "@notees/domain";
 
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
 import type { SqliteDB, StoreBackend } from "./db.js";
@@ -344,6 +345,22 @@ export class Store {
       .all(classId) as NodeRow[];
   }
 
+  /**
+   * The members count for section badges — the same membership projection
+   * as classMembers as a COUNT (indexed; the badge renders eagerly like
+   * the child-pages/backlinks counts).
+   */
+  classMembersCount(classId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM node n
+         JOIN class_member_set m ON m.node_id = n.id
+         WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1`,
+      )
+      .get(classId) as { count: number };
+    return row.count;
+  }
+
   /** Edges pointing at the node (backlinks), ordered deterministically. */
   backlinks(nodeId: string) {
     return this.db
@@ -532,6 +549,61 @@ export class Store {
     opts?: { maxTokens?: number; ellipsis?: string },
   ): SearchSnippet | null {
     return searchSnippet(this.db, nodeId, query, opts);
+  }
+
+  // --- workspace features (§34.35) -------------------------------------------
+
+  /**
+   * The winning feature-toggle row, or null when the workspace never
+   * toggled it. Callers read through `isFeatureEnabled` for the F2 default
+   * (absent row = enabled).
+   */
+  getFeatureRow(
+    workspaceId: string,
+    feature: string,
+  ): { feature: string; enabled: boolean } | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT feature, enabled FROM workspace_feature WHERE workspace_id = ? AND feature = ?",
+      )
+      .get(workspaceId, feature) as { feature: string; enabled: number } | undefined;
+    return row === undefined ? undefined : { feature: row.feature, enabled: row.enabled === 1 };
+  }
+
+  /** F2 default semantics: an absent row means ENABLED (the empty table is all-ON). */
+  isFeatureEnabled(workspaceId: string, feature: string): boolean {
+    return this.getFeatureRow(workspaceId, feature)?.enabled ?? true;
+  }
+
+  /** All toggle rows the workspace has (untoggled features are absent, not listed). */
+  listFeatureRows(workspaceId: string): Array<{ feature: string; enabled: boolean }> {
+    const rows = this.db
+      .prepare(
+        "SELECT feature, enabled FROM workspace_feature WHERE workspace_id = ? ORDER BY feature",
+      )
+      .all(workspaceId) as Array<{ feature: string; enabled: number }>;
+    return rows.map((row) => ({ feature: row.feature, enabled: row.enabled === 1 }));
+  }
+
+  /**
+   * Active instance count across a feature's managed classes (F3 disable
+   * confirmation — "N existing objects keep their data"): distinct active
+   * non-class nodes with a present membership row in any managed class.
+   */
+  featureInstanceCount(workspaceId: string, feature: WorkspaceFeature): number {
+    const ids = managedClassIds(feature);
+    if (ids.length === 0) return 0;
+    const placeholders = ids.map(() => "?").join(",");
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(DISTINCT m.node_id) AS n
+         FROM class_member_set m
+         JOIN node node ON node.id = m.node_id
+         WHERE m.class_id IN (${placeholders}) AND m.present = 1
+           AND node.workspace_id = ? AND node.is_active = 1 AND node.is_class = 0`,
+      )
+      .get(...ids, workspaceId) as { n: number };
+    return row.n;
   }
 
   // --- snapshot / restore / reset ----------------------------------------------
