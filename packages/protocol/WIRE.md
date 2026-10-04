@@ -23,7 +23,7 @@ Latest snapshot metadata: `{"snapshotId", "hlc": {physical, logical}, "hasSnapsh
 Snapshot bytes (`application/octet-stream`) — a serialized derived-state SQLite database. Clients restore, then catch up from `upToSeq`. 404 when absent.
 
 ### `PUT /snapshot/data?workspaceId=…&physical=…&logical=…`
-Upload a client-produced snapshot (owner-only in multi-user; single-user M1: any key with write scope). Raw body bytes.
+Upload a client-produced snapshot (owner-only in multi-user; single-user M1: any key with write scope). Raw body bytes. Body cap: **512 MiB route-local** (§34.69) — the app-global request cap is 128 MiB, and this route is the one deliberate exception (an authenticated, workspace-scoped full projection is the largest body the API carries). Over-cap answers `413 entity_too_large` (the §3 envelope); a client that sees it reports once and keeps syncing normally (the server-side snapshot covers restore) — it MUST NOT treat the refusal as sync failure.
 
 ### `POST /compact`
 Owner/admin: `{"workspaceId", "upToHlc": {physical, logical}, "prune": true, "dataBase64": "..."}` — snapshot the derived state up to an HLC and optionally prune covered envelopes. `prune: true` requires non-empty `dataBase64`. Single checkpoint flow (replaces v1's three divergent snapshot endpoints).

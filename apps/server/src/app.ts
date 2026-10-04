@@ -52,6 +52,9 @@ export async function buildServer(
   const ctx = new ServerContext(config, SERVER_VERSION);
   const app = Fastify({
     logger: options.logger ?? config.logger,
+    // Global request-body cap; the one legitimate oversized body — the
+    // client-produced snapshot PUT — raises its own route-local limit
+    // (routes-relay.ts SNAPSHOT_PUT_BODY_LIMIT, §34.69).
     bodyLimit: 128 * 1024 * 1024,
   });
 

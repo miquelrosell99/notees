@@ -317,12 +317,12 @@ describe("dismissal matrix: anchored NodeSelector (mention picker)", () => {
     expect(picker()).not.toBeNull();
 
     // Inside press: the picker's own search input never self-dismisses.
-    fireEvent.mouseDown(within(picker()!).getByPlaceholderText("Search pages and blocks…"));
+    fireEvent.pointerDown(within(picker()!).getByPlaceholderText("Search pages and blocks…"));
     expect(picker()).not.toBeNull();
 
     // Outside: the page chrome.
     const header = container.querySelector<HTMLElement>(".nt-page-header") ?? container;
-    fireEvent.mouseDown(header);
+    fireEvent.pointerDown(header);
     expect(picker()).toBeNull();
 
     // Reopen and Escape.

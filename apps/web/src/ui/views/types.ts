@@ -133,7 +133,9 @@ export interface NodeCollectionProps {
   /**
    * Table: row checkboxes with a tri-state header box (default true). The
    * selection is session state; bulk actions over the selection are a
-   * separate feature.
+   * separate feature. Cards/kanban (flat node sets): a per-card checkbox
+   * with the same session-selection semantics + the "Export selected…"
+   * affordance (§34.69); tree card contexts never render checkboxes.
    */
   selectable?: boolean | undefined;
   /**
