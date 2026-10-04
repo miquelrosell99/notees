@@ -149,3 +149,8 @@ button.outline-group__label:hover {
   padding: 0 0 0 var(--spacing-3, 12px);
   border-left: 1px solid var(--color-outline-variant, currentColor);
 }
+
+/* The §34.70 affordance aligns with the indented group rows. */
+.outline-group > .nt-window-more {
+  margin-inline-start: calc(var(--spacing-2, 8px) + var(--spacing-3, 12px));
+}

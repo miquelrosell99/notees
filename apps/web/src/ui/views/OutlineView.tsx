@@ -8,11 +8,16 @@
  *   otherwise (child-page trees, reference subtrees). Editable trees render
  *   inside the call site's DndContext; read-only trees bring their own
  *   SortableContext (non-draggable rows, the Child pages precedent).
+ *   §34.70: a READ-ONLY tree's top-level set is windowed (the shared
+ *   useWindowed + ShowMoreButton convention) — the editable outliner tree
+ *   is deliberately NOT windowed (it is the live CRDT editing surface; a
+ *   window could hide a freshly created block).
  *
  * - FLAT (no children): bullet + icon + label rows for node lists (classed
  *   nodes, tasks, assets, hub lists) — click opens, shift+click peeks, and
  *   the container may append a trailing action (unassign) or replace the row
- *   wholesale via renderItem.
+ *   wholesale via renderItem. §34.70: the flat list (and every group of a
+ *   grouped rendering) is windowed with the shared affordance.
  */
 
 import type { ReactNode } from "react";
@@ -27,7 +32,9 @@ import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { renderStateLabel } from "../renderStateLabel.js";
 import { registerView } from "./registry.js";
-import type { NodeCollectionItem, NodeCollectionProps } from "./types.js";
+import { useWindowed } from "./useWindowed.js";
+import { ShowMoreButton } from "./ShowMoreButton.js";
+import type { CollectionGroup, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import "./OutlineView.css";
 
 /** Depth cap for safety on deep recursive trees. */
@@ -49,9 +56,17 @@ function isTree(items: NodeCollectionItem[]): boolean {
 function TreeRows({ items, props }: { items: NodeCollectionItem[]; props: NodeCollectionProps }) {
   const { client, editable = false, readOnly = !editable, renderItem } = props;
   const resolveName = (id: string) => displayNameFromClient(client, id);
+  // §34.70: only the READ-ONLY tree windows its top-level set (the child-
+  // pages projection and friends); the editable outliner stays whole — it
+  // is the live editing surface, and a window could hide a just-created
+  // block. A BlockRow's own subtree renders whole (collapse chrome bounds it).
+  const { visible, remaining, showMore } = useWindowed(items, {
+    enabled: props.windowed ?? true,
+  });
+  const rows = readOnly ? visible : items;
   return (
-    <>
-      {items.map((item) => {
+    <SortableContext items={rows.map((row) => row.node.id)} strategy={verticalListSortingStrategy}>
+      {rows.map((item) => {
         const row = (
           <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} />
         );
@@ -62,7 +77,8 @@ function TreeRows({ items, props }: { items: NodeCollectionItem[]; props: NodeCo
           </span>
         );
       })}
-    </>
+      {readOnly && <ShowMoreButton remaining={remaining} onShowMore={showMore} />}
+    </SortableContext>
   );
 }
 
@@ -120,11 +136,11 @@ export function OutlineView(props: NodeCollectionProps) {
     if (pagesOnly) tree = filterPages(tree);
     if (maxDepth !== undefined) tree = capDepth(tree, maxDepth);
     const className = `nt-block-tree ${editable ? "" : "nt-block-tree--readonly"}`.trim();
-    const rows = <TreeRows items={tree} props={props} />;
+    // TreeRows owns its SortableContext so the items match the window.
     return (
-      <SortableContext items={tree.map((t) => t.node.id)} strategy={verticalListSortingStrategy}>
-        <div className={className}>{rows}</div>
-      </SortableContext>
+      <div className={className}>
+        <TreeRows items={tree} props={props} />
+      </div>
     );
   }
 
@@ -132,14 +148,25 @@ export function OutlineView(props: NodeCollectionProps) {
     return <GroupedFlat props={props} groups={groups} />;
   }
 
+  return <FlatList props={props} items={items} />;
+}
+
+/** The §34.70-windowed flat list: the loaded rows + the shared affordance. */
+function FlatList({ items, props }: { items: NodeCollectionItem[]; props: NodeCollectionProps }) {
+  const { visible, remaining, showMore } = useWindowed(items, {
+    enabled: props.windowed ?? true,
+  });
   return (
-    <ul className="outline-flat">
-      {items.map((item) => (
-        <li key={item.node.id}>
-          <OutlineRow item={item} props={props} />
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="outline-flat">
+        {visible.map((item) => (
+          <li key={item.node.id}>
+            <OutlineRow item={item} props={props} />
+          </li>
+        ))}
+      </ul>
+      <ShowMoreButton remaining={remaining} onShowMore={showMore} />
+    </>
   );
 }
 
@@ -147,9 +174,11 @@ export function OutlineView(props: NodeCollectionProps) {
  * The grouped flat rendering (groupBy): one collapsible section per group —
  * chevron toggles collapse (session-local), the header label opens the group
  * (e.g. the containing page) when the container wired onHeaderClick. Rows
- * reuse the flat OutlineRow (or the container's renderItem).
+ * reuse the flat OutlineRow (or the container's renderItem). §34.70: each
+ * group's rows are their own window — the header count names the FULL group
+ * while the list renders the loaded slice + the shared affordance.
  */
-function GroupedFlat({ props, groups }: { props: NodeCollectionProps; groups: import("./types.js").CollectionGroup[] }) {
+function GroupedFlat({ props, groups }: { props: NodeCollectionProps; groups: CollectionGroup[] }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const toggle = (id: string) => {
     setCollapsed((prev) => {
@@ -197,19 +226,30 @@ function GroupedFlat({ props, groups }: { props: NodeCollectionProps; groups: im
                 </span>
               )}
             </div>
-            {!isCollapsed && (
-              <ul className="outline-flat outline-group__items">
-                {group.items.map((item) => (
-                  <li key={item.node.id}>
-                    <OutlineRow item={item} props={props} />
-                  </li>
-                ))}
-              </ul>
-            )}
+            {!isCollapsed && <GroupRows group={group} props={props} />}
           </section>
         );
       })}
     </div>
+  );
+}
+
+/** One group's rows + its own window (component-scoped hook). */
+function GroupRows({ group, props }: { group: CollectionGroup; props: NodeCollectionProps }) {
+  const { visible, remaining, showMore } = useWindowed(group.items, {
+    enabled: props.windowed ?? true,
+  });
+  return (
+    <>
+      <ul className="outline-flat outline-group__items">
+        {visible.map((item) => (
+          <li key={item.node.id}>
+            <OutlineRow item={item} props={props} />
+          </li>
+        ))}
+      </ul>
+      <ShowMoreButton remaining={remaining} onShowMore={showMore} />
+    </>
   );
 }
 

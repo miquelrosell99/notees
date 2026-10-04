@@ -11,6 +11,11 @@
  * (session state); cards reorder within a column by dragging (session
  * order — persisting card order needs an order property, recorded in the
  * plan). Cards reuse the flat NodeCard, cover layouts included.
+ *
+ * §34.70: each column windows its card list independently (the shared
+ * useWindowed + ShowMoreButton convention) — the column count badge and the
+ * drop logic read the FULL bucket; only the rendering is windowed, and the
+ * "Show more" affordance names the hidden count at the column's end.
  */
 
 import { useState } from "react";
@@ -39,6 +44,8 @@ import { useCardLayoutPreference } from "../viewPrefs.js";
 import { registerView } from "./registry.js";
 import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
+import { useWindowed } from "./useWindowed.js";
+import { ShowMoreButton } from "./ShowMoreButton.js";
 import type { AnyClient, CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import type { ViewSelection } from "./selectionExport.js";
 import "./KanbanView.css";
@@ -153,6 +160,12 @@ function KanbanColumn({
   selection: ViewSelection;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnId });
+  // §34.70: the column's cards are the windowed collection — the header
+  // count above still names the FULL bucket, and drags resolve positions
+  // against it (ordered() at the board level), so the window is display-only.
+  const { visible, remaining, showMore } = useWindowed(items, {
+    enabled: props.windowed ?? true,
+  });
   return (
     <section className={`kanban-column${isOver ? " kanban-column--over" : ""}`} data-column-id={columnId}>
       <header className="kanban-column__header">
@@ -174,8 +187,8 @@ function KanbanColumn({
       </header>
       {!collapsed && (
         <div className="kanban-column__body" ref={setNodeRef}>
-          <SortableContext items={items.map((item) => item.node.id)} strategy={verticalListSortingStrategy}>
-            {items.map((item) => (
+          <SortableContext items={visible.map((item) => item.node.id)} strategy={verticalListSortingStrategy}>
+            {visible.map((item) => (
               <DraggableCard
                 key={item.node.id}
                 item={item}
@@ -193,6 +206,7 @@ function KanbanColumn({
             ))}
           </SortableContext>
           {items.length === 0 && <div className="kanban-column__empty" aria-hidden="true" />}
+          <ShowMoreButton remaining={remaining} onShowMore={showMore} />
         </div>
       )}
     </section>

@@ -6,6 +6,11 @@
   gap: var(--spacing-3, 12px);
 }
 
+/* The §34.70 affordance spans the grid's full row (a grid item otherwise). */
+.cards-grid > .nt-window-more {
+  grid-column: 1 / -1;
+}
+
 .node-card {
   position: relative;
   display: flex;
