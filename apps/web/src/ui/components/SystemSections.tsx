@@ -1,7 +1,9 @@
 /**
  * SystemSections — the card-bottom system sections: Linked references,
  * Child pages and Unlinked references, each in the shared NodeViewSection
- * chrome. Linked references start expanded; the other two start collapsed.
+ * chrome, plus the workspace Activity feed (§34.19 :1167 — the ActivityLog
+ * section, mounted last; off for embedded renders via `withActivity`).
+ * Linked references start expanded; the other two start collapsed.
  * The lazy-loading contract lives in Section (../Section.js): a collapsed
  * section executes no query.
  *
@@ -29,6 +31,7 @@ import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js
 import { promoteMentionInAst } from "./unlinkedRefs.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
 import type { NodeCollectionItem } from "../views/index.js";
+import { ActivityLogSection } from "./ActivityLogSection.js";
 import "./SystemSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -147,10 +150,17 @@ export function SystemSections({
   client,
   pageId,
   onOpenPage,
+  /**
+   * The workspace activity feed (§34.19 :1167). Off for embedded renders —
+   * a journal feed mounts many PageViews and the feed's created-query gate
+   * would run once per mounted page per notification.
+   */
+  withActivity = true,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  withActivity?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const ignored = useIgnoredUnlinkedRefs(pageId);
@@ -229,6 +239,7 @@ export function SystemSections({
           )}
         />
       )}
+      {withActivity && <ActivityLogSection client={client} onOpenPage={onOpenPage} />}
     </div>
   );
 }

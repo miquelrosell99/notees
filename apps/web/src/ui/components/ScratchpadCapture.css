@@ -1,0 +1,44 @@
+/**
+ * ScratchpadCapture styles — the capture box pinned to the top of the
+ * scratchpad page. A quiet surface one step below the content card so the
+ * input reads as chrome, not content. Token-only.
+ */
+
+.nt-scratch-capture {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2, 8px);
+  margin: 0 0 var(--spacing-4, 16px);
+  padding: var(--spacing-3, 12px);
+  background: var(--color-surface-container-low);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+}
+
+.nt-scratch-capture-input {
+  width: 100%;
+  resize: vertical;
+  min-height: var(--height-2xl, 56px);
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font: var(--font-body-medium, inherit);
+}
+
+.nt-scratch-capture-input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+.nt-scratch-capture-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2, 8px);
+}
+
+.nt-scratch-capture-live {
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-on-surface-variant);
+}

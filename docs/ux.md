@@ -89,7 +89,7 @@ Backlinks list *actual* links — but the backlinks view can be narrowed by face
 
 **Today:** the page-level sections ship in the web client — linked references (badge from the materialized `node_stats.backlink_count`), unlinked references (pages only, no eager count: an FTS over the page's name excluding already-linked sources, with per-row Promote/Ignore), and child pages. All are collapsed by default and run no query until first expand; an expanded section re-runs its query when a notification lands and caches until then. The block-level backlink gutter ships too: any block row with backlinks shows the count toggle in the right gutter, and expanding it runs the same linked-references query scoped to that block, rendered inline beneath the row. The classed-nodes section ships with the Class View.
 
-The **Activity** feed closes the page-bottom stack (§34.19's ActivityLog row): a workspace-level section, honest about what the local projection derives. *Recently created* runs one workspace-wide query (the compiler's `entire_workspace` scope, newest first — blocks included); *Recently edited* lists pages and classes whose updated time postdates their creation, and says so — a block's edit time surfaces on its page, not here. Lazy like every system section (collapsed runs nothing; the created count gates hide-when-empty), it stays off embedded feed entries, which already sit on aggregation surfaces.
+The **Activity** feed closes the page-bottom stack (§34.19's ActivityLog row): a workspace-level section, honest about what the local projection derives. *Recently created* runs one workspace-wide query (the compiler's `entire_workspace` scope, newest first — blocks included) **only while expanded** — collapsed, the section executes no query at all, and it carries no eager badge (no materialized activity count exists, so like unlinked references it shows none); *Recently edited* lists pages and classes whose updated time postdates their creation, and says so — a block's edit time surfaces on its page, not here. It stays off embedded feed entries, which already sit on aggregation surfaces.
 
 ## Mentions, chips, and typed links — marks on words
 
@@ -124,6 +124,17 @@ A whiteboard is a node classed `whiteboard`; the `whiteboard` content token carr
 A whiteboard can live fullscreen (a parentless node) or embedded as an inline child of any block. Its cards index into search and the graph naturally — no separate "whiteboard content" that search can't see.
 
 **Today:** the `whiteboard` class is seeded in the catalog, the token is part of the normative grammar, and the web renderer shows a labeled placeholder where a whiteboard will render. The spatial canvas is designed.
+
+## Tables — cells are nodes
+
+A table is a node classed `table`; the grid is a render projection of its subtree — the whiteboard pattern one level down:
+
+- **Rows are child blocks; cells are each row's child blocks.** Every cell is an ordinary node — own UUID, full content grammar, backlinks, search indexing, classing, properties, the focused view. A cell that matters to the graph can be mentioned, classed, and zoomed via its bullet; the same children render as a grid, an outline, or focused, because they are the same nodes.
+- **Linking to a cell is an ordinary mention.** The mention token stores the cell's id and resolves its current content at render — edit the cell and every reference follows. There is no separate "table content" that links can't reach.
+- **The grid is a view, not a type.** The container's children render as a CSS grid: the column template comes from the first row's cell count; rows align by subgrid, so a ragged row shows a blank (fewer cells) or spills an extra column (more). Underneath, the tree is an ordinary outliner tree — Tab/Enter, drag, and the keyboard contract work inside cells unchanged.
+- **Structure changes are ordinary creates.** `/table` scaffolds the container with one row of three empty cells (the typed argument is the column count — `/table 5`); hovering the table offers + Row / + Column, which append blocks. No new op, no wire token — every write is an `object.create` on ordinary nodes.
+
+**Today:** `/table` scaffolds at the caret and focuses the first cell; the container's hover toolbar appends rows/columns; cells edit inline through the standard block editor (the usual debounced save); embeds and the other read-only projections render the grid. The presentation deck still projects an embedded table as a nested list (its renderer doesn't ride the block-row path); row/column deletion rides the ordinary block delete gestures (the grip menu).
 
 ## Promotion and demotion
 
