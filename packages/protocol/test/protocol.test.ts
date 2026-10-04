@@ -41,14 +41,18 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the thirteen required fixtures", () => {
+  it("has exactly the eighteen required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
+      "class-delete-managed.json",
       "class-extends-cycle.json",
       "class-extends-m2m.json",
       "class-property-defaults.json",
       "class-unassign.json",
+      "code-block.json",
+      "embed-ref-view.json",
       "envelope-minimal.json",
+      "hr.json",
       "object-color.json",
       "object-create.json",
       "object-move-before.json",
@@ -57,6 +61,7 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
       "property-set-lww.json",
       "typed-link-mark-deleted.json",
       "typed-link-mark.json",
+      "workspace-feature-set.json",
     ]);
   });
 
@@ -242,6 +247,117 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
         expect(String(env.opType)).not.toMatch(/^relation\./);
       }
     }
+  });
+
+  it("workspace-feature-set fixture races the (workspace, feature) slot; the higher-HLC disable wins", () => {
+    const fixture = fixtures.find((f) => f.name === "workspace-feature-set.json")!;
+    const tasks = fixture.envelopes.filter(
+      (env) => (env.payload as { feature: string }).feature === "tasks",
+    );
+    expect(tasks.map((env) => (env.payload as { enabled: boolean }).enabled)).toEqual([
+      true,
+      false,
+    ]);
+    const hlcA = tasks[0]!.hlc as { physical: number; logical: number };
+    const hlcB = tasks[1]!.hlc as { physical: number; logical: number };
+    expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
+    // readItLater toggles off then back on — the re-enable is the winner.
+    const ril = fixture.envelopes.filter(
+      (env) => (env.payload as { feature: string }).feature === "readItLater",
+    );
+    expect(ril.map((env) => (env.payload as { enabled: boolean }).enabled)).toEqual([false, true]);
+    // Applicable in sequence: every HLC strictly follows the previous one.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+    // Strict schema: an unknown feature id is rejected outright.
+    expect(
+      payloadSchemaFor("workspace.feature.set")!.safeParse({ feature: "spreadsheets", enabled: true })
+        .success,
+    ).toBe(false);
+  });
+
+  it("class-delete-managed fixture: the delete addresses the seeded task class (F4 routing target)", () => {
+    const fixture = fixtures.find((f) => f.name === "class-delete-managed.json")!;
+    const [create, member, del, reenable] = fixture.envelopes;
+    expect(create!.opType).toBe("class.create");
+    expect((create!.payload as { classId: string }).classId).toBe(
+      "00000000-0000-0000-0001-000000000012",
+    );
+    expect((member!.payload as { classIds: string[] }).classIds).toEqual([
+      "00000000-0000-0000-0001-000000000012",
+    ]);
+    expect(del!.opType).toBe("class.delete");
+    expect(reenable!.opType).toBe("workspace.feature.set");
+    expect((reenable!.payload as { feature: string; enabled: boolean })).toEqual({
+      feature: "tasks",
+      enabled: true,
+    });
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("code-block fixture: the token survives promotion stringification (survivor set)", () => {
+    const fixture = fixtures.find((f) => f.name === "code-block.json")!;
+    const blockCreate = fixture.envelopes[1]!;
+    const ast = contentAstSchema.parse((blockCreate.payload as { contentAst: unknown }).contentAst);
+    expect(ast[1]).toEqual({
+      type: "code_block",
+      language: "python",
+      text: "print('hi')\nprint('bye')",
+    });
+    // The promotion is the third envelope: presentAsMain true on the block.
+    expect(fixture.envelopes[2]!.payload).toMatchObject({ presentAsMain: true });
+    // A language-less code_block is legal (plain text default).
+    const plain = fixture.envelopes[3]!;
+    expect((plain.payload as { contentAst: unknown[] }).contentAst).toEqual([
+      { type: "code_block", text: "plain snippet" },
+    ]);
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("hr fixture: the token rides inline blocks and flattens away on promotion", () => {
+    const fixture = fixtures.find((f) => f.name === "hr.json")!;
+    const blockCreate = fixture.envelopes[1]!;
+    const ast = contentAstSchema.parse((blockCreate.payload as { contentAst: unknown }).contentAst);
+    expect(ast.map((token) => token.type)).toEqual(["text", "hr", "text"]);
+    expect(fixture.envelopes[2]!.payload).toMatchObject({ presentAsMain: true });
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("embed-ref-view fixture: absent view = default embed; card views ride the token", () => {
+    const fixture = fixtures.find((f) => f.name === "embed-ref-view.json")!;
+    const update = fixture.envelopes[3]!;
+    const ast = contentAstSchema.parse((update.payload as { contentAst: unknown }).contentAst);
+    expect(ast[0]).toEqual({
+      type: "embed_ref",
+      nodeId: "0192a000-0000-7000-8000-000000000640",
+    });
+    expect(ast[1]).toEqual({
+      type: "embed_ref",
+      nodeId: "0192a000-0000-7000-8000-000000000640",
+      view: "wide_card",
+    });
+    // Strict schema: a foreign view value is rejected outright.
+    expect(
+      contentAstSchema.safeParse([
+        { type: "embed_ref", nodeId: "0192a000-0000-7000-8000-000000000640", view: "huge" },
+      ]).success,
+    ).toBe(false);
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("code_block and hr strict schemas reject unknown keys and bad shapes", () => {
+    expect(
+      contentAstSchema.safeParse([{ type: "code_block", text: "x", theme: "dark" }]).success,
+    ).toBe(false);
+    expect(contentAstSchema.safeParse([{ type: "code_block" }]).success).toBe(false);
+    expect(
+      contentAstSchema.safeParse([{ type: "code_block", language: "PyThOn", text: "x" }]).success,
+    ).toBe(false);
+    expect(contentAstSchema.safeParse([{ type: "hr", color: "red" }]).success).toBe(false);
   });
 });
 

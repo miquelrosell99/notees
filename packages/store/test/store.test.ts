@@ -2031,6 +2031,227 @@ for (const adapter of adapters) {
   });
 }
 
+const TASK_CLASS = "00000000-0000-0000-0001-000000000012";
+const DAY_CLASS = "00000000-0000-0000-0001-000000000005";
+
+for (const adapter of adapters) {
+  describe(`workspace features on ${adapter.name} (§34.35)`, () => {
+    it("F2: an empty table means all enabled; rows list only toggled features", () => {
+      const store = Store.open(adapter.makeBackend());
+      expect(store.isFeatureEnabled(WS, "tasks")).toBe(true);
+      expect(store.isFeatureEnabled(WS, "journals")).toBe(true);
+      expect(store.listFeatureRows(WS)).toEqual([]);
+      expect(store.getFeatureRow(WS, "tasks")).toBeUndefined();
+      store.close();
+    });
+
+    it("F3: toggle-off archives the managed classes membership-preserving; toggle-on revives", () => {
+      const store = Store.open(adapter.makeBackend());
+      store.apply(env("class.create", { classId: TASK_CLASS, contentAst: [{ type: "text", text: "Task" }] }, 1727200011000));
+      store.apply(env("class.create", { classId: DAY_CLASS, contentAst: [{ type: "text", text: "Day" }] }, 1727200011100));
+      const member = "0192a000-0000-7000-8000-000000000615";
+      store.apply(env("object.create", { objectId: member, classIds: [TASK_CLASS], contentAst: [{ type: "text", text: "Buy milk" }] }, 1727200011200));
+
+      store.apply(env("workspace.feature.set", { feature: "tasks", enabled: false }, 1727200012000));
+      expect(store.isFeatureEnabled(WS, "tasks")).toBe(false);
+      // The class node + registry row archive; the membership pair survives.
+      expect(store.getNode(TASK_CLASS)!.is_active).toBe(0);
+      const registry = store.database.prepare("SELECT active FROM class WHERE id = ?").get(TASK_CLASS) as { active: number };
+      expect(registry.active).toBe(0);
+      expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([TASK_CLASS]));
+      expect(
+        (store.database.prepare("SELECT present FROM class_member_set WHERE node_id = ? AND class_id = ?").get(member, TASK_CLASS) as { present: number }).present,
+      ).toBe(1);
+      // Untouched features/classes stay enabled.
+      expect(store.isFeatureEnabled(WS, "journals")).toBe(true);
+      expect(store.getNode(DAY_CLASS)!.is_active).toBe(1);
+      expect(store.featureInstanceCount(WS, "tasks")).toBe(1);
+
+      store.apply(env("workspace.feature.set", { feature: "tasks", enabled: true }, 1727200013000));
+      expect(store.isFeatureEnabled(WS, "tasks")).toBe(true);
+      expect(store.getNode(TASK_CLASS)!.is_active).toBe(1);
+      expect(registryRow(store, TASK_CLASS).active).toBe(1);
+      expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([TASK_CLASS]));
+      store.close();
+    });
+
+    it("the tasks enable authors the six-schema family idempotently (fixed ids, option ids)", () => {
+      const store = Store.open(adapter.makeBackend());
+      const enableOp = env("workspace.feature.set", { feature: "tasks", enabled: true }, 1727200012000);
+      store.apply(enableOp);
+      const node = store.getNode(TASK_CLASS)!;
+      expect(node.is_class).toBe(1);
+      expect(node.is_active).toBe(1);
+      expect(JSON.parse(node.content)).toEqual([{ type: "text", text: "Task" }]);
+      const schemas = store.database
+        .prepare("SELECT id, name, type FROM property_schema WHERE id LIKE '00000000-0000-0000-0003-%'")
+        .all() as Array<{ id: string; name: string; type: string }>;
+      expect(schemas.map((row) => row.name).sort()).toEqual([
+        "Closed",
+        "Deadline",
+        "Priority",
+        "Recurrence",
+        "Scheduled",
+        "Status",
+      ]);
+      const status = store.database
+        .prepare("SELECT options FROM property_schema WHERE id = ?")
+        .get("00000000-0000-0000-0003-000000000001") as { options: string };
+      const options = JSON.parse(status.options) as Array<{ id: string; label: string }>;
+      expect(options.map((option) => option.label)).toEqual([
+        "Backlog",
+        "Pending",
+        "Doing",
+        "Reviewing",
+        "Done",
+        "Cancelled",
+      ]);
+      expect(options[1]!.id).toBe("00000000-0000-0000-0004-000000000009");
+      const bindings = store.database
+        .prepare("SELECT property_schema_id FROM class_property WHERE class_id = ? ORDER BY sequence")
+        .all(TASK_CLASS) as Array<{ property_schema_id: string }>;
+      expect(bindings.map((binding) => binding.property_schema_id)).toEqual([
+        "00000000-0000-0000-0003-000000000001",
+        "00000000-0000-0000-0003-000000000003",
+        "00000000-0000-0000-0003-000000000002",
+        "00000000-0000-0000-0003-000000000004",
+        "00000000-0000-0000-0003-000000000005",
+        "00000000-0000-0000-0003-000000000006",
+      ]);
+      // Idempotent: replaying the SAME envelope is skipped wholesale
+      // (applied_envelope), and a stale re-enable loses the LWW row.
+      const before = dumpDb(store);
+      store.apply(enableOp);
+      expect(dumpDb(store)).toEqual(before);
+      const stale = env("workspace.feature.set", { feature: "tasks", enabled: true }, 1727200011500);
+      const result = store.apply(stale);
+      expect(result.ignored).toBe(true);
+      expect(dumpDb(store)).toEqual(before);
+      store.close();
+    });
+
+    it("workspace-feature-set fixture converges regardless of application order", () => {
+      const fixture = loadFixture("workspace-feature-set.json");
+      const forward = makeAdapterStore();
+      forward.applyMany(fixture);
+      const backward = makeAdapterStore();
+      backward.applyMany([...fixture].reverse());
+      expect(dumpDb(forward)).toEqual(dumpDb(backward));
+      // LWW winners: tasks disabled (higher-HLC phone disable), readItLater
+      // re-enabled, journals disabled.
+      expect(forward.isFeatureEnabled(WS, "tasks")).toBe(false);
+      expect(forward.isFeatureEnabled(WS, "journals")).toBe(false);
+      expect(forward.isFeatureEnabled(WS, "readItLater")).toBe(true);
+      const row = forward.getFeatureRow(WS, "tasks")!;
+      expect(row.enabled).toBe(false);
+      // The racing enable still ran the family ensure: the task class family
+      // exists on BOTH replicas (archived per the winning disable).
+      expect(forward.getNode(TASK_CLASS)!.is_active).toBe(0);
+      expect(backward.getNode(TASK_CLASS)!.is_active).toBe(0);
+      forward.close();
+      backward.close();
+    });
+
+    it("F4: class.delete on a managed class routes to the toggle (memberships survive)", () => {
+      const store = makeAdapterStore();
+      store.applyMany(loadFixture("class-delete-managed.json"));
+      const member = "0192a000-0000-7000-8000-000000000615";
+      // The final re-enable revived the class…
+      expect(store.isFeatureEnabled(WS, "tasks")).toBe(true);
+      expect(store.getNode(TASK_CLASS)!.is_active).toBe(1);
+      // …and the membership pair survived the routed delete untouched.
+      expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([TASK_CLASS]));
+      store.close();
+    });
+
+    it("F4: the routed delete and the racing toggle converge under either order", () => {
+      const fixture = loadFixture("class-delete-managed.json");
+      const base = fixture.slice(0, 2); // causal base: class.create + member
+      const routedDelete = fixture[2]!;
+      const reenable = fixture[3]!;
+      const forward = makeAdapterStore();
+      forward.applyMany([...base, routedDelete, reenable]);
+      const backward = makeAdapterStore();
+      backward.applyMany([...base, reenable, routedDelete]);
+      expect(dumpDb(forward)).toEqual(dumpDb(backward));
+      // The enable (@11300) wins the (ws, tasks) slot over the delete (@11200).
+      expect(forward.isFeatureEnabled(WS, "tasks")).toBe(true);
+      expect(forward.getNode(TASK_CLASS)!.is_active).toBe(1);
+      forward.close();
+      backward.close();
+    });
+
+    it("a plain class.delete on a NON-managed class keeps the lossy semantics", () => {
+      const store = makeAdapterStore();
+      const cls = "0192a000-0000-7000-8000-0000000000e1";
+      const member = "0192a000-0000-7000-8000-0000000000e2";
+      store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Genre" }] }, 1727200011000));
+      store.apply(env("object.create", { objectId: member, classIds: [cls], contentAst: [{ type: "text", text: "X" }] }, 1727200011100));
+      store.apply(env("class.delete", { classId: cls }, 1727200011200));
+      // Lossy path: memberships tombstone, class_ids recompute to empty, and
+      // NO workspace_feature row appears (the class is not managed).
+      expect(store.getNode(member)!.class_ids).toBe("[]");
+      expect(store.listFeatureRows(WS)).toEqual([]);
+      store.close();
+    });
+
+    it("code-block fixture: the token survives promotion; hr flattens away", () => {
+      const store = makeAdapterStore();
+      store.applyMany(loadFixture("code-block.json"));
+      const block = "0192a000-0000-7000-8000-000000000621";
+      const promoted = JSON.parse(store.getNode(block)!.content) as Array<{ type: string }>;
+      expect(promoted).toEqual([
+        { type: "text", text: "before after" },
+        { type: "code_block", language: "python", text: "print('hi')\nprint('bye')" },
+      ]);
+      const plain = "0192a000-0000-7000-8000-000000000623";
+      expect(JSON.parse(store.getNode(plain)!.content)).toEqual([
+        { type: "code_block", text: "plain snippet" },
+      ]);
+      store.close();
+    });
+
+    it("hr fixture: inline blocks keep the token; promotion stringifies it out", () => {
+      const store = makeAdapterStore();
+      store.applyMany(loadFixture("hr.json"));
+      const block = "0192a000-0000-7000-8000-000000000631";
+      expect(JSON.parse(store.getNode(block)!.content)).toEqual([
+        { type: "text", text: "above below" },
+      ]);
+      const ruleOnly = "0192a000-0000-7000-8000-000000000633";
+      expect(JSON.parse(store.getNode(ruleOnly)!.content)).toEqual([
+        { type: "hr" },
+      ]);
+      store.close();
+    });
+
+    it("embed-ref-view fixture: the view field applies verbatim (default absent)", () => {
+      const store = makeAdapterStore();
+      store.applyMany(loadFixture("embed-ref-view.json"));
+      const block = "0192a000-0000-7000-8000-000000000642";
+      expect(JSON.parse(store.getNode(block)!.content)).toEqual([
+        { type: "embed_ref", nodeId: "0192a000-0000-7000-8000-000000000640" },
+        {
+          type: "embed_ref",
+          nodeId: "0192a000-0000-7000-8000-000000000640",
+          view: "wide_card",
+        },
+      ]);
+      store.close();
+    });
+
+    function makeAdapterStore(): Store {
+      return Store.open(adapter.makeBackend());
+    }
+  });
+}
+
+function registryRow(store: Store, classId: string): { active: number } {
+  return store.database.prepare("SELECT active FROM class WHERE id = ?").get(classId) as {
+    active: number;
+  };
+}
+
 function makeBackendForRestore(): StoreBackend {
   return adapters[0]!.makeBackend();
 }
