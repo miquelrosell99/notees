@@ -234,13 +234,15 @@ describe("Asset attachments (node-typed properties)", () => {
     await screen.findByRole("button", { name: "paper.pdf" });
 
     // The upload hit the server with the workspace API key, multipart body.
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe(`${SERVER}/api/assets`);
-    expect(calls[0]!.init.method).toBe("POST");
-    const headers = calls[0]!.init.headers as Record<string, string>;
+    // (The page-header star's prefs GET also passes this stub — count only
+    // the asset call.)
+    const assetCalls = calls.filter((call) => call.url === `${SERVER}/api/assets`);
+    expect(assetCalls).toHaveLength(1);
+    expect(assetCalls[0]!.init.method).toBe("POST");
+    const headers = assetCalls[0]!.init.headers as Record<string, string>;
     expect(headers["X-API-Key"]).toBe(API_KEY);
     expect(headers["X-Workspace-Id"]).toBe(WS);
-    expect(calls[0]!.init.body).toBeInstanceOf(FormData);
+    expect(assetCalls[0]!.init.body).toBeInstanceOf(FormData);
 
     // The property value list links the new asset node (authored row).
     const effective = client.getEffectiveProperties(sourceId);
