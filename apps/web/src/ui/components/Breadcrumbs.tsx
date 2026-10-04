@@ -131,7 +131,15 @@ export function Breadcrumbs({
     items = items.filter((item) => !drop.has(item.node.id));
   }
   if (excludeLeaf && items.length > 0) items = items.slice(0, -1);
-  const showCurrentCrumb = currentNode !== undefined;
+  // Owner rule (2026-10-04): a parentless node hides itself from the trail —
+  // there is no chain to trail — and offers only the Add parent affordance
+  // (never on classes: classes are always roots, a parent is unrepresentable).
+  const showCurrentCrumb = currentNode !== undefined && currentNode.parentId !== null;
+  const showAddParent =
+    editable &&
+    currentNode !== undefined &&
+    currentNode.parentId === null &&
+    !currentNode.isClass;
 
   // Right-anchored trails: detect left-side overflow so the lead "…" button
   // appears exactly when top-level crumbs are being clipped. Measurement is
@@ -150,7 +158,7 @@ export function Breadcrumbs({
     return () => observer.disconnect();
   }, [anchor, items, showCurrentCrumb]);
 
-  if (items.length === 0 && !showCurrentCrumb) return null;
+  if (items.length === 0 && !showCurrentCrumb && !showAddParent) return null;
 
   const needsCollapse = items.length > COLLAPSE_AT;
   const startItems = needsCollapse ? items.slice(0, VISIBLE_START) : items;
@@ -360,7 +368,7 @@ export function Breadcrumbs({
           crumb(item, item.node.id, withSeparator(item.node.id, index < endItems.length - 1)),
         )}
 
-      {currentNode !== undefined && (
+      {currentNode !== undefined && showCurrentCrumb && (
         <span className="node-breadcrumb-item node-breadcrumb-current">
           <button
             type="button"
@@ -392,13 +400,13 @@ export function Breadcrumbs({
         </span>
       )}
 
-      {editable && currentNode !== undefined && currentNode.parentId === null && (
+      {showAddParent && (
         <button
           type="button"
           className="node-breadcrumb-add"
           onClick={(event) =>
             setParentPicker({
-              nodeId: currentNode.id,
+              nodeId: currentNode!.id,
               position: { x: event.clientX, y: event.clientY },
             })
           }

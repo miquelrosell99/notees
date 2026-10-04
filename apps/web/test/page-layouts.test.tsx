@@ -521,6 +521,34 @@ describe("L4 breadcrumb edit gestures", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "Parent Page" }));
     expect(screen.queryByRole("menuitem")).toBeNull();
   });
+
+  it("owner rule: a parentless page hides its own crumb — only '+ Add parent' renders", async () => {
+    const client = await seedClient();
+    const page = await client.createObject({ presentAsMain: true, name: "Lonely Page" });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={page} onOpenNode={() => {}} showCurrent editable />,
+    );
+    // No self crumb (there is no chain to trail)…
+    expect(screen.queryByRole("button", { name: "Lonely Page" })).toBeNull();
+    expect(container.querySelector(".node-breadcrumb-current")).toBeNull();
+    // …only the Add parent affordance.
+    expect(screen.getByRole("button", { name: "+ Add parent" })).not.toBeNull();
+  });
+
+  it("owner rule: class nodes render no breadcrumbs at all — no self crumb, no Add parent", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("agent");
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={classId} onOpenNode={() => {}} showCurrent editable />,
+    );
+    // Classes are always roots: a parent is unrepresentable, so the whole
+    // trail (self + affordance) stays hidden.
+    expect(container.querySelector(".node-breadcrumbs")).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ Add parent" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "agent" })).toBeNull();
+  });
 });
 
 // --- L4: unlinked references promote/ignore -----------------------------------------
