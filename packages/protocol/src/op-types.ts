@@ -362,27 +362,31 @@ export const collectionMemberRemovePayload = z
  * Per-workspace feature toggles (§34.35, the Features settings tab): the
  * synced semantic state behind each toggle. `feature` is fixed protocol
  * vocabulary (the WORKSPACE_FEATURES set below — feature ids, not UUIDs;
- * these name protocol-level switches, not nodes). LWW by envelope HLC on
- * (workspaceId, feature): a later toggle always wins whatever the arrival
- * order. The derived `workspace_feature` table stores the winning row; an
- * ABSENT row means enabled (all features default ON — the empty-table
- * default, F2), so pre-toggle workspaces need no migration. Applying the
- * toggle derives the membership-preserving archival of the feature's managed
- * system classes (class registry `active` + the class node's `is_active`
+ * these name protocol-level switches, not nodes). The enum IS the core
+ * class families (owner directive 2026-10-04, §34.55): tasks=task,
+ * events=event, meetings=meeting, sources=source, persons=person — each a
+ * seeded system-class family with built-in product logic; the
+ * extends-children ride the base class (disabling events archives meetings
+ * and birthdays with it — see @notees/domain features.ts). LWW by envelope
+ * HLC on (workspaceId, feature): a later toggle always wins whatever the
+ * arrival order. The derived `workspace_feature` table stores the winning
+ * row; an ABSENT row means enabled (all features default ON — the
+ * empty-table default, F2), so pre-toggle workspaces need no migration.
+ * Applying the toggle derives the membership-preserving archival of the
+ * family's classes (class registry `active` + the class node's `is_active`
  * flip; `class_member_set` rows are NEVER touched — instances keep their
  * class_ids and stay in the graph; toggle-off is hide-surfaces-keep-data,
- * F3). A `class.delete` addressed at a feature-managed class is ROUTED to
+ * F3). A `class.delete` addressed at a family's BASE class is ROUTED to
  * the toggle (F4): the delete is applied as a feature-disable instead, so
  * the Features setting is the single archive path for managed classes and
  * the lossy plain delete (membership tombstoning) never runs on them.
  */
 export const WORKSPACE_FEATURES = [
   "tasks",
-  "journals",
-  "readItLater",
-  "library",
-  "people",
-  "collections",
+  "events",
+  "meetings",
+  "sources",
+  "persons",
 ] as const;
 export type WorkspaceFeature = (typeof WORKSPACE_FEATURES)[number];
 export const workspaceFeatureSchema = z.enum(WORKSPACE_FEATURES);

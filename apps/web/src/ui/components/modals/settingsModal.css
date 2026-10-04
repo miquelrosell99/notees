@@ -409,3 +409,43 @@
   cursor: pointer;
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
+
+/* --- Features tab: the core class families (§34.35/§34.55) ----------------
+   One row per family: the class's effective icon (tinted by its effective
+   color when set), its live title, the one-line powers description, and the
+   inert ToggleSwitch. */
+
+.settings-feature-row {
+  gap: var(--spacing-3);
+}
+
+.settings-feature-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container);
+}
+
+.settings-feature-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-feature-row__title {
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.settings-feature-row__powers {
+  font-size: 0.85em;
+  color: var(--color-on-surface-variant);
+}
