@@ -165,3 +165,43 @@
   background: var(--color-hover-overlay);
   color: var(--color-on-surface);
 }
+
+/* §34.72 — the v1-parity cover: the shell always renders when a value
+   exists; without bytes it is a dashed placeholder (never a silent void),
+   and both the shell and the Add strip accept a dropped image. */
+
+.nt-page-banner__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  height: 100%;
+  padding: var(--spacing-3);
+  border: var(--border-width-default, 1px) dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  box-sizing: border-box;
+}
+
+.nt-page-banner__placeholder-name {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-on-surface);
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-page-banner__placeholder-hint {
+  font-size: var(--font-size-xs);
+}
+
+.nt-page-banner--dropping,
+.nt-add-cover--dropping .nt-add-cover__button {
+  border-color: var(--color-primary);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
