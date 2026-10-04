@@ -95,6 +95,7 @@ export function ClassedNodesSection({
       client={client}
       title="Classed nodes"
       icon={<Icon path="mdi-shape-outline" size={0.9} />}
+      badge={client.getClassMemberCount(classId)}
       defaultCollapsed={false}
       load={() => client.getClassMembers(classId)}
       emptyText="No classed nodes."
