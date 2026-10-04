@@ -30,7 +30,7 @@ import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
-import { COVER_CLASS_ID } from "../components/coverProperty.js";
+import { isCoverAsset } from "../components/coverProperty.js";
 import { Badge } from "../components/ui/Badge.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
@@ -151,7 +151,7 @@ export function NodeCard({
           />
         </span>
       )}
-      {item.node.classIds.includes(COVER_CLASS_ID) && (
+      {isCoverAsset(client, item.node.id) && (
         <span className="node-card__cover-badge" title="This asset is used as a page cover">
           <Badge variant="neutral" size="sm">Cover</Badge>
         </span>

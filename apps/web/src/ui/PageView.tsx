@@ -63,7 +63,7 @@ import { ScratchpadCapture, SCRATCHPAD_PAGE_ID } from "./components/ScratchpadCa
 import { PageFooter } from "./components/PageFooter.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
-import { canHaveCoverOf, coverAssetIdOf, ensureCoverFamily } from "./components/coverProperty.js";
+import { canHaveCoverOf, coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
 import { ensureAliasProperty } from "./components/aliasProperty.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
@@ -297,7 +297,7 @@ export function PageView({
    * pages, everything not classed `source`) render no banner at all.
    */
   useEffect(() => {
-    void ensureCoverFamily(client);
+    void ensureCoverProperty(client);
   }, [client]);
 
   /**

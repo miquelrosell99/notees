@@ -174,7 +174,7 @@ $ notees object property set 01a0dd78-… authors '{"nodeId":"01a1…"}' --idx 1
 $ notees object property delete 01a0dd78-… publicationDate
 ```
 
-**Covers.** A page's banner image is a typed property (`cover`, an image-typed reference to an asset node) plus cover identity on that asset — `notees cover set` is the one gesture that composes the whole invariant (family ensure → asset node → upload + attach → property → classes), mirroring the app's banner flow:
+**Covers.** A page's cover image is a typed property (`cover`, an image-typed reference to an **asset-classed** node) — `notees cover set` is the one gesture that composes the whole invariant (family ensure → asset node → upload + attach → property + asset class), mirroring the app's header-card flow:
 
 ```console
 $ notees cover set 01a0dd78-… ./photo.jpg          # upload + set (replaces by default)
@@ -184,7 +184,7 @@ $ notees cover get 01a0dd78-…                      # the cover's asset node id
 $ notees cover clear 01a0dd78-…                    # unset; the asset node survives
 ```
 
-Replacing keeps the old asset node in the graph (its cover class drops once no node covers with it); `--skip-existing` prints the current asset id and writes nothing. Counting covered nodes rides the query language's exists-arm: `notees search "class:Pokemon prop:cover:"`.
+Replacing keeps the old asset node in the graph (it stays an ordinary asset); `--skip-existing` prints the current asset id and writes nothing. Counting covered nodes rides the query language's exists-arm: `notees search "class:Pokemon prop:cover:"`. In the app the cover renders as the page header's right-side card — never a property row — and the asset wears a derived **Cover** badge in card views while any cover points at it (a cover is a plain asset; there is no separate cover class).
 
 **Property schemas.** The schema layer is manageable from the CLI too — `notees property` lists, shows, creates, renames, and deletes schemas, and binds/unbinds them to classes (the class argument is a uuid or a title, the schema argument a uuid or a name). `delete` is a soft-delete (authored values survive; the same UUID can be recreated later — in the app, the settings modal's **Convert…** runs the blessed delete+recreate flow for type changes: it creates the new schema, copies the values that map, lists the ones that don't (dropped only with explicit confirmation), re-points the class bindings, and deletes the old schema); `bind` patches one binding — omitted flags keep their stored values, `--no-<flag>` clears, and a wrong-typed `--default` is rejected:
 
@@ -330,7 +330,7 @@ The deck is a live, read-only read of the note — there are no slide objects:
 The page's surroundings, and what remembers what:
 
 - **View modes stick (this device).** The outline/prose/cards triad on a page, the view mode of every hub (Tasks, Assets, Pages, …), the classed-nodes mode on a class page, and the cards/kanban cover layout — once chosen, they survive reloads. Storage is device-local (`notees.settings.*`): another device does not see them, and none of it ever enters the operation log. If a saved mode no longer applies (e.g. kanban after its grouping property is gone), the surface falls back to its default.
-- **Covers.** A source-classed page's **cover** property (an image — pick an asset in the Properties section) renders as a banner above the title. Click it to collapse to a slim strip; the state is remembered per page on this device. Pages without a cover render no banner.
+- **Covers.** ANY page's **cover** (an image-typed reference to an asset-classed node — set it in the page header's right-side cover card, or drop an image file on it) renders as a collapsible card beside the title, never a property row. The card shows even when empty — collapsed to a slim strip by default — and a cover whose asset has no image bytes renders a dashed placeholder naming the asset, never a silent void. The referenced asset wears a **Cover** badge in card views (derived from the property — a cover is a plain asset, no separate cover class). Whiteboard pages and embedded feeds skip the element entirely.
 - **The right panel** (sidebar toggle, or shift+click anything) shows the open page's context above any peek cards: **Contents** — a table of contents derived from the tree itself (its sub-pages and its short one-line blocks, nested one level), the current entry highlighted, click to jump — and **References** — the page's linked references, collapsed until you open them (nothing queries until then).
 - **The footer** shows a word count (title + everything nested under it) and **Created** / **Updated** stamps; each stamp opens that day's page.
 - **Breadcrumbs edit.** Hover a crumb for its chevron (or right-click it): Open, **Reassign parent…**, **Remove parent** — and a parentless page gets a "+ Add parent" pill. All of it is ordinary tree surgery (one move per gesture).
