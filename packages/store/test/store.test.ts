@@ -28,6 +28,7 @@ import {
   migrate,
   MoveGuardError,
   NotFoundError,
+  SCHEMA_VERSION,
   Store,
   UnsupportedCarrierError,
 } from "../src/index.js";
@@ -2119,7 +2120,7 @@ describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/presen
 
     migrate(db, "fts5");
 
-    expect(db.pragma("user_version", { simple: true })).toBe(8);
+    expect(db.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
     const columns = (db.prepare("PRAGMA table_info(node)").all() as { name: string }[]).map((c) => c.name);
     expect(columns).not.toContain("node_type");
     expect(columns).toContain("is_class");
@@ -2156,7 +2157,7 @@ describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/presen
     const store = Store.open(makeBackend());
     store.apply(createPage(NODE_PAGE, 1727200000000));
     migrate(store.database, "fts5");
-    expect(store.database.pragma("user_version", { simple: true })).toBe(8);
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
     expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
     store.close();
   });

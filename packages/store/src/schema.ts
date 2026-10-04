@@ -23,7 +23,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -333,6 +333,20 @@ CREATE TABLE IF NOT EXISTS sync_state (
     restore_epoch INTEGER NOT NULL DEFAULT 0
 );
 
+-- Remote-history quarantine: an op that fails to apply inside a remote
+-- batch (e.g. a pre-Revision-11 envelope violating a post-migration guard)
+-- is recorded here INSTEAD of bricking the page — the batch keeps
+-- converging and the sync engine surfaces the error. Local authoring
+-- (Store.apply) still fails loud; quarantine is replay-only.
+CREATE TABLE IF NOT EXISTS quarantined_envelope (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    op_type TEXT NOT NULL,
+    error TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    quarantined_at TEXT NOT NULL
+);
+
 -- Durable local op log: every locally-authored envelope is recorded here
 -- before it can be pushed, and cleared when the server acknowledges it.
 -- Unlike the engine's in-memory outbox, this survives reloads, so offline
@@ -475,5 +489,16 @@ export function migrate(
       ALTER TABLE property_schema ADD COLUMN date_qualified INTEGER;
     `);
   }
-  db.pragma(`user_version = ${SCHEMA_VERSION}`);
-}
+  // v8 -> v9: remote-history quarantine table (CREATE IF NOT EXISTS is a
+  // no-op for fresh v9 creates; existing databases gain the table).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS quarantined_envelope (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        op_type TEXT NOT NULL,
+        error TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        quarantined_at TEXT NOT NULL
+    );
+  `);
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);}

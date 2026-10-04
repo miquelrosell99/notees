@@ -33,9 +33,10 @@ import { reindexNode, removeSearchIndexEntry } from "./search.js";
 import { rebuildEdges } from "./edges.js";
 import { rebuildNodeStats } from "./stats.js";
 import {
-  assertValueShapeForType,
+  assertValueForSchema,
   isValidDefaultForType,
   nodeRefOfValue,
+  type PropertySchemaValidationRow,
 } from "./property-values.js";
 import {
   CycleError,
@@ -82,6 +83,15 @@ export interface ChangeSummary {
   affectedNodeIds: string[];
   /** True when a lower-HLC write was dropped by LWW (state unchanged). */
   ignored: boolean;
+  /**
+   * Replay-only: the envelope failed to apply inside a remote batch and was
+   * quarantined (recorded in `quarantined_envelope`) so the batch keeps
+   * converging. Local authoring (Store.apply) never produces this — it
+   * throws instead.
+   */
+  quarantined?: boolean;
+  /** The apply error, set for quarantined summaries. */
+  error?: string;
 }
 
 function summary(opType: string, affectedNodeIds: string[] = [], ignored = false): ChangeSummary {
@@ -137,6 +147,21 @@ function propertySchemaTypeOf(db: StoreDatabase, propertySchemaId: string): stri
     | { type: string }
     | undefined;
   return row?.type ?? null;
+}
+
+/** The full schema row for value validation (PG6), null when unknown. */
+function propertySchemaRowOf(
+  db: StoreDatabase,
+  propertySchemaId: string,
+): PropertySchemaValidationRow | null {
+  const row = db
+    .prepare(
+      `SELECT id, type, multi, options, target_class_filter AS targetClassFilter,
+              date_precision AS datePrecision
+       FROM property_schema WHERE id = ?`,
+    )
+    .get(propertySchemaId) as PropertySchemaValidationRow | undefined;
+  return row ?? null;
 }
 
 /** Subtree ids (inclusive) via a parent_id walk; deterministic order. */
@@ -560,8 +585,18 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   db.prepare(`DELETE FROM property_value_tombstone WHERE node_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM class_member_set WHERE node_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM node_asset WHERE node_id IN (${placeholders})`).run(...ids);
-  db.prepare(`DELETE FROM node_link WHERE source_id IN (${placeholders}) OR target_id IN (${placeholders})`).run(...ids, ...ids);
-  db.prepare(`DELETE FROM edge WHERE source_id IN (${placeholders}) OR target_id IN (${placeholders})`).run(...ids, ...ids);
+  // PB1 (keep-value + render-broken, SCHEMA.md "Broken references"): rows
+  // OWNED by the subtree die with it (sources, memberships, attachments).
+  // Incoming references from SURVIVING nodes keep their rows — the other's
+  // property_value / mention content survives deletion by design, so its
+  // edge projection must survive too; deleting here only to have the
+  // source's next rebuildEdges re-derive the identical row (shape-based,
+  // target-existence-blind) was the register's transient resurrection.
+  // Ghost-target edge rows are inert: every backlink/reference query is
+  // keyed by a live node id, and a target restored from trash heals the
+  // set only when its rows survived.
+  db.prepare(`DELETE FROM node_link WHERE source_id IN (${placeholders})`).run(...ids);
+  db.prepare(`DELETE FROM edge WHERE source_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM node_stats WHERE node_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM trash WHERE node_id IN (${placeholders}) AND node_id != ?`).run(...ids, p.objectId);
   for (const id of ids) removeSearchIndexEntry(db, id);
@@ -1226,11 +1261,26 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   const p = env.payload as OpPayload<"property.set">;
   const incoming = winnerFromEnvelope(env);
 
-  // PB2 (§34.32): one-shape-per-type at the write path. The schema row (when
-  // known — property.set has no schema FK) types the slot; a legacy bare-uuid
-  // reference normalizes to {nodeId}; a mismatch fails loud.
-  const schemaType = propertySchemaTypeOf(db, p.propertySchemaId);
-  const value = schemaType !== null ? assertValueShapeForType(schemaType, p.value ?? null, opType) : (p.value ?? null);
+  // PB2/PG6 (§34.32): one-shape-per-type + schema-linked integrity at the
+  // write path. The schema row (when known — property.set has no schema FK)
+  // types the slot: shape/scalar mismatch, a date ref finer than the
+  // schema's precision, a target outside the class filter, and a ref to a
+  // nonexistent node all fail loud; a legacy bare-uuid reference or numeric
+  // string normalizes to the canonical encoding.
+  const schema = propertySchemaRowOf(db, p.propertySchemaId);
+  const value =
+    schema !== null
+      ? assertValueForSchema(db, schema, p.value ?? null, opType)
+      : (p.value ?? null);
+  // PG6 cardinality: a single-value schema takes idx 0 only. Higher slots
+  // would write rows no reader derives (the read model reads slot 0 for a
+  // single-value schema's editor), so the write is rejected, not parked.
+  if (schema !== null && schema.multi === 0 && p.idx > 0) {
+    throw new PropertyValueShapeError(
+      `${opType}: schema ${p.propertySchemaId} is single-value — idx must be 0, got ${p.idx}`,
+      opType,
+    );
+  }
 
   // A tombstone with a winning (>=) (hlc, actor) blocks the write.
   const tombstone = db
