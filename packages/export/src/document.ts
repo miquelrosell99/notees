@@ -377,6 +377,20 @@ function buildBlocks(
     } else if (token.type === "whiteboard") {
       flush();
       out.push({ kind: "whiteboard", layout: token.layout });
+    } else if (token.type === "code_block") {
+      // §34.34 B3 interim projection: the export IR has no code block kind
+      // yet (a fenced kind + the five serializers ride the post-lockstep
+      // export slice) — export the source as one inline-code span so no
+      // prose is lost and the span stream stays well-formed.
+      flush();
+      out.push({
+        kind: "paragraph",
+        spans: [{ kind: "text", text: token.text, marks: ["code"] }],
+      });
+    } else if (token.type === "hr") {
+      // §34.34 B5: the divider carries no prose — it flushes the paragraph
+      // (a thematic-break export kind rides the same post-lockstep slice).
+      flush();
     } else {
       spans.push(buildSpan(token as InlineToken, ctx));
     }
