@@ -163,6 +163,40 @@ describe("assets API", () => {
     expect(row!.mime_type).toBe("image/png");
   });
 
+  it("parallel uploads with objectId: every attach lands (2026-10-04 incident)", async () => {
+    server = await makeTestServer();
+    const app = server.app;
+    const headers = server.authHeaders;
+    const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
+    const targets = await Promise.all(
+      Array.from({ length: 20 }, async (_, i) => {
+        const res = await app.inject({
+          method: "POST",
+          url: "/api/objects",
+          headers: { "content-type": "application/json", ...headers },
+          payload: { presentAsMain: true, name: "parallel host" },
+        });
+        return { i, id: (res.json() as { id: string }).id };
+      }),
+    );
+    const results = await Promise.all(
+      targets.map(async ({ i, id }) => {
+        const up = await upload(PNG, `p${i}.png`, { objectId: id });
+        return { id, status: up.statusCode, ack: (up.json() as { objectId?: string }).objectId };
+      }),
+    );
+    for (const r of results) {
+      expect(r.status).toBe(201);
+      expect(r.ack).toBe(r.id);
+    }
+    for (const { id } of targets) {
+      const row = store.database
+        .prepare("SELECT asset_id FROM node_asset WHERE node_id = ?")
+        .get(id) as { asset_id: string } | undefined;
+      expect(row, `node_asset row for ${id}`).toBeDefined();
+    }
+  });
+
   it("serves bytes for a raw hash id and requires auth", async () => {
     server = await makeTestServer();
     const { hash } = (await upload(PNG)).json();

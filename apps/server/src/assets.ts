@@ -162,7 +162,7 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
       if (!z.string().uuid().safeParse(objectId).success) {
         throw new AppError(422, "validation_failed", "objectId multipart field must be a uuid");
       }
-      await ctx.submit({
+      const { outcome } = await ctx.submit({
         workspaceId,
         opType: "asset.attach",
         payload: {
@@ -176,6 +176,14 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
         affectedNodeIds: [objectId, assetId],
         client: "api",
       });
+      if (outcome.savedIds.length === 0) {
+        // Fail loud, never half-attach: the CAS bytes are already stored, but
+        // an unsaved attach envelope leaves the node without its node_asset
+        // row and the UI without bytes (observed 2026-10-04: 801 of 1,351
+        // bulk uploads returned 201 with the attach silently unsaved —
+        // registered in the plan). Mirrors the objects route's empty-save 409.
+        throw new AppError(500, "internal", `asset.attach for ${assetId} was not saved to the log`);
+      }
       attachedTo = objectId;
     }
 
