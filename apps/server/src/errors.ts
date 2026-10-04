@@ -21,6 +21,7 @@ export type ErrorCode =
   | "invalid_credentials"
   | "account_locked"
   | "idempotency_replay"
+  | "attach_failed"
   | "internal";
 
 export class AppError extends Error {
@@ -72,6 +73,10 @@ export const ERROR_TAXONOMY: Readonly<
   invalid_credentials: { status: 401, description: "login rejected (unknown email or wrong password, indistinguishable)" },
   account_locked: { status: 429, description: "per-account login lockout after 5 failures in 15 minutes" },
   idempotency_replay: { status: 409, description: "an Idempotency-Key was replayed with a different request than the original (§34.33 AG5)" },
+  // §34.74: the upload route's fail-loud guard — the CAS bytes stored but the
+  // asset.attach write never reached the log (never half-attach; observed
+  // 2026-10-04 as 801 silent losses in a bulk run).
+  attach_failed: { status: 500, description: "the upload's asset.attach write never reached the log (fail loud, never half-attach)" },
   internal: { status: 500, description: "unclassified server failure (the only code not thrown by route code)" },
 };
 
