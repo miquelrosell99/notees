@@ -119,6 +119,8 @@ function featureClient(overrides: {
     subscribe: () => () => {},
     listClasses: () => [],
     getClassBindings: () => [],
+    getNodeRaw: () => undefined,
+    effectiveClassColor: () => null,
     isFeatureEnabled: (feature: string) => enabled[feature] ?? true,
     getFeatureInstanceCount: (feature: string) => instances[feature] ?? 0,
     listFeatureRows: () => [],
@@ -141,18 +143,20 @@ function renderFeaturesTab(client: AnyClient | undefined) {
   fireEvent.click(screen.getByRole("tab", { name: "Features" }));
 }
 
-describe("Workspace Settings Features tab (§34.35, LOCKSTEP-PENDING)", () => {
-  it("lists every feature with its description and a disabled inert toggle", () => {
+describe("Workspace Settings Features tab (§34.35/§34.55, LOCKSTEP-PENDING)", () => {
+  it("lists the five core families with icon, powers line, and an inert ToggleSwitch", () => {
     renderFeaturesTab(featureClient({}));
-    for (const spec of Object.values(WORKSPACE_FEATURE_MAP)) {
+    const entries = Object.entries(WORKSPACE_FEATURE_MAP);
+    expect(entries).toHaveLength(5);
+    for (const [, spec] of entries) {
       expect(screen.getByText(spec.label)).toBeInTheDocument();
-      expect(screen.getByText(new RegExp(spec.description.slice(0, 30).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(spec.powers.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeInTheDocument();
     }
     const switches = screen.getAllByRole("switch");
-    expect(switches).toHaveLength(Object.keys(WORKSPACE_FEATURE_MAP).length);
+    expect(switches).toHaveLength(5);
     for (const toggle of switches) {
       expect(toggle).toBeDisabled();
-      expect(toggle).toBeChecked();
+      expect(toggle).toHaveAttribute("aria-checked", "true");
     }
     // The lockstep-pending honesty note renders.
     expect(screen.getByText(/mobile and desktop clients catch up/i)).toBeInTheDocument();
@@ -160,16 +164,99 @@ describe("Workspace Settings Features tab (§34.35, LOCKSTEP-PENDING)", () => {
 
   it("reads the live toggle state and instance counts from the client", () => {
     renderFeaturesTab(
-      featureClient({ enabled: { tasks: false }, instances: { tasks: 3, journals: 1 } }),
+      featureClient({ enabled: { tasks: false }, instances: { tasks: 3, events: 1 } }),
     );
-    const tasksToggle = screen.getByRole("switch", { name: /tasks/i });
-    expect(tasksToggle).not.toBeChecked();
+    // Row order follows the feature map (tasks first); the ToggleSwitch's
+    // accessible name is its "Off"/"On" labels, so index by row order.
+    const switches = screen.getAllByRole("switch");
+    expect(switches[0]).toHaveAttribute("aria-checked", "false");
+    for (const toggle of switches.slice(1)) {
+      expect(toggle).toHaveAttribute("aria-checked", "true");
+    }
     expect(screen.getByText(/3 existing objects/)).toBeInTheDocument();
-    expect(screen.getByText(/1 existing object in this workspace/)).toBeInTheDocument();
+    expect(screen.getByText(/1 existing object\b/)).toBeInTheDocument();
   });
 
   it("renders the honest note when the client belongs to another workspace", () => {
     renderFeaturesTab(undefined);
     expect(screen.getByText(/open this workspace to see its feature toggles/i)).toBeInTheDocument();
+  });
+});
+
+describe("feature chrome gates (§34.55)", () => {
+  it("isClassFamilyEnabled: own feature + managed ancestors (event-off hides the meeting chip too)", async () => {
+    const { isClassFamilyEnabled } = await import("../src/ui/components/featureGates.js");
+    const { SYSTEM_CLASS_UUIDS } = await import("@notees/domain");
+    const client = (disabled: string[]) =>
+      ({
+        isFeatureEnabled: (feature: string) => !disabled.includes(feature),
+      }) as never;
+
+    // Everything on: every family class enabled.
+    expect(isClassFamilyEnabled(client([]), SYSTEM_CLASS_UUIDS.meeting)).toBe(true);
+    expect(isClassFamilyEnabled(client([]), SYSTEM_CLASS_UUIDS.birthday)).toBe(true);
+    // Meetings off: meeting chrome hides; event + birthday stay.
+    expect(isClassFamilyEnabled(client(["meetings"]), SYSTEM_CLASS_UUIDS.meeting)).toBe(false);
+    expect(isClassFamilyEnabled(client(["meetings"]), SYSTEM_CLASS_UUIDS.event)).toBe(true);
+    expect(isClassFamilyEnabled(client(["meetings"]), SYSTEM_CLASS_UUIDS.birthday)).toBe(true);
+    // Events off: the cascade hides meeting AND birthday chrome with it.
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.meeting)).toBe(false);
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.birthday)).toBe(false);
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.event)).toBe(false);
+    // Sources off hides the whole source family; persons off the person class.
+    expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.book)).toBe(false);
+    expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.conference)).toBe(false);
+    expect(isClassFamilyEnabled(client(["persons"]), SYSTEM_CLASS_UUIDS.person)).toBe(false);
+    // Always-on vocabulary and user classes gate on nothing.
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.day)).toBe(true);
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.agent)).toBe(true);
+    expect(isClassFamilyEnabled(client(["events"]), "a-user-class-id")).toBe(true);
+  });
+
+  it("the sidebar hides the Tasks hub entry while the tasks family is off", async () => {
+    const { Sidebar } = await import("../src/ui/components/Sidebar.js");
+    const baseMock = {
+      getWorkspaceId: () => "ws1",
+      subscribe: () => () => {},
+      isFeatureEnabled: (feature: string) => feature !== "tasks",
+      listClasses: () => [],
+      listPages: () => [],
+      roots: () => [],
+      search: () => [],
+      getNode: () => undefined,
+      getDisplayName: () => null,
+      getBacklinkCount: () => 0,
+      getChildPageCount: () => 0,
+    };
+    const props = {
+      client: baseMock as unknown as AnyClient,
+      workspaceName: "Garden",
+      workspaceId: "ws1",
+      serverUrl: "https://notees.example.com",
+      credential: "session-token",
+      user: null,
+      offline: false,
+      showSettings: false,
+      onOpenSettings: () => {},
+      selectedPageId: null,
+      activeNav: "pages" as const,
+      onSelectNav: () => {},
+      onOpenPage: () => {},
+      onRequestSearch: () => {},
+      onSwitchWorkspace: () => {},
+      onManageWorkspaces: () => {},
+      onSignOut: () => {},
+    };
+    const { unmount } = render(<Sidebar {...props} />);
+    expect(screen.queryByText("Tasks")).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <Sidebar
+        {...props}
+        client={{ ...baseMock, isFeatureEnabled: () => true } as unknown as AnyClient}
+      />,
+    );
+    expect(screen.getByText("Tasks")).toBeInTheDocument();
   });
 });
