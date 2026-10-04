@@ -5,16 +5,18 @@
  */
 
 import {
+  occurrenceIsosOf,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   TASK_CLOSED_STATUSES,
   parseDateNodeId,
+  type RecurrenceRule,
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
 
 // Re-exported for callers that want the canonical import site alongside the
 // other day-view helpers.
-export { chainNodeIds, dayNodeId } from "@notees/domain";
+export { chainNodeIds, dayNodeId, recurrenceRuleOf } from "@notees/domain";
 
 /** Local `YYYY-MM-DD` for today — the §34.28 #1 rule: always local midnight, never UTC .slice. */
 export function todayIsoLocal(): string {
@@ -124,6 +126,12 @@ export interface OpenTaskRow {
   scheduledIso: string | null;
   /** True when the status label is a TASK_CLOSED_STATUSES name. */
   closed: boolean;
+  /**
+   * §34.63 — the taskScheduled value's recurrence rule (metadata.repeat),
+   * null for plain tasks. A repeating task OCCURS on every expanded day;
+   * it is never "overdue" (missed days roll forward to the next occurrence).
+   */
+  repeat: RecurrenceRule | null;
 }
 
 export interface PartitionedTasks {
@@ -138,6 +146,9 @@ export interface PartitionedTasks {
  * Future rows (selected day before the scheduled day) are dropped; closed
  * rows are dropped too (the query already excludes them — this is the
  * fallback for the window before ensureTaskFamily's write lands).
+ * §34.63: a repeating task lands in `scheduled` on EVERY occurrence day
+ * (its scheduled day is occurrence #0); it never lands in `overdue` —
+ * a missed occurrence rolls forward to the next one.
  */
 export function partitionOpenTasks(
   rows: readonly OpenTaskRow[],
@@ -148,7 +159,9 @@ export function partitionOpenTasks(
   for (const row of rows) {
     if (row.closed || row.scheduledIso === null) continue;
     if (row.scheduledIso === selectedIso) scheduled.push(row);
-    else if (row.scheduledIso < selectedIso) overdue.push(row);
+    else if (row.repeat !== null && occursOnDay(row.repeat, row.scheduledIso, selectedIso)) {
+      scheduled.push(row);
+    } else if (row.repeat === null && row.scheduledIso < selectedIso) overdue.push(row);
   }
   const byDay = (a: OpenTaskRow, b: OpenTaskRow) =>
     (a.scheduledIso ?? "").localeCompare(b.scheduledIso ?? "") || a.id.localeCompare(b.id);
@@ -335,4 +348,27 @@ export function dateChipCandidates(
   }
   chips.sort((a, b) => a.label.localeCompare(b.label) || a.classId.localeCompare(b.classId));
   return chips;
+}
+
+// --- recurrence (§34.63 — compute-on-read, §34.28 #6) ----------------------------
+
+/** True when `iso` is an occurrence day of the anchored series. */
+export function occursOnDay(rule: RecurrenceRule, anchorIso: string, iso: string): boolean {
+  return occurrenceIsosOf({ rule, anchorIso }, iso, iso, 1).length === 1;
+}
+
+/** Display label for the repeat picker and the day-view marker. */
+export function repeatLabelOf(rule: RecurrenceRule): string {
+  switch (rule.freq) {
+    case "daily":
+      return rule.interval >= 2 ? `Every ${rule.interval} days` : "Daily";
+    case "weekly":
+      return rule.interval >= 2 ? `Every ${rule.interval} weeks` : "Weekly";
+    case "weekdays":
+      return "Weekdays";
+    case "monthly":
+      return rule.interval >= 2 ? `Every ${rule.interval} months` : "Monthly";
+    case "yearly":
+      return rule.interval >= 2 ? `Every ${rule.interval} years` : "Yearly";
+  }
 }
