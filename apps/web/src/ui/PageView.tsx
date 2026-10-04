@@ -36,7 +36,6 @@ import { proseFromAst } from "@/editor/prose.js";
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { SharePageModal } from "./components/modals/SharePageModal.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
-import { FavoriteStar } from "./components/FavoriteStar.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { DayPageDateBar } from "./components/DayPageDateBar.js";
 import { DayPageSections } from "./components/DayPageSections.js";
@@ -59,7 +58,7 @@ import {
 } from "./block-dnd.js";
 import { PropertiesSection, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
-import { AddCover, PageBanner } from "./components/PageBanner.js";
+import { CoverCard } from "./components/PageBanner.js";
 import { ScratchpadCapture, SCRATCHPAD_PAGE_ID } from "./components/ScratchpadCapture.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { SelectionBar } from "./components/SelectionBar.js";
@@ -317,10 +316,10 @@ export function PageView({
     page !== undefined && !embedded && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
-  /** §34.61: the dedicated header element — a page that CAN carry a cover
-   *  (a class binds the schema) but doesn't yet gets the AddCover strip. */
+  /** §34.72: the v1 element renders whenever the page can carry a cover —
+   *  set or empty (the card shows the Add affordance when empty). */
   const coverPossible =
-    coverAssetId === null && page !== undefined && !embedded && whiteboardTokenIndex < 0
+    page !== undefined && !embedded && whiteboardTokenIndex < 0
       ? canHaveCoverOf(client, pageId)
       : false;
 
@@ -511,11 +510,11 @@ export function PageView({
               onClose={() => setFindOpen(false)}
             />
           )}
+          {/* §34.72 — the v1 header layout: header left, the collapsible
+              cover CARD right (always rendered when the page can carry a
+              cover, even empty). */}
+          <div className="page-header-section">
           <header className="nt-page-header">
-          {coverAssetId !== null && (
-            <PageBanner client={client} pageId={pageId} assetId={coverAssetId} />
-          )}
-          {coverPossible && <AddCover client={client} pageId={pageId} />}
           <div className="page-header__title-row">
             {iconButton !== undefined ? (
               iconButton
@@ -575,20 +574,20 @@ export function PageView({
               <TitleEditor page={page} />
             )}
             </span>
-            {headerActions !== undefined ? (
+            {headerActions !== undefined && (
               <div className="nt-page-toolbar">{headerActions}</div>
-            ) : !forClass && !embedded ? (
-              // §34.61 default page-header chrome: the favorites star (the
-              // nodePrefs store syncs it to the per-user server prefs).
-              <div className="nt-page-toolbar">
-                <FavoriteStar client={client} nodeId={pageId} />
-              </div>
-            ) : null}
+            )}
           </div>
           {!embedded && (
             <TagsRow client={client} nodeId={pageId} tagIds={page.tagIds} onOpenPage={onOpenPage} />
           )}
         </header>
+        {coverPossible && (
+          <aside className="page-header-section__cover">
+            <CoverCard client={client} pageId={pageId} assetId={coverAssetId} />
+          </aside>
+        )}
+        </div>
         {dayIso !== null && !embedded && (
           <DayPageDateBar client={client} pageId={pageId} iso={dayIso} onOpenPage={onOpenPage} />
         )}

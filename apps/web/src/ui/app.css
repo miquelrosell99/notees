@@ -434,7 +434,9 @@ select:focus-visible {
    row carries no label (the pills are self-evident); Tags: keeps its cue. */
 .nt-page-header .node-metadata-row {
   min-height: var(--height-xs);
-  margin-left: calc(var(--height-2xl) + var(--spacing-3));
+  /* §34.72 (owner): the tags row aligns with the header ICON, not the
+     title — the old icon-width indent left a gap. */
+  margin-left: 0;
   font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
 }
@@ -2859,4 +2861,36 @@ mark {
 .nt-blocktable-toolbar:hover,
 .nt-blocktable-toolbar:focus-within {
   opacity: 1;
+}
+
+/* §34.72 — the v1 header layout: header left, cover card right (stacks on
+   mobile, the v1 breakpoint). */
+.page-header-section {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--spacing-1) var(--spacing-4);
+  align-items: start;
+}
+
+.page-header-section .nt-page-header {
+  grid-column: 1;
+  grid-row: 1;
+  margin-bottom: 0;
+}
+
+.page-header-section__cover {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+@media (width <= 768px) {
+  .page-header-section {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header-section .nt-page-header,
+  .page-header-section__cover {
+    grid-column: 1;
+    grid-row: auto;
+  }
 }

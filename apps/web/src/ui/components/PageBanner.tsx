@@ -1,16 +1,17 @@
 /**
- * PageBanner — the page cover above the title (§34.27 L2, decision D2;
- * §34.56 covers-v2; §34.59 the dedicated header element; §34.72 v1-parity:
- * the banner is ALWAYS chrome when a cover value exists — even when the
- * bytes can't resolve, the shell renders as a dashed placeholder naming
- * the asset (never a silent void), and both the Add-cover strip and the
- * shell accept DRAG-AND-DROP of an image file — the v1 AddCoverButton
- * signature).
+ * CoverCard — the v1 cover element (owner directive 2026-10-04: "the v1
+ * collapsible cover element, that showed even when empty — cover as a card
+ * in the right side like in v1"). Sits in the header row's right column
+ * (the .page-header-section grid); ALWAYS renders when the page can carry
+ * a cover — collapsed to the slim chevron strip by default, expanding to
+ * the card: the cover image, a dashed placeholder naming a byte-less
+ * asset, or the dashed "Add cover" affordance when empty.
  *
- * Hover reveals the cover toolbar: Change cover… (pick an existing asset
- * or upload) and Remove cover. Click on the image collapses/expands; the
- * collapse flag is device-local per page. Absence (no value, embedded
- * feed, whiteboard page) renders nothing but the AddCover strip.
+ * The collapse state derives from whether a cover is set (v1: no per-node
+ * persistence; the toggle is session-local). The card accepts a dropped
+ * image file (the v1 AddCoverButton gesture); hover reveals Change/Remove.
+ * Selection writes through coverProperty: value + the cover/asset classes
+ * (explicit ops — every client converges).
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -21,17 +22,15 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { assetImageUrl } from "../views/assetThumbs.js";
-import { useCoverCollapsed } from "../viewPrefs.js";
+import { Icon } from "../Icon.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { Button } from "./ui/Button.js";
-import { Icon } from "../Icon.js";
 import { clearNodeCover, setNodeCover, uploadCoverAsset } from "./coverProperty.js";
 import "./PageBanner.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-/** The shared cover-picker surface (§34.59): pick an existing asset or
- *  upload a new one, then setNodeCover. */
+/** The shared cover-picker surface: pick an existing asset or upload. */
 export function CoverPicker({
   client,
   pageId,
@@ -110,7 +109,7 @@ export function CoverPicker({
   );
 }
 
-/** Drag-and-drop surface shared by the Add-cover strip and the shell. */
+/** Drag-and-drop surface shared by the empty affordance and the card. */
 function useCoverDrop(client: AnyClient, pageId: string) {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,27 +137,35 @@ function useCoverDrop(client: AnyClient, pageId: string) {
   return { dragging, error, onDragOver, onDragLeave, onDrop };
 }
 
-export function PageBanner({
+export function CoverCard({
   client,
   pageId,
   assetId,
 }: {
   client: AnyClient;
   pageId: string;
-  assetId: string;
+  /** The cover's asset node id, null when the cover is unset. */
+  assetId: string | null;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
-  const [collapsed, setCollapsed] = useCoverCollapsed(pageId);
+  /** v1: the collapse derives from whether a cover is set; session-local. */
+  const [collapsed, setCollapsed] = useState(assetId === null);
   const [pickerAnchor, setPickerAnchor] = useState<HTMLButtonElement | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const drop = useCoverDrop(client, pageId);
 
+  // New cover set while collapsed? Expand (the v1 feel: the card appears).
+  useEffect(() => {
+    if (assetId !== null) setCollapsed(false);
+  }, [assetId]);
+
   useEffect(() => {
     let alive = true;
     setUrl(null);
     setResolved(false);
+    if (assetId === null) return;
     void assetImageUrl(client, assetId).then((resolved_) => {
       if (alive) {
         setUrl(resolved_);
@@ -174,81 +181,92 @@ export function PageBanner({
     setError(null);
     try {
       await clearNodeCover(client, pageId);
+      setCollapsed(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
   const assetName =
-    client.getNode(assetId) !== undefined
+    assetId !== null && client.getNode(assetId) !== undefined
       ? (client.getDisplayName(assetId) ?? assetId)
       : assetId;
 
-  const shellClass = [
-    "nt-page-banner",
-    collapsed ? "nt-page-banner--collapsed" : "",
-    drop.dragging ? "nt-page-banner--dropping" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  // §34.72: a cover value EXISTS — the chrome always renders. Only the
-  // IMAGE waits on bytes; without them the shell shows a dashed
-  // placeholder naming the asset (never a silent void), still droppable.
-  const image = resolved && url !== null;
+  const hasImage = assetId !== null && resolved && url !== null;
 
   return (
     <div
-      className={shellClass}
+      className={`nt-covercard${drop.dragging ? " nt-covercard--dropping" : ""}`}
       onDragOver={drop.onDragOver}
       onDragLeave={drop.onDragLeave}
       onDrop={drop.onDrop}
     >
-      {image ? (
-        <button
-          type="button"
-          className="nt-page-banner__toggle"
-          aria-label={collapsed ? "Expand cover image" : "Collapse cover image"}
-          aria-pressed={collapsed}
-          title={collapsed ? "Expand cover" : "Collapse cover"}
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          {!collapsed && <img className="nt-page-banner__img" src={url} alt="" />}
-        </button>
-      ) : (
-        <div className="nt-page-banner__placeholder" role="status">
-          <Icon path="mdi-image-outline" size={0.9} />
-          <span className="nt-page-banner__placeholder-name">{assetName}</span>
-          <span className="nt-page-banner__placeholder-hint">
-            {resolved ? "No image bytes on this asset — change the cover or drop an image" : "Loading cover…"}
-          </span>
+      <button
+        type="button"
+        className="nt-covercard__collapse"
+        title={collapsed ? "Expand cover" : "Collapse cover"}
+        aria-label={collapsed ? "Expand cover" : "Collapse cover"}
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed((value) => !value)}
+      >
+        <Icon path={collapsed ? "mdi-chevron-left" : "mdi-chevron-right"} size={0.7} />
+      </button>
+      {!collapsed && (
+        <div className="nt-covercard__card">
+          {assetId === null ? (
+            <button
+              type="button"
+              className="nt-covercard__empty"
+              aria-label="Add cover image"
+              title="Add cover image"
+              onClick={(event) => {
+                setPickerAnchor(event.currentTarget);
+                setPickerOpen((open) => !open);
+              }}
+            >
+              <Icon path="mdi-image-plus" size={0.9} />
+              <span>Add cover</span>
+            </button>
+          ) : hasImage ? (
+            <img className="nt-covercard__img" src={url} alt="" />
+          ) : (
+            <div className="nt-covercard__placeholder" role="status">
+              <Icon path="mdi-image-outline" size={0.8} />
+              <span className="nt-covercard__placeholder-name">{assetName}</span>
+              <span className="nt-covercard__placeholder-hint">
+                {resolved ? "No image bytes — drop or change" : "Loading…"}
+              </span>
+            </div>
+          )}
+          {assetId !== null && (
+            <div className="nt-covercard__toolbar">
+              <Button
+                variant="ghost"
+                size="xs"
+                icon="mdi-image-sync"
+                aria-label="Change cover"
+                title="Change cover…"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPickerAnchor(event.currentTarget);
+                  setPickerOpen((open) => !open);
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="xs"
+                icon="mdi-close"
+                aria-label="Remove cover"
+                title="Remove cover"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void removeCover();
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
-      <div className="nt-page-banner__toolbar">
-        <Button
-          variant="ghost"
-          size="xs"
-          icon="mdi-image-sync"
-          aria-label="Change cover"
-          title="Change cover…"
-          onClick={(event) => {
-            event.stopPropagation();
-            setPickerAnchor(event.currentTarget);
-            setPickerOpen((open) => !open);
-          }}
-        />
-        <Button
-          variant="ghost"
-          size="xs"
-          icon="mdi-close"
-          aria-label="Remove cover"
-          title="Remove cover"
-          onClick={(event) => {
-            event.stopPropagation();
-            void removeCover();
-          }}
-        />
-      </div>
       {pickerOpen && pickerAnchor !== null && (
         <CoverPicker
           client={client}
@@ -260,52 +278,6 @@ export function PageBanner({
       {(error !== null || drop.error !== null) && (
         <p role="alert" className="nt-page-banner__error">
           {error ?? drop.error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/**
- * AddCover — the v1/Capacities affordance for a page that CAN carry a cover
- * but doesn't yet: a slim dashed strip in the banner slot, revealed on page
- * hover, opening the shared picker — AND accepting a dropped image file
- * (the v1 AddCoverButton signature).
- */
-export function AddCover({
-  client,
-  pageId,
-}: {
-  client: AnyClient;
-  pageId: string;
-}) {
-  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const drop = useCoverDrop(client, pageId);
-
-  return (
-    <div
-      className={`nt-add-cover${drop.dragging ? " nt-add-cover--dropping" : ""}`}
-      onDragOver={drop.onDragOver}
-      onDragLeave={drop.onDragLeave}
-      onDrop={drop.onDrop}
-    >
-      <button
-        type="button"
-        ref={setAnchor}
-        className="nt-add-cover__button"
-        aria-label="Add cover"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        ＋ Add cover
-      </button>
-      {open && anchor !== null && (
-        <CoverPicker client={client} pageId={pageId} anchor={anchor} onClose={() => setOpen(false)} />
-      )}
-      {drop.error !== null && (
-        <p role="alert" className="nt-page-banner__error">
-          {drop.error}
         </p>
       )}
     </div>

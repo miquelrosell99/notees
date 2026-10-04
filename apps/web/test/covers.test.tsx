@@ -171,7 +171,7 @@ describe("covers v2 (§34.56)", () => {
     expect(screen.queryByText("Cover")).toBeNull();
   });
 
-  it("the banner toolbar offers Change cover and Remove cover", async () => {
+  it("the expanded cover card offers Change cover and Remove cover", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,COVERS");
     const [pageId, assetId] = await seedPageAndAsset(client);
@@ -179,15 +179,32 @@ describe("covers v2 (§34.56)", () => {
     await flushWrites();
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    await screen.findByRole("button", { name: "Collapse cover image" });
-    const banner = container.querySelector(".nt-page-banner")!;
-    expect(banner.querySelector('[aria-label="Change cover"]')).not.toBeNull();
-    expect(banner.querySelector('[aria-label="Remove cover"]')).not.toBeNull();
+    // A set cover auto-expands the card (§34.72).
+    await screen.findByRole("button", { name: "Collapse cover" });
+    const card = container.querySelector(".nt-covercard")!;
+    expect(card.querySelector('[aria-label="Change cover"]')).not.toBeNull();
+    expect(card.querySelector('[aria-label="Remove cover"]')).not.toBeNull();
 
-    fireEvent.click(banner.querySelector('[aria-label="Remove cover"]')!);
+    fireEvent.click(card.querySelector('[aria-label="Remove cover"]')!);
     await flushWrites();
     expect(coverAssetIdOf(client, pageId)).toBeNull();
     expect(client.getNode(assetId)?.classIds).not.toContain(COVER_CLASS_ID);
+  });
+
+  it("the collapsible element renders EVEN WHEN EMPTY — collapsed to the chevron, expanding to the Add cover card (v1)", async () => {
+    const client = await seedClient();
+    await ensureCoverFamily(client);
+    const pageId = await client.createObject({ presentAsMain: true, name: "Empty Page" });
+    await flushWrites();
+
+    render(<PageView client={client} pageId={pageId} />);
+    // The element is always there (no cover set)…
+    const toggle = screen.getByRole("button", { name: "Expand cover" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    // …and expanding reveals the dashed Add cover card.
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Add cover image" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Collapse cover" }).getAttribute("aria-expanded")).toBe("true");
   });
 });
 
@@ -200,8 +217,8 @@ describe("the dedicated header element (§34.59)", () => {
     await flushWrites();
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    // The banner renders (bytes mocked)…
-    await screen.findByRole("button", { name: "Collapse cover image" });
+    // The cover card renders (bytes mocked)…
+    await screen.findByRole("button", { name: "Collapse cover" });
     // …but no cover property row anywhere in the metadata panel.
     expect(
       container.querySelector('[data-property-schema-id="00000000-0000-0000-0000-000000000005"]'),
@@ -218,7 +235,9 @@ describe("the dedicated header element (§34.59)", () => {
     await flushWrites();
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(screen.getByRole("button", { name: "Add cover" }));
+    // Empty → collapsed; expand to the Add cover card, then pick.
+    fireEvent.click(screen.getByRole("button", { name: "Expand cover" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add cover image" }));
     fireEvent.change(screen.getByLabelText("Search assets…"), { target: { value: "cover" } });
     await flushWrites();
     fireEvent.click(
@@ -230,9 +249,9 @@ describe("the dedicated header element (§34.59)", () => {
 
     expect(coverAssetIdOf(client, pageId)).toBe(assetId);
     expect(client.getNode(assetId)?.classIds).toContain(COVER_CLASS_ID);
-    // The banner chrome replaces the strip.
-    await screen.findByRole("button", { name: "Collapse cover image" });
-    expect(container.querySelector(".nt-add-cover")).toBeNull();
+    // The set cover auto-expands the card (no empty affordance remains).
+    await screen.findByRole("button", { name: "Collapse cover" });
+    expect(container.querySelector(".nt-covercard__empty")).toBeNull();
   });
 
   it("a page whose classes bind no cover schema shows no strip", async () => {
@@ -240,8 +259,8 @@ describe("the dedicated header element (§34.59)", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    expect(screen.queryByRole("button", { name: "Add cover" })).toBeNull();
-    expect(container.querySelector(".nt-add-cover")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Expand cover" })).toBeNull();
+    expect(container.querySelector(".nt-covercard")).toBeNull();
   });
 });
 
@@ -256,7 +275,8 @@ describe("the global cover (owner bug 2026-10-04: any page, like v1)", () => {
     await flushWrites();
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(screen.getByRole("button", { name: "Add cover" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand cover" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add cover image" }));
     fireEvent.change(screen.getByLabelText("Search assets…"), { target: { value: "sprite" } });
     await flushWrites();
     fireEvent.click(
@@ -267,10 +287,10 @@ describe("the global cover (owner bug 2026-10-04: any page, like v1)", () => {
     await flushWrites();
 
     // The value rides unbound (no class binds cover on this page) but the
-    // banner renders — the cover is header chrome for EVERY page, like v1.
+    // card renders — the cover is header chrome for EVERY page, like v1.
     expect(coverAssetIdOf(client, pageId)).toBe(assetId);
-    await screen.findByRole("button", { name: "Collapse cover image" });
-    expect(container.querySelector(".nt-page-banner")).not.toBeNull();
+    await screen.findByRole("button", { name: "Collapse cover" });
+    expect(container.querySelector(".nt-covercard")).not.toBeNull();
   });
 });
 
@@ -283,10 +303,10 @@ describe("the v1-parity cover (§34.72: placeholder shell + drag-and-drop)", () 
     await flushWrites();
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    // The shell chrome renders with the asset's name + the toolbar…
-    expect(container.querySelector(".nt-page-banner")).not.toBeNull();
-    expect(container.querySelector(".nt-page-banner__placeholder")).not.toBeNull();
-    expect(container.querySelector(".nt-page-banner__placeholder-name")?.textContent).toBe(
+    // The card renders with the asset's name + the toolbar…
+    expect(container.querySelector(".nt-covercard")).not.toBeNull();
+    expect(container.querySelector(".nt-covercard__placeholder")).not.toBeNull();
+    expect(container.querySelector(".nt-covercard__placeholder-name")?.textContent).toBe(
       "cover.png",
     );
     // …and the cover is still changeable/removable, not invisible.
@@ -306,6 +326,7 @@ describe("the v1-parity cover (§34.72: placeholder shell + drag-and-drop)", () 
 
     const upload = vi.spyOn(client, "uploadAsset").mockResolvedValue({
       assetId: "asset-1",
+      hash: "hash-1",
       originalName: "dropped.png",
       mimeType: "image/png",
       size: 10,
@@ -314,15 +335,15 @@ describe("the v1-parity cover (§34.72: placeholder shell + drag-and-drop)", () 
     const attach = vi.spyOn(client, "attachAsset").mockResolvedValue(undefined);
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    const strip = container.querySelector(".nt-add-cover")!;
+    const card = container.querySelector(".nt-covercard")!;
     const file = new File(["bytes"], "dropped.png", { type: "image/png" });
-    fireEvent.drop(strip, { dataTransfer: { files: [file], types: ["Files"] } });
+    fireEvent.drop(card, { dataTransfer: { files: [file], types: ["Files"] } });
     await flushWrites();
 
     expect(upload).toHaveBeenCalledWith(file, "dropped.png");
     expect(attach).toHaveBeenCalled();
-    // The banner chrome replaces the strip.
-    await screen.findByRole("button", { name: "Collapse cover image" });
-    expect(container.querySelector(".nt-add-cover")).toBeNull();
+    // The set cover auto-expands the card with the image.
+    await screen.findByRole("button", { name: "Collapse cover" });
+    expect(container.querySelector(".nt-covercard__img")).not.toBeNull();
   });
 });
