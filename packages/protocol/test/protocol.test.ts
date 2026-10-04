@@ -261,15 +261,27 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
     const hlcA = tasks[0]!.hlc as { physical: number; logical: number };
     const hlcB = tasks[1]!.hlc as { physical: number; logical: number };
     expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
-    // readItLater toggles off then back on — the re-enable is the winner.
-    const ril = fixture.envelopes.filter(
-      (env) => (env.payload as { feature: string }).feature === "readItLater",
+    // The core families (owner reshape §34.55): a single events disable…
+    const events = fixture.envelopes.filter(
+      (env) => (env.payload as { feature: string }).feature === "events",
     );
-    expect(ril.map((env) => (env.payload as { enabled: boolean }).enabled)).toEqual([false, true]);
+    expect(events.map((env) => (env.payload as { enabled: boolean }).enabled)).toEqual([false]);
+    // …and a sources off→on pair — the re-enable is the winner.
+    const sources = fixture.envelopes.filter(
+      (env) => (env.payload as { feature: string }).feature === "sources",
+    );
+    expect(sources.map((env) => (env.payload as { enabled: boolean }).enabled)).toEqual([
+      false,
+      true,
+    ]);
     // Applicable in sequence: every HLC strictly follows the previous one.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
-    // Strict schema: an unknown feature id is rejected outright.
+    // Strict schema: a retired pre-reshape feature id is rejected outright.
+    expect(
+      payloadSchemaFor("workspace.feature.set")!.safeParse({ feature: "journals", enabled: false })
+        .success,
+    ).toBe(false);
     expect(
       payloadSchemaFor("workspace.feature.set")!.safeParse({ feature: "spreadsheets", enabled: true })
         .success,
