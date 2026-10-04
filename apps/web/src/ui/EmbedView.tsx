@@ -61,17 +61,75 @@ function EmbedPlaceholder({ label, detail }: { label: string; detail: string }) 
   );
 }
 
+/**
+ * The embed view switcher (§34.34 B8 authoring): Full / Card / Wide write
+ * the token's `view` field through the standard content path — one
+ * `object.update` replacing the token (absent view = the full transclusion,
+ * the grammar's default). Rendered in the embed chrome only when the write
+ * context (host block + token index) is known; read-only projections
+ * (public shares, plain previews) omit it.
+ */
+export function EmbedViewSwitcher({
+  client,
+  hostId,
+  tokenIndex,
+  view,
+}: {
+  client: AnyClient;
+  hostId: string;
+  tokenIndex: number;
+  view: "embed" | "small_card" | "wide_card";
+}) {
+  const setView = (next: "embed" | "small_card" | "wide_card") => {
+    const host = client.getNode(hostId);
+    if (host === undefined) return;
+    const token = host.contentAst[tokenIndex];
+    if (typeof token !== "object" || token === null) return;
+    const t = token as Record<string, unknown>;
+    if (t.type !== "embed_ref") return;
+    const replaced = { ...t };
+    if (next === "embed") delete replaced.view;
+    else replaced.view = next;
+    if (JSON.stringify(replaced) === JSON.stringify(token)) return;
+    const nextAst = host.contentAst.map((entry, i) => (i === tokenIndex ? (replaced as typeof entry) : entry));
+    void client.updateObject(hostId, { contentAst: nextAst });
+  };
+  const options = [
+    { id: "embed" as const, label: "Full" },
+    { id: "small_card" as const, label: "Card" },
+    { id: "wide_card" as const, label: "Wide" },
+  ];
+  return (
+    <span className="nt-embed-view-switch" role="group" aria-label="Embed view">
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          className={view === option.id ? "nt-embed-view-switch__btn nt-embed-view-switch__btn--active" : "nt-embed-view-switch__btn"}
+          aria-pressed={view === option.id}
+          onClick={(event) => {
+            event.stopPropagation();
+            setView(option.id);
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 /** One read-only row of the embedded subtree, recursive over its children. */
 function EmbedBlock({
   tree,
   client,
   resolveName,
-  renderEmbed,
+  resolveVerb,
 }: {
   tree: BlockTreeNode;
   client: AnyClient;
   resolveName: (nodeId: string) => string | null;
-  renderEmbed: (nodeId: string) => ReactNode;
+  resolveVerb: (propertySchemaId: string) => string | null;
 }) {
   // §34.34 B4: a table-classed block renders through the BlockRow grid even
   // read-only (the directive's "same BlockRow path" for projections) — the
@@ -85,14 +143,17 @@ function EmbedBlock({
         <InlineTokens
           tokens={tree.node.contentAst}
           resolveName={resolveName}
-          renderEmbed={renderEmbed}
+          resolveVerb={resolveVerb}
+          renderEmbed={(id, _token, index) => (
+            <EmbedView nodeId={id} hostId={tree.node.id} tokenIndex={index} />
+          )}
           onMentionMenu={(info) => openNodeLinkMenu({ blockId: tree.node.id, ...info })}
         />
       </div>
       {tree.children.length > 0 && (
         <div className="nt-embed-block-children">
           {tree.children.map((child) => (
-            <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} renderEmbed={renderEmbed} />
+            <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} resolveVerb={resolveVerb} />
           ))}
         </div>
       )}
@@ -100,7 +161,20 @@ function EmbedBlock({
   );
 }
 
-export function EmbedView({ nodeId }: { nodeId: string }) {
+export function EmbedView({
+  nodeId,
+  hostId,
+  tokenIndex,
+}: {
+  nodeId: string;
+  /**
+   * The block whose contentAst carries this embed's token + the token's
+   * index — the write context for the view switcher. Absent in read-only
+   * projections (the public share render), which then render no switcher.
+   */
+  hostId?: string | undefined;
+  tokenIndex?: number | undefined;
+}) {
   const { client: seamClient } = useOutliner();
   // Every OutlinerContext provider (PageView, ClassView, ReferenceSubtree)
   // builds the value from the full client; the seam type just narrows it.
@@ -126,20 +200,45 @@ export function EmbedView({ nodeId }: { nodeId: string }) {
   }
 
   const resolveName = (id: string) => displayNameFromClient(client, id);
-  const renderEmbed = (id: string) => <EmbedView nodeId={id} />;
+  const resolveVerb = (schemaId: string) =>
+    client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null;
   const name = displayNameFromClient(client, nodeId) ?? nodeId;
   const childrenTree = client.getBlockTree(nodeId);
+  const switcher =
+    hostId !== undefined && tokenIndex !== undefined ? (
+      <EmbedViewSwitcher
+        client={client}
+        hostId={hostId}
+        tokenIndex={tokenIndex}
+        view={
+          (() => {
+            const token = client.getNode(hostId)?.contentAst[tokenIndex];
+            const v =
+              typeof token === "object" && token !== null
+                ? (token as { view?: unknown }).view
+                : undefined;
+            return v === "small_card" || v === "wide_card" ? v : "embed";
+          })()
+        }
+      />
+    ) : null;
 
   return (
     <EmbedContext.Provider value={{ visited: new Set(visited).add(nodeId), depth: depth + 1 }}>
       <div className="nt-embed">
-        <div className="nt-embed-header">{name}</div>
+        <div className="nt-embed-header">
+          <span className="nt-embed-header-name">{name}</span>
+          {switcher}
+        </div>
         {node.contentAst.length > 0 && (
           <div className="nt-embed-content">
             <InlineTokens
               tokens={node.contentAst}
               resolveName={resolveName}
-              renderEmbed={renderEmbed}
+              resolveVerb={resolveVerb}
+              renderEmbed={(id, _token, index) => (
+                <EmbedView nodeId={id} hostId={nodeId} tokenIndex={index} />
+              )}
               onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
             />
           </div>
@@ -147,7 +246,7 @@ export function EmbedView({ nodeId }: { nodeId: string }) {
         {childrenTree.length > 0 && (
           <div className="nt-embed-children">
             {childrenTree.map((child) => (
-              <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} renderEmbed={renderEmbed} />
+              <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} resolveVerb={resolveVerb} />
             ))}
           </div>
         )}

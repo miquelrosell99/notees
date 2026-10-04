@@ -15,7 +15,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
@@ -194,6 +194,8 @@ describe("whiteboard tool palette", () => {
       "Add line",
       "Add arrow",
       "Draw stroke",
+      "Highlight",
+      "Eraser",
       "Add text",
       "Add connector",
     ]) {
@@ -688,5 +690,147 @@ describe("whiteboard minimap + zoom controls", () => {
     expect(screen.queryByRole("button", { name: "Zoom in" })).toBeNull();
     // The toolset itself is present in embedded mode.
     expect(screen.getByRole("button", { name: "Add connector" })).not.toBeNull();
+  });
+});
+
+describe("whiteboard pen/highlighter/eraser group (§34.19 owed modes)", () => {
+  it("the highlighter commits a translucent wide marker stroke (the layout schema's highlight flag)", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client);
+    const { container } = render(<PageView client={client} pageId={host} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
+    dragSurface(container, { x: 40, y: 40 }, { x: 160, y: 120 });
+    await flush();
+
+    const layout = storedLayout(client, host);
+    expect(layout.strokes).toHaveLength(1);
+    expect(layout.strokes[0]!.highlight).toBe(true);
+    expect(layout.strokes[0]!.color).toBe("yellow");
+    expect(layout.strokes[0]!.width).toBe(12);
+    // One-shot: the palette returns to select.
+    expect(screen.getByRole("button", { name: "Select / move" }).getAttribute("aria-pressed")).toBe("true");
+    // The marker renders with the highlight class.
+    expect(container.querySelector(".nt-wb-stroke-highlight")).not.toBeNull();
+  });
+
+  it("the pen still commits a plain stroke (the group wires, not replaces)", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client);
+    const { container } = render(<PageView client={client} pageId={host} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Draw stroke" }));
+    dragSurface(container, { x: 10, y: 10 }, { x: 90, y: 90 });
+    await flush();
+
+    const layout = storedLayout(client, host);
+    expect(layout.strokes).toHaveLength(1);
+    expect(layout.strokes[0]!.highlight).toBeUndefined();
+    expect(layout.strokes[0]!.color).toBeUndefined();
+  });
+
+  it("the eraser drag-removes strokes and shapes near the pointer in one write; it stays armed", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client, {
+      shapes: [{ id: "keep", kind: "rect", x: 400, y: 400, w: 100, h: 100 }],
+      strokes: [
+        { id: "hit", points: [40, 40, 140, 140] },
+        { id: "miss", points: [500, 500, 600, 600] },
+      ],
+    });
+    const { container } = render(<PageView client={client} pageId={host} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Eraser" }));
+    dragSurface(container, { x: 60, y: 60 }, { x: 90, y: 90 });
+    await flush();
+
+    const layout = storedLayout(client, host);
+    // The stroke under the drag is gone; the far stroke and the shape stay.
+    expect(layout.strokes.map((s) => s.id)).toEqual(["miss"]);
+    expect(layout.shapes.map((s) => s.id)).toEqual(["keep"]);
+    // The eraser is NOT one-shot: it stays armed for the next pass.
+    expect(screen.getByRole("button", { name: "Eraser" }).getAttribute("aria-pressed")).toBe("true");
+
+    // Esc disarms it.
+    fireEvent.keyDown(surfaceEl(container), { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Select / move" }).getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
+describe("whiteboard canvas context menu (§34.19 owed)", () => {
+  it("right-clicking a shape offers delete / z-order / color; bring-to-front reorders the layout", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client, {
+      shapes: [
+        { id: "back", kind: "rect", x: 0, y: 0, w: 100, h: 100 },
+        { id: "front", kind: "ellipse", x: 20, y: 20, w: 80, h: 80 },
+      ],
+    });
+    const { container } = render(<PageView client={client} pageId={host} />);
+
+    fireEvent.contextMenu(shapeEls(container)[0]!, { clientX: 30, clientY: 30 });
+    const menu = document.body.querySelector<HTMLElement>(".context-menu")!;
+    expect(menu).not.toBeNull();
+
+    // The submenu arrow rides the label's textContent — match by prefix.
+    const item = (label: string) =>
+      within(menu)
+        .getAllByRole("menuitem")
+        .find((el) => el.textContent?.startsWith(label));
+    expect(item("Bring to front")).toBeDefined();
+    expect(item("Send to back")).toBeDefined();
+    expect(item("Delete")).toBeDefined();
+    expect(item("Color")).toBeDefined();
+
+    fireEvent.click(item("Bring to front")!);
+    await flush();
+    expect(storedLayout(client, host).shapes.map((s) => s.id)).toEqual(["front", "back"]);
+  });
+
+  it("right-clicking a stroke and choosing Delete drops it from the layout", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client, {
+      strokes: [{ id: "gone", points: [10, 10, 80, 80] }],
+    });
+    const { container } = render(<PageView client={client} pageId={host} />);
+
+    fireEvent.contextMenu(container.querySelector<SVGGElement>(".nt-wb-stroke")!, {
+      clientX: 40,
+      clientY: 40,
+    });
+    const menu = document.body.querySelector<HTMLElement>(".context-menu")!;
+    const item = within(menu)
+      .getAllByRole("menuitem")
+      .find((el) => el.textContent === "Delete")!;
+    fireEvent.click(item);
+    await flush();
+
+    expect(storedLayout(client, host).strokes).toEqual([]);
+  });
+
+  it("right-clicking a card offers Delete card + Color (no z-order — cards are graph nodes)", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client);
+    await client.createObject({ parentId: host, contentAst: text("menu card") });
+    const cardId = client.getChildren(host)[0]!.id;
+    const { container } = render(<PageView client={client} pageId={host} />);
+
+    fireEvent.contextMenu(cardEl(container, cardId), { clientX: 120, clientY: 120 });
+    const menu = document.body.querySelector<HTMLElement>(".context-menu")!;
+    const labels = within(menu)
+      .getAllByRole("menuitem")
+      .map((el) => (el.textContent ?? "").replace(/›$/, ""));
+    expect(labels).toContain("Delete card");
+    expect(labels).toContain("Color");
+    expect(labels).not.toContain("Bring to front");
+
+    // Color opens the inline submenu with the kit ColorButton.
+    const colorItem = within(menu)
+      .getAllByRole("menuitem")
+      .find((el) => el.textContent?.startsWith("Color"))!;
+    fireEvent.click(colorItem);
+    await flush();
+    const presetButton = document.body.querySelector<HTMLElement>(".nt-wb-menu-color .color-btn")!;
+    expect(presetButton).not.toBeNull();
   });
 });

@@ -21,14 +21,20 @@
  * with marquee live highlight), card, sticky note (a colored child block —
  * the color rides the node's §34.43 color field, not geometry), the shape
  * set (rect/ellipse/line/arrow, drag to draw, click for a default size),
- * freehand stroke, text (chrome-only layout text), and the connector (an
- * arrow whose endpoints snap to card/shape anchors at creation time).
- * Draw/place tools are one-shot — a completed gesture returns the palette to
- * select. Formatting: colors via the §34.43 grammar (preset token or hex,
- * "no color" clears) and stroke-width tiers; alignment/distribution helpers
- * over the multi-selection; grid snap toggle. Keyboard (surface-focused):
- * Delete removes the selection, arrows nudge (Shift = one grid step), Esc
- * exits the active tool.
+ * the pen/highlighter/eraser group (freehand stroke; the highlighter commits
+ * the layout schema's `highlight` marker — translucent wide stroke; the
+ * eraser drag-removes strokes/shapes near the pointer in one coalesced
+ * write and stays armed until Esc), text (chrome-only layout text), and the
+ * connector (an arrow whose endpoints snap to card/shape anchors at creation
+ * time). A right-click context menu on canvas objects (cards, shapes,
+ * strokes) offers delete, bring-to-front/send-to-back (geometry), and color
+ * — the kit ContextMenu primitive. Draw/place tools are one-shot — a
+ * completed gesture returns the palette to select. Formatting: colors via
+ * the §34.43 grammar (preset token or hex, "no color" clears) and
+ * stroke-width tiers; alignment/distribution helpers over the multi-
+ * selection; grid snap toggle. Keyboard (surface-focused): Delete removes
+ * the selection, arrows nudge (Shift = one grid step), Esc exits the active
+ * tool.
  *
  * Writes: every gesture (card drag end, stroke end, shape add, placement,
  * nudge, align/distribute, color/size apply, card create/delete) produces
@@ -100,6 +106,7 @@ import {
   alignBoxes,
   anchorPoints,
   distributeBoxes,
+  eraserHit,
   layoutBounds,
   marqueeHit,
   normalizeRect,
@@ -113,6 +120,7 @@ import {
 } from "./whiteboard/geometry.js";
 import { TOOL_SHAPE_KIND, WHITEBOARD_TOOLS, toolDef, type WhiteboardTool } from "./whiteboard/tools.js";
 import { WhiteboardMinimap } from "./whiteboard/Minimap.js";
+import { ContextMenu } from "./components/ui/ContextMenu.js";
 
 // Re-exported so the typed schema lives at the component surface too (the
 // layout module is the pure, React-free half of the component).
@@ -162,6 +170,13 @@ const MIN_DRAW_SIZE = 6;
 /** Connector endpoint snap radius, world units. */
 const ANCHOR_SNAP_RADIUS = 14;
 
+/** Eraser reach: strokes/shapes within this world-unit radius of the pointer erase. */
+const ERASER_RADIUS = 10;
+
+/** Highlighter marker defaults (§34.43 preset token + world-unit width). */
+const HIGHLIGHTER_COLOR = "yellow";
+const HIGHLIGHTER_WIDTH = 12;
+
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 
@@ -200,7 +215,14 @@ type DragState =
       currentX: number;
       currentY: number;
     }
-  | { mode: "stroke"; strokeId: string; points: number[] };
+  | { mode: "stroke"; strokeId: string; points: number[]; highlight: boolean }
+  | {
+      /** Eraser drag: strokes/shapes under the pointer accumulate here and
+          leave the layout in ONE write at pointer-up (no per-move op spam). */
+      mode: "erase";
+      removedShapeIds: Set<string>;
+      removedStrokeIds: Set<string>;
+    };
 
 /** Deterministic cascade slot for child blocks that have no geometry yet. */
 function autoSlot(index: number): CardGeometry {
@@ -605,6 +627,151 @@ export function WhiteboardCanvas({
     return null;
   }, [client]);
 
+  /**
+   * Right-click context menu target (shapes/strokes/cards): the menu offers
+   * delete, z-order (geometry), and color — the kit ContextMenu primitive.
+   */
+  const [canvasMenu, setCanvasMenu] = useState<{
+    x: number;
+    y: number;
+    id: string;
+    kind: "shape" | "stroke" | "card";
+  } | null>(null);
+
+  /** Delete one canvas element: geometry leaves the token; cards leave the graph. */
+  const deleteCanvasElement = useCallback(
+    (id: string, kind: "shape" | "stroke" | "card") => {
+      if (kind === "card") {
+        deleteSelected([id]);
+        return;
+      }
+      const layout = viewRef.current;
+      commitLayout({
+        ...layout,
+        shapes: kind === "shape" ? layout.shapes.filter((s) => s.id !== id) : layout.shapes,
+        strokes: kind === "stroke" ? layout.strokes.filter((s) => s.id !== id) : layout.strokes,
+      });
+      setSelectedIds([]);
+    },
+    [commitLayout, deleteSelected],
+  );
+
+  /** Z-order for geometry: front/back within the shapes/strokes arrays. */
+  const reorderGeometry = useCallback(
+    (id: string, where: "front" | "back") => {
+      const layout = viewRef.current;
+      const move = <T extends { id: string }>(arr: readonly T[]): T[] => {
+        const index = arr.findIndex((entry) => entry.id === id);
+        if (index === -1) return [...arr];
+        const next = [...arr];
+        const [entry] = next.splice(index, 1);
+        if (where === "front") next.push(entry!);
+        else next.unshift(entry!);
+        return next;
+      };
+      commitLayout({ ...layout, shapes: move(layout.shapes), strokes: move(layout.strokes) });
+    },
+    [commitLayout],
+  );
+
+  /** Color one canvas element (the §34.43 grammar; null clears). */
+  const applyColorToElement = useCallback(
+    (id: string, kind: "shape" | "stroke" | "card", color: string | null) => {
+      if (kind === "card") {
+        void client.updateObject(id, { color });
+        return;
+      }
+      const layout = viewRef.current;
+      const paint = <T extends { id: string; color?: string }>(entry: T): T => {
+        if (entry.id !== id) return entry;
+        const next = { ...entry };
+        if (color === null) delete next.color;
+        else next.color = color;
+        return next;
+      };
+      commitLayout({
+        ...layout,
+        shapes: layout.shapes.map(paint),
+        strokes: layout.strokes.map(paint),
+      });
+    },
+    [client, commitLayout],
+  );
+
+  /** Open the context menu over an element (and select it). */
+  const openCanvasMenu = (
+    event: { preventDefault(): void; stopPropagation(): void; clientX: number; clientY: number },
+    id: string,
+    kind: "shape" | "stroke" | "card",
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    surfaceRef.current?.focus();
+    setSelectedIds([id]);
+    setCanvasMenu({ x: event.clientX, y: event.clientY, id, kind });
+  };
+
+  const canvasMenuItems = (() => {
+    if (canvasMenu === null) return [];
+    const { id, kind } = canvasMenu;
+    return [
+      {
+        id: "delete",
+        label: kind === "card" ? "Delete card" : "Delete",
+        icon: "mdi-delete-outline",
+        danger: true,
+        onClick: () => deleteCanvasElement(id, kind),
+      },
+      { id: "sep1", label: "", separator: true },
+      ...(kind === "card"
+        ? []
+        : [
+            {
+              id: "front",
+              label: "Bring to front",
+              icon: "mdi-arrow-collapse-up",
+              onClick: () => reorderGeometry(id, "front"),
+            },
+            {
+              id: "back",
+              label: "Send to back",
+              icon: "mdi-arrow-collapse-down",
+              onClick: () => reorderGeometry(id, "back"),
+            },
+            { id: "sep2", label: "", separator: true },
+          ]),
+      {
+        id: "color",
+        label: "Color",
+        icon: "mdi-palette-outline",
+        keepOpen: true,
+        submenu: (
+          <div className="nt-wb-menu-color">
+            <ColorButton
+              color={
+                (() => {
+                  const layout = viewRef.current;
+                  const shape = layout.shapes.find((s) => s.id === id);
+                  if (shape !== undefined) return shape.color ?? "";
+                  const stroke = layout.strokes.find((s) => s.id === id);
+                  if (stroke !== undefined) return stroke.color ?? "";
+                  const node = client.getNode(id);
+                  return node !== undefined && node.color !== null ? node.color : "";
+                })()
+              }
+              size="sm"
+              showPicker
+              showNoneOption
+              colors={PRESET_COLOR_ENTRIES}
+              aria-label="Element color"
+              onColorChange={(color) => applyColorToElement(id, kind, color)}
+            />
+          </div>
+        ),
+      },
+    ];
+  })();
+
   /** Apply a color to the selection: shapes/strokes in one layout write, cards via the node color field. */
   const applyColorToSelection = useCallback(
     (color: string | null) => {
@@ -840,10 +1007,24 @@ export function WhiteboardCanvas({
         createTextAt(snapped);
         setTool("select");
         return;
-      case "stroke": {
+      case "stroke":
+      case "highlighter": {
         const points = [snapped.x, snapped.y];
-        dragRef.current = { mode: "stroke", strokeId: uuidv7(), points };
+        dragRef.current = { mode: "stroke", strokeId: uuidv7(), points, highlight: tool === "highlighter" };
         setDrawing(points);
+        capturePointer(el, event);
+        return;
+      }
+      case "eraser": {
+        // Drag-to-erase: everything near the pointer accumulates into the
+        // drag state and leaves the layout in one write at pointer-up. The
+        // tool stays armed (like select) until Esc or another tool.
+        const hit = eraserHit(viewRef.current, snapped, ERASER_RADIUS);
+        dragRef.current = {
+          mode: "erase",
+          removedShapeIds: new Set(hit.shapeIds),
+          removedStrokeIds: new Set(hit.strokeIds),
+        };
         capturePointer(el, event);
         return;
       }
@@ -916,6 +1097,15 @@ export function WhiteboardCanvas({
       setPreviewShape({ id: drag.shapeId, kind: drag.kind, ...box });
       return;
     }
+    if (drag.mode === "erase") {
+      // Accumulate geometry under the moving pointer; the write lands at
+      // pointer-up (one coalesced op, the same contract as the other drags).
+      const world = toWorld(event.clientX, event.clientY);
+      const hit = eraserHit(viewRef.current, world, ERASER_RADIUS);
+      for (const id of hit.shapeIds) drag.removedShapeIds.add(id);
+      for (const id of hit.strokeIds) drag.removedStrokeIds.add(id);
+      return;
+    }
     // stroke: append the world point (view state, committed on pointer-up).
     const world = toWorld(event.clientX, event.clientY);
     drag.points = [...drag.points, world.x, world.y];
@@ -961,13 +1151,33 @@ export function WhiteboardCanvas({
     if (drag.mode === "stroke") {
       setDrawing(null);
       if (drag.points.length >= 4) {
+        // The highlighter mode commits a translucent wide marker stroke (the
+        // layout schema's `highlight` flag + the marker defaults); the pen
+        // commits a plain stroke. Both return to select (one-shot tools).
+        const stroke = drag.highlight
+          ? { id: drag.strokeId, points: drag.points, highlight: true as const, color: HIGHLIGHTER_COLOR, width: HIGHLIGHTER_WIDTH }
+          : { id: drag.strokeId, points: drag.points };
         commitLayout({
           ...viewRef.current,
-          strokes: [...viewRef.current.strokes, { id: drag.strokeId, points: drag.points }],
+          strokes: [...viewRef.current.strokes, stroke],
         });
         setSelectedIds([drag.strokeId]);
       }
       setTool("select");
+      return;
+    }
+    if (drag.mode === "erase") {
+      // One write drops every accumulated stroke/shape; the eraser stays
+      // armed for the next pass.
+      if (drag.removedShapeIds.size > 0 || drag.removedStrokeIds.size > 0) {
+        commitLayout({
+          ...viewRef.current,
+          shapes: viewRef.current.shapes.filter((s) => !drag.removedShapeIds.has(s.id)),
+          strokes: viewRef.current.strokes.filter((s) => !drag.removedStrokeIds.has(s.id)),
+        });
+        setSelectedIds([]);
+      }
+      return;
     }
   };
 
@@ -1203,6 +1413,8 @@ export function WhiteboardCanvas({
     const common = {
       className: selected ? "nt-wb-shape nt-wb-shape-selected" : "nt-wb-shape",
       onPointerDown: (event: ReactPointerEvent<SVGGElement>) => onShapePointerDown(event, shape.id),
+      onContextMenu: (event: { preventDefault(): void; stopPropagation(): void; clientX: number; clientY: number }) =>
+        openCanvasMenu(event, shape.id, "shape"),
       onDoubleClick: (event: ReactMouseEvent<SVGGElement>) => {
         event.stopPropagation();
         setSelectedIds([shape.id]);
@@ -1327,6 +1539,7 @@ export function WhiteboardCanvas({
                     points={stroke.points.join(" ")}
                     style={paintStyle(stroke.color, stroke.width)}
                     onPointerDown={(event) => onShapePointerDown(event, stroke.id)}
+                    onContextMenu={(event) => openCanvasMenu(event, stroke.id, "stroke")}
                   />
                   {selected && bounds !== null && (
                     <rect
@@ -1353,6 +1566,7 @@ export function WhiteboardCanvas({
                 // The title bar stops propagation itself (it drags); the body
                 // must not let a press bubble into a surface marquee either.
                 onPointerDown={(event) => event.stopPropagation()}
+                onContextMenu={(event) => openCanvasMenu(event, card.id, "card")}
                 className={
                   isSelected(card.id)
                     ? colored
@@ -1434,6 +1648,13 @@ export function WhiteboardCanvas({
             <div className="nt-wb-empty">Double-click to add a card — cards are blocks of this whiteboard.</div>
           )}
         </div>
+        {canvasMenu !== null && (
+          <ContextMenu
+            items={canvasMenuItems}
+            position={{ x: canvasMenu.x, y: canvasMenu.y }}
+            onClose={() => setCanvasMenu(null)}
+          />
+        )}
         {zoomControls}
         {!embedded && (
           <WhiteboardMinimap

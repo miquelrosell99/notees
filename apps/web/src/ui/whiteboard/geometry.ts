@@ -115,6 +115,55 @@ export function marqueeHit(layout: WhiteboardLayout, renderedCardIds: readonly s
   return hits;
 }
 
+/**
+ * Eraser hit-test: shape/stroke ids whose geometry passes within `radius`
+ * world units of the point — a stroke hits when any of its segments comes
+ * near the point (cheap bounding-box prefilter, then segment distance);
+ * a shape hits when the point sits inside its bounds grown by the radius.
+ * Cards are geometry-layout keyed; the eraser only touches shapes/strokes
+ * (cards delete through their own chrome, the model law for content).
+ */
+export function eraserHit(
+  layout: WhiteboardLayout,
+  point: { x: number; y: number },
+  radius: number,
+): { shapeIds: string[]; strokeIds: string[] } {
+  const shapeIds: string[] = [];
+  const strokeIds: string[] = [];
+  for (const shape of layout.shapes) {
+    const bounds = shapeBounds(shape);
+    if (
+      point.x >= bounds.x - radius &&
+      point.x <= bounds.x + bounds.w + radius &&
+      point.y >= bounds.y - radius &&
+      point.y <= bounds.y + bounds.h + radius
+    ) {
+      shapeIds.push(shape.id);
+    }
+  }
+  for (const stroke of layout.strokes) {
+    const points = stroke.points;
+    for (let i = 0; i + 3 < points.length; i += 2) {
+      if (segmentDistance(points[i]!, points[i + 1]!, points[i + 2]!, points[i + 3]!, point.x, point.y) <= radius) {
+        strokeIds.push(stroke.id);
+        break;
+      }
+    }
+  }
+  return { shapeIds, strokeIds };
+}
+
+/** Distance from point (px, py) to the segment (x1,y1)-(x2,y2). */
+function segmentDistance(x1: number, y1: number, x2: number, y2: number, px: number, py: number): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lengthSq = dx * dx + dy * dy;
+  if (lengthSq === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / lengthSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
 /** Alignment/distribution operate on positioned boxes: cards and shapes. */
 export interface PositionedBox {
   id: string;

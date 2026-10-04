@@ -8,7 +8,7 @@
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
@@ -179,5 +179,79 @@ describe("embeds", () => {
 
     expect(screen.getByText(/broken embed/)).not.toBeNull();
     expect(screen.getByText(missing)).not.toBeNull();
+  });
+
+  it("the embed header's view switcher writes the token's view field", async () => {
+    const client = await seedClient();
+    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const holder = await client.createObject({
+      parentId: pageA,
+      contentAst: text("holder body"),
+    });
+    const hostBlock = await client.createObject({ parentId: pageA, contentAst: embed(holder) });
+
+    const { container } = render(<PageView client={client} pageId={pageA} />);
+
+    // Full embed renders with the switcher; Full is the active view.
+    const embedEl = container.querySelector(".nt-embed")!;
+    expect(embedEl).not.toBeNull();
+    const switcher = () => screen.getByRole("group", { name: "Embed view" });
+    expect(switcher()).not.toBeNull();
+    expect(
+      (screen.getByRole("button", { name: "Full" }) as HTMLButtonElement).getAttribute("aria-pressed"),
+    ).toBe("true");
+
+    // Card → the token gains view: "small_card" and the card view renders.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Card" }));
+    });
+    await act(async () => {});
+    expect(client.getNode(hostBlock)?.contentAst).toEqual([
+      { type: "embed_ref", nodeId: holder, view: "small_card" },
+    ]);
+    expect(container.querySelector(".nt-embed-card")).not.toBeNull();
+
+    // Wide → view: "wide_card".
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Wide" }));
+    });
+    await act(async () => {});
+    expect(client.getNode(hostBlock)?.contentAst).toEqual([
+      { type: "embed_ref", nodeId: holder, view: "wide_card" },
+    ]);
+
+    // Back to Full → the view key is CLEARED (absent = the grammar's default).
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Full" }));
+    });
+    await act(async () => {});
+    expect(client.getNode(hostBlock)?.contentAst).toEqual([
+      { type: "embed_ref", nodeId: holder },
+    ]);
+    expect(container.querySelector(".nt-embed")).not.toBeNull();
+  });
+
+  it("a card-view embed renders the switcher beside the card and switches to the full embed", async () => {
+    const client = await seedClient();
+    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const target = await client.createObject({ presentAsMain: true, name: "Card Target" });
+    const hostBlock = await client.createObject({
+      parentId: pageA,
+      contentAst: [{ type: "embed_ref", nodeId: target, view: "small_card" }],
+    });
+
+    const { container } = render(<PageView client={client} pageId={pageA} />);
+
+    expect(container.querySelector(".nt-embed-card")).not.toBeNull();
+    expect(container.querySelector(".nt-embed-card-wrap .nt-embed-view-switch")).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Full" }));
+    });
+    await act(async () => {});
+    expect(client.getNode(hostBlock)?.contentAst).toEqual([
+      { type: "embed_ref", nodeId: target },
+    ]);
+    expect(container.querySelector(".nt-embed")).not.toBeNull();
   });
 });

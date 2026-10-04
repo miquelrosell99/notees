@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { InlineTokens } from "../src/ui/InlineTokens.js";
 import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
@@ -69,9 +69,11 @@ describe("InlineTokens protocol-batch tokens (§34.34)", () => {
   });
 
   it("routes embed_ref card views to the card renderer and defaults to the full embed", () => {
-    const card = vi.fn((nodeId: string, view: "small_card" | "wide_card") => (
-      <span data-testid={`card-${view}`}>{nodeId}</span>
-    ));
+    const card = vi.fn(
+      (nodeId: string, view: "small_card" | "wide_card", _token: unknown, _index: number) => (
+        <span data-testid={`card-${view}`}>{nodeId}</span>
+      ),
+    );
     const full = vi.fn((nodeId: string) => <span data-testid="full">{nodeId}</span>);
     render(
       <InlineTokens
@@ -85,14 +87,18 @@ describe("InlineTokens protocol-batch tokens (§34.34)", () => {
         renderEmbedCard={card}
       />,
     );
-    expect(card).toHaveBeenCalledWith("n-1", "small_card");
-    expect(card).toHaveBeenCalledWith("n-2", "wide_card");
+    expect(card.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+      ["n-1", "small_card"],
+      ["n-2", "wide_card"],
+    ]);
     expect(screen.getByTestId("card-small_card")).toBeInTheDocument();
     expect(screen.getByTestId("card-wide_card")).toBeInTheDocument();
     // Absent view (and the explicit "embed" default) ride the full embed.
-    expect(full).toHaveBeenCalledWith("n-3");
-    expect(full).toHaveBeenCalledWith("n-4");
+    expect(full.mock.calls.map((call) => call[0])).toEqual(["n-3", "n-4"]);
     expect(screen.getAllByTestId("full")).toHaveLength(2);
+    // The raw token + stream index ride along (the view switcher's write path).
+    expect(card.mock.calls[0]![2]).toEqual({ type: "embed_ref", nodeId: "n-1", view: "small_card" });
+    expect(card.mock.calls[0]![3]).toBe(0);
   });
 
   it("falls back to the full embed for card views when no card renderer is injected", () => {
@@ -103,7 +109,7 @@ describe("InlineTokens protocol-batch tokens (§34.34)", () => {
         renderEmbed={full}
       />,
     );
-    expect(full).toHaveBeenCalledWith("n-1");
+    expect(full.mock.calls.map((call) => call[0])).toEqual(["n-1"]);
   });
 });
 
@@ -188,6 +194,72 @@ describe("Workspace Settings Features tab (§34.35/§34.55 — lockstep SHIPPED)
     }
     expect(screen.getByText(/3 existing objects/)).toBeInTheDocument();
     expect(screen.getByText(/1 existing object\b/)).toBeInTheDocument();
+  });
+
+  it("turning OFF a family with instances opens the F3 confirmation; Cancel gates the write", async () => {
+    const setFeatureEnabled = vi.fn().mockResolvedValue(undefined);
+    renderFeaturesTab(
+      featureClient({ setFeatureEnabled, instances: { tasks: 3 } }),
+    );
+    fireEvent.click(screen.getAllByRole("switch")[0]!); // Tasks, On → Off
+
+    // The confirmation modal states the F3 semantics; no write yet. (The
+    // settings shell is itself a dialog — scope to the confirmation.)
+    const dialog = await waitFor(() => {
+      const el = document.querySelector(".confirmation-modal");
+      if (el === null) throw new Error("confirmation not open");
+      return el as HTMLElement;
+    });
+    expect(within(dialog).getByText(/3 existing objects keep their data/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/the family's surfaces hide/)).toBeInTheDocument();
+    expect(setFeatureEnabled).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(document.querySelector(".confirmation-modal")).toBeNull();
+    expect(setFeatureEnabled).not.toHaveBeenCalled();
+  });
+
+  it("Disable in the confirmation issues the workspace.feature.set OFF write", async () => {
+    const setFeatureEnabled = vi.fn().mockResolvedValue(undefined);
+    renderFeaturesTab(
+      featureClient({ setFeatureEnabled, instances: { events: 1 } }),
+    );
+    fireEvent.click(screen.getAllByRole("switch")[1]!); // Events, On → Off
+
+    const dialog = await waitFor(() => {
+      const el = document.querySelector(".confirmation-modal");
+      if (el === null) throw new Error("confirmation not open");
+      return el as HTMLElement;
+    });
+    expect(within(dialog).getByText(/1 existing object keep/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+
+    await waitFor(() => {
+      expect(setFeatureEnabled).toHaveBeenCalledWith("events", false);
+    });
+    expect(document.querySelector(".confirmation-modal")).toBeNull();
+  });
+
+  it("a family with zero instances (and every enable) writes immediately — no modal", async () => {
+    const setFeatureEnabled = vi.fn().mockResolvedValue(undefined);
+    renderFeaturesTab(
+      featureClient({ setFeatureEnabled, enabled: { tasks: false }, instances: { events: 0 } }),
+    );
+    const switches = screen.getAllByRole("switch");
+
+    // Events: On → Off with 0 instances → straight through, no confirmation.
+    fireEvent.click(switches[1]!);
+    await waitFor(() => {
+      expect(setFeatureEnabled).toHaveBeenCalledWith("events", false);
+    });
+    expect(document.querySelector(".confirmation-modal")).toBeNull();
+
+    // Tasks: Off → On (an enable) → straight through, no confirmation.
+    fireEvent.click(switches[0]!);
+    await waitFor(() => {
+      expect(setFeatureEnabled).toHaveBeenCalledWith("tasks", true);
+    });
+    expect(document.querySelector(".confirmation-modal")).toBeNull();
   });
 
   it("renders the honest note when the client belongs to another workspace", () => {
