@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { Icon } from "../Icon.js";
 import { Button } from "./ui/Button.js";
 import { Tabs } from "./ui/Tabs.js";
+import { usePopupDismissal } from "./ui/usePopupDismissal.js";
 import { clampOverlayLeft, flipOverlayTop } from "../editor-popups/overlay-position.js";
 import { EMOJI_CATEGORIES } from "./emojiData.js";
 import { MDI_CATEGORIES } from "./mdiCategories.js";
@@ -205,16 +206,10 @@ export function IconPickerPopup({ value, onSelect, onClose, anchorEl }: IconPick
     searchRef.current?.focus();
   }, []);
 
-  // Outside click closes (mousedown so picks inside still register).
-  useEffect(() => {
-    const handle = (event: MouseEvent) => {
-      if (pickerRef.current !== null && !pickerRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [onClose]);
+  // Dismissal (§34.67): pointer-down outside closes; Escape from outside
+  // closes via the hook, Escape from inside (the search field holds focus)
+  // closes at the popup root below.
+  usePopupDismissal({ popupRef: pickerRef, isOpen: true, onClose });
 
   // Position: fixed at the anchor, flip above when no room, clamped.
   useLayoutEffect(() => {
@@ -277,7 +272,18 @@ export function IconPickerPopup({ value, onSelect, onClose, anchorEl }: IconPick
   };
 
   return createPortal(
-    <div ref={pickerRef} className="ep ep--popup" role="dialog" aria-label="Icon picker">
+    <div
+      ref={pickerRef}
+      className="ep ep--popup"
+      role="dialog"
+      aria-label="Icon picker"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       {/* Header: tabs + actions */}
       <div className="ep-header">
         <Tabs value={activeTab} onChange={handleTabChange}>

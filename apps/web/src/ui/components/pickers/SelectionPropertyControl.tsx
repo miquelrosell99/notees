@@ -8,10 +8,11 @@
  * color (§34.43 grammar) tints its pill and shows as a dot in the picker.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { Icon } from "../../Icon.js";
 import { coloredPillStyle } from "../ui/colorPresets.js";
+import { usePopupDismissal } from "../ui/usePopupDismissal.js";
 import "./PropertyCell.css";
 
 export interface SelectionOption {
@@ -42,17 +43,13 @@ export function SelectionPropertyControl({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
 
-  // Close picker on outside click
-  useEffect(() => {
-    if (!isPickerOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (cellRef.current && !cellRef.current.contains(e.target as Node)) {
-        setIsPickerOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isPickerOpen]);
+  // Dismissal (§34.67): Escape closes; pointer-down outside the cell (which
+  // hosts both the trigger and the picker) closes too.
+  usePopupDismissal({
+    popupRef: cellRef,
+    isOpen: isPickerOpen,
+    onClose: () => setIsPickerOpen(false),
+  });
 
   const resolvedOptions = values
     .map((value) => options.find((opt) => opt.id === value))

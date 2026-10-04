@@ -42,6 +42,7 @@ import { AddPill } from "./ui/AddPill.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
+import { usePopupDismissal } from "./ui/usePopupDismissal.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { classRemovalRefusal, isClassNonRemovable, refuseClassRemoval } from "./classRemoval.js";
 import "./NodePills.css";
@@ -271,6 +272,22 @@ export function NodePills({
   const [overflowPos, setOverflowPos] = useState<{ top: number; left: number } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowButtonRef = useRef<HTMLButtonElement | null>(null);
+  const overflowPopupRef = useRef<HTMLDivElement>(null);
+  const colorMenuRef = useRef<HTMLDivElement>(null);
+
+  // Dismissal (§34.67): Escape closes the two portaled popups; the backdrop
+  // divs keep owning outside-click (pointer-down on them lands outside the
+  // popup refs, so the hook agrees).
+  usePopupDismissal({
+    popupRef: overflowPopupRef,
+    isOpen: overflowOpen,
+    onClose: () => setOverflowOpen(false),
+  });
+  usePopupDismissal({
+    popupRef: colorMenuRef,
+    isOpen: colorMenu !== null,
+    onClose: () => setColorMenu(null),
+  });
 
   const assignedClasses = classIds
     .map((classId) => client.getNode(classId))
@@ -365,6 +382,7 @@ export function NodePills({
               className="node-pills-popup"
               role="dialog"
               aria-label="All classes"
+              ref={overflowPopupRef}
               style={{ position: "fixed", top: overflowPos.top, left: overflowPos.left, zIndex: "var(--z-9999)" }}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
@@ -415,6 +433,7 @@ export function NodePills({
           />
           {createPortal(
             <div
+              ref={colorMenuRef}
               style={{
                 position: "fixed",
                 left: colorMenu.x,
