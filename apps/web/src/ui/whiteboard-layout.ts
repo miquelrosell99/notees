@@ -8,7 +8,13 @@
  * fields are ignored and malformed entries are dropped, so a layout written
  * by a newer client degrades to "fewer things on the canvas" instead of a
  * broken token. Serialization is the strict inverse of the typed shape.
+ *
+ * Toolset formatting (§34.19 whiteboard row) rides the same fields:
+ * `color` follows the §34.43 data-color grammar (preset token or `#RRGGBB`;
+ * absent = theme default) and widths are world-unit stroke widths.
  */
+
+import { isColorValue } from "@notees/protocol";
 
 /** Geometry of one card, in world units, keyed by the child block's node id. */
 export interface CardGeometry {
@@ -18,22 +24,36 @@ export interface CardGeometry {
   h: number;
 }
 
-/** A layout-only shape: rect / ellipse / arrow bounding box (+ chrome label). */
+/**
+ * A layout-only shape: rect / ellipse / line / arrow bounding box, or a text
+ * element (kind "text", label = chrome text at x/y). A card-colored shape
+ * stays a shape — semantic text still belongs in cards.
+ */
 export interface WhiteboardShape {
   id: string;
-  kind: "rect" | "ellipse" | "arrow";
+  kind: "rect" | "ellipse" | "line" | "arrow" | "text";
   x: number;
   y: number;
   w: number;
   h: number;
   /** Chrome only — semantic text lives in cards, never in shape labels. */
   label?: string;
+  /** §34.43 grammar: preset token or `#RRGGBB`; absent = theme default. */
+  color?: string;
+  /** Stroke width in world units; absent = the canvas default. */
+  strokeWidth?: number;
 }
 
 /** A freehand stroke: flat [x1, y1, x2, y2, …] world-unit points. */
 export interface WhiteboardStroke {
   id: string;
   points: number[];
+  /** §34.43 grammar: preset token or `#RRGGBB`; absent = theme default. */
+  color?: string;
+  /** Pen width in world units; absent = the canvas default. */
+  width?: number;
+  /** Highlighter rendering (translucent wide marker over content). */
+  highlight?: boolean;
 }
 
 /** The `layout` field of a `whiteboard` content token. */
@@ -64,7 +84,18 @@ function parseGeometry(value: unknown): CardGeometry | null {
   return { x, y, w, h };
 }
 
-const SHAPE_KINDS = new Set(["rect", "ellipse", "arrow"]);
+const SHAPE_KINDS = new Set(["rect", "ellipse", "line", "arrow", "text"]);
+
+/** A width must be a finite number above zero to survive the read. */
+function finiteWidth(value: unknown): number | null {
+  const parsed = finiteNumber(value);
+  return parsed !== null && parsed > 0 ? parsed : null;
+}
+
+/** A color must satisfy the §34.43 grammar to survive the read. */
+function parseColor(value: unknown): string | null {
+  return typeof value === "string" && isColorValue(value) ? value : null;
+}
 
 function parseShape(value: unknown): WhiteboardShape | null {
   if (!isRecord(value)) return null;
@@ -78,6 +109,10 @@ function parseShape(value: unknown): WhiteboardShape | null {
   if (x === null || y === null || w === null || h === null) return null;
   const shape: WhiteboardShape = { id: value.id, kind: value.kind as WhiteboardShape["kind"], x, y, w, h };
   if (typeof value.label === "string" && value.label !== "") shape.label = value.label;
+  const color = parseColor(value.color);
+  if (color !== null) shape.color = color;
+  const strokeWidth = finiteWidth(value.strokeWidth);
+  if (strokeWidth !== null) shape.strokeWidth = strokeWidth;
   return shape;
 }
 
@@ -87,7 +122,13 @@ function parseStroke(value: unknown): WhiteboardStroke | null {
   const points = value.points.filter((p): p is number => typeof p === "number" && Number.isFinite(p));
   // A stroke needs at least one full point pair.
   if (points.length < 2) return null;
-  return { id: value.id, points };
+  const stroke: WhiteboardStroke = { id: value.id, points };
+  const color = parseColor(value.color);
+  if (color !== null) stroke.color = color;
+  const width = finiteWidth(value.width);
+  if (width !== null) stroke.width = width;
+  if (value.highlight === true) stroke.highlight = true;
+  return stroke;
 }
 
 /**
@@ -123,9 +164,17 @@ export function serializeWhiteboardLayout(layout: WhiteboardLayout): Record<stri
         h: shape.h,
       };
       if (shape.label !== undefined && shape.label !== "") value.label = shape.label;
+      if (shape.color !== undefined) value.color = shape.color;
+      if (shape.strokeWidth !== undefined) value.strokeWidth = shape.strokeWidth;
       return value;
     }),
-    strokes: layout.strokes.map((stroke) => ({ id: stroke.id, points: stroke.points })),
+    strokes: layout.strokes.map((stroke) => {
+      const value: Record<string, unknown> = { id: stroke.id, points: stroke.points };
+      if (stroke.color !== undefined) value.color = stroke.color;
+      if (stroke.width !== undefined) value.width = stroke.width;
+      if (stroke.highlight === true) value.highlight = true;
+      return value;
+    }),
   };
 }
 
