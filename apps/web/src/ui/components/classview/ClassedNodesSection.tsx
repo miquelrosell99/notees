@@ -17,6 +17,7 @@ import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { Section } from "../../Section.js";
 import { useViewModePreference } from "../../viewPrefs.js";
+import { refuseClassRemoval } from "../classRemoval.js";
 import { NodeCollection, ViewToolbar } from "../../views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../../views/index.js";
 
@@ -115,7 +116,11 @@ export function ClassedNodesSection({
             type="button"
             className="nt-class-member-remove"
             aria-label={`Remove ${displayNameForSettings(item.node) || item.node.id} from ${displayNameForSettings(client.getNode(classId)!) || "this class"}`}
-            onClick={() => void client.unassignClass(item.node.id, classId)}
+            onClick={() => {
+              // §34.19: system/journal classes refuse membership removal.
+              if (refuseClassRemoval(classId)) return;
+              void client.unassignClass(item.node.id, classId);
+            }}
           >
             ×
           </button>

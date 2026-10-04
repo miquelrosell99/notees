@@ -43,6 +43,7 @@ import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
+import { classRemovalRefusal, isClassNonRemovable, refuseClassRemoval } from "./classRemoval.js";
 import "./NodePills.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -99,9 +100,11 @@ function PillShell({
   const colored = client.effectiveClassColor(classId);
   // Effective icon: the class glyph (display-time default when none is set).
   const icon = client.effectiveClassIcon(classId);
+  // §34.19: system/journal classes refuse ×-removal (lock + honest toast).
+  const nonRemovable = isClassNonRemovable(classId);
   return (
     <span
-      className="pill pill--hover-reveal-right"
+      className={`pill pill--hover-reveal-right${nonRemovable ? " pill--non-removable" : ""}`}
       style={
         colored !== null
           ? { background: cssColorFor(colored), color: contrastFor(colored) }
@@ -120,14 +123,26 @@ function PillShell({
       <button type="button" className="pill__text" onClick={() => onOpenPage?.(classId)}>
         {label}
       </button>
-      <button
-        type="button"
-        className="pill__right-button"
-        aria-label={removeLabel(label)}
-        onClick={() => onRemove(classId)}
-      >
-        ×
-      </button>
+      {nonRemovable ? (
+        <button
+          type="button"
+          className="pill__right-button pill__right-button--locked"
+          aria-label={`${label} can't be removed`}
+          title={classRemovalRefusal(classId) ?? undefined}
+          onClick={() => refuseClassRemoval(classId)}
+        >
+          <Icon path="mdi-lock-outline" size={0.6} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="pill__right-button"
+          aria-label={removeLabel(label)}
+          onClick={() => onRemove(classId)}
+        >
+          ×
+        </button>
+      )}
     </span>
   );
 }
@@ -173,6 +188,7 @@ function PopupRow({
   const label = displayNameFromClient(client, classId) ?? classId;
   // Effective icon: the class glyph (display-time default when none is set).
   const icon = client.effectiveClassIcon(classId);
+  const nonRemovable = isClassNonRemovable(classId);
   return (
     <li
       ref={setNodeRef}
@@ -192,14 +208,26 @@ function PopupRow({
       )}
       <Icon path={icon} size={0.7} className="node-pills-popup__icon" />
       <span className="node-pills-popup__name">{label}</span>
-      <button
-        type="button"
-        className="pill__right-button"
-        aria-label={removeLabel(label)}
-        onClick={() => onRemove(classId)}
-      >
-        ×
-      </button>
+      {nonRemovable ? (
+        <button
+          type="button"
+          className="pill__right-button pill__right-button--locked"
+          aria-label={`${label} can't be removed`}
+          title={classRemovalRefusal(classId) ?? undefined}
+          onClick={() => refuseClassRemoval(classId)}
+        >
+          <Icon path="mdi-lock-outline" size={0.6} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="pill__right-button"
+          aria-label={removeLabel(label)}
+          onClick={() => onRemove(classId)}
+        >
+          ×
+        </button>
+      )}
     </li>
   );
 }

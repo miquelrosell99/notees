@@ -57,14 +57,18 @@ import {
 import { PropertiesSection, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
 import { PageBanner } from "./components/PageBanner.js";
+import { ScratchpadCapture, SCRATCHPAD_PAGE_ID } from "./components/ScratchpadCapture.js";
 import { PageFooter } from "./components/PageFooter.js";
+import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
+import { ensureAliasProperty } from "./components/aliasProperty.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
 import { TitleEditor } from "./TitleEditor.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
+import { useBlockSelectionSurface } from "./use-block-selection.js";
 import { NodeCollection, ViewToolbar } from "./views/index.js";
 import type { NodeCollectionItem, ViewMode } from "./views/index.js";
 import { useViewModePreference } from "./viewPrefs.js";
@@ -167,6 +171,8 @@ export function PageView({
 
   /** Page root: find/replace highlights blocks inside it; link clicks delegate. */
   const pageRootRef = useRef<HTMLDivElement>(null);
+  /** The block-tree selection surface (multi-selection gestures). */
+  const selectionRootRef = useRef<HTMLDivElement>(null);
   const [findOpen, setFindOpen] = useState(false);
   /** The LinkEditModal opener, published by the host below (context lives a level down). */
   const linkOpenerRef = useRef<LinkEditModalOpener | null>(null);
@@ -288,6 +294,17 @@ export function PageView({
     void ensureCoverProperty(client);
   }, [client]);
 
+  /**
+   * Alias property self-heal (§34.32 PG10): the seeded multi-value `alias`
+   * text schema (global scope, no class binding) is authored idempotently
+   * on first page view — the server seed only runs on an empty workspace,
+   * so existing workspaces would never see it otherwise (the
+   * ensureCoverProperty precedent).
+   */
+  useEffect(() => {
+    void ensureAliasProperty(client);
+  }, [client]);
+
   /** The cover's asset target, when the page carries the property. */
   const coverAssetId =
     page !== undefined && !embedded && whiteboardTokenIndex < 0
@@ -301,8 +318,57 @@ export function PageView({
     // §34.25 T3: the slash template flow self-heals the template family
     // before instantiating (idempotent no-op once present).
     ensureTemplateFamily: () => ensureTemplateFamily(client),
+    // §34.19 block multi-selection: the main page body is a selection
+    // surface; embedded feed entries and class composition aren't.
+    selection: !embedded && !forClass,
   });
   const positions = outliner.positions;
+  const outlinerRef = useRef(outliner);
+  outlinerRef.current = outliner;
+
+  // Ctrl+. (toggle) / Ctrl+Alt+← (fold) / Ctrl+Alt+→ (unfold) — the §34.19
+  // fold chords on the FOCUSED block (the row is discovered from the active
+  // element — the editor stays the focus owner, no focus ledger). Alt+←/→
+  // belongs to Back/Forward (the App keymap), so fold moved to the Ctrl+Alt+
+  // arrow pair (free in Chrome/Firefox/Safari; some OS display drivers rotate
+  // the screen on it — out of the page's reach, same as v1's fate with
+  // Alt+arrows in browsers).
+  useEffect(() => {
+    if (embedded) return;
+    const handler = (event: KeyboardEvent) => {
+      const mod = event.ctrlKey || event.metaKey;
+      if (!mod) return;
+      const key = event.key;
+      const toggle = !event.altKey && !event.shiftKey && key === ".";
+      const fold = event.altKey && !event.shiftKey && key === "ArrowLeft";
+      const unfold = event.altKey && !event.shiftKey && key === "ArrowRight";
+      if (!toggle && !fold && !unfold) return;
+      const root = pageRootRef.current;
+      const active = document.activeElement;
+      if (root === null || !(active instanceof Element) || !root.contains(active)) return;
+      const blockId = active.closest("[data-block-id]")?.getAttribute("data-block-id");
+      if (blockId === null || blockId === undefined) return;
+      if (outlinerRef.current.client.getChildren(blockId).length === 0) return;
+      event.preventDefault();
+      const collapsed = outlinerRef.current.collapsed.has(blockId);
+      if (fold) {
+        if (!collapsed) outlinerRef.current.toggleCollapse(blockId);
+      } else if (unfold) {
+        if (collapsed) outlinerRef.current.toggleCollapse(blockId);
+      } else {
+        outlinerRef.current.toggleCollapse(blockId);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [embedded]);
+
+  // --- §34.19 block multi-selection ------------------------------------------
+  const selectionSurface = useBlockSelectionSurface(
+    outliner,
+    selectionRootRef,
+    !embedded && !forClass,
+  );
 
   /** Searchable documents: one prose projection per block in the tree. */
   const findDocs = useMemo(() => {
@@ -387,6 +453,21 @@ export function PageView({
       parentId: pageId,
       contentAst: [],
     });
+    outliner.requestFocus(id, "start");
+  };
+
+  /**
+   * §34.19 ghost trailing block: rendered while the body's last child is
+   * non-empty (an empty last child already invites clicking into it). The
+   * click creates a real empty block at the end and focuses it.
+   */
+  const lastChildEmpty =
+    tree.length > 0 &&
+    proseFromAst(tree[tree.length - 1]!.node.contentAst).trim() === "";
+  const ghostVisible =
+    !embedded && tree.length > 0 && !lastChildEmpty && blocksMode === "outline";
+  const addTrailingBlock = async () => {
+    const id = await client.createObject({ parentId: pageId, contentAst: [] });
     outliner.requestFocus(id, "start");
   };
 
@@ -491,6 +572,10 @@ export function PageView({
         {dayIso !== null && !embedded && (
           <DayPageDateBar client={client} pageId={pageId} iso={dayIso} onOpenPage={onOpenPage} />
         )}
+        {/* §34.19 :1180 — the seeded scratchpad page is a real page whose top
+            carries the quick-capture input (keyboard-first append); embedded
+            renders (journal feed) skip the chrome. */}
+        {!embedded && pageId === SCRATCHPAD_PAGE_ID && <ScratchpadCapture client={client} />}
         {notice}
         {moveError !== null && (
           <div role="alert" className="nt-dnd-error">
@@ -503,7 +588,7 @@ export function PageView({
           <>
             <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
             {systemSections ?? (
-              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
             )}
           </>
         ) : (
@@ -526,15 +611,37 @@ export function PageView({
               >
                 <DropLineContext.Provider value={dropLine}>
                   <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
-                    <NodeCollection
-                      viewMode={blocksMode}
-                      client={client}
-                      items={blockItems}
-                      tree
-                      editable
-                      onNodeClick={(id) => onOpenPage?.(id)}
-                      onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
-                    />
+                    <div
+                      ref={selectionRootRef}
+                      className="nt-select-surface"
+                      onMouseDownCapture={selectionSurface.onMouseDownCapture}
+                    >
+                      <NodeCollection
+                        viewMode={blocksMode}
+                        client={client}
+                        items={blockItems}
+                        tree
+                        editable
+                        onNodeClick={(id) => onOpenPage?.(id)}
+                        onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
+                      />
+                      {/* §34.19 ghost trailing block: a body whose last child
+                          is non-empty offers a muted "click to add" row —
+                          display-only until the click, which creates a real
+                          empty block and focuses it (never an op by itself).
+                          Outline mode only (prose/cards aren't block lists);
+                          an already-empty last child keeps the affordance
+                          redundant, so it hides. */}
+                      {ghostVisible && (
+                        <button
+                          type="button"
+                          className="nt-ghost-block"
+                          onClick={() => void addTrailingBlock()}
+                        >
+                          Click to add a block
+                        </button>
+                      )}
+                    </div>
                   </SortableContext>
                   {/* The system sections join the same drag context: the Child
                       pages section's read-only rows are droppable (zone-aware —
@@ -551,7 +658,7 @@ export function PageView({
                     />
                   )}
                   {systemSections ?? (
-                    <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+                    <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
                   )}
                 </DropLineContext.Provider>
                 <DragOverlay dropAnimation={null}>
@@ -592,6 +699,9 @@ export function PageView({
             onDeleted?.(node);
           }}
         />
+        {/* §34.19 block multi-selection: the floating group-ops bar rides
+            the page chrome while a selection is live. */}
+        {outliner.selectionEnabled && <SelectionBar client={client} />}
         {exporting !== null && (
           <ExportPageModal
             isOpen

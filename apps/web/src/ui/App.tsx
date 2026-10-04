@@ -240,6 +240,81 @@ export function openTodayKeyHandler(opts: {
 }
 
 /**
+ * Alt+← / Alt+→ — in-app Back/Forward (§34.19 :1136). Desktop browsers use
+ * the same chords for history natively and still deliver keydown to the
+ * page, so preventDefault stops the native jump and window.history drives
+ * the EXISTING nav state: the popstate effect maps the stack entry exactly
+ * like a deep-link navigation. Form fields keep the keystroke (the guard
+ * matches the other global chords); exported for the keymap tests.
+ */
+export function historyNavKeyHandler(): (event: KeyboardEvent) => void {
+  return (event) => {
+    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (event.key === "ArrowLeft") window.history.back();
+    else window.history.forward();
+  };
+}
+
+/**
+ * Ctrl/Cmd+N new page, Ctrl/Cmd+, settings, Ctrl/Cmd+\ sidebar toggle —
+ * the §34.19 :1140 keymap-breadth chords. Every chord is guarded from form
+ * fields (the guard matches the other global chords). Ctrl+N is browser-
+ * reserved on desktop builds (new window), so it fires only where the
+ * browser yields the keystroke; Ctrl+, and Ctrl+\ are unclaimed in
+ * Chrome/Firefox/Safari. Ctrl+Shift+N (quick add) and Ctrl+Shift+T (today)
+ * own their shifted variants; exported for the keymap tests.
+ */
+export function keymapChordHandler(opts: {
+  client: () => AnyClient | null;
+  openPage: (nodeId: string) => void;
+  openSettings: () => void;
+  toggleSidebar: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || event.altKey) return;
+    const key = event.key;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    if (!event.shiftKey && key.toLowerCase() === "n") {
+      const live = opts.client();
+      if (live === null) return;
+      event.preventDefault();
+      void live
+        .createObject({ presentAsMain: true, name: "Untitled" })
+        .then((id) => opts.openPage(id));
+      return;
+    }
+    if (event.shiftKey) return;
+    if (key === ",") {
+      // The panel itself gates on a live session (signed-in user, online);
+      // setting the flag is an honest no-op otherwise.
+      event.preventDefault();
+      opts.openSettings();
+      return;
+    }
+    if (key === "\\") {
+      event.preventDefault();
+      opts.toggleSidebar();
+    }
+  };
+}
+
+/**
  * Initial view: a hub URL in the address bar wins; otherwise the journal
  * feed is the default ("open in journal view") with the device-local
  * "default view" preference overriding it (legacy choices that have no hub
@@ -609,6 +684,25 @@ export function App() {
     const handler = openTodayKeyHandler({
       client: () => clientRef.current,
       openPage,
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Alt+← / Alt+→ — in-app Back/Forward through the history stack (§34.19).
+  useEffect(() => {
+    const handler = historyNavKeyHandler();
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Ctrl/Cmd+N / Ctrl/Cmd+, / Ctrl/Cmd+\ — the §34.19 keymap-breadth chords.
+  useEffect(() => {
+    const handler = keymapChordHandler({
+      client: () => clientRef.current,
+      openPage,
+      openSettings: () => setSettingsOpen(true),
+      toggleSidebar: () => setSidebarOpen((open) => !open),
     });
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);

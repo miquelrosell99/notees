@@ -33,6 +33,7 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { nodeLinkUrl } from "../nodeLink.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { copyToClipboard } from "./modals/clipboard.js";import { notificationStore } from "./ui/notificationStore.js";
+import { refuseClassRemoval } from "./classRemoval.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 
@@ -325,6 +326,8 @@ export function NodeContextMenu({
       label: "Remove from this node",
       icon: "mdi-close-circle-outline",
       onClick: () => {
+        // §34.19: system/journal classes refuse membership removal.
+        if (refuseClassRemoval(node.id)) return;
         if (onRemoveFromOwner !== undefined) onRemoveFromOwner();
         else void client.unassignClass(ownerId, node.id);
       },

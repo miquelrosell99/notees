@@ -6,9 +6,12 @@
  * are wired here: the target section hosts the NodeSelector picker (Page =
  * pages, Block = blocks) and the Display Label field sets an optional
  * per-link `displayText` override (empty = resolve the target's name). URL
- * mode authors external_link tokens. Enter inside the modal saves (capture
- * phase, so it beats button activation) — except inside the embedded node
- * picker, which owns Enter/Escape for its rows; Esc/backdrop close.
+ * mode authors external_link tokens. When the mention's target id resolves
+ * to no node, the target section offers the §34.19 "create page with this
+ * id" heal (the caller-id create path — the mention heals in place, no
+ * retarget write). Enter inside the modal saves (capture phase, so it beats
+ * button activation) — except inside the embedded node picker, which owns
+ * Enter/Escape for its rows; Esc/backdrop close.
  *
  * The modal shell keeps the archived DOM (`.modal-backdrop` > card >
  * `.modal` > `.modal__header` / `.modal__content` / `.modal__footer`); the
@@ -45,6 +48,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { Icon } from "../Icon.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
+import { notificationStore } from "../components/ui/notificationStore.js";
 import "./LinkEditModal.css";
 
 export type LinkMode = "node" | "block" | "url";
@@ -165,6 +169,31 @@ export function LinkEditModal({
   const [pickedNode, setPickedNode] = useState<ClientNode | null>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * §34.19 broken-link heal: the mention's target id resolves to no node —
+   * offer creating the page AT that id (the caller-id create path), so the
+   * mention heals in place instead of being retargeted.
+   */
+  const brokenTargetId =
+    linkMode !== "url" &&
+    currentNodeId != null &&
+    currentNodeId !== "" &&
+    client.getNode(currentNodeId) === undefined
+      ? currentNodeId
+      : null;
+  const createBrokenTarget = () => {
+    if (brokenTargetId === null) return;
+    void client
+      .createObject({ id: brokenTargetId, presentAsMain: true })
+      .catch((error: unknown) => {
+        console.warn("[link-edit] create-with-uuid failed:", error);
+        notificationStore.error("Couldn't create the page", "The id may already be taken.");
+      });
+    // The modal closes; the mention token keeps its targetNodeId and now
+    // resolves — no retarget write needed.
+    onClose();
+  };
+
   useEffect(() => {
     if (isOpen) {
       setLinkMode(initialMode);
@@ -218,8 +247,10 @@ export function LinkEditModal({
 
       const target = e.target as HTMLElement;
       if (!target.closest(".link-edit-modal")) return;
-      // The embedded node picker owns Enter (pick row) and Escape (close).
-      if (target.closest(".node-selector")) return;
+      // The embedded node picker owns Enter (pick row) and Escape (close);
+      // the broken-link heal row's button activates normally (click), it
+      // must not fall into the save path.
+      if (target.closest(".node-selector") || target.closest(".link-edit-modal__broken")) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -304,6 +335,20 @@ export function LinkEditModal({
                         ? (displayNameFromClient(client, currentNodeId) ?? currentNodeId)
                         : "No target selected"}
                   </div>
+                  {brokenTargetId !== null && (
+                    <div className="link-edit-modal__broken">
+                      <span className="link-edit-modal__broken-text">
+                        This page doesn't exist yet.
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--sm"
+                        onClick={createBrokenTarget}
+                      >
+                        Create page with this id
+                      </button>
+                    </div>
+                  )}
                   <NodeSelector
                     client={client}
                     trigger="inline"
