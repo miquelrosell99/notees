@@ -209,3 +209,14 @@
   border-color: var(--color-on-surface-variant);
   color: var(--color-on-surface);
 }
+
+/* §34.19 non-removable system/journal classes: the × becomes a permanent
+   lock (always visible — the hover-reveal contract does not apply), and
+   the click surfaces the honest refusal toast instead of removing. */
+.pill__right-button--locked,
+.pill--hover-reveal-right .pill__right-button--locked {
+  max-width: 1.5rem;
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+  cursor: help;
+}

@@ -48,6 +48,9 @@ import { QueryBlockView } from "./QueryBlockView.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { DropLineContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
+import { Button } from "./components/ui/index.js";
+import { tableClassIdOf } from "./components/tableFamily.js";
+import { addTableColumn, addTableRow, tableColumnCount } from "./components/tableGrid.js";
 
 interface BlockRowProps {
   tree: BlockTreeNode;
@@ -66,9 +69,16 @@ interface BlockRowProps {
    * or collapse). Threaded down the recursion by the view that sets it.
    */
   ignoreCollapse?: boolean | undefined;
+  /**
+   * §34.34 B4 table-row projection: set by the table container's grid branch
+   * on each of its row children. The row root becomes a CSS-subgrid row and
+   * renders ONLY its cell children (each an ordinary editable block) — no
+   * row chrome of its own.
+   */
+  tableRow?: boolean | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCollapse = false }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCollapse = false, tableRow = false }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const {
@@ -80,6 +90,15 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     acknowledgeFocus,
     collapsed,
     toggleCollapse,
+    selectionEnabled,
+    selection,
+    selectionAnchor,
+    setSelectionAnchor,
+    replaceSelection,
+    rangeBetween,
+    toggleSelected,
+    clearSelection,
+    consumeDragClick,
   } = useOutliner();
   const dropLine = useContext(DropLineContext);
   const [editing, setEditing] = useState(false);
@@ -109,11 +128,28 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
 
   const enterEdit = (event: MouseEvent<HTMLDivElement>) => {
     if (editing) return;
+    // A trailing click right after a selection drag must not enter edit mode.
+    if (consumeDragClick()) return;
     if (readOnly) {
       // Read-only projection: clicking the row opens the node.
       openNode(node.id);
       return;
     }
+    // §34.19 block multi-selection: shift+click extends the range from the
+    // anchor, Ctrl/Cmd+click toggles one row — neither enters edit mode.
+    if (selectionEnabled && event.shiftKey) {
+      const anchor = selectionAnchor ?? node.id;
+      setSelectionAnchor(anchor);
+      replaceSelection(new Set(rangeBetween(anchor, node.id)), anchor);
+      return;
+    }
+    if (selectionEnabled && (event.ctrlKey || event.metaKey)) {
+      if (selectionAnchor === null) setSelectionAnchor(node.id);
+      toggleSelected(node.id);
+      return;
+    }
+    // A plain click with a live selection resets it, then edits as usual.
+    if (selection.size > 0) clearSelection();
     setCaret({ x: event.clientX, y: event.clientY });
     setEditing(true);
   };
@@ -126,10 +162,48 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
 
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
+  const selectedClass = selection.has(node.id) ? " nt-block--selected" : "";
+
+  // §34.34 B4: a block carrying the table class renders its children (rows)
+  // as a CSS grid instead of the outline list. The class says what-it-is
+  // (the whiteboard pattern) — the same branch covers read-only projections.
+  const isTableContainer = !tableRow && node.classIds.includes(tableClassIdOf(outlinerClient));
+
+  // Table-row projection: the root is the subgrid row; only the cell blocks
+  // render, each through the ordinary BlockRow path (a cell IS a block — the
+  // existing editor machinery applies). All hooks ran above, so the early
+  // return is safe.
+  if (tableRow) {
+    return (
+      <div
+        className="nt-table-row"
+        ref={setNodeRef}
+        data-block-id={node.id}
+        style={{
+          transform: CSS.Transform.toString(transform),
+          transition,
+          opacity: isDragging ? 0.4 : undefined,
+        }}
+      >
+        <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+          {children.map((child) => (
+            <BlockRow
+              key={child.node.id}
+              tree={child}
+              client={client}
+              resolveName={resolveName}
+              readOnly={readOnly}
+              ignoreCollapse={ignoreCollapse}
+            />
+          ))}
+        </SortableContext>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${dropClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${dropClass}${selectedClass}`}
       ref={setNodeRef}
       data-block-id={node.id}
       style={{
@@ -293,7 +367,64 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
         onClose={() => setGripMenu(null)}
         onOpenNode={openNode}
       />
-      {children.length > 0 && !isCollapsed && (
+      {/* §34.34 B4: a table container's children are the grid rows. The
+          column template comes from the FIRST row's cell count; ragged rows
+          show blanks (fewer cells) or spill into implicit tracks (more).
+          The + Row / + Column hover affordance rides the container (hidden
+          in read-only projections). */}
+      {isTableContainer ? (
+        <>
+          {!readOnly && (
+            <div className="nt-table-toolbar" role="toolbar" aria-label="Table">
+              <Button
+                size="xs"
+                variant="ghost"
+                icon="mdiTableRowPlusAfter"
+                aria-label="Add row"
+                onClick={() => {
+                  void addTableRow(client, node.id, tableColumnCount(children));
+                }}
+              >
+                Row
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                icon="mdiTableColumnPlusAfter"
+                aria-label="Add column"
+                onClick={() => {
+                  void addTableColumn(client, children);
+                }}
+              >
+                Column
+              </Button>
+            </div>
+          )}
+          {children.length > 0 && !isCollapsed && (
+            <div
+              className="nt-table"
+              style={{
+                gridTemplateColumns: `repeat(${tableColumnCount(children)}, minmax(0, 1fr))`,
+              }}
+            >
+              <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+                {children.map((child) => (
+                  <BlockRow
+                    key={child.node.id}
+                    tree={child}
+                    client={client}
+                    resolveName={resolveName}
+                    readOnly={readOnly}
+                    ignoreCollapse={ignoreCollapse}
+                    tableRow
+                  />
+                ))}
+              </SortableContext>
+            </div>
+          )}
+        </>
+      ) : (
+      children.length > 0 && !isCollapsed && (
         <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
           <div className="nt-block-children">
             {children.map((child) => (
@@ -308,6 +439,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             ))}
           </div>
         </SortableContext>
+      )
       )}
     </div>
   );

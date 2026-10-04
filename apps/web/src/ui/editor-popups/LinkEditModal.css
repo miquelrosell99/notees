@@ -288,3 +288,22 @@
 .selection-button__option--selected {
   color: var(--color-on-accent);
 }
+
+/* §34.19 broken-link heal: the mention's target resolves to no node — the
+   row offers creating the page at that exact id (mention heals in place). */
+.link-edit-modal__broken {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  margin-bottom: var(--spacing-2);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+  border-radius: var(--shape-medium);
+  font: var(--font-body-small);
+}
+
+.link-edit-modal__broken-text {
+  flex: 1;
+  min-width: 0;
+}

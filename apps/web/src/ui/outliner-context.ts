@@ -4,7 +4,7 @@
  * surface, satisfied by both WorkspaceClient and the WorkerClient proxy.
  */
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useRef, useState } from "react";
 
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
@@ -15,10 +15,12 @@ import type {
   ClientNode,
   ClientPropertySchema,
   CreateObjectInput,
+  CreatePropertySchemaInput,
   DeleteObjectOptions,
   EffectiveProperty,
   QueryAggregateResult,
   QueryRunResult,
+  SetClassPropertyInput,
   UpdateObjectInput,
 } from "@/core/workspace-client.js";
 
@@ -79,6 +81,19 @@ export interface OutlinerClient {
   setClassExtends(classId: string, parentClassIds: string[]): Promise<void>;
   /** Create a class node (`class.create`) — the `+` picker's create row. */
   createClass(name: string, opts?: { icon?: string; color?: string; id?: string }): Promise<string>;
+  /**
+   * Declare a property schema (`propertySchema.create`) — the class-aware
+   * quick-create's citation self-heal. The context value is always the full
+   * client; these two declarations exist so pickers reached from the editor
+   * (the `@` capture flow) type-check without widening the runtime surface.
+   */
+  createPropertySchema(input: CreatePropertySchemaInput): Promise<string>;
+  /** Bind a schema to a class (`class.property.set`) — the citation self-heal. */
+  setClassProperty(
+    classId: string,
+    propertySchemaId: string,
+    fields: SetClassPropertyInput,
+  ): Promise<void>;
   /** Raw store read (no projection) — the date suggestion's existence check. */
   getNodeRaw(id: string): ClientNode | undefined;
   /** Ensure the year/month/day journal chain; returns the three node ids. */
@@ -147,6 +162,25 @@ export interface OutlinerContextValue {
    */
   openInSidebar: (nodeId: string) => void;
   /**
+   * §34.19 block multi-selection — session-local display state (never an
+   * op): the selected block-id set plus the anchor the range gestures
+   * extend from. `selectionEnabled` is a view-level opt-in (the main page
+   * body enables it; embedded feeds and read-only projections don't), so a
+   * surface without the action bar never accumulates a selection.
+   */
+  selectionEnabled: boolean;
+  selection: ReadonlySet<string>;
+  selectionAnchor: string | null;
+  setSelectionAnchor: (blockId: string | null) => void;
+  replaceSelection: (blockIds: ReadonlySet<string>, anchor?: string | null) => void;
+  toggleSelected: (blockId: string) => void;
+  clearSelection: () => void;
+  /** Document-order inclusive id range between two rows ([] when either id is outside this tree). */
+  rangeBetween: (a: string, b: string) => string[];
+  /** The drag-selection surface sets a one-shot flag on drag end so the trailing click doesn't enter edit mode. */
+  signalDragClick: () => void;
+  consumeDragClick: () => boolean;
+  /**
    * Capture-gesture reads ([[ mention, # chip): filtered node search, the
    * class list, and name resolution for candidate rows. Provided from the
    * full client surface (in-process or worker proxy).
@@ -181,6 +215,8 @@ export function useOutlinerValue(
     openNode?: (nodeId: string) => void;
     openInSidebar?: (nodeId: string) => void;
     ensureTemplateFamily?: () => Promise<void>;
+    /** Block multi-selection opt-in (the main page body sets it). */
+    selection?: boolean;
   },
 ): OutlinerContextValue {
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
@@ -194,14 +230,68 @@ export function useOutlinerValue(
     });
   }, []);
 
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
+  const replaceSelection = useCallback((blockIds: ReadonlySet<string>, anchor?: string | null) => {
+    setSelectedIds(new Set(blockIds));
+    if (anchor !== undefined) setSelectionAnchor(anchor);
+  }, []);
+  const toggleSelected = useCallback((blockId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set<string>());
+    setSelectionAnchor(null);
+  }, []);
+  const dragClickRef = useRef(false);
+  const signalDragClick = useCallback(() => {
+    dragClickRef.current = true;
+  }, []);
+  const consumeDragClick = useCallback(() => {
+    if (!dragClickRef.current) return false;
+    dragClickRef.current = false;
+    return true;
+  }, []);
+
   const tree = client.getBlockTree(rootId);
   const positions = buildOutlinePositions(tree, rootId);
+  // Document-order id list for the range gestures (shift+click / drag).
+  const orderedIds: string[] = [];
+  const flattenIds = (nodes: readonly BlockTreeNode[]): void => {
+    for (const entry of nodes) {
+      orderedIds.push(entry.node.id);
+      flattenIds(entry.children);
+    }
+  };
+  flattenIds(tree);
+  const rangeBetween = (a: string, b: string): string[] => {
+    const ia = orderedIds.indexOf(a);
+    const ib = orderedIds.indexOf(b);
+    if (ia === -1 || ib === -1) return [];
+    const [from, to] = ia <= ib ? [ia, ib] : [ib, ia];
+    return orderedIds.slice(from, to + 1);
+  };
 
   return {
     client,
     rootId,
     openNode: options?.openNode ?? (() => {}),
     openInSidebar: options?.openInSidebar ?? (() => {}),
+    selectionEnabled: options?.selection ?? false,
+    selection: selectedIds,
+    selectionAnchor,
+    setSelectionAnchor,
+    replaceSelection,
+    toggleSelected,
+    clearSelection,
+    rangeBetween,
+    signalDragClick,
+    consumeDragClick,
     positions,
     focusRequest,
     requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
