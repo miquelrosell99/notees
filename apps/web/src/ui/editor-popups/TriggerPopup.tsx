@@ -46,13 +46,10 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: "date", label: "Date", description: "Link to a daily page (e.g. /date feb 14)" },
   { id: "template", label: "Template", description: "Create from a template at the caret" },
   { id: "table", label: "Table", description: "Insert a table — cells are blocks (e.g. /table 5)" },
-  // LOCKSTEP-PENDING (§34.34 protocol batch, part 1): the `code` and `hr`
-  // slash entries land when the GTK/Flutter clients ship the `code_block` /
-  // `hr` token parsers — until then NOTHING may author these tokens into a
-  // live log (older clients fail loud on unknown token types). Registry
-  // rows prepared below; uncomment on the lockstep release:
-  // { id: "code", label: "Code", description: "Convert block to a code block (e.g. /code python)" },
-  // { id: "hr", label: "Divider", description: "Insert a horizontal rule" },
+  // Lockstep SHIPPED (GTK/Flutter v3.0.0): the `code_block` / `hr` token
+  // parsers are released — authoring is live (§34.34 protocol batch).
+  { id: "code", label: "Code", description: "Convert block to a code block (e.g. /code python)" },
+  { id: "hr", label: "Divider", description: "Insert a horizontal rule" },
 ];
 
 /** localStorage-backed command usage counts (frequent commands rank first). */
