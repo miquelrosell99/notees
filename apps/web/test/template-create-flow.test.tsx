@@ -88,12 +88,13 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 }
 
 /**
- * A meeting class with a date binding (quick-create eligibility), a Priority
+ * A gathering class (a generic user class — "meeting" is system vocabulary
+ * since §34.36) with a date binding (quick-create eligibility), a Priority
  * binding whose defaultValue "low" the template overrides with "high" (D2),
  * and the "Sync template" bound via has-template with one child block.
  */
 async function setupMeetingWithTemplate(client: WorkspaceClient) {
-  const meetingId = await client.createClass("meeting");
+  const meetingId = await client.createClass("gathering");
   const whenId = await client.createPropertySchema({ name: "When", type: "date" });
   await client.setClassProperty(meetingId, whenId, { sequence: 0 });
   const prioId = await client.createPropertySchema({ name: "Priority", type: "select" });
@@ -129,16 +130,16 @@ describe("CalendarView create-with-template (§34.25 T2)", () => {
     const onOpenPage = vi.fn();
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
-    const chip = await screen.findByRole("button", { name: "meeting" });
+    const chip = await screen.findByRole("button", { name: "gathering" });
     fireEvent.click(chip);
 
     // The picker names the picked class and lists blank + the bound template.
     // (Scoped within the dialog: a template created today also rows in the
     // calendar's Created section with the same name.)
     const dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toContain("New meeting");
+    expect(dialog.textContent).toContain("New gathering");
     const options = within(dialog);
-    expect(options.getByRole("button", { name: "Blank meeting" })).toBeDefined();
+    expect(options.getByRole("button", { name: "Blank gathering" })).toBeDefined();
     expect(options.getByRole("button", { name: "Sync template" })).toBeDefined();
 
     fireEvent.click(options.getByRole("button", { name: "Sync template" }));
@@ -192,10 +193,10 @@ describe("CalendarView create-with-template (§34.25 T2)", () => {
     const onOpenPage = vi.fn();
     render(<CalendarView client={client} onOpenPage={onOpenPage} />);
 
-    const chip = await screen.findByRole("button", { name: "meeting" });
+    const chip = await screen.findByRole("button", { name: "gathering" });
     fireEvent.click(chip);
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Blank meeting" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Blank gathering" }));
 
     await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));
     const created = client.getNode(onOpenPage.mock.calls[0]![0] as string);

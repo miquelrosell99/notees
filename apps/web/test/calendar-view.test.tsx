@@ -128,7 +128,8 @@ describe("CalendarView", () => {
   it("quick-create chips follow the per-workspace setting", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
-    const classId = await client.createClass("meeting");
+    // A generic user class — "meeting" is system-class vocabulary since §34.36.
+    const classId = await client.createClass("gathering");
     await client.setClassProperty(classId, schemaId, {});
     // Explicit empty list for this workspace: no chips render.
     writeQuickCreateClassesSetting(WS, []);
@@ -141,7 +142,7 @@ describe("CalendarView", () => {
     writeQuickCreateClassesSetting(WS, null);
     const quickCreate = () => within(screen.getByLabelText("Quick create"));
     await waitFor(() => {
-      expect(quickCreate().getByRole("button", { name: "meeting" })).toBeDefined();
+      expect(quickCreate().getByRole("button", { name: "gathering" })).toBeDefined();
     });
     expect(quickCreate().getByRole("button", { name: "task" })).toBeDefined();
   });
@@ -149,11 +150,12 @@ describe("CalendarView", () => {
   it("quick-create chip authors a classed object with the date property and opens it", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
-    const classId = await client.createClass("meeting");
+    // A generic user class — "meeting" is system-class vocabulary since §34.36.
+    const classId = await client.createClass("gathering");
     await client.setClassProperty(classId, schemaId, {});
 
     const { onOpenPage, container } = renderCalendar(client);
-    const chip = await screen.findByRole("button", { name: "meeting" });
+    const chip = await screen.findByRole("button", { name: "gathering" });
     fireEvent.click(chip);
 
     await waitFor(() => expect(onOpenPage).toHaveBeenCalledTimes(1));

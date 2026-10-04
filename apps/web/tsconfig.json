@@ -5,6 +5,9 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "types": ["vite/client"],
+    // The remap-script suite imports scripts/remap-reunion-evento.mts verbatim
+    // (noEmit-only flag — the app build never emits through this config).
+    "allowImportingTsExtensions": true,
     "paths": {
       "@/*": ["./src/*"]
     }

@@ -104,9 +104,16 @@ describe("ensureTaskFamily", () => {
     const bound = client
       .getClassBindings(SYSTEM_CLASS_UUIDS.task)
       .map((binding) => binding.propertySchemaId);
-    for (const id of Object.values(SYSTEM_PROPERTY_UUIDS).filter((id) =>
-      id.startsWith("00000000-0000-0000-0003-"),
-    )) {
+    // The …0003-… workflow block also carries the §34.36 meeting family
+    // (…007–…009) — those bind to the meeting class, not the task class.
+    for (const id of [
+      SYSTEM_PROPERTY_UUIDS.taskStatus,
+      SYSTEM_PROPERTY_UUIDS.taskDeadline,
+      SYSTEM_PROPERTY_UUIDS.taskScheduled,
+      SYSTEM_PROPERTY_UUIDS.taskPriority,
+      SYSTEM_PROPERTY_UUIDS.taskClosedDate,
+      SYSTEM_PROPERTY_UUIDS.taskRecurrence,
+    ] as const) {
       expect(bound).toContain(id);
     }
     expect(taskFamilyPresent(client)).toBe(true);
