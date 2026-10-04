@@ -22,6 +22,7 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { SearchBox } from "../SearchBox.js";
+import { SCRATCHPAD_PAGE_ID } from "./ScratchpadCapture.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
@@ -330,27 +331,45 @@ export function Sidebar({
       <nav className="nt-sidebar-nav">
         {section(
           "Navigation",
-          NAV_ENTRIES.filter(
-            (entry) =>
-              (entry.key !== "journal" || showJournals) &&
-              (entry.key !== "inbox" || showInbox) &&
-              (entry.key !== "calendar" || showCalendar),
-          ).map((entry) => (
-            <li key={entry.key} className="nt-side-row">
+          [
+            ...NAV_ENTRIES.filter(
+              (entry) =>
+                (entry.key !== "journal" || showJournals) &&
+                (entry.key !== "inbox" || showInbox) &&
+                (entry.key !== "calendar" || showCalendar),
+            ).map((entry) => (
+              <li key={entry.key} className="nt-side-row">
+                <button
+                  type="button"
+                  className={
+                    activeNav === entry.key && selectedPageId === null
+                      ? "nt-side-item nt-side-item-active"
+                      : "nt-side-item"
+                  }
+                  onClick={() => onSelectNav(entry.key)}
+                >
+                  <Icon path={entry.icon} size={1} className="nt-side-item-icon" />
+                  <span className="nt-side-item-label">{entry.label}</span>
+                </button>
+              </li>
+            )),
+            // §34.19 :1180 — the seeded scratchpad page opens like a hub row
+            // (its quick-capture input renders at the top of the page).
+            <li key="scratchpad" className="nt-side-row">
               <button
                 type="button"
                 className={
-                  activeNav === entry.key && selectedPageId === null
+                  selectedPageId === SCRATCHPAD_PAGE_ID
                     ? "nt-side-item nt-side-item-active"
                     : "nt-side-item"
                 }
-                onClick={() => onSelectNav(entry.key)}
+                onClick={() => openRow(SCRATCHPAD_PAGE_ID)}
               >
-                <Icon path={entry.icon} size={1} className="nt-side-item-icon" />
-                <span className="nt-side-item-label">{entry.label}</span>
+                <Icon path="mdi-note-outline" size={1} className="nt-side-item-icon" />
+                <span className="nt-side-item-label">Scratchpad</span>
               </button>
-            </li>
-          )),
+            </li>,
+          ],
         )}
         {section(
           "Favorites",

@@ -50,14 +50,18 @@ import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
 import { DateSlotControl, collectMarkedDates } from "./pickers/DateSlotControl.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
-import { SelectionPropertyControl } from "./pickers/SelectionPropertyControl.js";
+import { SelectionPropertyControl, type SelectionOption } from "./pickers/SelectionPropertyControl.js";
+import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { NodePills } from "./NodePills.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
+import { ColorButton } from "./ui/ColorButton.js";
 import { PropertyView } from "./PropertyView.js";
+import { PropertyConvertModal } from "./PropertyConvertModal.js";
+import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -188,12 +192,12 @@ function ObjectPropertyRow({
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** §34.19 :1174 — the asset upload modal (drag-drop + preview + progress). */
+  const [uploadOpen, setUploadOpen] = useState(false);
   /** Pill ref whose annotations section is open (one at a time), null = none. */
   const [annotatingRef, setAnnotatingRef] = useState<string | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const targetClassIds = resolveTargetClassIds(client, propertySchemaId, bindingFilter);
   const assetClassId = targetClassIds?.find((id) => isAssetClass(client, id));
@@ -227,28 +231,10 @@ function ObjectPropertyRow({
     await client.unsetProperty(nodeId, propertySchemaId, idx);
   };
 
-  const uploadFile = async (file: File): Promise<void> => {
-    if (assetClassId === undefined) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const uploaded = await client.uploadAsset(file, file.name);
-      // The Zotero-style asset node: a node carrying the asset class, named by
-      // the uploaded file; the property links to it, node_asset ties it to the
-      // content-addressed bytes.
-      const assetNodeId = await client.createObject({
-        presentAsMain: true,
-        name: uploaded.originalName,
-        classIds: [assetClassId],
-      });
-      await client.attachAsset(assetNodeId, uploaded);
-      await client.setProperty(nodeId, propertySchemaId, { nodeId: assetNodeId }, nextIdx);
-      setPickerOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+  /** §34.19 :1174 — the modal's completion: link the uploaded asset node. */
+  const linkUploadedAsset = async (assetNodeId: string): Promise<void> => {
+    await client.setProperty(nodeId, propertySchemaId, { nodeId: assetNodeId }, nextIdx);
+    setPickerOpen(false);
   };
 
   // No rows (bound, unvalued) is not a default state — no hint.
@@ -274,21 +260,31 @@ function ObjectPropertyRow({
             if (info !== undefined) void client.downloadAsset(info.assetId);
           };
           const linkedNode = client.getNode(ref);
+          // PB1 (SCHEMA.md "Broken references"): the value survives a
+          // deleted/trashed target — render the broken state honestly: the
+          // raw id in a dashed pill (the broken-mention policy), never a
+          // silently empty chip.
+          const broken = linkedNode === undefined;
           return (
             <span
               key={`${propertySchemaId}:${row.idx}`}
               className={
                 row.source === "default"
                   ? "pill pill--default"
-                  : "pill pill--hover-reveal-right"
+                  : `pill pill--hover-reveal-right${broken ? " pill--broken" : ""}`
               }
+              title={broken ? `Broken reference: ${ref}` : undefined}
             >
               {linkedNode?.icon !== null && linkedNode?.icon !== undefined && (
                 <span className="pill__left-icon">
                   <Icon path={linkedNode.icon} size={0.7} />
                 </span>
               )}
-              {isAssetTarget ? (
+              {broken ? (
+                <span className="pill__text nt-chip-label nt-chip-label--broken">
+                  <code>{ref}</code>
+                </span>
+              ) : isAssetTarget ? (
                 <button type="button" className="pill__text nt-chip-label" title="Download" onClick={download}>
                   {pillLabel(ref)}
                 </button>
@@ -367,13 +363,18 @@ function ObjectPropertyRow({
           onClose={() => setPickerOpen(false)}
           searchPlaceholder={`Search ${label}`}
           onAdd={(node) => void linkNode(node.id)}
-          allowCreate={!isAssetTarget}
+          // Asset targets: the create row IS the upload action (allowCreate
+          // must stay true or alwaysShowCreate below can never render — the
+          // row answers "Upload file…" via onCreateNew, never a bare create).
           alwaysShowCreate={isAssetTarget}
           createLabel={isAssetTarget ? "Upload file…" : undefined}
           onCreateNew={
             isAssetTarget
               ? () => {
-                  fileInputRef.current?.click();
+                  // §34.19 :1174 — the upload runs in the AssetUploadModal
+                  // (drag-drop + preview + progress), not a bare file input.
+                  setPickerOpen(false);
+                  setUploadOpen(true);
                 }
               : (name) =>
                   client.createObject({
@@ -384,17 +385,13 @@ function ObjectPropertyRow({
           }
         />
       )}
-      {isAssetTarget && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="nt-file-input"
-          aria-label={`Upload ${label}`}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file !== undefined) void uploadFile(file);
-            event.target.value = "";
-          }}
+      {uploadOpen && assetClassId !== undefined && (
+        <AssetUploadModal
+          isOpen
+          client={client}
+          assetClassId={assetClassId}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={(assetNodeId) => void linkUploadedAsset(assetNodeId)}
         />
       )}
       {error !== null && (
@@ -722,7 +719,7 @@ function SelectPropertyRow({
   propertySchemaId: string;
   label: string;
   multi: boolean;
-  options: Array<{ id: string; label: string }>;
+  options: SelectionOption[];
   rows: EffectiveProperty[];
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
@@ -1221,6 +1218,7 @@ export function PropertiesTable({
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [viewFor, setViewFor] = useState<string | null>(null);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ schemaId: string; x: number; y: number } | null>(null);
 
   const schemaIdFromEvent = (event: React.SyntheticEvent): string | null => {
@@ -1258,6 +1256,12 @@ export function PropertiesTable({
     const readonly = isReadonly(schemaId);
     return [
       { id: "open", label: "Open property", icon: "mdi-open-in-app", onClick: () => setSettingsFor(schemaId) },
+      {
+        id: "history",
+        label: "Value history…",
+        icon: "mdi-history",
+        onClick: () => setHistoryFor(schemaId),
+      },
       {
         id: "empty",
         label: "Empty property",
@@ -1494,6 +1498,17 @@ export function PropertiesTable({
           }}
         />
       )}
+      {historyFor !== null && (
+        <PropertyHistoryModal
+          client={client}
+          nodeId={nodeId}
+          propertySchemaId={historyFor}
+          schemaName={
+            client.listPropertySchemas().find((s) => s.id === historyFor)?.name ?? historyFor
+          }
+          onClose={() => setHistoryFor(null)}
+        />
+      )}
     </>
   );
 }
@@ -1554,6 +1569,7 @@ function PropertySettingsModal({
   onOpenView: () => void;
 }) {
   const schema = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
+  const [convertOpen, setConvertOpen] = useState(false);
   if (schema === undefined) return null;
 
   const patch = (fields: Parameters<AnyClient["updatePropertySchema"]>[1]) =>
@@ -1620,6 +1636,23 @@ function PropertySettingsModal({
             <ul className="nt-property-settings__options">
               {(schema.options ?? []).map((option) => (
                 <li key={option.id} className="nt-property-settings__option">
+                  {/* PG16: per-option color dot (§34.43 grammar; none = uncolored). */}
+                  <ColorButton
+                    color={option.color ?? ""}
+                    size="xs"
+                    showPicker
+                    showNoneOption
+                    aria-label={`Color for ${option.label}`}
+                    onColorChange={(color) =>
+                      patch({
+                        options: (schema.options ?? []).map((o) =>
+                          o.id === option.id
+                            ? { ...o, ...(color !== null ? { color } : {}) }
+                            : o,
+                        ),
+                      })
+                    }
+                  />
                   <input
                     key={`${option.id}:${option.label}`}
                     type="text"
@@ -1669,6 +1702,11 @@ function PropertySettingsModal({
         )}
       </div>
       <div className="modal__footer">
+        {/* PG3: the blessed delete+recreate conversion flow (one honest
+            flow — Capacities-style keep-original machinery is NOT built). */}
+        <Button variant="ghost" onClick={() => setConvertOpen(true)}>
+          Convert…
+        </Button>
         <Button variant="ghost" onClick={onOpenView}>
           Open property
         </Button>
@@ -1676,6 +1714,9 @@ function PropertySettingsModal({
           Close
         </Button>
       </div>
+      {convertOpen && (
+        <PropertyConvertModal client={client} schema={schema} onClose={() => setConvertOpen(false)} />
+      )}
     </Modal>
   );
 }
