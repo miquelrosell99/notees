@@ -456,7 +456,7 @@ describe("L4 breadcrumb edit gestures", () => {
     expect(client.getNode(child)!.parentId).toBe(parent);
   });
 
-  it("the leaf's context menu removes its parent (detach to the root)", async () => {
+  it("the parent crumb's menu removes it (the child detaches to the root)", async () => {
     const client = await seedClient();
     const parent = await client.createObject({ presentAsMain: true, name: "Parent Page" });
     const child = await client.createObject({
@@ -468,16 +468,15 @@ describe("L4 breadcrumb edit gestures", () => {
     render(
       <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
     );
-    // The crumb menu edits the CRUMB's own parentage; detaching the child
-    // from its parent means editing the leaf (the current crumb).
-    fireEvent.contextMenu(screen.getByRole("button", { name: "Child Page" }));
+    // The edit lives on the PARENT's crumb (the edge below it: the child).
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Parent Page" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Remove parent" }));
     await flushWrites();
 
     expect(client.getNode(child)!.parentId).toBeNull();
   });
 
-  it("reassign parent moves the node under the picked page", async () => {
+  it("reassign parent (from the parent crumb) moves the child under the picked page", async () => {
     const client = await seedClient();
     const firstParent = await client.createObject({ presentAsMain: true, name: "First" });
     const secondParent = await client.createObject({ presentAsMain: true, name: "Second" });
@@ -490,7 +489,7 @@ describe("L4 breadcrumb edit gestures", () => {
     render(
       <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
     );
-    fireEvent.contextMenu(screen.getByRole("button", { name: "Child Page" }));
+    fireEvent.contextMenu(screen.getByRole("button", { name: "First" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Reassign parent…" }));
     fireEvent.change(screen.getByLabelText("Search pages…"), { target: { value: "Second" } });
     await flushWrites();
@@ -502,6 +501,31 @@ describe("L4 breadcrumb edit gestures", () => {
     await flushWrites();
 
     expect(client.getNode(child)!.parentId).toBe(secondParent);
+  });
+
+  it("owner rule: the self crumb carries no edit button — the parent crumb carries it", async () => {
+    const client = await seedClient();
+    const parent = await client.createObject({ presentAsMain: true, name: "Parent Page" });
+    const child = await client.createObject({
+      parentId: parent,
+      presentAsMain: true,
+      name: "Child Page",
+    });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
+    );
+    // The parent crumb's edit button names the child below (the edge).
+    expect(
+      screen.getByRole("button", { name: "Edit parent of Child Page" }),
+    ).not.toBeNull();
+    // Self: no edit affordance at all.
+    const self = container.querySelector(".node-breadcrumb-current")!;
+    expect(self.querySelector(".node-breadcrumb-edit")).toBeNull();
+    // The edge edit opens the parent's menu with Open first.
+    fireEvent.click(screen.getByRole("button", { name: "Edit parent of Child Page" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+    // (Navigation is the host's job; the menu opening at all is the assert.)
   });
 
   it("nav-only by default: no edit affordances without the editable prop", async () => {
