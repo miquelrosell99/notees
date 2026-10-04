@@ -72,7 +72,7 @@ describe("Class View", () => {
     // Class chrome: the extends corner's class-only add affordance and the
     // Property definitions section — and the page body tree is present (a
     // class page is a page).
-    expect(screen.getByRole("button", { name: "Add parent class" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Add class extension" })).not.toBeNull();
     expect(screen.getByRole("button", { name: /property definitions/i })).not.toBeNull();
     expect(classRender.container.querySelector(".nt-class")).not.toBeNull();
     // The page body chrome: an empty class offers the first-block affordance.
@@ -82,7 +82,7 @@ describe("Class View", () => {
     render(<NodeView client={client} nodeId={pageId} onOpenNode={() => {}} />);
     expect(screen.getByRole("heading", { name: "A Page" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: /property definitions/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add parent class" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add class extension" })).toBeNull();
   });
 
   it("commits the edited class name via the shared TitleEditor pattern", async () => {
@@ -107,7 +107,7 @@ describe("Class View", () => {
     const parentId = await createTitledClass(client, "agent");
     render(<ClassView client={client} classId={childId} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Add parent class" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add class extension" }));
     const dialog = screen.getByRole("dialog", { name: "Select node" });
     fireEvent.click(within(dialog).getByText("agent"));
     await flushWrites();
@@ -126,7 +126,7 @@ describe("Class View", () => {
 
     expect(screen.getByRole("button", { name: "agent" })).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove parent agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove extension agent" }));
     await flushWrites();
 
     expect(client.getClassParents(childId)).toEqual([]);
@@ -141,7 +141,7 @@ describe("Class View", () => {
     render(<ClassView client={client} classId={bId} />);
 
     // Picking alpha as beta's parent would close the cycle b → a → b.
-    fireEvent.click(screen.getByRole("button", { name: "Add parent class" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add class extension" }));
     const dialog = screen.getByRole("dialog", { name: "Select node" });
     fireEvent.click(within(dialog).getByText("alpha"));
     await flushWrites();

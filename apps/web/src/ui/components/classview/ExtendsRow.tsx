@@ -45,9 +45,9 @@ export function ExtendsRow({
           classIds={parents}
           onOpenPage={onOpenClass}
           sortable={false}
-          addLabel="Add parent class"
+          addLabel="Add class extension"
           excludePickerNodeId={classId}
-          removeLabel={(label) => `Remove parent ${label}`}
+          removeLabel={(label) => `Remove extension ${label}`}
           actions={{
             add: (parentId) => replace([...parents, parentId]),
             remove: (parentId) => replace(parents.filter((id) => id !== parentId)),
