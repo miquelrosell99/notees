@@ -97,6 +97,24 @@ export function coverAssetIdOf(
 }
 
 /**
+ * True when the node COULD carry a cover — one of its classes binds the
+ * cover schema (the `source` binding by design). The AddCover affordance
+ * renders only here; the banner renders when the value is set.
+ */
+export function canHaveCoverOf(
+  client: Pick<AnyClient, "getNode" | "getClassBindings">,
+  nodeId: string,
+): boolean {
+  const node = client.getNode(nodeId);
+  if (node === undefined) return false;
+  return node.classIds.some((classId) =>
+    client
+      .getClassBindings(classId)
+      .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover),
+  );
+}
+
+/**
  * Set a node's cover: the cover property value ({nodeId} → the asset) plus
  * the asset's cover+asset classes — explicit ops, so every client converges
  * on the classIds projection (the property value stays the authority; the
