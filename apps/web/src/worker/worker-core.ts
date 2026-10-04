@@ -11,7 +11,8 @@
  *    getLinkedReferences / getUnlinkedReferences / getChildPages / getChildren
  *    / runQueryAst / runAggregateAst / getBacklinkCount / getChildPageCount / getDisplayName /
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
- *    getAnnotationsForAsset / listPropertySchemas), the write
+ *    getAnnotationsForAsset / listPropertySchemas / isFeatureEnabled /
+ *    listFeatureRows / getFeatureInstanceCount), the write
  *    surface (createObject / updateObject / deleteObject / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset), syncOnce, the realtime
@@ -26,6 +27,8 @@
  */
 
 import type { SqlJsStatic } from "sql.js";
+
+import type { WorkspaceFeature } from "@notees/protocol";
 
 import { Store, validateEnvelope } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
@@ -485,6 +488,8 @@ export class WorkerCore {
         return this.client.getClassChildren(args[0] as string);
       case "getClassMembers":
         return this.client.getClassMembers(args[0] as string);
+      case "getClassMemberCount":
+        return this.client.getClassMemberCount(args[0] as string);
       case "getClassBindings":
         return this.client.getClassBindings(args[0] as string);
       case "getBlockTree":
@@ -529,6 +534,12 @@ export class WorkerCore {
         return this.getBacklinkCount(args[0] as string);
       case "getChildPageCount":
         return this.getChildPageCount(args[0] as string);
+      case "isFeatureEnabled":
+        return this.client.isFeatureEnabled(args[0] as WorkspaceFeature);
+      case "listFeatureRows":
+        return this.client.listFeatureRows();
+      case "getFeatureInstanceCount":
+        return this.client.getFeatureInstanceCount(args[0] as WorkspaceFeature);
       case "getEffectiveProperties":
         return this.getEffectiveProperties(args[0] as string);
       case "getPropertyReferences":

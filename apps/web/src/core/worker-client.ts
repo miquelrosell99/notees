@@ -11,6 +11,7 @@
  * kicks a refresh, so the UI converges on the next notification.
  */
 
+import type { WorkspaceFeature } from "@notees/protocol";
 import type {
   AssetInfo,
   AssetUploadResult,
@@ -289,6 +290,11 @@ export class WorkerClient {
     return this.cachedRead<ClientNode[]>("getClassMembers", [classId], []);
   }
 
+  /** The classed-nodes section badge (same membership projection as a COUNT). */
+  getClassMemberCount(classId: string): number {
+    return this.cachedRead<number>("getClassMemberCount", [classId], 0);
+  }
+
   getClassBindings(classId: string): ClassBinding[] {
     return this.cachedRead<ClassBinding[]>("getClassBindings", [classId], []);
   }
@@ -403,6 +409,21 @@ export class WorkerClient {
 
   getChildPageCount(id: string): number {
     return this.cachedRead<number>("getChildPageCount", [id], 0);
+  }
+
+  /** §34.35 feature-toggle read — absent row means enabled (F2 default). */
+  isFeatureEnabled(feature: WorkspaceFeature): boolean {
+    return this.cachedRead<boolean>("isFeatureEnabled", [feature], true);
+  }
+
+  /** Toggled feature rows only (untoggled features are absent, not listed). */
+  listFeatureRows(): Array<{ feature: string; enabled: boolean }> {
+    return this.cachedRead<Array<{ feature: string; enabled: boolean }>>("listFeatureRows", [], []);
+  }
+
+  /** Active instance count across the feature's managed classes (the F3 disable confirmation). */
+  getFeatureInstanceCount(feature: WorkspaceFeature): number {
+    return this.cachedRead<number>("getFeatureInstanceCount", [feature], 0);
   }
 
   // --- write API & sync (RPC; the worker's "changed" drives the cache refresh) --------

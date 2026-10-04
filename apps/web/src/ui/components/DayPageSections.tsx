@@ -204,6 +204,7 @@ export function DayPageSections({
           client={client}
           title="Tasks"
           icon={<Icon path="mdi-format-list-checks" size={0.9} />}
+          badge={openCount}
           defaultCollapsed
           load={() => tasksPartition}
           emptyText="Nothing scheduled for this day."
@@ -254,6 +255,7 @@ export function DayPageSections({
         <NodeViewSection
           title="Created"
           icon={<Icon path="mdi-plus-circle-outline" size={0.9} />}
+          count={createdRows.length}
           className="nt-section"
           expanded={createdExpanded}
           onExpandedChange={setCreatedExpanded}

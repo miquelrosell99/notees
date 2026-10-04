@@ -372,7 +372,7 @@ describe("PageView day branch", () => {
     render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
     await flushWrites();
     const sections = within(daySections());
-    expect(sections.queryByRole("button", { name: /^tasks$/i })).toBeNull();
+    expect(sections.queryByRole("button", { name: /^tasks( \d+)?$/i })).toBeNull();
     expect(sections.queryByRole("button", { name: /dated/i })).toBeNull();
     expect(sections.queryByRole("button", { name: /created/i })).toBeNull();
     // The date bar still renders (it is chrome, not an aggregation).
@@ -388,7 +388,7 @@ describe("PageView day branch", () => {
     await flushWrites();
 
     render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
-    const toggle = within(daySections()).getByRole("button", { name: /^tasks$/i });
+    const toggle = within(daySections()).getByRole("button", { name: /^tasks( \d+)?$/i });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     // Lazy: no rows while collapsed.
     expect(screen.queryByText("Water the plants")).toBeNull();
@@ -478,7 +478,7 @@ describe("PageView day branch", () => {
     render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} embedded />);
     await flushWrites();
     expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^tasks$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^tasks( \d+)?$/i })).toBeNull();
   });
 });
 
