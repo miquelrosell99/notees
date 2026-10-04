@@ -71,7 +71,7 @@ describe("system seeds (v1 port)", () => {
     }
   });
 
-  it("never reuses withdrawn ids (v1 locator …0018; linkedAuthors …0025)", () => {
+  it("never reuses withdrawn ids (v1 locator …0018; linkedAuthors …0025; cover class …0042)", () => {
     const allIds = [
       ...Object.values(SYSTEM_CLASS_UUIDS),
       ...Object.values(SYSTEM_PROPERTY_UUIDS),
@@ -79,6 +79,10 @@ describe("system seeds (v1 port)", () => {
     ];
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000018");
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000025");
+    // §34.74 (owner 2026-10-04): the cover system class duplicated the cover
+    // property — covers are plain asset-classed nodes. Minted and withdrawn
+    // the same day; never reuse.
+    expect(allIds).not.toContain("00000000-0000-0000-0001-000000000042");
   });
 
   it("citations revision (2026-09-27, FINAL): source family + authorship seeds", () => {

@@ -17,6 +17,11 @@
  * asset-classed node whose bytes render through `assetImageUrl`
  * (views/assetThumbs.ts). This is the first real renderer of the `image`
  * property type (§34.32 PG14's zombie row).
+ *
+ * §34.74 (owner directive 2026-10-04): the dedicated `cover` system class
+ * is DROPPED — it duplicated the property's meaning. A cover is an ordinary
+ * ASSET-classed node; the property value is the only authority and the
+ * card-view "Cover" badge derives from it (isCoverAsset below).
  */
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
@@ -25,9 +30,6 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
-
-/** The cover class id (§34.56 — cover extends asset). */
-export const COVER_CLASS_ID: string = SYSTEM_CLASS_UUIDS.cover;
 
 /** True when the cover schema exists and the source class binds it. */
 export function coverPropertyPresent(
@@ -41,29 +43,23 @@ export function coverPropertyPresent(
 }
 
 /**
- * Author the cover family when missing (idempotent): the `cover` class at
- * its reserved id extending `asset` (§34.56), the image-typed cover schema,
- * and the source binding. The class gives cover assets identity — the
- * "Cover" badge in card views, the asset class's classed-nodes listing,
- * and the future cover-specific logic.
+ * Author the cover family when missing (idempotent): the image-typed cover
+ * schema and the source binding (plus the asset/source class roots on
+ * workspaces that do not carry the seed rows yet — the meetingFamily ensure
+ * pattern). No cover CLASS (§34.74 — withdrawn the day it shipped; covers
+ * are plain asset-classed nodes, the property value is the authority).
  */
-export async function ensureCoverFamily(client: AnyClient): Promise<void> {
+export async function ensureCoverProperty(client: AnyClient): Promise<void> {
   // Fresh workspaces carry no system-class ROWS (the server seed emits
   // property specs only) — author the class roots first (the meetingFamily
-  // ensure does the same for event): the cover family extends asset, and
-  // the schema binds to source.
+  // ensure does the same for event): the schema binds to source.
   for (const [name, id, icon] of [
     ["asset", SYSTEM_CLASS_UUIDS.asset, "mdiPaperclip"],
     ["source", SYSTEM_CLASS_UUIDS.source, "mdiBookshelf"],
-    ["cover", COVER_CLASS_ID, "mdiImageArea"],
   ] as const) {
     if (client.getNode(id) === undefined) {
       await client.createClass(name, { id, icon });
     }
-  }
-  const parents = client.getClassParents(COVER_CLASS_ID);
-  if (!parents.includes(SYSTEM_CLASS_UUIDS.asset)) {
-    await client.setClassExtends(COVER_CLASS_ID, [SYSTEM_CLASS_UUIDS.asset]);
   }
   if (!client.listPropertySchemas().some((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.cover)) {
     await client.createPropertySchema({
@@ -80,9 +76,6 @@ export async function ensureCoverFamily(client: AnyClient): Promise<void> {
     sequence: 7,
   });
 }
-
-/** @deprecated Renamed — ensureCoverFamily authors the class too. */
-export const ensureCoverProperty = ensureCoverFamily;
 
 /** The asset node id a node's cover property points at (null = no cover). */
 export function coverAssetIdOf(
@@ -115,7 +108,8 @@ export function canHaveCoverOf(
 
 /**
  * Upload a file and set it as the node's cover: CAS upload → asset node →
- * cover value + classes. Shared by the picker's upload row and drag-drop.
+ * cover value + the asset class. Shared by the picker's upload row and
+ * drag-drop.
  */
 export async function uploadCoverAsset(
   client: AnyClient,
@@ -134,40 +128,41 @@ export async function uploadCoverAsset(
 
 /**
  * Set a node's cover: the cover property value ({nodeId} → the asset) plus
- * the asset's cover+asset classes — explicit ops, so every client converges
- * on the classIds projection (the property value stays the authority; the
- * class is identity/chrome, derived by the client's cover flows).
+ * the asset's asset class — explicit ops, so every client converges on the
+ * classIds projection (the property value stays the authority).
  */
 export async function setNodeCover(
   client: AnyClient,
   pageId: string,
   assetId: string,
 ): Promise<void> {
-  await ensureCoverFamily(client);
+  await ensureCoverProperty(client);
   await client.setProperty(pageId, SYSTEM_PROPERTY_UUIDS.cover, { nodeId: assetId }, 0);
   const node = client.getNode(assetId);
   const classIds = node?.classIds ?? [];
-  for (const classId of [COVER_CLASS_ID, SYSTEM_CLASS_UUIDS.asset]) {
-    if (!classIds.includes(classId)) await client.assignClass(assetId, classId);
+  if (!classIds.includes(SYSTEM_CLASS_UUIDS.asset)) {
+    await client.assignClass(assetId, SYSTEM_CLASS_UUIDS.asset);
   }
 }
 
-/**
- * Remove a node's cover: unset the value; the asset's cover class follows
- * only when no OTHER node still covers with it (the asset class always
- * stays — the node remains an asset).
- */
+/** Remove a node's cover: unset the value. The asset node stays an asset. */
 export async function clearNodeCover(client: AnyClient, pageId: string): Promise<void> {
-  const assetId = coverAssetIdOf(client, pageId);
   await client.unsetProperty(pageId, SYSTEM_PROPERTY_UUIDS.cover, 0);
-  if (assetId === null) return;
-  const stillUsed = client
-    .getLinkedReferences(assetId)
-    .some(
-      (entry) =>
-        entry.source.id !== pageId &&
-        (coverAssetIdOf(client, entry.source.id) === assetId ||
-          coverAssetIdOf(client, entry.containingPageId) === assetId),
-    );
-  if (!stillUsed) await client.unassignClass(assetId, COVER_CLASS_ID);
+}
+
+/**
+ * §34.74 — the card-view "Cover" badge, DERIVED (the retired cover class
+ * used to carry this identity): an asset wears the badge when any live
+ * node's cover property points at it. The property value is the authority;
+ * the badge follows it with no class to keep in sync.
+ */
+export function isCoverAsset(
+  client: Pick<AnyClient, "getLinkedReferences" | "getEffectiveProperties">,
+  assetId: string,
+): boolean {
+  return client.getLinkedReferences(assetId).some(
+    (entry) =>
+      coverAssetIdOf(client, entry.source.id) === assetId ||
+      coverAssetIdOf(client, entry.containingPageId) === assetId,
+  );
 }
