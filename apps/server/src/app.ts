@@ -215,7 +215,7 @@ export async function buildServer(
     { prefix: "/api" },
   );
 
-  // §34.59 (shares record) — READ-ONLY public page shares: the management
+  // §34.62 (shares record) — READ-ONLY public page shares: the management
   // routes live under /api with per-route owner/admin auth (like the account
   // surface); the public view is a root-level GET, unauthenticated BY DESIGN
   // (unguessable tokens — see routes-shares.ts for the threat note).
