@@ -41,12 +41,13 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the eighteen required fixtures", () => {
+  it("has exactly the twenty-one required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-delete-managed.json",
       "class-extends-cycle.json",
       "class-extends-m2m.json",
+      "class-property-active.json",
       "class-property-defaults.json",
       "class-unassign.json",
       "code-block.json",
@@ -58,7 +59,9 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
       "object-move-before.json",
       "object-move.json",
       "object-restore.json",
+      "property-date-qualifier.json",
       "property-set-lww.json",
+      "property-value-elements.json",
       "typed-link-mark-deleted.json",
       "typed-link-mark.json",
       "workspace-feature-set.json",
@@ -370,6 +373,115 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
       contentAstSchema.safeParse([{ type: "code_block", language: "PyThOn", text: "x" }]).success,
     ).toBe(false);
     expect(contentAstSchema.safeParse([{ type: "hr", color: "red" }]).success).toBe(false);
+  });
+
+  it("property-value-elements fixture: same-idx element adds coexist; remove + re-add ride the OR-Set", () => {
+    const fixture = fixtures.find((f) => f.name === "property-value-elements.json")!;
+    const sets = fixture.envelopes.filter((env) => env.opType === "property.set");
+    const unsets = fixture.envelopes.filter((env) => env.opType === "property.unset");
+    const withId = sets.filter((env) => "elementId" in (env.payload as object));
+    const positional = sets.filter((env) => !("elementId" in (env.payload as object)));
+    // Three element adds with DISTINCT ids…
+    expect(withId.map((env) => (env.payload as { elementId: string }).elementId)).toEqual([
+      "0192a000-0000-7000-8000-000000000721",
+      "0192a000-0000-7000-8000-000000000722",
+      "0192a000-0000-7000-8000-000000000723",
+      // …the last two sharing idx 1 (concurrent adds — both must survive)…
+      "0192a000-0000-7000-8000-000000000722",
+    ]);
+    // …and one legacy positional add (no elementId — the pre-PG5 carrier).
+    expect(positional.map((env) => (env.payload as { idx: number }).idx)).toEqual([4]);
+    expect(
+      withId
+        .slice(1, 3)
+        .map((env) => (env.payload as { idx: number }).idx),
+    ).toEqual([1, 1]);
+    // The unset addresses the element, not a position.
+    expect(unsets).toHaveLength(1);
+    expect(unsets[0]!.payload).toMatchObject({
+      elementId: "0192a000-0000-7000-8000-000000000722",
+    });
+    // Strict schema: a malformed element id is rejected outright.
+    expect(
+      payloadSchemaFor("property.set")!.safeParse({
+        objectId: "0192a000-0000-7000-8000-000000000712",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000711",
+        value: "x",
+        elementId: "not-a-uuid",
+      }).success,
+    ).toBe(false);
+    expect(
+      payloadSchemaFor("property.unset")!.safeParse({
+        objectId: "0192a000-0000-7000-8000-000000000712",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000711",
+        elementId: "not-a-uuid",
+      }).success,
+    ).toBe(false);
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("class-property-active fixture: the disable wins the row LWW race; authored value survives inert", () => {
+    const fixture = fixtures.find((f) => f.name === "class-property-active.json")!;
+    const flips = fixture.envelopes.filter((env) => env.opType === "class.property.set");
+    // Binding → enable (lower HLC, race loser) → disable (newer, winner) →
+    // authored value → re-enable. The active flag rides the row LWW.
+    expect(flips.map((env) => (env.payload as { active?: boolean }).active)).toEqual([
+      undefined,
+      true,
+      false,
+      true,
+    ]);
+    const hlcA = flips[1]!.hlc as { physical: number; logical: number };
+    const hlcB = flips[2]!.hlc as { physical: number; logical: number };
+    expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
+    // Strict schema: a non-boolean active is rejected outright.
+    expect(
+      payloadSchemaFor("class.property.set")!.safeParse({
+        classId: "0192a000-0000-7000-8000-000000000742",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000741",
+        active: "yes",
+      }).success,
+    ).toBe(false);
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("property-date-qualifier fixture: refs ride the chain; the legacy string normalizes on write", () => {
+    const fixture = fixtures.find((f) => f.name === "property-date-qualifier.json")!;
+    const sets = fixture.envelopes.filter((env) => env.opType === "property.set");
+    expect(sets).toHaveLength(2);
+    // idx 0: canonical date-node refs through the year/month/day chain.
+    expect((sets[0]!.payload as { metadata: unknown }).metadata).toEqual({
+      startDate: { nodeId: "00000000-0000-0000-00dd-202003040000" },
+      endDate: { nodeId: "00000000-0000-0000-00dd-202205060000" },
+    });
+    // idx 1: the legacy ISO string (the applier normalizes it to the
+    // deterministic day-node ref — pinned by the store suite).
+    expect((sets[1]!.payload as { metadata: unknown }).metadata).toEqual({
+      startDate: "2019-01-15",
+    });
+    // The chain nodes exist (year/month/day for both qualifier dates).
+    const created = new Set(
+      fixture.envelopes
+        .filter((env) => env.opType === "object.create")
+        .map((env) => (env.payload as { objectId: string }).objectId),
+    );
+    for (const id of [
+      "00000000-0000-0000-00bb-202000000000",
+      "00000000-0000-0000-00aa-202003000000",
+      "00000000-0000-0000-00dd-202003040000",
+      "00000000-0000-0000-00bb-202200000000",
+      "00000000-0000-0000-00aa-202205000000",
+      "00000000-0000-0000-00dd-202205060000",
+      "00000000-0000-0000-00bb-201900000000",
+      "00000000-0000-0000-00aa-201901000000",
+      "00000000-0000-0000-00dd-201901150000",
+    ]) {
+      expect(created.has(id), id).toBe(true);
+    }
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
 });
 

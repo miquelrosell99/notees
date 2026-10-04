@@ -715,6 +715,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         {
           propertySchemaId: PRIORITY,
           idx: 0,
+          // PG5: derived default rows carry a deterministic synthetic element id.
+          elementId: `default:${PRIORITY}:0`,
           schema: {
             id: PRIORITY,
             name: "priority",

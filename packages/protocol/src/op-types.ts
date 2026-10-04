@@ -209,11 +209,18 @@ export const classSetExtendsPayload = z
 
 /**
  * Class → property-schema binding upsert (SCHEMA.md "Class properties"):
- * a configuration row on `class_property` (sequence, flags, defaultValue).
- * Row-level LWW by envelope HLC; on update, omitted fields KEEP their existing
- * values (a partial patch, not a replace) — pass `null` explicitly to clear
- * required/readonly/hideWhenEmpty, or `undefined`-absent to leave untouched.
- * `defaultValue` is any JSON value (JSON-null is a real default; absent = keep).
+ * a configuration row on `class_property` (sequence, flags, defaultValue,
+ * active). Row-level LWW by envelope HLC; on update, omitted fields KEEP
+ * their existing values (a partial patch, not a replace) — pass `null`
+ * explicitly to clear required/readonly/hideWhenEmpty, or
+ * `undefined`-absent to leave untouched. `defaultValue` is any JSON value
+ * (JSON-null is a real default; absent = keep).
+ *
+ * `active` (§34.32 PC4, LOCKSTEP-PENDING): the soft-unbind flag — an
+ * inactive binding row stops contributing to the effective-properties read
+ * (no derived default, no required/readonly/hideWhenEmpty/sequence metadata)
+ * while AUTHORED property values always survive (the row is kept, never
+ * deleted). Omitted = keep the stored flag.
  */
 export const classPropertySetPayload = z
   .object({
@@ -224,6 +231,7 @@ export const classPropertySetPayload = z
     readonly: z.boolean().nullable().optional(),
     hideWhenEmpty: z.boolean().nullable().optional(),
     defaultValue: z.unknown().optional(),
+    active: z.boolean().optional(),
   })
   .strict();
 
@@ -300,13 +308,38 @@ export const propertySchemaDeletePayload = z
   .object({ propertySchemaId: uuid })
   .strict();
 
+/**
+ * Authored property write (SCHEMA.md "Node-backed text properties" / PG5
+ * element identity):
+ *
+ *  - SINGLE-VALUE slots stay LWW at the element: the slot has exactly one
+ *    element whose id is derived deterministically (`node:schema:idx` — the
+ *    pre-PG5 id generation, unchanged), so payloads omit `elementId`.
+ *  - MULTI-VALUE slots are an OR-Set of elements (PG5, LOCKSTEP-PENDING):
+ *    each ADD carries a writer-minted `elementId` (UUIDv7 — identity law), the
+ *    property_value row id IS the element id, and removal addresses the
+ *    element (property.unset {elementId}). Adds never conflict: concurrent
+ *    adds at the same `idx` coexist, ordered by (idx, element id). A remove
+ *    tombstones the element (add-wins: a re-issued add whose HLC is not
+ *    strictly older than the tombstone revives it). `idx` is a per-element
+ *    order hint (writers allocate; gaps never heal — PB4 tolerance stands).
+ *  - A payload WITHOUT `elementId` is the legacy positional carrier (v1 +
+ *    pre-PG5 clients): it addresses the deterministic positional element of
+ *    its idx — replayed stored logs and old clients keep applying unchanged.
+ *
+ * `metadata` carries per-value qualifiers: for dateQualified schemas the
+ * reserved keys `startDate`/`endDate` are date-node refs
+ * `{ "nodeId": <chain node> }` (§34.32 PC6 — legacy ISO strings read lenient
+ * and normalize to day-node refs on write); any other keys ride as authored.
+ */
 export const propertySetPayload = z
   .object({
     objectId: uuid,
     propertySchemaId: uuid,
     value: z.unknown(),
+    /** PG5 element id — the OR-Set add carrier for multi-value slots. */
+    elementId: uuid.optional(),
     idx: z.number().int().nonnegative().default(0),
-    /** Per-value qualifiers (`since`, `locator`, …) — SCHEMA.md owed work, column reserved. */
     metadata: z.record(z.unknown()).optional(),
   })
   .strict();
@@ -315,6 +348,10 @@ export const propertyUnsetPayload = z
   .object({
     objectId: uuid,
     propertySchemaId: uuid,
+    /** PG5 element id — OR-Set remove of that element (add-wins tombstone).
+     *  Absent = legacy positional remove of the slot's deterministic
+     *  positional element at `idx`. */
+    elementId: uuid.optional(),
     idx: z.number().int().nonnegative().default(0),
   })
   .strict();

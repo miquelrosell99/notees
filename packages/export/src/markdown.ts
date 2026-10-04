@@ -99,6 +99,7 @@ import {
   whiteboardSidecarPath,
 } from "./document.js";
 import type { ExportContext } from "./document.js";
+import { qualifierDisplayOf } from "./document.js";
 import type { ExportOptions, ResolvedExportOptions } from "./options.js";
 import { resolveExportOptions } from "./options.js";
 
@@ -201,7 +202,7 @@ function renderPropertyScalar(property: ExportPropertyValue & { display: string 
   const metadata = property.metadata;
   if (metadata !== undefined && Object.keys(metadata).length > 0) {
     const qualifiers = Object.entries(metadata)
-      .map(([key, entry]) => `${key} ${String(entry)}`)
+      .map(([key, entry]) => `${key} ${qualifierDisplayOf(entry)}`)
       .join(", ");
     base = `${base} (${qualifiers})`;
   }

@@ -23,7 +23,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -190,6 +190,8 @@ CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
 -- the row, so a stale set replayed after a newer one is dropped. Defaults
 -- here are configuration only — the applier never writes property_value rows
 -- for them; the effective-values read model derives them at query time.
+-- 'active' (PC4): the soft-unbind flag — an inactive row stops contributing
+-- to the effective read (no default, no metadata); authored values survive.
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
@@ -198,6 +200,7 @@ CREATE TABLE IF NOT EXISTS class_property (
     readonly INTEGER,
     hide_when_empty INTEGER,
     default_value TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
@@ -207,6 +210,14 @@ CREATE TABLE IF NOT EXISTS class_property (
 CREATE INDEX IF NOT EXISTS idx_class_property_class
     ON class_property (class_id);
 
+-- Authored property values — the LIVE visible rows only (the applier deletes
+-- a row when its element's OR-Set remove wins). The row id IS the element id
+-- (PG5): writer-minted UUIDv7 for element adds, the deterministic composite
+-- 'node:schema:idx' for single-value slots and legacy positional writes. The
+-- pre-v11 UNIQUE(node_id, property_schema_id, idx) is GONE: per-element
+-- identity means concurrent adds at the same idx are DISTINCT elements and
+-- both stay visible — 'idx' is only a per-element order hint (readers order
+-- by (idx, element id); gaps never heal — PB4 tolerance).
 CREATE TABLE IF NOT EXISTS property_value (
     id TEXT PRIMARY KEY,
     node_id TEXT NOT NULL,
@@ -216,11 +227,27 @@ CREATE TABLE IF NOT EXISTS property_value (
     metadata TEXT,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
-    actor_id TEXT,
-    UNIQUE (node_id, property_schema_id, idx)
+    actor_id TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_property_value_node ON property_value (node_id);
+
+-- PG5 OR-Set element tombstones: one row per removed element, carrying the
+-- winning remove's causality. An element is VISIBLE iff its live row exists
+-- and no tombstone carries a strictly-newer (hlc) remove (add-wins: on equal
+-- HLC the add wins regardless of actor). Removes upsert with the
+-- strictly-greater full (hlc, actor) tuple, mirroring class.unassign.
+CREATE TABLE IF NOT EXISTS property_value_element_tombstone (
+    element_id TEXT PRIMARY KEY,
+    node_id TEXT NOT NULL,
+    property_schema_id TEXT NOT NULL,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0,
+    actor_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_property_value_element_tomb_node
+    ON property_value_element_tombstone (node_id);
 
 CREATE TABLE IF NOT EXISTS property_value_tombstone (
     node_id TEXT NOT NULL,
@@ -532,4 +559,66 @@ export function migrate(
         PRIMARY KEY (workspace_id, feature)
     );
   `);
+  // v10 -> v11 (the §34.56 property-wire batch: PG5 element identity + PC4
+  // binding active). Three additive steps, each guarded so a fresh v11
+  // create (which already has them) is untouched:
+  // (1) class_property gains the soft-unbind flag — absent column means the
+  //     pre-PC4 state, which IS active, so the backfill default is 1.
+  const classPropertyColumns = db.prepare("PRAGMA table_info(class_property)").all() as {
+    name: string;
+  }[];
+  if (!classPropertyColumns.some((c) => c.name === "active")) {
+    db.exec("ALTER TABLE class_property ADD COLUMN active INTEGER NOT NULL DEFAULT 1;");
+  }
+  // (2) PG5 element tombstone table (CREATE IF NOT EXISTS is a no-op for
+  //     fresh v11 creates).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS property_value_element_tombstone (
+        element_id TEXT PRIMARY KEY,
+        node_id TEXT NOT NULL,
+        property_schema_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_property_value_element_tomb_node
+        ON property_value_element_tombstone (node_id);
+  `);
+  // (3) property_value: the UNIQUE(node_id, property_schema_id, idx)
+  //     constraint is retired (PG5 — per-element identity allows concurrent
+  //     adds at the same idx; idx is an order hint only). SQLite cannot drop
+  //     a table constraint, so the table is rebuilt (the v8 node-rebuild
+  //     precedent): same columns, no UNIQUE, indexes recreated. Rows copy
+  //     verbatim — the row id remains the (now element) id.
+  const pvIndexes = db.prepare("PRAGMA index_list(property_value)").all() as Array<{
+    name: string;
+    origin: string;
+  }>;
+  if (pvIndexes.some((i) => i.origin === "u")) {
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE property_value_v11 (
+          id TEXT PRIMARY KEY,
+          node_id TEXT NOT NULL,
+          property_schema_id TEXT NOT NULL,
+          value TEXT NOT NULL,
+          idx INTEGER NOT NULL DEFAULT 0,
+          metadata TEXT,
+          hlc_physical INTEGER NOT NULL DEFAULT 0,
+          hlc_logical INTEGER NOT NULL DEFAULT 0,
+          actor_id TEXT
+      );
+      INSERT INTO property_value_v11 (
+          id, node_id, property_schema_id, value, idx, metadata,
+          hlc_physical, hlc_logical, actor_id
+      )
+      SELECT id, node_id, property_schema_id, value, idx, metadata,
+             hlc_physical, hlc_logical, actor_id
+      FROM property_value;
+      DROP TABLE property_value;
+      ALTER TABLE property_value_v11 RENAME TO property_value;
+      CREATE INDEX IF NOT EXISTS idx_property_value_node ON property_value (node_id);
+      PRAGMA foreign_keys = ON;
+    `);
+  }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}
