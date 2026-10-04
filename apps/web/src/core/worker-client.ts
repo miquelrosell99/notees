@@ -45,6 +45,7 @@ import {
   type UserPrefs,
   type UserPrefsSource,
 } from "./workspace-client.js";
+import type { UndoUiState } from "./undo-journal.js";
 import type {
   WorkerInitMessage,
   WorkerRequestMessage,
@@ -624,6 +625,23 @@ export class WorkerClient {
   /** No-op when the worker already booted this workspace (init bootstraps it). */
   async bootstrapWorkspace(workspaceId: string): Promise<void> {
     await this.call("bootstrapWorkspace", [workspaceId]);
+  }
+
+  // --- session undo journal (§34.64; the journal lives worker-side, per tab) ---
+
+  /** Availability + the "Undo <verb>"/"Redo <verb>" labels for chrome. */
+  undoState(): Promise<UndoUiState> {
+    return this.call("undoState", []) as Promise<UndoUiState>;
+  }
+
+  /** Undo the most recent journaled local write; false when the journal is empty. */
+  async undo(): Promise<boolean> {
+    return (await this.call("undo", [])) as boolean;
+  }
+
+  /** Redo the most recently undone entry; false when the redo stack is empty. */
+  async redo(): Promise<boolean> {
+    return (await this.call("redo", [])) as boolean;
   }
 
   /** One push+pull cycle against the relay. */
