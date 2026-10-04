@@ -2809,7 +2809,7 @@ mark {
    more = implicit extra columns). Token-only CSS; the dynamic template
    itself is the one inline style (BlockRow). */
 
-.nt-table {
+.nt-blocktable {
   display: grid;
   /* grid-template-columns is set inline from the first row's cell count. */
   grid-auto-columns: minmax(0, 1fr);
@@ -2818,14 +2818,14 @@ mark {
   border-left: var(--border-width-default, 1px) solid var(--color-outline-variant);
 }
 
-.nt-table-row {
+.nt-blocktable-row {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
 }
 
 /* A cell: the ordinary block root becomes the grid cell. */
-.nt-table-row > .nt-block {
+.nt-blocktable-row > .nt-block {
   min-width: 0;
   padding: 2px var(--spacing-2, 8px);
   border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
@@ -2834,19 +2834,19 @@ mark {
 
 /* Cells keep their usual chrome but the grip only surfaces on hover —
    a table reads as a grid, not a stack of outliner rows. */
-.nt-table-row .nt-block-grip {
+.nt-blocktable-row .nt-block-grip {
   opacity: 0;
 }
 
-.nt-table-row .nt-block:hover > .nt-block-row .nt-block-grip,
-.nt-table-row .nt-block:focus-within > .nt-block-row .nt-block-grip {
+.nt-blocktable-row .nt-block:hover > .nt-block-row .nt-block-grip,
+.nt-blocktable-row .nt-block:focus-within > .nt-block-row .nt-block-grip {
   opacity: 1;
 }
 
 /* The container's hover affordance: + Row / + Column, revealed by hovering
    the container's own row or its grid (not nested tables — the direct-child
    :has keeps it scoped). */
-.nt-table-toolbar {
+.nt-blocktable-toolbar {
   display: flex;
   gap: var(--spacing-1, 4px);
   margin: var(--spacing-1, 4px) 0;
@@ -2854,9 +2854,9 @@ mark {
   transition: opacity 120ms ease;
 }
 
-.nt-block:has(> .nt-block-row:hover) > .nt-table-toolbar,
-.nt-block:has(> .nt-table:hover) > .nt-table-toolbar,
-.nt-table-toolbar:hover,
-.nt-table-toolbar:focus-within {
+.nt-block:has(> .nt-block-row:hover) > .nt-blocktable-toolbar,
+.nt-block:has(> .nt-blocktable:hover) > .nt-blocktable-toolbar,
+.nt-blocktable-toolbar:hover,
+.nt-blocktable-toolbar:focus-within {
   opacity: 1;
 }
