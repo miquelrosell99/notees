@@ -243,6 +243,17 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
     const row = store.database
       .prepare("SELECT metadata FROM property_value WHERE node_id = ? AND property_schema_id = ?")
       .get(NODE_PAGE, LINKED) as { metadata: string };
-    expect(JSON.parse(row.metadata)).toEqual({ startDate: "2026-01-01", endDate: "2026-12-31" });
+    // PC6 (§34.56): the legacy ISO-string qualifiers normalize ON WRITE to
+    // deterministic day-node refs — the canonical date-node-backed shape.
+    expect(JSON.parse(row.metadata)).toEqual({
+      startDate: { nodeId: "00000000-0000-0000-00dd-202601010000" },
+      endDate: { nodeId: "00000000-0000-0000-00dd-202612310000" },
+    });
+    // …and the effective read returns the refs (panel/export read both shapes).
+    const effective = store.getEffectiveProperties(NODE_PAGE);
+    expect(effective[0]?.metadata).toEqual({
+      startDate: { nodeId: "00000000-0000-0000-00dd-202601010000" },
+      endDate: { nodeId: "00000000-0000-0000-00dd-202612310000" },
+    });
   });
 });

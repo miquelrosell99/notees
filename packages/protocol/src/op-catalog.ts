@@ -93,8 +93,8 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   },
   {
     opType: "class.property.set",
-    description: "Upsert a class→property-schema binding (sequence, flags, defaultValue; omitted fields keep, null clears).",
-    example: { classId: "<uuid>", propertySchemaId: "<schema-uuid>", sequence: 1 },
+    description: "Upsert a class→property-schema binding (sequence, flags, defaultValue, active; omitted fields keep, null clears a flag).",
+    example: { classId: "<uuid>", propertySchemaId: "<schema-uuid>", sequence: 1, active: true },
     affected: "classId",
   },
   {
@@ -123,14 +123,14 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   },
   {
     opType: "property.set",
-    description: "Write an authored property value at an idx (object-typed values are {nodeId} refs).",
-    example: { objectId: "<uuid>", propertySchemaId: "<schema-uuid>", value: "…", idx: 0 },
+    description: "Write an authored property value at an idx (multi-value slots carry a per-element elementId; object-typed values are {nodeId} refs).",
+    example: { objectId: "<uuid>", propertySchemaId: "<schema-uuid>", value: "…", idx: 0, elementId: "<element-uuid>" },
     affected: "objectId",
   },
   {
     opType: "property.unset",
-    description: "Remove an authored property value at an idx.",
-    example: { objectId: "<uuid>", propertySchemaId: "<schema-uuid>", idx: 0 },
+    description: "Remove an authored property value — by elementId (multi-value OR-Set remove) or by idx (legacy positional slot).",
+    example: { objectId: "<uuid>", propertySchemaId: "<schema-uuid>", elementId: "<element-uuid>" },
     affected: "objectId",
   },
   {
