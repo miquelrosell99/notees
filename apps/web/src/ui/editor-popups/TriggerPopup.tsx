@@ -19,7 +19,9 @@
  * converts (text/quote/checkbox), hard_break, the external-URL link editor,
  * and the breadth rows — query (§34.31 B1: insert a query token + open the
  * builder), date (§34.28 #9: typed date → daily-page link), template
- * (§34.25 T3: flat template list instantiated at the caret).
+ * (§34.25 T3: flat template list instantiated at the caret), table
+ * (§34.34 B4: container node classed `table`, one row + three cells; the
+ * typed remainder is the column count).
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -43,6 +45,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: "query", label: "Query", description: "Insert a live query block" },
   { id: "date", label: "Date", description: "Link to a daily page (e.g. /date feb 14)" },
   { id: "template", label: "Template", description: "Create from a template at the caret" },
+  { id: "table", label: "Table", description: "Insert a table — cells are blocks (e.g. /table 5)" },
 ];
 
 /** localStorage-backed command usage counts (frequent commands rank first). */
