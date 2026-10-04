@@ -1,7 +1,7 @@
 /**
  * Property-value shapes — the one-shape-per-type invariant (SCHEMA.md
  * "Node-backed text properties" / "Dates"), enforced fail-loud at the
- * apply-time write path (PB2/PC2, §34.32) and re-checked defensively at
+ * apply-time write path (PB2/PC2/PG6, §34.32) and re-checked defensively at
  * the effective read model (a stored value/default that no longer matches
  * the schema type yields nothing instead of garbage).
  *
@@ -17,12 +17,35 @@
  *    rejected (a scalar is not a node reference).
  *  - date_range: `{ "start": ref|null, "end": ref|null }` — either side
  *    open; each present side is a reference (legacy bare uuid normalized).
+ *  - number: a finite number; a NUMERIC STRING is the v1-migrated legacy
+ *    encoding (live data carries epoch-millis strings — verified against
+ *    the owner's derived store 2026-10-04) and normalizes to a number,
+ *    anything else is rejected.
+ *  - boolean: a boolean. url / email / select: a string. multi_select: an
+ *    array of strings (the option-id list).
+ *  - image: UNCHECKED by design — the type has no defined value shape yet
+ *    (§34.32 PG14's zombie row): live data carries v1 asset-payload records
+ *    and legacy bare uuids, so any shape check would break replay of the
+ *    migrated log. Validation arrives with PG14's owner call.
  *
- * Scalar types (number/boolean/url/email/select/multi_select/image) pass
- * through unchecked here — their validation rides the PG6 batch.
+ * Schema-linked integrity (PG6, asserted when the schema row exists —
+ * unknown schema ids store unchecked, property.set has no schema FK):
+ *  - cardinality: a single-value schema (multi = false) takes idx 0 only
+ *    (asserted by the applier, which owns the payload's idx);
+ *  - datePrecision: a date ref may not claim FINER granularity than the
+ *    schema's ("year" < "month" < "day"; default day — SCHEMA.md "Dates");
+ *  - targetClassFilter: a date/object ref's target must carry one of the
+ *    filter classes (when the filter is declared);
+ *  - target existence: a date/object/date_range ref must resolve to a node
+ *    row (any liveness — trash is a state, not an absence). Text carrier
+ *    refs are NOT existence-checked: PB2 keeps legacy carrier encodings
+ *    read-lenient, and the migrated log carries sixteen of them.
  */
 
+import { parseDateNodeId } from "@notees/domain";
+
 import { PropertyValueShapeError } from "./errors.js";
+import type { StoreDatabase } from "./types.js";
 
 const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -126,4 +149,158 @@ export function isValidDefaultForType(type: string, value: unknown): boolean {
     default:
       return true;
   }
+}
+
+/** The schema row the value validators consult (PG6). */
+export interface PropertySchemaValidationRow {
+  id: string;
+  type: string;
+  multi: number;
+  options: string;
+  targetClassFilter: string | null;
+  datePrecision: string | null;
+}
+
+/** Shape + scalar typing only (no graph checks) — the PG6 extension of
+ *  assertValueShapeForType, keyed off the full schema row. Returns the
+ *  normalized value to store. */
+function assertScalarShapeForType(type: string, value: unknown, opType: string): unknown {
+  if (value === null) return value;
+  switch (type) {
+    case "number": {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      // v1-migrated epoch-millis strings (live-data verified): normalize.
+      if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) {
+        return Number(value);
+      }
+      break;
+    }
+    case "boolean":
+      if (typeof value === "boolean") return value;
+      break;
+    case "url":
+    case "email":
+    case "select":
+      if (typeof value === "string") return value;
+      break;
+    case "multi_select":
+      if (Array.isArray(value) && value.every((v) => typeof v === "string")) return value;
+      break;
+    default:
+      // image and any future type: unchecked (see the file header).
+      return value;
+  }
+  throw new PropertyValueShapeError(
+    `${opType}: value for ${type} schema must be ${
+      type === "number"
+        ? "a finite number"
+        : type === "boolean"
+          ? "a boolean"
+          : type === "multi_select"
+            ? "an array of strings (option ids)"
+            : "a string"
+    } — got ${JSON.stringify(value)}`,
+    opType,
+  );
+}
+
+const DATE_PRECISION_RANK: Record<string, number> = { year: 1, month: 2, day: 3 };
+
+/** Assert a node-typed ref's target honors the schema's graph constraints:
+ *  row existence (any liveness) and the targetClassFilter, plus the date
+ *  precision ceiling for date refs. */
+function assertRefTargetForSchema(
+  db: StoreDatabase,
+  schema: PropertySchemaValidationRow,
+  ref: string,
+  opType: string,
+): void {
+  const target = db.prepare("SELECT class_ids FROM node WHERE id = ?").get(ref) as
+    | { class_ids: string }
+    | undefined;
+  if (target === undefined) {
+    throw new PropertyValueShapeError(
+      `${opType}: value references node ${ref}, which does not exist`,
+      opType,
+    );
+  }
+  if (schema.targetClassFilter !== null) {
+    let filter: unknown;
+    try {
+      filter = JSON.parse(schema.targetClassFilter);
+    } catch {
+      filter = null;
+    }
+    if (Array.isArray(filter) && filter.length > 0) {
+      let classIds: unknown;
+      try {
+        classIds = JSON.parse(target.class_ids);
+      } catch {
+        classIds = [];
+      }
+      const carried = Array.isArray(classIds)
+        ? classIds.filter((id): id is string => typeof id === "string")
+        : [];
+      // Extends-aware membership: the bibliography model filters authors by
+      // `agent` while person/organization EXTEND agent (SCHEMA.md "Citations")
+      // — a carried class satisfies the filter when it equals an entry or
+      // descends from one through class_hierarchy.
+      const allowed = new Set<string>(carried);
+      if (carried.length > 0) {
+        const ancestors = db
+          .prepare(
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id IN (SELECT value FROM json_each(?))",
+          )
+          .all(JSON.stringify(carried)) as Array<{ ancestor_id: string }>;
+        for (const row of ancestors) allowed.add(row.ancestor_id);
+      }
+      if (!filter.some((classId) => typeof classId === "string" && allowed.has(classId))) {
+        throw new PropertyValueShapeError(
+          `${opType}: value target ${ref} does not carry any of the schema's allowed classes`,
+          opType,
+        );
+      }
+    }
+  }
+  if (schema.type === "date" || schema.type === "date_range") {
+    const parsed = parseDateNodeId(ref);
+    if (parsed !== null) {
+      const ceiling = DATE_PRECISION_RANK[schema.datePrecision ?? "day"] ?? 3;
+      if ((DATE_PRECISION_RANK[parsed.precision] ?? 3) > ceiling) {
+        throw new PropertyValueShapeError(
+          `${opType}: ${parsed.precision} date ref claims finer granularity than the schema's "${schema.datePrecision ?? "day"}" precision`,
+          opType,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * PG6: the full apply-time validation for a property.set against a KNOWN
+ * schema row — shape/scalar typing (assertValueShapeForType extended),
+ * graph checks (existence / class filter / date precision) for the
+ * node-typed link family. `null` means "no value" and bypasses everything.
+ * Returns the normalized value to store.
+ */
+export function assertValueForSchema(
+  db: StoreDatabase,
+  schema: PropertySchemaValidationRow,
+  value: unknown,
+  opType: string,
+): unknown {
+  const shaped = assertValueShapeForType(schema.type, value, opType);
+  const typed = assertScalarShapeForType(schema.type, shaped, opType);
+  if (typed === null) return typed;
+  if (schema.type === "date" || schema.type === "object") {
+    const ref = nodeRefOfValue(typed);
+    if (ref !== null) assertRefTargetForSchema(db, schema, ref, opType);
+  } else if (schema.type === "date_range") {
+    const range = typed as { start?: unknown; end?: unknown };
+    for (const side of [range.start, range.end]) {
+      const ref = nodeRefOfValue(side);
+      if (ref !== null) assertRefTargetForSchema(db, schema, ref, opType);
+    }
+  }
+  return typed;
 }

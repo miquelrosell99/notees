@@ -1,0 +1,93 @@
+/**
+ * ActivityLogSection styles — the workspace activity feed: group titles,
+ * name + chips + relative-stamp rows, and the coverage note. Token-only.
+ */
+
+.activity-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4, 16px);
+}
+
+.activity-log__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+}
+
+.activity-log__group-title {
+  margin: 0;
+  font-size: var(--font-size-2xs, 10px);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-section, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.activity-log__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.activity-log__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  min-height: var(--height-md, 32px);
+  padding: 0 var(--spacing-1, 4px);
+  border-radius: var(--shape-small, 6px);
+}
+
+.activity-log__row:hover {
+  background: var(--color-hover-overlay);
+}
+
+.activity-log__row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-on-surface);
+  text-align: left;
+}
+
+.activity-log__row-name:hover {
+  color: var(--color-primary);
+}
+
+.activity-log__chips {
+  display: inline-flex;
+  gap: var(--spacing-1, 4px);
+  flex-shrink: 0;
+}
+
+.activity-log__chip {
+  padding: 0 var(--spacing-2, 8px);
+  border-radius: var(--shape-full, 999px);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-2xs, 10px);
+  letter-spacing: var(--letter-spacing-badge, 0.5px);
+  text-transform: uppercase;
+}
+
+.activity-log__stamp {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: var(--font-size-2xs, 10px);
+  color: var(--color-on-surface-variant);
+}
+
+.activity-log__note {
+  margin: var(--spacing-1, 4px) 0 0;
+  font-size: var(--font-size-2xs, 10px);
+  color: var(--color-on-surface-variant);
+}
