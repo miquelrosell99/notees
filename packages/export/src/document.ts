@@ -18,7 +18,7 @@
  */
 
 import type { ContentAst, InlineToken } from "@notees/protocol";
-import { deriveDisplayName } from "@notees/domain";
+import { deriveDisplayName, parseDateNodeId } from "@notees/domain";
 
 import type { ExportOptions, ResolvedExportOptions } from "./options.js";
 import { resolveExportOptions } from "./options.js";
@@ -34,6 +34,32 @@ export interface ExportPropertyValue {
   value: unknown;
   /** Per-value qualifiers (e.g. `{ since: 1962 }`) rendered `value (since 1962)`. */
   metadata?: Record<string, unknown> | undefined;
+}
+
+/**
+ * One qualifier entry's display text (PC6 read-leniency): a legacy scalar
+ * rides as-is; a date-node ref (the canonical startDate/endDate shape)
+ * formats from the deterministic id — no node lookup, `YYYY-MM-DD` at day
+ * precision (year/month refs format as `YYYY` / `YYYY-MM`); anything else
+ * falls back to String().
+ */
+export function qualifierDisplayOf(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null && "nodeId" in value) {
+    const id = (value as { nodeId: unknown }).nodeId;
+    if (typeof id === "string") {
+      const parsed = parseDateNodeId(id);
+      if (parsed !== null) {
+        const year = String(parsed.year).padStart(4, "0");
+        if (parsed.precision === "year") return year;
+        const month = String(parsed.month).padStart(2, "0");
+        if (parsed.precision === "month") return `${year}-${month}`;
+        return `${year}-${month}-${String(parsed.day).padStart(2, "0")}`;
+      }
+      return id;
+    }
+  }
+  return String(value);
 }
 
 /**

@@ -70,6 +70,7 @@ function authoredProp(
   return {
     propertySchemaId,
     idx,
+    elementId: `element:${propertySchemaId}:${idx}`,
     schema: null,
     value,
     metadata,

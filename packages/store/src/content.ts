@@ -12,7 +12,8 @@
 import { plainTextExcerpt } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
-import { nodeRefOfValue } from "./property-values.js";
+import { nodeRefOfValue, visiblePropertyValueRows } from "./property-values.js";
+import type { StoreDatabase } from "./types.js";
 import type { StoreDatabase } from "./types.js";
 
 export function parseContentAst(raw: string | null | undefined): ContentAst {
@@ -70,13 +71,18 @@ const SEARCH_INDEXED_VALUE_TYPES = new Set([
  * structural — they stay out of the FTS row.
  */
 function propertyValuesPlaintext(db: StoreDatabase, nodeId: string): string {
-  const rows = db
-    .prepare(
-      `SELECT v.value AS value, s.type AS type, s.options AS options
-       FROM property_value v JOIN property_schema s ON s.id = v.property_schema_id
-       WHERE v.node_id = ?`,
-    )
-    .all(nodeId) as Array<{ value: string; type: string; options: string }>;
+  // PG5: only the VISIBLE set indexes (a tombstoned element's text leaves the
+  // row with its element).
+  const rows = visiblePropertyValueRows(db, nodeId)
+    .map((row) => {
+      const schema = db
+        .prepare("SELECT type, options FROM property_schema WHERE id = ?")
+        .get(row.property_schema_id) as { type: string; options: string } | undefined;
+      return schema === undefined
+        ? null
+        : { value: row.value, type: schema.type, options: schema.options };
+    })
+    .filter((row): row is { value: string; type: string; options: string } => row !== null);
   const carrierContent = db.prepare("SELECT content FROM node WHERE id = ?");
   const parts: string[] = [];
   for (const row of rows) {

@@ -5,6 +5,16 @@
  * the effective read model (a stored value/default that no longer matches
  * the schema type yields nothing instead of garbage).
  *
+ * PG5/PC6 (§34.56, the property-wire batch) extend this module with:
+ *  - `visiblePropertyValueRows` — the single visible-set derivation (live
+ *    rows minus slot tombstones minus element tombstones) every read surface
+ *    (effective model, edge index, FTS plaintext, store reads) consults, so
+ *    tombstoned elements can never leak through any path;
+ *  - `normalizeQualifierMetadata` — PC6 normalize-on-write for the reserved
+ *    date-qualifier keys (SCHEMA.md "Dates").
+ */
+
+/**
  * Write shapes by schema type:
  *  - text: a scalar string (the seeded source family carries citekey/isbn/
  *    publisher as plain strings) OR a carrier-block reference
@@ -42,7 +52,7 @@
  *    read-lenient, and the migrated log carries sixteen of them.
  */
 
-import { parseDateNodeId } from "@notees/domain";
+import { dayNodeId, parseDateNodeId } from "@notees/domain";
 
 import { PropertyValueShapeError } from "./errors.js";
 import type { StoreDatabase } from "./types.js";
@@ -159,6 +169,8 @@ export interface PropertySchemaValidationRow {
   options: string;
   targetClassFilter: string | null;
   datePrecision: string | null;
+  /** PC6: 1 = values may carry date-node qualifier refs (startDate/endDate). */
+  dateQualified?: number | null;
 }
 
 /** Shape + scalar typing only (no graph checks) — the PG6 extension of
@@ -303,4 +315,182 @@ export function assertValueForSchema(
     }
   }
   return typed;
+}
+
+// --- PG5 visible-set derivation ------------------------------------------------
+
+/** A live property_value row; `id` IS the element id (PG5). */
+export interface VisiblePropertyValueRow {
+  id: string;
+  node_id: string;
+  property_schema_id: string;
+  value: string;
+  idx: number;
+  metadata: string | null;
+  hlc_physical: number;
+  hlc_logical: number;
+  actor_id: string | null;
+}
+
+/** HLC-only strictly-greater (the add-wins membership comparator: on equal
+ *  (physical, logical) the ADD wins regardless of actor — the classIds `>=`
+ *  convention generalized to the two-table element projection). */
+function hlcStrictlyGreater(
+  a: { hlc_physical: number; hlc_logical: number },
+  b: { hlc_physical: number; hlc_logical: number },
+): boolean {
+  return (
+    a.hlc_physical > b.hlc_physical ||
+    (a.hlc_physical === b.hlc_physical && a.hlc_logical > b.hlc_logical)
+  );
+}
+
+/**
+ * The PG5 visible set for a node (SCHEMA.md "Multi-value element identity"):
+ * live property_value rows minus
+ *  - SLOT-tombstoned rows — the legacy positional path: a
+ *    property_value_tombstone (node, schema, idx) with >= (hlc, actor)
+ *    suppresses any row at that idx (full tuple, the pre-PG5 rule); and
+ *  - ELEMENT-tombstoned rows — a property_value_element_tombstone whose HLC
+ *    is strictly newer than the row's (add-wins: equal HLC keeps the row).
+ *
+ * Every read surface consults this derivation so a removed element is
+ * invisible everywhere at once (effective model, edges, FTS, store reads).
+ * `nodeId` omitted = the whole workspace (schema-wide reads).
+ */
+export function visiblePropertyValueRows(
+  db: StoreDatabase,
+  nodeId?: string,
+): VisiblePropertyValueRow[] {
+  const rows = (
+    nodeId === undefined
+      ? db
+          .prepare(
+            `SELECT id, node_id, property_schema_id, value, idx, metadata,
+                    hlc_physical, hlc_logical, actor_id
+             FROM property_value ORDER BY node_id`,
+          )
+          .all()
+      : db
+          .prepare(
+            `SELECT id, node_id, property_schema_id, value, idx, metadata,
+                    hlc_physical, hlc_logical, actor_id
+             FROM property_value WHERE node_id = ?`,
+          )
+          .all(nodeId)
+  ) as unknown as VisiblePropertyValueRow[];
+  const slotTombstones = (
+    nodeId === undefined
+      ? db
+          .prepare(
+            `SELECT node_id, property_schema_id, idx, hlc_physical, hlc_logical, actor_id
+             FROM property_value_tombstone`,
+          )
+          .all()
+      : db
+          .prepare(
+            `SELECT node_id, property_schema_id, idx, hlc_physical, hlc_logical, actor_id
+             FROM property_value_tombstone WHERE node_id = ?`,
+          )
+          .all(nodeId)
+  ) as Array<{
+    node_id: string;
+    property_schema_id: string;
+    idx: number;
+    hlc_physical: number;
+    hlc_logical: number;
+    actor_id: string | null;
+  }>;
+  const elementTombstones = new Map(
+    (
+      (nodeId === undefined
+        ? db
+            .prepare(
+              `SELECT element_id, hlc_physical, hlc_logical
+               FROM property_value_element_tombstone`,
+            )
+            .all()
+        : db
+            .prepare(
+              `SELECT element_id, hlc_physical, hlc_logical
+               FROM property_value_element_tombstone WHERE node_id = ?`,
+            )
+            .all(nodeId)) as Array<{
+        element_id: string;
+        hlc_physical: number;
+        hlc_logical: number;
+      }>
+    ).map((t) => [t.element_id, t]),
+  );
+
+  return rows.filter((row) => {
+    const elementTombstone = elementTombstones.get(row.id);
+    if (elementTombstone !== undefined && hlcStrictlyGreater(elementTombstone, row)) {
+      return false;
+    }
+    for (const t of slotTombstones) {
+      if (
+        t.node_id === row.node_id &&
+        t.property_schema_id === row.property_schema_id &&
+        t.idx === row.idx &&
+        compareFullTuple(t, row) >= 0
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+/** Full (hlc, actor) tuple comparison, positive when `a` wins — the legacy
+ *  slot-tombstone suppression rule (pre-PG5, unchanged). */
+function compareFullTuple(
+  a: { hlc_physical: number; hlc_logical: number; actor_id: string | null },
+  b: { hlc_physical: number; hlc_logical: number; actor_id: string | null },
+): number {
+  if (a.hlc_physical !== b.hlc_physical) return a.hlc_physical - b.hlc_physical;
+  if (a.hlc_logical !== b.hlc_logical) return a.hlc_logical - b.hlc_logical;
+  const actorA = a.actor_id ?? "";
+  const actorB = b.actor_id ?? "";
+  if (actorA !== actorB) return actorA < actorB ? -1 : 1;
+  return 0;
+}
+
+// --- PC6 date-node-backed qualifiers --------------------------------------------
+
+const QUALIFIER_KEYS = ["startDate", "endDate"] as const;
+
+/**
+ * PC6 normalize-on-write (SCHEMA.md "Dates"): for a dateQualified schema, the
+ * reserved qualifier keys canonicalize to date-node refs
+ * `{ "nodeId": <day chain node> }`. A well-formed `YYYY-MM-DD` string is the
+ * legacy encoding (the pre-PC6 panel wrote input[type=date] values) and
+ * rewrites to the deterministic day-node id — pure value rewriting, no graph
+ * side effects; the ref joins the year/month/day chain whenever the chain
+ * exists and stays existence-lenient until then (the text-carrier precedent).
+ * Non-date strings, refs, other metadata keys, non-qualified schemas, and
+ * unknown schemas all ride through untouched. Returns the metadata to store
+ * (undefined when the payload carried none).
+ */
+export function normalizeQualifierMetadata(
+  schema: PropertySchemaValidationRow | null,
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (metadata === undefined) return undefined;
+  if (schema === null || schema.dateQualified !== 1) return metadata;
+  let changed = false;
+  const normalized: Record<string, unknown> = { ...metadata };
+  for (const key of QUALIFIER_KEYS) {
+    const value = normalized[key];
+    if (typeof value !== "string") continue;
+    let day: string;
+    try {
+      day = dayNodeId(value);
+    } catch {
+      continue; // not a well-formed ISO date — ride through as authored.
+    }
+    normalized[key] = { nodeId: day };
+    changed = true;
+  }
+  return changed ? normalized : metadata;
 }

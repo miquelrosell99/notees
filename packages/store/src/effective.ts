@@ -8,17 +8,20 @@
  * Authored rows always win and survive class removal (design law); derived
  * defaults are computed HERE, never materialized — the applier writes no
  * property_value rows for them, which gives convergence and cleanup for free.
- * Binding conflicts resolve per the SCHEMA.md diamond rule (§34.32 PG4):
- * OWN bindings first (first-class-applied-wins — the class whose OR-Set
- * membership add carries the earliest HLC, exact ties by class id), then
- * INHERITED bindings by shortest extends-path (BFS over class_extends; the
- * class itself is distance 0), ties by the same assignment order.
- * Deterministic on every replica — a pure read over derived tables, no
- * writes, no clocks.
+ * Authored rows come through the PG5 visible-set derivation
+ * (property-values.ts: slot tombstones + element tombstones) and carry their
+ * stable element id. Binding conflicts resolve per the SCHEMA.md diamond rule
+ * (§34.32 PG4): OWN bindings first (first-class-applied-wins — the class
+ * whose OR-Set membership add carries the earliest HLC, exact ties by class
+ * id), then INHERITED bindings by shortest extends-path (BFS over
+ * class_extends; the class itself is distance 0), ties by the same assignment
+ * order — and only ACTIVE rows are candidates (PC4: an inactive binding stops
+ * contributing defaults + metadata while authored values survive, read as
+ * unbound). Deterministic on every replica — a pure read over derived tables,
+ * no writes, no clocks.
  */
 
-import { compareLww } from "./appliers.js";
-import { isValidDefaultForType } from "./property-values.js";
+import { isValidDefaultForType, visiblePropertyValueRows } from "./property-values.js";
 import type { SqliteDB } from "./db.js";
 
 export interface EffectivePropertySchema {
@@ -42,9 +45,13 @@ export interface EffectivePropertySchema {
 export interface EffectiveProperty {
   propertySchemaId: string;
   idx: number;
+  /** PG5: the value's stable element id (the property_value row id) — the
+   *  address multi-value removes target. */
+  elementId: string;
   schema: EffectivePropertySchema | null;
   value: unknown;
-  /** Authored qualifiers (property.set metadata); null for derived defaults. */
+  /** Authored qualifiers (property.set metadata — PC6 date refs or legacy
+   *  ISO strings on dateQualified schemas); null for derived defaults. */
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
   boundBy: string | null;
@@ -54,29 +61,12 @@ export interface EffectiveProperty {
   sequence: number | null;
 }
 
-interface LwwRow {
-  hlc_physical: number;
-  hlc_logical: number;
-  actor_id: string | null;
-}
-
-function rowWinner(row: LwwRow) {
-  return { physical: row.hlc_physical, logical: row.hlc_logical, actor: row.actor_id ?? "" };
-}
-
 interface AuthoredRow {
+  id: string;
   property_schema_id: string;
   value: string;
   idx: number;
   metadata: string | null;
-  hlc_physical: number;
-  hlc_logical: number;
-  actor_id: string | null;
-}
-
-interface TombstoneRow {
-  property_schema_id: string;
-  idx: number;
   hlc_physical: number;
   hlc_logical: number;
   actor_id: string | null;
@@ -93,27 +83,10 @@ function parseJson(raw: string): unknown {
 const flag = (v: number | null): boolean | null => (v === null || v === undefined ? null : v === 1);
 
 export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveProperty[] {
-  // 1. Authored rows, tombstone-suppressed with the same rule the applier
-  //    enforces on write: a tombstone with >= (hlc, actor) blocks the value.
-  const authoredRows = db
-    .prepare(
-      `SELECT property_schema_id, value, idx, metadata, hlc_physical, hlc_logical, actor_id
-       FROM property_value WHERE node_id = ?`,
-    )
-    .all(nodeId) as unknown as AuthoredRow[];
-  const tombstones = db
-    .prepare(
-      `SELECT property_schema_id, idx, hlc_physical, hlc_logical, actor_id
-       FROM property_value_tombstone WHERE node_id = ?`,
-    )
-    .all(nodeId) as unknown as TombstoneRow[];
-  const suppressed = (row: AuthoredRow): boolean =>
-    tombstones.some(
-      (t) =>
-        t.property_schema_id === row.property_schema_id &&
-        t.idx === row.idx &&
-        compareLww(rowWinner(row), rowWinner(t)) <= 0,
-    );
+  // 1. Authored rows through the PG5 visible-set derivation (property-values.ts):
+  //    live rows minus slot tombstones minus element tombstones — the same
+  //    rule the applier enforces on write.
+  const authoredRows = visiblePropertyValueRows(db, nodeId) as unknown as AuthoredRow[];
 
   // 2. The node's classes in assignment order: OR-Set add HLC ascending
   //    (earliest first), ties by class id.
@@ -180,7 +153,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   };
   const bindingStmt = db.prepare(
     `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value
-     FROM class_property WHERE class_id = ?`,
+     FROM class_property WHERE class_id = ? AND active = 1`,
   );
   const candidatesBySchema = new Map<string, BindingCandidate[]>();
   for (const cls of classes) {
@@ -250,19 +223,23 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     }
   }
 
-  // 5. Merge: authored wins per (schema, idx); a winning binding with a
-  //    default and NO authored value at idx 0 derives a default row.
+  // 5. Merge: authored wins per (schema, idx, ELEMENT — PG5: rows at the same
+  //    idx are distinct elements and all surface); a winning ACTIVE binding
+  //    (PC4 — inactive rows never became candidates) with a default and NO
+  //    authored value at idx 0 derives a default row.
   const rows = new Map<string, EffectiveProperty>();
   const push = (key: string, row: EffectiveProperty): void => {
     rows.set(key, row);
   };
+  const shadowedDefaultSchemas = new Set<string>();
 
   for (const authored of authoredRows) {
-    if (suppressed(authored)) continue;
     const winner = winnerBySchema.get(authored.property_schema_id);
-    push(`${authored.property_schema_id}:${authored.idx}`, {
+    if (authored.idx === 0) shadowedDefaultSchemas.add(authored.property_schema_id);
+    push(`${authored.property_schema_id}:${authored.idx}:${authored.id}`, {
       propertySchemaId: authored.property_schema_id,
       idx: authored.idx,
+      elementId: authored.id,
       schema: schemas.get(authored.property_schema_id) ?? null,
       value: parseJson(authored.value),
       metadata: authored.metadata !== null ? (parseJson(authored.metadata) as Record<string, unknown>) : null,
@@ -283,11 +260,11 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     // the type) yields no default rather than a wrong-typed value.
     const schema = schemas.get(schemaId);
     if (schema && !isValidDefaultForType(schema.type, parseJson(binding.default_value))) continue;
-    const key = `${schemaId}:0`;
-    if (rows.has(key)) continue; // authored value at idx 0 shadows the default
-    push(key, {
+    if (shadowedDefaultSchemas.has(schemaId)) continue; // authored at idx 0 shadows the default
+    push(`${schemaId}:0:default`, {
       propertySchemaId: schemaId,
       idx: 0,
+      elementId: `default:${schemaId}:0`,
       schema: schemas.get(schemaId) ?? null,
       value: parseJson(binding.default_value),
       metadata: null,
@@ -301,7 +278,9 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
   }
 
   // 6. Deterministic presentation order: bound rows by binding sequence,
-  //    unbound authored rows last; schema name then idx as the tiebreak.
+  //    unbound authored rows last; schema name then (idx, element id) as the
+  //    tiebreak (PG5: concurrent adds may share an idx — the element id
+  //    orders them identically on every replica).
   const nameOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
   return [...rows.values()].sort((a, b) => {
     const boundDelta = (a.boundBy === null ? 1 : 0) - (b.boundBy === null ? 1 : 0);
@@ -310,6 +289,8 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     if (seqDelta !== 0) return seqDelta;
     const nameDelta = nameOf(a).localeCompare(nameOf(b));
     if (nameDelta !== 0) return nameDelta;
-    return a.idx - b.idx;
+    const idxDelta = a.idx - b.idx;
+    if (idxDelta !== 0) return idxDelta;
+    return a.elementId < b.elementId ? -1 : a.elementId > b.elementId ? 1 : 0;
   });
 }

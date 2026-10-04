@@ -37,7 +37,7 @@ import {
   type WorkspaceFeature,
 } from "@notees/protocol";
 import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/query";
-import { Store, type NodeRow } from "@notees/store";
+import { Store, visiblePropertyValueRows, type NodeRow } from "@notees/store";
 import {
   HttpTransport,
   OfflineTransport,
@@ -206,6 +206,8 @@ export interface ClassBinding {
   /** SCHEMA.md "Dates": schema-row date behavior (null = day / not qualified). */
   datePrecision: DatePrecision | null;
   dateQualified: boolean | null;
+  /** PC4: the soft-unbind flag (false = the binding stops contributing). */
+  active: boolean;
 }
 
 /** Editable fields of a class.property.set write (all optional — patch). */
@@ -215,6 +217,7 @@ export interface SetClassPropertyInput {
   readonly?: boolean | null;
   hideWhenEmpty?: boolean | null;
   defaultValue?: unknown;
+  active?: boolean;
 }
 
 /** A select/multi_select option (PG16 adds the optional §34.43 color). */
@@ -290,6 +293,8 @@ export interface CreatePropertySchemaInput {
 export interface EffectiveProperty {
   propertySchemaId: string;
   idx: number;
+  /** PG5: the value's stable element id — the address multi-value removes target. */
+  elementId: string;
   schema: {
     id: string;
     name: string;
@@ -299,6 +304,7 @@ export interface EffectiveProperty {
     dateQualified: boolean | null;
   } | null;
   value: unknown;
+  /** Authored qualifiers (PC6: date-node refs or legacy ISO strings). */
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
   boundBy: string | null;
@@ -875,7 +881,7 @@ export class WorkspaceClient {
     const rows = this.store.database
       .prepare(
         `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.readonly, cp.hide_when_empty,
-                cp.default_value, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
+                cp.default_value, cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
@@ -914,6 +920,7 @@ export class WorkspaceClient {
           row.date_qualified === null || row.date_qualified === undefined
             ? null
             : row.date_qualified === 1,
+        active: row.binding_active === 0 ? false : true,
       };
     });
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
@@ -935,6 +942,7 @@ export class WorkspaceClient {
         defaultValue: spec.defaultValue ?? null,
         datePrecision: null,
         dateQualified: null,
+        active: true,
       });
     }
     return bindings.sort((a, b) => a.sequence - b.sequence || a.name.localeCompare(b.name));
@@ -1153,9 +1161,7 @@ export class WorkspaceClient {
    */
   private propertyCarrierIdsOf(nodeId: string): Set<string> {
     const propertyRefIds = new Set<string>();
-    for (const row of this.store.database
-      .prepare("SELECT value FROM property_value WHERE node_id = ?")
-      .all(nodeId) as { value: string }[]) {
+    for (const row of visiblePropertyValueRows(this.store.database, nodeId)) {
       try {
         const parsed: unknown = JSON.parse(row.value);
         if (
@@ -1811,6 +1817,7 @@ export class WorkspaceClient {
     if (fields.readonly !== undefined) payload.readonly = fields.readonly;
     if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;
     if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
+    if (fields.active !== undefined) payload.active = fields.active;
     engine.enqueue(this.buildEnvelope("class.property.set", payload, [classId]));
     this.notify();
     this.kickPush();

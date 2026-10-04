@@ -280,24 +280,44 @@ class Compiler {
   }
 
   /**
+   * The property_value suppression predicate shared by every authored read
+   * (the PG5 visible set in SQL): no winning SLOT tombstone (legacy
+   * positional path — full (hlc, actor) tuple) and no strictly-newer
+   * ELEMENT tombstone (the row id IS the element id; add-wins ties).
+   */
+  private static visibleValuePredicate(alias: string): string {
+    return (
+      "NOT EXISTS (\n" +
+      `  SELECT 1 FROM property_value_tombstone t\n` +
+      `  WHERE t.node_id = ${alias}.node_id AND t.property_schema_id = ${alias}.property_schema_id\n` +
+      `    AND t.idx = ${alias}.idx\n` +
+      `    AND (t.hlc_physical, t.hlc_logical, COALESCE(t.actor_id, '')) >=\n` +
+      `        (${alias}.hlc_physical, ${alias}.hlc_logical, COALESCE(${alias}.actor_id, ''))\n` +
+      ")\n" +
+      "AND NOT EXISTS (\n" +
+      `  SELECT 1 FROM property_value_element_tombstone et\n` +
+      `  WHERE et.element_id = ${alias}.id\n` +
+      `    AND (et.hlc_physical, et.hlc_logical) >\n` +
+      `        (${alias}.hlc_physical, ${alias}.hlc_logical)\n` +
+      ")"
+    );
+  }
+
+  /**
    * The effective/authored value at idx 0 of a property for the filtered node
    * (alias `f`) — the same read model as the property conditions: authored
-   * idx-0 rows (tombstone-suppressed) UNION the winning binding's default
-   * when no authored row at idx 0 shadows it (first-class-applied-wins),
-   * surfaced as json_extract(value, '$'). Params per call: three schema ids
-   * (authored filter, binding filter, derived-shadow check), mirroring
-   * propertySql's parameter pattern.
+   * idx-0 rows (visible-set suppressed) UNION the winning ACTIVE binding's
+   * default when no authored row at idx 0 shadows it
+   * (first-class-applied-wins; PC4 inactive bindings never derive), surfaced
+   * as json_extract(value, '$'). Params per call: three schema ids (authored
+   * filter, binding filter, derived-shadow check), mirroring propertySql's
+   * parameter pattern.
    */
   private effectiveValueSql(schemaId: string): string {
     const authored = this.push(schemaId);
     const binding = this.push(schemaId);
     const shadow = this.push(schemaId);
-    const tombstone =
-      "NOT EXISTS (\n  SELECT 1 FROM property_value_tombstone t\n" +
-      "  WHERE t.node_id = pv.node_id AND t.property_schema_id = pv.property_schema_id\n" +
-      "    AND t.idx = pv.idx\n" +
-      "    AND (t.hlc_physical, t.hlc_logical, COALESCE(t.actor_id, '')) >=\n" +
-      "        (pv.hlc_physical, pv.hlc_logical, COALESCE(pv.actor_id, ''))\n)";
+    const tombstone = Compiler.visibleValuePredicate("pv");
     return (
       "(SELECT json_extract(ev.value, '$') FROM (\n" +
       `  SELECT pv.node_id, pv.value FROM property_value pv\n` +
@@ -311,7 +331,7 @@ class Compiler {
       "           ) AS rn\n" +
       "    FROM class_member_set cms\n" +
       "    JOIN class_property cp ON cp.class_id = cms.class_id\n" +
-      `    WHERE cms.present = 1 AND cp.property_schema_id = ${binding}\n` +
+      `    WHERE cms.present = 1 AND cp.property_schema_id = ${binding} AND cp.active = 1\n` +
       "      AND cp.default_value IS NOT NULL\n" +
       "  ) wb\n" +
       "  WHERE wb.rn = 1 AND wb.node_id = f.id\n" +
@@ -537,13 +557,7 @@ class Compiler {
       `  SELECT pv.node_id AS node_id, pv.value AS value\n` +
       `  FROM property_value pv\n` +
       `  WHERE pv.property_schema_id = ${schemaId}\n` +
-      `    AND NOT EXISTS (\n` +
-      `      SELECT 1 FROM property_value_tombstone t\n` +
-      `      WHERE t.node_id = pv.node_id AND t.property_schema_id = pv.property_schema_id\n` +
-      `        AND t.idx = pv.idx\n` +
-      `        AND (t.hlc_physical, t.hlc_logical, COALESCE(t.actor_id, '')) >=\n` +
-      `            (pv.hlc_physical, pv.hlc_logical, COALESCE(pv.actor_id, ''))\n` +
-      `    )\n` +
+      `    AND ${Compiler.visibleValuePredicate("pv")}\n` +
       `)`;
 
     let unions = "SELECT node_id, value FROM authored";
@@ -561,7 +575,7 @@ class Compiler {
         `           ) AS rn\n` +
         `    FROM class_member_set cms\n` +
         `    JOIN class_property cp ON cp.class_id = cms.class_id\n` +
-        `    WHERE cms.present = 1 AND cp.property_schema_id = ${bindingSchemaId}\n` +
+        `    WHERE cms.present = 1 AND cp.property_schema_id = ${bindingSchemaId} AND cp.active = 1\n` +
         `      AND cp.default_value IS NOT NULL\n` +
         `  ) wb\n` +
         `  WHERE wb.rn = 1\n` +
@@ -569,13 +583,7 @@ class Compiler {
         `      SELECT 1 FROM property_value pv\n` +
         `      WHERE pv.node_id = wb.node_id AND pv.property_schema_id = ${authoredSchemaId}\n` +
         `        AND pv.idx = 0\n` +
-        `        AND NOT EXISTS (\n` +
-        `          SELECT 1 FROM property_value_tombstone t\n` +
-        `          WHERE t.node_id = pv.node_id AND t.property_schema_id = pv.property_schema_id\n` +
-        `            AND t.idx = pv.idx\n` +
-        `            AND (t.hlc_physical, t.hlc_logical, COALESCE(t.actor_id, '')) >=\n` +
-        `                (pv.hlc_physical, pv.hlc_logical, COALESCE(pv.actor_id, ''))\n` +
-        `        )\n` +
+        `        AND ${Compiler.visibleValuePredicate("pv")}\n` +
         `    )\n` +
         `)`;
       unions += "\nUNION ALL\nSELECT node_id, value FROM derived";
