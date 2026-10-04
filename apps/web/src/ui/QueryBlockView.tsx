@@ -438,6 +438,11 @@ export function QueryBlockView({
             // The seam type is structural; the runtime object is the full
             // client (both classes satisfy it).
             client={client as unknown as import("./views/index.js").AnyClient}
+            // §34.70: the query result owns ITS pagination — the 200-row
+            // render window (QUERY_RESULT_CAP) widened by the "N more — load
+            // more" button below — so the collection view must not window
+            // again (double-windowing would cut the 200 cap to 100).
+            windowed={false}
             items={queryResultItems(client, result.rows, limit)}
             tableColumns={QUERY_TABLE_COLUMNS}
             onNodeClick={(id) => {

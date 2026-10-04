@@ -110,19 +110,8 @@
   max-width: 100%;
 }
 
-.nt-table-more {
+.nt-window-more {
   margin-top: var(--spacing-2, 8px);
-  border: none;
-  background: none;
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
-  border-radius: var(--radius-sm, 6px);
-  color: var(--color-primary, currentColor);
-  font: inherit;
-  cursor: pointer;
-}
-
-.nt-table-more:hover {
-  background-color: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
 }
 
 /* Toolbar (column selector + sort configurator panels). */

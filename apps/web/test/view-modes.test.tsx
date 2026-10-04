@@ -658,10 +658,10 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Alpha" }));
     expect(document.querySelectorAll(".nt-table-row--selected").length).toBe(1);
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select all rows" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all loaded rows" }));
     expect(document.querySelectorAll(".nt-table-row--selected").length).toBe(3);
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select all rows" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all loaded rows" }));
     expect(document.querySelectorAll(".nt-table-row--selected").length).toBe(0);
   });
 });

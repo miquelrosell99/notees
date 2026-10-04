@@ -8,6 +8,10 @@
  *
  * - FLAT (tasks/assets/…): one card per node — icon + title + type + the
  *   cardProperties row (resolved per node through propertiesOf).
+ *
+ * §34.70: the top-level card set is windowed in both shapes (the shared
+ * useWindowed + ShowMoreButton convention) — the grid renders the loaded
+ * window and names the remaining count at its end.
  */
 
 import { useEffect, useState } from "react";
@@ -22,6 +26,8 @@ import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js
 import { renderStateLabel } from "../renderStateLabel.js";
 import { SelectionButton, Checkbox } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
+import { useWindowed } from "./useWindowed.js";
+import { ShowMoreButton } from "./ShowMoreButton.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
 import { COVER_CLASS_ID } from "../components/coverProperty.js";
@@ -46,9 +52,14 @@ function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeC
     if (event.shiftKey) onNodeShiftClick?.(item.node.id);
     else onNodeClick?.(item.node.id);
   };
+  // §34.70: the top-level card set is the windowed collection (a card's own
+  // children render whole inside it — they are the block's page, not the set).
+  const { visible, remaining, showMore } = useWindowed(items, {
+    enabled: props.windowed ?? true,
+  });
   return (
     <div className="cards-grid">
-      {items.map((item) => {
+      {visible.map((item) => {
         const title = displayNameForSettings(item.node);
         return (
           <article className="node-card" key={item.node.id} data-node-id={item.node.id}>
@@ -75,6 +86,7 @@ function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeC
           </article>
         );
       })}
+      <ShowMoreButton remaining={remaining} onShowMore={showMore} />
     </div>
   );
 }
@@ -198,25 +210,34 @@ export function CoverLayoutToggle({ value, onChange }: { value: CardLayout; onCh
   );
 }
 
-export function CardsView(props: NodeCollectionProps) {
-  const { items, tree = undefined } = props;
-  // The cover layout persists device-locally (§34.27 L1) — one preference
-  // per device shared by every cards/kanban surface; never an op.
-  const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
-  // §34.69 selection export — flat collections only (tree cards are block
-  // contexts, not a node-set export surface).
-  const selection = useViewSelection();
-  if (items.length === 0) return null;
-  if (tree === true || hasChildren(items)) return <TreeCards items={items} props={props} />;
+/** The flat cards body — the window hook lives here (component-scoped). */
+function FlatCards({
+  items,
+  props,
+  coverLayout,
+  onCoverLayout,
+  selection,
+}: {
+  items: NodeCollectionItem[];
+  props: NodeCollectionProps;
+  coverLayout: CardLayout;
+  onCoverLayout: (layout: CardLayout) => void;
+  selection: ReturnType<typeof useViewSelection>;
+}) {
+  // §34.70: the card set is windowed; selection rides the loaded cards
+  // (exports scope to the picked ids, never to the window).
+  const { visible, remaining, showMore } = useWindowed(items, {
+    enabled: props.windowed ?? true,
+  });
   const selectable = props.selectable ?? true;
   return (
     <div>
       <div className="cards-toolbar">
         <SelectionExportControls client={props.client} selection={selection} />
-        <CoverLayoutToggle value={coverLayout} onChange={setCoverLayout} />
+        <CoverLayoutToggle value={coverLayout} onChange={onCoverLayout} />
       </div>
       <div className="cards-grid">
-        {items.map((item) => (
+        {visible.map((item) => (
           <NodeCard
             key={item.node.id}
             item={item}
@@ -232,8 +253,30 @@ export function CardsView(props: NodeCollectionProps) {
             }
           />
         ))}
+        <ShowMoreButton remaining={remaining} onShowMore={showMore} />
       </div>
     </div>
+  );
+}
+
+export function CardsView(props: NodeCollectionProps) {
+  const { items, tree = undefined } = props;
+  // The cover layout persists device-locally (§34.27 L1) — one preference
+  // per device shared by every cards/kanban surface; never an op.
+  const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
+  // §34.69 selection export — flat collections only (tree cards are block
+  // contexts, not a node-set export surface).
+  const selection = useViewSelection();
+  if (items.length === 0) return null;
+  if (tree === true || hasChildren(items)) return <TreeCards items={items} props={props} />;
+  return (
+    <FlatCards
+      items={items}
+      props={props}
+      coverLayout={coverLayout}
+      onCoverLayout={setCoverLayout}
+      selection={selection}
+    />
   );
 }
 
