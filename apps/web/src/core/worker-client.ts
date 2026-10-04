@@ -45,7 +45,7 @@ import {
   type UserPrefs,
   type UserPrefsSource,
 } from "./workspace-client.js";
-import type { UndoUiState } from "./undo-journal.js";
+import type { UndoHistoryEntry, UndoUiState } from "./undo-journal.js";
 import type {
   WorkerInitMessage,
   WorkerRequestMessage,
@@ -632,6 +632,11 @@ export class WorkerClient {
   /** Availability + the "Undo <verb>"/"Redo <verb>" labels for chrome. */
   undoState(): Promise<UndoUiState> {
     return this.call("undoState", []) as Promise<UndoUiState>;
+  }
+
+  /** §34.69 — the browsable history (oldest-first) behind the jump-to menu. */
+  undoHistory(): Promise<UndoHistoryEntry[]> {
+    return this.call("undoHistory", []) as Promise<UndoHistoryEntry[]>;
   }
 
   /** Undo the most recent journaled local write; false when the journal is empty. */

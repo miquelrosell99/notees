@@ -46,7 +46,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import type { ExportOptions } from "@notees/export";
 
-import { useCopiedState } from "./overlayHooks";
+import { useCopiedState } from "./useCopiedState";
 import { Modal } from "../ui/Modal.js";
 import { copyToClipboard } from "./clipboard";
 import { Button } from "../ui/Button.js";

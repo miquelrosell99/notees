@@ -20,13 +20,14 @@ import { BlockRow } from "../BlockRow.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { renderStateLabel } from "../renderStateLabel.js";
-import { SelectionButton } from "../components/ui/index.js";
+import { SelectionButton, Checkbox } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
 import { COVER_CLASS_ID } from "../components/coverProperty.js";
 import { Badge } from "../components/ui/Badge.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
+import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
 import type { CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import "./CardsView.css";
 
@@ -102,10 +103,17 @@ export function NodeCard({
   item,
   props,
   coverLayout = "no-cover",
+  selection,
 }: {
   item: NodeCollectionItem;
   props: NodeCollectionProps;
   coverLayout?: CardLayout;
+  /**
+   * §34.69 selection export: when present, a checkbox rides the card's top
+   * corner and the card highlights while checked. Absent = no selection
+   * chrome (tree cards, surfaces that opt out).
+   */
+  selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
   const { client, onNodeClick, onNodeShiftClick, cardProperties, propertiesOf } = props;
   const icon = nodeIcon(item.node, classIconMap(client.listClasses()));
@@ -115,7 +123,22 @@ export function NodeCard({
     .map((schemaId) => properties.find((p) => p.propertySchemaId === schemaId))
     .filter((prop) => prop !== undefined && propertyDisplayText(client, prop) !== "");
   return (
-    <article className={`node-card node-card--${coverLayout}`} data-node-id={item.node.id}>
+    <article
+      className={`node-card node-card--${coverLayout}${
+        selection?.checked === true ? " node-card--selected" : ""
+      }`}
+      data-node-id={item.node.id}
+    >
+      {selection !== undefined && (
+        <span className="node-card__select" onPointerDown={(event) => event.stopPropagation()}>
+          <Checkbox
+            size="sm"
+            checked={selection.checked}
+            aria-label={`Select ${label}`}
+            onChange={selection.onToggle}
+          />
+        </span>
+      )}
       {item.node.classIds.includes(COVER_CLASS_ID) && (
         <span className="node-card__cover-badge" title="This asset is used as a page cover">
           <Badge variant="neutral" size="sm">Cover</Badge>
@@ -180,16 +203,34 @@ export function CardsView(props: NodeCollectionProps) {
   // The cover layout persists device-locally (§34.27 L1) — one preference
   // per device shared by every cards/kanban surface; never an op.
   const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
+  // §34.69 selection export — flat collections only (tree cards are block
+  // contexts, not a node-set export surface).
+  const selection = useViewSelection();
   if (items.length === 0) return null;
   if (tree === true || hasChildren(items)) return <TreeCards items={items} props={props} />;
+  const selectable = props.selectable ?? true;
   return (
     <div>
       <div className="cards-toolbar">
+        <SelectionExportControls client={props.client} selection={selection} />
         <CoverLayoutToggle value={coverLayout} onChange={setCoverLayout} />
       </div>
       <div className="cards-grid">
         {items.map((item) => (
-          <NodeCard key={item.node.id} item={item} props={props} coverLayout={coverLayout} />
+          <NodeCard
+            key={item.node.id}
+            item={item}
+            props={props}
+            coverLayout={coverLayout}
+            selection={
+              selectable
+                ? {
+                    checked: selection.isSelected(item.node.id),
+                    onToggle: () => selection.toggle(item.node.id),
+                  }
+                : undefined
+            }
+          />
         ))}
       </div>
     </div>

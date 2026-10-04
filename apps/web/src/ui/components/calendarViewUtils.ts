@@ -132,12 +132,26 @@ export interface OpenTaskRow {
    * it is never "overdue" (missed days roll forward to the next occurrence).
    */
   repeat: RecurrenceRule | null;
+  /**
+   * §34.69 — the taskScheduled value's completed occurrence days
+   * (metadata.completedOccurrences; [] for plain tasks). Per-occurrence
+   * completion: the day view's done-toggle on a recurring task records the
+   * DATE here instead of the node-level status, so one occurrence closes
+   * while the series stays open.
+   */
+  completedOccurrences: readonly string[];
+  /**
+   * §34.69 — set by partitionOpenTasks against the viewed day: this row's
+   * occurrence ON THAT DAY is recorded done (a done occurrence still lists,
+   * rendered checked, excluded from the open count).
+   */
+  occurrenceDone: boolean;
 }
 
 export interface PartitionedTasks {
   /** Selected day is AFTER the scheduled day — rendered above scheduled, muted. */
   overdue: OpenTaskRow[];
-  /** Scheduled exactly on the selected day. */
+  /** Scheduled exactly on the selected day (a repeating task lands here on every occurrence day). */
   scheduled: OpenTaskRow[];
 }
 
@@ -149,6 +163,10 @@ export interface PartitionedTasks {
  * §34.63: a repeating task lands in `scheduled` on EVERY occurrence day
  * (its scheduled day is occurrence #0); it never lands in `overdue` —
  * a missed occurrence rolls forward to the next one.
+ * §34.69: an occurrence recorded done (completedOccurrences ∋ selectedIso)
+ * still lists in `scheduled`, flagged `occurrenceDone` — it renders checked
+ * on that day and reopens from there, while every other occurrence stays
+ * open.
  */
 export function partitionOpenTasks(
   rows: readonly OpenTaskRow[],
@@ -158,10 +176,15 @@ export function partitionOpenTasks(
   const scheduled: OpenTaskRow[] = [];
   for (const row of rows) {
     if (row.closed || row.scheduledIso === null) continue;
-    if (row.scheduledIso === selectedIso) scheduled.push(row);
-    else if (row.repeat !== null && occursOnDay(row.repeat, row.scheduledIso, selectedIso)) {
-      scheduled.push(row);
-    } else if (row.repeat === null && row.scheduledIso < selectedIso) overdue.push(row);
+    if (row.repeat !== null && row.completedOccurrences.includes(selectedIso)) {
+      scheduled.push({ ...row, occurrenceDone: true });
+    } else if (row.scheduledIso === selectedIso) {
+      scheduled.push({ ...row, occurrenceDone: false });
+    } else if (row.repeat !== null && occursOnDay(row.repeat, row.scheduledIso, selectedIso)) {
+      scheduled.push({ ...row, occurrenceDone: false });
+    } else if (row.repeat === null && row.scheduledIso < selectedIso) {
+      overdue.push({ ...row, occurrenceDone: false });
+    }
   }
   const byDay = (a: OpenTaskRow, b: OpenTaskRow) =>
     (a.scheduledIso ?? "").localeCompare(b.scheduledIso ?? "") || a.id.localeCompare(b.id);

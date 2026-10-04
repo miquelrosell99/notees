@@ -183,6 +183,13 @@
   color: var(--color-on-surface-variant);
 }
 
+/* §34.69 per-occurrence completion: a done occurrence renders checked and
+   quiet — struck through like a finished item, still listed on its day. */
+.calendar-view__row--done .calendar-view__row-name {
+  text-decoration: line-through;
+  color: var(--color-on-surface-variant);
+}
+
 .calendar-view__row-name {
   flex: 1;
   min-width: 0;

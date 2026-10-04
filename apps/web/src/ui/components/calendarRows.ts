@@ -14,9 +14,11 @@ import {
   SYSTEM_PROPERTY_UUIDS,
   TASK_CLOSED_STATUSES,
   TASK_DEFAULT_STATUS,
+  completedOccurrencesOf,
   dayNodeId,
   parseDateNodeId,
   recurrenceRuleOf,
+  withCompletedOccurrence,
   type RecurrenceRule,
 } from "@notees/domain";
 
@@ -64,6 +66,11 @@ export function taskRowFacts(
     // §34.63: recurrence rides the taskScheduled value's metadata (null for
     // plain tasks; corrupt metadata throws — fail loud, never reads as plain).
     repeat: scheduledRow === undefined ? null : recurrenceRuleOf(scheduledRow.metadata),
+    // §34.69: per-occurrence completion days (metadata.completedOccurrences;
+    // [] for plain tasks — corrupt metadata throws, the fail-loud idiom).
+    completedOccurrences:
+      scheduledRow === undefined ? [] : completedOccurrencesOf(scheduledRow.metadata),
+    occurrenceDone: false, // partitionOpenTasks sets the viewed-day flag.
   };
 }
 
@@ -77,16 +84,50 @@ export function taskRowsOf(
 }
 
 /**
- * The done-toggle every task row shares: property.set of the Done/default
+ * The done-toggle every task row shares. `iso` is the day the toggle
+ * happened on (the Calendar day view and the day-page sections pass their
+ * viewed day).
+ *
+ * A PLAIN task (no recurrence rule): `property.set` of the Done/default
  * option id — exactly the tasks hub's write (§34.28 #4b note; no
  * taskClosedDate anywhere).
+ *
+ * A RECURRING task (§34.69): the node-level status is never touched —
+ * completing the series' status would close every occurrence at once.
+ * Instead the occurrence is recorded in the taskScheduled value's metadata
+ * (`completedOccurrences`, ISO dates): `iso` joins the list (done) or
+ * leaves it (reopen), the value and the `repeat` rule ride through
+ * untouched, and no node is materialized — occurrences stay virtual. A
+ * recurring task toggled WITHOUT a day (the tasks hub's bucket toggle)
+ * falls back to the status write: the hub's buckets are anchor-based and
+ * its toggle means "the whole task", honestly.
  */
 export async function setTaskDone(
   client: AnyClient,
   statusSchema: ClientPropertySchema | undefined,
   id: string,
   done: boolean,
+  iso?: string,
 ): Promise<void> {
+  if (iso !== undefined) {
+    const scheduledRow = client
+      .getEffectiveProperties(id)
+      .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled);
+    const repeats = scheduledRow !== undefined && recurrenceRuleOf(scheduledRow.metadata) !== null;
+    if (repeats) {
+      const metadata = withCompletedOccurrence(scheduledRow!.metadata, iso, done);
+      // The value re-commits verbatim (metadata-only change); PG5 multi-value
+      // slots are element-addressed by idx, so a non-zero idx is preserved.
+      await client.setProperty(
+        id,
+        SYSTEM_PROPERTY_UUIDS.taskScheduled,
+        scheduledRow!.value,
+        scheduledRow!.idx ?? 0,
+        metadata,
+      );
+      return;
+    }
+  }
   if (statusSchema === undefined || statusSchema.options === null) return;
   const targetLabel = done ? ("Done" as const) : TASK_DEFAULT_STATUS;
   const target = statusSchema.options.find((option) => option.label === targetLabel);

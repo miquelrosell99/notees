@@ -24,6 +24,7 @@ import {
   partitionOpenTasks,
   todayIsoLocal,
   weekdayLabel,
+  type OpenTaskRow,
 } from "../src/ui/components/calendarViewUtils.js";
 
 describe("local-day helpers", () => {
@@ -134,22 +135,22 @@ describe("buildOpenTasksAst", () => {
 
 describe("partitionOpenTasks", () => {
   it("buckets scheduled/overdue, drops future and closed rows, sorts by day", () => {
-    const rows = [
-      { id: "a", scheduledIso: "2026-10-02", closed: false, repeat: null },
-      { id: "b", scheduledIso: "2026-09-20", closed: false, repeat: null },
-      { id: "c", scheduledIso: "2026-09-25", closed: false, repeat: null },
-      { id: "d", scheduledIso: "2026-10-03", closed: false, repeat: null }, // future: ignored
-      { id: "e", scheduledIso: "2026-10-02", closed: true, repeat: null }, // closed: ignored
-      { id: "f", scheduledIso: null, closed: false, repeat: null }, // unparsable: ignored
+    const fixtures: OpenTaskRow[] = [
+      { id: "a", scheduledIso: "2026-10-02", closed: false, repeat: null, completedOccurrences: [], occurrenceDone: false },
+      { id: "b", scheduledIso: "2026-09-20", closed: false, repeat: null, completedOccurrences: [], occurrenceDone: false },
+      { id: "c", scheduledIso: "2026-09-25", closed: false, repeat: null, completedOccurrences: [], occurrenceDone: false },
+      { id: "d", scheduledIso: "2026-10-03", closed: false, repeat: null, completedOccurrences: [], occurrenceDone: false }, // future: ignored
+      { id: "e", scheduledIso: "2026-10-02", closed: true, repeat: null, completedOccurrences: [], occurrenceDone: false }, // closed: ignored
+      { id: "f", scheduledIso: null, closed: false, repeat: null, completedOccurrences: [], occurrenceDone: false }, // unparsable: ignored
     ];
-    const { overdue, scheduled } = partitionOpenTasks(rows, "2026-10-02");
+    const { overdue, scheduled } = partitionOpenTasks(fixtures, "2026-10-02");
     expect(overdue.map((row) => row.id)).toEqual(["b", "c"]);
     expect(scheduled.map((row) => row.id)).toEqual(["a"]);
   });
 
   it("treats the selected day itself as scheduled, not overdue", () => {
     const { overdue, scheduled } = partitionOpenTasks(
-      [{ id: "a", scheduledIso: "2026-10-02", closed: false, repeat: null }],
+      [{ id: "a", scheduledIso: "2026-10-02", closed: false, repeat: null, completedOccurrences: [], occurrenceDone: false }],
       "2026-10-02",
     );
     expect(overdue).toHaveLength(0);
@@ -160,9 +161,23 @@ describe("partitionOpenTasks", () => {
     const weekly = { freq: "weekly" as const, interval: 1 };
     const rows = [
       // Anchored 2026-10-04 (a Sunday); viewed day 2026-10-11 is an occurrence.
-      { id: "series", scheduledIso: "2026-10-04", closed: false, repeat: weekly },
+      {
+        id: "series",
+        scheduledIso: "2026-10-04",
+        closed: false,
+        repeat: weekly,
+        completedOccurrences: [],
+        occurrenceDone: false,
+      },
       // A plain task two days past stays overdue — recurrence changed nothing.
-      { id: "plain", scheduledIso: "2026-10-02", closed: false, repeat: null },
+      {
+        id: "plain",
+        scheduledIso: "2026-10-02",
+        closed: false,
+        repeat: null,
+        completedOccurrences: [],
+        occurrenceDone: false,
+      },
     ];
     const { overdue, scheduled } = partitionOpenTasks(rows, "2026-10-11");
     expect(scheduled.map((row) => row.id)).toEqual(["series"]);
@@ -173,6 +188,28 @@ describe("partitionOpenTasks", () => {
     const between = partitionOpenTasks(rows, "2026-10-08");
     expect(between.scheduled.map((row) => row.id)).toEqual([]);
     expect(between.overdue.map((row) => row.id)).toEqual(["plain"]);
+  });
+
+  it("an occurrence recorded done lists checked on its day and reopens nowhere else", () => {
+    const weekly = { freq: "weekly" as const, interval: 1 };
+    const rows = [
+      {
+        id: "series",
+        scheduledIso: "2026-10-04",
+        closed: false,
+        repeat: weekly,
+        completedOccurrences: ["2026-10-11"],
+        occurrenceDone: false,
+      },
+    ];
+    // The recorded day: still one row, flagged done.
+    const onDoneDay = partitionOpenTasks(rows, "2026-10-11");
+    expect(onDoneDay.scheduled.map((row) => row.id)).toEqual(["series"]);
+    expect(onDoneDay.scheduled[0]!.occurrenceDone).toBe(true);
+    // The next occurrence is untouched.
+    const nextOccurrence = partitionOpenTasks(rows, "2026-10-18");
+    expect(nextOccurrence.scheduled.map((row) => row.id)).toEqual(["series"]);
+    expect(nextOccurrence.scheduled[0]!.occurrenceDone).toBe(false);
   });
 });
 
