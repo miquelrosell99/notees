@@ -53,7 +53,7 @@
       "opType": "workspace.feature.set",
       "timestamp": "2026-09-24T12:00:10.200Z",
       "payload": {
-        "feature": "journals",
+        "feature": "events",
         "enabled": false
       }
     },
@@ -72,7 +72,7 @@
       "opType": "workspace.feature.set",
       "timestamp": "2026-09-24T12:00:10.300Z",
       "payload": {
-        "feature": "readItLater",
+        "feature": "sources",
         "enabled": false
       }
     },
@@ -91,7 +91,7 @@
       "opType": "workspace.feature.set",
       "timestamp": "2026-09-24T12:00:10.400Z",
       "payload": {
-        "feature": "readItLater",
+        "feature": "sources",
         "enabled": true
       }
     }

@@ -2032,23 +2032,26 @@ for (const adapter of adapters) {
 }
 
 const TASK_CLASS = "00000000-0000-0000-0001-000000000012";
-const DAY_CLASS = "00000000-0000-0000-0001-000000000005";
+const EVENT_CLASS = "00000000-0000-0000-0001-000000000040";
+const MEETING_CLASS = "00000000-0000-0000-0001-000000000039";
+const BIRTHDAY_CLASS = "00000000-0000-0000-0001-000000000041";
 
 for (const adapter of adapters) {
-  describe(`workspace features on ${adapter.name} (§34.35)`, () => {
+  describe(`workspace features on ${adapter.name} (§34.35/§34.55)`, () => {
     it("F2: an empty table means all enabled; rows list only toggled features", () => {
       const store = Store.open(adapter.makeBackend());
       expect(store.isFeatureEnabled(WS, "tasks")).toBe(true);
-      expect(store.isFeatureEnabled(WS, "journals")).toBe(true);
+      expect(store.isFeatureEnabled(WS, "events")).toBe(true);
+      expect(store.isFeatureEnabled(WS, "meetings")).toBe(true);
       expect(store.listFeatureRows(WS)).toEqual([]);
       expect(store.getFeatureRow(WS, "tasks")).toBeUndefined();
       store.close();
     });
 
-    it("F3: toggle-off archives the managed classes membership-preserving; toggle-on revives", () => {
+    it("F3: toggle-off archives the family membership-preserving; toggle-on revives", () => {
       const store = Store.open(adapter.makeBackend());
       store.apply(env("class.create", { classId: TASK_CLASS, contentAst: [{ type: "text", text: "Task" }] }, 1727200011000));
-      store.apply(env("class.create", { classId: DAY_CLASS, contentAst: [{ type: "text", text: "Day" }] }, 1727200011100));
+      store.apply(env("class.create", { classId: EVENT_CLASS, contentAst: [{ type: "text", text: "Event" }] }, 1727200011100));
       const member = "0192a000-0000-7000-8000-000000000615";
       store.apply(env("object.create", { objectId: member, classIds: [TASK_CLASS], contentAst: [{ type: "text", text: "Buy milk" }] }, 1727200011200));
 
@@ -2056,15 +2059,14 @@ for (const adapter of adapters) {
       expect(store.isFeatureEnabled(WS, "tasks")).toBe(false);
       // The class node + registry row archive; the membership pair survives.
       expect(store.getNode(TASK_CLASS)!.is_active).toBe(0);
-      const registry = store.database.prepare("SELECT active FROM class WHERE id = ?").get(TASK_CLASS) as { active: number };
-      expect(registry.active).toBe(0);
+      expect(registryRow(store, TASK_CLASS).active).toBe(0);
       expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([TASK_CLASS]));
       expect(
         (store.database.prepare("SELECT present FROM class_member_set WHERE node_id = ? AND class_id = ?").get(member, TASK_CLASS) as { present: number }).present,
       ).toBe(1);
-      // Untouched features/classes stay enabled.
-      expect(store.isFeatureEnabled(WS, "journals")).toBe(true);
-      expect(store.getNode(DAY_CLASS)!.is_active).toBe(1);
+      // Untouched families/classes stay enabled.
+      expect(store.isFeatureEnabled(WS, "events")).toBe(true);
+      expect(store.getNode(EVENT_CLASS)!.is_active).toBe(1);
       expect(store.featureInstanceCount(WS, "tasks")).toBe(1);
 
       store.apply(env("workspace.feature.set", { feature: "tasks", enabled: true }, 1727200013000));
@@ -2072,6 +2074,37 @@ for (const adapter of adapters) {
       expect(store.getNode(TASK_CLASS)!.is_active).toBe(1);
       expect(registryRow(store, TASK_CLASS).active).toBe(1);
       expect(store.getNode(member)!.class_ids).toBe(JSON.stringify([TASK_CLASS]));
+      store.close();
+    });
+
+    it("the events cascade: disabling events archives event+meeting+birthday; meetings-off survives an events re-enable", () => {
+      const store = Store.open(adapter.makeBackend());
+      store.apply(env("class.create", { classId: EVENT_CLASS, contentAst: [{ type: "text", text: "Event" }] }, 1727200011000));
+      store.apply(env("class.create", { classId: MEETING_CLASS, contentAst: [{ type: "text", text: "Meeting" }] }, 1727200011100));
+      store.apply(env("class.create", { classId: BIRTHDAY_CLASS, contentAst: [{ type: "text", text: "Birthday" }] }, 1727200011200));
+
+      // Meetings alone off: only the meeting class archives.
+      store.apply(env("workspace.feature.set", { feature: "meetings", enabled: false }, 1727200012000));
+      expect(store.getNode(MEETING_CLASS)!.is_active).toBe(0);
+      expect(store.getNode(EVENT_CLASS)!.is_active).toBe(1);
+      expect(store.getNode(BIRTHDAY_CLASS)!.is_active).toBe(1);
+
+      // Events off: the whole family archives (meeting was already off).
+      store.apply(env("workspace.feature.set", { feature: "events", enabled: false }, 1727200012100));
+      expect(store.getNode(EVENT_CLASS)!.is_active).toBe(0);
+      expect(store.getNode(MEETING_CLASS)!.is_active).toBe(0);
+      expect(store.getNode(BIRTHDAY_CLASS)!.is_active).toBe(0);
+
+      // Events back on: event + birthday revive, meeting stays archived
+      // (its own family is still off — the cascade re-derives per class).
+      store.apply(env("workspace.feature.set", { feature: "events", enabled: true }, 1727200012200));
+      expect(store.getNode(EVENT_CLASS)!.is_active).toBe(1);
+      expect(store.getNode(BIRTHDAY_CLASS)!.is_active).toBe(1);
+      expect(store.getNode(MEETING_CLASS)!.is_active).toBe(0);
+
+      // Meetings back on too: the meeting class revives.
+      store.apply(env("workspace.feature.set", { feature: "meetings", enabled: true }, 1727200012300));
+      expect(store.getNode(MEETING_CLASS)!.is_active).toBe(1);
       store.close();
     });
 
@@ -2137,11 +2170,11 @@ for (const adapter of adapters) {
       const backward = makeAdapterStore();
       backward.applyMany([...fixture].reverse());
       expect(dumpDb(forward)).toEqual(dumpDb(backward));
-      // LWW winners: tasks disabled (higher-HLC phone disable), readItLater
-      // re-enabled, journals disabled.
+      // LWW winners: tasks disabled (higher-HLC phone disable), events
+      // disabled, sources re-enabled.
       expect(forward.isFeatureEnabled(WS, "tasks")).toBe(false);
-      expect(forward.isFeatureEnabled(WS, "journals")).toBe(false);
-      expect(forward.isFeatureEnabled(WS, "readItLater")).toBe(true);
+      expect(forward.isFeatureEnabled(WS, "events")).toBe(false);
+      expect(forward.isFeatureEnabled(WS, "sources")).toBe(true);
       const row = forward.getFeatureRow(WS, "tasks")!;
       expect(row.enabled).toBe(false);
       // The racing enable still ran the family ensure: the task class family

@@ -35,6 +35,7 @@ import { useDeviceSetting } from "./modals/deviceSettings.js";
 import { TemplatePickerModal } from "./modals/TemplatePickerModal.js";
 import { ensureTaskFamily } from "./taskFamily.js";
 import { ensureTemplateProperty, listClassTemplates } from "./templateFamily.js";
+import { isClassFamilyEnabled } from "./featureGates.js";
 import {
   addDaysIso,
   buildCreatedTodayAst,
@@ -236,7 +237,9 @@ export function CalendarView({
     const classes = client
       .listClasses()
       .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    const all = dateChipCandidates(classes, (classId) => client.getClassBindings(classId));
+    const all = dateChipCandidates(classes, (classId) => client.getClassBindings(classId)).filter(
+      (chip) => isClassFamilyEnabled(client, chip.classId),
+    );
     const effective = new Set(
       resolveQuickCreateChipClasses(
         storedChips,
