@@ -164,6 +164,15 @@ In a node's body block-list, exclude direct children that are:
 
 Both are derived (the applier recomputes them; wipe → replay → identical), never stored flags. One mechanism, two uses. Everything else about the children — queries, backlinks, `refset` roll-up, focused view — is unaffected.
 
+## Per-user UI state — favorites & recents (NORMATIVE ruling, owner 2026-10-04, §34.61 on §34.29 #8)
+
+**Favorites and recents are UI preferences, not graph state — they live in the sync server's per-user prefs store, never in the operation log.** The design law "device state is never an op" stands: there is no envelope, no op type, no payload key for them, and no client lockstep (the GTK/Flutter clients have nothing to parse; every client's derived DB semantics are untouched).
+
+- **Store:** the `user_prefs` table on the sync server's relay.db (`user_id` PK → account, `favorites`/`recents` JSON id lists, `updated_at`) — server-side account state like sessions and (§34.59) plugin registry rows, scoped to the authenticated principal (account session or API-key owner; the operator key is not a user).
+- **Surface:** `GET /api/me/prefs` and `PUT /api/me/prefs` (merge patch — each present list replaces its column; the client owns ordering). Lists are uuid-shaped node ids, order-preserving dedupe then caps (favorites ≤ 500, recents ≤ 50, most-recent-first).
+- **Client contract:** clients read the server copy and write through to a device-local cache (`notees.favorites` / `notees.recents`); offline, the cache answers reads and holds writes for the next sync. The cache keys are the same source the palette's Recent section and the sidebar sections read — one list, one truth per user.
+- **Convergence honesty:** last write wins per list; concurrent devices may interleave recents arbitrarily (UI state — approximate recency is acceptable); a device-only local id (written after the last successful push) merges ahead of the server's recents on load, never clobbers.
+
 ## System sections (v1 port, M1 requirement)
 
 Predefined page sections are **named system queries** over the QueryAST runtime (v1 `autoFixSystemQuery` pattern), not bespoke UI: **linked references, unlinked references, child pages, classed nodes, extended-by** ship with fixtures like any op type, and the section registry is plugin-extensible (M3). Owed: the system-query registry, section fixtures, and the per-section projection rules above wired in.
