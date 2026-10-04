@@ -461,3 +461,41 @@ describe("default-mirror sweep on class removal (§34.65, owner rule)", () => {
     ]);
   });
 });
+
+describe("the provenance flag (§34.69, owner directive)", () => {
+  it('"user"-provenance values survive even when they equal the default; "system" values sweep even when they differ', async () => {
+    const client = await seedClient();
+    const statusSchema = await client.createPropertySchema({
+      name: "status",
+      type: "select",
+      options: [
+        { id: "opt-pending", label: "Pending" },
+        { id: "opt-done", label: "Done" },
+      ],
+    });
+    const klass = await client.createClass("taskish");
+    await client.setClassProperty(klass, statusSchema, {
+      sequence: 0,
+      defaultValue: "opt-pending",
+    });
+
+    // Node U: the user EXPLICITLY chose the default — provenance "user" pins it.
+    const nodeU = await client.createObject({ presentAsMain: true, name: "U" });
+    await client.assignClass(nodeU, klass);
+    await client.setProperty(nodeU, statusSchema, "opt-pending", 0, { provenance: "user" });
+    // Node S: a system-materialized value that DIFFERS from the default.
+    const nodeS = await client.createObject({ presentAsMain: true, name: "S" });
+    await client.assignClass(nodeS, klass);
+    await client.setProperty(nodeS, statusSchema, "opt-done", 0, { provenance: "system" });
+
+    await client.unassignClass(nodeU, klass);
+    await client.unassignClass(nodeS, klass);
+    await flushWrites();
+
+    // U keeps its explicit choice (unbound); S loses the system value.
+    expect(client.getEffectiveProperties(nodeU)).toEqual([
+      expect.objectContaining({ value: "opt-pending", source: "authored", boundBy: null }),
+    ]);
+    expect(client.getEffectiveProperties(nodeS)).toEqual([]);
+  });
+});

@@ -245,8 +245,8 @@ describe("/table slash scaffolding", () => {
       const cellEl = container.querySelector(`[data-block-id="${cells[0]!.id}"]`);
       expect(cellEl).not.toBeNull();
       expect(cellEl?.querySelector(".nt-block-text")).not.toBeNull();
-      expect(container.querySelector(".nt-table")).not.toBeNull();
-      expect(container.querySelectorAll(".nt-table-row")).toHaveLength(1);
+      expect(container.querySelector(".nt-blocktable")).not.toBeNull();
+      expect(container.querySelectorAll(".nt-blocktable-row")).toHaveLength(1);
     });
   });
 
@@ -275,10 +275,10 @@ describe("grid render", () => {
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    const grid = container.querySelector<HTMLElement>(".nt-table");
+    const grid = container.querySelector<HTMLElement>(".nt-blocktable");
     expect(grid).not.toBeNull();
     expect(grid?.style.gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))");
-    expect(container.querySelectorAll(".nt-table-row")).toHaveLength(2);
+    expect(container.querySelectorAll(".nt-blocktable-row")).toHaveLength(2);
     // The cells render their content through the ordinary block path.
     expect(screen.getByText("r1c1")).toBeInTheDocument();
     expect(screen.getByText("r2c3")).toBeInTheDocument();
@@ -301,9 +301,9 @@ describe("grid render", () => {
 
     // The template still follows the FIRST row (3); rows render as their own
     // subgrid rows — extra cells spill to implicit tracks, short rows blank.
-    const grid = container.querySelector<HTMLElement>(".nt-table");
+    const grid = container.querySelector<HTMLElement>(".nt-blocktable");
     expect(grid?.style.gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))");
-    expect(container.querySelectorAll(".nt-table-row")).toHaveLength(3);
+    expect(container.querySelectorAll(".nt-blocktable-row")).toHaveLength(3);
   });
 });
 
@@ -361,7 +361,7 @@ describe("toolbar gestures (+ Row / + Column)", () => {
     });
     // The grid template follows the first row to three columns.
     await waitFor(() => {
-      expect(container.querySelector<HTMLElement>(".nt-table")?.style.gridTemplateColumns).toBe(
+      expect(container.querySelector<HTMLElement>(".nt-blocktable")?.style.gridTemplateColumns).toBe(
         "repeat(3, minmax(0, 1fr))",
       );
     });
@@ -428,7 +428,7 @@ describe("cell editing", () => {
 
     vi.useFakeTimers();
     // The second cell of the first row takes the text.
-    const editor = clickIntoBlock(container, ".nt-table-row .nt-block-content", 1);
+    const editor = clickIntoBlock(container, ".nt-blocktable-row .nt-block-content", 1);
     expect(document.activeElement).toBe(editor);
 
     editor.textContent = "cell text";
@@ -463,12 +463,30 @@ describe("read-only projections", () => {
 
     const embed = container.querySelector(".nt-embed");
     expect(embed).not.toBeNull();
-    const grid = embed?.querySelector(".nt-table");
+    const grid = embed?.querySelector(".nt-blocktable");
     expect(grid).not.toBeNull();
-    expect(grid?.querySelectorAll(".nt-table-row")).toHaveLength(2);
+    expect(grid?.querySelectorAll(".nt-blocktable-row")).toHaveLength(2);
     expect(embed?.textContent).toContain("alpha");
     expect(embed?.textContent).toContain("beta");
     // Read-only: no + Row / + Column affordance inside the projection.
     expect(embed?.querySelector(".nt-table-toolbar")).toBeNull();
+  });
+});
+
+describe("table class-name contract (owner bug 2026-10-04)", () => {
+  it("the cells-as-nodes grid never reclaims the collection table's .nt-table class", async () => {
+    // The §34.34.2 block grid once shipped as .nt-table and clobbered the
+    // collection TableView (display: grid on a <table> → per-row anonymous
+    // tables → header/body columns out of place). Pin the prefixes apart.
+    // The web vitest config aliases node:fs to a browser shim — escape via
+    // process.getBuiltinModule (the mobile-layout contract's pattern).
+    const readFile = (
+      process as unknown as {
+        getBuiltinModule(name: "node:fs"): { readFileSync(path: string, encoding: "utf8"): string };
+      }
+    ).getBuiltinModule("node:fs").readFileSync;
+    const css = readFile(`${process.cwd()}/src/ui/app.css`, "utf8");
+    expect(css.indexOf(".nt-blocktable {")).toBeGreaterThan(-1);
+    expect(css).not.toContain(".nt-table {\n  display: grid;");
   });
 });

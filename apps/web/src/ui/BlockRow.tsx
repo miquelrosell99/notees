@@ -178,7 +178,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   if (tableRow) {
     return (
       <div
-        className="nt-table-row"
+        className="nt-blocktable-row"
         ref={setNodeRef}
         data-block-id={node.id}
         style={{
@@ -385,7 +385,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       {isTableContainer ? (
         <>
           {!readOnly && (
-            <div className="nt-table-toolbar" role="toolbar" aria-label="Table">
+            <div className="nt-blocktable-toolbar" role="toolbar" aria-label="Table">
               <Button
                 size="xs"
                 variant="ghost"
@@ -443,7 +443,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
           )}
           {children.length > 0 && !isCollapsed && (
             <div
-              className="nt-table"
+              className="nt-blocktable"
               style={{
                 gridTemplateColumns: `repeat(${tableColumnCount(children)}, minmax(0, 1fr))`,
               }}
