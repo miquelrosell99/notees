@@ -130,8 +130,23 @@
 .nt-table-toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: var(--spacing-1, 4px);
   margin-bottom: var(--spacing-1, 4px);
+}
+
+/* Live-selection chrome (§34.59 "Export selected"): count + export button
+   sit left of the export/columns/sort controls. */
+.nt-table-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  margin-right: auto;
+}
+
+.nt-table-selection__count {
+  font-size: var(--font-size-xs, 0.8rem);
+  color: var(--color-on-surface-variant, inherit);
 }
 
 .nt-table-panel {

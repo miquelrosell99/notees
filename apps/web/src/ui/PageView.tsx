@@ -119,7 +119,7 @@ export function PageView({
   sections = undefined,
   /** Replaces the default <SystemSections/> (ClassView: extends-by + system). */
   systemSections = undefined,
-  /** §34.59 shares: server coordinates for the "Share…" item + modal. */
+  /** §34.61 shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
@@ -317,7 +317,7 @@ export function PageView({
     page !== undefined && !embedded && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
-  /** §34.59: the dedicated header element — a page that CAN carry a cover
+  /** §34.61: the dedicated header element — a page that CAN carry a cover
    *  (a class binds the schema) but doesn't yet gets the AddCover strip. */
   const coverPossible =
     coverAssetId === null && page !== undefined && !embedded && whiteboardTokenIndex < 0
@@ -578,7 +578,7 @@ export function PageView({
             {headerActions !== undefined ? (
               <div className="nt-page-toolbar">{headerActions}</div>
             ) : !forClass && !embedded ? (
-              // §34.59 default page-header chrome: the favorites star (the
+              // §34.61 default page-header chrome: the favorites star (the
               // nodePrefs store syncs it to the per-user server prefs).
               <div className="nt-page-toolbar">
                 <FavoriteStar client={client} nodeId={pageId} />

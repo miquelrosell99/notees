@@ -15,15 +15,25 @@
  *   reference (ensureDateChain); node cells open the anchored NodeSelector.
  *   Multi-value properties stay read-only.
  * - Name cell: row click opens, shift+click peeks.
+ * - CSV export (§34.59): the toolbar's "Export CSV" downloads the CURRENT
+ *   view — the visible columns × the full sorted result set (the window is
+ *   display-only, never an export cut) — through @notees/export's
+ *   renderCsv (RFC-4180 quoting + UTF-8 BOM for Excel). A live selection
+ *   additionally offers "Export selected…": the export modal's batch path
+ *   over just the checked row ids (the §34.24 parked row
+ *   "selection-scoped export").
  */
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { parseDateNodeId } from "@notees/domain";
+import { renderCsv } from "@notees/export";
 
-import { BooleanToggle, ButtonWithPanel, Checkbox } from "../components/ui/index.js";
+import { BooleanToggle, Button, ButtonWithPanel, Checkbox } from "../components/ui/index.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
 import { DateSlotControl } from "../components/pickers/DateSlotControl.js";
+import { ExportPageModal } from "../components/modals/ExportPageModal.js";
+import { downloadBlob } from "../components/modals/download.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { registerView } from "./registry.js";
@@ -52,6 +62,28 @@ function formatCreated(createdAt: string | null): string {
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return createdAt;
   return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/**
+ * The CSV projection of one cell — the same display text the row renders
+ * (names, class labels, the locale created date, property display strings),
+ * so the downloaded file is WYSIWYG against the on-screen table. Raw ids
+ * never leak: the conventions above resolve targets to current names.
+ */
+function csvCellText(client: AnyClient, row: TableRow, column: TableColumn): string {
+  const node = row.item.node;
+  if (column.kind === "name") return displayNameForSettings(node) || "Untitled";
+  if (column.kind === "classes") {
+    return node.classIds
+      .map((classId) => displayNameFromClient(client, classId))
+      .filter((name): name is string => name !== null && name !== undefined)
+      .join(", ");
+  }
+  if (column.kind === "created") return formatCreated(node.createdAt);
+  if (column.kind === "isClass") return node.isClass ? "Yes" : "—";
+  if (column.kind === "presentAsMain") return node.presentAsMain ? "Yes" : "—";
+  const prop = row.properties.find((p) => p.propertySchemaId === column.propertySchemaId);
+  return propertyDisplayText(client, prop);
 }
 
 /** Item + its resolved properties (fetched once per row for cell render). */
@@ -509,6 +541,7 @@ export function TableView(props: NodeCollectionProps) {
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(new Set());
   const [extraColumns, setExtraColumns] = useState<ReadonlySet<string>>(new Set());
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [exportSelection, setExportSelection] = useState<string[] | null>(null);
   const selectable = props.selectable ?? true;
 
   const rows = useMemo<TableRow[]>(
@@ -582,6 +615,22 @@ export function TableView(props: NodeCollectionProps) {
     headerCheckboxRef.current = el;
   };
 
+  /**
+   * "Export CSV" — the current view: visible columns × the FULL sorted
+   * result set (the row window is a display convenience, never an export
+   * cut). The package serializer owns quoting/escaping + the UTF-8 BOM;
+   * the Blob is typed text/csv so the download carries the encoding.
+   */
+  const handleExportCsv = () => {
+    const csv = renderCsv(
+      visibleColumns.map((column) => column.label),
+      sorted.map((row) => visibleColumns.map((column) => csvCellText(client, row, column))),
+    );
+    const stem = (props.exportFileName ?? "table-export").replace(/[\\/:*?"<>|]/g, "-");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    downloadBlob(blob, `${stem}.csv`);
+  };
+
   if (items.length === 0) return null;
 
   const renderCell = (row: TableRow, column: TableColumn): ReactNode => {
@@ -644,6 +693,29 @@ export function TableView(props: NodeCollectionProps) {
   return (
     <div className="nt-table-wrap">
       <div className="nt-table-toolbar">
+        {selected.size > 0 && (
+          <span className="nt-table-selection">
+            <span className="nt-table-selection__count">{selected.size} selected</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-export"
+              onClick={() => setExportSelection([...selected])}
+            >
+              Export selected…
+            </Button>
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi mdi-file-delimited-outline"
+          onClick={handleExportCsv}
+          aria-label="Export CSV"
+          title="Download the current view's rows as CSV"
+        >
+          Export CSV
+        </Button>
         <ButtonWithPanel
           icon="mdi-view-column"
           variant="ghost"
@@ -754,6 +826,14 @@ export function TableView(props: NodeCollectionProps) {
         <button type="button" className="nt-table-more" onClick={() => setWindowEnd((end) => end + ROW_WINDOW)}>
           Show more ({sorted.length - windowEnd} remaining)
         </button>
+      )}
+      {exportSelection !== null && (
+        <ExportPageModal
+          isOpen
+          onClose={() => setExportSelection(null)}
+          client={client}
+          nodeUuids={exportSelection}
+        />
       )}
     </div>
   );

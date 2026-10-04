@@ -6,6 +6,8 @@ export * from "./docx.js";
 export * from "./latex.js";
 export * from "./bundle.js";
 export * from "./formats.js";
+export * from "./csv.js";
+export * from "./json-archive.js";
 export * from "./bibtex.js";
 export * from "./csl.js";
 export { deriveDisplayName } from "@notees/domain";

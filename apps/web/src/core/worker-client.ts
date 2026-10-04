@@ -36,7 +36,15 @@ import type {
   UpdateObjectInput,
   UpdatePropertySchemaInput,
 } from "./workspace-client.js";
-import { createAnnotation, fetchAssetBlob, postAssetUpload, readBlobAsDataUrl } from "./workspace-client.js";
+import {
+  createAnnotation,
+  fetchAssetBlob,
+  postAssetUpload,
+  readBlobAsDataUrl,
+  type PrefsPatch,
+  type UserPrefs,
+  type UserPrefsSource,
+} from "./workspace-client.js";
 import type {
   WorkerInitMessage,
   WorkerRequestMessage,
@@ -644,6 +652,20 @@ export class WorkerClient {
   /** Engine + outbox + realtime state for the footer status indicator. */
   async status(): Promise<SyncStatusSnapshot> {
     return (await this.call("status", [])) as SyncStatusSnapshot;
+  }
+
+  /**
+   * Per-user UI prefs (§34.61 — favorites/recents, server-side). RPC into
+   * the worker (it owns the REST config); resolves the device-local cache
+   * when offline, tagged `source`.
+   */
+  async getPrefs(): Promise<UserPrefs & { source: UserPrefsSource }> {
+    return (await this.call("getPrefs", [])) as UserPrefs & { source: UserPrefsSource };
+  }
+
+  /** Merge-patch per-user UI prefs (see WorkspaceClient.patchPrefs). */
+  async patchPrefs(patch: PrefsPatch): Promise<UserPrefs & { source: UserPrefsSource }> {
+    return (await this.call("patchPrefs", [patch])) as UserPrefs & { source: UserPrefsSource };
   }
 
   // --- notifications ----------------------------------------------------------------------
