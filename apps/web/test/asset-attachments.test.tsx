@@ -219,8 +219,16 @@ describe("Asset attachments (node-typed properties)", () => {
     render(<PageView client={client} pageId={sourceId} />);
     expandProperties();
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
+    // §34.19 :1174 — the upload runs in the AssetUploadModal (drag-drop +
+    // preview + progress), opened from the picker's "Upload file…" row.
+    fireEvent.click(await screen.findByText("Upload file…"));
+    const dialog = await screen.findByRole("dialog", { name: /upload file/i });
     const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
-    fireEvent.change(screen.getByLabelText("Upload attachments"), { target: { files: [file] } });
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] },
+    });
+    await within(dialog).findAllByText("paper.pdf");
+    fireEvent.click(within(dialog).getByRole("button", { name: /upload/i }));
 
     // The chip lands with the server-returned original name.
     await screen.findByRole("button", { name: "paper.pdf" });
@@ -264,11 +272,18 @@ describe("Asset attachments (node-typed properties)", () => {
     render(<PageView client={client} pageId={sourceId} />);
     expandProperties();
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
+    fireEvent.click(await screen.findByText("Upload file…"));
+    const dialog = await screen.findByRole("dialog", { name: /upload file/i });
     const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
-    fireEvent.change(screen.getByLabelText("Upload attachments"), { target: { files: [file] } });
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] },
+    });
+    await within(dialog).findAllByText("paper.pdf");
+    fireEvent.click(within(dialog).getByRole("button", { name: /upload/i }));
 
-    await screen.findByRole("alert");
-    expect(screen.getByRole("alert").textContent).toContain("500");
+    // The modal keeps the file selected and surfaces the server's message.
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert.textContent).toContain("500");
     expect(client.getEffectiveProperties(sourceId)).toEqual([]);
   });
 
