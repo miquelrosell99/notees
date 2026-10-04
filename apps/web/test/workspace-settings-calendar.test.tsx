@@ -102,7 +102,9 @@ describe("WorkspaceSettingsModal calendar quick-create", () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
     const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
-    const classId = await client.createClass("meeting");
+    // A generic user class — "meeting" is system-class vocabulary since
+    // §34.36 (a user class with that title absorbs the seed family bindings).
+    const classId = await client.createClass("gathering");
     await client.setClassProperty(classId, schemaId, {});
 
     renderModal({ client });
@@ -110,7 +112,7 @@ describe("WorkspaceSettingsModal calendar quick-create", () => {
     expect(screen.getByText("Calendar Quick-Create")).toBeDefined();
     expect(screen.getByText(/by default every class with a date property appears/i)).toBeDefined();
     // Both eligible classes, defaults checked, property labels alongside.
-    expect(screen.getByRole("switch", { name: "meeting" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "gathering" })).toBeChecked();
     expect(screen.getByRole("switch", { name: "task" })).toBeChecked();
     expect(screen.getByText("When")).toBeDefined();
     expect(screen.getByText("Scheduled")).toBeDefined();
