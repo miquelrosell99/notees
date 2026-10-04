@@ -23,6 +23,7 @@ import {
 import { validateEnvelope, type ChangeSummary, type Store } from "@notees/store";
 
 import { detectConflicts, type SyncConflict } from "./conflicts.js";
+import { TransportError } from "./errors.js";
 import { SyncMeta } from "./meta.js";
 import { Outbox } from "./outbox.js";
 import type {
@@ -39,6 +40,22 @@ const RETRY_DELAYS_MS = [5_000, 15_000, 60_000, 300_000, 1_800_000] as const;
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_CATCH_UP_LIMIT = 1000;
 const ZERO_HLC: Hlc = { physical: 0, logical: 0 };
+
+/**
+ * True when an upload failure is the relay's request-body cap (413) — the
+ * one error that retrying can never heal (§34.69). Accepts the typed
+ * TransportError and any foreign error carrying a numeric `status`, so a
+ * non-HTTP transport implementation can't smuggle a permanent failure past
+ * the report latch.
+ */
+function isBodyTooLarge(error: unknown): boolean {
+  if (error instanceof TransportError) return error.status === 413;
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { status?: unknown }).status === 413
+  );
+}
 
 export interface SyncEngineOptions {
   /** Workspace this engine syncs; keys the persisted watermarks. */
@@ -75,6 +92,13 @@ export class SyncEngine {
   private lastError: Error | null = null;
   /** HLC of the last snapshot this session uploaded; avoids re-uploading. */
   private uploadedSnapshotHlc: Hlc | null = null;
+  /**
+   * §34.69 — the oversize-upload report latch: the relay answers an over-cap
+   * snapshot PUT with 413, and unlike transient failures that never heals by
+   * retrying, so it is surfaced ONCE per session (log + onError) instead of
+   * being swallowed on every sync cycle. Reset when an upload succeeds.
+   */
+  private snapshotOversizeReported = false;
   private inFlightSync: Promise<void> | null = null;
   private pullInFlight = false;
   private autoSyncTimer: ReturnType<typeof setInterval> | null = null;
@@ -358,8 +382,24 @@ export class SyncEngine {
       const bytes = this.store.snapshot();
       await upload(bytes, this.receivedHlc);
       this.uploadedSnapshotHlc = this.receivedHlc;
-    } catch {
-      // Best-effort: a failed upload must not fail sync.
+      this.snapshotOversizeReported = false;
+    } catch (error) {
+      // Best-effort: a failed upload must not fail sync. The ONE failure
+      // that never heals by retrying — the relay's body cap (413 Request
+      // entity too large; §34.49's cliff, route-raised to 512 MiB in
+      // §34.69 but a projection can outgrow any cap) — is surfaced once per
+      // session, loudly, instead of silently retried forever: the user
+      // learns the client upload is disabled while the server-side
+      // snapshot (§34.49) keeps covering restore.
+      if (!this.snapshotOversizeReported && isBodyTooLarge(error)) {
+        this.snapshotOversizeReported = true;
+        const message =
+          "snapshot upload rejected: the local projection exceeds the relay's size cap " +
+          "(413). A server-side snapshot covers restore; the client upload stays skipped " +
+          "this session.";
+        console.error(`[sync] ${message}`, error);
+        this.callbacks.onError?.(new Error(message));
+      }
     }
   }
 

@@ -52,6 +52,17 @@ const snapshotPutQuerySchema = z.object({
 });
 
 /**
+ * §34.49's residual cliff, healed (§34.69): the client-produced snapshot PUT
+ * rides a RAISED, route-local bodyLimit — 512 MiB against the app's global
+ * 128 MiB. Snapshot blobs are the largest bodies this API ever carries (a
+ * big workspace's full local projection) and they are authenticated,
+ * workspace-scoped, and size-bounded by the client's own store — the one
+ * route where the headroom is deliberate, not a DoS surface. Every other
+ * route keeps the global limit untouched.
+ */
+const SNAPSHOT_PUT_BODY_LIMIT = 512 * 1024 * 1024;
+
+/**
  * Resolves the request credential (throws 401 when absent/invalid) and
  * enforces workspace membership for account principals. The operator API
  * key keeps its historical unrestricted access (CLI, owned devices).
@@ -193,7 +204,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     return reply.header("content-type", "application/octet-stream").send(bytes);
   });
 
-  app.put("/snapshot/data", async (request, reply) => {
+  app.put("/snapshot/data", { bodyLimit: SNAPSHOT_PUT_BODY_LIMIT }, async (request, reply) => {
     const parsed = snapshotPutQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", "workspaceId, physical and logical query parameters required");

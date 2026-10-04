@@ -56,6 +56,7 @@ import { aliasValuesOf } from "../ui/components/aliasProperty.js";
 import {
   UndoJournal,
   type UndoCaptureSource,
+  type UndoHistoryEntry,
   type UndoRecordMode,
   type UndoUiState,
 } from "./undo-journal.js";
@@ -1945,6 +1946,15 @@ export class WorkspaceClient {
     return this.engine === null
       ? { canUndo: false, canRedo: false, undoLabel: null, redoLabel: null }
       : this.undoJournal.state();
+  }
+
+  /**
+   * §34.69 — the browsable history behind the jump-to menu: the undo stack
+   * oldest-first with labels + timestamps + affected node ids. Empty when
+   * the journal is (new session, new workspace).
+   */
+  async undoHistory(): Promise<UndoHistoryEntry[]> {
+    return this.engine === null ? [] : this.undoJournal.history();
   }
 
   /**

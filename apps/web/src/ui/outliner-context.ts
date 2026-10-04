@@ -9,7 +9,7 @@ import { createContext, useCallback, useContext, useRef, useState } from "react"
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
 import { buildOutlinePositions } from "@/editor/outline.js";
-import type { UndoUiState } from "@/core/undo-journal.js";
+import type { UndoHistoryEntry, UndoUiState } from "@/core/undo-journal.js";
 import type {
   BlockTreeNode,
   ClassBinding,
@@ -40,6 +40,8 @@ export interface OutlinerClient {
    * (menus, chords) reach the journal here without app-shell plumbing.
    */
   undoState(): Promise<UndoUiState>;
+  /** §34.69 — the browsable history (labels + timestamps + affected ids). */
+  undoHistory(): Promise<UndoHistoryEntry[]>;
   undo(): Promise<boolean>;
   redo(): Promise<boolean>;
   /**

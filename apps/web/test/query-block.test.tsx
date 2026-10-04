@@ -329,15 +329,19 @@ describe("query block (live query token)", () => {
     // Grid headers: the dimension label + the measure label.
     expect(await screen.findByText("Class")).not.toBeNull();
     expect(screen.getByText("Count")).not.toBeNull();
-    // Workspace contents: 5 non-class nodes (host page, Paris, London, the
-    // body block + the query block itself — the isClass bit is 0) and 1
-    // class node (City — the bit is 1). An aggregation renders the grid in
-    // any view mode (no list projection exists for measures); the badge
-    // counts groups.
+    // Non-class workspace contents: 5 nodes (host page, Paris, London, the
+    // body block + the query block itself — the isClass bit is 0). The
+    // class-side count is NOT pinned: merely rendering the page runs the
+    // cover/alias self-heals (§34.27 L2 / §34.32 PG10), which author
+    // system classes (asset/source/cover/alias) on first view — the
+    // workspace-wide aggregate legitimately sees them. The seeded City is
+    // one of them; the group count stays 2 (the two bit values).
     const cells = Array.from(container.querySelectorAll(".nt-query-table td")).map(
       (td) => td.textContent,
     );
-    expect(cells).toEqual(["0", "5", "1", "1"]);
+    expect(cells.slice(0, 2)).toEqual(["0", "5"]);
+    expect(cells[2]).toBe("1");
+    expect(Number(cells[3])).toBeGreaterThanOrEqual(1);
     expect(badge(container)).toBe("2");
     expect(container.querySelector(".outline-flat")).toBeNull();
   });

@@ -69,6 +69,7 @@ import { ensureTaskFamily } from "./components/taskFamily.js";
 import { TaskBuckets } from "./components/TaskBuckets.js";
 import { todayIsoLocal } from "./components/calendarViewUtils.js";
 import { CalendarPopup } from "./components/ui/CalendarPopup.js";
+import { HistoryMenuPopup } from "./components/HistoryMenuPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
@@ -360,6 +361,32 @@ export function undoRedoKeyHandler(opts: {
 }
 
 /**
+ * Ctrl/Cmd+Shift+H — the browsable history popup (§34.69, v1's history-menu
+ * chord). Same guard as the undo chords: text fields and the outliner editor
+ * keep the keystroke (Firefox may reserve it for its own history sidebar;
+ * where the browser yields, the popup toggles). Exported for the keymap
+ * tests, mirroring undoRedoKeyHandler.
+ */
+export function historyKeyHandler(opts: {
+  onToggle: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || !event.shiftKey || event.altKey) return;
+    if (event.key.toLowerCase() !== "h") return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    opts.onToggle();
+  };
+}
+
+/**
  * Tap-outside drawer dismissal (§34.19 MobileLayout owed half): at narrow
  * widths the sidebar is a floating drawer — a pointer press that lands
  * outside the drawer AND outside the topbar (the hamburger toggle lives
@@ -635,6 +662,9 @@ export function App() {
   /** Top-bar calendar popup (the popup needs the client, so it renders here). */
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarButtonRef = useRef<HTMLButtonElement | null>(null);
+  /** §34.69 — the browsable history popup over the undo journal. */
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
@@ -855,6 +885,16 @@ export function App() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [scheduleUndoRefresh]);
+
+  // Ctrl/Cmd+Shift+H — the history popup chord (§34.69). Toggles the popup;
+  // the popup itself closes on its own dismissal layer.
+  useEffect(() => {
+    const handler = historyKeyHandler({
+      onToggle: () => setHistoryOpen((open) => !open),
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   /**
    * The single owner of the live client for teardown. State (`client`) drives
@@ -1529,9 +1569,33 @@ export function App() {
         calendarOpen={calendarOpen}
         onToggleCalendar={() => setCalendarOpen((open) => !open)}
         calendarButtonRef={calendarButtonRef}
+        undoState={undoUi}
+        onUndo={() => {
+          void client.undo().catch((error: unknown) => {
+            console.error("undo failed:", error);
+          });
+          scheduleUndoRefresh();
+        }}
+        onRedo={() => {
+          void client.redo().catch((error: unknown) => {
+            console.error("redo failed:", error);
+          });
+          scheduleUndoRefresh();
+        }}
+        onToggleHistory={() => setHistoryOpen((open) => !open)}
+        historyButtonRef={historyButtonRef}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onToggleRightPanel={() => setRightPanelOpen((open) => !open)}
       />
+      {historyOpen && (
+        <HistoryMenuPopup
+          client={client}
+          isOpen
+          onClose={() => setHistoryOpen(false)}
+          anchorRef={historyButtonRef}
+          onOpenNode={(nodeId) => openPage(nodeId)}
+        />
+      )}
       {calendarOpen && (
         <CalendarPopup
           isOpen

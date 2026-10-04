@@ -102,6 +102,23 @@ export const EMPTY_UNDO_STATE: UndoUiState = {
   redoLabel: null,
 };
 
+/**
+ * One browsable history entry (§34.69 — v1's history menu with jump-to):
+ * the label, the timestamp, and the node ids the entry touched. Jumping
+ * opens the first affected node that still resolves — the honest move for a
+ * session journal (it cannot restore a past caret or scroll position).
+ */
+export interface UndoHistoryEntry {
+  /** The label verb ("edit text") — chrome renders "Undo <verb>". */
+  verb: string;
+  /** Last-edit time (ms epoch) — the menu's timestamp. */
+  at: number;
+  /** Node ids the entry's apply specs touched (deduped, in spec order). */
+  affected: string[];
+  /** `text:<nodeId>` for coalesced text edits — jumping is plain navigation. */
+  coalesceKey: string | null;
+}
+
 // --- capture source ------------------------------------------------------------
 
 /** Facts about a node row needed to invert ops that touched it. */
@@ -978,6 +995,22 @@ export class UndoJournal {
     this.redoStack = [];
     this.batchBuffer = [];
     this.batchDepth = 0;
+  }
+
+  /**
+   * The browsable undo stack, OLDEST first (the menu lists history forward;
+   * the last row is the next undo). Bounded like the stack itself.
+   */
+  history(): UndoHistoryEntry[] {
+    return this.undoStack.map((entry) => {
+      const affected: string[] = [];
+      for (const spec of entry.applySpecs) {
+        for (const id of spec.affected) {
+          if (!affected.includes(id)) affected.push(id);
+        }
+      }
+      return { verb: entry.verb, at: entry.at, affected, coalesceKey: entry.coalesceKey };
+    });
   }
 
   state(): UndoUiState {

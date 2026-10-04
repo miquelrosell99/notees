@@ -1,0 +1,92 @@
+/**
+ * HistoryMenuPopup styles — the topbar-anchored journal browser (§34.69).
+ * Token-only, matching the sync-panel/sidebar menu surface idiom.
+ */
+
+.history-popup {
+  position: fixed;
+  z-index: 80;
+  min-width: 240px;
+  max-width: 340px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-2);
+  background: var(--color-surface-container-high, var(--color-surface));
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  box-shadow: var(--shadow-elevation-2);
+  color: var(--color-on-surface);
+}
+
+.history-popup__title {
+  font: var(--font-title-small);
+  padding: 0 var(--spacing-2);
+  color: var(--color-on-surface-variant);
+}
+
+.history-popup__empty {
+  padding: var(--spacing-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.history-popup__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-popup__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-popup__row:hover:not(:disabled) {
+  background: var(--color-hover-overlay);
+}
+
+.history-popup__row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.history-popup__row-icon {
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+}
+
+.history-popup__row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-popup__row-time {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--color-on-surface-variant);
+}
+
+.history-popup__hint {
+  padding: var(--spacing-1) var(--spacing-2) 0;
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+}

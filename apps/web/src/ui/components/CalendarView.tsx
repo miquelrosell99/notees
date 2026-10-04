@@ -210,7 +210,8 @@ export function CalendarView({
     );
   }, [client, tasksResult, selectedIso, statusSchema, version]);
 
-  const openCount = partitioned.overdue.length + partitioned.scheduled.length;
+  const openCount =
+    partitioned.overdue.length + partitioned.scheduled.filter((row) => !row.occurrenceDone).length;
 
   const statusLabelOf = (id: string): string | null =>
     taskStatusLabel(
@@ -389,19 +390,26 @@ export function CalendarView({
   const formattedDate = formatDateName(selectedIso.replace(/-/g, "")) ?? selectedIso;
   const show = (section: DayFilter) => filter === "all" || filter === section;
 
-  const renderTaskRow = (row: OpenTaskRow, group: "overdue" | "scheduled") => (
+  const renderTaskRow = (row: OpenTaskRow, group: "overdue" | "scheduled") => {
+    // §34.69: a recurring task's checkbox reflects THIS occurrence (the
+    // viewed day) — done occurrences render checked and reopen from there;
+    // the node-level status stays untouched.
+    const checked = row.closed || row.occurrenceDone;
+    return (
     <li
       key={row.id}
       className={`calendar-view__row${
         group === "overdue" ? " calendar-view__row--overdue" : ""
-      }`}
+      }${row.occurrenceDone ? " calendar-view__row--done" : ""}`}
     >
       <Checkbox
         size="sm"
-        checked={row.closed}
+        checked={checked}
         disabled={statusSchema === undefined}
-        aria-label={row.closed ? "Reopen task" : "Mark task done"}
-        onChange={(event) => void setTaskDone(client, statusSchema, row.id, event.target.checked)}
+        aria-label={checked ? "Reopen task" : "Mark task done"}
+        onChange={(event) =>
+          void setTaskDone(client, statusSchema, row.id, event.target.checked, selectedIso)
+        }
       />
       <button
         type="button"
@@ -418,7 +426,8 @@ export function CalendarView({
         <span className="calendar-view__row-day">{row.scheduledIso}</span>
       )}
     </li>
-  );
+    );
+  };
 
   const renderDatedRow = (row: DatedRow) => (
     <li key={row.node.id} className="calendar-view__row">

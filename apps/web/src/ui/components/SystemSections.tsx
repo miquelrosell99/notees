@@ -16,7 +16,7 @@
  * Extracted from PageView.tsx.
  */
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
@@ -88,9 +88,22 @@ export function ReferenceList({
     },
     [client, unlinkedPageId],
   );
+  /**
+   * §34.69 bound-verb backlinks: a linked-reference edge whose verb is a
+   * bound propertySchemaId renders the schema's NAME (never the raw id) —
+   * the surfaces the backlink arrived through ("supports", "cites"). Free
+   * verbs never produce targeted edges (typed-link marks are targetless per
+   * the M2-deferred resolution ruling), so the badge only ever names a
+   * schema; an unknown id renders raw, honestly.
+   */
+  const schemaNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const schema of client.listPropertySchemas()) map.set(schema.id, schema.name);
+    return map;
+  }, [client]);
   const items: NodeCollectionItem[] = entries.map((entry) => ({
     node: entry.source,
-    meta: { containingPageId: entry.containingPageId },
+    meta: { containingPageId: entry.containingPageId, verb: entry.verb },
   }));
   const groups = groupByContainingPage(client, items, onOpenPage);
   return (
@@ -102,6 +115,7 @@ export function ReferenceList({
       renderItem={(item) => {
         const containingPageId =
           typeof item.meta?.containingPageId === "string" ? item.meta.containingPageId : undefined;
+        const verb = typeof item.meta?.verb === "string" ? item.meta.verb : null;
         return (
           <>
             <Breadcrumbs
@@ -111,6 +125,11 @@ export function ReferenceList({
               stopAfterId={containingPageId}
               excludeIds={containingPageId !== undefined ? [containingPageId] : undefined}
             />
+            {verb !== null && (
+              <span className="nt-ref-verb" title={`via ${schemaNameById.get(verb) ?? verb}`}>
+                {schemaNameById.get(verb) ?? verb}
+              </span>
+            )}
             <ReferenceSubtree client={client} rootId={item.node.id} onOpenNode={onOpenPage} />
             {unlinkedPageId !== undefined && (
               <span className="nt-ref-actions">
