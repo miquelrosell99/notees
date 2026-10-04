@@ -26,6 +26,9 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
+/** The cover class id (§34.56 — cover extends asset). */
+export const COVER_CLASS_ID: string = SYSTEM_CLASS_UUIDS.cover;
+
 /** True when the cover schema exists and the source class binds it. */
 export function coverPropertyPresent(
   client: Pick<AnyClient, "listPropertySchemas" | "getClassBindings">,
@@ -37,9 +40,31 @@ export function coverPropertyPresent(
   return have && bound;
 }
 
-/** Author the cover schema + source binding when missing (idempotent). */
-export async function ensureCoverProperty(client: AnyClient): Promise<void> {
-  if (coverPropertyPresent(client)) return;
+/**
+ * Author the cover family when missing (idempotent): the `cover` class at
+ * its reserved id extending `asset` (§34.56), the image-typed cover schema,
+ * and the source binding. The class gives cover assets identity — the
+ * "Cover" badge in card views, the asset class's classed-nodes listing,
+ * and the future cover-specific logic.
+ */
+export async function ensureCoverFamily(client: AnyClient): Promise<void> {
+  // Fresh workspaces carry no system-class ROWS (the server seed emits
+  // property specs only) — author the class roots first (the meetingFamily
+  // ensure does the same for event): the cover family extends asset, and
+  // the schema binds to source.
+  for (const [name, id, icon] of [
+    ["asset", SYSTEM_CLASS_UUIDS.asset, "mdiPaperclip"],
+    ["source", SYSTEM_CLASS_UUIDS.source, "mdiBookshelf"],
+    ["cover", COVER_CLASS_ID, "mdiImageArea"],
+  ] as const) {
+    if (client.getNode(id) === undefined) {
+      await client.createClass(name, { id, icon });
+    }
+  }
+  const parents = client.getClassParents(COVER_CLASS_ID);
+  if (!parents.includes(SYSTEM_CLASS_UUIDS.asset)) {
+    await client.setClassExtends(COVER_CLASS_ID, [SYSTEM_CLASS_UUIDS.asset]);
+  }
   if (!client.listPropertySchemas().some((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.cover)) {
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.cover,
@@ -56,6 +81,9 @@ export async function ensureCoverProperty(client: AnyClient): Promise<void> {
   });
 }
 
+/** @deprecated Renamed — ensureCoverFamily authors the class too. */
+export const ensureCoverProperty = ensureCoverFamily;
+
 /** The asset node id a node's cover property points at (null = no cover). */
 export function coverAssetIdOf(
   client: Pick<AnyClient, "getEffectiveProperties">,
@@ -66,4 +94,44 @@ export function coverAssetIdOf(
     .find((property) => property.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover);
   const target = cover?.value as { nodeId?: unknown } | undefined;
   return typeof target?.nodeId === "string" ? target.nodeId : null;
+}
+
+/**
+ * Set a node's cover: the cover property value ({nodeId} → the asset) plus
+ * the asset's cover+asset classes — explicit ops, so every client converges
+ * on the classIds projection (the property value stays the authority; the
+ * class is identity/chrome, derived by the client's cover flows).
+ */
+export async function setNodeCover(
+  client: AnyClient,
+  pageId: string,
+  assetId: string,
+): Promise<void> {
+  await ensureCoverFamily(client);
+  await client.setProperty(pageId, SYSTEM_PROPERTY_UUIDS.cover, { nodeId: assetId }, 0);
+  const node = client.getNode(assetId);
+  const classIds = node?.classIds ?? [];
+  for (const classId of [COVER_CLASS_ID, SYSTEM_CLASS_UUIDS.asset]) {
+    if (!classIds.includes(classId)) await client.assignClass(assetId, classId);
+  }
+}
+
+/**
+ * Remove a node's cover: unset the value; the asset's cover class follows
+ * only when no OTHER node still covers with it (the asset class always
+ * stays — the node remains an asset).
+ */
+export async function clearNodeCover(client: AnyClient, pageId: string): Promise<void> {
+  const assetId = coverAssetIdOf(client, pageId);
+  await client.unsetProperty(pageId, SYSTEM_PROPERTY_UUIDS.cover, 0);
+  if (assetId === null) return;
+  const stillUsed = client
+    .getLinkedReferences(assetId)
+    .some(
+      (entry) =>
+        entry.source.id !== pageId &&
+        (coverAssetIdOf(client, entry.source.id) === assetId ||
+          coverAssetIdOf(client, entry.containingPageId) === assetId),
+    );
+  if (!stillUsed) await client.unassignClass(assetId, COVER_CLASS_ID);
 }

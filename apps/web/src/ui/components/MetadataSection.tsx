@@ -55,6 +55,7 @@ import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { NodePills } from "./NodePills.js";
+import { COVER_CLASS_ID } from "./coverProperty.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
@@ -224,6 +225,14 @@ function ObjectPropertyRow({
 
   const linkNode = async (target: string): Promise<void> => {
     await client.setProperty(nodeId, propertySchemaId, { nodeId: target }, nextIdx);
+    // §34.56: cover values written through the generic panel still class
+    // the asset (explicit ops — every client converges on classIds).
+    if (propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) {
+      const classIds = client.getNode(target)?.classIds ?? [];
+      for (const classId of [COVER_CLASS_ID, SYSTEM_CLASS_UUIDS.asset]) {
+        if (!classIds.includes(classId)) await client.assignClass(target, classId);
+      }
+    }
     setPickerOpen(false);
   };
 
@@ -234,6 +243,14 @@ function ObjectPropertyRow({
   /** §34.19 :1174 — the modal's completion: link the uploaded asset node. */
   const linkUploadedAsset = async (assetNodeId: string): Promise<void> => {
     await client.setProperty(nodeId, propertySchemaId, { nodeId: assetNodeId }, nextIdx);
+    // §34.56: a cover value written through the generic panel still gives
+    // the asset its cover+asset identity (explicit ops — convergent).
+    if (propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) {
+      const classIds = client.getNode(assetNodeId)?.classIds ?? [];
+      for (const classId of [COVER_CLASS_ID, SYSTEM_CLASS_UUIDS.asset]) {
+        if (!classIds.includes(classId)) await client.assignClass(assetNodeId, classId);
+      }
+    }
     setPickerOpen(false);
   };
 
@@ -322,8 +339,8 @@ function ObjectPropertyRow({
               {dateQualified && (
                 <QualifierRange
                   client={client}
-                  start={typeof row.metadata?.startDate === "string" ? row.metadata.startDate : ""}
-                  end={typeof row.metadata?.endDate === "string" ? row.metadata.endDate : ""}
+                  start={qualifierIsoOf(row.metadata?.startDate)}
+                  end={qualifierIsoOf(row.metadata?.endDate)}
                   ariaLabel={pillLabel(ref)}
                   onCommit={(startIso, endIso) => {
                     const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
@@ -661,10 +678,32 @@ function DateRangePropertyRow({
 }
 
 /**
+ * PC6 read-leniency: a qualifier slot reads BOTH shapes — a legacy ISO
+ * string rides as-is; a canonical date-node ref formats from its
+ * deterministic id (day precision `YYYY-MM-DD`). The panel still WRITES the
+ * legacy string until the lockstep wave (the applier normalizes on write).
+ */
+function qualifierIsoOf(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null && "nodeId" in value) {
+    const id = (value as { nodeId: unknown }).nodeId;
+    if (typeof id === "string") {
+      const parsed = parseDateNodeId(id);
+      if (parsed !== null) {
+        return `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
+      }
+      return id;
+    }
+  }
+  return "";
+}
+
+/**
  * Link qualifier range control (SCHEMA.md "Dates", dateQualified schemas):
  * start/end date slots next to a node-typed pill; values persist as
- * property.set metadata.startDate/endDate (ISO strings — node-backed date
- * qualifiers are the possible M2 evolution). The slots ride the shared
+ * property.set metadata.startDate/endDate (PC6 canonical: date-node refs —
+ * the stored legacy ISO strings read back through qualifierIsoOf until the
+ * lockstep wave switches the write path). The slots ride the shared
  * DateSlotControl (§34.32 PG17) — the same zoom-picker control the table
  * cells use, no native date inputs.
  */

@@ -306,13 +306,19 @@ describe("dates (SCHEMA.md)", () => {
     await flushWrites();
 
     const row = client.getEffectiveProperties(pageId).find((r) => r.propertySchemaId === schemaId);
-    expect(row?.metadata).toEqual({ startDate: expected("10"), endDate: expected("20") });
+    // PC6 (§34.56): the panel still writes legacy ISO strings, and the applier
+    // normalizes them on write to deterministic day-node refs — the canonical
+    // date-node-backed qualifier shape.
+    expect(row?.metadata).toEqual({
+      startDate: { nodeId: dayNodeId(expected("10")) },
+      endDate: { nodeId: dayNodeId(expected("20")) },
+    });
 
     // The slot's clear affordance drops the qualifier (the link survives).
     fireEvent.click(screen.getByRole("button", { name: "Alice start date (clear)" }));
     await flushWrites();
     const cleared = client.getEffectiveProperties(pageId).find((r) => r.propertySchemaId === schemaId);
-    expect(cleared?.metadata).toEqual({ endDate: expected("20") });
+    expect(cleared?.metadata).toEqual({ endDate: { nodeId: dayNodeId(expected("20")) } });
   });
 
   it("Class View property definitions: precision select (date) and qualified checkbox (object) write through", async () => {

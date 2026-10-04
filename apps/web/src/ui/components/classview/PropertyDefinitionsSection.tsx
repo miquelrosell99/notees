@@ -7,14 +7,25 @@
  * flag toggles (Required / Readonly / Hide-when-empty) as icon buttons, a
  * "Configure" expander and a remove ×. The expanded row is the full config
  * panel: rename, type (read-only, create-time contract), target-class pills,
- * typed default, checkbox flags, date precision / qualified. Expanded when
- * the class has no bindings (invites setup), collapsed once configured.
+ * typed default, checkbox flags, the PC4 Enabled switch, date precision /
+ * qualified. Expanded when the class has no bindings (invites setup),
+ * collapsed once configured.
  *
  * Writes: binding fields (sequence/default/required/readonly/hideWhenEmpty)
  * via class.property.set; schema fields (name/targetClassFilter/date
  * precision/dateQualified) via property.schema.update. Add: a search/create
  * popup over existing property schemas.
+ *
+ * PC4 (§34.56): the Enabled switch renders the binding's live `active` flag
+ * but stays DISABLED — LOCKSTEP-PENDING (the `active` payload key ships inert
+ * until the GTK m6+ / Flutter m16+ releases parse it; flipping it now would
+ * fail old clients loud). Activation = flip BINDING_ACTIVE_WRITES_ENABLED.
  */
+
+/** PC4 lockstep gate — activation flips this single constant (§34.54 pattern). */
+const BINDING_ACTIVE_WRITES_ENABLED = false;
+const LOCKSTEP_PENDING_NOTE =
+  "Available once all clients catch up — the protocol batch (PG5/PC4/PC6) is pending the GTK/Flutter lockstep releases.";
 
 import { useRef, useState } from "react";
 
@@ -36,6 +47,7 @@ import { displayNameFromClient } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { AddPill } from "../ui/AddPill.js";
 import { Checkbox } from "../ui/Checkbox.js";
+import { ToggleSwitch } from "../ui/ToggleSwitch.js";
 import { NodeViewSection } from "../NodeViewSection.js";
 import "./PropertyDefinitionsSection.css";
 
@@ -128,7 +140,8 @@ function BindingRow({
       data-property-schema-id={binding.propertySchemaId}
       className={
         `nt-propdef${expanded ? " nt-propdef--expanded" : ""}` +
-        (isDragging ? " nt-propdef--dragging" : "")
+        (isDragging ? " nt-propdef--dragging" : "") +
+        (binding.active ? "" : " nt-propdef--inactive")
       }
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
@@ -150,6 +163,11 @@ function BindingRow({
           <Icon path={TYPE_GLYPHS[binding.type] ?? "mdi-format-list-bulleted"} size={0.8} />
         </span>
         <span className="nt-propdef-name">{name}</span>
+        {!binding.active && (
+          <span className="nt-propdef-chip nt-propdef-chip--inactive" title={LOCKSTEP_PENDING_NOTE}>
+            disabled
+          </span>
+        )}
         {filterNames.length > 0 && (
           <span className="nt-propdef-chip nt-propdef-chip--filter">→ {filterNames.join(", ")}</span>
         )}
@@ -268,6 +286,23 @@ function BindingRow({
               <span>{label}</span>
             </label>
           ))}
+          {/* PC4: the soft-unbind switch renders live state but is inert until
+              the lockstep wave — flipping it would write the `active` payload
+              key, which pre-m6/m16 clients reject loud. */}
+          <div className="nt-propdef-check" title={LOCKSTEP_PENDING_NOTE}>
+            <ToggleSwitch
+              size="sm"
+              leftLabel="Disabled"
+              rightLabel="Enabled"
+              checked={binding.active}
+              disabled={!BINDING_ACTIVE_WRITES_ENABLED}
+              onChange={(enabled) => {
+                if (BINDING_ACTIVE_WRITES_ENABLED) patch({ active: enabled });
+              }}
+              aria-label={`Enabled for ${name}`}
+            />
+            <span>Enabled {!BINDING_ACTIVE_WRITES_ENABLED && "(pending client lockstep)"}</span>
+          </div>
           {isDate && (
             <label className="nt-propdef-field">
               <span className="nt-propdef-label">Precision</span>
