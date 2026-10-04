@@ -273,3 +273,56 @@ describe("the global cover (owner bug 2026-10-04: any page, like v1)", () => {
     expect(container.querySelector(".nt-page-banner")).not.toBeNull();
   });
 });
+
+describe("the v1-parity cover (§34.72: placeholder shell + drag-and-drop)", () => {
+  it("a cover whose asset has NO image bytes renders the dashed shell naming the asset — never a silent void (the Wartortle case)", async () => {
+    const client = await seedClient();
+    // getAssetDataUrl resolves null: no node_asset bytes for this node.
+    const [pageId, assetId] = await seedPageAndAsset(client);
+    await setNodeCover(client, pageId, assetId);
+    await flushWrites();
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    // The shell chrome renders with the asset's name + the toolbar…
+    expect(container.querySelector(".nt-page-banner")).not.toBeNull();
+    expect(container.querySelector(".nt-page-banner__placeholder")).not.toBeNull();
+    expect(container.querySelector(".nt-page-banner__placeholder-name")?.textContent).toBe(
+      "cover.png",
+    );
+    // …and the cover is still changeable/removable, not invisible.
+    expect(screen.getByRole("button", { name: "Change cover" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Remove cover" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove cover" }));
+    await flushWrites();
+    expect(coverAssetIdOf(client, pageId)).toBeNull();
+  });
+
+  it("dropping an image file on the Add cover strip uploads and sets the cover (the v1 drag-and-drop)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Drop Target" });
+    await ensureCoverFamily(client);
+    await flushWrites();
+
+    const upload = vi.spyOn(client, "uploadAsset").mockResolvedValue({
+      assetId: "asset-1",
+      originalName: "dropped.png",
+      mimeType: "image/png",
+      size: 10,
+    });
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,DROP");
+    const attach = vi.spyOn(client, "attachAsset").mockResolvedValue(undefined);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const strip = container.querySelector(".nt-add-cover")!;
+    const file = new File(["bytes"], "dropped.png", { type: "image/png" });
+    fireEvent.drop(strip, { dataTransfer: { files: [file], types: ["Files"] } });
+    await flushWrites();
+
+    expect(upload).toHaveBeenCalledWith(file, "dropped.png");
+    expect(attach).toHaveBeenCalled();
+    // The banner chrome replaces the strip.
+    await screen.findByRole("button", { name: "Collapse cover image" });
+    expect(container.querySelector(".nt-add-cover")).toBeNull();
+  });
+});
