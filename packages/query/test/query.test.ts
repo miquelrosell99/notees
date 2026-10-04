@@ -703,6 +703,44 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
+  describe("PG5/PC4 property-wire semantics (§34.56)", () => {
+    it("PC4: an inactive binding stops deriving defaults (authored values still match)", () => {
+      const store = worldStore();
+      store.apply(
+        env("class.property.set", { classId: PLACE, propertySchemaId: PRIORITY, active: false }, T0 + 22 * STEP),
+      );
+      // France's derived "medium" is gone; Paris's authored-equivalent default
+      // from City stays (City's binding is active)…
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "medium" }])).ids,
+      ).toEqual([]);
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "high" }])).ids,
+      ).toEqual([PARIS]);
+      // Lone's AUTHORED "low" still matches.
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: PRIORITY, op: "eq", value: "low" }])).ids,
+      ).toEqual([LONE]);
+    });
+
+    it("PG5: an element-tombstoned authored value drops out of property conditions", () => {
+      const store = worldStore();
+      const ELEM = "0192a000-0000-7000-8000-0000000007e1";
+      store.apply(
+        env("property.set", { objectId: LONE, propertySchemaId: RATING, value: 5, elementId: ELEM, idx: 0 }, T0 + 23 * STEP),
+      );
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: RATING, op: "eq", value: 5, includeDefaults: false }])).ids,
+      ).toEqual([LONE]);
+      store.apply(
+        env("property.unset", { objectId: LONE, propertySchemaId: RATING, elementId: ELEM }, T0 + 24 * STEP),
+      );
+      expect(
+        runQuery(store, ast(entire, [{ type: "property", schemaId: RATING, op: "eq", value: 5, includeDefaults: false }])).ids,
+      ).toEqual([]);
+    });
+  });
+
   describe("property comparison operators (gt/gte/lt/lte)", () => {
     it("numeric JSON values compare numerically (year<1950 selects correctly)", () => {
       const store = worldStore();
