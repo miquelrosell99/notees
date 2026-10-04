@@ -2443,7 +2443,7 @@ mark {
 
   /* Collapsible section headers stay comfortable to tap. */
   .nt-side-header-toggle {
-    min-height: var(--page-icon-placeholder-size, 40px);
+    min-height: var(--height-button-lg, 44px);
     display: flex;
     align-items: center;
   }

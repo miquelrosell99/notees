@@ -1,0 +1,89 @@
+/**
+ * AssetUploadModal styles — the preview row (thumb/doc icon + name + size +
+ * category chip), the uploading status line, and the error. Token-only.
+ */
+
+.asset-upload-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 12px);
+  padding: var(--spacing-1, 4px) 0;
+}
+
+.asset-upload-modal__preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 12px);
+  padding: var(--spacing-2, 8px);
+  background: var(--color-surface-container-low);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+}
+
+.asset-upload-modal__thumb {
+  width: var(--spacing-12, 48px);
+  height: var(--spacing-12, 48px);
+  object-fit: cover;
+  border-radius: var(--shape-small, 6px);
+  background: var(--color-surface);
+}
+
+.asset-upload-modal__doc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-12, 48px);
+  height: var(--spacing-12, 48px);
+  border-radius: var(--shape-small, 6px);
+  background: var(--color-surface);
+  color: var(--color-on-surface-variant);
+}
+
+.asset-upload-modal__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+}
+
+.asset-upload-modal__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-md, 14px);
+  color: var(--color-on-surface);
+}
+
+.asset-upload-modal__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-on-surface-variant);
+}
+
+.asset-upload-modal__chip {
+  padding: 0 var(--spacing-2, 8px);
+  border-radius: var(--shape-full, 999px);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-2xs, 11px);
+  letter-spacing: var(--letter-spacing-badge, 0.5px);
+  text-transform: uppercase;
+}
+
+.asset-upload-modal__audio {
+  width: 100%;
+}
+
+.asset-upload-modal__status {
+  margin: 0;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-on-surface-variant);
+}
+
+.asset-upload-modal__error {
+  margin: 0;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-error);
+}
