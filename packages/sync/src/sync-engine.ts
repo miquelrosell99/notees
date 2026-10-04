@@ -377,7 +377,20 @@ export class SyncEngine {
         ? [...envelopes].sort((a, b) => (seqs[a.id] ?? 0) - (seqs[b.id] ?? 0))
         : envelopes;
 
-    const summaries = this.store.applyMany(ordered);
+    const summaries = this.store.applyMany(ordered, { quarantineMoveGuards: true });
+
+    // Quarantined remote envelopes (poison history): surfaced loud — but the
+    // batch converged, so this is a report, not a failure.
+    const quarantined = summaries.filter((s) => s.quarantined === true);
+    if (quarantined.length > 0) {
+      this.callbacks.onError?.(
+        new Error(
+          quarantined
+            .map((s) => `quarantined remote ${s.opType}: ${s.error ?? "unknown error"}`)
+            .join("; "),
+        ),
+      );
+    }
 
     const conflicts = detectConflicts(ordered, this.outbox.unacknowledgedEnvelopes());
     this.emitConflicts(conflicts);
