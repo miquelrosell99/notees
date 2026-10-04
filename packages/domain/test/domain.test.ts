@@ -338,38 +338,102 @@ describe("date node display names", () => {
   });
 });
 
-describe("workspace feature map (§34.35)", () => {
-  it("F1: every managed class is a real system class; every feature resolves its class ids", async () => {
+describe("workspace feature map (§34.35, reshaped §34.55)", () => {
+  it("the five core families map to their seeded base classes", async () => {
     const { WORKSPACE_FEATURE_MAP, managedClassIds, featureForManagedClass } = await import(
       "../src/index.js"
     );
-    for (const [feature, spec] of Object.entries(WORKSPACE_FEATURE_MAP)) {
-      expect(spec.classes.length).toBeGreaterThan(0);
-      for (const name of spec.classes) {
-        expect(SYSTEM_CLASS_UUIDS).toHaveProperty(name);
-      }
-      const ids = managedClassIds(feature as keyof typeof WORKSPACE_FEATURE_MAP);
-      expect(ids).toHaveLength(spec.classes.length);
-      for (const id of ids) {
-        expect(featureForManagedClass(id)).toBe(feature);
-      }
+    expect(WORKSPACE_FEATURE_MAP.tasks.baseClass).toBe("task");
+    expect(WORKSPACE_FEATURE_MAP.events.baseClass).toBe("event");
+    expect(WORKSPACE_FEATURE_MAP.meetings.baseClass).toBe("meeting");
+    expect(WORKSPACE_FEATURE_MAP.sources.baseClass).toBe("source");
+    expect(WORKSPACE_FEATURE_MAP.persons.baseClass).toBe("person");
+    for (const spec of Object.values(WORKSPACE_FEATURE_MAP)) {
+      expect(spec.powers.length).toBeGreaterThan(10);
+      expect(SYSTEM_CLASS_UUIDS).toHaveProperty(spec.baseClass);
     }
+    // F4 routing resolves the five BASE ids and nothing else.
+    expect(featureForManagedClass(SYSTEM_CLASS_UUIDS.task)).toBe("tasks");
+    expect(featureForManagedClass(SYSTEM_CLASS_UUIDS.event)).toBe("events");
+    expect(featureForManagedClass(SYSTEM_CLASS_UUIDS.meeting)).toBe("meetings");
+    expect(featureForManagedClass(SYSTEM_CLASS_UUIDS.source)).toBe("sources");
+    expect(featureForManagedClass(SYSTEM_CLASS_UUIDS.person)).toBe("persons");
+    // Family children do NOT route (plain delete semantics stay).
+    expect(featureForManagedClass(SYSTEM_CLASS_UUIDS.book)).toBeNull();
+    expect(featureForManagedClass(SYSTEM_CLASS_UUIDS.birthday)).toBeNull();
+    expect(managedClassIds("tasks")).toEqual([SYSTEM_CLASS_UUIDS.task]);
   });
 
-  it("F1: always-on classes are never managed; the toggleable set covers the proposed six", async () => {
+  it("the family set cascades through extends-children (events → meeting + birthday; sources → the 9-strong family)", async () => {
+    const { familyClassNames, managedClassIds } = await import("../src/index.js");
+    expect(familyClassNames("events")).toEqual(["event", "birthday", "meeting"]);
+    expect(familyClassNames("meetings")).toEqual(["meeting"]);
+    expect(familyClassNames("sources")).toEqual([
+      "source",
+      "article",
+      "book",
+      "conference",
+      "document",
+      "movie",
+      "paper",
+      "song",
+      "thesis",
+      "tv_series",
+    ]);
+    expect(familyClassNames("persons")).toEqual(["person"]);
+    expect(managedClassIds("events")).toHaveLength(3);
+    expect(managedClassIds("sources")).toHaveLength(10);
+  });
+
+  it("chrome gating: own feature + managed ancestors (meeting ← meetings AND events; birthday ← events only)", async () => {
+    const { gatingFeaturesForClass } = await import("../src/index.js");
+    expect(gatingFeaturesForClass("task")).toEqual(["tasks"]);
+    expect(gatingFeaturesForClass("meeting")).toEqual(["meetings", "events"]);
+    expect(gatingFeaturesForClass("birthday")).toEqual(["events"]);
+    expect(gatingFeaturesForClass("event")).toEqual(["events"]);
+    expect(gatingFeaturesForClass("book")).toEqual(["sources"]);
+    expect(gatingFeaturesForClass("conference")).toEqual(["sources"]);
+    expect(gatingFeaturesForClass("person")).toEqual(["persons"]);
+    // Always-on / unmanaged classes gate on nothing.
+    expect(gatingFeaturesForClass("day")).toEqual([]);
+    expect(gatingFeaturesForClass("agent")).toEqual([]);
+    expect(gatingFeaturesForClass("organization")).toEqual([]);
+    expect(gatingFeaturesForClass("collection")).toEqual([]);
+    expect(gatingFeaturesForClass("whiteboard")).toEqual([]);
+  });
+
+  it("F1: always-on classes are never managed; the base system + the dropped features' classes stay always-on", async () => {
     const {
       ALWAYS_ON_SYSTEM_CLASSES,
       WORKSPACE_FEATURE_MAP,
       isAlwaysOnSystemClass,
     } = await import("../src/index.js");
-    const managed = new Set(Object.values(WORKSPACE_FEATURE_MAP).flatMap((spec) => spec.classes));
+    const bases = new Set(Object.values(WORKSPACE_FEATURE_MAP).map((spec) => spec.baseClass));
     for (const name of ALWAYS_ON_SYSTEM_CLASSES) {
-      expect(managed.has(name as never), `always-on ${name} must not be managed`).toBe(false);
+      expect(bases.has(name as never), `always-on ${name} must not be a family base`).toBe(false);
       expect(isAlwaysOnSystemClass(name)).toBe(true);
     }
-    // whiteboard (class/token duality) and meeting (plain-seed ruling) stay always-on.
+    // Journals + assets stay always-on base system; the dropped features'
+    // classes (highlight/weblink/collection/agent/organization) are plain
+    // vocabulary now.
+    for (const name of [
+      "year",
+      "month",
+      "day",
+      "asset",
+      "highlight",
+      "weblink",
+      "collection",
+      "agent",
+      "organization",
+    ] as const) {
+      expect(ALWAYS_ON_SYSTEM_CLASSES).toContain(name);
+    }
+    // whiteboard (class/token duality) stays always-on; the family bases don't.
     expect(ALWAYS_ON_SYSTEM_CLASSES).toContain("whiteboard");
-    expect(ALWAYS_ON_SYSTEM_CLASSES).toContain("meeting");
+    for (const name of ["task", "event", "meeting", "source", "person", "book", "birthday"] as const) {
+      expect(ALWAYS_ON_SYSTEM_CLASSES).not.toContain(name);
+    }
   });
 
   it("task-family seed-ensure manifest: six schemas at fixed ids with deterministic option ids", async () => {
