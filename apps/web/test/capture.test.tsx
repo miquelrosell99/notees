@@ -368,8 +368,11 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     expect(tagPages).toHaveLength(1);
     // …and assigned to the edited node's Tags (OR-set add).
     expect(client.getNode(blockId)?.tagIds).toEqual([tagPages[0]!.id]);
-    // No class was created — "#" is tag semantics, "+" owns classes.
-    expect(client.listClasses()).toHaveLength(0);
+    // No class was created — "#" is tag semantics, "+" owns classes. (The
+    // covers-v2 seed authors the asset/source/cover family rows on client
+    // seed, so assert no USER class named "Proj" appeared, not an empty
+    // registry.)
+    expect(client.listClasses().filter((c) => deriveDisplayName(c) === "Proj")).toHaveLength(0);
     // The trigger text is stripped (assignment is the gesture, not prose).
     expect(editor.textContent).toBe("");
   });
@@ -416,7 +419,12 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "+");
-    // The class picker lists the class vocabulary on an empty query.
+    // The class picker lists the class vocabulary on an empty query (the
+    // seeded system family included since covers v2).
+    expect(within(picker()!).getByText("Project")).toBeInTheDocument();
+    // Narrow to the user class — the seeded family rows lead the empty-query
+    // list, so Enter on the unfiltered list would assign a system class.
+    typeInPicker("Pro");
     expect(within(picker()!).getByText("Project")).toBeInTheDocument();
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});

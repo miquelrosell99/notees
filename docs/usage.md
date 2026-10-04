@@ -407,7 +407,7 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 |---|---|
 | `GET /api/objects?isClass=&presentAsMain=&class=&q=&limit=&cursor=` | List objects (paginated, filterable; `presentAsMain` selects the document-chrome rows — "pages" — its negation the inline body) |
 | `POST /api/objects` | Create an object; body `{"name": …, "parentId": …, "presentAsMain": …, "classIds": [...], "contentAst": [...]}` (`isClass: true` declares a class — a root) — returns the full object |
-| `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` |
+| `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` (each property entry carries its stable `elementId` — the multi-value element identity, §34.57 PG5) |
 | `GET /api/objects/:id/children` | Direct children in child-position order (both render zones; active only) |
 | `PATCH /api/objects/:id` | Update `name`, `presentAsMain`, `contentAst`, `icon`, `color`; optional `baseRevision: {physical, logical}` — the object's `hlc` as last seen — 409s when stale (the only route with a natural per-node revision; see `x-revision-checks`) |
 | `PUT /api/objects/:id/classes/:classId` | Assign the object to a class (idempotent OR-Set add; class nodes are rejected — identity is the `is_class` bit) |
@@ -423,7 +423,7 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 | `DELETE /api/property-schemas/:id` | Soft-delete a schema (authored values survive; recreate under the same uuid reactivates) |
 | `POST /api/classes/:id/properties` | Bind a schema to a class (`class.property.set`: sequence/flags/defaultValue patch) |
 | `DELETE /api/classes/:id/properties/:propertySchemaId` | Remove the binding (authored values survive) |
-| `GET /api/properties/:id/values` | Values asserted for a property schema |
+| `GET /api/properties/:id/values` | Values asserted for a property schema (each entry carries the value's `elementId`; §34.57 PG5) |
 | `POST /api/assets` (multipart) · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed), download, metadata |
 | `GET /api/workspaces/:id/export.zip?includeAssets=0|1` | Full-workspace Markdown zip — one file per top-level and child page, manifest, optional `assets/` folder |
 | `GET /api/meta` | Server self-description: version, wire protocol versions, default workspace, setup state (auth-free) |
