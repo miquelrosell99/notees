@@ -1,0 +1,61 @@
+/* SharePageModal — the read-only public share link manager. Token-only CSS:
+   every value resolves to a custom property from variables.css. */
+
+.nt-share__hint {
+  margin: 0 0 var(--spacing-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.nt-share__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-8) 0;
+}
+
+.nt-share__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-share__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container);
+}
+
+.nt-share__row--revoked {
+  opacity: 0.6;
+}
+
+.nt-share__meta {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.nt-share__url {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.nt-share__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-share__create {
+  margin-top: var(--spacing-4);
+  display: flex;
+  justify-content: flex-start;
+}
