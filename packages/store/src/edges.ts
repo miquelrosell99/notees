@@ -14,6 +14,15 @@
  *  - ``property``     — node-typed property values ({ "nodeId": ... }),
  *                       verb = propertySchemaId.
  *
+ * PB1 (SCHEMA.md "Broken references", owner rule 2026-10-04): the property
+ * family derives from the SURVIVING value rows, never from target liveness
+ * — a value pointing at a deleted/trashed node keeps its edge (rebuild
+ * re-derives it identically; it must never drop a broken ref silently, and
+ * the permanent-delete applier keeps incoming rows for the same reason).
+ * Trashed targets therefore keep backlinks for free; a restored target
+ * heals its backlink set only because the rows survived. Ghost-target rows
+ * are inert — every query here is keyed by a live node id.
+ *
  * Edge ids are deterministic (sha256 over source/type/target/verb/metadata/
  * occurrence), so wipe -> replay -> identical rows. Stale edges and node_link
  * assertions for the source are deleted; ``node_stats`` is recomputed for the

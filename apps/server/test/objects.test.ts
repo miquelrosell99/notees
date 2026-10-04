@@ -238,6 +238,55 @@ describe("objects API", () => {
     expect(partial.json().error).toMatchObject({ code: "not_found" });
   });
 
+  it("resolve treats an exact alias value as a name-equivalent (PG10)", async () => {
+    server = await makeTestServer();
+    // The alias schema is seeded (global scope, multi text) — author a value
+    // and resolve by it.
+    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "The Republic" } })).json();
+    const aliasWrite = await api("POST", `/api/objects/${id}/properties`, {
+      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.alias, value: "Politeia", idx: 0 },
+    });
+    expect(aliasWrite.statusCode).toBe(200);
+    const res = await api("GET", `/api/resolve?name=${encodeURIComponent("politeia")}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().id).toBe(id);
+    // Searching the alias text also finds the node (M5 text-scalar indexing).
+    const search = await api("GET", `/api/search?q=Politeia`);
+    expect(search.json().results.map((r: { id: string }) => r.id)).toContain(id);
+  });
+
+  it("apply-time value validation fails loud as 422 (PG6)", async () => {
+    server = await makeTestServer();
+    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Dated" } })).json();
+    const schema = (await api("POST", "/api/property-schemas", {
+      payload: { propertySchemaId: crypto.randomUUID(), name: "when", type: "date" },
+    })).json().propertySchema;
+    // A date value must reference an EXISTING node — a ghost fails loud.
+    const ghost = await api("POST", `/api/objects/${id}/properties`, {
+      payload: { propertySchemaId: schema.id, value: { nodeId: crypto.randomUUID() }, idx: 0 },
+    });
+    expect(ghost.statusCode).toBe(422);
+    expect(ghost.json().error.code).toBe("validation_failed");
+    expect(ghost.json().error.message).toContain("does not exist");
+    // A wrong scalar shape on a typed schema fails loud too.
+    const boolSchema = (await api("POST", "/api/property-schemas", {
+      payload: { propertySchemaId: crypto.randomUUID(), name: "done", type: "boolean" },
+    })).json().propertySchema;
+    const bad = await api("POST", `/api/objects/${id}/properties`, {
+      payload: { propertySchemaId: boolSchema.id, value: "yes", idx: 0 },
+    });
+    expect(bad.statusCode).toBe(422);
+    // A single-value schema rejects idx > 0 (cardinality).
+    const textSchema = (await api("POST", "/api/property-schemas", {
+      payload: { propertySchemaId: crypto.randomUUID(), name: "note", type: "text" },
+    })).json().propertySchema;
+    const secondSlot = await api("POST", `/api/objects/${id}/properties`, {
+      payload: { propertySchemaId: textSchema.id, value: "x", idx: 1 },
+    });
+    expect(secondSlot.statusCode).toBe(422);
+    expect(secondSlot.json().error.message).toContain("single-value");
+  });
+
   it("backlinks reflect an emitted mention", async () => {
     server = await makeTestServer();
     const { id: target } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Target" } })).json();

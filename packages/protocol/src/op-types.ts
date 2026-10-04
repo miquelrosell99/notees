@@ -240,6 +240,19 @@ export const classPropertyUnsetPayload = z
   })
   .strict();
 
+/**
+ * A select/multi_select option record (§34.32 PG16, additive 2026-10-04):
+ * `{ id, label }` plus an OPTIONAL color in the §34.43 grammar — a preset
+ * token or a custom `#RRGGBB` hex; absent/null = no color (the token
+ * palette renders the pill like any uncolored one). Additive JSON inside
+ * the existing options array — no op-shape change.
+ */
+export const propertySchemaOptionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  color: colorValueSchema.nullish(),
+});
+
 export const propertySchemaCreatePayload = z
   .object({
     propertySchemaId: uuid,
@@ -259,7 +272,7 @@ export const propertySchemaCreatePayload = z
     ]),
     multi: z.boolean().default(false),
     scope: z.enum(["global", "class", "object"]).default("global"),
-    options: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
+    options: z.array(propertySchemaOptionSchema).optional(),
     /** Node-typed (m2o/m2m) schemas constrain their targets to these classes. */
     targetClassFilter: z.array(uuid).optional(),
     /** Date schemas: the finest granularity a value may claim (SCHEMA.md "Dates";
@@ -275,7 +288,7 @@ export const propertySchemaUpdatePayload = z
   .object({
     propertySchemaId: uuid,
     name: z.string().min(1).max(256).optional(),
-    options: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
+    options: z.array(propertySchemaOptionSchema).optional(),
     /** Patchable so the Class View bindings editor can retune date behavior
      * after creation (same optional-fields contract as name/options). */
     datePrecision: z.enum(["year", "month", "day"]).optional(),

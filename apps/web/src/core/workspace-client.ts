@@ -48,6 +48,10 @@ import {
 
 import { sqljsBackend } from "@notees/store/sqljs";
 
+// PG10 alias name-equivalents (aliasProperty type-only imports back — no
+// runtime cycle).
+import { aliasValuesOf } from "../ui/components/aliasProperty.js";
+
 /** Sensible default depth cap for getBlockTree (cycle protection). */
 const DEFAULT_TREE_DEPTH = 64;
 
@@ -212,10 +216,33 @@ export interface SetClassPropertyInput {
   defaultValue?: unknown;
 }
 
+/** A select/multi_select option (PG16 adds the optional §34.43 color). */
+export interface ClientPropertyOption {
+  id: string;
+  label: string;
+  /** Preset token or `#RRGGBB` hex (§34.43); absent/null = uncolored. */
+  color?: string | null;
+}
+
+/**
+ * One entry of the GET /api/operations relay-log feed (§34.33.1), trimmed to
+ * what the PG13 history modal renders — the envelope's coordination fields
+ * plus its payload.
+ */
+export interface OperationFeedEntry {
+  seq: number;
+  opType: string;
+  payload: Record<string, unknown>;
+  actorId: string;
+  deviceId: string;
+  timestamp: string;
+  hlc: { physical: number; logical: number };
+}
+
 /** Editable fields of a propertySchema.update write (all optional — patch). */
 export interface UpdatePropertySchemaInput {
   name?: string;
-  options?: Array<{ id: string; label: string }>;
+  options?: ClientPropertyOption[];
   datePrecision?: DatePrecision;
   dateQualified?: boolean;
 }
@@ -227,7 +254,7 @@ export interface ClientPropertySchema {
   type: string;
   multi: boolean;
   scope: string;
-  options: Array<{ id: string; label: string }> | null;
+  options: ClientPropertyOption[] | null;
   targetClassFilter: string[] | null;
   /** SCHEMA.md "Dates": finest granularity a date value may claim (null = day). */
   datePrecision: DatePrecision | null;
@@ -246,7 +273,7 @@ export interface CreatePropertySchemaInput {
   type: string;
   multi?: boolean;
   scope?: string;
-  options?: Array<{ id: string; label: string }>;
+  options?: ClientPropertyOption[];
   targetClassFilter?: string[];
   datePrecision?: DatePrecision;
   dateQualified?: boolean;
@@ -1026,14 +1053,23 @@ export class WorkspaceClient {
           return null;
         }
       };
-      let options: Array<{ id: string; label: string }> | null = null;
+      let options: ClientPropertyOption[] | null = null;
       try {
         const parsed: unknown = JSON.parse((row.options as string | null) ?? "null");
         if (Array.isArray(parsed)) {
-          options = parsed.filter(
-            (v): v is { id: string; label: string } =>
-              typeof v === "object" && v !== null && "id" in v && "label" in v,
-          );
+          options = parsed
+            .filter(
+              (v): v is Record<string, unknown> =>
+                typeof v === "object" && v !== null && "id" in v && "label" in v,
+            )
+            .map((v) => ({
+              id: String(v.id),
+              label: String(v.label),
+              // PG16 option colors ride the §34.43 grammar; absent/null = none.
+              ...("color" in v && (typeof v.color === "string" || v.color === null)
+                ? { color: v.color as string | null }
+                : {}),
+            }));
         }
       } catch {
         options = null;
@@ -1176,7 +1212,10 @@ export class WorkspaceClient {
   /**
    * Name→id resolution (§34.30 C6): the local twin of GET /api/resolve —
    * case-insensitive EXACT display-name match over the ranked FTS candidates
-   * (blocks included). Null when no active node carries the exact name.
+   * (blocks included). PG10: an exact case-insensitive ALIAS value is a
+   * name-equivalent — the candidate pool already folds alias text into the
+   * FTS row (M5 text-scalar indexing), so resolution follows search
+   * semantics. Null when no active node carries the name or alias.
    */
   resolveNodeByName(name: string): string | null {
     const wanted = name.toLowerCase();
@@ -1184,6 +1223,9 @@ export class WorkspaceClient {
       const node = this.getNode(hit.nodeId);
       if (node === undefined) continue;
       if ((deriveDisplayName(node) || "").toLowerCase() === wanted) return node.id;
+      if (aliasValuesOf(this, node.id).some((alias) => alias.toLowerCase() === wanted)) {
+        return node.id;
+      }
     }
     return null;
   }
@@ -1432,13 +1474,20 @@ export class WorkspaceClient {
   private unlinkedReferenceIds(id: string): string[] {
     const node = this.getNode(id);
     if (!node || !rendersWithDocumentChrome(node)) return [];
-    const name = deriveDisplayName(node);
-    if (!name) return [];
     const linkedSources = new Set(this.getBacklinks(id).map((edge) => edge.sourceId));
+    // PG10 name-equivalents: the display name AND every alias value each
+    // get a literal-text FTS pass (aliases are names for search).
+    const names = [deriveDisplayName(node), ...aliasValuesOf(this, id)].filter(
+      (name): name is string => typeof name === "string" && name.length > 0,
+    );
     const ids: string[] = [];
-    for (const hit of this.store.search(name)) {
-      if (hit.nodeId === id || linkedSources.has(hit.nodeId)) continue;
-      ids.push(hit.nodeId);
+    const seen = new Set<string>();
+    for (const name of names) {
+      for (const hit of this.store.search(name)) {
+        if (hit.nodeId === id || linkedSources.has(hit.nodeId) || seen.has(hit.nodeId)) continue;
+        seen.add(hit.nodeId);
+        ids.push(hit.nodeId);
+      }
     }
     return ids;
   }
@@ -1802,6 +1851,20 @@ export class WorkspaceClient {
   }
 
   /**
+   * Soft-delete a property schema (propertySchema.delete — the §34.32 PG3
+   * conversion flow's final step). Authored values under the schema survive
+   * in the log; recreate-under-the-same-id reactivates (the applier upsert).
+   */
+  async deletePropertySchema(propertySchemaId: string): Promise<void> {
+    const engine = this.requireEngine();
+    engine.enqueue(
+      this.buildEnvelope("propertySchema.delete", { propertySchemaId }, []),
+    );
+    this.notify();
+    this.kickPush();
+  }
+
+  /**
    * Author a property value (property.set) — the panel's edit path. Writing
    * an authored value shadows any derived class-binding default at the slot.
    * `metadata` carries per-value qualifiers (SCHEMA.md "Dates": dateQualified
@@ -2060,6 +2123,56 @@ export class WorkspaceClient {
     const blob = await fetchAssetBlob(serverUrl, apiKey, assetId);
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
+  }
+
+  /**
+   * Property value history feed (§34.32 PG13): paginated GET /api/operations
+   * (the §34.33.1 relay-log read), filtered client-side to property.* ops
+   * for one node + schema, newest-first by HLC. The feed entries are
+   * envelope-v3 objects — seq, hlc, actor, timestamp, payload — everything
+   * the history modal renders. Throws when the feed is unreachable (the
+   * modal renders the device-local note); bounded at 30 pages (300k
+   * envelopes) so a huge log cannot hang the UI.
+   */
+  async fetchOperationsFor(
+    objectId: string,
+    propertySchemaId: string,
+  ): Promise<OperationFeedEntry[]> {
+    const { serverUrl, apiKey } = this.requireRest();
+    const matches = (op: OperationFeedEntry): boolean =>
+      (op.opType === "property.set" || op.opType === "property.unset") &&
+      typeof op.payload === "object" &&
+      op.payload !== null &&
+      op.payload.objectId === objectId &&
+      op.payload.propertySchemaId === propertySchemaId;
+    const entries: OperationFeedEntry[] = [];
+    let afterSeq = 0;
+    for (let page = 0; page < 30; page++) {
+      const url = `${serverUrl.replace(/\/$/, "")}/api/operations?afterSeq=${afterSeq}&limit=10000`;
+      const response = await fetch(url, {
+        headers: { "X-API-Key": apiKey, "X-Workspace-Id": this.workspaceId },
+      });
+      if (!response.ok) {
+        throw new Error(`operations feed failed: HTTP ${response.status}`);
+      }
+      const body = (await response.json()) as {
+        operations: OperationFeedEntry[];
+        nextAfterSeq: number;
+        hasMore: boolean;
+      };
+      for (const op of body.operations) {
+        if (matches(op)) entries.push(op);
+      }
+      if (!body.hasMore) break;
+      afterSeq = body.nextAfterSeq;
+    }
+    entries.sort(
+      (a, b) =>
+        b.hlc.physical - a.hlc.physical ||
+        b.hlc.logical - a.hlc.logical ||
+        (a.seq < b.seq ? 1 : -1),
+    );
+    return entries;
   }
 
   /**

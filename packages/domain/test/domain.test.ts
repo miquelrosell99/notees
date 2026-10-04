@@ -52,9 +52,14 @@ describe("system seeds (v1 port)", () => {
     }
   });
 
-  it("property specs bind to real classes; options carry unique ids", () => {
-    for (const spec of Object.values(SYSTEM_PROPERTY_SPECS)) {
-      expect(SYSTEM_CLASS_UUIDS).toHaveProperty(spec.bindTo);
+  it("property specs bind to real classes (when bound — PG10 made bindTo optional for the global alias); options carry unique ids", () => {
+    for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
+      // PG10 (2026-10-04): bindTo-less specs seed the schema at global scope
+      // with no class binding (the alias property — "page" is not a class).
+      if (spec.bindTo !== undefined) {
+        expect(SYSTEM_CLASS_UUIDS).toHaveProperty(spec.bindTo);
+      }
+      expect(SYSTEM_PROPERTY_UUIDS).toHaveProperty(name);
       if (spec.options) {
         expect(new Set(spec.options.map((o) => o.id)).size).toBe(spec.options.length);
       }
@@ -120,6 +125,25 @@ describe("system seeds (v1 port)", () => {
     for (const binding of SYSTEM_EXTRA_CLASS_BINDINGS) {
       expect(binding.property).not.toBe("generatedFrom");
     }
+  });
+
+  it("meeting family seeds (§34.36, owner ruling 2026-10-04: plain seeds — zero wire cost)", () => {
+    // The register's reserved class id (append-only rule; conference …038
+    // stays the previous tail). Standalone — no SYSTEM_CLASS_EXTENDS entry.
+    expect(SYSTEM_CLASS_UUIDS.meeting).toBe("00000000-0000-0000-0001-000000000039");
+    expect(SYSTEM_CLASS_ICONS.meeting).toMatch(/^mdi/);
+    expect(SYSTEM_CLASS_EXTENDS).not.toHaveProperty("meeting");
+    expect(SEEDED_SYSTEM_CLASSES).toContain("meeting");
+    // The family continues the workflow-properties block (task family
+    // …001–…006; the pinned block rule above covers …0003-…).
+    expect(SYSTEM_PROPERTY_UUIDS.meetingDate).toBe("00000000-0000-0000-0003-000000000007");
+    expect(SYSTEM_PROPERTY_UUIDS.location).toBe("00000000-0000-0000-0003-000000000008");
+    expect(SYSTEM_PROPERTY_UUIDS.agenda).toBe("00000000-0000-0000-0003-000000000009");
+    // M2 whole-day law: the date binding is date-typed — there is no
+    // clock-time type anywhere in the spec union.
+    expect(SYSTEM_PROPERTY_SPECS.meetingDate).toEqual({ type: "date", bindTo: "meeting" });
+    expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting" });
+    expect(SYSTEM_PROPERTY_SPECS.agenda).toEqual({ type: "text", bindTo: "meeting" });
   });
 });
 
