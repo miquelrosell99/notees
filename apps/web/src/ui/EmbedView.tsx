@@ -17,12 +17,18 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
+import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client.js";
 
+import { BlockRow } from "./BlockRow.js";
 import { displayNameFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
+import { tableClassIdOf } from "./components/tableFamily.js";
 import { useOutliner } from "./outliner-context.js";
+
+type AnyClient = WorkspaceClient | WorkerClient;
 
 /** Backstop for embed chains: nesting deeper than this renders a placeholder. */
 export const EMBED_MAX_DEPTH = 5;
@@ -58,13 +64,21 @@ function EmbedPlaceholder({ label, detail }: { label: string; detail: string }) 
 /** One read-only row of the embedded subtree, recursive over its children. */
 function EmbedBlock({
   tree,
+  client,
   resolveName,
   renderEmbed,
 }: {
   tree: BlockTreeNode;
+  client: AnyClient;
   resolveName: (nodeId: string) => string | null;
   renderEmbed: (nodeId: string) => ReactNode;
 }) {
+  // §34.34 B4: a table-classed block renders through the BlockRow grid even
+  // read-only (the directive's "same BlockRow path" for projections) — the
+  // embed's own row renderer would flatten the rows/cells into a plain list.
+  if (tree.node.classIds.includes(tableClassIdOf(client))) {
+    return <BlockRow tree={tree} client={client} resolveName={resolveName} readOnly />;
+  }
   return (
     <div className="nt-embed-block">
       <div className="nt-embed-block-content">
@@ -78,7 +92,7 @@ function EmbedBlock({
       {tree.children.length > 0 && (
         <div className="nt-embed-block-children">
           {tree.children.map((child) => (
-            <EmbedBlock key={child.node.id} tree={child} resolveName={resolveName} renderEmbed={renderEmbed} />
+            <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} renderEmbed={renderEmbed} />
           ))}
         </div>
       )}
@@ -87,7 +101,11 @@ function EmbedBlock({
 }
 
 export function EmbedView({ nodeId }: { nodeId: string }) {
-  const { client } = useOutliner();
+  const { client: seamClient } = useOutliner();
+  // Every OutlinerContext provider (PageView, ClassView, ReferenceSubtree)
+  // builds the value from the full client; the seam type just narrows it.
+  // BlockRow's grid branch needs the full type's prop surface.
+  const client = seamClient as AnyClient;
   const frame = useContext(EmbedContext);
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
@@ -129,7 +147,7 @@ export function EmbedView({ nodeId }: { nodeId: string }) {
         {childrenTree.length > 0 && (
           <div className="nt-embed-children">
             {childrenTree.map((child) => (
-              <EmbedBlock key={child.node.id} tree={child} resolveName={resolveName} renderEmbed={renderEmbed} />
+              <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} renderEmbed={renderEmbed} />
             ))}
           </div>
         )}
