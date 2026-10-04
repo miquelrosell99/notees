@@ -132,13 +132,16 @@ function makeDevice(
   deviceId: string,
   now: () => number,
   onConflict?: (conflicts: SyncConflict[]) => void,
+  onError?: (error: Error) => void,
 ): Device {
   const store = new Store();
   const transport = new MemoryTransport(relay);
   const engine = new SyncEngine(store, transport, new Clock(deviceId), {
     workspaceId: WS,
     now,
-    ...(onConflict !== undefined ? { callbacks: { onConflict } } : {}),
+    ...((onConflict !== undefined || onError !== undefined)
+      ? { callbacks: { ...(onConflict !== undefined ? { onConflict } : {}), ...(onError !== undefined ? { onError } : {}) } }
+      : {}),
   });
   return { store, transport, engine };
 }
@@ -458,5 +461,37 @@ describe("conflict detection", () => {
     const conflicts = detectConflicts(remote, local);
     expect(conflicts.map((conflict) => conflict.conflictType)).toEqual(["node_deleted"]);
     expect(conflicts[0]!.nodeId).toBe(NODE);
+  });
+});
+
+describe("remote poison quarantine", () => {
+  it("a fresh device converges past a historical class-parenting move, surfacing the error once", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    // Historical log: base workspace, then a pre-Revision-11 class-parenting
+    // move, then a normal op — exactly the live workspace's seq-52497 shape.
+    relay.ingest([
+      ...baseEnvelopes(DEVICE_A),
+      makeEnvelope(DEVICE_A, T0 + 60, "object.move", { objectId: CLASS_X, parentId: PARENT }),
+      makeEnvelope(DEVICE_A, T0 + 70, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "post-poison" }],
+      }),
+    ]);
+
+    const errors: Error[] = [];
+    const b = makeDevice(relay, DEVICE_B, () => nowMs, undefined, (e) => errors.push(e));
+    await b.engine.pull();
+
+    // Converged PAST the poison: cursor at the log tail, post-poison op live.
+    expect(b.engine.getCursorSeq()).toBe(7);
+    expect(titleOf(b.store, NODE)).toBe("post-poison");
+    expect(b.store.getNode(CLASS_X)?.parentId ?? null).toBeNull();
+
+    // The poison is quarantined (not retried) and surfaced via onError.
+    const quarantined = b.store.quarantinedEnvelopes();
+    expect(quarantined).toHaveLength(1);
+    expect(quarantined[0]!.opType).toBe("object.move");
+    expect(errors.some((e) => /quarantined remote object\.move/.test(e.message))).toBe(true);
   });
 });
