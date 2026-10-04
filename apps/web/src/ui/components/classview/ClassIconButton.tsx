@@ -1,31 +1,21 @@
 /**
- * ClassIconButton — the class header's icon picker: curated mdi grid +
- * clear, popover anchored under the icon slot (PageView `iconButton` slot).
- * Classes keep the curated set (class glyphs double as pill icons); pages
- * keep the full IconPickerPopup.
+ * ClassIconButton — the class header's icon picker. The popup IS the v1
+ * full picker (IconPickerPopup: All/Emojis/Icons tabs, the entire emoji +
+ * mdi sets, recents — the owner's directive 2026-10-04, "it was great");
+ * the earlier curated 42-icon grid retired in its favor. Selection writes
+ * the v1 value contract through object.update: an emoji character (the
+ * Icon renderer's text passthrough) or a camelCase mdi key; "" clears.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../../Icon.js";
-import "./ClassIconButton.css";
+import { IconPickerPopup } from "../IconPickerPopup.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
-
-/** Curated icon set for the class icon picker (mdi names, sprite-served). */
-const CLASS_ICONS = [
-  "mdiAccount", "mdiAccountGroup", "mdiArchive", "mdiBook", "BookOpenVariant",
-  "mdiBookmark", "mdiBriefcase", "mdiCalendar", "mdiCalendarClock", "mdiCardText",
-  "mdiCheckboxMarkedCircleOutline", "mdiClipboardText", "mdiClockOutline", "mdiCog",
-  "mdiEmail", "mdiFileDocument", "mdiFlag", "mdiFolder", "mdiFormatListBulleted",
-  "mdiFormatListChecks", "mdiHeart", "mdiHome", "mdiImage", "mdiLabel", "mdiLightbulb",
-  "mdiLink", "mdiMapMarker", "mdiMicroscope", "mdiMovie", "mdiMusicNote", "mdiNotebook",
-  "mdiPackage", "mdiPhone", "mdiPound", "mdiPresentation", "mdiScriptText", "mdiShape",
-  "mdiStar", "mdiTag", "mdiTestTube", "mdiTooth", "mdiTrayArrowDown", "mdiWeb",
-].map((name) => (name.startsWith("mdi") ? name : `mdi${name}`));
 
 export function ClassIconButton({
   client,
@@ -37,20 +27,17 @@ export function ClassIconButton({
   icon: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  const filtered =
-    query.trim() === ""
-      ? CLASS_ICONS
-      : CLASS_ICONS.filter((name) => name.toLowerCase().includes(query.trim().toLowerCase()));
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <span className="nt-class-iconpicker">
       <button
         type="button"
+        ref={buttonRef}
         className="nt-class-iconbtn"
         title="Class icon"
         aria-label="Class icon"
+        aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
         {icon !== null && icon !== "" ? (
@@ -59,42 +46,16 @@ export function ClassIconButton({
           <Icon path="mdi-dots-grid" size={1.2} />
         )}
       </button>
-      {open && (
-        <span className="nt-class-iconpop" role="dialog" aria-label="Choose class icon">
-          <input
-            autoFocus
-            value={query}
-            placeholder="Search icons…"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <span className="nt-class-icons">
-            {filtered.map((name) => (
-              <button
-                key={name}
-                type="button"
-                className={name === icon ? "nt-class-iconopt nt-class-iconopt-active" : "nt-class-iconopt"}
-                title={name}
-                onClick={() => {
-                  setOpen(false);
-                  setQuery("");
-                  void client.updateObject(classId, { icon: name });
-                }}
-              >
-                <Icon path={name} size={1} />
-              </button>
-            ))}
-          </span>
-          <button
-            type="button"
-            className="nt-class-iconclear"
-            onClick={() => {
-              setOpen(false);
-              void client.updateObject(classId, { icon: "" });
-            }}
-          >
-            No icon
-          </button>
-        </span>
+      {open && buttonRef.current !== null && (
+        <IconPickerPopup
+          value={icon ?? undefined}
+          anchorEl={buttonRef.current}
+          onSelect={(value) => {
+            setOpen(false);
+            void client.updateObject(classId, { icon: value });
+          }}
+          onClose={() => setOpen(false)}
+        />
       )}
     </span>
   );
