@@ -50,8 +50,9 @@ import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { DropLineContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
 import { Button } from "./components/ui/index.js";
+import { InlineConfirmButton } from "./components/ui/InlineConfirmButton.js";
 import { tableClassIdOf } from "./components/tableFamily.js";
-import { addTableColumn, addTableRow, tableColumnCount } from "./components/tableGrid.js";
+import { addTableColumn, addTableRow, deleteTableColumn, deleteTableRow, tableColumnCount } from "./components/tableGrid.js";
 
 interface BlockRowProps {
   tree: BlockTreeNode;
@@ -272,14 +273,21 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             <InlineTokens
               tokens={node.contentAst}
               resolveName={resolveName}
+              resolveVerb={(schemaId) =>
+                outlinerClient.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
+              }
               onOpenNode={openNode}
               onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
               resolveColor={(id) => {
                 const target = outlinerClient.getNode(id);
                 return target === undefined ? null : outlinerClient.effectiveNodeColor(target);
               }}
-              renderEmbed={(id) => <EmbedView nodeId={id} />}
-              renderEmbedCard={(id, view) => <EmbedCardView nodeId={id} view={view} />}
+              renderEmbed={(id, _token, index) => (
+                <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />
+              )}
+              renderEmbedCard={(id, view, _token, index) => (
+                <EmbedCardView nodeId={id} view={view} hostId={node.id} tokenIndex={index} />
+              )}
               renderQuery={(token, index) => (
                 <QueryBlockView
                   client={outlinerClient}
@@ -400,6 +408,37 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
               >
                 Column
               </Button>
+              {/* − Row / − Column: the inline-confirm pattern (a delete is
+                  destructive; the confirm/check row replaces the trigger).
+                  The last row / right-most column are the targets — the
+                  append gestures' mirror. */}
+              <InlineConfirmButton
+                size="sm"
+                variant="ghost"
+                title="Delete last row"
+                confirmTitle="Confirm delete row"
+                cancelTitle="Cancel"
+                disabled={children.length === 0}
+                onConfirm={() => {
+                  const last = children[children.length - 1];
+                  if (last !== undefined) void deleteTableRow(client, last);
+                }}
+              >
+                − Row
+              </InlineConfirmButton>
+              <InlineConfirmButton
+                size="sm"
+                variant="ghost"
+                title="Delete last column"
+                confirmTitle="Confirm delete column"
+                cancelTitle="Cancel"
+                disabled={tableColumnCount(children) === 0}
+                onConfirm={() => {
+                  void deleteTableColumn(client, children, tableColumnCount(children) - 1);
+                }}
+              >
+                − Column
+              </InlineConfirmButton>
             </div>
           )}
           {children.length > 0 && !isCollapsed && (

@@ -25,6 +25,7 @@ import { chainNodeIds, deriveDisplayName } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { EMPTY_UNDO_STATE, type UndoUiState } from "../src/core/undo-journal.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
 import { NodeSelector } from "../src/ui/components/pickers/NodeSelector.js";
 
@@ -98,10 +99,12 @@ function renderPalette(
   handlers: {
     onOpenNode?: (id: string) => void;
     onNewPage?: (title?: string) => void;
+    undoState?: UndoUiState;
   } = {},
 ) {
   const opened: string[] = [];
   const created: Array<string | undefined> = [];
+  const undoCalls: string[] = [];
   render(
     <CommandPalette
       client={client}
@@ -111,10 +114,13 @@ function renderPalette(
       onOpenNode={handlers.onOpenNode ?? ((id) => opened.push(id))}
       onNewPage={handlers.onNewPage ?? ((title) => created.push(title))}
       onSignOut={() => {}}
+      undoState={handlers.undoState ?? EMPTY_UNDO_STATE}
+      onUndo={() => undoCalls.push("undo")}
+      onRedo={() => undoCalls.push("redo")}
       cacheVersion={0}
     />,
   );
-  return { opened, created };
+  return { opened, created, undoCalls };
 }
 
 const typeInPalette = (text: string): void => {

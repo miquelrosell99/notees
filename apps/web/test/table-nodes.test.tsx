@@ -366,6 +366,56 @@ describe("toolbar gestures (+ Row / + Column)", () => {
       );
     });
   });
+
+  it("− Row deletes the last row through the inline-confirm pattern (cells ride the subtree trash)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Delete Row" });
+    const { containerId, rowIds } = await buildTable(client, pageId, 2, 2);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // The trigger arms the inline confirm (a delete is destructive).
+    fireEvent.click(screen.getByRole("button", { name: "− Row" }));
+    expect(client.getNode(rowIds[1]!)).toBeDefined();
+    expect(screen.getByRole("button", { name: "Confirm delete row" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delete row" }));
+    await waitFor(() => {
+      expect(rowsOf(client, containerId)).toHaveLength(1);
+    });
+    // The row node AND its cells are trashed (subtree semantics).
+    expect(client.getNode(rowIds[1]!)).toBeUndefined();
+    expect(client.getNodeRaw(rowIds[1]!)?.isActive).toBe(false);
+    // The cells rode the subtree trash with the row.
+    const cellRows = client.store.database
+      .prepare("SELECT is_active FROM node WHERE parent_id = ?")
+      .all(rowIds[1]!) as Array<{ is_active: number }>;
+    expect(cellRows).toHaveLength(2);
+    expect(cellRows.every((row) => row.is_active === 0)).toBe(true);
+  });
+
+  it("− Column deletes the right-most cell of every row; Cancel leaves the table untouched", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Delete Col" });
+    const { containerId, cellIds } = await buildTable(client, pageId, 2, 3);
+    render(<PageView client={client} pageId={pageId} />);
+
+    // Arm, then cancel — nothing changes.
+    fireEvent.click(screen.getByRole("button", { name: "− Column" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(rowsOf(client, rowsOf(client, containerId)[0]!.id)).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "− Column" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delete column" }));
+    await waitFor(() => {
+      for (const row of rowsOf(client, containerId)) {
+        expect(rowsOf(client, row.id)).toHaveLength(2);
+      }
+    });
+    // The right-most cells trashed; the others live.
+    expect(client.getNode(cellIds[0]![2]!)).toBeUndefined();
+    expect(client.getNode(cellIds[1]![2]!)).toBeUndefined();
+    expect(client.getNode(cellIds[0]![0]!)).toBeDefined();
+  });
 });
 
 describe("cell editing", () => {

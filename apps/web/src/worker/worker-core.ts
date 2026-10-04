@@ -15,7 +15,8 @@
  *    listFeatureRows / getFeatureInstanceCount), the write
  *    surface (createObject / updateObject / deleteObject / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
- *    setProperty / unsetProperty / attachAsset), syncOnce, the realtime
+ *    setProperty / unsetProperty / attachAsset), the session undo journal
+ *    (§34.64: undoState / undo / redo), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
  *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs, §34.61),
  *    and flush;
@@ -668,6 +669,12 @@ export class WorkerCore {
         return this.exportBytes();
       case "stats":
         return this.stats();
+      case "undoState":
+        return this.client.undoState();
+      case "undo":
+        return this.client.undo();
+      case "redo":
+        return this.client.redo();
       case "flush":
         return this.flush();
       case "close":

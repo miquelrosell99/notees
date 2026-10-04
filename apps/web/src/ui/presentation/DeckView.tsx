@@ -33,6 +33,8 @@ import { displayNameFromClient } from "../dateDisplay.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { OutlinerContext, useOutliner, useOutlinerValue } from "../outliner-context.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
+import { tableClassIdOf } from "../components/tableFamily.js";
+import { BlockRow } from "../BlockRow.js";
 import { buildDeck, type DeckSlide, type DeckTreeEntry } from "./deck.js";
 import { rememberResumeIndex, resumeIndexOf } from "./presentationSession.js";
 import "./deck.css";
@@ -76,18 +78,31 @@ function DeckImage({ client, assetId }: { client: DeckClient; assetId: string })
 function DeckBlock({ tree }: { tree: BlockTreeNode }) {
   const { client, rootId, openNode } = useOutliner();
   const node = tree.node;
+  // §34.34 B4: a table-classed block routes through the BlockRow grid even
+  // in the deck (the directive's "same BlockRow path") — the flat deck
+  // projection would otherwise flatten rows/cells into a plain list. The
+  // seam narrows to the full client for BlockRow's prop surface (the
+  // EmbedView precedent).
+  if (node.classIds.includes(tableClassIdOf(client))) {
+    return <BlockRow tree={tree} client={client as DeckClient} readOnly />;
+  }
   return (
     <div className="nt-deck-block">
       <div className="nt-deck-block-content">
         <InlineTokens
           tokens={node.contentAst}
           resolveName={(id) => displayNameFromClient(client, id)}
+          resolveVerb={(schemaId) =>
+            client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
+          }
           onOpenNode={(id) => openNode(id)}
           resolveColor={(id) => {
             const target = client.getNode(id);
             return target === undefined ? null : client.effectiveNodeColor(target);
           }}
-          renderEmbed={(id) => <EmbedView nodeId={id} />}
+          renderEmbed={(id, _token, index) => (
+            <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />
+          )}
           renderQuery={(token, index) => (
             <QueryBlockView
               client={client}

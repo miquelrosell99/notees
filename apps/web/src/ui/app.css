@@ -808,6 +808,41 @@ select:focus-visible {
   background: var(--color-surface-container-highest);
 }
 
+/* PG1 schema-at-capture (§34.32): the bound-verb row under the verb fields —
+   "Bind to property …" for an existing schema name, "Create property '…' and
+   bind" for a new one. Token-only CSS. */
+.nt-verb-bind-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+}
+
+.nt-verb-bind {
+  border: none;
+  border-radius: var(--shape-small, 4px);
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  font-size: var(--font-size-xs, 12px);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--color-secondary-container, var(--color-primary-container));
+  color: var(--color-on-surface);
+}
+
+.nt-verb-bind:hover:not(:disabled) {
+  background: var(--color-outline-variant);
+}
+
+.nt-verb-bind:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.nt-verb-bind-error {
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-error, var(--color-on-surface-variant));
+}
+
 .nt-add-block {
   margin-top: 4px;
   border: 1px dashed var(--color-outline);
@@ -972,13 +1007,58 @@ select:focus-visible {
 }
 
 .nt-embed-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
   font-size: 12px;
   font-weight: 600;
   color: var(--color-on-surface-variant);
   margin-bottom: 2px;
+}
+
+.nt-embed-header-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The embed view switcher (§34.34 B8 authoring): Full / Card / Wide pill
+   buttons writing the token's `view` field. Token-only CSS. */
+.nt-embed-view-switch {
+  display: inline-flex;
+  flex: none;
+  gap: 0;
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  overflow: hidden;
+}
+
+.nt-embed-view-switch__btn {
+  border: none;
+  padding: 1px var(--spacing-2, 8px);
+  font-size: var(--font-size-2xs, 10px);
+  font-family: inherit;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-embed-view-switch__btn + .nt-embed-view-switch__btn {
+  border-left: var(--border-width-default, 1px) solid var(--color-outline-variant);
+}
+
+.nt-embed-view-switch__btn--active {
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface);
+}
+
+.nt-embed-card-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  max-width: 100%;
 }
 
 .nt-embed-content {
@@ -1774,6 +1854,29 @@ select:focus-visible {
   white-space: pre;
 }
 
+/* The code_block editing surface (§34.34 B3 owed editor): the CodeTextarea
+   takes the pre's place inside the same chrome — the language badge stays
+   above, the textarea itself renders as the mono block (the primitive's own
+   class plus the block frame). Token-only CSS. */
+.nt-code-editor {
+  display: block;
+}
+
+.nt-code-editor .nt-code-editor__area {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  font-family: var(--font-family-mono);
+  font-size: 0.85em;
+  line-height: 1.5;
+  resize: vertical;
+}
+
 .nt-hr {
   border: none;
   border-top: 1px solid var(--color-outline-variant);
@@ -2055,6 +2158,14 @@ mark {
 .nt-wb-stroke-highlight {
   opacity: 0.45;
   stroke-width: 8;
+}
+
+/* The canvas context menu's color row: the ColorButton picker nests inside
+   the kit ContextMenu's inline submenu (token-only CSS). */
+.nt-wb-menu-color {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
 }
 
 .nt-wb-drawing {
@@ -2579,6 +2690,13 @@ mark {
   color: var(--color-on-surface-variant);
 }
 
+/* The quick-create FAB (§34.19 MobileLayout owed half): hidden on desktop
+   (the shell chrome + Ctrl/Cmd+Shift+N own quick capture there); the
+   responsive pass below surfaces it at narrow widths. Token-only CSS. */
+.nt-quick-fab {
+  display: none;
+}
+
 /* --- responsive pass (§34.19 MobileLayout row) -------------------------------
    Narrow-width adaptations of the app chrome — additive media queries only,
    no component changes. Two steps: the tablet boundary (768px, the same
@@ -2594,6 +2712,27 @@ mark {
     width: min(280px, 85vw);
     background: var(--color-surface-container-low);
     border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  }
+
+  /* The quick-create FAB: a floating action button over the content card
+     (v1's floating quick-add, §34.19 MobileLayout). */
+  .nt-quick-fab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: var(--spacing-4, 16px);
+    bottom: calc(var(--spacing-4, 16px) + env(safe-area-inset-bottom, 0px));
+    width: var(--height-button-lg, 44px);
+    height: var(--height-button-lg, 44px);
+    min-width: var(--height-button-lg, 44px);
+    border: none;
+    border-radius: var(--shape-large, 16px);
+    background: var(--color-primary-container);
+    color: var(--color-on-surface);
+    box-shadow: var(--shadow-elevation-2, 0 2px 8px rgba(0, 0, 0, 0.22));
+    cursor: pointer;
+    z-index: 40;
   }
 
   /* Touch targets: sidebar rows (28px desktop) and the shell icon buttons

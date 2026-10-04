@@ -5,7 +5,7 @@
  * (EDN, JSON, YAML, etc.). Provides error and valid visual states.
  * Supports forwarded refs for external focus management.
  */
-import { useRef, useEffect, forwardRef, type RefObject } from 'react';
+import { useRef, useEffect, forwardRef, type KeyboardEvent, type RefObject } from 'react';
 import './CodeTextarea.css';
 
 interface CodeTextareaProps {
@@ -26,6 +26,10 @@ interface CodeTextareaProps {
   label?: string;
   /** ID used to associate the textarea with its label */
   id?: string;
+  /** Blur passthrough (flush-and-exit surfaces). */
+  onBlur?: (() => void) | undefined;
+  /** Keyboard passthrough (Escape-to-exit surfaces). */
+  onKeyDown?: ((event: KeyboardEvent<HTMLTextAreaElement>) => void) | undefined;
 }
 
 export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
@@ -43,6 +47,8 @@ export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
       minHeight,
       label,
       id,
+      onBlur,
+      onKeyDown,
     },
     forwardedRef,
   ) {
@@ -79,6 +85,8 @@ export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
           className={cls}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+          onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={disabled}
           spellCheck={spellCheck}

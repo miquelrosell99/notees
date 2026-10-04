@@ -191,6 +191,36 @@ describe("DeckView", () => {
     const block = client.getBlockTree(sectionA);
     expect(block[0]!.node.contentAst).toEqual([{ type: "text", text: "Body of section A" }]);
   });
+
+  it("routes a table-classed block through the BlockRow grid instead of flattening it", async () => {
+    const client = await seedClient();
+    // A body section holding a table container (rows × cells).
+    const pageId = await client.createObject({ presentAsMain: true, name: "Table Deck" });
+    const { ensureTableFamily } = await import("../src/ui/components/tableFamily.js");
+    const tableClassId = await ensureTableFamily(client);
+    const holder = await client.createObject({ parentId: pageId, presentAsMain: false, contentAst: [] });
+    const containerId = await client.createObject({ parentId: holder, classIds: [tableClassId] });
+    const row1 = await client.createObject({ parentId: containerId });
+    const c11 = await client.createObject({ parentId: row1, contentAst: [{ type: "text", text: "alpha" }] });
+    await client.createObject({ parentId: row1, contentAst: [{ type: "text", text: "beta" }] });
+    const row2 = await client.createObject({ parentId: containerId });
+    await client.createObject({ parentId: row2, contentAst: [{ type: "text", text: "gamma" }] });
+    await client.createObject({ parentId: row2, contentAst: [{ type: "text", text: "delta" }] });
+    void c11;
+
+    render(<DeckView client={client} pageId={pageId} onOpenNode={() => {}} onClose={() => {}} />);
+    // Slide 2 = the intro run holding the holder → the table grid renders
+    // through the BlockRow branch (not a flattened list of rows/cells).
+    press("ArrowRight");
+    const overlay = document.body.querySelector(".presentation-overlay")!;
+    const grid = overlay.querySelector(".nt-table");
+    expect(grid).not.toBeNull();
+    expect(grid!.querySelectorAll(".nt-table-row")).toHaveLength(2);
+    expect(overlay.querySelector(".nt-table")!.textContent).toContain("alpha");
+    expect(overlay.querySelector(".nt-table")!.textContent).toContain("delta");
+    // Read-only: the table toolbar (mutation gestures) stays out of the deck.
+    expect(overlay.querySelector(".nt-table-toolbar")).toBeNull();
+  });
 });
 
 describe("Present entry point", () => {

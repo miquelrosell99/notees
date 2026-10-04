@@ -13,7 +13,9 @@
  * in the stream; placeholder box when absent); embed_ref card views (§34.34
  * B8) route through the optional renderEmbedCard callback (falling back to
  * renderEmbed); code_block renders read-only as a mono pre with the language
- * badge (§34.34 B3) and hr as a horizontal rule (§34.34 B5); other
+ * badge (§34.34 B3) and hr as a horizontal rule (§34.34 B5); typed_link marks
+ * show the verb in the tooltip — PG1 bound verbs (`{ propertySchemaId }`)
+ * resolve the schema's name through the optional resolveVerb callback; other
  * block-scale tokens render as labeled placeholder boxes.
  */
 
@@ -27,9 +29,10 @@ export interface InlineTokensProps {
   /**
    * Live embed renderer for `embed_ref` tokens (EmbedView). Injected by the
    * row so this module stays pure; when absent, embed_ref falls back to the
-   * placeholder box.
+   * placeholder box. Receives the raw token + its stream index so the
+   * renderer can write the token's `view` field (the embed view switcher).
    */
-  renderEmbed?: ((nodeId: string) => ReactNode) | undefined;
+  renderEmbed?: ((nodeId: string, token: unknown, index: number) => ReactNode) | undefined;
   /**
    * Live query-block renderer for `query` tokens (QueryBlockView), injected
    * by the row; when absent (e.g. read-only embed projections), query falls
@@ -55,11 +58,23 @@ export interface InlineTokensProps {
    * Card renderer for `embed_ref` tokens carrying a card `view`
    * (§34.34 B8 — the intermediate reference views between mention and full
    * transclusion). Injected by the row; when absent, card views fall back
-   * to the default `renderEmbed` (the full live subtree).
+   * to the default `renderEmbed` (the full live subtree). Receives the raw
+   * token + its stream index so the renderer can write the token's `view`.
    */
   renderEmbedCard?:
-    | ((nodeId: string, view: "small_card" | "wide_card") => ReactNode)
+    | ((
+        nodeId: string,
+        view: "small_card" | "wide_card",
+        token: unknown,
+        index: number,
+      ) => ReactNode)
     | undefined;
+  /**
+   * PG1 bound-verb label: resolves a typed_link mark's `{ propertySchemaId }`
+   * verb to the schema's display name (title tooltip). When absent, the raw
+   * schema id shows (the broken-mention fallback philosophy).
+   */
+  resolveVerb?: ((propertySchemaId: string) => string | null) | undefined;
   /**
    * Navigation for inline node references: when set, mention tokens render
    * as dashed-underline links that open the target (read mode).
@@ -122,6 +137,7 @@ function renderToken(
   token: unknown,
   key: number,
   resolveName: InlineTokensProps["resolveName"],
+  resolveVerb: InlineTokensProps["resolveVerb"],
   renderEmbed: InlineTokensProps["renderEmbed"],
   renderEmbedCard: InlineTokensProps["renderEmbedCard"],
   renderQuery: InlineTokensProps["renderQuery"],
@@ -141,14 +157,20 @@ function renderToken(
     }
     case "typed_link": {
       if (typeof t.text !== "string") return null;
+      // PG1: a bound verb (`{ propertySchemaId }`) renders the schema's name
+      // in the tooltip; a free verb renders as written.
+      const boundSchemaId =
+        typeof t.verb === "object" && t.verb !== null && "propertySchemaId" in t.verb
+          ? String((t.verb as { propertySchemaId: unknown }).propertySchemaId)
+          : null;
       const verb =
         typeof t.verb === "string"
           ? t.verb
-          : typeof t.verb === "object" && t.verb !== null && "propertySchemaId" in t.verb
-            ? String((t.verb as { propertySchemaId: unknown }).propertySchemaId)
+          : boundSchemaId !== null
+            ? (resolveVerb?.(boundSchemaId) ?? boundSchemaId)
             : "link";
       return (
-        <span key={key} className="nt-typed-link" title={verb}>
+        <span key={key} className="nt-typed-link" title={verb} data-verb-bound={boundSchemaId ?? undefined}>
           {t.text}
         </span>
       );
@@ -219,7 +241,7 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-quote">
-          <InlineTokens tokens={children} resolveName={resolveName} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
+          <InlineTokens tokens={children} resolveName={resolveName} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
         </span>
       );
     }
@@ -251,10 +273,10 @@ function renderToken(
       const nodeId = typeof t.nodeId === "string" ? t.nodeId : "";
       const view = t.view === "small_card" || t.view === "wide_card" ? t.view : null;
       if (view !== null && renderEmbedCard !== undefined && nodeId !== "") {
-        return <Fragment key={key}>{renderEmbedCard(nodeId, view)}</Fragment>;
+        return <Fragment key={key}>{renderEmbedCard(nodeId, view, token, key)}</Fragment>;
       }
       if (renderEmbed !== undefined && nodeId !== "") {
-        return <Fragment key={key}>{renderEmbed(nodeId)}</Fragment>;
+        return <Fragment key={key}>{renderEmbed(nodeId, token, key)}</Fragment>;
       }
       return <Placeholder key={key} label="embed" detail={nodeId || undefined} />;
     }
@@ -293,7 +315,7 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
   // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
   // flag reaches only the (single) asset token in that stream.
   const assetAlone =
@@ -304,7 +326,7 @@ export function InlineTokens({ tokens, resolveName, renderEmbed, renderEmbedCard
     (tokens[0] as { type?: unknown }).type === "asset_ref";
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, onMentionMenu))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, onMentionMenu))}
     </>
   );
 }

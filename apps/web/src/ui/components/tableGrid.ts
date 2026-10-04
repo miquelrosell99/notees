@@ -4,8 +4,9 @@
  * row's child blocks are the cells (tableFamily.ts carries the class seed).
  * These helpers are the only writers of table shape: the /table slash flow
  * (container + first row + cells at the caret), the hover toolbar's
- * + Row / + Column gestures, and the renderer's column-template math.
- * All writes are ordinary object.create ops — no new wire token.
+ * + Row / + Column / − Row / − Column gestures, and the renderer's
+ * column-template math. All writes are ordinary object.create /
+ * object.delete ops — no new wire token.
  */
 
 import type { BlockTreeNode, CreateObjectInput } from "@/core/workspace-client.js";
@@ -91,3 +92,31 @@ export async function addTableColumn(
     await client.createObject({ parentId: row.node.id });
   }
 }
+
+/**
+ * − Row: delete the row node — its cell children ride the standard
+ * object.delete subtree trash (SCHEMA.md deletion semantics), so one delete
+ * per row.
+ */
+export async function deleteTableRow(
+  client: TableWriteSurface & { deleteObject(id: string): Promise<void> },
+  row: Pick<BlockTreeNode, "node">,
+): Promise<void> {
+  await client.deleteObject(row.node.id);
+}
+
+/**
+ * − Column: delete the cell at `columnIndex` from every row (ragged rows
+ * skip missing cells). The right-most column is the toolbar's target.
+ */
+export async function deleteTableColumn(
+  client: TableWriteSurface & { deleteObject(id: string): Promise<void> },
+  rows: readonly Pick<BlockTreeNode, "children">[],
+  columnIndex: number,
+): Promise<void> {
+  for (const row of rows) {
+    const cell = row.children[columnIndex];
+    if (cell !== undefined) await client.deleteObject(cell.node.id);
+  }
+}
+

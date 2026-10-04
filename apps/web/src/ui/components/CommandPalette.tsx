@@ -30,6 +30,7 @@ import { SYSTEM_CLASS_UUIDS, chainNodeIds, rendersAsInlineBlock, rendersWithDocu
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client.js";
+import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
@@ -172,6 +173,9 @@ export function CommandPalette({
   onOpenNode,
   onNewPage,
   onSignOut,
+  undoState,
+  onUndo,
+  onRedo,
   cacheVersion,
 }: {
   client: AnyClient;
@@ -183,6 +187,10 @@ export function CommandPalette({
   /** Create (and open) a new page; a title carries the palette query. */
   onNewPage: (title?: string) => void;
   onSignOut: () => void;
+  /** §34.64 — the session undo journal state; rows appear only when available. */
+  undoState: UndoUiState;
+  onUndo: () => void;
+  onRedo: () => void;
   /**
    * Bumped by the App on every client notification: the sync sections re-read
    * the client caches, and the debounced Content fetch re-runs so results
@@ -343,7 +351,9 @@ export function CommandPalette({
       );
     }
 
-    // Action registry (M6): static rows + a query-scoped typed creation.
+    // Action registry (M6): static rows + a query-scoped typed creation +
+    // the session journal's Undo/Redo rows (§34.64 — present only when the
+    // journal has something to (re)apply; the row IS the label).
     const actions: PaletteAction[] = [
       {
         key: "new-page",
@@ -360,6 +370,28 @@ export function CommandPalette({
               icon: "mdi-file-plus",
               keywords: `new create page add ${text}`,
               run: () => onNewPage(text),
+            },
+          ]
+        : []),
+      ...(undoState.undoLabel !== null
+        ? [
+            {
+              key: "undo",
+              label: undoState.undoLabel,
+              icon: "mdi-undo-variant",
+              keywords: "undo revert journal",
+              run: onUndo,
+            },
+          ]
+        : []),
+      ...(undoState.redoLabel !== null
+        ? [
+            {
+              key: "redo",
+              label: undoState.redoLabel,
+              icon: "mdi-redo-variant",
+              keywords: "redo repeat journal",
+              run: onRedo,
             },
           ]
         : []),
@@ -396,7 +428,7 @@ export function CommandPalette({
     return items;
     // cacheVersion: the cached reads resolve asynchronously after their seed;
     // re-derive the sections when the worker cache refreshes.
-  }, [client, dailyOnly, text, onOpenNode, onNewPage, onSignOut, onClose, recentIds, cacheVersion]);
+  }, [client, dailyOnly, text, onOpenNode, onNewPage, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
 
   // --- Content section (M4): debounced ranked FTS with snippets -------------
 

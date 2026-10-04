@@ -6,12 +6,16 @@
  * are wired here: the target section hosts the NodeSelector picker (Page =
  * pages, Block = blocks) and the Display Label field sets an optional
  * per-link `displayText` override (empty = resolve the target's name). URL
- * mode authors external_link tokens. When the mention's target id resolves
- * to no node, the target section offers the §34.19 "create page with this
- * id" heal (the caller-id create path — the mention heals in place, no
- * retarget write). Enter inside the modal saves (capture phase, so it beats
- * button activation) — except inside the embedded node picker, which owns
- * Enter/Escape for its rows; Esc/backdrop close.
+ * mode authors external_link tokens. Verb mode (PG1, §34.32) edits a
+ * typed_link mark: the verb field live-matches the workspace's property
+ * schemas (an exact name hit saves bound to the existing schema; an unknown
+ * name offers "Create property '…' and bind") plus the optional locator.
+ * When the mention's target id resolves to no node, the target section
+ * offers the §34.19 "create page with this id" heal (the caller-id create
+ * path — the mention heals in place, no retarget write). Enter inside the
+ * modal saves (capture phase, so it beats button activation) — except
+ * inside the embedded node picker, which owns Enter/Escape for its rows;
+ * Esc/backdrop close.
  *
  * The modal shell keeps the archived DOM (`.modal-backdrop` > card >
  * `.modal` > `.modal__header` / `.modal__content` / `.modal__footer`); the
@@ -51,10 +55,10 @@ import { NodeSelector } from "../components/pickers/NodeSelector.js";
 import { notificationStore } from "../components/ui/notificationStore.js";
 import "./LinkEditModal.css";
 
-export type LinkMode = "node" | "block" | "url";
+export type LinkMode = "node" | "block" | "url" | "verb";
 
 export interface LinkEditResult {
-  /** Link mode — node, block, or URL. */
+  /** Link mode — node, block, URL, or verb. */
   mode: LinkMode;
   /** URL string (url mode only). */
   url?: string;
@@ -63,6 +67,13 @@ export interface LinkEditResult {
    * not pick (a label-only edit of the current link).
    */
   nodeId?: string | null;
+  /**
+   * Verb mode (PG1): the mark's new verb — a free string or the bound
+   * `{ propertySchemaId }` shape the create-and-bind row produces.
+   */
+  verb?: string | { propertySchemaId: string } | undefined;
+  /** Verb mode: the mark's locator (empty string clears it). */
+  locator?: string | undefined;
   /** Custom label (null to clear). */
   label: string | null;
 }
@@ -72,6 +83,12 @@ const LINK_MODE_OPTIONS = [
   { value: "block" as const, icon: "mdi-text-box", label: "Block" },
   { value: "url" as const, icon: "mdi-web", label: "URL" },
 ];
+
+/** Minimal schema shape the verb row matches against (PG1). */
+interface VerbSchemaOption {
+  id: string;
+  name: string;
+}
 
 interface LinkEditModalProps {
   /** Whether the modal is open. */
@@ -86,6 +103,10 @@ interface LinkEditModalProps {
   excludeNodeId?: string | undefined;
   /** Current custom label (from the AST token's text). */
   currentLabel?: string | null;
+  /** Verb mode (PG1): the mark's current verb (schema name for bound verbs). */
+  currentVerb?: string | undefined;
+  /** Verb mode (PG1): the mark's current locator. */
+  currentLocator?: string | undefined;
   /** Modal title — defaults to "Edit Link". */
   title?: string;
   /** Override the initial link mode (default: url). */
@@ -157,6 +178,8 @@ export function LinkEditModal({
   currentNodeId,
   excludeNodeId,
   currentLabel,
+  currentVerb,
+  currentLocator,
   title = "Edit Link",
   initialMode = "url",
   onSave,
@@ -165,9 +188,15 @@ export function LinkEditModal({
   const [linkMode, setLinkMode] = useState<LinkMode>(initialMode);
   const [url, setUrl] = useState(currentUrl ?? "");
   const [label, setLabel] = useState(currentLabel ?? "");
+  /** Verb mode (PG1): the mark's verb + optional locator. */
+  const [verb, setVerb] = useState("");
+  const [verbLocator, setVerbLocator] = useState("");
+  const [verbPending, setVerbPending] = useState(false);
+  const [verbError, setVerbError] = useState<string | null>(null);
   /** Newly picked destination (node/block modes); null = keep the current target. */
   const [pickedNode, setPickedNode] = useState<ClientNode | null>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
+  const verbInputRef = useRef<HTMLInputElement>(null);
 
   /**
    * §34.19 broken-link heal: the mention's target id resolves to no node —
@@ -200,16 +229,72 @@ export function LinkEditModal({
       setUrl(currentUrl ?? "");
       setLabel(currentLabel ?? "");
       setPickedNode(null);
+      setVerb(currentVerb ?? "");
+      setVerbLocator(currentLocator ?? "");
+      setVerbPending(false);
+      setVerbError(null);
     }
-  }, [isOpen, currentLabel, currentUrl, initialMode]);
+  }, [isOpen, currentLabel, currentUrl, initialMode, currentVerb, currentLocator]);
 
   useEffect(() => {
     if (isOpen && linkMode === "url") {
       urlInputRef.current?.focus();
     }
+    if (isOpen && linkMode === "verb") {
+      verbInputRef.current?.focus();
+    }
   }, [isOpen, linkMode]);
 
+  // PG1 schema-at-capture: live-match the verb field against the workspace's
+  // property schemas — an exact (case-insensitive) name hit binds to the
+  // existing schema; a miss offers "Create property '…' and bind" (the same
+  // row shape as the broken-link create flow below).
+  const verbTrimmed = verb.trim();
+  const verbMatch =
+    verbTrimmed === ""
+      ? null
+      : (client
+          .listPropertySchemas()
+          .find((schema) => schema.name.toLowerCase() === verbTrimmed.toLowerCase()) ?? null);
+
+  const runCreateAndBind = () => {
+    if (verbTrimmed === "" || verbMatch !== null || verbPending) return;
+    setVerbError(null);
+    setVerbPending(true);
+    void client
+      .createPropertySchema({
+        name: verbTrimmed,
+        type: "object",
+        multi: true,
+        targetClassFilter: [],
+      })
+      .then((schemaId) => {
+        onSave({ mode: "verb", verb: { propertySchemaId: schemaId }, locator: verbLocator.trim(), label: null });
+        onClose();
+      })
+      .catch((error: unknown) => {
+        setVerbError(error instanceof Error ? error.message : String(error));
+        setVerbPending(false);
+      });
+  };
+
   const handleSave = useCallback(() => {
+    if (linkMode === "verb") {
+      if (verbTrimmed === "") {
+        onClose();
+        return;
+      }
+      // An exact schema-name hit binds (the note under the field promises
+      // it); a miss saves the free-text verb (the create-and-bind row is the
+      // explicit bound path for new names).
+      onSave({
+        mode: "verb",
+        verb: verbMatch !== null ? { propertySchemaId: verbMatch.id } : verbTrimmed,
+        locator: verbLocator.trim(),
+        label: null,
+      });
+      return;
+    }
     const trimmedLabel = label.trim();
     if (linkMode === "url") {
       onSave({
@@ -220,7 +305,7 @@ export function LinkEditModal({
     } else {
       onSave({ mode: linkMode, nodeId: pickedNode?.id ?? null, label: trimmedLabel || null });
     }
-  }, [linkMode, url, label, pickedNode, onSave]);
+  }, [linkMode, url, label, pickedNode, verbTrimmed, verbLocator, verbMatch, onSave, onClose]);
 
   // Escape closes from anywhere while the modal is open (the archived modal
   // delegated this to the global overlay stack).
@@ -248,9 +333,9 @@ export function LinkEditModal({
       const target = e.target as HTMLElement;
       if (!target.closest(".link-edit-modal")) return;
       // The embedded node picker owns Enter (pick row) and Escape (close);
-      // the broken-link heal row's button activates normally (click), it
-      // must not fall into the save path.
-      if (target.closest(".node-selector") || target.closest(".link-edit-modal__broken")) return;
+      // the broken-link heal row and the verb create-and-bind row's buttons
+      // activate normally (click), they must not fall into the save path.
+      if (target.closest(".node-selector") || target.closest(".link-edit-modal__broken") || target.closest(".link-edit-modal__verb-bind")) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -305,11 +390,80 @@ export function LinkEditModal({
 
         <div className="modal__content">
           <div className="link-edit-modal__body" data-editor-companion>
-            {/* Mode toggle */}
-            <div className="link-edit-modal__section link-edit-modal__mode-section">
-              <ModeSelectionButton value={linkMode} onChange={setLinkMode} />
-            </div>
+            {/* Mode toggle — verb targets arrive from the typed-link mark
+                editor and stay in verb mode (no mode switch). */}
+            {linkMode !== "verb" && (
+              <div className="link-edit-modal__section link-edit-modal__mode-section">
+                <ModeSelectionButton value={linkMode} onChange={setLinkMode} />
+              </div>
+            )}
 
+            {/* Verb section (PG1): edit a typed-link mark's verb with the
+                same schema binding + create-and-bind row as the capture
+                popover. */}
+            {linkMode === "verb" ? (
+              <div className="link-edit-modal__section">
+                <label className="link-edit-modal__label" htmlFor="link-verb-input">
+                  Verb
+                </label>
+                <input
+                  id="link-verb-input"
+                  ref={verbInputRef}
+                  type="text"
+                  className="link-edit-modal__input"
+                  placeholder="cites, contradicts…"
+                  aria-label="Verb"
+                  value={verb}
+                  onChange={(e) => {
+                    setVerb(e.target.value);
+                    setVerbError(null);
+                  }}
+                  autoComplete="off"
+                />
+                <label className="link-edit-modal__label" htmlFor="link-verb-locator-input">
+                  Locator (optional)
+                </label>
+                <input
+                  id="link-verb-locator-input"
+                  type="text"
+                  className="link-edit-modal__input"
+                  placeholder="p. 12"
+                  aria-label="Locator"
+                  value={verbLocator}
+                  onChange={(e) => setVerbLocator(e.target.value)}
+                  autoComplete="off"
+                />
+                {(verbMatch !== null || verbTrimmed !== "") && (
+                  <div className="link-edit-modal__verb-bind">
+                    {verbMatch !== null ? (
+                      <span className="link-edit-modal__verb-bind-note">
+                        Saves bound to the "{verbMatch.name}" property.
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--sm"
+                        disabled={verbPending}
+                        onClick={runCreateAndBind}
+                      >
+                        {verbPending
+                          ? `Creating property "${verbTrimmed}"…`
+                          : `Create property "${verbTrimmed}" and bind`}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {verbError !== null && (
+                  <div className="link-edit-modal__verb-bind-error" role="alert">
+                    {verbError}
+                  </div>
+                )}
+                <span className="link-edit-modal__hint">
+                  Save keeps a free-text verb unless the property bind row is used.
+                </span>
+              </div>
+            ) : (
+            <>
             {/* Link target section */}
             <div className="link-edit-modal__section">
               <label className="link-edit-modal__label">
@@ -381,6 +535,8 @@ export function LinkEditModal({
                 {linkMode === "url" ? "Leave empty to use the URL" : "Leave empty to use the node name"}
               </span>
             </div>
+            </>
+            )}
           </div>
         </div>
 
@@ -403,6 +559,9 @@ export default LinkEditModal;
  * - `node`     — a mention token: retarget it and/or set an optional custom
  *   label (`displayText`). `tokenIndex` identifies the token; `insertAt` is
  *   reserved for future insert flows.
+ * - `verb`     — a typed_link mark (PG1): edit the verb (free string or
+ *   schema-bound via the create-and-bind row) and the optional locator. The
+ *   marked word (`text`) is untouched.
  */
 export type LinkEditTarget =
   | {
@@ -424,6 +583,17 @@ export type LinkEditTarget =
       /** Current target — pre-fills the destination line. */
       initialNodeId: string;
       initialLabel: string;
+    }
+  | {
+      kind: "verb";
+      blockId: string;
+      /** Index of the typed_link token inside contentAst. */
+      tokenIndex: number;
+      insertAt: null;
+      /** Current verb (schema name when the mark is bound). */
+      initialVerb: string;
+      /** Current locator ("" when absent). */
+      initialLocator: string;
     };
 
 export type LinkEditModalOpener = (target: LinkEditTarget) => void;
@@ -504,6 +674,47 @@ function writeNodeLink(
   }
 }
 
+/**
+ * Rewrite the typed_link mark a modal save produced (PG1). The marked word
+ * rides through untouched; the verb becomes the free string or the bound
+ * `{ propertySchemaId }` shape, and the locator metadata updates (absent =
+ * cleared). Other metadata (candidateSpans) survives.
+ */
+function writeVerbLink(
+  client: WorkspaceClient | WorkerClient,
+  target: LinkEditTarget & { kind: "verb" },
+  verb: string | { propertySchemaId: string },
+  locator: string,
+): void {
+  const node = client.getNode(target.blockId);
+  if (node === undefined) return;
+  const existing = node.contentAst[target.tokenIndex];
+  if (
+    typeof existing !== "object" ||
+    existing === null ||
+    (existing as { type?: unknown }).type !== "typed_link"
+  ) {
+    return;
+  }
+  const current = existing as {
+    verb?: unknown;
+    text?: unknown;
+    metadata?: Record<string, unknown>;
+  };
+  if (typeof current.text !== "string") return;
+  const metadata: Record<string, unknown> = { ...(current.metadata ?? {}) };
+  if (locator !== "") metadata.locator = locator;
+  else delete metadata.locator;
+  const token: Record<string, unknown> = {
+    type: "typed_link",
+    verb,
+    text: current.text,
+    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+  };
+  const next = node.contentAst.map((t, i) => (i === target.tokenIndex ? (token as typeof t) : t));
+  void client.updateObject(target.blockId, { contentAst: next });
+}
+
 /** Renders the modal at the page level; children open it via context. */
 export function LinkEditModalHost({
   client,
@@ -534,6 +745,10 @@ export function LinkEditModalHost({
         if (result.url !== undefined && result.url.trim() !== "") {
           writeExternalLink(client, target, result.url.trim(), result.label);
         }
+      } else if (target.kind === "verb") {
+        if (result.verb !== undefined) {
+          writeVerbLink(client, target, result.verb, result.locator ?? "");
+        }
       } else {
         writeNodeLink(client, target, result.nodeId ?? null, result.label);
       }
@@ -551,17 +766,22 @@ export function LinkEditModalHost({
           client={client}
           currentUrl={target.kind === "external" ? target.initialUrl : undefined}
           currentNodeId={target.kind === "node" ? target.initialNodeId : null}
+          currentVerb={target.kind === "verb" ? target.initialVerb : undefined}
+          currentLocator={target.kind === "verb" ? target.initialLocator : undefined}
           excludeNodeId={target.blockId}
-          currentLabel={target.initialLabel}
+          currentLabel={target.kind === "external" || target.kind === "node" ? target.initialLabel : null}
+          title={target.kind === "verb" ? "Edit Link Verb" : "Edit Link"}
           initialMode={
             target.kind === "external"
               ? "url"
-              : (() => {
-                  const targetNode = client.getNode(target.initialNodeId);
-                  return targetNode !== undefined && rendersAsInlineBlock(targetNode)
-                    ? "block"
-                    : "node";
-                })()
+              : target.kind === "verb"
+                ? "verb"
+                : (() => {
+                    const targetNode = client.getNode(target.initialNodeId);
+                    return targetNode !== undefined && rendersAsInlineBlock(targetNode)
+                      ? "block"
+                      : "node";
+                  })()
           }
           onSave={handleSave}
           onClose={close}

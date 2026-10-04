@@ -360,6 +360,30 @@ export function undoRedoKeyHandler(opts: {
 }
 
 /**
+ * Tap-outside drawer dismissal (§34.19 MobileLayout owed half): at narrow
+ * widths the sidebar is a floating drawer — a pointer press that lands
+ * outside the drawer AND outside the topbar (the hamburger toggle lives
+ * there) closes it. Desktop layout (drawer docked beside content) never
+ * dismisses; environments without matchMedia (jsdom) never dismiss either.
+ * Exported for the dismissal tests, mirroring keymapChordHandler.
+ */
+export function drawerDismissHandler(opts: {
+  isSidebarOpen: () => boolean;
+  closeSidebar: () => void;
+}): (event: PointerEvent) => void {
+  return (event) => {
+    if (!opts.isSidebarOpen()) return;
+    if (typeof window.matchMedia !== "function") return;
+    if (!window.matchMedia("(max-width: 768px)").matches) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest(".nt-sidebar") !== null) return;
+    if (target.closest(".nt-topbar") !== null) return;
+    opts.closeSidebar();
+  };
+}
+
+/**
  * Initial view: a hub URL in the address bar wins; otherwise the journal
  * feed is the default ("open in journal view") with the device-local
  * "default view" preference overriding it (legacy choices that have no hub
@@ -542,23 +566,16 @@ export function App() {
     return window.matchMedia("(min-width: 801px)").matches;
   });
   /**
-   * Tap-outside drawer dismissal (§34.19 MobileLayout owed half): at narrow
-   * widths the sidebar is a floating drawer — a pointer press that lands
-   * outside the drawer AND outside the topbar (the hamburger toggle lives
-   * there) closes it. Desktop layout (drawer docked beside content) never
-   * dismisses.
+   * Tap-outside drawer dismissal (§34.19 MobileLayout owed half) — the
+   * predicate lives in the exported drawerDismissHandler (unit-tested); the
+   * effect just wires it to the sidebar state.
    */
   useEffect(() => {
     if (!sidebarOpen) return;
-    const onPress = (event: PointerEvent) => {
-      if (typeof window.matchMedia !== "function") return;
-      if (!window.matchMedia("(max-width: 768px)").matches) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (target.closest(".nt-sidebar") !== null) return;
-      if (target.closest(".nt-topbar") !== null) return;
-      setSidebarOpen(false);
-    };
+    const onPress = drawerDismissHandler({
+      isSidebarOpen: () => sidebarOpen,
+      closeSidebar: () => setSidebarOpen(false),
+    });
     document.addEventListener("pointerdown", onPress);
     return () => document.removeEventListener("pointerdown", onPress);
   }, [sidebarOpen]);
