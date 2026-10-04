@@ -49,6 +49,7 @@ import { NodeContextMenu } from "./NodeContextMenu.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
 import { DateSlotControl, collectMarkedDates } from "./pickers/DateSlotControl.js";
+import { RepeatPicker } from "./pickers/RepeatPicker.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { SelectionPropertyControl, type SelectionOption } from "./pickers/SelectionPropertyControl.js";
 import { AssetUploadModal } from "./modals/AssetUploadModal.js";
@@ -425,7 +426,10 @@ function ObjectPropertyRow({
  * render as date pills; picking a date ensures the year/month/day chain and
  * links the node at the schema's precision ({ "nodeId": … }, the shape the
  * edge index projects — the year node backlinks everything dated that year).
- * Editing an existing pill's date overwrites the same slot's ref.
+ * Editing an existing pill's date overwrites the same slot's ref, preserving
+ * the value's metadata (§34.63 — a re-pick keeps the recurrence rule; the
+ * series follows the event). Each authored pill carries the repeat picker
+ * (metadata.repeat, the startDate/endDate precedent).
  */
 function DatePropertyRow({
   client,
@@ -454,8 +458,18 @@ function DatePropertyRow({
   const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
 
   const commit = async (isoDate: string, idx: number): Promise<void> => {
-    await client.setDateProperty(nodeId, propertySchemaId, isoDate, idx);
+    // Preserve the slot's metadata (the recurrence rule) across a re-pick.
+    const metadata = ordered.find((row) => row.idx === idx)?.metadata ?? undefined;
+    await client.setDateProperty(nodeId, propertySchemaId, isoDate, idx, metadata);
     setPickerFor(null);
+  };
+
+  /** The repeat write (§34.63): merge/clear the `repeat` metadata key. */
+  const setRepeat = async (row: EffectiveProperty, rule: string | null): Promise<void> => {
+    const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
+    if (rule === null) delete metadata.repeat;
+    else metadata.repeat = rule;
+    await client.setProperty(nodeId, propertySchemaId, row.value, row.idx, metadata);
   };
 
   const pillText = (row: EffectiveProperty): string => {
@@ -509,6 +523,16 @@ function DatePropertyRow({
               >
                 ×
               </button>
+            )}
+            {row.source === "authored" && precision === "day" && (
+              <RepeatPicker
+                value={
+                  typeof row.metadata?.repeat === "string" ? row.metadata.repeat : null
+                }
+                onChange={(rule) => void setRepeat(row, rule)}
+                ariaLabel={`Repeat for ${label}`}
+                iconOnly
+              />
             )}
           </span>
         ))}

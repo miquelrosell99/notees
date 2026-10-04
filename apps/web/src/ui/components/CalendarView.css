@@ -205,6 +205,21 @@
   color: var(--color-on-surface-variant);
 }
 
+/* §34.63 recurrence: the honest repeats marker — one row per series, the
+   icon + small label say "repeats", never N phantom rows. */
+.calendar-view__repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-micro);
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+  font: var(--font-label-small);
+}
+
+.calendar-view__quick-repeat {
+  margin-left: auto;
+}
+
 .calendar-view__chips {
   display: inline-flex;
   flex-wrap: wrap;
