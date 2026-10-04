@@ -150,14 +150,19 @@ describe("Class View", () => {
     expect(client.getClassParents(bId)).toEqual([]);
   });
 
-  it("lists classed nodes without expansion (the section defaults to expanded)", async () => {
+  it("lists classed nodes without expansion (the section defaults to expanded) and shows the count badge", async () => {
     const client = await seedClient();
     const classId = await client.createClass("agent");
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
+    await client.assignClass(pageId, classId);
     const membersSpy = vi.spyOn(client, "getClassMembers");
     render(<ClassView client={client} classId={classId} />);
 
+    // Badge from the COUNT projection (eager, like the child-pages count) —
+    // rendered in the header without expanding anything.
+    expect(screen.getByRole("button", { name: /classed nodes 1/i })).not.toBeNull();
     expect(membersSpy).toHaveBeenCalledWith(classId);
-    expect(screen.getByText("No classed nodes.")).not.toBeNull();
+    expect(screen.getByText("Ada Lovelace")).not.toBeNull();
   });
 
   it("lists a classed node and navigates to its page", async () => {

@@ -34,6 +34,7 @@ import {
   newEnvelope,
   type ContentAst,
   type Envelope,
+  type WorkspaceFeature,
 } from "@notees/protocol";
 import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/query";
 import { Store, type NodeRow } from "@notees/store";
@@ -841,6 +842,11 @@ export class WorkspaceClient {
     return this.store.classMembers(classId).map(mapNode);
   }
 
+  /** The classed-nodes section badge — the same membership projection as a COUNT. */
+  getClassMemberCount(classId: string): number {
+    return this.store.classMembersCount(classId);
+  }
+
   /**
    * The class's property bindings in sequence order. Registry rows
    * (`class_property` joined to `property_schema`, authored by
@@ -1510,6 +1516,21 @@ export class WorkspaceClient {
       .prepare("SELECT backlink_count AS n FROM node_stats WHERE node_id = ?")
       .get(id) as { n: number } | undefined;
     return row?.n ?? 0;
+  }
+
+  /** §34.35 feature-toggle read — absent row means enabled (F2 default). */
+  isFeatureEnabled(feature: WorkspaceFeature): boolean {
+    return this.store.isFeatureEnabled(this.workspaceId, feature);
+  }
+
+  /** Toggled feature rows only (untoggled features are absent, not listed). */
+  listFeatureRows(): Array<{ feature: string; enabled: boolean }> {
+    return this.store.listFeatureRows(this.workspaceId);
+  }
+
+  /** Active instance count across the feature's managed classes (the F3 disable confirmation). */
+  getFeatureInstanceCount(feature: WorkspaceFeature): number {
+    return this.store.featureInstanceCount(this.workspaceId, feature);
   }
 
   /** Direct main-child count (cheap child-order read) — the child-pages badge. */
