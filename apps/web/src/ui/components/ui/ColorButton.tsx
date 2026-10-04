@@ -15,11 +15,12 @@
  *   <ColorButton color="sky" showPicker onColorChange={handleChange} />
  *   <ColorButton color={myColor} showPicker colors={myPalette} onColorChange={handleChange} />
  */
-import { forwardRef, useState, useRef, useEffect, useLayoutEffect, type ButtonHTMLAttributes, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { forwardRef, useState, useRef, useLayoutEffect, type ButtonHTMLAttributes, type ChangeEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './Button.js';
 import { TextField } from './TextField.js';
 import { observeResizes } from './overlay-hooks.js';
+import { usePopupDismissal } from './usePopupDismissal.js';
 import { PRESET_COLOR_ENTRIES, canonicalColor, cssColorFor } from './colorPresets.js';
 import './ColorButton.css';
 
@@ -182,23 +183,15 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
     };
   }, [isPickerOpen]);
 
-  useEffect(() => {
-    if (!isPickerOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        pickerRef.current &&
-        buttonRef.current &&
-        !pickerRef.current.contains(e.target as Node) &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsPickerOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isPickerOpen]);
+  // Dismissal (§34.67): Escape from outside the picker and pointer-down
+  // outside it (the button itself is an anchor — clicking it toggles). The
+  // picker's own root handles Escape from inside (e.g. the hex field).
+  usePopupDismissal({
+    popupRef: pickerRef,
+    anchorRefs: [buttonRef],
+    isOpen: isPickerOpen,
+    onClose: () => setIsPickerOpen(false),
+  });
 
   const handleColorSelect = (selectedColor: string | null) => {
     onColorChange?.(selectedColor);
@@ -270,6 +263,12 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
           // reacting to picker presses; a CLICK capture would abort React's
           // capture walk and swallow the swatches' own onClick handlers.
           onMouseDownCapture={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setIsPickerOpen(false);
+            }
+          }}
           style={{
             position: 'fixed',
             // top/left are set imperatively by the positioning effect; hidden

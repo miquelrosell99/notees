@@ -20,6 +20,7 @@ import { clampOverlayLeft, flipOverlayTop } from "../editor-popups/overlay-posit
 import { Icon } from "../Icon.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { SearchField } from "../components/ui/SearchField.js";
+import { usePopupDismissal } from "../components/ui/usePopupDismissal.js";
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import "./TemplateListPopup.css";
@@ -128,6 +129,11 @@ export function TemplateListPopup({
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
+  // Dismissal (§34.67): document-level Escape — the filter input and the
+  // popup root below own Escape while focus is inside; the hook closes when
+  // focus is elsewhere (e.g. back on the edited block).
+  usePopupDismissal({ popupRef: containerRef, isOpen: true, onClose });
+
   // Caret-line placement, identical to the slash popup's.
   useLayoutEffect(() => {
     const floating = containerRef.current;
@@ -184,6 +190,12 @@ export function TemplateListPopup({
         maxHeight: placement === "above" ? position.caretTop - 4 : undefined,
       }}
       onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
     >
       <div className="template-list-popup__header">Use a template</div>
       <div className="template-list-popup__search">
