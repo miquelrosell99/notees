@@ -34,6 +34,9 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 import { proseFromAst } from "@/editor/prose.js";
 
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
+import { SharePageModal } from "./components/modals/SharePageModal.js";
+import type { ShareTarget } from "./components/NodeMenuButton.js";
+import { FavoriteStar } from "./components/FavoriteStar.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { DayPageDateBar } from "./components/DayPageDateBar.js";
 import { DayPageSections } from "./components/DayPageSections.js";
@@ -56,12 +59,12 @@ import {
 } from "./block-dnd.js";
 import { PropertiesSection, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
-import { PageBanner } from "./components/PageBanner.js";
+import { AddCover, PageBanner } from "./components/PageBanner.js";
 import { ScratchpadCapture, SCRATCHPAD_PAGE_ID } from "./components/ScratchpadCapture.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
-import { coverAssetIdOf, ensureCoverFamily } from "./components/coverProperty.js";
+import { canHaveCoverOf, coverAssetIdOf, ensureCoverFamily } from "./components/coverProperty.js";
 import { ensureAliasProperty } from "./components/aliasProperty.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
@@ -116,6 +119,8 @@ export function PageView({
   sections = undefined,
   /** Replaces the default <SystemSections/> (ClassView: extends-by + system). */
   systemSections = undefined,
+  /** §34.59 shares: server coordinates for the "Share…" item + modal. */
+  shareTarget = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
   pageId: string;
@@ -142,6 +147,7 @@ export function PageView({
   notice?: ReactNode;
   sections?: ReactNode;
   systemSections?: ReactNode;
+  shareTarget?: ShareTarget | undefined;
 }) {
   /**
    * Child-blocks view mode (the outline/prose/cards triad): durable display
@@ -158,6 +164,7 @@ export function PageView({
   const pageIconRef = useRef<HTMLElement | null>(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
+  const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
   /**
@@ -310,6 +317,12 @@ export function PageView({
     page !== undefined && !embedded && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
+  /** §34.59: the dedicated header element — a page that CAN carry a cover
+   *  (a class binds the schema) but doesn't yet gets the AddCover strip. */
+  const coverPossible =
+    coverAssetId === null && page !== undefined && !embedded && whiteboardTokenIndex < 0
+      ? canHaveCoverOf(client, pageId)
+      : false;
 
   const outliner = useOutlinerValue(client, pageId, {
     // Render-cascade navigation for query result lists (App routes the id).
@@ -502,6 +515,7 @@ export function PageView({
           {coverAssetId !== null && (
             <PageBanner client={client} pageId={pageId} assetId={coverAssetId} />
           )}
+          {coverPossible && <AddCover client={client} pageId={pageId} />}
           <div className="page-header__title-row">
             {iconButton !== undefined ? (
               iconButton
@@ -561,9 +575,15 @@ export function PageView({
               <TitleEditor page={page} />
             )}
             </span>
-            {headerActions !== undefined && (
+            {headerActions !== undefined ? (
               <div className="nt-page-toolbar">{headerActions}</div>
-            )}
+            ) : !forClass && !embedded ? (
+              // §34.59 default page-header chrome: the favorites star (the
+              // nodePrefs store syncs it to the per-user server prefs).
+              <div className="nt-page-toolbar">
+                <FavoriteStar client={client} nodeId={pageId} />
+              </div>
+            ) : null}
           </div>
           {!embedded && (
             <TagsRow client={client} nodeId={pageId} tagIds={page.tagIds} onOpenPage={onOpenPage} />
@@ -694,6 +714,14 @@ export function PageView({
             setHeaderMenu(null);
             setExporting({ pageId: id, name });
           }}
+          onShare={
+            shareTarget === undefined
+              ? undefined
+              : (id, name) => {
+                  setHeaderMenu(null);
+                  setSharing({ pageId: id, name });
+                }
+          }
           onDeleted={(node) => {
             setHeaderMenu(null);
             onDeleted?.(node);
@@ -709,6 +737,16 @@ export function PageView({
             nodeUuid={exporting.pageId}
             nodeName={exporting.name}
             onClose={() => setExporting(null)}
+          />
+        )}
+        {sharing !== null && shareTarget !== undefined && (
+          <SharePageModal
+            isOpen
+            serverUrl={shareTarget.serverUrl}
+            token={shareTarget.credential}
+            nodeUuid={sharing.pageId}
+            nodeName={sharing.name}
+            onClose={() => setSharing(null)}
           />
         )}
       </LinkEditModalHost>

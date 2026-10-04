@@ -190,3 +190,57 @@ describe("covers v2 (§34.56)", () => {
     expect(client.getNode(assetId)?.classIds).not.toContain(COVER_CLASS_ID);
   });
 });
+
+describe("the dedicated header element (§34.59)", () => {
+  it("the cover is NOT a property row — the Properties panel suppresses it", async () => {
+    const client = await seedClient();
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,HEADER");
+    const [pageId, assetId] = await seedPageAndAsset(client);
+    await setNodeCover(client, pageId, assetId);
+    await flushWrites();
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    // The banner renders (bytes mocked)…
+    await screen.findByRole("button", { name: "Collapse cover image" });
+    // …but no cover property row anywhere in the metadata panel.
+    expect(
+      container.querySelector('[data-property-schema-id="00000000-0000-0000-0000-000000000005"]'),
+    ).toBeNull();
+  });
+
+  it("an uncovered source page shows the Add cover strip; picking sets the cover", async () => {
+    const client = await seedClient();
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,HEADER");
+    await ensureCoverFamily(client);
+    const [pageId, assetId] = await seedPageAndAsset(client);
+    // The picker lists asset-classed nodes — class the fixture asset.
+    await client.assignClass(assetId, SYSTEM_CLASS_UUIDS.asset);
+    await flushWrites();
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add cover" }));
+    fireEvent.change(screen.getByLabelText("Search assets…"), { target: { value: "cover" } });
+    await flushWrites();
+    fireEvent.click(
+      document.querySelector(
+        ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+      )!,
+    );
+    await flushWrites();
+
+    expect(coverAssetIdOf(client, pageId)).toBe(assetId);
+    expect(client.getNode(assetId)?.classIds).toContain(COVER_CLASS_ID);
+    // The banner chrome replaces the strip.
+    await screen.findByRole("button", { name: "Collapse cover image" });
+    expect(container.querySelector(".nt-add-cover")).toBeNull();
+  });
+
+  it("a page whose classes bind no cover schema shows no strip", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expect(screen.queryByRole("button", { name: "Add cover" })).toBeNull();
+    expect(container.querySelector(".nt-add-cover")).toBeNull();
+  });
+});

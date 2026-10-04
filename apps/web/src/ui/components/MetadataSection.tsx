@@ -1167,11 +1167,17 @@ function AddPropertyRow({
 function propertyGroupsOf(client: AnyClient, nodeId: string) {
   const node = client.getNode(nodeId);
   // Class pages: the class's has-template values render in the dedicated
-  // Templates section — the generic table suppresses that schema row.
+  // Templates section — the generic table suppresses that schema row. The
+  // cover schema is suppressed EVERYWHERE (§34.59): the cover is header
+  // chrome (PageBanner/AddCover), never a property row.
   const isClassNode = node?.isClass === true;
   const rows = client
     .getEffectiveProperties(nodeId)
-    .filter((row) => !(isClassNode && row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate));
+    .filter(
+      (row) =>
+        !(isClassNode && row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) &&
+        row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.cover,
+    );
 
   // Node-typed / date / date_range / boolean schemas render as one grouped
   // row per schema; select AND multi_select schemas join them only when they
@@ -1217,6 +1223,7 @@ function propertyGroupsOf(client: AnyClient, nodeId: string) {
     for (const binding of client.getClassBindings(classId)) {
       if (!isGroupedType(binding.type, binding.propertySchemaId)) continue;
       if (isClassNode && binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) continue;
+      if (binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) continue;
       if (renderedGroups.has(binding.propertySchemaId)) continue;
       if (emptyObjectBindings.some((b) => b.propertySchemaId === binding.propertySchemaId)) continue;
       if (binding.hideWhenEmpty === true) continue;
