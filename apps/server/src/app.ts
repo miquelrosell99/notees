@@ -28,7 +28,10 @@ import { registerIdempotencyHooks } from "./idempotency.js";
 import { registerAuthRoutes, resolvePrincipal } from "./routes-auth.js";
 import { registerMetaRoutes } from "./routes-meta.js";
 import { registerObjectRoutes } from "./routes-objects.js";
+import { registerPluginRoutes, requireAdmin } from "./routes-plugins.js";
+import { registerPrefsRoutes } from "./routes-prefs.js";
 import { registerRelayRoutes, authorizeWorkspace } from "./routes-relay.js";
+import { registerPublicShareRoute, registerShareRoutes } from "./routes-shares.js";
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
 import { buildRouteScopeMap, enforceRouteScope } from "./scopes.js";
 
@@ -165,6 +168,7 @@ export async function buildServer(
   await app.register(
     async (api) => {
       registerAuthRoutes(api, ctx);
+      registerPrefsRoutes(api, ctx);
     },
     { prefix: "/api" },
   );
@@ -196,6 +200,32 @@ export async function buildServer(
     },
     { prefix: "/api" },
   );
+
+  // §34.59 plugin registry: inert manifest storage (validated JSON + an
+  // enable bit — the runtime is parked, §34.33 AG7). Owner/admin-scoped:
+  // the operator key or an administrator account; a scoped API key needs the
+  // "admin" scope. Rows are server state, not log state (prefs/shares ruling).
+  await app.register(
+    async (api) => {
+      api.addHook("preHandler", async (request) => {
+        requireAdmin(ctx, request);
+      });
+      registerPluginRoutes(api, ctx);
+    },
+    { prefix: "/api" },
+  );
+
+  // §34.59 (shares record) — READ-ONLY public page shares: the management
+  // routes live under /api with per-route owner/admin auth (like the account
+  // surface); the public view is a root-level GET, unauthenticated BY DESIGN
+  // (unguessable tokens — see routes-shares.ts for the threat note).
+  await app.register(
+    async (api) => {
+      registerShareRoutes(api, ctx);
+    },
+    { prefix: "/api" },
+  );
+  registerPublicShareRoute(app, ctx);
 
   app.addHook("onClose", async () => {
     await ctx.close();
