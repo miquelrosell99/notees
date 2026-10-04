@@ -56,7 +56,6 @@ import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { NodePills } from "./NodePills.js";
-import { COVER_CLASS_ID } from "./coverProperty.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
@@ -226,12 +225,13 @@ function ObjectPropertyRow({
 
   const linkNode = async (target: string): Promise<void> => {
     await client.setProperty(nodeId, propertySchemaId, { nodeId: target }, nextIdx);
-    // §34.56: cover values written through the generic panel still class
-    // the asset (explicit ops — every client converges on classIds).
+    // §34.74: a cover value written through the generic panel still classes
+    // the target as an asset (explicit ops — every client converges on
+    // classIds; the property value stays the authority).
     if (propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) {
       const classIds = client.getNode(target)?.classIds ?? [];
-      for (const classId of [COVER_CLASS_ID, SYSTEM_CLASS_UUIDS.asset]) {
-        if (!classIds.includes(classId)) await client.assignClass(target, classId);
+      if (!classIds.includes(SYSTEM_CLASS_UUIDS.asset)) {
+        await client.assignClass(target, SYSTEM_CLASS_UUIDS.asset);
       }
     }
     setPickerOpen(false);
@@ -244,12 +244,12 @@ function ObjectPropertyRow({
   /** §34.19 :1174 — the modal's completion: link the uploaded asset node. */
   const linkUploadedAsset = async (assetNodeId: string): Promise<void> => {
     await client.setProperty(nodeId, propertySchemaId, { nodeId: assetNodeId }, nextIdx);
-    // §34.56: a cover value written through the generic panel still gives
-    // the asset its cover+asset identity (explicit ops — convergent).
+    // §34.74: a cover value written through the generic panel still gives
+    // the node its asset identity (explicit ops — convergent).
     if (propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) {
       const classIds = client.getNode(assetNodeId)?.classIds ?? [];
-      for (const classId of [COVER_CLASS_ID, SYSTEM_CLASS_UUIDS.asset]) {
-        if (!classIds.includes(classId)) await client.assignClass(assetNodeId, classId);
+      if (!classIds.includes(SYSTEM_CLASS_UUIDS.asset)) {
+        await client.assignClass(assetNodeId, SYSTEM_CLASS_UUIDS.asset);
       }
     }
     setPickerOpen(false);

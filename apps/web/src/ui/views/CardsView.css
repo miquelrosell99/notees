@@ -166,7 +166,8 @@
   white-space: nowrap;
 }
 
-/* §34.56 — cover assets wear a "Cover" badge, top-right of the card. */
+/* §34.74 — cover assets wear a "Cover" badge, top-right of the card.
+   The badge DERIVES from the cover property (no cover class). */
 .node-card__cover-badge {
   position: absolute;
   top: var(--spacing-2, 8px);
