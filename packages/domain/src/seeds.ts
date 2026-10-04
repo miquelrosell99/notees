@@ -48,9 +48,13 @@ export const SYSTEM_CLASS_UUIDS = {
   tv_series: "00000000-0000-0000-0001-000000000037",
   conference: "00000000-0000-0000-0001-000000000038",
   // §34.36 meeting system (owner ruling 2026-10-04: plain seeds — zero wire
-  // cost, seed convergence only). Standalone: an attended meeting is neither
-  // a bibliography entry nor a person, so it extends nothing.
+  // cost, seed convergence only).
   meeting: "00000000-0000-0000-0001-000000000039",
+  // §34.36 RESHAPE (owner directive 2026-10-04): `event` is the CALENDAR
+  // family root — the date-only base class the calendar story builds on;
+  // `meeting` extends it (SYSTEM_CLASS_EXTENDS below), so disabling event
+  // disables meetings with it, not vice versa.
+  event: "00000000-0000-0000-0001-000000000040",
 } as const;
 
 export type SystemClassName = keyof typeof SYSTEM_CLASS_UUIDS;
@@ -94,6 +98,7 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   tv_series: "mdiTelevisionClassic",
   conference: "mdiPresentation",
   meeting: "mdiCalendarClock",
+  event: "mdiCalendar",
 };
 
 /** Canonical `extends` edges between system classes (multiple inheritance-ready). */
@@ -109,7 +114,32 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   conference: ["source"],
   person: ["agent"],
   organization: ["agent"],
+  // §34.36 reshape (owner directive 2026-10-04): meeting IS-A event — the
+  // calendar family root. meeting's own family (meetingDate/location/agenda)
+  // stays meeting-specific on top of the event date.
+  meeting: ["event"],
 };
+
+/**
+ * §34.36 reshape — the future Features tab's gating semantics, encoded as a
+ * read over the extends map (the tab itself is another surface): disabling a
+ * class disables its extends-CHILDREN with it (disabling `event` hides
+ * `meeting`), while disabling a child alone leaves the parent live
+ * (disabling `meeting` leaves `event` and its chrome). Returns the
+ * transitive ancestor set; a class is gated when itself or any ancestor is
+ * feature-off.
+ */
+export function systemClassAncestors(name: SystemClassName): ReadonlySet<SystemClassName> {
+  const ancestors = new Set<SystemClassName>();
+  const stack = [...(SYSTEM_CLASS_EXTENDS[name] ?? [])];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (ancestors.has(current)) continue;
+    ancestors.add(current);
+    stack.push(...(SYSTEM_CLASS_EXTENDS[current] ?? []));
+  }
+  return ancestors;
+}
 
 export const SYSTEM_PAGE_UUIDS = {
   scratchpad: "00000000-0000-0000-0002-000000000001",
@@ -170,6 +200,10 @@ export const SYSTEM_PROPERTY_UUIDS = {
   meetingDate: "00000000-0000-0000-0003-000000000007",
   location: "00000000-0000-0000-0003-000000000008",
   agenda: "00000000-0000-0000-0003-000000000009",
+  // §34.36 reshape: the EVENT family's minimal date binding — the one that
+  // makes `event` (and, via extends, `meeting`) calendar quick-create
+  // eligible. Date-only per the whole-day law, like meetingDate.
+  eventDate: "00000000-0000-0000-0003-000000000010",
 } as const;
 
 export type SystemPropertyName = keyof typeof SYSTEM_PROPERTY_UUIDS;
@@ -239,12 +273,14 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // indexes the values as name-equivalents (SCHEMA.md "Aliases").
   alias: { type: "text", multi: true },
   // §34.36 (owner 2026-10-04, plain seeds): the meeting family. meetingDate
-  // is the family's date binding — the one that makes the class calendar
-  // quick-create eligible (any class with a date-typed binding); location
-  // and agenda are plain text per the section's family list.
+  // is the family's date binding (quick-create eligibility rides the event
+  // root's eventDate too — meeting extends event); location and agenda are
+  // plain text per the section's family list.
   meetingDate: { type: "date", bindTo: "meeting" },
   location: { type: "text", bindTo: "meeting" },
   agenda: { type: "text", bindTo: "meeting" },
+  // §34.36 reshape: the event family's minimal shape — one date binding.
+  eventDate: { type: "date", bindTo: "event" },
 };
 
 /** Extra bindings for schemas created outside SYSTEM_PROPERTY_SPECS (global cover). */
@@ -264,6 +300,80 @@ export const TASK_CLOSED_STATUSES = new Set(["Done", "Cancelled"]);
 export const TASK_DEFAULT_STATUS = "Pending";
 
 export const TASK_PRIORITY_OPTIONS = ["Low", "Medium", "High", "Urgent"] as const;
+
+/**
+ * §34.35 — deterministic select-option ids for the APPLIER-side task-family
+ * seed-ensure (the `workspace.feature.set {feature:"tasks", enabled:true}`
+ * path authors the six schemas at apply time, so its option ids must be
+ * fixed, not client-random). The select-option namespace (`…0004-…`)
+ * continues after the role options (`…0001–…0007`); appended, never reused.
+ * Client-side authoring (the web ensureTaskFamily) may pre-date the enable
+ * op — the applier ensure is INSERT-or-ignore and never clobbers existing
+ * rows (first writer wins, convergent on the single global log).
+ */
+export const TASK_STATUS_OPTION_UUIDS = {
+  backlog: "00000000-0000-0000-0004-000000000008",
+  pending: "00000000-0000-0000-0004-000000000009",
+  doing: "00000000-0000-0000-0004-00000000000a",
+  reviewing: "00000000-0000-0000-0004-00000000000b",
+  done: "00000000-0000-0000-0004-00000000000c",
+  cancelled: "00000000-0000-0000-0004-00000000000d",
+} as const;
+
+export const TASK_PRIORITY_OPTION_UUIDS = {
+  low: "00000000-0000-0000-0004-00000000000e",
+  medium: "00000000-0000-0000-0004-00000000000f",
+  high: "00000000-0000-0000-0004-000000000010",
+  urgent: "00000000-0000-0000-0004-000000000011",
+} as const;
+
+/**
+ * The task-family seed-ensure manifest: six schemas + their task-class
+ * bindings, authored idempotently by the store applier when the `tasks`
+ * feature enables (§34.35 constraint 5 — closes the "task property schemas
+ * never authored in v2" row). Fixed ids end to end (schema + option uuids
+ * above); `sequence` is the task-panel display order.
+ */
+export const TASK_FAMILY_SEED: ReadonlyArray<{
+  property: SystemPropertyName;
+  name: string;
+  type: "select" | "date";
+  options?: ReadonlyArray<{ id: string; label: string }>;
+  sequence: number;
+}> = [
+  {
+    property: "taskStatus",
+    name: "Status",
+    type: "select",
+    options: [
+      { id: TASK_STATUS_OPTION_UUIDS.backlog, label: "Backlog" },
+      { id: TASK_STATUS_OPTION_UUIDS.pending, label: "Pending" },
+      { id: TASK_STATUS_OPTION_UUIDS.doing, label: "Doing" },
+      { id: TASK_STATUS_OPTION_UUIDS.reviewing, label: "Reviewing" },
+      { id: TASK_STATUS_OPTION_UUIDS.done, label: "Done" },
+      { id: TASK_STATUS_OPTION_UUIDS.cancelled, label: "Cancelled" },
+    ],
+    sequence: 1,
+  },
+  { property: "taskScheduled", name: "Scheduled", type: "date", sequence: 2 },
+  { property: "taskDeadline", name: "Deadline", type: "date", sequence: 3 },
+  {
+    property: "taskPriority",
+    name: "Priority",
+    type: "select",
+    options: [
+      { id: TASK_PRIORITY_OPTION_UUIDS.low, label: "Low" },
+      { id: TASK_PRIORITY_OPTION_UUIDS.medium, label: "Medium" },
+      { id: TASK_PRIORITY_OPTION_UUIDS.high, label: "High" },
+      { id: TASK_PRIORITY_OPTION_UUIDS.urgent, label: "Urgent" },
+    ],
+    sequence: 4,
+  },
+  { property: "taskClosedDate", name: "Closed", type: "date", sequence: 5 },
+  // v1 migrated recurrence as a plain select (no engine executes it — §34.28
+  // #6); authored optionless until the recurrence spec lands.
+  { property: "taskRecurrence", name: "Recurrence", type: "select", options: [], sequence: 6 },
+];
 
 /** Classes the workspace seed emits (nodes + property schemas + bindings + extends). */
 export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
@@ -300,4 +410,5 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "tv_series",
   "conference",
   "meeting",
+  "event",
 ];

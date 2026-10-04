@@ -1,25 +1,33 @@
 /**
- * scripts/remap-reunion-evento.mts tests (§34.36) — the remap core (title
- * matching, plan building, dry-run/apply) driven against the in-process
- * client harness (WorkspaceClient over a MemoryRelay), through the same
- * surface the script's HTTP adapter implements. Safety properties under
- * test: dry run writes NOTHING; --apply assigns the meeting class one op per
- * member while leaving the source classes AND their memberships untouched
- * (no deletions, no unassigns); re-apply is duplicate-free; the title match
- * is exact (case-insensitive, trimmed) — "Eventos"/"reunion" stay put.
+ * scripts/remap-reunion-evento.mts tests (§34.36 + owner reshape directive)
+ * — the remap core (title→target matching, plan building, dry-run/apply)
+ * driven against the in-process client harness (WorkspaceClient over a
+ * MemoryRelay), through the same surface the script's HTTP adapter
+ * implements. Safety properties under test: dry run writes NOTHING; --apply
+ * assigns each source class's members to its OWN system target (reunión →
+ * meeting, evento → event) one op per member while leaving the source
+ * classes AND their memberships untouched (no deletions, no unassigns); the
+ * ensure authors the event root + meeting subclass + the extends edge;
+ * re-apply is duplicate-free; the title match is exact (case-insensitive,
+ * trimmed) — "Eventos"/"reunion" stay put.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { deriveDisplayName, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { deriveDisplayName, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import { ensureMeetingFamily, MEETING_CLASS_ID } from "../src/ui/components/meetingFamily.js";
+import {
+  ensureMeetingFamily,
+  EVENT_CLASS_ID,
+  MEETING_CLASS_ID,
+} from "../src/ui/components/meetingFamily.js";
 import {
   buildRemapPlan,
   isRemapSourceTitle,
+  remapTargetFor,
   runRemap,
   type RemapScriptSurface,
 } from "../../../scripts/remap-reunion-evento.mts";
@@ -69,10 +77,12 @@ function surfaceOf(client: WorkspaceClient): RemapScriptSurface {
     getNodeRaw: async (id) => client.getNodeRaw(id),
     listPropertySchemas: async () => client.listPropertySchemas(),
     getClassBindings: async (classId) => client.getClassBindings(classId),
+    getClassParents: async (classId) => client.getClassParents(classId),
     createClass: (name, opts) => client.createClass(name, opts),
     createPropertySchema: (input) => client.createPropertySchema(input),
     setClassProperty: (classId, propertySchemaId, fields) =>
       client.setClassProperty(classId, propertySchemaId, fields),
+    setClassExtends: (classId, parentClassIds) => client.setClassExtends(classId, parentClassIds),
   };
 }
 
@@ -119,33 +129,40 @@ async function fixture(): Promise<Fixture> {
   };
 }
 
-describe("isRemapSourceTitle (exact, case-insensitive, trimmed)", () => {
-  it("matches the register's titles and their case variants only", () => {
+describe("title → target matching (exact, case-insensitive, trimmed)", () => {
+  it("maps the register's titles to their own system targets and rejects lookalikes", () => {
+    expect(remapTargetFor("reunión")).toBe(SYSTEM_CLASS_UUIDS.meeting);
+    expect(remapTargetFor("REUNIÓN")).toBe(SYSTEM_CLASS_UUIDS.meeting);
+    expect(remapTargetFor("evento")).toBe(SYSTEM_CLASS_UUIDS.event);
+    expect(remapTargetFor(" Evento ")).toBe(SYSTEM_CLASS_UUIDS.event);
     expect(isRemapSourceTitle("reunión")).toBe(true);
-    expect(isRemapSourceTitle("REUNIÓN")).toBe(true);
     expect(isRemapSourceTitle("evento")).toBe(true);
-    expect(isRemapSourceTitle(" Evento ")).toBe(true);
-    expect(isRemapSourceTitle("Eventos")).toBe(false);
-    expect(isRemapSourceTitle("reunion")).toBe(false); // no accent folding — exact title match
-    expect(isRemapSourceTitle("reuniones")).toBe(false);
-    expect(isRemapSourceTitle("eventos especiales")).toBe(false);
-    expect(isRemapSourceTitle("")).toBe(false);
+    // No accent folding ("reunion" ≠ "reunión"), no plurals, no substrings.
+    expect(remapTargetFor("reunion")).toBeUndefined();
+    expect(remapTargetFor("reuniones")).toBeUndefined();
+    expect(remapTargetFor("Eventos")).toBeUndefined();
+    expect(remapTargetFor("eventos especiales")).toBeUndefined();
+    expect(remapTargetFor("")).toBeUndefined();
   });
 });
 
 describe("remap plan + dry run", () => {
-  it("plans exactly the exact-titled classes with their members, and writes nothing", async () => {
+  it("plans each source class with its OWN target and its members, and writes nothing", async () => {
     const fx = await fixture();
     const plan = await buildRemapPlan(fx.surface);
 
-    expect(plan.targetClassId).toBe(MEETING_CLASS_ID);
     expect(plan.memberCount).toBe(3);
-    expect(plan.entries.map((entry) => entry.classId).sort()).toEqual(
-      [fx.reunionId, fx.eventoId].sort(),
+    const reunionEntry = plan.entries.find((entry) => entry.classId === fx.reunionId);
+    expect(reunionEntry).toMatchObject({
+      title: "reunión",
+      targetClassId: MEETING_CLASS_ID,
+    });
+    expect(reunionEntry?.members.map((member) => member.id).sort()).toEqual(
+      [...fx.reunionMembers].sort(),
     );
-    expect(plan.entries.flatMap((entry) => entry.members.map((member) => member.id)).sort()).toEqual(
-      [...fx.reunionMembers, ...fx.eventoMembers].sort(),
-    );
+    const eventoEntry = plan.entries.find((entry) => entry.classId === fx.eventoId);
+    expect(eventoEntry).toMatchObject({ title: "Evento", targetClassId: EVENT_CLASS_ID });
+    expect(eventoEntry?.members.map((member) => member.id)).toEqual(fx.eventoMembers);
 
     const lines: string[] = [];
     const result = await runRemap(fx.surface, plan, { apply: false, log: (line) => lines.push(line) });
@@ -153,14 +170,16 @@ describe("remap plan + dry run", () => {
     expect(result.dryRun).toBe(true);
     expect(result.assigned).toBe(0);
     expect(result.failures).toEqual([]);
-    // The plan names the blast radius; the decoys are absent.
+    // The plan names the blast radius per target; the decoys are absent.
     expect(lines.join("\n")).toContain("Weekly sync");
     expect(lines.join("\n")).not.toContain("Not a match");
 
-    // Nothing was written: no meeting class, no membership, decoys untouched.
+    // Nothing was written: no system classes, no membership, decoys untouched.
     expect(fx.client.getNodeRaw(MEETING_CLASS_ID)).toBeUndefined();
+    expect(fx.client.getNodeRaw(EVENT_CLASS_ID)).toBeUndefined();
     for (const id of [...fx.reunionMembers, ...fx.eventoMembers, fx.eventosMember]) {
       expect(fx.client.getNodeRaw(id)?.classIds).not.toContain(MEETING_CLASS_ID);
+      expect(fx.client.getNodeRaw(id)?.classIds).not.toContain(EVENT_CLASS_ID);
     }
     expect(fx.client.getClassMembers(fx.eventosId).map((node) => node.id)).toEqual([
       fx.eventosMember,
@@ -178,10 +197,10 @@ describe("remap plan + dry run", () => {
 });
 
 describe("remap apply (through the script's ensure + plan + apply flow)", () => {
-  it("ensures the meeting family, assigns one op per member, and leaves the source classes intact", async () => {
+  it("ensures the family (with the extends edge), assigns each source to its own target, and leaves the source classes intact", async () => {
     const fx = await fixture();
 
-    // The script's exact flow: 1. ensure the target, 2. plan, 3. apply.
+    // The script's exact flow: 1. ensure the targets, 2. plan, 3. apply.
     await ensureMeetingFamily(fx.surface);
     const plan = await buildRemapPlan(fx.surface);
     const lines: string[] = [];
@@ -189,13 +208,20 @@ describe("remap apply (through the script's ensure + plan + apply flow)", () => 
 
     expect(result).toMatchObject({ dryRun: false, assigned: 3, failures: [] });
 
-    // Every member now carries the meeting class…
-    for (const id of [...fx.reunionMembers, ...fx.eventoMembers]) {
-      const node = fx.client.getNodeRaw(id);
-      expect(node?.classIds).toContain(MEETING_CLASS_ID);
-      expect(node?.classIds.filter((classId) => classId === MEETING_CLASS_ID)).toHaveLength(1);
+    // reunión members → meeting; evento members → event; each exactly once…
+    for (const id of fx.reunionMembers) {
+      const classIds = fx.client.getNodeRaw(id)?.classIds;
+      expect(classIds).toContain(MEETING_CLASS_ID);
+      expect(classIds?.filter((classId) => classId === MEETING_CLASS_ID)).toHaveLength(1);
+      expect(classIds).not.toContain(EVENT_CLASS_ID);
     }
-    // …AND keeps its source membership (assignment only — no unassigns).
+    for (const id of fx.eventoMembers) {
+      const classIds = fx.client.getNodeRaw(id)?.classIds;
+      expect(classIds).toContain(EVENT_CLASS_ID);
+      expect(classIds?.filter((classId) => classId === EVENT_CLASS_ID)).toHaveLength(1);
+      expect(classIds).not.toContain(MEETING_CLASS_ID);
+    }
+    // …AND the source memberships stay (assignment only — no unassigns).
     for (const id of fx.reunionMembers) {
       expect(fx.client.getNodeRaw(id)?.classIds).toContain(fx.reunionId);
     }
@@ -207,14 +233,20 @@ describe("remap apply (through the script's ensure + plan + apply flow)", () => 
     expect(fx.client.getNodeRaw(fx.eventoId)?.isClass).toBe(true);
     expect(fx.client.getClassMembers(fx.reunionId)).toHaveLength(2);
     expect(fx.client.getClassMembers(fx.eventoId)).toHaveLength(1);
-    // The decoy never got the meeting class.
+    // The decoy never got a system class.
     expect(fx.client.getNodeRaw(fx.eventosMember)?.classIds).not.toContain(MEETING_CLASS_ID);
+    expect(fx.client.getNodeRaw(fx.eventosMember)?.classIds).not.toContain(EVENT_CLASS_ID);
 
-    // The ensured family sits at the reserved ids with the date binding.
+    // The ensured family sits at the reserved ids: both classes, both date
+    // bindings, and the meeting→event extends edge.
+    expect(fx.client.getNodeRaw(EVENT_CLASS_ID)?.isClass).toBe(true);
+    expect(fx.client.getNodeRaw(MEETING_CLASS_ID)?.isClass).toBe(true);
+    expect(fx.client.getClassParents(MEETING_CLASS_ID)).toContain(EVENT_CLASS_ID);
     expect(
-      fx.client
-        .getClassBindings(MEETING_CLASS_ID)
-        .map((binding) => binding.propertySchemaId),
+      fx.client.getClassBindings(EVENT_CLASS_ID).map((binding) => binding.propertySchemaId),
+    ).toContain(SYSTEM_PROPERTY_UUIDS.eventDate);
+    expect(
+      fx.client.getClassBindings(MEETING_CLASS_ID).map((binding) => binding.propertySchemaId),
     ).toContain(SYSTEM_PROPERTY_UUIDS.meetingDate);
     expect(lines.join("\n")).toContain("done: 3 member(s) assigned, 0 failure(s)");
   });
@@ -228,9 +260,14 @@ describe("remap apply (through the script's ensure + plan + apply flow)", () => 
     const again = await runRemap(fx.surface, plan, { apply: true });
     expect(again.assigned).toBe(3);
     expect(again.failures).toEqual([]);
-    for (const id of [...fx.reunionMembers, ...fx.eventoMembers]) {
+    for (const id of fx.reunionMembers) {
       expect(
         fx.client.getNodeRaw(id)?.classIds.filter((classId) => classId === MEETING_CLASS_ID),
+      ).toHaveLength(1);
+    }
+    for (const id of fx.eventoMembers) {
+      expect(
+        fx.client.getNodeRaw(id)?.classIds.filter((classId) => classId === EVENT_CLASS_ID),
       ).toHaveLength(1);
     }
 

@@ -1,27 +1,31 @@
 /**
- * §34.36 remap tooling (owner ruling 2026-10-04) — one-shot migration of a
- * workspace's hand-rolled meeting-ish classes onto the seeded system class:
+ * §34.36 remap tooling (owner ruling 2026-10-04, reshaped by the owner's
+ * design directive the same day) — one-shot migration of a workspace's
+ * hand-rolled meeting-ish classes onto the seeded system family:
  *
- *   - classes whose DERIVED TITLE is exactly "reunión" or "evento"
- *     (case-insensitive, trimmed — the live workspace carries ~52 + ~27
- *     members) get their members assigned the system `meeting` class, ONE op
- *     per member through the objects API (PUT /api/objects/:id/classes/:classId
- *     — the CLI `class remap` precedent). Assignment ONLY: the old classes
- *     and their memberships stay untouched (NO deletions, NO unassigns — the
- *     inverse is a later deliberate `notees class empty`). Every write is
- *     recoverable (membership unassign survives authored values; the trash
- *     covers the rest).
- *   - the meeting family (class node + meetingDate/location/agenda schemas +
- *     bindings) is ensured FIRST at the reserved seed ids, idempotently —
- *     the objects API has no class-create route, so a missing class rides one
- *     relay-batch envelope (the migrate-mention-texts precedent); schemas +
- *     bindings ride the REST property routes. Re-running the script after a
- *     successful pass is a near-no-op (binding upserts only — the REST
- *     surface exposes no binding read, so the three idempotent
- *     class.property.set upserts are issued unconditionally).
+ *   - classes whose DERIVED TITLE is exactly "reunión" get their members
+ *     assigned the system `meeting` class; classes titled exactly "evento"
+ *     get the system `event` class (the calendar family root — `meeting`
+ *     extends `event`). Title match: case-insensitive, trimmed, exact (no
+ *     accent folding — "reunion" ≠ "reunión"; "Eventos" stays put).
+ *   - ONE assign op per member through the objects API (PUT
+ *     /api/objects/:id/classes/:classId — the CLI `class remap` precedent).
+ *     Assignment ONLY: the old classes and their memberships stay untouched
+ *     (NO deletions, NO unassigns — the inverse is a later deliberate
+ *     `notees class empty`). Every write is recoverable (membership unassign
+ *     survives authored values; the trash covers the rest).
+ *   - the system family (event root: class + eventDate schema/binding;
+ *     meeting subclass: class + meetingDate/location/agenda + the
+ *     meeting→event extends edge) is ensured FIRST at the reserved seed ids,
+ *     idempotently. The objects API has no class-create or setExtends route,
+ *     so missing classes and the edge ride relay-batch envelopes (the
+ *     migrate-mention-texts precedent); schemas + bindings ride the REST
+ *     property routes. Re-running after a successful pass is a near-no-op
+ *     (binding upserts only — the REST surface exposes no binding read, so
+ *     the idempotent class.property.set upserts are issued unconditionally).
  *
  * DRY RUN BY DEFAULT: without --apply the script prints the full plan
- * (classes, members, target) and writes nothing.
+ * (classes, members, targets) and writes nothing.
  *
  * Usage (the tsx binary lives in apps/server; run from the repo root):
  *   pnpm --dir apps/server exec tsx ../../scripts/remap-reunion-evento.mts \
@@ -37,29 +41,40 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { newEnvelope } from "../packages/protocol/src/index";
+import { newEnvelope, type Envelope } from "../packages/protocol/src/index";
 import { SYSTEM_CLASS_UUIDS } from "../packages/domain/src/index";
 
 import {
   ensureMeetingFamily,
-  MEETING_CLASS_ID,
   type MeetingFamilySurface,
 } from "../apps/web/src/ui/components/meetingFamily";
 import type { ClientPropertySchema } from "../apps/web/src/core/workspace-client";
 
-/** The source class titles — exact match (case-insensitive, trimmed), §34.36 M4. */
-export const REMAP_SOURCE_TITLES: readonly string[] = ["reunión", "evento"];
+/**
+ * The remap table (owner directive 2026-10-04): each source class title maps
+ * to its system target — reunión → meeting (the subclass), evento → event
+ * (the calendar root).
+ */
+export const REMAP_TARGETS: ReadonlyArray<{ title: string; classId: string }> = [
+  { title: "reunión", classId: SYSTEM_CLASS_UUIDS.meeting },
+  { title: "evento", classId: SYSTEM_CLASS_UUIDS.event },
+];
 
-/** The derived-title match: no substrings, no plurals ("Eventos" stays put). */
-export function isRemapSourceTitle(title: string): boolean {
+/** The system target class id for a derived title, or undefined when the title is not a remap source. */
+export function remapTargetFor(title: string): string | undefined {
   const normalized = title.trim().toLowerCase();
-  return REMAP_SOURCE_TITLES.some((wanted) => normalized === wanted.toLowerCase());
+  return REMAP_TARGETS.find((target) => target.title.toLowerCase() === normalized)?.classId;
+}
+
+/** True when the title is a remap source (exact, case-insensitive, trimmed). */
+export function isRemapSourceTitle(title: string): boolean {
+  return remapTargetFor(title) !== undefined;
 }
 
 /**
- * The script's full surface: the meeting-family ensure composes the first
- * three writes + reads; the remap adds class listing, member listing and the
- * membership assign over the objects API.
+ * The script's full surface: the family ensure composes the first block
+ * (reads + class/schema/binding/extends writes); the remap adds class
+ * listing, member listing and the membership assign over the objects API.
  */
 export interface RemapScriptSurface extends MeetingFamilySurface {
   listClasses(): Promise<Array<{ id: string; name: string; memberCount: number }>>;
@@ -75,30 +90,35 @@ export interface RemapPlanMember {
 export interface RemapPlanEntry {
   classId: string;
   title: string;
+  /** The system class this source's members are assigned (meeting or event). */
+  targetClassId: string;
   members: RemapPlanMember[];
 }
 
 export interface RemapPlan {
-  targetClassId: string;
   entries: RemapPlanEntry[];
   memberCount: number;
 }
 
-/** Collect the remap plan: every exactly-titled source class and its members. */
+/** Collect the remap plan: every exactly-titled source class, its target, and its members. */
 export async function buildRemapPlan(surface: RemapScriptSurface): Promise<RemapPlan> {
   const classes = await surface.listClasses();
   const sources = classes
-    .filter((cls) => isRemapSourceTitle(cls.name))
-    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    .map((cls) => ({ cls, targetClassId: remapTargetFor(cls.name) }))
+    .filter((entry): entry is { cls: (typeof classes)[number]; targetClassId: string } =>
+      entry.targetClassId !== undefined,
+    )
+    .sort(
+      (a, b) => a.cls.name.localeCompare(b.cls.name) || a.cls.id.localeCompare(b.cls.id),
+    );
   const entries: RemapPlanEntry[] = [];
-  for (const cls of sources) {
+  for (const { cls, targetClassId } of sources) {
     const members = (await surface.listMembers(cls.id))
       .map((member) => ({ id: member.id, name: member.name }))
       .sort((a, b) => a.id.localeCompare(b.id));
-    entries.push({ classId: cls.id, title: cls.name, members });
+    entries.push({ classId: cls.id, title: cls.name, targetClassId, members });
   }
   return {
-    targetClassId: MEETING_CLASS_ID,
     entries,
     memberCount: entries.reduce((total, entry) => total + entry.members.length, 0),
   };
@@ -106,7 +126,6 @@ export async function buildRemapPlan(surface: RemapScriptSurface): Promise<Remap
 
 export interface RemapResult {
   dryRun: boolean;
-  targetClassId: string;
   assigned: number;
   failures: Array<{ id: string; name: string; error: string }>;
 }
@@ -114,7 +133,8 @@ export interface RemapResult {
 /**
  * Execute the plan. `apply: false` (the default at the CLI) prints the blast
  * radius and writes nothing; `apply: true` issues one assign op per member
- * and collects per-member failures without aborting the run.
+ * (to the entry's own target) and collects per-member failures without
+ * aborting the run.
  */
 export async function runRemap(
   surface: RemapScriptSurface,
@@ -124,22 +144,24 @@ export async function runRemap(
   const log = options.log ?? ((): void => undefined);
   if (!options.apply) {
     log(
-      `dry run: ${plan.memberCount} member(s) across ${plan.entries.length} class(es) would be assigned the system meeting class (${plan.targetClassId}); the source classes and their memberships stay untouched`,
+      `dry run: ${plan.memberCount} member(s) across ${plan.entries.length} class(es) would be assigned the system meeting/event classes; the source classes and their memberships stay untouched`,
     );
     for (const entry of plan.entries) {
-      log(`  "${entry.title}" (${entry.classId}): ${entry.members.length} member(s)`);
+      log(
+        `  "${entry.title}" (${entry.classId}) → meeting/event target ${entry.targetClassId}: ${entry.members.length} member(s)`,
+      );
       for (const member of entry.members) log(`    ${member.id}  ${member.name}`);
     }
-    return { dryRun: true, targetClassId: plan.targetClassId, assigned: 0, failures: [] };
+    return { dryRun: true, assigned: 0, failures: [] };
   }
   const failures: Array<{ id: string; name: string; error: string }> = [];
   let assigned = 0;
   for (const entry of plan.entries) {
     for (const member of entry.members) {
       try {
-        await surface.assignClass(member.id, plan.targetClassId);
+        await surface.assignClass(member.id, entry.targetClassId);
         assigned += 1;
-        log(`assigned meeting → ${member.id}  ${member.name}`);
+        log(`assigned ${entry.targetClassId} → ${member.id}  ${member.name}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         failures.push({ id: member.id, name: member.name, error: message });
@@ -148,7 +170,7 @@ export async function runRemap(
     }
   }
   log(`done: ${assigned} member(s) assigned, ${failures.length} failure(s)`);
-  return { dryRun: false, targetClassId: plan.targetClassId, assigned, failures };
+  return { dryRun: false, assigned, failures };
 }
 
 // --- CLI ----------------------------------------------------------------------
@@ -206,37 +228,31 @@ async function main(): Promise<void> {
     return (await request(path)).json() as Promise<T>;
   }
 
-  /** class.create has no REST route — the envelope path, like the CLI's extends remap. */
+  // class.create and class.setExtends have no REST routes — the envelope
+  // path, like the CLI's extends remap. HLC logical counter keeps the
+  // envelopes monotonic within the run.
   let logical = 0;
-  async function createClassViaRelay(
-    name: string,
-    opts: { id?: string; icon?: string } = {},
-  ): Promise<string> {
-    const classId = opts.id ?? crypto.randomUUID();
-    await request("/api/relay/v2/batch", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        envelopes: [
-          newEnvelope({
-            workspaceId: options.workspace,
-            actorId: ACTOR,
-            deviceId: "remap-reunion-evento",
-            client: "remap-reunion-evento",
-            hlc: { physical: Date.now(), logical: logical++ },
-            affectedNodeIds: [classId],
-            opType: "class.create",
-            payload: {
-              classId,
-              // Title-is-content: the class's name is its text content.
-              contentAst: [{ type: "text", text: name }],
-              ...(opts.icon !== undefined ? { icon: opts.icon } : {}),
-            },
-          }),
-        ],
-      }),
+  async function submitEnvelopes(envelopes: Envelope[]): Promise<void> {
+    for (let offset = 0; offset < envelopes.length; offset += 500) {
+      const chunk = envelopes.slice(offset, offset + 500);
+      await request("/api/relay/v2/batch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ envelopes: chunk }),
+      });
+    }
+  }
+  function envelope(opType: string, payload: Record<string, unknown>, affected: string[]): Envelope {
+    return newEnvelope({
+      workspaceId: options.workspace,
+      actorId: ACTOR,
+      deviceId: "remap-reunion-evento",
+      client: "remap-reunion-evento",
+      hlc: { physical: Date.now(), logical: logical++ },
+      affectedNodeIds: affected,
+      opType,
+      payload,
     });
-    return classId;
   }
 
   const surface: RemapScriptSurface = {
@@ -296,8 +312,32 @@ async function main(): Promise<void> {
     async getClassBindings() {
       return [];
     },
+    async getClassParents(classId) {
+      const body = await getJson<{ class: { parentClassIds: string[] } }>(
+        `/api/classes/${encodeURIComponent(classId)}`,
+      );
+      return body.class.parentClassIds;
+    },
     async createClass(name, opts) {
-      return createClassViaRelay(name, opts);
+      const classId = opts?.id ?? crypto.randomUUID();
+      await submitEnvelopes([
+        envelope(
+          "class.create",
+          {
+            classId,
+            // Title-is-content: the class's name is its text content.
+            contentAst: [{ type: "text", text: name }],
+            ...(opts?.icon !== undefined ? { icon: opts.icon } : {}),
+          },
+          [classId],
+        ),
+      ]);
+      return classId;
+    },
+    async setClassExtends(classId, parentClassIds) {
+      await submitEnvelopes([
+        envelope("class.setExtends", { classId, parentClassIds }, [classId, ...parentClassIds]),
+      ]);
     },
     async createPropertySchema(input) {
       await request("/api/property-schemas", {
@@ -328,9 +368,12 @@ async function main(): Promise<void> {
 
   const log = (line: string): void => console.log(line);
 
-  // 1. The target must exist before any assign (PUT requireClass gate).
+  // 1. The targets must exist before any assign (PUT requireClass gate):
+  //    the event root + the meeting subclass + the extends edge.
   await ensureMeetingFamily(surface);
-  log(`meeting family ensured at ${SYSTEM_CLASS_UUIDS.meeting} (class + schemas + bindings)`);
+  log(
+    `meeting/event family ensured (${SYSTEM_CLASS_UUIDS.meeting} extends ${SYSTEM_CLASS_UUIDS.event}; classes + schemas + bindings + edge)`,
+  );
 
   // 2. Plan, then assign (dry run unless --apply).
   const plan = await buildRemapPlan(surface);

@@ -16,6 +16,7 @@ import {
   SYSTEM_PAGE_UUIDS,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
+  systemClassAncestors,
 } from "../src/index.js";
 import type { ContentAst } from "@notees/protocol";
 
@@ -127,23 +128,44 @@ describe("system seeds (v1 port)", () => {
     }
   });
 
-  it("meeting family seeds (§34.36, owner ruling 2026-10-04: plain seeds — zero wire cost)", () => {
-    // The register's reserved class id (append-only rule; conference …038
-    // stays the previous tail). Standalone — no SYSTEM_CLASS_EXTENDS entry.
+  it("meeting/event family seeds (§34.36 + owner reshape directive 2026-10-04: plain seeds — zero wire cost)", () => {
+    // The register's reserved class ids (append-only rule): meeting …039
+    // (first slice), then `event` …040 — the calendar family root seeded by
+    // the owner's reshape directive.
     expect(SYSTEM_CLASS_UUIDS.meeting).toBe("00000000-0000-0000-0001-000000000039");
+    expect(SYSTEM_CLASS_UUIDS.event).toBe("00000000-0000-0000-0001-000000000040");
     expect(SYSTEM_CLASS_ICONS.meeting).toMatch(/^mdi/);
-    expect(SYSTEM_CLASS_EXTENDS).not.toHaveProperty("meeting");
+    expect(SYSTEM_CLASS_ICONS.event).toMatch(/^mdi/);
     expect(SEEDED_SYSTEM_CLASSES).toContain("meeting");
-    // The family continues the workflow-properties block (task family
-    // …001–…006; the pinned block rule above covers …0003-…).
+    expect(SEEDED_SYSTEM_CLASSES).toContain("event");
+    // The reshape: meeting IS-A event via the seeded extends edge.
+    expect(SYSTEM_CLASS_EXTENDS.meeting).toEqual(["event"]);
+    expect(SYSTEM_CLASS_EXTENDS.event).toBeUndefined();
+    // The families continue the workflow-properties block (task family
+    // …001–…006; meeting …007–…009; event …010 — the pinned block rule
+    // above covers …0003-…).
     expect(SYSTEM_PROPERTY_UUIDS.meetingDate).toBe("00000000-0000-0000-0003-000000000007");
     expect(SYSTEM_PROPERTY_UUIDS.location).toBe("00000000-0000-0000-0003-000000000008");
     expect(SYSTEM_PROPERTY_UUIDS.agenda).toBe("00000000-0000-0000-0003-000000000009");
-    // M2 whole-day law: the date binding is date-typed — there is no
+    expect(SYSTEM_PROPERTY_UUIDS.eventDate).toBe("00000000-0000-0000-0003-000000000010");
+    // M2 whole-day law: the date bindings are date-typed — there is no
     // clock-time type anywhere in the spec union.
     expect(SYSTEM_PROPERTY_SPECS.meetingDate).toEqual({ type: "date", bindTo: "meeting" });
     expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting" });
     expect(SYSTEM_PROPERTY_SPECS.agenda).toEqual({ type: "text", bindTo: "meeting" });
+    expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "date", bindTo: "event" });
+  });
+
+  it("systemClassAncestors encodes the Features-tab gating semantics (§34.36 reshape)", () => {
+    // Disabling event disables meeting WITH it (child sees the ancestor)…
+    expect(systemClassAncestors("meeting").has("event")).toBe(true);
+    // …while disabling meeting alone leaves event live (no reverse edge).
+    expect(systemClassAncestors("event").size).toBe(0);
+    // Multi-hop + sibling families unaffected.
+    expect(systemClassAncestors("book").has("source")).toBe(true);
+    expect(systemClassAncestors("meeting").has("source")).toBe(false);
+    expect(systemClassAncestors("meeting").has("task")).toBe(false);
+    expect(systemClassAncestors("task").size).toBe(0);
   });
 });
 
@@ -278,5 +300,105 @@ describe("date node display names", () => {
     expect(deriveDisplayName({ ...base, contentAst: [text("Not a date")], classIds: [DAY] })).toBe(
       "Not a date",
     );
+  });
+});
+
+describe("workspace feature map (§34.35)", () => {
+  it("F1: every managed class is a real system class; every feature resolves its class ids", async () => {
+    const { WORKSPACE_FEATURE_MAP, managedClassIds, featureForManagedClass } = await import(
+      "../src/index.js"
+    );
+    for (const [feature, spec] of Object.entries(WORKSPACE_FEATURE_MAP)) {
+      expect(spec.classes.length).toBeGreaterThan(0);
+      for (const name of spec.classes) {
+        expect(SYSTEM_CLASS_UUIDS).toHaveProperty(name);
+      }
+      const ids = managedClassIds(feature as keyof typeof WORKSPACE_FEATURE_MAP);
+      expect(ids).toHaveLength(spec.classes.length);
+      for (const id of ids) {
+        expect(featureForManagedClass(id)).toBe(feature);
+      }
+    }
+  });
+
+  it("F1: always-on classes are never managed; the toggleable set covers the proposed six", async () => {
+    const {
+      ALWAYS_ON_SYSTEM_CLASSES,
+      WORKSPACE_FEATURE_MAP,
+      isAlwaysOnSystemClass,
+    } = await import("../src/index.js");
+    const managed = new Set(Object.values(WORKSPACE_FEATURE_MAP).flatMap((spec) => spec.classes));
+    for (const name of ALWAYS_ON_SYSTEM_CLASSES) {
+      expect(managed.has(name as never), `always-on ${name} must not be managed`).toBe(false);
+      expect(isAlwaysOnSystemClass(name)).toBe(true);
+    }
+    // whiteboard (class/token duality) and meeting (plain-seed ruling) stay always-on.
+    expect(ALWAYS_ON_SYSTEM_CLASSES).toContain("whiteboard");
+    expect(ALWAYS_ON_SYSTEM_CLASSES).toContain("meeting");
+  });
+
+  it("task-family seed-ensure manifest: six schemas at fixed ids with deterministic option ids", async () => {
+    const {
+      TASK_FAMILY_SEED,
+      TASK_STATUS_OPTION_UUIDS,
+      TASK_PRIORITY_OPTION_UUIDS,
+    } = await import("../src/index.js");
+    expect(TASK_FAMILY_SEED.map((entry) => entry.property)).toEqual([
+      "taskStatus",
+      "taskScheduled",
+      "taskDeadline",
+      "taskPriority",
+      "taskClosedDate",
+      "taskRecurrence",
+    ]);
+    const optionIds = [
+      ...Object.values(TASK_STATUS_OPTION_UUIDS),
+      ...Object.values(TASK_PRIORITY_OPTION_UUIDS),
+    ];
+    expect(new Set(optionIds).size).toBe(optionIds.length);
+    for (const id of optionIds) {
+      expect(id).toMatch(/^00000000-0000-0000-0004-/);
+    }
+    for (const entry of TASK_FAMILY_SEED) {
+      expect(SYSTEM_PROPERTY_UUIDS).toHaveProperty(entry.property);
+      expect(entry.sequence).toBeGreaterThan(0);
+    }
+    // Status/priority option labels match the v1 option vocabulary.
+    expect(TASK_FAMILY_SEED[0]!.options!.map((o) => o.label)).toEqual([
+      "Backlog",
+      "Pending",
+      "Doing",
+      "Reviewing",
+      "Done",
+      "Cancelled",
+    ]);
+    expect(TASK_FAMILY_SEED[3]!.options!.map((o) => o.label)).toEqual([
+      "Low",
+      "Medium",
+      "High",
+      "Urgent",
+    ]);
+  });
+});
+
+describe("promotion survivors (§34.34 B3/B5)", () => {
+  it("code_block survives stringifyContentAst; hr flattens away", async () => {
+    const { stringifyContentAst, isTextOnlyContent } = await import("../src/index.js");
+    const ast = [
+      { type: "text" as const, text: "intro" },
+      { type: "code_block" as const, language: "python", text: "print('hi')" },
+      { type: "hr" as const },
+      { type: "text" as const, text: "outro" },
+    ];
+    const flattened = stringifyContentAst(ast);
+    expect(flattened).toEqual([
+      { type: "text", text: "intro outro" },
+      { type: "code_block", language: "python", text: "print('hi')" },
+    ]);
+    expect(isTextOnlyContent(flattened)).toBe(true);
+    // A code-only stream keeps the code block and no text run.
+    expect(
+      stringifyContentAst([{ type: "code_block" as const, text: "x = 1" }]),
+    ).toEqual([{ type: "code_block", text: "x = 1" }]);
   });
 });
