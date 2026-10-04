@@ -70,10 +70,10 @@ describe("Class View", () => {
 
     const classRender = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     // Class chrome: the extends corner's class-only add affordance and the
-    // Property definitions section — and the page body tree is present (a
+    // Class properties section — and the page body tree is present (a
     // class page is a page).
     expect(screen.getByRole("button", { name: "Add class extension" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: /property definitions/i })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(classRender.container.querySelector(".nt-class")).not.toBeNull();
     // The page body chrome: an empty class offers the first-block affordance.
     expect(screen.getByRole("button", { name: /add a block/i })).not.toBeNull();
@@ -81,7 +81,7 @@ describe("Class View", () => {
 
     render(<NodeView client={client} nodeId={pageId} onOpenNode={() => {}} />);
     expect(screen.getByRole("heading", { name: "A Page" })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: /property definitions/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /class properties/i })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add class extension" })).toBeNull();
   });
 
@@ -215,7 +215,7 @@ describe("Class View", () => {
 
     // Non-empty schema collapses the section (invites setup, then stays out
     // of the way — parity with the page's "Properties N").
-    fireEvent.click(screen.getByRole("button", { name: /property definitions/i }));
+    fireEvent.click(screen.getByRole("button", { name: /class properties/i }));
     await flushWrites();
 
     const names = [...container.querySelectorAll(".nt-propdef-name")].map(

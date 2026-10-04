@@ -396,7 +396,7 @@ export function PropertyDefinitionsSection({
 
   return (
     <NodeViewSection
-      title="Property definitions"
+      title="Class properties"
       icon={<Icon path="mdi-format-list-bulleted-square" size={0.9} />}
       count={bindings.length}
       defaultExpanded={bindings.length === 0}
