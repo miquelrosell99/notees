@@ -137,7 +137,7 @@ export function NodeContextMenu({
   onClose: () => void;
   onOpenNode: (nodeId: string) => void;
   onExport?: ((pageId: string, name: string) => void) | undefined;
-  /** §34.59 shares: "Share…" opens the page's public read-only link manager. */
+  /** §34.62 shares: "Share…" opens the page's public read-only link manager. */
   onShare?: ((pageId: string, name: string) => void) | undefined;
   /** Presentation mode (§34.26): "Present" decks the page's subtree read-only. */
   onPresent?: ((pageId: string) => void) | undefined;
