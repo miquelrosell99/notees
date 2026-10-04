@@ -600,22 +600,28 @@ export class WorkerClient {
 
   /** Download an asset's bytes (workspace key); the export engine's include-assets read. */
   async fetchAssetBytes(assetId: string): Promise<Blob> {
-    return fetchAssetBlob(this.serverUrl, this.apiKey, assetId);
+    return fetchAssetBlob(this.serverUrl, this.apiKey, assetId, this.workspaceId);
   }
 
   /** Download an asset's bytes (workspace key) and open them in a new tab. */
   async downloadAsset(assetId: string): Promise<void> {
-    const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, assetId);
+    const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, assetId, this.workspaceId);
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
   }
 
   /** An image asset's bytes as a data URL (card covers / thumbnails). */
   async getAssetDataUrl(assetNodeId: string): Promise<string | null> {
-    const info = this.getAssetInfo(assetNodeId);
+    // Bypass the synchronous read cache: cachedRead seeds the EMPTY value and
+    // fills it on a macrotask, so a same-tick consumer (this async path reads
+    // getAssetInfo synchronously inside) would always see undefined and the
+    // thumbnail cache would pin the null for the session — covers rendered
+    // "No image bytes" even with complete data (2026-10-04). Await the worker
+    // read directly; this path is already async.
+    const info = (await this.call("getAssetInfo", [assetNodeId])) as AssetInfo | undefined;
     if (info === undefined || !info.mimeType.startsWith("image/")) return null;
     try {
-      const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, info.assetId);
+      const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, info.assetId, this.workspaceId);
       return await readBlobAsDataUrl(blob);
     } catch {
       return null;
