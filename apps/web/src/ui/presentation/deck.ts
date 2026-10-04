@@ -45,6 +45,8 @@ export type DeckSlideLayout =
   | { type: "standard" }
   /** Trailing image block: text column left, image column right. */
   | { type: "split"; imageAssetId: string }
+  /** The slide's own cover property: text column left, cover column right. */
+  | { type: "cover-split"; imageAssetId: string }
   /** The body is a single image block: centered, full size. */
   | { type: "image-full"; imageAssetId: string };
 
