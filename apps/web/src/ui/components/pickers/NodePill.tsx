@@ -13,6 +13,7 @@ import { Icon } from "../../Icon.js";
 import type { ClientNode } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { ColorPickerRow } from "./ColorPickerRow.js";
+import { usePopupDismissal } from "../ui/usePopupDismissal.js";
 import "./NodePill.css";
 
 export interface NodePillProps {
@@ -41,6 +42,15 @@ export function NodePill({
 }: NodePillProps) {
   const [colorMenu, setColorMenu] = useState<{ x: number; y: number } | null>(null);
   const pillRef = useRef<HTMLDivElement>(null);
+  const colorMenuRef = useRef<HTMLDivElement>(null);
+
+  // Dismissal (§34.67): Escape closes the portaled color row; the backdrop
+  // keeps owning outside-click.
+  usePopupDismissal({
+    popupRef: colorMenuRef,
+    isOpen: colorMenu !== null,
+    onClose: () => setColorMenu(null),
+  });
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -118,6 +128,7 @@ export function NodePill({
           />
           {createPortal(
             <div
+              ref={colorMenuRef}
               className="node-pill-context-menu-wrapper"
               style={{
                 position: "fixed",

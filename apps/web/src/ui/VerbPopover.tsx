@@ -19,6 +19,8 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
+import { usePopupDismissal } from "./components/ui/usePopupDismissal.js";
+
 /** Minimal schema shape the capture row matches against. */
 export interface VerbSchemaOption {
   id: string;
@@ -48,6 +50,16 @@ export function VerbPopover({ top, left, schemas, onBind, onCreateAndBind, onSub
   const [pending, setPending] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const verbRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Dismissal (§34.67): pointer-down outside the popover cancels it. Escape
+  // stays with the form's own keydown (the hook skips in-popup keystrokes).
+  usePopupDismissal({
+    popupRef: formRef,
+    isOpen: true,
+    onClose: onCancel,
+    closeOnEscape: false,
+  });
 
   useEffect(() => {
     verbRef.current?.focus();
@@ -96,7 +108,7 @@ export function VerbPopover({ top, left, schemas, onBind, onCreateAndBind, onSub
   };
 
   return (
-    <form className="nt-verb-popover" style={{ top, left }} onSubmit={submit} onKeyDown={keyDown}>
+    <form ref={formRef} className="nt-verb-popover" style={{ top, left }} onSubmit={submit} onKeyDown={keyDown}>
       <label className="nt-verb-field">
         Verb
         <input

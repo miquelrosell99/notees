@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useViewportPosition } from "./useViewportPosition.js";
+import { usePopupDismissal } from "../ui/usePopupDismissal.js";
 import { useCalendarMode, type CalendarMode } from "./calendar/useCalendarMode.js";
 import { CalendarHeader, DaysGrid, MonthsGrid, YearsGrid } from "./calendar/CalendarGrids.js";
 import "./CalendarPopup.css";
@@ -75,24 +76,15 @@ export function CalendarPopup({
     edgePadding: 16,
   });
 
-  // Close on click outside
-  useEffect(() => {
-    if (!isOpen) return;
-
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        popupRef.current &&
-        !popupRef.current.contains(e.target as Node) &&
-        anchor.current &&
-        !anchor.current.contains(e.target as Node)
-      ) {
-        onClose();
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen, onClose, anchor]);
+  // Dismissal (§34.67): pointer-down outside (the anchor trigger counts as
+  // inside) and Escape — the root handler below covers Escape while focus is
+  // on a day/month/year button, the hook covers Escape from elsewhere.
+  usePopupDismissal({
+    popupRef,
+    anchorRefs: [anchor],
+    isOpen,
+    onClose,
+  });
 
   // Navigate to today when signal changes (shift+click from parent)
   useEffect(() => {
@@ -132,6 +124,12 @@ export function CalendarPopup({
       ref={popupRef}
       role="dialog"
       aria-label="Calendar"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
       style={
         position
           ? {
