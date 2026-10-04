@@ -41,7 +41,7 @@ export function NodeMenuButton({
   /** Presentation mode (§34.26): the "Present" menu item decks the page. */
   onPresent?: ((nodeId: string) => void) | undefined;
   onDeleted?: ((node: ClientNode) => void) | undefined;
-  /** §34.59 shares: when present, pages get the "Share…" menu item + modal. */
+  /** §34.62 shares: when present, pages get the "Share…" menu item + modal. */
   shareTarget?: ShareTarget | undefined;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);

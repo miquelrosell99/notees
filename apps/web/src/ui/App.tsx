@@ -363,7 +363,7 @@ export function NodeView({
    * cards keep their own header actions and skip it.
    */
   cornerMenu?: boolean | undefined;
-  /** §34.59 shares: server coordinates for the "Share…" surface (pages). */
+  /** §34.62 shares: server coordinates for the "Share…" surface (pages). */
   shareTarget?: ShareTarget | undefined;
 }) {
   const node = client.getNode(nodeId);
@@ -534,7 +534,7 @@ export function App() {
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
   /**
-   * §34.59 shares: the coordinates the Share… surface needs. Absent in
+   * §34.62 shares: the coordinates the Share… surface needs. Absent in
    * offline mode (there is no server to mint against) — the menu item and
    * modal hide themselves without it.
    */
