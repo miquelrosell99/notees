@@ -348,3 +348,38 @@ span.pill__text {
   background: var(--color-hover-overlay);
   color: var(--color-on-surface);
 }
+
+/* PB1 broken property reference: the value survives its target's deletion —
+   the pill shows the raw id in a dashed, muted chip (broken-mention policy). */
+.pill--broken {
+  border: var(--border-width-default) dashed var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-chip-label--broken code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-body-small);
+  overflow-wrap: anywhere;
+}
+
+/* PG16 settings-modal option rows: color dot + label input + remove. */
+.nt-property-settings__options {
+  list-style: none;
+  margin: 0 0 var(--spacing-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-property-settings__option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-property-settings__option .nt-property-settings__input {
+  flex: 1;
+  min-width: 0;
+}

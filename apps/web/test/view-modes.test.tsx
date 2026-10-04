@@ -668,9 +668,11 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
 describe("kanban polish: multi-select grouping, collapsible columns", () => {
   it("multi-select schemas make a card ride every column it carries; drops merge", async () => {
     const client = await seedClient();
+    // PG6 one-shape-per-type: array values live on multi_select (multi:true
+    // keeps KanbanView's multi-membership path keyed off the schema flag).
     const statusId = await client.createPropertySchema({
       name: "Status",
-      type: "select",
+      type: "multi_select",
       multi: true,
       options: [
         { id: "00000000-0000-0000-0005-000000000021", label: "Backlog" },

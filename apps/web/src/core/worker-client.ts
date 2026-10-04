@@ -24,6 +24,7 @@ import type {
   CreatePropertySchemaInput,
   DeleteObjectOptions,
   EffectiveProperty,
+  OperationFeedEntry,
   QueryAggregateResult,
   QueryRunResult,
   ReferenceEntry,
@@ -350,6 +351,15 @@ export class WorkerClient {
     return this.cachedRead<string | null>("resolveNodeByName", [name], null);
   }
 
+  /**
+   * Property value history feed (§34.32 PG13) — async RPC into the worker's
+   * WorkspaceClient (the REST call needs no store; the worker owns the REST
+   * config). Rejects with the feed error when the server is unreachable.
+   */
+  async fetchOperationsFor(objectId: string, propertySchemaId: string): Promise<OperationFeedEntry[]> {
+    return (await this.call("fetchOperationsFor", [objectId, propertySchemaId])) as OperationFeedEntry[];
+  }
+
   getChildren(id: string): ClientNode[] {
     return this.cachedRead<ClientNode[]>("getChildren", [id], []);
   }
@@ -479,6 +489,11 @@ export class WorkerClient {
     fields: UpdatePropertySchemaInput,
   ): Promise<void> {
     await this.call("updatePropertySchema", [propertySchemaId, fields]);
+  }
+
+  /** Soft-delete a property schema (propertySchema.delete — the PG3 convert flow). */
+  async deletePropertySchema(propertySchemaId: string): Promise<void> {
+    await this.call("deletePropertySchema", [propertySchemaId]);
   }
 
   /** Author a property value (property.set) — shadows any derived default. */
