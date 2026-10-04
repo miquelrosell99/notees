@@ -1,6 +1,6 @@
 # Notees philosophy
 
-The ideas under Notees v2, stated plainly. Every claim here traces to the normative design stack ([.plans/design/01-knowledge-model.md](../.plans/design/01-knowledge-model.md), [.plans/design/03-paradigm-assessment.md](../.plans/design/03-paradigm-assessment.md), [packages/protocol/SCHEMA.md](../packages/protocol/SCHEMA.md)) — this document is the readable version, not a new authority.
+The ideas under Notees, stated plainly. Every claim here traces to the normative model ([packages/protocol/SCHEMA.md](../packages/protocol/SCHEMA.md)) — this document is the readable version, not a new authority.
 
 ## The operation log is the only authority
 
@@ -87,7 +87,7 @@ The test is one question: *would a second device, given the log, be wrong withou
 
 ## What we took — and the wounds that became our rules
 
-Notees v2 sits at the intersection of four mature paradigms, with one layer none of them claims ([full assessment](../.plans/design/03-paradigm-assessment.md)):
+Notees sits at the intersection of four mature paradigms, with one layer none of them claims:
 
 - **From Obsidian**: permissiveness as architecture — the design law, validated as a moat. Properties-optional discipline: the app is fully usable with zero properties; structure is an upgrade path, not a toll gate. And **export = dignity**: first-class, always-current projections, because a community audits them.
 - **From Logseq**: the outliner feel — bullets, zoom, collapse; block identity; the linked-references filtering idea we generalized into tree-recursive `refset` propagation. And the two wounds we treat as law: rewrites are existential (so this greenfield adds columns, tokens, and an editor — no new sync primitive), and storage-truth honesty is cheaper said early than walked back late.
@@ -102,7 +102,7 @@ Their wounds, our rules:
 | Logseq users felt betrayed by DB-as-truth | State the storage truth in the header of every doc: log is truth, export is projection |
 | Logseq sync arrived late and alpha | The ported fixture/convergence corpus is a blocking M1 exit gate, not a nice-to-have |
 | Tana community: "vendor lock-in with my second brain" | Local-first op log, E2EE slot, first-class export |
-| Obsidian's plugin tax | Core flows never depend on plugins; plugins are capability-brokered (M3) |
+| Obsidian's plugin tax | Core flows never depend on plugins; plugins are capability-brokered |
 | Obsidian Bases can't reach block granularity | Block identity from day one |
 | Capacities' curated catalog as team bottleneck | User-defined classes and property schemas as runtime registry data |
 
@@ -112,5 +112,4 @@ Where they still beat us, honestly: day-one polish, ecosystem gravity, built-in 
 
 - [usage.md](usage.md) — what of this you can run today
 - [ux.md](ux.md) — how the ideas feel in the interface
-- [.plans/design/01-knowledge-model.md](../.plans/design/01-knowledge-model.md) — the normative model statement
 - [README.md](../README.md) — the front door
