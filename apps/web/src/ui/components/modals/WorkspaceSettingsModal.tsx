@@ -12,6 +12,9 @@
  */
 import { useEffect, useMemo, useState } from "react";
 
+import type { WorkspaceFeature } from "@notees/protocol";
+import { WORKSPACE_FEATURE_MAP } from "@notees/domain";
+
 import type { AnyClient } from "../Sidebar.js";
 import { displayNameFromClient } from "../../dateDisplay.js";
 import { Modal } from "../ui/Modal.js";
@@ -29,6 +32,19 @@ import {
 } from "../calendarQuickCreateSettings.js";
 
 import "./settingsModal.css";
+
+/**
+ * LOCKSTEP-PENDING (§34.35 protocol batch, part 1): the feature toggles READ
+ * through the shipped `workspace.feature.set` op + `workspace_feature`
+ * derived table (store applier, canonical fixtures, both web clients), but
+ * the WRITE path stays inert until the GTK/Flutter clients ship the op —
+ * nothing may author it into a live log while older clients fail loud on
+ * unknown opTypes. The tab renders the live state with disabled switches;
+ * the write (a `workspace.feature.set` through the normal client op path,
+ * with the F3 "N existing objects keep their data" confirmation when
+ * instances exist) lands with the lockstep release.
+ */
+const FEATURE_TOGGLE_WRITES_ENABLED = false;
 
 type DateFormat =
   | "YYYY/MM/DD"
@@ -110,7 +126,7 @@ export function WorkspaceSettingsModal({
   onRenamed,
   client,
 }: WorkspaceSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<"general" | "shortcuts">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "features" | "shortcuts">("general");
   const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
   const [showJournals, setShowJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox, setShowInbox] = useDeviceSetting("sidebarShowInbox", true);
@@ -187,6 +203,7 @@ export function WorkspaceSettingsModal({
 
   const tabs = [
     { id: "general" as const, label: "General" },
+    { id: "features" as const, label: "Features" },
     { id: "shortcuts" as const, label: "Shortcuts" },
   ];
 
@@ -212,6 +229,60 @@ export function WorkspaceSettingsModal({
         </Tabs>
 
         <div className="settings-modal__content">
+          {activeTab === "features" && (
+            <div className="settings-section">
+              <h3 className="settings-section__title">Features</h3>
+              <p className="settings-item__description">
+                Per-workspace feature toggles. Turning a feature off hides its classes from
+                pickers, search, and hubs — existing objects keep their data and stay in the
+                graph.
+              </p>
+              {clientMatches ? (
+                <>
+                  {(
+                    Object.entries(WORKSPACE_FEATURE_MAP) as Array<
+                      [WorkspaceFeature, (typeof WORKSPACE_FEATURE_MAP)[WorkspaceFeature]]
+                    >
+                  ).map(([feature, spec]) => {
+                    const enabled = client!.isFeatureEnabled(feature);
+                    const instances = client!.getFeatureInstanceCount(feature);
+                    return (
+                      <div className="settings-item" key={feature}>
+                        <BooleanToggle
+                          label={spec.label}
+                          description={
+                            instances > 0
+                              ? `${spec.description} — ${instances} existing object${instances === 1 ? "" : "s"} in this workspace`
+                              : spec.description
+                          }
+                          checked={enabled}
+                          onChange={() => undefined}
+                          labelPosition="left"
+                          disabled={!FEATURE_TOGGLE_WRITES_ENABLED}
+                        />
+                      </div>
+                    );
+                  })}
+                  {/* LOCKSTEP-PENDING: toggles are inert until the GTK/Flutter
+                      clients ship `workspace.feature.set`; the write issues a
+                      workspace.feature.set through the normal client op path
+                      (F3: confirming "N existing objects keep their data"
+                      when instances > 0). */}
+                  {!FEATURE_TOGGLE_WRITES_ENABLED && (
+                    <p className="settings-item__description">
+                      Feature switches become available once the mobile and desktop clients
+                      catch up — synced toggles need every client to understand them.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="settings-item__description">
+                  Open this workspace to see its feature toggles.
+                </p>
+              )}
+            </div>
+          )}
+
           {activeTab === "shortcuts" && (
             <div className="settings-section">
               {SHORTCUT_GROUPS.map((group) => (

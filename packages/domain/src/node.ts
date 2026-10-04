@@ -97,15 +97,17 @@ export function deriveDisplayName(node: NodeLike): string {
  * text-only content — SCHEMA.md "title-is-content"). Used when a block is
  * promoted to a page/class and by the applier's text-only constraint.
  * Inline rich tokens (mentions, chips, links, marks) fold into their plain
- * text; block-scale structural widgets (whiteboard, query) survive as
- * tokens — they are displays, not prose, and a whiteboard page is a real
- * surface (the flatten would otherwise destroy it).
+ * text; block-scale structural widgets (whiteboard, query, code_block —
+ * §34.34 B3) survive as tokens — they are displays/source, not prose, and
+ * a whiteboard/code page is a real surface (the flatten would otherwise
+ * destroy it). `hr` (§34.34 B5) is deliberately NOT a survivor: it carries
+ * no prose.
  */
 export function stringifyContentAst(ast: ContentAst | null | undefined): ContentAst {
   if (!ast) return [];
   const out: ContentAst = [];
   for (const token of ast) {
-    if (token.type === "whiteboard" || token.type === "query") {
+    if (token.type === "whiteboard" || token.type === "query" || token.type === "code_block") {
       out.push(token);
       continue;
     }
@@ -121,7 +123,7 @@ export function isTextOnlyContent(ast: unknown): boolean {
   return ast.every((token) => {
     if (typeof token !== "object" || token === null) return false;
     const type = (token as { type?: unknown }).type;
-    if (type === "whiteboard" || type === "query") return true;
+    if (type === "whiteboard" || type === "query" || type === "code_block") return true;
     return type === "text" && typeof (token as { text?: unknown }).text === "string";
   });
 }
