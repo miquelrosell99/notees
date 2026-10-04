@@ -15,7 +15,7 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 - `apps/server` — sync relay + object API + CAS assets + server-side coordination state (per-user prefs, plugin-manifest registry) + read-only public page shares (`share_tokens` + `GET /s/:token`, §34.62 — unguessable tokens, no wire/op change) (`notees-sync` image)
 - `apps/web` — React/Vite outliner editor + worker (`notees-web` image); carries the session-local op-inverse **undo journal** (§34.64, `src/core/undo-journal.ts` — client convenience only, inverses compose existing ops, per-tab)
 - `apps/cli` — object/property/search surface over the public API
-- `docs/` — **user-facing only** (usage, philosophy, ux)
+- `docs/` — **user-facing only** (usage, philosophy, ux): what the product does and how to use it, in user voice — like the docs of any app. NO progress tracking there: no plan-section references (`§34.x`), no shipped/when records, no owner-directive attributions, no links into `.plans/`; the progress record lives in `.plans/` and only there.
 - `.plans/` — internal: **the ongoing implementation plan** (`implementation-plan.md` — decision record §34 + the work registers), design stack (`design/`), dev docs (`dev/`: architecture, development, deployment, sdk-publishing)
 - `.audits/` — internal audit reports
 - Internal notes never go in `docs/`; user docs never go in dot-folders.
