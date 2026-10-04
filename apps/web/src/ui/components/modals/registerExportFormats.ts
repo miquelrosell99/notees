@@ -1,5 +1,5 @@
 /**
- * Web-side export-format registry (§34.24 E3, P1 pdf delivery).
+ * Web-side export-format registry (§34.24 E3, P1 pdf delivery, §34.59 json).
  *
  * Delegates to the package-side catalog in @notees/export (task E1) and adds
  * only web delivery metadata: MIME type, file extension, card icon, the
@@ -7,13 +7,17 @@
  * PDF engine), and the subset of each format's option specs the export
  * modal renders as checkbox rows. Unavailable formats stay listed as
  * disabled cards carrying the package registry's reason — never stub-message
- * tabs. The one availability override: pdf, which the web client renders
+ * tabs. The availability overrides: pdf, which the web client renders
  * client-side (task P1) even though the pure package serializer stays a
- * throwing skeleton (a pure package cannot pull react-pdf in). Select-type
- * specs (layout/pageFormat) are exposed through {@link webSelectOption} for
- * the modal's dedicated cards/toggle. Adding a format is adding a
- * package-side definition; the delivery table below is the only web-side
- * touchpoint.
+ * throwing skeleton (a pure package cannot pull react-pdf in); and the
+ * JSON archive (§34.59), a NODE-SET format that rides the modal like the IR
+ * formats but deliberately stays out of the package's IR-based
+ * EXPORT_FORMATS registry (its input is the verbatim node slice, not the
+ * resolved ExportDocument — the bundleMarkdown/csv.ts precedent). Select-
+ * type specs (layout/pageFormat) are exposed through {@link webSelectOption}
+ * for the modal's dedicated cards/toggle. Adding an IR format is adding a
+ * package-side definition; the delivery table below plus the explicit
+ * json row are the only web-side touchpoints.
  */
 
 import {
@@ -29,9 +33,13 @@ import {
 /**
  * The modal's own subtree option: which child pages join the export. It is
  * web-side delivery state (the engine receives it per call), not part of the
- * package's ExportOptions bag, so it rides the markdown definition here.
+ * package's ExportOptions bag, so it rides the markdown + json definitions
+ * here.
  */
 export const INCLUDE_CHILD_PAGES_KEY = "includeChildPages";
+
+/** Web format ids — the package IR formats + the §34.59 JSON archive card. */
+export type WebExportFormatId = ExportFormatId | "json";
 
 /**
  * Option keys the modal renders as checkbox rows — the boolean engine
@@ -55,7 +63,7 @@ export interface WebExportOptionSpec {
 }
 
 export interface WebExportFormatDefinition {
-  id: ExportFormatId;
+  id: WebExportFormatId;
   label: string;
   /** Card icon (MDI name without the mdi- prefix). */
   icon: string;
@@ -119,14 +127,36 @@ function toWebDefinition(definition: ExportFormatDefinition): WebExportFormatDef
   };
 }
 
+/**
+ * The JSON archive row (§34.59) — a node-set format outside the package's
+ * IR registry, so its card is assembled web-side from the package's
+ * archive constants. The only modal option that reaches the archive engine
+ * is the subtree toggle (verbatim payloads ignore the display-options bag).
+ */
+function jsonArchiveWebDefinition(): WebExportFormatDefinition {
+  return {
+    id: "json",
+    label: "JSON",
+    icon: "code-json",
+    availability: { status: "available" },
+    mimeType: "application/json",
+    extension: "json",
+    delivery: "file",
+    options: [{ key: INCLUDE_CHILD_PAGES_KEY, label: "Include child pages", defaultValue: true }],
+  };
+}
+
 /** All registered formats, in package-catalog order (markdown first). */
-export const WEB_EXPORT_FORMATS: readonly WebExportFormatDefinition[] = EXPORT_FORMATS.map(toWebDefinition);
+export const WEB_EXPORT_FORMATS: readonly WebExportFormatDefinition[] = [
+  ...EXPORT_FORMATS.map(toWebDefinition),
+  jsonArchiveWebDefinition(),
+];
 
 export function getRegisteredExportFormats(): readonly WebExportFormatDefinition[] {
   return WEB_EXPORT_FORMATS;
 }
 
-export function getExportFormat(id: ExportFormatId): WebExportFormatDefinition | undefined {
+export function getExportFormat(id: WebExportFormatId): WebExportFormatDefinition | undefined {
   return WEB_EXPORT_FORMATS.find((format) => format.id === id);
 }
 

@@ -38,12 +38,14 @@ import { zipSync } from "fflate";
 
 import {
   buildExportDocument,
+  buildJsonArchive,
   bundleMarkdown,
   concatBundleMarkdown,
   exportFileName,
   renderExportDocumentToDocx,
   renderExportDocumentToHtml,
   renderExportDocumentToLatex,
+  renderJsonArchive,
   resolveExportOptions,
   type ExportBundle,
   type ExportContext,
@@ -198,6 +200,74 @@ export interface ExportSubtreeBundleOptions extends ExportSubtreeOptions {
    * Markdown refs rewrite relative; misses keep the raw uuid reference.
    */
   assetPath?: (assetId: string) => string | undefined;
+}
+
+// --- JSON archive delivery (§34.59) ---------------------------------------------
+
+/**
+ * The archive slice for one root: the root, EVERY inline-body descendant
+ * (block content is verbatim in the archive — unlike markdown, blocks are
+ * not folded into a parent page's file), and, with includeChildPages, each
+ * main-zone child page's subtree. Same walk shape as
+ * collectSubtreeAssetRefIds (root, inline DFS, then child pages).
+ */
+function collectSubtreeArchiveNodes(
+  client: ExportClient,
+  rootId: string,
+  includeChildPages: boolean,
+): ExportNode[] {
+  const visited = new Set<string>();
+  const ordered: ExportNode[] = [];
+  const collect = (id: string): void => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const node = toExportNode(client, id);
+    if (node === undefined) return;
+    ordered.push(node);
+    for (const child of client.getChildren(id)) {
+      if (child.isClass) continue;
+      if (child.presentAsMain) {
+        if (includeChildPages) collect(child.id);
+      } else {
+        collect(child.id);
+      }
+    }
+  };
+  collect(rootId);
+  return ordered;
+}
+
+/**
+ * JSON archive delivery (§34.59): ONE `notees-json-archive` document over
+ * the union of every root's slice (buildJsonArchive dedups overlapping
+ * subtrees) — the batch deliberately does NOT zip per-root files the way
+ * the IR formats do: an archive is a single artifact for the whole
+ * selection. `children` metadata records ALL direct child ids (both zones,
+ * position order) through the client read, mirroring the CLI's
+ * children-endpoint projection.
+ */
+export function exportSubtreeJsonArchive(
+  client: ExportClient,
+  rootIds: readonly string[],
+  options: ExportSubtreeOptions = {},
+): SubtreeFileExport {
+  const includeChildPages = options.includeChildPages ?? true;
+  const ordered = rootIds.flatMap((id) => collectSubtreeArchiveNodes(client, id, includeChildPages));
+  const ctx: ExportContext = {
+    nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
+    childrenOf: (id) =>
+      client
+        .getChildren(id)
+        .map((child) => toExportNode(client, child.id))
+        .filter((node): node is ExportNode => node !== undefined),
+  };
+  const archive = buildJsonArchive(ordered, ctx);
+  const firstRoot = client.getNode(rootIds[0]!);
+  const title = firstRoot === undefined ? "" : displayNameForSettings(firstRoot).trim();
+  return {
+    blob: new Blob([renderJsonArchive(archive)], { type: "application/json" }),
+    filename: exportFileSlugName(title, rootIds[0]!, "json"),
+  };
 }
 
 /**

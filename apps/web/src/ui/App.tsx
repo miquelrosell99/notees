@@ -53,7 +53,7 @@ import { DeckView } from "./presentation/DeckView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
-import { NodeMenuButton } from "./components/NodeMenuButton.js";
+import { NodeMenuButton, type ShareTarget } from "./components/NodeMenuButton.js";
 import { dayNodeId, rendersAsInlineBlock, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { CollectionHub } from "./components/CollectionHub.js";
 import type { TableColumn, ViewMode } from "./views/index.js";
@@ -344,6 +344,7 @@ export function NodeView({
   onDeleted,
   onPresent,
   cornerMenu = false,
+  shareTarget = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
@@ -362,6 +363,8 @@ export function NodeView({
    * cards keep their own header actions and skip it.
    */
   cornerMenu?: boolean | undefined;
+  /** §34.59 shares: server coordinates for the "Share…" surface (pages). */
+  shareTarget?: ShareTarget | undefined;
 }) {
   const node = client.getNode(nodeId);
   if (node === undefined) {
@@ -379,6 +382,7 @@ export function NodeView({
       onOpenInSidebar={onOpenInSidebar}
       onDeleted={onDeleted}
       onPresent={onPresent}
+      shareTarget={shareTarget}
     />
   );
   if (!cornerMenu) return view;
@@ -391,6 +395,7 @@ export function NodeView({
         onOpenNode={(id) => onOpenNode?.(id)}
         onPresent={onPresent}
         onDeleted={onDeleted}
+        shareTarget={shareTarget}
       />
     </div>
   );
@@ -528,6 +533,15 @@ export function App() {
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
+  /**
+   * §34.59 shares: the coordinates the Share… surface needs. Absent in
+   * offline mode (there is no server to mint against) — the menu item and
+   * modal hide themselves without it.
+   */
+  const shareTarget: ShareTarget | undefined =
+    !offline && serverUrl.trim() !== "" && token !== ""
+      ? { serverUrl, credential: token }
+      : undefined;
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
   const [selectedPageId, setSelectedPageId] = useState<string | null>(() => {
     // Deep link: /<uuid> in the address bar opens that node once synced.
@@ -1459,6 +1473,7 @@ export function App() {
               onDeleted={handleNodeDeleted}
               onPresent={(id) => setPresentingId(id)}
               cornerMenu
+              shareTarget={shareTarget}
             />
           ) : activeNav === "journal" ? (
             <JournalsView client={client} onOpenPage={openPage} />

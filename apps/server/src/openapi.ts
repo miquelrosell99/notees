@@ -29,8 +29,10 @@ interface OperationSpec {
   summary: string;
   description?: string;
   tags: [string, ...string[]];
-  /** Path parameters beyond `:id` (always described as uuid). */
-  params?: Record<string, string>;
+  /** Path parameters beyond `:id` — a plain string is described as uuid;
+   * pass `{ description, format? }` when the surface's identity law differs
+   * (share tokens are opaque base64url, not uuid). */
+  params?: Record<string, string | { description: string; format?: string }>;
   /** Query parameters the route reads (name → description). */
   query?: Record<string, { description: string; type?: string; required?: boolean }>;
   requestBody?: JsonSchema;
@@ -109,17 +111,23 @@ function operationFor(spec: InternalOperationSpec): JsonSchema {
       name: "id",
       in: "path",
       required: true,
-      description: "UUIDv7 node/class/property-schema/workspace id (identity is always the uuid).",
-      schema: { type: "string", format: "uuid" },
+      // Surfaces whose identity law is NOT UUIDv7 (plugin ids are
+      // reverse-domain or UUID) pass their own description via params.
+      description:
+        spec.params?.id ?? "UUIDv7 node/class/property-schema/workspace id (identity is always the uuid).",
+      schema: spec.params?.id !== undefined ? { type: "string" } : { type: "string", format: "uuid" },
     });
   }
-  for (const [name, description] of Object.entries(spec.params ?? {})) {
+  for (const [name, param] of Object.entries(spec.params ?? {})) {
+    if (name === "id") continue; // handled above — the identity law differs per surface
+    const description = typeof param === "string" ? param : param.description;
+    const format = typeof param === "string" ? "uuid" : (param.format ?? "string");
     parameters.push({
       name,
       in: "path",
       required: true,
       description,
-      schema: { type: "string", format: "uuid" },
+      schema: { type: "string", ...(format === "uuid" ? { format: "uuid" } : {}) },
     });
   }
   for (const [name, param] of Object.entries(spec.query ?? {})) {
@@ -322,6 +330,27 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
         name: { type: ["string", "null"] },
         surnames: { type: ["string", "null"] },
         avatarUrl: { type: ["string", "null"] },
+      },
+    },
+    errors: ["validation_failed"],
+  }],
+  ["get", "/api/me/prefs", {
+    summary: "Per-user UI prefs: favorites + recents (§34.61 — server-side UI state, not op-log state)",
+    description:
+      "Owner ruling 2026-10-04 (§34.29 #8): favorites/recents are UI preferences, so they live in the sync server's per-user prefs store, NOT the operation log (\"device state is never an op\" stands). Scoped to the authenticated principal (account session or per-user API key owner).",
+    tags: ["Account"],
+  }],
+  ["put", "/api/me/prefs", {
+    summary: "Merge-patch per-user UI prefs (each present list replaces its column; order-preserving dedupe, then caps)",
+    description:
+      "favorites ≤ 500 and recents ≤ 50 uuid-shaped node ids (validated after dedupe); at least one list required. Last write wins per list — the client owns ordering. No idempotency key: a retry replays the same full-list body harmlessly.",
+    tags: ["Account"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        favorites: { type: "array", items: objectIdField, description: "ordered starred node ids (cap 500)" },
+        recents: { type: "array", items: objectIdField, description: "most-recent-first node ids (cap 50)" },
       },
     },
     errors: ["validation_failed"],
@@ -721,6 +750,98 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     params: { workspaceId: "workspace uuid" },
     webSocket: true,
   }],
+
+  // --- plugins (§34.61 — manifest schema + inert registry; the RUNTIME is parked, §34.33 AG7) ----
+  ["get", "/api/plugins", {
+    summary: "List installed plugin manifests (inert registry data — nothing is loaded or executed)",
+    description:
+      "§34.61: the registry is server state, NOT log state (the prefs/shares ruling) — no envelope, no op type. The plugin runtime that would consume these rows (capability broker, subprocess host) is parked (§34.33 AG7). Owner/admin-scoped: operator key or administrator account; a scoped API key needs the admin scope.",
+    tags: ["Plugins"],
+    requiredScope: "admin",
+  }],
+  ["post", "/api/plugins", {
+    summary: "Install a plugin manifest (the body IS the manifest; zod-strict validated fail-loud)",
+    description:
+      "§34.61. Idempotent on id+version: a repeat install answers the existing row (200, alreadyInstalled). The same id at a DIFFERENT version is 409 — versioned updates ship with the parked runtime. The manifest grammar (§34.61 / SCHEMA.md) is normative; `entrypoint`/`permissions` are reserved vocabulary, stored only.",
+    tags: ["Plugins"],
+    requestBody: {
+      type: "object",
+      additionalProperties: true,
+      description: "the plugin manifest per the §34.61 grammar (manifestVersion 1; strict — unknown keys rejected)",
+    },
+    success: { status: 201, description: "{ plugin, alreadyInstalled: false } (200 + alreadyInstalled: true on a repeat install)" },
+    requiredScope: "admin",
+    errors: ["validation_failed", "conflict"],
+  }],
+  ["delete", "/api/plugins/:id", {
+    summary: "Uninstall a plugin (every version of the id; inert data deletion)",
+    description:
+      "§34.61: nothing was ever loaded, so there is nothing to unload — the row is deleted.",
+    tags: ["Plugins"],
+    params: { id: "plugin id (reverse-domain or UUID — identity, not the display name)" },
+    requiredScope: "admin",
+    errors: ["not_found"],
+  }],
+  ["post", "/api/plugins/:id/enabled", {
+    summary: "Enable/disable a plugin ({ enabled: boolean }; stored bit only — a parked runtime reads nothing)",
+    description: "§34.61: applies to every installed version of the id.",
+    tags: ["Plugins"],
+    params: { id: "plugin id (reverse-domain or UUID)" },
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["enabled"],
+      properties: { enabled: { type: "boolean" } },
+    },
+    requiredScope: "admin",
+    errors: ["validation_failed", "not_found"],
+  }],
+
+  // --- shares (§34.61 — READ-ONLY public page shares; the write-collab variant stays parked) ----
+  ["post", "/api/shares", {
+    summary: "Mint a public read-only share token for a page (owner/admin only)",
+    description:
+      "§34.61 (shares record): share state is server-side coordination (like prefs), NOT operation-log state — no envelope, no op type. Returns the token and the public urlPath (`/s/<token>`; prefix the server origin for the full link). Threat note: possession of the URL IS the capability — the token is 24 random bytes (base64url), there is NO directory listing (unguessable tokens; unknown/revoked/expired all answer the same 404), revocation takes effect on the next request, and an optional expiresAt dies on its own. Classes are not shareable (422); trashed pages stop resolving immediately. Only the object API's default workspace can be shared (the v1 object-authz scope).",
+    tags: ["Shares"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["nodeId"],
+      properties: {
+        nodeId: objectIdField,
+        expiresAt: { type: "integer", description: "epoch millis after which the link stops resolving; omit = no expiry (must be in the future)" },
+      },
+    },
+    success: { status: 201, description: "{ share: { token, urlPath, nodeId, workspaceId, createdBy, createdAt, expiresAt, revokedAt } }" },
+    errors: ["validation_failed", "not_found"],
+  }],
+  ["get", "/api/shares", {
+    summary: "List share tokens (owner/admin only; ?nodeId= filters to one page)",
+    description:
+      "§34.61 (shares record): every share of the default workspace, newest first — including revoked rows (revokedAt set), so managers see history. Scoped API keys authenticate as their user; the user must still be owner/admin.",
+    tags: ["Shares"],
+    query: {
+      nodeId: { description: "filter to one node's shares", type: "string" },
+    },
+  }],
+  ["delete", "/api/shares/:token", {
+    summary: "Revoke a share link (owner/admin only; effective immediately)",
+    description:
+      "§34.61 (shares record): sets revoked_at — the next GET /s/:token answers 404. The row stays for history; already-revoked or unknown tokens 404.",
+    tags: ["Shares"],
+    params: { token: { description: "the opaque share token (base64url, NOT a uuid)", format: "opaque" } },
+    errors: ["not_found"],
+  }],
+  ["get", "/s/:token", {
+    summary: "The public share view: one static read-only HTML document (UNAUTHENTICATED BY DESIGN)",
+    description:
+      "§34.61 (shares record): GET-only, no credentials, no app — the page title, its block tree as nested lists, and its properties, projected by the export serializer (no JavaScript, no external resource; a strict CSP, no-store caching, nosniff, and no-referrer ride along). Missing, revoked, expired tokens and trashed pages are indistinguishable 404s (no enumeration oracle). The global per-IP rate limit is the only throttle.",
+    tags: ["Shares"],
+    params: { token: { description: "the opaque share token from POST /api/shares", format: "opaque" } },
+    success: { description: "text/html — the standalone read-only share document" },
+    public: true,
+    errors: ["not_found"],
+  }],
 ];
 
 function toOpenApiPath(fastifyPath: string): string {
@@ -763,6 +884,8 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       { name: "Classes", description: "The class catalog (classes are nodes)" },
       { name: "Assets", description: "Content-addressed asset storage" },
       { name: "Relay", description: "Sync API — WIRE.md §1–2 is the normative spec" },
+      { name: "Plugins", description: "Inert plugin-manifest registry (§34.61 — schema + storage shipped; the runtime is parked, §34.33 AG7)" },
+      { name: "Shares", description: "Read-only public page shares — token management (owner/admin) + the unauthenticated GET /s/:token view (§34.61 shares record)" },
     ],
     paths,
     components: {
@@ -821,7 +944,6 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "annotations",
         "citations",
         "collections.write",
-        "admin",
       ],
       mapping: {
         "objects.read": "GET /api/objects*, /api/classes*, /api/property-schemas*, /api/properties/:id/values, /api/objects/:id/backlinks|effective-properties|children, GET /api/operations",
@@ -831,6 +953,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "assets.write": "POST /api/assets",
         "search": "GET /api/search, POST /api/query",
         "export": "GET /api/workspaces/:id/export.zip",
+        "admin": "the whole /api/plugins surface (§34.61) — the FIRST enforcement of the reserved admin scope; sessions additionally require the administrator flag (routes-plugins requireAdmin)",
       },
       relaySurface: "scoped keys are rejected on all /api/relay/v2 routes (403 scope_denied)",
       accountRoutes: "account routes keep requiring an account session (or key self-revocation); scopes never widen that",

@@ -125,6 +125,7 @@ export function NodeContextMenu({
   onClose,
   onOpenNode,
   onExport,
+  onShare,
   onPresent,
   onChangeColor,
   onRemoveFromOwner,
@@ -136,6 +137,8 @@ export function NodeContextMenu({
   onClose: () => void;
   onOpenNode: (nodeId: string) => void;
   onExport?: ((pageId: string, name: string) => void) | undefined;
+  /** §34.59 shares: "Share…" opens the page's public read-only link manager. */
+  onShare?: ((pageId: string, name: string) => void) | undefined;
   /** Presentation mode (§34.26): "Present" decks the page's subtree read-only. */
   onPresent?: ((pageId: string) => void) | undefined;
   /** Present for class nodes: "Change color…" opens the swatch row. */
@@ -301,6 +304,14 @@ export function NodeContextMenu({
       label: "Present",
       icon: "mdi-presentation-play",
       onClick: () => onPresent(node.id),
+    });
+  }
+  if (isPage && onShare !== undefined && !node.isClass) {
+    items.push({
+      id: "share",
+      label: "Share…",
+      icon: "mdi-share-variant",
+      onClick: () => onShare(node.id, name),
     });
   }
   if (isPage && onExport !== undefined) {

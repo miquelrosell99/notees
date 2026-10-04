@@ -9,6 +9,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { unzipSync } from "fflate";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
@@ -663,6 +664,220 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     fireEvent.click(screen.getByRole("checkbox", { name: "Select all rows" }));
     expect(document.querySelectorAll(".nt-table-row--selected").length).toBe(0);
   });
+});
+
+describe("table export: CSV view export + selection-scoped export (§34.59)", () => {
+  /** Minimal RFC-4180 reader (spec-local; mirrors the package escaper). */
+  function parseCsv(text: string): string[][] {
+    const input = text.startsWith("﻿") ? text.slice(1) : text;
+    const records: string[][] = [];
+    let field = "";
+    let record: string[] = [];
+    let inQuotes = false;
+    for (let i = 0; i < input.length; i += 1) {
+      const char = input[i]!;
+      if (inQuotes) {
+        if (char === '"') {
+          if (input[i + 1] === '"') {
+            field += '"';
+            i += 1;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          field += char;
+        }
+        continue;
+      }
+      if (char === '"' && field === "") inQuotes = true;
+      else if (char === ",") {
+        record.push(field);
+        field = "";
+      } else if (char === "\n") {
+        record.push(field);
+        records.push(record);
+        record = [];
+        field = "";
+      } else if (char === "\r") {
+        if (input[i + 1] !== "\n") field += char;
+      } else {
+        field += char;
+      }
+    }
+    if (field !== "" || record.length > 0) {
+      record.push(field);
+      records.push(record);
+    }
+    return records;
+  }
+
+  /** Capture downloadBlob's anchor + blob (jsdom has no URL.createObjectURL). */
+  function stubDownload() {
+    const captured: { blob: Blob | null; anchor: HTMLAnchorElement | null; restore: () => void } = {
+      blob: null,
+      anchor: null,
+      restore: () => {},
+    };
+    Object.defineProperty(URL, "createObjectURL", {
+      value: vi.fn((blob: Blob) => {
+        captured.blob = blob;
+        return "blob:mock";
+      }),
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        captured.anchor = this;
+      });
+    captured.restore = () => click.mockRestore();
+    return captured;
+  }
+
+  /** Read a Blob as UTF-8 text in jsdom (whose Blob has no arrayBuffer()). */
+  function readBlobText(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blob);
+    });
+  }
+
+  async function seedCsvTable(client: WorkspaceClient): Promise<{
+    classId: string;
+    statusId: string;
+    noteId: string;
+    alpha: string;
+    beta: string;
+    gamma: string;
+  }> {
+    const classId = await createTitledClass(client, "project");
+    const statusId = await client.createPropertySchema({
+      name: "Status",
+      type: "select",
+      options: [
+        { id: "00000000-0000-0000-00c5-000000000011", label: "Backlog" },
+        { id: "00000000-0000-0000-00c5-000000000012", label: "Doing" },
+      ],
+    });
+    const noteId = await client.createPropertySchema({ name: "Note", type: "text" });
+    for (const [schema, sequence] of [
+      [statusId, 0],
+      [noteId, 1],
+    ] as const) {
+      await client.setClassProperty(classId, schema, { sequence });
+    }
+    const alpha = await client.createObject({ presentAsMain: true, name: "Alpha" });
+    const beta = await client.createObject({ presentAsMain: true, name: "Beta" });
+    const gamma = await client.createObject({ presentAsMain: true, name: "Gamma" });
+    for (const id of [alpha, beta, gamma]) await client.assignClass(id, classId);
+    await client.setProperty(alpha, statusId, "00000000-0000-0000-00c5-000000000011", 0);
+    await client.setProperty(beta, statusId, "00000000-0000-0000-00c5-000000000012", 0);
+    return { classId, statusId, noteId, alpha, beta, gamma };
+  }
+
+  const expandClassedNodes = async (): Promise<void> => {
+    const header = screen.getByRole("button", { name: /classed nodes/i });
+    if (header.getAttribute("aria-expanded") === "false") {
+      fireEvent.click(header);
+      await flushWrites();
+    }
+  };
+
+  it("Export CSV downloads the current view — visible columns × all rows, BOM + quoting", async () => {
+    const client = await seedClient();
+    const seeded = await seedCsvTable(client);
+    // A node-backed text value with a comma (PB2 shape) exercises quoting.
+    const carrier = await client.createObject({
+      parentId: seeded.alpha,
+      contentAst: [{ type: "text", text: "needs, quotes" }],
+    });
+    await client.setProperty(seeded.alpha, seeded.noteId, { nodeId: carrier }, 0);
+    const download = stubDownload();
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    expect(download.anchor?.download).toBe("table-export.csv");
+    // The BOM rides the bytes; jsdom's readAsText strips a leading BOM per
+    // the encoding spec, so assert the UTF-8 prefix on the raw bytes and
+    // decode the remainder.
+    const bytes = new Uint8Array(await readBlobBytes(download.blob!));
+    expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf]);
+    const csv = new TextDecoder().decode(bytes.slice(3));
+    // Excel BOM + RFC-4180 CRLF records.
+    const records = parseCsv(csv);
+    expect(records[0]).toEqual(["Name", "Status", "Note", "Created"]);
+    expect(records).toHaveLength(4); // header + 3 members
+    // WYSIWYG rows in table order; the comma value round-trips quoted; the
+    // locale created date renders non-empty (display-shaped, like the cell).
+    expect(records[1]).toEqual(["Alpha", "Backlog", "needs, quotes", records[1]![3]!]);
+    expect(records[1]![3]).not.toBe("");
+    expect(records[2]!.slice(0, 3)).toEqual(["Beta", "Doing", ""]);
+    expect(records[2]![3]).not.toBe("");
+    expect(records[3]![0]).toBe("Gamma");
+    expect(csv).toContain('"needs, quotes"');
+    download.restore();
+  });
+
+  it("hidden columns stay out of the CSV (the visible-column contract)", async () => {
+    const client = await seedClient();
+    const seeded = await seedCsvTable(client);
+    const download = stubDownload();
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Created" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    const records = parseCsv(await readBlobText(download.blob!));
+    expect(records[0]).toEqual(["Name", "Status", "Note"]);
+    download.restore();
+  });
+
+  it("Export selected… opens the modal over just the checked rows; the batch zip honors the id filter", async () => {
+    const client = await seedClient();
+    const seeded = await seedCsvTable(client);
+    const download = stubDownload();
+    render(<ClassView client={client} classId={seeded.classId} />);
+    await expandClassedNodes();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Alpha" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beta" }));
+
+    // The selection chrome offers the scoped export.
+    fireEvent.click(screen.getByRole("button", { name: "Export selected…" }));
+    expect(await screen.findByText("Export 2 nodes")).toBeTruthy();
+
+    // The modal's batch path: one markdown zip over exactly the two ids.
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    await vi.waitFor(() => expect(download.blob).not.toBeNull());
+    expect(download.blob!.type).toBe("application/zip");
+    const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
+    const paths = Object.keys(entries);
+    expect(paths.some((path) => path.toLowerCase().startsWith("alpha-") && path.endsWith(".md"))).toBe(true);
+    expect(paths.some((path) => path.toLowerCase().startsWith("beta-") && path.endsWith(".md"))).toBe(true);
+    expect(paths).not.toContain(`gamma-${"0".repeat(8)}.md`);
+    const manifest = JSON.parse(new TextDecoder().decode(entries["notees-manifest.json"]!)) as {
+      nodes: Array<{ id: string }>;
+    };
+    expect(manifest.nodes.map((node) => node.id).sort()).toEqual([seeded.alpha, seeded.beta].sort());
+    download.restore();
+  });
+
+  /** Read a Blob's bytes in jsdom (whose Blob lacks arrayBuffer()). */
+  function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(blob);
+    });
+  }
 });
 
 describe("kanban polish: multi-select grouping, collapsible columns", () => {

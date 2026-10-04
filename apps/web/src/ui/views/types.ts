@@ -136,6 +136,11 @@ export interface NodeCollectionProps {
    * separate feature.
    */
   selectable?: boolean | undefined;
+  /**
+   * Table: download stem for the "Export CSV" affordance — the current
+   * view's rows as `<exportFileName>.csv` (default "table-export").
+   */
+  exportFileName?: string | undefined;
   /** Optional initial sort (session state; the view owns cycling after). */
   defaultSort?: SortSpec | undefined;
   /** Cards: property schemas shown on flat node cards, in order. */

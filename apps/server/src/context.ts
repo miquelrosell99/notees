@@ -18,7 +18,9 @@ import { AppError } from "./errors.js";
 import { IdempotencyStore } from "./idempotency.js";
 import { FixedWindowLimiter } from "./rate-limit.js";
 import { RelayStorage } from "./relay-storage.js";
+import { PluginRegistry } from "./routes-plugins.js";
 import { seedWorkspace, type SeedResult } from "./seed.js";
+import { ShareStorage } from "./shares.js";
 import { SubscriptionBus } from "./bus.js";
 import { WorkspaceManager } from "./workspace-store.js";
 
@@ -32,6 +34,10 @@ export class ServerContext {
   readonly clock: Clock;
   readonly relay: RelayStorage;
   readonly auth: AuthStorage;
+  /** §34.59: the inert plugin-manifest registry (runtime parked — §34.33 AG7). */
+  readonly plugins: PluginRegistry;
+  /** §34.59 (shares record): read-only public share tokens (server coordination). */
+  readonly shares: ShareStorage;
   readonly lockout: AccountLockout;
   readonly workspaces: WorkspaceManager;
   readonly factory: EnvelopeFactory;
@@ -62,6 +68,8 @@ export class ServerContext {
       `${config.dataDir}/snapshots`,
     );
     this.auth = new AuthStorage(`${config.dataDir}/relay.db`);
+    this.plugins = new PluginRegistry(`${config.dataDir}/relay.db`);
+    this.shares = new ShareStorage(`${config.dataDir}/relay.db`);
     this.lockout = new AccountLockout();
     // Seed the device clock from the log so server-stamped HLCs never regress
     // across restarts.
@@ -174,6 +182,8 @@ export class ServerContext {
 
   async close(): Promise<void> {
     await this.workspaces.close();
+    this.plugins.close();
+    this.shares.close();
     this.auth.close();
     this.relay.close();
   }

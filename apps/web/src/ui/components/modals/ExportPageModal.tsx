@@ -27,6 +27,11 @@
  * live preview is the engine's markdown projection, so it stays markdown-
  * only; the other text formats show a short static note instead.
  *
+ * JSON archive (§34.59): the registry's sixth card — a node-set format
+ * (verbatim contentAst/classIds/properties/child ids/edges in the
+ * versioned notees-json-archive envelope), delivered as ONE document for
+ * the whole selection (batch included — no per-root zip).
+ *
  * PDF (task P1): the card is web-available with `delivery: "client-pdf"` —
  * the package serializer stays a throwing skeleton while the web client
  * renders PDFs through the lazily imported ui/export-pdf engine (react-pdf,
@@ -39,7 +44,7 @@
  * root, the task-W convention).
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
-import type { ExportFormatId, ExportOptions } from "@notees/export";
+import type { ExportOptions } from "@notees/export";
 
 import { useCopiedState } from "./overlayHooks";
 import { Modal } from "../ui/Modal.js";
@@ -56,6 +61,7 @@ import {
   exportSubtreeBundle,
   exportSubtreeFile,
   exportSubtreeBatchFile,
+  exportSubtreeJsonArchive,
   exportZipFileName,
   zipExportBundle,
   collectSubtreeAssetRefIds,
@@ -70,6 +76,7 @@ import {
   INCLUDE_CHILD_PAGES_KEY,
   webSelectOption,
   type WebExportFormatDefinition,
+  type WebExportFormatId,
 } from "./registerExportFormats";
 import "./ExportPageModal.css";
 
@@ -109,7 +116,7 @@ function firstAvailableFormat(): WebExportFormatDefinition {
 
 export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, nodeName }: ExportPageModalProps) {
   const formats = useMemo(() => getRegisteredExportFormats(), []);
-  const [formatId, setFormatId] = useState<ExportFormatId>(() => firstAvailableFormat().id);
+  const [formatId, setFormatId] = useState<WebExportFormatId>(() => firstAvailableFormat().id);
   const [optionValues, setOptionValues] = useState<Record<string, boolean>>(() =>
     defaultOptionValues(firstAvailableFormat()),
   );
@@ -240,7 +247,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
     };
   }, [isOpen, effectiveNodeUuids, client, formatId, pdfEngineOptions]);
 
-  const handleSelectFormat = useCallback((id: ExportFormatId) => {
+  const handleSelectFormat = useCallback((id: WebExportFormatId) => {
     const def = getExportFormat(id);
     if (def === undefined || def.availability.status !== "available") return;
     setFormatId(id);
@@ -267,6 +274,16 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         const exported = isBatch
           ? await pdfModule.renderSubtreePdfBatch(client, effectiveNodeUuids, pdfEngineOptions)
           : await pdfModule.renderSubtreePdf(client, effectiveNodeUuids[0]!, pdfEngineOptions);
+        downloadBlob(exported.blob, exported.filename);
+        return;
+      }
+      if (format.id === "json") {
+        // JSON archive (§34.59): ONE notees-json-archive document over the
+        // whole selection (batch included — no per-root zip), verbatim
+        // node payloads with contentAst/classIds/properties/child ids/edges.
+        const exported = exportSubtreeJsonArchive(client, effectiveNodeUuids, {
+          includeChildPages,
+        });
         downloadBlob(exported.blob, exported.filename);
         return;
       }

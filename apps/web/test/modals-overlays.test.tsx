@@ -90,6 +90,16 @@ function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
   });
 }
 
+/** Read a Blob as UTF-8 text in jsdom (whose Blob has no text()). */
+function readBlobText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}
+
 /** Capture downloadBlob's anchor + blob (jsdom has no URL.createObjectURL). */
 function stubDownload() {
   const captured: { blob: Blob | null; anchor: HTMLAnchorElement | null; restore: () => void } = {
@@ -530,6 +540,96 @@ describe("ExportPageModal", () => {
     // concept) and no assets/ (the serializers have no bytes path).
     expect(Object.keys(entries)).not.toContain("notees-manifest.json");
     expect(Object.keys(entries).some((key) => key.startsWith("assets/"))).toBe(false);
+
+    download.restore();
+  }, 10000);
+
+  it("downloads one JSON archive document for a single node (§34.59: verbatim payloads, children metadata, edges)", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "Book flights" }],
+    });
+    const childId = await client.createObject({ presentAsMain: true, name: "Packing", parentId: pageId });
+    const mentionedId = await client.createObject({ presentAsMain: true, name: "Athens" });
+    await client.createObject({
+      parentId: childId,
+      contentAst: [{ type: "mention", targetNodeId: mentionedId, text: "Athens" }],
+    });
+
+    const download = stubDownload();
+    render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} nodeName="Trip" />);
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /^json$/i }));
+    await screen.findByText(/preview is available for markdown/i);
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.json");
+    expect(download.blob!.type).toBe("application/json");
+
+    const archive = JSON.parse(await readBlobText(download.blob!)) as {
+      format: string;
+      version: number;
+      generatedAt: string;
+      nodes: Array<{
+        id: string;
+        displayName: string;
+        contentAst: unknown[];
+        parentId: string | null;
+        children: string[];
+        edges: Array<Record<string, unknown>>;
+      }>;
+    };
+    expect(archive.format).toBe("notees-json-archive");
+    expect(archive.version).toBe(1);
+    // The slice: the root, its inline block (verbatim — blocks are NOT
+    // folded into a parent file the way markdown folds them), and the
+    // child page's subtree. (Athens is a mention TARGET — recorded as an
+    // edge, not a node: the slice is the subtree.)
+    const byId = new Map(archive.nodes.map((node) => [node.id, node]));
+    expect(byId.size).toBe(4);
+    expect(byId.get(pageId)!.children.sort()).toEqual([blockId, childId].sort());
+    expect(byId.get(blockId)!.contentAst).toEqual([{ type: "text", text: "Book flights" }]);
+    expect(byId.get(blockId)!.parentId).toBe(pageId);
+    // The mention edge is mined from the child page's block stream.
+    const mentionBlock = archive.nodes.find((node) => node.edges.some((edge) => edge.kind === "mention"))!;
+    expect(mentionBlock.edges).toEqual([{ kind: "mention", targetNodeId: mentionedId }]);
+    expect(new Date(archive.generatedAt).getTime()).not.toBeNaN();
+
+    download.restore();
+  }, 10000);
+
+  it("delivers ONE archive for a batch — no per-root zip (§34.59)", async () => {
+    const client = await makeClient();
+    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+
+    const download = stubDownload();
+    render(
+      <ExportPageModal
+        isOpen={true}
+        onClose={() => {}}
+        client={client}
+        nodeUuids={[tripId, packingId]}
+      />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /^json$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    await vi.waitFor(() => expect(download.anchor).not.toBeNull());
+    expect(download.anchor!.getAttribute("download")).toBe("Trip.json");
+    expect(download.blob!.type).toBe("application/json");
+    const archive = JSON.parse(await readBlobText(download.blob!)) as {
+      nodes: Array<{ id: string; displayName: string }>;
+    };
+    expect(archive.nodes.map((node) => node.displayName)).toEqual(
+      expect.arrayContaining(["Trip", "Packing"]),
+    );
 
     download.restore();
   }, 10000);

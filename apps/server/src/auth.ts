@@ -168,6 +168,18 @@ CREATE TABLE IF NOT EXISTS api_key (
     scopes TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key (user_id);
+
+-- Per-user UI preferences (§34.61): favorites + recents are cross-device UI
+-- state, NOT op-log state — the design law "device state is never an op"
+-- stands, so they live beside the account, scoped to the user row. One small
+-- JSON column per list, order-preserving; the server validates uuid shapes
+-- and caps (routes-prefs.ts).
+CREATE TABLE IF NOT EXISTS user_prefs (
+    user_id TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+    favorites TEXT NOT NULL DEFAULT '[]',
+    recents TEXT NOT NULL DEFAULT '[]',
+    updated_at INTEGER NOT NULL
+);
 `;
 
 export async function hashPassword(password: string): Promise<string> {
@@ -294,6 +306,17 @@ function toApiKeyRow(raw: ApiKeyRaw): ApiKeyRow {
 }
 
 type Db = Database.Database;
+
+/** JSON id-list column → string[]; a malformed cell degrades to [] (never throws). */
+function parseIdList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((e): e is string => typeof e === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 export class AuthStorage {
   private readonly db: Db;
@@ -665,6 +688,47 @@ export class AuthStorage {
       )
       .run(record.salt, record.N, record.r, record.p, record.wrappedMasterKey, record.keyVerifier, userId);
     return record;
+  }
+
+  // --- per-user UI prefs (§34.61: favorites/recents — server-side UI state) ---
+
+  /** The account's prefs row, or the empty default when never written. */
+  getUserPrefs(userId: string): { favorites: string[]; recents: string[]; updatedAt: number } {
+    const row = this.db
+      .prepare("SELECT favorites, recents, updated_at FROM user_prefs WHERE user_id = ?")
+      .get(userId) as { favorites: string; recents: string; updated_at: number } | undefined;
+    if (row === undefined) return { favorites: [], recents: [], updatedAt: 0 };
+    return {
+      favorites: parseIdList(row.favorites),
+      recents: parseIdList(row.recents),
+      updatedAt: row.updated_at,
+    };
+  }
+
+  /**
+   * Merge-patch the account's prefs: a provided list REPLACES its column
+   * wholesale (the client is the ordering authority; last write wins per
+   * list). Upserts the row; validation/caps happen in routes-prefs.ts.
+   */
+  updateUserPrefs(
+    userId: string,
+    patch: { favorites?: string[] | undefined; recents?: string[] | undefined },
+  ): { favorites: string[]; recents: string[]; updatedAt: number } {
+    const current = this.getUserPrefs(userId);
+    const favorites = patch.favorites ?? current.favorites;
+    const recents = patch.recents ?? current.recents;
+    const updatedAt = Date.now();
+    this.db
+      .prepare(
+        `INSERT INTO user_prefs (user_id, favorites, recents, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (user_id) DO UPDATE SET
+           favorites = excluded.favorites,
+           recents = excluded.recents,
+           updated_at = excluded.updated_at`,
+      )
+      .run(userId, JSON.stringify(favorites), JSON.stringify(recents), updatedAt);
+    return { favorites, recents, updatedAt };
   }
 
   close(): void {
