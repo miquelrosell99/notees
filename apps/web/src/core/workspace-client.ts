@@ -574,10 +574,25 @@ export async function postAssetUpload(
  * header (a bare window.open cannot set headers), then opened as a blob URL
  * so the chip click lands in a new tab without leaking the key into a URL.
  */
-export async function fetchAssetBlob(serverUrl: string, apiKey: string, assetId: string): Promise<Blob> {
+export async function fetchAssetBlob(
+  serverUrl: string,
+  apiKey: string,
+  assetId: string,
+  workspaceId?: string,
+): Promise<Blob> {
   const response = await fetch(
     `${serverUrl.replace(/\/$/, "")}/api/assets/${encodeURIComponent(assetId)}`,
-    { headers: { "X-API-Key": apiKey } },
+    {
+      // The workspace header is load-bearing: asset bytes live under the
+      // workspace's own directory server-side, so without it the route
+      // resolves the default workspace and 404s every non-default fetch
+      // (2026-10-04: covers rendered "No image bytes" in worker AND
+      // in-process modes for exactly this reason).
+      headers: {
+        "X-API-Key": apiKey,
+        ...(workspaceId !== undefined ? { "X-Workspace-Id": workspaceId } : {}),
+      },
+    },
   );
   if (!response.ok) {
     throw new Error(`asset download failed: HTTP ${response.status}`);
@@ -1127,7 +1142,7 @@ export class WorkspaceClient {
     if (info === undefined || !info.mimeType.startsWith("image/")) return null;
     if (this.restServerUrl === null || this.restApiKey === null) return null;
     try {
-      const blob = await fetchAssetBlob(this.restServerUrl, this.restApiKey, info.assetId);
+      const blob = await fetchAssetBlob(this.restServerUrl, this.restApiKey, info.assetId, this.workspaceId);
       return await readBlobAsDataUrl(blob);
     } catch {
       return null;
@@ -2624,7 +2639,7 @@ export class WorkspaceClient {
    */
   async fetchAssetBytes(assetId: string): Promise<Blob> {
     const { serverUrl, apiKey } = this.requireRest();
-    return fetchAssetBlob(serverUrl, apiKey, assetId);
+    return fetchAssetBlob(serverUrl, apiKey, assetId, this.workspaceId);
   }
 
   /**
